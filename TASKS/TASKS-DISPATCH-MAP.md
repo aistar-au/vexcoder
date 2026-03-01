@@ -1,7 +1,7 @@
 # Task Dispatch Map
 
 This is the full sequence across all tracks. Docs and TUI are independent
-tracks, so they can run in parallel across teams or sessions.
+tracks and can run in parallel across sessions.
 
 ## Active ADR Dispatch Manifests
 
@@ -10,8 +10,57 @@ Uncompleted dispatch ADRs live in `TASKS/` root.
 1. `TASKS/ADR-013-tui-completion-deployment-plan.md`
 2. `TASKS/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md`
 3. `TASKS/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md`
+4. `TASKS/ADR-022-free-open-coding-agent-roadmap.md`
 
-## Manifests Added In This Wave (6 Files)
+## ADR-022 Dispatch Manifests (Wave 1)
+
+Added with ADR-022 (2026-03-01):
+
+1. `TASKS/CORE-15-neutral-config-cutover.md`
+2. `TASKS/REF-09-model-backend-seam.md`
+3. `TASKS/FEAT-17-command-runner-core.md`
+4. `TASKS/FEAT-18-command-cancel-and-pty.md`
+5. `TASKS/CRIT-19-diff-native-write-flow.md`
+6. `TASKS/CORE-16-capability-approval-policy.md`
+7. `TASKS/CORE-17-task-state-persistence.md`
+8. `TASKS/FEAT-19-task-first-ui-shell.md`
+9. `TASKS/FEAT-20-changed-files-and-evidence-pane.md`
+10. `TASKS/CORE-18-repo-navigation-operator-surface.md`
+11. `TASKS/DOC-03-adr-022-migration-guide.md`
+
+## ADR-022 Sequencing
+
+```text
+CORE-15 ──► REF-09 ──► FEAT-17 ──► FEAT-18
+                           │
+                           └──► CRIT-19 ──► CORE-16 ──► CORE-17 ──► FEAT-19 ──► FEAT-20
+                                                  │
+                                                  └──► CORE-18
+
+CORE-15 ──► DOC-03 (parallel with REF-09)
+
+ADR-018 (must be green) ──► FEAT-19
+```
+
+## ADR-022 Execution Batches
+
+| Batch | Manifests | Gate |
+| :--- | :--- | :--- |
+| A — Foundation | CORE-15, DOC-03 | No dependencies |
+| B — Backend seam | REF-09 | CORE-15 green |
+| C — Execution core | FEAT-17, FEAT-18 | REF-09 green |
+| D — Safety + policy | CRIT-19, CORE-16 | FEAT-17 green |
+| E — Durability | CORE-17 | CORE-16 green |
+| F — UX | FEAT-19, FEAT-20 | ADR-018 green + CORE-17 green |
+| G — Autonomy | CORE-18 | CORE-16 green |
+
+No batch is promoted until all required dependency manifests are green.
+
+---
+
+## Prior Waves (TUI Track)
+
+### Manifests Added in Prior Wave
 
 1. `TASKS/ADR-013-tui-completion-deployment-plan.md`
 2. `TASKS/CORE-12-bounded-transcript.md`
@@ -20,24 +69,13 @@ Uncompleted dispatch ADRs live in `TASKS/` root.
 5. `TASKS/FEAT-15-scrollback-viewport.md`
 6. `TASKS/FEAT-16-idle-interrupt-input-drop-feedback.md`
 
-## Dispatch Immediately (No Dependencies)
-
-**CORE-14** (panic hook) must go first before any TUI work. Raw mode is already
-live and a panic during development can leave the terminal broken without it.
-
-**DOC-01** and **DOC-02** are editorial only and fully independent of
-everything else.
-
-## Docs Track (Independent Chain)
+### Docs Track (Independent Chain)
 
 ```text
 CORE-02 -> CORE-03 -> CORE-04
 ```
 
-`CORE-03` needs `book.toml` from `CORE-02` before workflow references are
-valid. `CORE-04` needs the build wiring from `CORE-03` before generator wiring.
-
-## TUI Track (Main Chain)
+### TUI Track (Main Chain)
 
 ```text
 CORE-09
@@ -59,7 +97,7 @@ CORE-09
   `- FEAT-16  (after CORE-10)
 ```
 
-## Flat Dispatch Order (With Parallelism)
+### Flat Dispatch Order (Prior Wave, With Parallelism)
 
 | Step | Task | Can run in parallel with |
 | :--- | :--- | :--- |
@@ -72,12 +110,7 @@ CORE-09
 | 7 | FEAT-11 | FEAT-10, FEAT-13, FEAT-14 |
 | 8 | FEAT-12 | FEAT-13, FEAT-14 |
 
-`CORE-12` (bounded transcript) and `FEAT-15` (scrollback) both touch
-`src/app/mod.rs` history state and can dispatch immediately after `CORE-09`
-without conflicting with `CORE-07`/`CORE-08` layout files. `FEAT-16` waits on
-`CORE-10` because they share the interrupt routing path.
-
-## Corrected Naming For The Five New Manifests
+### Task Naming Convention Reference
 
 | Old name | Correct name | Reason |
 | :--- | :--- | :--- |
