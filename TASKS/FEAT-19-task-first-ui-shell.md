@@ -24,12 +24,15 @@ the shell structure; evidence population is FEAT-20.
    order: header (fixed 1–2 rows), activity trail (proportional), output pane
    (proportional), input pane (fixed 3–4 rows).
 2. Add a `TaskLayoutState` struct to `src/app.rs` holding `task_id`, `status_line`,
-   `activity_rows: Vec<String>`, and `output_rows: Vec<String>`.
+   `activity_rows: Vec<String>`, `output_rows: Vec<String>`, and
+   `pending_approval: Option<String>` for the current approval prompt description.
 3. Route `src/ui/render.rs` to render all four regions from `TaskLayoutState` when
    a task is active. Conversation history is folded into the activity trail.
 4. The existing chat-only render path is retained as a fallback when no task is active.
-5. Approval prompts and status text are visible in header and input pane without
-   requiring a mode switch.
+5. The input pane renders a prompt line and an approval response line when
+   `TaskLayoutState::pending_approval` is `Some(description)`. The approval line
+   shows the capability description and `[y/n/s]` options. No mode switch is
+   required to reach it — it is always visible when an approval is pending.
 
 ---
 
@@ -40,7 +43,10 @@ the shell structure; evidence population is FEAT-20.
    region.
 3. Header shows task id and status string.
 4. Input pane renders a prompt line.
-5. `cargo test --all-targets` is green.
+5. When `pending_approval` is `Some(desc)`, the input pane renders the description
+   and `[y/n/s]` options.
+6. When `pending_approval` is `None`, no approval line appears.
+7. `cargo test --all-targets` is green.
 
 ---
 
@@ -60,14 +66,19 @@ fn test_task_layout_four_regions_render_without_panic() {
         status_line: "Running".into(),
         activity_rows: vec!["[ok] ReadFile: README.md".into()],
         output_rows: vec!["$ cargo test".into()],
+        pending_approval: Some("ApplyPatch: src/main.rs".into()),
     };
     terminal.draw(|f| render_task_layout(f, &state)).unwrap();
-    // must not panic; all four regions must fit within 24 rows
+    let rendered = terminal.backend().buffer().clone();
+    let flat: String = rendered.content().iter().map(|c| c.symbol()).collect();
+    // approval prompt must appear in rendered output
+    assert!(flat.contains("ApplyPatch"), "approval description must be visible");
+    assert!(flat.contains("[y/n/s]"), "approval options must be visible");
 }
 ```
 
 **What NOT to do:**
 - Do not remove the existing conversation render path entirely.
-- Do not add approval prompt handling to the TUI in this task — that is FEAT-20.
 - Do not modify `src/runtime/`, `src/tools/`, or `src/state/`.
 - Do not introduce new runtime dispatch paths.
+- Do not populate evidence rows or changed-files display in this task — that is FEAT-20.

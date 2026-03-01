@@ -25,12 +25,18 @@ meaningful status transition, and for interrupted tasks to be explicitly resumab
 pub struct TaskState {
     pub id: String,
     pub status: TaskStatus,
-    pub active_grants: std::collections::HashMap<String, ApprovalScope>,
+    pub active_grants: std::collections::HashMap<Capability, ApprovalScope>,
     pub changed_files: Vec<std::path::PathBuf>,
     pub command_history: Vec<CommandEvidence>,
+    pub conversation_snapshot: ConversationCheckpoint,
+    pub interrupted_sessions: Vec<InterruptedCommand>,
 }
 #[derive(Serialize, Deserialize)]
-pub struct CommandEvidence { pub program: String, pub exit_code: i32, pub interrupted: bool }
+pub struct CommandEvidence { pub program: String, pub exit_code: Option<i32>, pub interrupted: bool }
+#[derive(Serialize, Deserialize, Default)]
+pub struct ConversationCheckpoint { pub messages: Vec<serde_json::Value> }
+#[derive(Serialize, Deserialize)]
+pub struct InterruptedCommand { pub program: String, pub interrupted_at: String }
 ```
 
 2. Implement `TaskState::save(dir: &Path)` using atomic write:
@@ -47,10 +53,12 @@ pub struct CommandEvidence { pub program: String, pub exit_code: i32, pub interr
 
 1. `TaskState::save` writes a valid JSON file atomically.
 2. `TaskState::load` returns the same state that was saved.
-3. A state file written then loaded has identical `status`, `changed_files`, and
-   `active_grants`.
-4. Interrupted command entries have `interrupted = true` after reload.
-5. `cargo test --all-targets` is green.
+3. A state file written then loaded has identical `status`, `changed_files`,
+   `active_grants`, `conversation_snapshot`, and `interrupted_sessions`.
+4. `CommandEvidence` entries with `exit_code: None` have `interrupted = true` after
+   reload.
+5. `active_grants` keys are `Capability` enum variants, not raw strings.
+6. `cargo test --all-targets` is green.
 
 ---
 
@@ -62,17 +70,27 @@ pub struct CommandEvidence { pub program: String, pub exit_code: i32, pub interr
 #[test]
 fn test_task_state_survives_atomic_write_and_reload() {
     let dir = tempfile::tempdir().unwrap();
-    let mut state = TaskState {
+    let state = TaskState {
         id: "task-001".into(),
         status: TaskStatus::Completed,
-        active_grants: Default::default(),
+        active_grants: std::collections::HashMap::from([
+            (Capability::ApplyPatch, ApprovalScope::Once),
+        ]),
         changed_files: vec![std::path::PathBuf::from("src/main.rs")],
-        command_history: vec![],
+        command_history: vec![
+            CommandEvidence { program: "cargo test".into(), exit_code: None, interrupted: true },
+        ],
+        conversation_snapshot: ConversationCheckpoint::default(),
+        interrupted_sessions: vec![
+            InterruptedCommand { program: "cargo build".into(), interrupted_at: "2026-03-01T00:00:00Z".into() },
+        ],
     };
     state.save(dir.path()).expect("save failed");
     let loaded = TaskState::load(dir.path(), "task-001").expect("load failed");
     assert_eq!(loaded.status, TaskStatus::Completed);
     assert_eq!(loaded.changed_files, state.changed_files);
+    assert!(loaded.command_history[0].interrupted);
+    assert_eq!(loaded.interrupted_sessions.len(), 1);
 }
 ```
 

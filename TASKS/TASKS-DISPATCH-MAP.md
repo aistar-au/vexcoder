@@ -63,8 +63,8 @@ No batch is promoted until all required dependency manifests are green.
 ### Manifests Added in Prior Wave
 
 1. `TASKS/ADR-013-tui-completion-deployment-plan.md`
-2. `TASKS/CORE-12-bounded-transcript.md`
-3. `TASKS/CORE-13-dirty-render-guard.md`
+2. `TASKS/completed/CORE-12-bounded-transcript.md`
+3. `TASKS/completed/CORE-13-dirty-render-guard.md`
 4. `TASKS/completed/CORE-14-panic-hook-terminal-restore.md`
 5. `TASKS/FEAT-15-scrollback-viewport.md`
 6. `TASKS/FEAT-16-idle-interrupt-input-drop-feedback.md`
