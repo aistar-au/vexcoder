@@ -49,11 +49,11 @@ data sources into the layout introduced by FEAT-19.
 
 ## Anchor Verification
 
-`test_changed_files_appear_in_task_evidence_after_patch`
+`test_changed_files_and_live_approval_prompt_render`
 
 ```rust
 #[test]
-fn test_changed_files_appear_in_task_evidence_after_patch() {
+fn test_changed_files_and_live_approval_prompt_render() {
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
     let backend = TestBackend::new(80, 24);
@@ -64,11 +64,14 @@ fn test_changed_files_appear_in_task_evidence_after_patch() {
         activity_rows: vec!["[?] ApplyPatch: src/main.rs".into()],
         output_rows: vec![],
         changed_files: vec!["src/main.rs".into()],
+        pending_approval: Some("ApplyPatch: src/main.rs".into()),
     };
     terminal.draw(|f| render_task_layout(f, &state)).unwrap();
     let rendered = terminal.backend().buffer().clone();
     let flat: String = rendered.content().iter().map(|c| c.symbol()).collect();
     assert!(flat.contains("src/main.rs"), "changed file must appear in rendered output");
+    assert!(flat.contains("ApplyPatch"), "approval prompt must appear in rendered output");
+    assert!(flat.contains("[y/n/s]"), "approval choices must appear in rendered output");
 }
 ```
 

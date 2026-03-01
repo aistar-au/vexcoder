@@ -23,7 +23,7 @@ meaningful status transition, and for interrupted tasks to be explicitly resumab
 ```rust
 #[derive(Serialize, Deserialize)]
 pub struct TaskState {
-    pub id: String,
+    pub id: TaskId,
     pub status: TaskStatus,
     pub active_grants: std::collections::HashMap<Capability, ApprovalScope>,
     pub changed_files: Vec<std::path::PathBuf>,
@@ -71,7 +71,7 @@ pub struct InterruptedCommand { pub program: String, pub interrupted_at: String 
 fn test_task_state_survives_atomic_write_and_reload() {
     let dir = tempfile::tempdir().unwrap();
     let state = TaskState {
-        id: "task-001".into(),
+        id: TaskId::from("task-001"),
         status: TaskStatus::Completed,
         active_grants: std::collections::HashMap::from([
             (Capability::ApplyPatch, ApprovalScope::Once),

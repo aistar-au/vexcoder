@@ -66,8 +66,8 @@ No batch is promoted until all required dependency manifests are green.
 2. `TASKS/completed/CORE-12-bounded-transcript.md`
 3. `TASKS/completed/CORE-13-dirty-render-guard.md`
 4. `TASKS/completed/CORE-14-panic-hook-terminal-restore.md`
-5. `TASKS/FEAT-15-scrollback-viewport.md`
-6. `TASKS/FEAT-16-idle-interrupt-input-drop-feedback.md`
+5. `TASKS/completed/FEAT-15-scrollback-viewport.md`
+6. `TASKS/completed/FEAT-16-idle-interrupt-input-drop-feedback.md`
 
 ### Docs Track (Independent Chain)
 
