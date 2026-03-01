@@ -24,6 +24,7 @@ store ADR files.
 | [ADR-013](ADR-013-tui-completion-deployment-plan.md) | TUI completion and deployment plan | Proposed |
 | [ADR-018](ADR-018-managed-tui-scrollback-streaming-cell-overlays.md) | Managed TUI scrollback, streaming cell, overlays | Proposed |
 | [ADR-021](ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md) | Codebase audit: dead weight, duplication, and shared-code opportunities | Accepted (follow-up maintenance items remain) |
+| [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed |
 
 ## Completed ADR Records
 
