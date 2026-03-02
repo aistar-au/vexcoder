@@ -241,6 +241,17 @@ pub(super) fn execute_tool_dispatch(
             "message",
             &["message", "msg", "commit_message"],
         )?),
+        "search_content" => {
+            let query = required_tool_string(input, name, "query")?;
+            let path_glob = input.get("path_glob").and_then(|v| v.as_str());
+            let matches = tool_operator.search_content(query, path_glob)?;
+            Ok(matches.iter().map(|m| format!("{}:{}: {}", m.file.display(), m.line_number, m.line_text)).collect::<Vec<_>>().join("\n"))
+        }
+        "find_files" => {
+            let name_glob = required_tool_string(input, name, "name_glob")?;
+            let files = tool_operator.find_files(name_glob)?;
+            Ok(files.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join("\n"))
+        }
         _ => bail!("Unknown tool: {name}"),
     }
 }

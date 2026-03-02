@@ -1,6 +1,7 @@
 use crate::ui::input_metrics::{
     char_display_width, cursor_row_col, truncate_to_display_width, wrap_input_lines,
 };
+use crate::ui::layout::TaskLayoutState;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -188,6 +189,83 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
         Paragraph::new(text).style(Style::default().fg(Color::DarkGray)),
         area,
     );
+}
+
+/// Render the four-region task-first layout
+pub fn render_task_layout(
+    frame: &mut Frame<'_>,
+    header_area: Rect,
+    activity_area: Rect,
+    output_area: Rect,
+    input_area: Rect,
+    state: &TaskLayoutState,
+    input_buffer: &str,
+    cursor_byte: usize,
+) {
+    // Header with status line
+    render_status_line(frame, header_area, &state.status_line);
+
+    // Activity trail with status markers
+    let activity_text: Vec<Line> = state
+        .activity_rows
+        .iter()
+        .map(|row| {
+            // Add status markers based on content
+            let styled = if row.starts_with("[ok]") {
+                Line::styled(row.to_string(), Style::default().fg(Color::Green))
+            } else if row.starts_with("[!]") {
+                Line::styled(row.to_string(), Style::default().fg(Color::Red))
+            } else if row.starts_with("[->]") {
+                Line::styled(row.to_string(), Style::default().fg(Color::Cyan))
+            } else if row.starts_with("[?]") {
+                Line::styled(row.to_string(), Style::default().fg(Color::Yellow))
+            } else {
+                Line::from(row.to_string())
+            };
+            styled
+        })
+        .collect();
+    frame.render_widget(
+        Paragraph::new(Text::from(activity_text))
+            .block(Block::default().borders(Borders::NONE).title("Activity")),
+        activity_area,
+    );
+
+    // Output pane with scrollable content and changed files
+    let mut output_lines: Vec<Line> = Vec::new();
+
+    // Add changed files section if present
+    if !state.changed_files.is_empty() {
+        output_lines.push(Line::styled(
+            "Changed files:",
+            Style::default().add_modifier(Modifier::BOLD),
+        ));
+        for file in &state.changed_files {
+            output_lines.push(Line::from(format!("  • {}", file)));
+        }
+        output_lines.push(Line::from(""));
+    }
+
+    // Add output rows
+    for row in &state.output_rows {
+        output_lines.push(Line::from(row.to_string()));
+    }
+
+    frame.render_widget(
+        Paragraph::new(Text::from(output_lines))
+            .block(Block::default().borders(Borders::NONE).title("Output"))
+            .wrap(Wrap { trim: false }),
+        output_area,
+    );
+
+    // Input pane with optional approval prompt
+    let input_content = if let Some(ref approval) = state.pending_approval {
+        format!("{}\n[y/n/s] ", approval)
+    } else {
+        input_buffer.to_string()
+    };
+
+    render_input(frame, input_area, &input_content, cursor_byte);
 }
 
 pub fn render_overlay_modal(frame: &mut Frame<'_>, modal: OverlayModal<'_>) {

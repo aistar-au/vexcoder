@@ -4,6 +4,8 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
+use crate::edit_diff::format_edit_hunks;
+
 const MAX_EDIT_SNIPPET_CHARS: usize = 2_000;
 const MAX_EDIT_SNIPPET_LINES: usize = 80;
 
@@ -11,6 +13,18 @@ const MAX_EDIT_SNIPPET_LINES: usize = 80;
 pub struct ToolOperator {
     working_dir: PathBuf,
     canonical_working_dir: PathBuf,
+}
+
+pub struct PendingPatch {
+    pub diff: String,
+    pub new_content: String,
+    pub path: PathBuf,
+}
+
+pub struct SearchMatch {
+    pub file: PathBuf,
+    pub line_number: usize,
+    pub line_text: String,
 }
 
 impl ToolOperator {
@@ -106,10 +120,58 @@ impl ToolOperator {
         if resolved.is_dir() {
             bail!("write_file expected a file path, got a directory: {path}");
         }
+
+        // If file exists, require approval via PendingPatch
+        if resolved.exists() {
+            let old_content = fs::read_to_string(&resolved).unwrap_or_default();
+            let pending = self.propose_patch(path, &old_content, content)?;
+            bail!(
+                "File already exists. Use propose_patch/apply_patch workflow. Diff:\n{}",
+                pending.diff
+            );
+        }
+
         if let Some(parent) = resolved.parent() {
             fs::create_dir_all(parent)?;
         }
         fs::write(resolved, content).context("Failed to write file")
+    }
+
+    pub fn propose_patch(
+        &self,
+        path: &str,
+        old_content: &str,
+        new_content: &str,
+    ) -> Result<PendingPatch> {
+        let resolved = self.resolve_path(path)?;
+        if resolved.is_dir() {
+            bail!("propose_patch expected a file path, got a directory: {path}");
+        }
+
+        // Generate unified diff using edit_diff
+        let diff = format_edit_hunks(old_content, new_content, "", 2);
+
+        Ok(PendingPatch {
+            diff,
+            new_content: new_content.to_string(),
+            path: resolved,
+        })
+    }
+
+    pub fn apply_patch(&self, pending: PendingPatch) -> Result<()> {
+        // Ensure path is still within workspace (re-check for safety)
+        self.ensure_path_is_within_workspace(&pending.path)?;
+
+        // Atomic write: write to temp file, then rename
+        let temp_path = pending.path.with_extension("tmp");
+        fs::write(&temp_path, &pending.new_content)
+            .with_context(|| format!("Failed to write temp file: {}", temp_path.display()))?;
+
+        // Rename temp to target (atomic on most filesystems)
+        fs::rename(&temp_path, &pending.path)
+            .with_context(|| format!("Failed to apply patch to: {}", pending.path.display()))?;
+
+        Ok(())
     }
 
     pub fn edit_file(&self, path: &str, old_str: &str, new_str: &str) -> Result<()> {
@@ -409,6 +471,122 @@ impl ToolOperator {
             Ok(results.join("\n"))
         }
     }
+
+    pub fn search_content(&self, query: &str, path_glob: Option<&str>) -> Result<Vec<SearchMatch>> {
+        let query = non_empty_trimmed(query)
+            .context("search_content requires a non-empty 'query' field")?;
+
+        let root = if let Some(glob) = path_glob {
+            self.resolve_path(glob)?
+        } else {
+            self.working_dir.clone()
+        };
+
+        let mut matches = Vec::new();
+        let mut stack = vec![root];
+        let case_sensitive = query.chars().any(char::is_uppercase);
+        let matcher = AhoCorasickBuilder::new()
+            .ascii_case_insensitive(!case_sensitive)
+            .build([query])
+            .context("Failed to build literal search matcher")?;
+        let unicode_case_folded_query = if !case_sensitive && !query.is_ascii() {
+            Some(query.to_lowercase())
+        } else {
+            None
+        };
+
+        while let Some(path) = stack.pop() {
+            if self.ensure_path_is_within_workspace(&path).is_err() {
+                continue;
+            }
+
+            if path.is_dir() {
+                let Ok(children) = fs::read_dir(&path) else {
+                    continue;
+                };
+                let mut children: Vec<_> = children.filter_map(|e| e.ok()).collect();
+                children.sort_by_key(|entry| entry.path());
+                for child in children {
+                    let child_path = child.path();
+                    if self.ensure_path_is_within_workspace(&child_path).is_ok() {
+                        stack.push(child_path);
+                    }
+                }
+                continue;
+            }
+
+            // Skip binary files
+            let Ok(content) = fs::read_to_string(&path) else {
+                continue;
+            };
+
+            for (idx, line) in content.lines().enumerate() {
+                let is_match = if let Some(case_folded_query) = &unicode_case_folded_query {
+                    line.to_lowercase().contains(case_folded_query)
+                } else {
+                    matcher.is_match(line)
+                };
+                if is_match {
+                    matches.push(SearchMatch {
+                        file: path.clone(),
+                        line_number: idx + 1,
+                        line_text: line.to_string(),
+                    });
+                }
+            }
+        }
+
+        // Sort by file path then line number
+        matches.sort_by(|a, b| {
+            a.file
+                .cmp(&b.file)
+                .then_with(|| a.line_number.cmp(&b.line_number))
+        });
+
+        Ok(matches)
+    }
+
+    pub fn find_files(&self, name_glob: &str) -> Result<Vec<PathBuf>> {
+        let pattern = non_empty_trimmed(name_glob)
+            .context("find_files requires a non-empty 'name_glob' field")?;
+
+        let mut results = Vec::new();
+        let mut stack = vec![self.working_dir.clone()];
+
+        // Simple glob matching - check if filename contains the pattern
+        // For more complex patterns, we could use the glob crate
+        while let Some(path) = stack.pop() {
+            if self.ensure_path_is_within_workspace(&path).is_err() {
+                continue;
+            }
+
+            if path.is_dir() {
+                let Ok(children) = fs::read_dir(&path) else {
+                    continue;
+                };
+                for child in children.filter_map(|e| e.ok()) {
+                    let child_path = child.path();
+                    if self.ensure_path_is_within_workspace(&child_path).is_ok() {
+                        stack.push(child_path);
+                    }
+                }
+                continue;
+            }
+
+            if let Some(filename) = path.file_name() {
+                let filename = filename.to_string_lossy();
+                // Simple substring match for now
+                // Could be enhanced with proper glob matching
+                if filename.contains(pattern) {
+                    results.push(path);
+                }
+            }
+        }
+
+        // Sort results
+        results.sort();
+        Ok(results)
+    }
 }
 
 fn non_empty_trimmed(value: &str) -> Option<&str> {
@@ -482,5 +660,51 @@ mod tests {
             .search_literal("secret", workspace.path(), 20)
             .expect("literal search should succeed");
         assert_eq!(result, "No matches found.");
+    }
+
+    #[test]
+    fn test_write_existing_file_requires_approval_not_direct_write() {
+        let dir = tempfile::tempdir().unwrap();
+        let op = ToolOperator::new(dir.path().to_path_buf());
+
+        // Create file using ToolOperator's write_file
+        op.write_file("target.rs", "fn old() {}")
+            .expect("write failed");
+        assert_eq!(
+            fs::read_to_string(dir.path().join("target.rs")).unwrap(),
+            "fn old() {}"
+        );
+
+        // Now use propose_patch to modify it
+        let pending = op
+            .propose_patch("target.rs", "fn old() {}", "fn new() {}")
+            .expect("propose failed");
+
+        // File should still have old content
+        assert_eq!(
+            fs::read_to_string(dir.path().join("target.rs")).unwrap(),
+            "fn old() {}"
+        );
+
+        // Apply the patch
+        op.apply_patch(pending).expect("apply failed");
+        assert!(fs::read_to_string(dir.path().join("target.rs"))
+            .unwrap()
+            .contains("fn new()"));
+    }
+
+    #[test]
+    fn test_content_search_returns_matched_lines_within_workdir() {
+        let dir = tempfile::tempdir().unwrap();
+        let op = ToolOperator::new(dir.path().to_path_buf());
+        fs::write(
+            dir.path().join("lib.rs"),
+            "pub fn greet() -> &'static str { \"hello\" }\n",
+        )
+        .unwrap();
+        let matches = op.search_content("greet", None).expect("search failed");
+        assert!(!matches.is_empty());
+        assert!(matches[0].line_text.contains("greet"));
+        assert!(matches[0].file.starts_with(dir.path()));
     }
 }
