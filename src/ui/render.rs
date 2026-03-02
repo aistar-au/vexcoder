@@ -1,7 +1,8 @@
 use crate::ui::input_metrics::{
     char_display_width, cursor_row_col, truncate_to_display_width, wrap_input_lines,
 };
-use crate::ui::layout::TaskLayoutState;
+use crate::app::TaskLayoutState;
+use crate::ui::layout::split_four_region_layout;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -194,18 +195,19 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
 /// Render the four-region task-first layout
 pub fn render_task_layout(
     frame: &mut Frame<'_>,
-    header_area: Rect,
-    activity_area: Rect,
-    output_area: Rect,
-    input_area: Rect,
     state: &TaskLayoutState,
-    input_buffer: &str,
-    cursor_byte: usize,
 ) {
-    // Header with status line
-    render_status_line(frame, header_area, &state.status_line);
+    let layout = split_four_region_layout(frame.area(), 2, 3);
 
-    // Activity trail with status markers
+    let mut header_lines = vec![Line::from(state.status_line.clone())];
+    if !state.changed_files.is_empty() {
+        header_lines.push(Line::from(format!(
+            "files: {}",
+            state.changed_files.join(", ")
+        )));
+    }
+    frame.render_widget(Paragraph::new(Text::from(header_lines)), layout.header);
+
     let activity_text: Vec<Line> = state
         .activity_rows
         .iter()
@@ -228,44 +230,31 @@ pub fn render_task_layout(
     frame.render_widget(
         Paragraph::new(Text::from(activity_text))
             .block(Block::default().borders(Borders::NONE).title("Activity")),
-        activity_area,
+        layout.activity,
     );
 
-    // Output pane with scrollable content and changed files
-    let mut output_lines: Vec<Line> = Vec::new();
-
-    // Add changed files section if present
-    if !state.changed_files.is_empty() {
-        output_lines.push(Line::styled(
-            "Changed files:",
-            Style::default().add_modifier(Modifier::BOLD),
-        ));
-        for file in &state.changed_files {
-            output_lines.push(Line::from(format!("  • {}", file)));
-        }
-        output_lines.push(Line::from(""));
-    }
-
-    // Add output rows
-    for row in &state.output_rows {
-        output_lines.push(Line::from(row.to_string()));
-    }
+    let output_lines: Vec<Line> = state
+        .output_rows
+        .iter()
+        .map(|row| Line::from(row.to_string()))
+        .collect();
 
     frame.render_widget(
         Paragraph::new(Text::from(output_lines))
             .block(Block::default().borders(Borders::NONE).title("Output"))
             .wrap(Wrap { trim: false }),
-        output_area,
+        layout.output,
     );
 
-    // Input pane with optional approval prompt
     let input_content = if let Some(ref approval) = state.pending_approval {
         format!("{}\n[y/n/s] ", approval)
     } else {
-        input_buffer.to_string()
+        "> ".to_string()
     };
-
-    render_input(frame, input_area, &input_content, cursor_byte);
+    frame.render_widget(
+        Paragraph::new(input_content).wrap(Wrap { trim: false }),
+        layout.input,
+    );
 }
 
 pub fn render_overlay_modal(frame: &mut Frame<'_>, modal: OverlayModal<'_>) {

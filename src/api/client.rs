@@ -43,6 +43,7 @@ pub struct ApiClient {
     api_key: Option<String>,
     model: String,
     api_url: String,
+    model_backend: ModelBackendKind,
     model_protocol: ModelProtocol,
     tool_call_mode: ToolCallMode,
     #[cfg(test)]
@@ -62,6 +63,7 @@ impl ApiClient {
             api_key: config.model_token.clone(),
             model: config.model_name.clone(),
             api_url: config.model_url.clone(),
+            model_backend: config.model_backend,
             model_protocol: config.model_protocol,
             tool_call_mode: config.tool_call_mode,
             #[cfg(test)]
@@ -76,6 +78,7 @@ impl ApiClient {
             api_key: None,
             model: "mock-model".to_string(),
             api_url: "http://localhost:8000/v1/messages".to_string(),
+            model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
             mock_stream_producer: Some(mock_producer),
@@ -209,11 +212,7 @@ impl ApiClient {
 
 impl ModelBackend for ApiClient {
     fn backend_kind(&self) -> ModelBackendKind {
-        if self.is_local_endpoint() {
-            ModelBackendKind::LocalRuntime
-        } else {
-            ModelBackendKind::ApiServer
-        }
+        self.model_backend
     }
 
     fn protocol(&self) -> ModelProtocol {

@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Capability {
     ReadFile,
     WriteFile,
@@ -12,7 +13,7 @@ pub enum Capability {
     Browser,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ApprovalScope {
     Once,
     Task,
@@ -110,12 +111,12 @@ impl ApprovalPolicy for FileApprovalPolicy {
                 let value = value.trim().trim_matches('"').trim_matches('\'');
 
                 let capability = match key {
-                    "read_file" => Some(Capability::ReadFile),
-                    "write_file" => Some(Capability::WriteFile),
-                    "apply_patch" => Some(Capability::ApplyPatch),
-                    "run_command" => Some(Capability::RunCommand),
-                    "network" => Some(Capability::Network),
-                    "browser" => Some(Capability::Browser),
+                    "ReadFile" | "read_file" => Some(Capability::ReadFile),
+                    "WriteFile" | "write_file" => Some(Capability::WriteFile),
+                    "ApplyPatch" | "apply_patch" => Some(Capability::ApplyPatch),
+                    "RunCommand" | "run_command" => Some(Capability::RunCommand),
+                    "Network" | "network" => Some(Capability::Network),
+                    "Browser" | "browser" => Some(Capability::Browser),
                     _ => None,
                 };
 

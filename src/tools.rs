@@ -1,3 +1,3 @@
 mod operator;
 
-pub use operator::ToolOperator;
+pub use operator::{ToolOperator, WriteFileOutcome};

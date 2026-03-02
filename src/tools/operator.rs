@@ -21,6 +21,11 @@ pub struct PendingPatch {
     pub path: PathBuf,
 }
 
+pub enum WriteFileOutcome {
+    Written,
+    Pending(PendingPatch),
+}
+
 pub struct SearchMatch {
     pub file: PathBuf,
     pub line_number: usize,
@@ -115,26 +120,24 @@ impl ToolOperator {
         fs::read_to_string(resolved).context("Failed to read file")
     }
 
-    pub fn write_file(&self, path: &str, content: &str) -> Result<()> {
+    pub fn write_file(&self, path: &str, content: &str) -> Result<WriteFileOutcome> {
         let resolved = self.resolve_path(path)?;
         if resolved.is_dir() {
             bail!("write_file expected a file path, got a directory: {path}");
         }
 
-        // If file exists, require approval via PendingPatch
         if resolved.exists() {
             let old_content = fs::read_to_string(&resolved).unwrap_or_default();
-            let pending = self.propose_patch(path, &old_content, content)?;
-            bail!(
-                "File already exists. Use propose_patch/apply_patch workflow. Diff:\n{}",
-                pending.diff
-            );
+            return self
+                .propose_patch(path, &old_content, content)
+                .map(WriteFileOutcome::Pending);
         }
 
         if let Some(parent) = resolved.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(resolved, content).context("Failed to write file")
+        fs::write(resolved, content).context("Failed to write file")?;
+        Ok(WriteFileOutcome::Written)
     }
 
     pub fn propose_patch(
@@ -475,15 +478,10 @@ impl ToolOperator {
     pub fn search_content(&self, query: &str, path_glob: Option<&str>) -> Result<Vec<SearchMatch>> {
         let query = non_empty_trimmed(query)
             .context("search_content requires a non-empty 'query' field")?;
-
-        let root = if let Some(glob) = path_glob {
-            self.resolve_path(glob)?
-        } else {
-            self.working_dir.clone()
-        };
+        let glob_pattern = path_glob.and_then(non_empty_trimmed);
 
         let mut matches = Vec::new();
-        let mut stack = vec![root];
+        let mut stack = vec![self.working_dir.clone()];
         let case_sensitive = query.chars().any(char::is_uppercase);
         let matcher = AhoCorasickBuilder::new()
             .ascii_case_insensitive(!case_sensitive)
@@ -515,7 +513,16 @@ impl ToolOperator {
                 continue;
             }
 
-            // Skip binary files
+            let relative = path
+                .strip_prefix(&self.working_dir)
+                .unwrap_or_else(|_| Path::new(""));
+            if let Some(pattern) = glob_pattern {
+                let candidate = relative.to_string_lossy();
+                if !glob_matches(pattern, &candidate) {
+                    continue;
+                }
+            }
+
             let Ok(content) = fs::read_to_string(&path) else {
                 continue;
             };
@@ -553,8 +560,6 @@ impl ToolOperator {
         let mut results = Vec::new();
         let mut stack = vec![self.working_dir.clone()];
 
-        // Simple glob matching - check if filename contains the pattern
-        // For more complex patterns, we could use the glob crate
         while let Some(path) = stack.pop() {
             if self.ensure_path_is_within_workspace(&path).is_err() {
                 continue;
@@ -573,17 +578,15 @@ impl ToolOperator {
                 continue;
             }
 
-            if let Some(filename) = path.file_name() {
-                let filename = filename.to_string_lossy();
-                // Simple substring match for now
-                // Could be enhanced with proper glob matching
-                if filename.contains(pattern) {
-                    results.push(path);
-                }
+            let relative = path
+                .strip_prefix(&self.working_dir)
+                .unwrap_or_else(|_| Path::new(""));
+            let candidate = relative.to_string_lossy();
+            if glob_matches(pattern, &candidate) {
+                results.push(path);
             }
         }
 
-        // Sort results
         results.sort();
         Ok(results)
     }
@@ -596,6 +599,42 @@ fn non_empty_trimmed(value: &str) -> Option<&str> {
     } else {
         Some(trimmed)
     }
+}
+
+fn glob_matches(pattern: &str, candidate: &str) -> bool {
+    wildcard_match(pattern.as_bytes(), candidate.as_bytes())
+}
+
+fn wildcard_match(pattern: &[u8], text: &[u8]) -> bool {
+    let mut pattern_idx = 0usize;
+    let mut text_idx = 0usize;
+    let mut star_idx: Option<usize> = None;
+    let mut retry_text_idx = 0usize;
+
+    while text_idx < text.len() {
+        if pattern_idx < pattern.len()
+            && (pattern[pattern_idx] == b'?' || pattern[pattern_idx] == text[text_idx])
+        {
+            pattern_idx += 1;
+            text_idx += 1;
+        } else if pattern_idx < pattern.len() && pattern[pattern_idx] == b'*' {
+            star_idx = Some(pattern_idx);
+            pattern_idx += 1;
+            retry_text_idx = text_idx;
+        } else if let Some(star) = star_idx {
+            pattern_idx = star + 1;
+            retry_text_idx += 1;
+            text_idx = retry_text_idx;
+        } else {
+            return false;
+        }
+    }
+
+    while pattern_idx < pattern.len() && pattern[pattern_idx] == b'*' {
+        pattern_idx += 1;
+    }
+
+    pattern_idx == pattern.len()
 }
 
 fn should_skip_list_entry(root: &Path, working_dir: &Path, name: &str) -> bool {

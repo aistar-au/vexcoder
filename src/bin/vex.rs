@@ -10,7 +10,7 @@ use vexcoder::ui::editor::{InputAction, InputEditor};
 use vexcoder::ui::layout::split_three_pane_layout;
 use vexcoder::ui::render::{
     history_content_width_for_area, input_visual_rows, render_input, render_messages,
-    render_overlay_modal, render_status_line, OverlayModal,
+    render_overlay_modal, render_status_line, render_task_layout, OverlayModal,
 };
 
 const STARTUP_NOISE_GUARD: Duration = Duration::from_secs(15);
@@ -276,39 +276,44 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
         let _ = self.terminal.draw(|frame| {
             let area = frame.area();
             frame.render_widget(Clear, area);
-            let input_width = area.width.saturating_sub(2).max(1) as usize;
-            let input_rows = input_visual_rows(&input, input_width).max(1) as u16;
-            let panes = split_three_pane_layout(area, input_rows);
-            let history_width = history_content_width_for_area(mode.history_lines(), panes.history);
-            mode.set_history_content_width(history_width);
+            if let Some(task_state) = mode.task_layout_state() {
+                render_task_layout(frame, &task_state);
+            } else {
+                let input_width = area.width.saturating_sub(2).max(1) as usize;
+                let input_rows = input_visual_rows(&input, input_width).max(1) as u16;
+                let panes = split_three_pane_layout(area, input_rows);
+                let history_width =
+                    history_content_width_for_area(mode.history_lines(), panes.history);
+                mode.set_history_content_width(history_width);
 
-            let status = mode.status_line();
-            let history_scroll = mode.history_scroll_offset();
+                let status = mode.status_line();
+                let history_scroll = mode.history_scroll_offset();
 
-            render_status_line(frame, panes.header, &status);
-            render_messages(frame, panes.history, mode.history_lines(), history_scroll);
-            render_input(frame, panes.input, &input, cursor);
+                render_status_line(frame, panes.header, &status);
+                render_messages(frame, panes.history, mode.history_lines(), history_scroll);
+                render_input(frame, panes.input, &input, cursor);
 
-            if let Some((patch_preview, scroll_offset)) = mode.pending_patch_overlay() {
-                render_overlay_modal(
-                    frame,
-                    OverlayModal::PatchApprove {
-                        patch_preview,
-                        scroll_offset,
-                        viewport_rows: panes.history.height.max(1) as usize,
-                    },
-                );
-            } else if let Some((tool_name, input_preview, auto_approve_enabled)) =
-                mode.pending_tool_overlay()
-            {
-                render_overlay_modal(
-                    frame,
-                    OverlayModal::ToolPermission {
-                        tool_name,
-                        input_preview,
-                        auto_approve_enabled,
-                    },
-                );
+                if let Some((patch_preview, scroll_offset)) = mode.pending_patch_overlay() {
+                    render_overlay_modal(
+                        frame,
+                        OverlayModal::PatchApprove {
+                            patch_preview,
+                            scroll_offset,
+                            viewport_rows: panes.history.height.max(1) as usize,
+                        },
+                    );
+                } else if let Some((tool_name, input_preview, auto_approve_enabled)) =
+                    mode.pending_tool_overlay()
+                {
+                    render_overlay_modal(
+                        frame,
+                        OverlayModal::ToolPermission {
+                            tool_name,
+                            input_preview,
+                            auto_approve_enabled,
+                        },
+                    );
+                }
             }
         });
     }

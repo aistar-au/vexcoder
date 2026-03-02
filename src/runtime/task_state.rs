@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub type TaskId = String;
@@ -70,11 +71,16 @@ impl TaskState {
         let final_path = dir.join(format!("{}.json", self.id));
 
         // Serialize to JSON
-        let json = serde_json::to_string_pretty(self).context("Failed to serialize task state")?;
+        let json = serde_json::to_vec_pretty(self).context("Failed to serialize task state")?;
 
-        // Write to temp file
-        std::fs::write(&temp_path, json)
+        // Write to temp file and flush contents before rename.
+        let mut file = std::fs::File::create(&temp_path)
+            .with_context(|| format!("Failed to create temp state file: {}", temp_path.display()))?;
+        file.write_all(&json)
             .with_context(|| format!("Failed to write temp state file: {}", temp_path.display()))?;
+        file.sync_all()
+            .with_context(|| format!("Failed to flush temp state file: {}", temp_path.display()))?;
+        drop(file);
 
         // Atomic rename
         std::fs::rename(&temp_path, &final_path)
