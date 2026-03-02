@@ -51,13 +51,17 @@ pub struct PtySession {
 }
 
 pub trait CommandRunner: Send + Sync {
-    async fn run_one_shot(&self, req: CommandRequest) -> Result<CommandResult>;
-    async fn run_streaming(
+    fn run_one_shot(
+        &self,
+        req: CommandRequest,
+    ) -> impl std::future::Future<Output = Result<CommandResult>> + Send;
+    fn run_streaming(
         &self,
         req: CommandRequest,
         tx: tokio::sync::mpsc::Sender<OutputChunk>,
-    ) -> Result<CommandHandle>;
-    async fn cancel(&self, handle: CommandHandle) -> Result<()>;
+    ) -> impl std::future::Future<Output = Result<CommandHandle>> + Send;
+    fn cancel(&self, handle: CommandHandle)
+        -> impl std::future::Future<Output = Result<()>> + Send;
     fn attach_pty(&self, req: CommandRequest) -> Result<PtySession>;
 }
 

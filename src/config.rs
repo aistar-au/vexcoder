@@ -36,7 +36,7 @@ impl Config {
         let model_backend = std::env::var("VEX_MODEL_BACKEND")
             .ok()
             .and_then(parse_model_backend)
-            .unwrap_or_else(|| {
+            .unwrap_or({
                 if is_local {
                     ModelBackendKind::LocalRuntime
                 } else {
@@ -52,7 +52,7 @@ impl Config {
         let tool_call_mode = std::env::var("VEX_TOOL_CALL_MODE")
             .ok()
             .and_then(parse_tool_call_mode)
-            .unwrap_or_else(|| {
+            .unwrap_or({
                 if is_local {
                     ToolCallMode::TaggedFallback
                 } else {

@@ -34,8 +34,8 @@ pub struct FourRegionLayout {
 }
 
 pub fn split_four_region_layout(area: Rect, header_rows: u16, input_rows: u16) -> FourRegionLayout {
-    let header_rows = header_rows.max(1).min(2);
-    let input_rows = input_rows.max(3).min(4);
+    let header_rows = header_rows.clamp(1, 2);
+    let input_rows = input_rows.clamp(3, 4);
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)

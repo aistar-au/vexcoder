@@ -40,7 +40,7 @@ pub struct FileApprovalPolicy {
 }
 
 impl FileApprovalPolicy {
-    pub fn default() -> Self {
+    fn default_rules() -> HashMap<Capability, PolicyAction> {
         let mut rules = HashMap::new();
         // Default policy: ReadFile -> Allow, all others -> Prompt(Once)
         rules.insert(Capability::ReadFile, PolicyAction::Allow);
@@ -64,7 +64,7 @@ impl FileApprovalPolicy {
             Capability::Browser,
             PolicyAction::Prompt(ApprovalScope::Once),
         );
-        Self { rules }
+        rules
     }
 
     fn parse_toml_value(value: &str) -> Option<PolicyAction> {
@@ -81,7 +81,9 @@ impl FileApprovalPolicy {
 
 impl Default for FileApprovalPolicy {
     fn default() -> Self {
-        Self::default()
+        Self {
+            rules: Self::default_rules(),
+        }
     }
 }
 
@@ -129,9 +131,9 @@ impl ApprovalPolicy for FileApprovalPolicy {
         }
 
         // Fill in defaults for unspecified capabilities
-        if !rules.contains_key(&Capability::ReadFile) {
-            rules.insert(Capability::ReadFile, PolicyAction::Allow);
-        }
+        rules
+            .entry(Capability::ReadFile)
+            .or_insert(PolicyAction::Allow);
         for cap in [
             Capability::WriteFile,
             Capability::ApplyPatch,
@@ -139,9 +141,9 @@ impl ApprovalPolicy for FileApprovalPolicy {
             Capability::Network,
             Capability::Browser,
         ] {
-            if !rules.contains_key(&cap) {
-                rules.insert(cap, PolicyAction::Prompt(ApprovalScope::Once));
-            }
+            rules
+                .entry(cap)
+                .or_insert(PolicyAction::Prompt(ApprovalScope::Once));
         }
 
         Ok(Self { rules })
