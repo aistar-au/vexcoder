@@ -1,18 +1,17 @@
 use super::logging::{debug_payload_enabled, emit_debug_payload};
 use crate::config::Config;
+use crate::runtime::backend::{
+    ByteStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode,
+};
 use crate::types::{ApiMessage, Content, ContentBlock};
 use crate::util::{is_local_endpoint_url, parse_bool_flag};
 use anyhow::anyhow;
 use anyhow::Result;
-use bytes::Bytes;
-use futures::{Stream, StreamExt};
+use futures::StreamExt;
 use serde_json::json;
 use serde_json::Value;
-use std::pin::Pin;
 #[cfg(test)]
 use std::sync::Arc;
-
-pub type ByteStream = Pin<Box<dyn Stream<Item = Result<Bytes>> + Send>>;
 const SYSTEM_PROMPT: &str = "You are a coding assistant.\n\
 Use tools for all filesystem facts and changes.\n\
 When a user asks for repository facts, command output, file content, or code edits, call tools instead of guessing.\n\
@@ -34,7 +33,6 @@ If asked what git tools are available, only list built-in git tools: git_status,
 Do not claim unsupported git tools like git_clone, git_init, git_remote, git_config, git_pull, git_push, git_branch, git_checkout, or git_stash.\n\
 Always send non-empty string paths for file tools.\n\
 Avoid redundant loops: do not repeat identical read/search tool calls without new evidence.";
-const ANTHROPIC_VERSION: &str = "2023-06-01";
 
 #[cfg(test)]
 pub trait MockStreamProducer: Send + Sync {
@@ -47,9 +45,9 @@ pub struct ApiClient {
     api_key: Option<String>,
     model: String,
     api_url: String,
-    anthropic_version: String,
-    api_protocol: ApiProtocol,
-    structured_tool_protocol: bool,
+    model_backend: ModelBackendKind,
+    model_protocol: ModelProtocol,
+    tool_call_mode: ToolCallMode,
     #[cfg(test)]
     mock_stream_producer: Option<Arc<dyn MockStreamProducer>>,
 }
@@ -62,20 +60,14 @@ enum ApiProtocol {
 
 impl ApiClient {
     pub fn new(config: &Config) -> Result<Self> {
-        let api_protocol = std::env::var("VEX_API_PROTOCOL")
-            .ok()
-            .and_then(parse_protocol)
-            .unwrap_or_else(|| infer_api_protocol(&config.model_url));
-        let structured_tool_protocol = resolve_structured_tool_protocol(&config.model_url);
-
         Ok(Self {
             http: reqwest::Client::new(),
             api_key: config.model_token.clone(),
             model: config.model_name.clone(),
             api_url: config.model_url.clone(),
-            anthropic_version: ANTHROPIC_VERSION.to_string(),
-            api_protocol,
-            structured_tool_protocol,
+            model_backend: config.model_backend,
+            model_protocol: config.model_protocol,
+            tool_call_mode: config.tool_call_mode,
             #[cfg(test)]
             mock_stream_producer: None,
         })
@@ -88,24 +80,35 @@ impl ApiClient {
             api_key: None,
             model: "mock-model".to_string(),
             api_url: "http://localhost:8000/v1/messages".to_string(),
-            anthropic_version: ANTHROPIC_VERSION.to_string(),
-            api_protocol: ApiProtocol::AnthropicMessages,
-            structured_tool_protocol: true,
+            model_backend: ModelBackendKind::LocalRuntime,
+            model_protocol: ModelProtocol::MessagesV1,
+            tool_call_mode: ToolCallMode::Structured,
             mock_stream_producer: Some(mock_producer),
         }
     }
 
     pub fn supports_structured_tool_protocol(&self) -> bool {
-        self.structured_tool_protocol
+        matches!(self.tool_call_mode, ToolCallMode::Structured)
     }
 
     pub fn is_local_endpoint(&self) -> bool {
         is_local_endpoint_url(&self.api_url)
     }
 
+    fn api_protocol(&self) -> ApiProtocol {
+        match self.model_protocol {
+            ModelProtocol::MessagesV1 => ApiProtocol::AnthropicMessages,
+            ModelProtocol::ChatCompat => ApiProtocol::OpenAiChatCompletions,
+        }
+    }
+
     #[cfg(test)]
     pub fn with_structured_tool_protocol(mut self, enabled: bool) -> Self {
-        self.structured_tool_protocol = enabled;
+        self.tool_call_mode = if enabled {
+            ToolCallMode::Structured
+        } else {
+            ToolCallMode::TaggedFallback
+        };
         self
     }
 
@@ -119,7 +122,8 @@ impl ApiClient {
 
         let request_url = self.request_url();
         let max_tokens = resolve_max_tokens(&self.api_url);
-        let payload = match self.api_protocol {
+        let api_protocol = self.api_protocol();
+        let payload = match api_protocol {
             ApiProtocol::AnthropicMessages => {
                 let mut payload = json!({
                     "model": self.model,
@@ -128,7 +132,7 @@ impl ApiClient {
                     "system": SYSTEM_PROMPT,
                     "messages": messages,
                 });
-                if self.structured_tool_protocol {
+                if self.supports_structured_tool_protocol() {
                     let payload_object = payload
                         .as_object_mut()
                         .expect("payload must be a JSON object");
@@ -144,7 +148,7 @@ impl ApiClient {
                     "stream": true,
                     "messages": openai_messages(messages, SYSTEM_PROMPT),
                 });
-                if self.structured_tool_protocol {
+                if self.supports_structured_tool_protocol() {
                     let payload_object = payload
                         .as_object_mut()
                         .expect("payload must be a JSON object");
@@ -165,13 +169,16 @@ impl ApiClient {
             emit_debug_payload(&request_url, &payload);
         }
 
-        match self.api_protocol {
+        // Add protocol-specific headers from ModelProtocol
+        for (header_name, header_value) in self.model_protocol.request_headers() {
+            request = request.header(header_name, header_value);
+        }
+
+        // Add auth headers based on protocol
+        match api_protocol {
             ApiProtocol::AnthropicMessages => {
                 if let Some(api_key) = &self.api_key {
                     request = request.header("x-api-key", api_key);
-                }
-                if !self.anthropic_version.trim().is_empty() {
-                    request = request.header("anthropic-version", &self.anthropic_version);
                 }
             }
             ApiProtocol::OpenAiChatCompletions => {
@@ -196,12 +203,34 @@ impl ApiClient {
     }
 
     fn request_url(&self) -> String {
-        match self.api_protocol {
+        match self.api_protocol() {
             ApiProtocol::AnthropicMessages => self.api_url.clone(),
             ApiProtocol::OpenAiChatCompletions => {
                 adapt_to_openai_chat_completions_url(&self.api_url)
             }
         }
+    }
+}
+
+impl ModelBackend for ApiClient {
+    fn backend_kind(&self) -> ModelBackendKind {
+        self.model_backend
+    }
+
+    fn protocol(&self) -> ModelProtocol {
+        self.model_protocol
+    }
+
+    fn supports_structured_tools(&self) -> bool {
+        self.supports_structured_tool_protocol()
+    }
+
+    fn is_local(&self) -> bool {
+        self.is_local_endpoint()
+    }
+
+    async fn create_stream(&self, messages: &[ApiMessage]) -> Result<ByteStream> {
+        self.create_stream(messages).await
     }
 }
 
@@ -230,6 +259,7 @@ fn map_api_request_error(error: reqwest::Error, request_url: &str) -> anyhow::Er
     anyhow!("API request to '{}' failed: {}", request_url, error)
 }
 
+#[allow(dead_code)]
 fn resolve_structured_tool_protocol(api_url: &str) -> bool {
     if let Some(value) = std::env::var("VEX_STRUCTURED_TOOL_PROTOCOL")
         .ok()
@@ -258,6 +288,7 @@ fn resolve_max_tokens(api_url: &str) -> u32 {
     }
 }
 
+#[allow(dead_code)]
 fn parse_protocol(value: String) -> Option<ApiProtocol> {
     match value.trim().to_ascii_lowercase().as_str() {
         "anthropic" | "anthropic_messages" | "messages" | "v1/messages" => {
@@ -270,6 +301,7 @@ fn parse_protocol(value: String) -> Option<ApiProtocol> {
     }
 }
 
+#[allow(dead_code)]
 fn infer_api_protocol(api_url: &str) -> ApiProtocol {
     let normalized = api_url.trim().to_ascii_lowercase();
     if normalized.contains("/chat/completions") || normalized.ends_with("/v1") {
@@ -578,6 +610,29 @@ fn tool_definitions() -> serde_json::Value {
                 },
                 "required": ["message"]
             }
+        },
+        {
+            "name": "search_content",
+            "description": "Search file contents for a text query within the workspace.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string" },
+                    "path_glob": { "type": "string" }
+                },
+                "required": ["query"]
+            }
+        },
+        {
+            "name": "find_files",
+            "description": "Find files by name pattern within the workspace.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name_glob": { "type": "string" }
+                },
+                "required": ["name_glob"]
+            }
         }
     ])
 }
@@ -585,6 +640,7 @@ fn tool_definitions() -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::backend::{ModelBackendKind, ModelProtocol, ToolCallMode};
     use std::collections::BTreeSet;
 
     #[test]
@@ -634,6 +690,8 @@ mod tests {
             "git_show",
             "git_add",
             "git_commit",
+            "search_content",
+            "find_files",
         ]);
 
         let names: BTreeSet<String> = tool_definitions()
@@ -657,6 +715,9 @@ mod tests {
             model_name: "mock-model".to_string(),
             model_url: "http://localhost:8000/v1/messages".to_string(),
             working_dir: std::path::PathBuf::from("."),
+            model_backend: ModelBackendKind::LocalRuntime,
+            model_protocol: ModelProtocol::MessagesV1,
+            tool_call_mode: ToolCallMode::TaggedFallback,
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -673,6 +734,9 @@ mod tests {
             model_name: "local/llama.cpp".to_string(),
             model_url: "http://localhost:8000/v1/messages".to_string(),
             working_dir: std::path::PathBuf::from("."),
+            model_backend: ModelBackendKind::LocalRuntime,
+            model_protocol: ModelProtocol::MessagesV1,
+            tool_call_mode: ToolCallMode::TaggedFallback,
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -688,6 +752,9 @@ mod tests {
             model_name: "mistral-7b-instruct".to_string(),
             model_url: "https://model.example.internal/v1/messages".to_string(),
             working_dir: std::path::PathBuf::from("."),
+            model_backend: ModelBackendKind::ApiServer,
+            model_protocol: ModelProtocol::MessagesV1,
+            tool_call_mode: ToolCallMode::Structured,
         };
 
         let client = ApiClient::new(&config).expect("client should build");

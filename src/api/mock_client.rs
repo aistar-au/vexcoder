@@ -1,4 +1,5 @@
-use crate::api::client::{ByteStream, MockStreamProducer};
+use crate::api::client::MockStreamProducer;
+use crate::runtime::backend::ByteStream;
 use crate::types::ApiMessage;
 use anyhow::Result;
 use bytes::Bytes;

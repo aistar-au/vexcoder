@@ -1,7 +1,7 @@
 use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest};
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
-use crate::tools::ToolOperator;
+use crate::tools::{ToolOperator, WriteFileOutcome};
 use crate::types::ContentBlock;
 use crate::util::parse_bool_flag;
 use anyhow::{bail, Result};
@@ -147,9 +147,14 @@ pub(super) fn execute_tool_dispatch(
                 required_tool_string_any(input, name, "path", &["path", "file_path", "file"])?;
             let content = first_tool_string(input, &["content", "text"]).unwrap_or("");
             let (chars, lines) = text_stats(content);
-            tool_operator
-                .write_file(path, content)
-                .map(|_| format!("Wrote {path} ({chars} chars, {lines} lines)."))
+            match tool_operator.write_file(path, content)? {
+                WriteFileOutcome::Written => {
+                    Ok(format!("Wrote {path} ({chars} chars, {lines} lines)."))
+                }
+                WriteFileOutcome::Pending(pending) => {
+                    Ok(format!("Pending patch for {path}.\n{}", pending.diff))
+                }
+            }
         }
         "edit_file" => {
             let path = required_tool_string_any(
@@ -241,6 +246,32 @@ pub(super) fn execute_tool_dispatch(
             "message",
             &["message", "msg", "commit_message"],
         )?),
+        "search_content" => {
+            let query = required_tool_string(input, name, "query")?;
+            let path_glob = input.get("path_glob").and_then(|v| v.as_str());
+            let matches = tool_operator.search_content(query, path_glob)?;
+            Ok(matches
+                .iter()
+                .map(|m| {
+                    format!(
+                        "{}:{}: {}",
+                        tool_operator.relative_path_display(&m.file),
+                        m.line_number,
+                        m.line_text
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n"))
+        }
+        "find_files" => {
+            let name_glob = required_tool_string(input, name, "name_glob")?;
+            let files = tool_operator.find_files(name_glob)?;
+            Ok(files
+                .iter()
+                .map(|p| tool_operator.relative_path_display(p))
+                .collect::<Vec<_>>()
+                .join("\n"))
+        }
         _ => bail!("Unknown tool: {name}"),
     }
 }

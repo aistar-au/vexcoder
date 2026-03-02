@@ -1,10 +1,26 @@
+pub mod approval;
+pub mod backend;
+pub mod command;
 pub mod context;
 pub mod frontend;
 pub mod r#loop;
 pub mod mode;
 pub mod policy;
+pub mod task_state;
 pub mod update;
 
+pub use approval::{
+    load_policy_from_env, ApprovalPolicy, ApprovalScope, Capability, FileApprovalPolicy,
+    PolicyAction,
+};
+pub use backend::{ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode};
+pub use command::{
+    CancellationStatus, CommandHandle, CommandRequest, CommandResult, CommandRunner,
+    DefaultCommandRunner, OutputChunk, StreamKind,
+};
+pub use task_state::{
+    CommandEvidence, ConversationCheckpoint, InterruptedCommand, TaskId, TaskState, TaskStatus,
+};
 pub use update::UiUpdate;
 
 #[cfg(test)]

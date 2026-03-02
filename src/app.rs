@@ -67,6 +67,16 @@ struct OverlayState {
     auto_approve_session: bool,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct TaskLayoutState {
+    pub task_id: String,
+    pub status_line: String,
+    pub activity_rows: Vec<String>,
+    pub output_rows: Vec<String>,
+    pub pending_approval: Option<String>,
+    pub changed_files: Vec<String>,
+}
+
 pub struct TuiMode {
     history_state: HistoryState,
     overlay_state: OverlayState,
@@ -172,6 +182,45 @@ impl TuiMode {
 
     pub fn set_history_content_width(&self, width: usize) {
         self.history_content_width.set(width.max(1));
+    }
+
+    pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
+        if !self.history_state.turn_in_progress && !self.overlay_active() {
+            return None;
+        }
+
+        let pending_approval = if self.overlay_state.pending_patch_approval.is_some() {
+            Some("ApplyPatch".to_string())
+        } else {
+            self.overlay_state.pending_approval.as_ref().map(|pending| {
+                summarize_tool_approval_context(&pending.tool_name, &pending.input_preview)
+            })
+        };
+
+        let activity_rows = self
+            .history_state
+            .lines
+            .iter()
+            .rev()
+            .take(8)
+            .cloned()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+
+        Some(TaskLayoutState {
+            task_id: self
+                .history_state
+                .active_assistant_index
+                .map(|idx| format!("task-{idx:03}"))
+                .unwrap_or_else(|| "task-active".to_string()),
+            status_line: self.status_line(),
+            activity_rows,
+            output_rows: self.history_state.lines.clone(),
+            pending_approval,
+            changed_files: Vec::new(),
+        })
     }
 
     fn resolve_pending_approval(&mut self, approved: bool) {

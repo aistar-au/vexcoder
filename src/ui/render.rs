@@ -1,6 +1,8 @@
+use crate::app::TaskLayoutState;
 use crate::ui::input_metrics::{
     char_display_width, cursor_row_col, truncate_to_display_width, wrap_input_lines,
 };
+use crate::ui::layout::split_four_region_layout;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -187,6 +189,68 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
     frame.render_widget(
         Paragraph::new(text).style(Style::default().fg(Color::DarkGray)),
         area,
+    );
+}
+
+/// Render the four-region task-first layout
+pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
+    let layout = split_four_region_layout(frame.area(), 2, 3);
+
+    let mut header_lines = vec![Line::from(state.status_line.clone())];
+    if !state.changed_files.is_empty() {
+        header_lines.push(Line::from(format!(
+            "files: {}",
+            state.changed_files.join(", ")
+        )));
+    }
+    frame.render_widget(Paragraph::new(Text::from(header_lines)), layout.header);
+
+    let activity_text: Vec<Line> = state
+        .activity_rows
+        .iter()
+        .map(|row| {
+            // Add status markers based on content
+            let styled = if row.starts_with("[ok]") {
+                Line::styled(row.to_string(), Style::default().fg(Color::Green))
+            } else if row.starts_with("[!]") {
+                Line::styled(row.to_string(), Style::default().fg(Color::Red))
+            } else if row.starts_with("[->]") {
+                Line::styled(row.to_string(), Style::default().fg(Color::Cyan))
+            } else if row.starts_with("[?]") {
+                Line::styled(row.to_string(), Style::default().fg(Color::Yellow))
+            } else {
+                Line::from(row.to_string())
+            };
+            styled
+        })
+        .collect();
+    frame.render_widget(
+        Paragraph::new(Text::from(activity_text))
+            .block(Block::default().borders(Borders::NONE).title("Activity")),
+        layout.activity,
+    );
+
+    let output_lines: Vec<Line> = state
+        .output_rows
+        .iter()
+        .map(|row| Line::from(row.to_string()))
+        .collect();
+
+    frame.render_widget(
+        Paragraph::new(Text::from(output_lines))
+            .block(Block::default().borders(Borders::NONE).title("Output"))
+            .wrap(Wrap { trim: false }),
+        layout.output,
+    );
+
+    let input_content = if let Some(ref approval) = state.pending_approval {
+        format!("{}\n[y/n/s] ", approval)
+    } else {
+        "> ".to_string()
+    };
+    frame.render_widget(
+        Paragraph::new(input_content).wrap(Wrap { trim: false }),
+        layout.input,
     );
 }
 
