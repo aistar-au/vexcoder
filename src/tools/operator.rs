@@ -407,6 +407,10 @@ impl ToolOperator {
             .unwrap_or_else(|_| path.to_string_lossy().to_string())
     }
 
+    pub fn relative_path_display(&self, path: &Path) -> String {
+        self.to_workspace_relative_display(path)
+    }
+
     fn search_literal(&self, query: &str, root: &Path, max_results: usize) -> Result<String> {
         let mut results = Vec::new();
         let mut stack = vec![root.to_path_buf()];

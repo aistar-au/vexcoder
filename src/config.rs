@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -61,10 +61,14 @@ impl Config {
             });
 
         // Read working_dir from VEX_WORKDIR env var, default to current_dir
-        let working_dir = std::env::var("VEX_WORKDIR")
+        let working_dir = if let Some(value) = std::env::var("VEX_WORKDIR")
             .ok()
-            .map(PathBuf::from)
-            .unwrap_or_else(|| std::env::current_dir().expect("current_dir failed"));
+            .filter(|value| !value.trim().is_empty())
+        {
+            PathBuf::from(value)
+        } else {
+            std::env::current_dir().context("Failed to determine current working directory")?
+        };
 
         Ok(Self {
             model_token,

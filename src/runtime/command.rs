@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use std::io::Read;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::oneshot;
@@ -45,7 +46,7 @@ pub enum CancellationStatus {
 }
 
 pub struct PtySession {
-    reader: Box<dyn std::io::Read + Send>,
+    reader: Box<dyn Read + Send>,
     _child: Box<dyn portable_pty::Child + Send>,
 }
 
@@ -115,7 +116,14 @@ impl CommandRunner for DefaultCommandRunner {
         let stdout_task = tokio::spawn(async move {
             let mut reader = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = reader.next_line().await {
-                if tx_stdout.send(OutputChunk { stream: StreamKind::Stdout, text: line + "\n" }).await.is_err() {
+                if tx_stdout
+                    .send(OutputChunk {
+                        stream: StreamKind::Stdout,
+                        text: line + "\n",
+                    })
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -125,7 +133,14 @@ impl CommandRunner for DefaultCommandRunner {
         let stderr_task = tokio::spawn(async move {
             let mut reader = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = reader.next_line().await {
-                if tx_stderr.send(OutputChunk { stream: StreamKind::Stderr, text: line + "\n" }).await.is_err() {
+                if tx_stderr
+                    .send(OutputChunk {
+                        stream: StreamKind::Stderr,
+                        text: line + "\n",
+                    })
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -142,7 +157,9 @@ impl CommandRunner for DefaultCommandRunner {
             let _ = child.wait().await;
         });
 
-        Ok(CommandHandle { cancel_tx: Some(cancel_tx) })
+        Ok(CommandHandle {
+            cancel_tx: Some(cancel_tx),
+        })
     }
 
     async fn cancel(&self, handle: CommandHandle) -> Result<()> {
@@ -163,13 +180,19 @@ impl CommandRunner for DefaultCommandRunner {
             })
             .context("Failed to open PTY")?;
 
-        let cmd = CommandBuilder::new(&req.program);
+        let mut cmd = CommandBuilder::new(&req.program);
+        for arg in &req.args {
+            cmd.arg(arg);
+        }
         let child = pair
             .slave
             .spawn_command(cmd)
             .context("Failed to spawn command in PTY")?;
 
-        let reader = pair.master.try_clone_reader().context("Failed to clone reader")?;
+        let reader = pair
+            .master
+            .try_clone_reader()
+            .context("Failed to clone reader")?;
 
         Ok(PtySession {
             reader,
@@ -213,16 +236,13 @@ mod tests {
         let handle = runner.run_streaming(req, tx).await.expect("spawn failed");
         assert!(!handle.is_cancelling());
 
-        let result = tokio::time::timeout(
-            tokio::time::Duration::from_secs(2),
-            runner.cancel(handle),
-        )
-        .await;
+        let result =
+            tokio::time::timeout(tokio::time::Duration::from_secs(2), runner.cancel(handle)).await;
 
         assert!(result.is_ok(), "cancel must complete within 2 seconds");
         assert!(result.unwrap().is_ok(), "cancel must not error");
     }
-    
+
     #[test]
     fn test_cancellation_status_variants() {
         let status = CancellationStatus::Running;
