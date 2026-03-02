@@ -4,76 +4,72 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::runtime::{ApprovalScope, Capability};
+
 pub type TaskId = String;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TaskStatus {
+    Ready,
     Running,
+    AwaitingApproval,
+    Cancelling,
     Completed,
     Failed,
     Cancelled,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CommandEvidence {
-    pub command: String,
-    pub args: Vec<String>,
-    pub stdout: String,
-    pub stderr: String,
+    pub program: String,
     pub exit_code: Option<i32>,
     pub interrupted: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ConversationCheckpoint {
     pub message_count: usize,
     pub summary: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct InterruptedCommand {
-    pub command: String,
-    pub args: Vec<String>,
+    pub program: String,
+    pub interrupted_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TaskState {
     pub id: TaskId,
     pub status: TaskStatus,
-    pub working_dir: PathBuf,
-    pub changed_files: Vec<String>,
-    pub command_evidence: Vec<CommandEvidence>,
-    pub conversation_checkpoint: Option<ConversationCheckpoint>,
-    pub interrupted_commands: Vec<InterruptedCommand>,
-    pub metadata: HashMap<String, String>,
+    pub active_grants: HashMap<Capability, ApprovalScope>,
+    pub changed_files: Vec<PathBuf>,
+    pub command_history: Vec<CommandEvidence>,
+    pub conversation_snapshot: ConversationCheckpoint,
+    pub interrupted_sessions: Vec<InterruptedCommand>,
 }
 
 impl TaskState {
-    pub fn new(id: TaskId, working_dir: PathBuf) -> Self {
+    pub fn new(id: TaskId) -> Self {
         Self {
             id,
-            status: TaskStatus::Running,
-            working_dir,
+            status: TaskStatus::Ready,
+            active_grants: HashMap::new(),
             changed_files: Vec::new(),
-            command_evidence: Vec::new(),
-            conversation_checkpoint: None,
-            interrupted_commands: Vec::new(),
-            metadata: HashMap::new(),
+            command_history: Vec::new(),
+            conversation_snapshot: ConversationCheckpoint::default(),
+            interrupted_sessions: Vec::new(),
         }
     }
 
     pub fn save(&self, dir: &Path) -> Result<()> {
-        // Create directory if it doesn't exist
         std::fs::create_dir_all(dir)
             .with_context(|| format!("Failed to create state directory: {}", dir.display()))?;
 
         let temp_path = dir.join(format!("{}.tmp", self.id));
         let final_path = dir.join(format!("{}.json", self.id));
 
-        // Serialize to JSON
         let json = serde_json::to_vec_pretty(self).context("Failed to serialize task state")?;
-
-        // Write to temp file and flush contents before rename.
         let mut file = std::fs::File::create(&temp_path)
             .with_context(|| format!("Failed to create temp state file: {}", temp_path.display()))?;
         file.write_all(&json)
@@ -82,7 +78,6 @@ impl TaskState {
             .with_context(|| format!("Failed to flush temp state file: {}", temp_path.display()))?;
         drop(file);
 
-        // Atomic rename
         std::fs::rename(&temp_path, &final_path)
             .with_context(|| format!("Failed to rename state file to: {}", final_path.display()))?;
 
@@ -97,8 +92,7 @@ impl TaskState {
         let mut state: TaskState = serde_json::from_str(&content)
             .with_context(|| format!("Failed to deserialize state file: {}", path.display()))?;
 
-        // On reload, mark commands with exit_code: None as interrupted
-        for evidence in &mut state.command_evidence {
+        for evidence in &mut state.command_history {
             if evidence.exit_code.is_none() {
                 evidence.interrupted = true;
             }
@@ -122,39 +116,52 @@ mod tests {
     #[test]
     fn test_task_state_survives_atomic_write_and_reload() {
         let dir = TempDir::new().unwrap();
-        let task = TaskState::new("task-123".to_string(), PathBuf::from("/workspace"));
+        let state = TaskState {
+            id: "task-001".to_string(),
+            status: TaskStatus::Completed,
+            active_grants: HashMap::from([(Capability::ApplyPatch, ApprovalScope::Once)]),
+            changed_files: vec![PathBuf::from("src/main.rs")],
+            command_history: vec![CommandEvidence {
+                program: "cargo test".into(),
+                exit_code: None,
+                interrupted: true,
+            }],
+            conversation_snapshot: ConversationCheckpoint::default(),
+            interrupted_sessions: vec![InterruptedCommand {
+                program: "cargo build".into(),
+                interrupted_at: "2026-03-01T00:00:00Z".into(),
+            }],
+        };
 
-        // Save task state
-        task.save(dir.path()).expect("save failed");
+        state.save(dir.path()).expect("save failed");
+        let loaded = TaskState::load(dir.path(), "task-001").expect("load failed");
 
-        // Reload and verify
-        let loaded = TaskState::load(dir.path(), "task-123").expect("load failed");
-        assert_eq!(loaded.id, "task-123");
-        assert_eq!(loaded.status, TaskStatus::Running);
-        assert!(matches!(loaded.status, TaskStatus::Running));
+        assert_eq!(loaded.status, TaskStatus::Completed);
+        assert_eq!(loaded.changed_files, state.changed_files);
+        assert!(loaded.command_history[0].interrupted);
+        assert_eq!(loaded.interrupted_sessions.len(), 1);
     }
 
     #[test]
     fn test_task_state_marks_interrupted_commands_on_reload() {
         let dir = TempDir::new().unwrap();
-        let mut task = TaskState::new("task-456".to_string(), PathBuf::from("/workspace"));
+        let state = TaskState {
+            id: "task-456".to_string(),
+            status: TaskStatus::Running,
+            active_grants: HashMap::new(),
+            changed_files: Vec::new(),
+            command_history: vec![CommandEvidence {
+                program: "sleep 100".to_string(),
+                exit_code: None,
+                interrupted: false,
+            }],
+            conversation_snapshot: ConversationCheckpoint::default(),
+            interrupted_sessions: Vec::new(),
+        };
 
-        // Add a command with no exit code (simulating interruption)
-        task.command_evidence.push(CommandEvidence {
-            command: "sleep".to_string(),
-            args: vec!["100".to_string()],
-            stdout: String::new(),
-            stderr: String::new(),
-            exit_code: None,
-            interrupted: false,
-        });
-
-        // Save task state
-        task.save(dir.path()).expect("save failed");
-
-        // Reload and verify interrupted flag is set
+        state.save(dir.path()).expect("save failed");
         let loaded = TaskState::load(dir.path(), "task-456").expect("load failed");
-        assert_eq!(loaded.command_evidence.len(), 1);
-        assert!(loaded.command_evidence[0].interrupted);
+        assert_eq!(loaded.command_history.len(), 1);
+        assert!(loaded.command_history[0].interrupted);
     }
 }
