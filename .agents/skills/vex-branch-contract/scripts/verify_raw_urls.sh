@@ -61,12 +61,20 @@ fail=0
 
 for f in "${files[@]}"; do
   url="https://raw.githubusercontent.com/$repo_slug/$branch/$f"
+  fetched_via="curl"
 
   code="$(curl -L -sS -o "$tmp_remote" --max-time "$timeout" -w '%{http_code}' "$url" || true)"
   if [[ "$code" != "200" ]]; then
-    echo "- [ ] FAIL $f ($code) — $url"
-    fail=1
-    continue
+    if command -v gh >/dev/null 2>&1 \
+      && gh api \
+        -H "Accept: application/vnd.github.raw" \
+        "repos/$repo_slug/contents/$f?ref=$branch" > "$tmp_remote" 2>/dev/null; then
+      fetched_via="gh-api"
+    else
+      echo "- [ ] FAIL $f ($code) — $url"
+      fail=1
+      continue
+    fi
   fi
 
   if [[ "$compare" == "true" ]]; then
@@ -87,7 +95,11 @@ for f in "${files[@]}"; do
     fi
   fi
 
-  echo "- [x] OK   $f — $url"
+  if [[ "$fetched_via" == "gh-api" ]]; then
+    echo "- [x] OK   $f — $url (via gh api fallback)"
+  else
+    echo "- [x] OK   $f — $url"
+  fi
 done
 
 rm -f "$tmp_remote" "$tmp_git" || true

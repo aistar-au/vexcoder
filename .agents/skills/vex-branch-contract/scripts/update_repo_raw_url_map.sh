@@ -3,9 +3,10 @@
 # Keep TASKS/completed/REPO-RAW-URL-MAP.md synchronized with tracked files.
 #
 # Policy:
-# - Default mode updates the map only when tracked files are missing from the map.
-# - --check verifies that no tracked files are missing and exits non-zero on mismatch.
-# - --force regenerates the map even when nothing is missing.
+# - Default mode updates the map whenever drift is detected vs generated source-of-truth
+#   (missing files, stale line counts, stale URLs, stale totals, ordering drift).
+# - --check verifies byte-for-byte equivalence with generated output and exits non-zero on drift.
+# - --force regenerates the map even when no drift is detected.
 #
 # Usage:
 #   bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh
@@ -41,6 +42,7 @@ tmp_dir="$(mktemp -d /tmp/vex-raw-map.XXXXXX)"
 tracked="$tmp_dir/tracked.txt"
 mapped="$tmp_dir/mapped.txt"
 missing="$tmp_dir/missing.txt"
+expected="$tmp_dir/expected.md"
 trap 'rm -rf "$tmp_dir"' EXIT
 
 git ls-files | sort -u > "$tracked"
@@ -55,41 +57,77 @@ comm -23 "$tracked" "$mapped" > "$missing"
 missing_count="$(wc -l < "$missing" | tr -d ' ')"
 tracked_count="$(wc -l < "$tracked" | tr -d ' ')"
 
+generate_expected_map() {
+  local out="$1"
+  local self_lines="$2"
+  {
+    echo "# Repository Raw URL Map"
+    echo
+    echo "Canonical raw URL index for every tracked file in this repository."
+    echo
+    echo "- Branch: main"
+    echo "- Base: <https://raw.githubusercontent.com/$repo_slug/main/>"
+    echo "- Source: git ls-files"
+    echo "- Total tracked files: $tracked_count"
+    echo
+    echo "| # | Path | Approx. lines | Raw URL |"
+    echo "| ---: | :--- | ---: | :--- |"
+    i=1
+    while IFS= read -r f; do
+      if [[ "$f" == "$map_file" && -n "$self_lines" ]]; then
+        lines="$self_lines"
+      else
+        lines="$(wc -l < "$f" | tr -d ' ')"
+      fi
+      printf '| %d | `%s` | ~%s | <https://raw.githubusercontent.com/%s/main/%s> |\n' \
+        "$i" "$f" "$lines" "$repo_slug" "$f"
+      i=$((i + 1))
+    done < "$tracked"
+  } > "$out"
+}
+
+if grep -qx "$map_file" "$tracked"; then
+  # map_file includes itself in the table; converge its own line count to a fixed point.
+  self_lines="$(wc -l < "$map_file" 2>/dev/null | tr -d ' ' || true)"
+  [[ -n "$self_lines" ]] || self_lines="0"
+  for _ in 1 2 3 4 5; do
+    generate_expected_map "$expected" "$self_lines"
+    next_self_lines="$(wc -l < "$expected" | tr -d ' ')"
+    if [[ "$next_self_lines" == "$self_lines" ]]; then
+      break
+    fi
+    self_lines="$next_self_lines"
+  done
+else
+  generate_expected_map "$expected" ""
+fi
+
+drift="true"
+if [[ -f "$map_file" ]] && cmp -s "$map_file" "$expected"; then
+  drift="false"
+fi
+
 if [[ "$mode" == "check" ]]; then
-  if [[ "$missing_count" -eq 0 ]]; then
+  if [[ "$missing_count" -eq 0 && "$drift" == "false" ]]; then
     echo "PASS: $map_file covers all tracked files ($tracked_count entries)."
     exit 0
   fi
-  echo "FAIL: $map_file is missing $missing_count tracked file(s):" >&2
-  sed 's/^/- /' "$missing" >&2
+  if [[ "$missing_count" -gt 0 ]]; then
+    echo "FAIL: $map_file is missing $missing_count tracked file(s):" >&2
+    sed 's/^/- /' "$missing" >&2
+  fi
+  if [[ "$drift" == "true" ]]; then
+    echo "FAIL: $map_file content is stale vs generated map (line counts/URLs/header/order)." >&2
+  fi
   exit 1
 fi
 
-if [[ "$force" != "true" && "$missing_count" -eq 0 ]]; then
-  echo "No new tracked files missing from $map_file. No update needed."
+if [[ "$force" != "true" && "$drift" == "false" ]]; then
+  echo "No map drift detected in $map_file. No update needed."
   exit 0
 fi
 
-{
-  echo "# Repository Raw URL Map"
-  echo
-  echo "Canonical raw URL index for every tracked file in this repository."
-  echo
-  echo "- Branch: main"
-  echo "- Base: <https://raw.githubusercontent.com/$repo_slug/main/>"
-  echo "- Source: git ls-files"
-  echo "- Total tracked files: $tracked_count"
-  echo
-  echo "| # | Path | Approx. lines | Raw URL |"
-  echo "| ---: | :--- | ---: | :--- |"
-  i=1
-  while IFS= read -r f; do
-    lines="$(wc -l < "$f" | tr -d ' ')"
-    printf '| %d | `%s` | ~%s | <https://raw.githubusercontent.com/%s/main/%s> |\n' \
-      "$i" "$f" "$lines" "$repo_slug" "$f"
-    i=$((i + 1))
-  done < "$tracked"
-} > "$map_file"
+cp "$expected" "$map_file"
 
 echo "Updated $map_file with $tracked_count tracked file(s)."
 if [[ "$missing_count" -gt 0 ]]; then

@@ -217,6 +217,7 @@ Paste the raw URLs into the next agent (one URL per line appended to the prompt)
 3. If `--compare` mode: compare SHA-256 of fetched content against `git show origin/<branch>:<file>`.
 4. Report `[x] OK` or `[ ] FAIL` for every file.
 5. Emit `**PASS**` only when all files pass.
+6. If raw CDN access is blocked, use `gh api` raw-content fallback instead of failing the run.
 
 ```bash
 bash .agents/skills/vex-branch-contract/scripts/verify_raw_urls.sh \
@@ -288,7 +289,7 @@ Project policy:
 - `TASKS/TASKS-DISPATCH-MAP.md` is the descriptive dispatch contract document for this repo.
 - `TASKS/completed/REPO-RAW-URL-MAP.md` is the canonical whole-repo raw URL file map.
 - Keep this map synchronized with repository files.
-- Update it when new files are added to the repo.
+- Update it on any drift (new/missing files, line-count drift, URL drift, header totals).
 
 Check map coverage (required before push/PR):
 
@@ -296,7 +297,7 @@ Check map coverage (required before push/PR):
 bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh --check
 ```
 
-If new tracked files are missing from the map, regenerate it:
+If the check reports drift, regenerate it:
 
 ```sh
 bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh
@@ -308,7 +309,7 @@ Then verify again:
 bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh --check
 ```
 
-If no new files were added, update script prints a no-op message and leaves the file untouched.
+If no drift is present, update script prints a no-op message and leaves the file untouched.
 
 ---
 
@@ -410,5 +411,5 @@ git commit -m "Add branch contract skill scripts"
 5. **Working tree must be clean** before any verification script runs.
 6. **Only raw GitHub URLs** in agent prompts during Step 6. No full file content paste.
 7. **All output is markdown** — no plain text paragraphs in dispatch or report documents.
-8. **Repo map gate required** — run `update_repo_raw_url_map.sh --check`; if missing files, update then re-check.
+8. **Repo map gate required** — run `update_repo_raw_url_map.sh --check`; if drift is reported, update then re-check.
 9. **Final report required** — every batch must close with task results table, files changed, verification commands with exit codes, and open issues.
