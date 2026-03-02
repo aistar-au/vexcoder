@@ -11,15 +11,15 @@ cargo run
 
 ## API Endpoint Configuration
 
-Set `ANTHROPIC_API_URL` to the protocol-specific endpoint. `VEX_API_PROTOCOL`
+Set `VEX_MODEL_URL` to the protocol-specific endpoint. `VEX_API_PROTOCOL`
 can be set explicitly, or omitted and inferred from the URL.
 
-| Protocol | `VEX_API_PROTOCOL` | `ANTHROPIC_API_URL` endpoint |
+| Protocol | `VEX_API_PROTOCOL` | `VEX_MODEL_URL` endpoint |
 |---|---|---|
 | Anthropic Messages | `anthropic` | `.../v1/messages` |
 | OpenAI Chat Completions | `openai` | `.../v1/chat/completions` |
 
-Remote endpoints require `ANTHROPIC_API_KEY`. Localhost endpoints do not.
+Remote endpoints require `VEX_MODEL_TOKEN`. Localhost endpoints do not.
 Structured tool protocol defaults:
 
 - Remote endpoints: enabled (`VEX_STRUCTURED_TOOL_PROTOCOL=on`)
@@ -29,18 +29,20 @@ Structured tool protocol defaults:
 Anthropic example:
 
 ```bash
-ANTHROPIC_API_URL=https://api.anthropic.com/v1/messages \
+VEX_MODEL_URL=https://api.anthropic.com/v1/messages \
+VEX_MODEL_NAME=claude-sonnet-4-5-20250929 \
 VEX_API_PROTOCOL=anthropic \
-ANTHROPIC_API_KEY=your_key \
+VEX_MODEL_TOKEN=your_key \
 cargo run
 ```
 
 OpenAI example:
 
 ```bash
-ANTHROPIC_API_URL=https://api.openai.com/v1/chat/completions \
+VEX_MODEL_URL=https://api.openai.com/v1/chat/completions \
+VEX_MODEL_NAME=gpt-4o-mini \
 VEX_API_PROTOCOL=openai \
-ANTHROPIC_API_KEY=your_key \
+VEX_MODEL_TOKEN=your_key \
 cargo run
 ```
 
