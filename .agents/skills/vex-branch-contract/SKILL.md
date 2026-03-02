@@ -250,28 +250,37 @@ Do not create a PR until the branch is conflict-free and CI is green.
 
 ---
 
-## Step 9 — PR Motivation Body
+## Step 9 — PR Body File and Merge
 
-Use `branch_summary.sh` or write manually. The motivation must include:
+Generate the PR summary and write a markdown body file in `/tmp`:
 
-```markdown
-### Motivation
-
-- Implements the batch dispatch contract for Batch <X> / ADR-<NNN>.
-- Targeted changes:
-  - `path/to/file.rs` — [one-line description]
-  - …
-- Verification:
-  - All anchor tests green (see CI)
-  - Raw GitHub URLs verified (HTTP 200)
-  - diff contains all expected paths
+```sh
+bash .agents/skills/vex-branch-contract/scripts/branch_summary.sh \
+  -b <branch> \
+  --write-pr-body
+# writes: /tmp/<safe-branch-name>-pr-body.md
 ```
 
-```bash
-bash .agents/skills/vex-branch-contract/scripts/branch_summary.sh -b <branch>
+Optional custom output path:
+
+```sh
+bash .agents/skills/vex-branch-contract/scripts/branch_summary.sh \
+  -b <branch> \
+  --write-pr-body \
+  -o /tmp/<custom>-pr-body.md
 ```
 
-Merge with a **merge commit** only:
+Create the PR using the generated markdown file:
+
+```sh
+gh pr create \
+  --base main \
+  --head <branch> \
+  --title "Batch <X>: ADR-<NNN> <short title>" \
+  --body-file /tmp/<safe-branch-name>-pr-body.md
+```
+
+When CI is green and review is complete, merge with a **merge commit** only:
 
 ```sh
 git checkout main
@@ -308,13 +317,15 @@ git commit -m "Add branch contract skill scripts"
 | `gen_verification_urls.sh` | Generate raw URL map → `/tmp/<branch>-verification-urls.md` |
 | `verify_raw_urls.sh` | HTTP-check every raw URL; optionally compare content vs git ref |
 | `verify_diff_url.sh` | Confirm .diff URL contains all expected file paths |
-| `branch_summary.sh` | Print commit, files-changed, PR link, and motivation template |
+| `branch_summary.sh` | Print summary and optionally write `/tmp/<branch>-pr-body.md` |
 
 ### Key flags
 
 | Flag | Meaning |
 | :--- | :--- |
 | `-b / --branch <name>` | Branch to operate on (inferred from HEAD if omitted) |
+| `--write-pr-body` | `branch_summary`: write markdown PR body to `/tmp` |
+| `-o / --out <path>` | `branch_summary`: custom output path for PR body markdown |
 | `--base <ref>` | Comparison base (default: `origin/main`) |
 | `--compare` | `verify_raw_urls`: also SHA-compare content vs git ref |
 | `-u / --url <url>` | `verify_diff_url`: the `.diff` URL to fetch |
