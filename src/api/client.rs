@@ -34,6 +34,7 @@ If asked what git tools are available, only list built-in git tools: git_status,
 Do not claim unsupported git tools like git_clone, git_init, git_remote, git_config, git_pull, git_push, git_branch, git_checkout, or git_stash.\n\
 Always send non-empty string paths for file tools.\n\
 Avoid redundant loops: do not repeat identical read/search tool calls without new evidence.";
+const ANTHROPIC_VERSION: &str = "2023-06-01";
 
 #[cfg(test)]
 pub trait MockStreamProducer: Send + Sync {
@@ -64,15 +65,15 @@ impl ApiClient {
         let api_protocol = std::env::var("VEX_API_PROTOCOL")
             .ok()
             .and_then(parse_protocol)
-            .unwrap_or_else(|| infer_api_protocol(&config.api_url));
-        let structured_tool_protocol = resolve_structured_tool_protocol(&config.api_url);
+            .unwrap_or_else(|| infer_api_protocol(&config.model_url));
+        let structured_tool_protocol = resolve_structured_tool_protocol(&config.model_url);
 
         Ok(Self {
             http: reqwest::Client::new(),
-            api_key: config.api_key.clone(),
-            model: config.model.clone(),
-            api_url: config.api_url.clone(),
-            anthropic_version: config.anthropic_version.clone(),
+            api_key: config.model_token.clone(),
+            model: config.model_name.clone(),
+            api_url: config.model_url.clone(),
+            anthropic_version: ANTHROPIC_VERSION.to_string(),
             api_protocol,
             structured_tool_protocol,
             #[cfg(test)]
@@ -87,7 +88,7 @@ impl ApiClient {
             api_key: None,
             model: "mock-model".to_string(),
             api_url: "http://localhost:8000/v1/messages".to_string(),
-            anthropic_version: "2023-06-01".to_string(),
+            anthropic_version: ANTHROPIC_VERSION.to_string(),
             api_protocol: ApiProtocol::AnthropicMessages,
             structured_tool_protocol: true,
             mock_stream_producer: Some(mock_producer),
@@ -207,7 +208,7 @@ impl ApiClient {
 fn map_api_request_error(error: reqwest::Error, request_url: &str) -> anyhow::Error {
     if error.is_connect() && is_local_endpoint_url(request_url) {
         return anyhow!(
-            "cannot reach local API endpoint '{}': {}. Start your local server or update ANTHROPIC_API_URL.",
+            "cannot reach local API endpoint '{}': {}. Start your local server or update VEX_MODEL_URL.",
             request_url,
             error
         );
@@ -652,10 +653,9 @@ mod tests {
         let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
         std::env::set_var("VEX_STRUCTURED_TOOL_PROTOCOL", "off");
         let config = crate::config::Config {
-            api_key: None,
-            model: "mock-model".to_string(),
-            api_url: "http://localhost:8000/v1/messages".to_string(),
-            anthropic_version: "2023-06-01".to_string(),
+            model_token: None,
+            model_name: "mock-model".to_string(),
+            model_url: "http://localhost:8000/v1/messages".to_string(),
             working_dir: std::path::PathBuf::from("."),
         };
 
@@ -669,10 +669,9 @@ mod tests {
         let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
         std::env::remove_var("VEX_STRUCTURED_TOOL_PROTOCOL");
         let config = crate::config::Config {
-            api_key: None,
-            model: "local/llama.cpp".to_string(),
-            api_url: "http://localhost:8000/v1/messages".to_string(),
-            anthropic_version: "2023-06-01".to_string(),
+            model_token: None,
+            model_name: "local/llama.cpp".to_string(),
+            model_url: "http://localhost:8000/v1/messages".to_string(),
             working_dir: std::path::PathBuf::from("."),
         };
 
@@ -685,10 +684,9 @@ mod tests {
         let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
         std::env::remove_var("VEX_STRUCTURED_TOOL_PROTOCOL");
         let config = crate::config::Config {
-            api_key: Some("test-key".to_string()),
-            model: "claude-sonnet-4-5-20250929".to_string(),
-            api_url: "https://api.anthropic.com/v1/messages".to_string(),
-            anthropic_version: "2023-06-01".to_string(),
+            model_token: Some("test-key".to_string()),
+            model_name: "mistral-7b-instruct".to_string(),
+            model_url: "https://model.example.internal/v1/messages".to_string(),
             working_dir: std::path::PathBuf::from("."),
         };
 
