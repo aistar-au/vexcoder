@@ -1,7 +1,7 @@
+use crate::app::TaskLayoutState;
 use crate::ui::input_metrics::{
     char_display_width, cursor_row_col, truncate_to_display_width, wrap_input_lines,
 };
-use crate::app::TaskLayoutState;
 use crate::ui::layout::split_four_region_layout;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -193,10 +193,7 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
 }
 
 /// Render the four-region task-first layout
-pub fn render_task_layout(
-    frame: &mut Frame<'_>,
-    state: &TaskLayoutState,
-) {
+pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     let layout = split_four_region_layout(frame.area(), 2, 3);
 
     let mut header_lines = vec![Line::from(state.status_line.clone())];

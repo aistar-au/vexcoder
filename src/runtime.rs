@@ -9,10 +9,18 @@ pub mod policy;
 pub mod task_state;
 pub mod update;
 
-pub use approval::{ApprovalPolicy, ApprovalScope, Capability, FileApprovalPolicy, PolicyAction, load_policy_from_env};
+pub use approval::{
+    load_policy_from_env, ApprovalPolicy, ApprovalScope, Capability, FileApprovalPolicy,
+    PolicyAction,
+};
 pub use backend::{ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode};
-pub use command::{CancellationStatus, CommandHandle, CommandRequest, CommandResult, CommandRunner, DefaultCommandRunner, OutputChunk, StreamKind};
-pub use task_state::{CommandEvidence, ConversationCheckpoint, InterruptedCommand, TaskId, TaskState, TaskStatus};
+pub use command::{
+    CancellationStatus, CommandHandle, CommandRequest, CommandResult, CommandRunner,
+    DefaultCommandRunner, OutputChunk, StreamKind,
+};
+pub use task_state::{
+    CommandEvidence, ConversationCheckpoint, InterruptedCommand, TaskId, TaskState, TaskStatus,
+};
 pub use update::UiUpdate;
 
 #[cfg(test)]

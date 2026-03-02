@@ -70,8 +70,9 @@ impl TaskState {
         let final_path = dir.join(format!("{}.json", self.id));
 
         let json = serde_json::to_vec_pretty(self).context("Failed to serialize task state")?;
-        let mut file = std::fs::File::create(&temp_path)
-            .with_context(|| format!("Failed to create temp state file: {}", temp_path.display()))?;
+        let mut file = std::fs::File::create(&temp_path).with_context(|| {
+            format!("Failed to create temp state file: {}", temp_path.display())
+        })?;
         file.write_all(&json)
             .with_context(|| format!("Failed to write temp state file: {}", temp_path.display()))?;
         file.sync_all()

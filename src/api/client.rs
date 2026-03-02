@@ -1,6 +1,8 @@
 use super::logging::{debug_payload_enabled, emit_debug_payload};
 use crate::config::Config;
-use crate::runtime::backend::{ByteStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode};
+use crate::runtime::backend::{
+    ByteStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode,
+};
 use crate::types::{ApiMessage, Content, ContentBlock};
 use crate::util::{is_local_endpoint_url, parse_bool_flag};
 use anyhow::anyhow;
