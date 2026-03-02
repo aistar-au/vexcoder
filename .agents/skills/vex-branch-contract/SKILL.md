@@ -1,0 +1,335 @@
+---
+name: vex-branch-contract
+description: >
+  Batch dispatch and branch-verification workflow for GitHub repos. Use this skill whenever the
+  user wants to read raw/blob GitHub URLs, produce dispatch markdown with dependency gates and
+  anchor tests, verify branch content through raw URLs or a .diff URL, generate a verification URL
+  map, draft a PR motivation body, or run the end-to-end loop:
+  read → dispatch → verify → push → raw-url-check → diff-check → merge.
+---
+
+# Vex Branch Contract Skill
+
+An end-to-end skill for the **read → dispatch → verify → push → raw-url-check → diff-check → merge** loop used in Rust repo automation. Works with any locally-running coding agent.
+
+---
+
+## Overview of the Loop
+
+```
+Step 1  READ      Fetch raw GitHub URL(s) from a branch or main
+Step 2  DISPATCH  Write the batch dispatch prompt (markdown only, no plain text)
+Step 3  VERIFY    Second-agent review of dispatch; apply corrections
+Step 4  EXECUTE   Agent writes code, runs cargo test, pushes branch
+Step 5  URL MAP   Generate /tmp/<branch>-verification-urls.md
+Step 6  RAW CHECK Fetch every raw URL → HTTP 200 + content match
+Step 7  DIFF CHECK Fetch .diff URL → confirm all expected paths present
+Step 8  CI GREEN  All anchor tests + GitHub Actions pass
+Step 9  MERGE     Merge commit (no squash, no rebase) → verify via raw map URL
+```
+
+Always output **pure markdown** when producing dispatch prompts or reports. Never emit plain prose paragraphs in dispatch output.
+
+---
+
+## Step 1 — READ Remote Content
+
+When given a raw GitHub URL (e.g. `https://raw.githubusercontent.com/...` or a blob URL ending in a file path):
+
+1. Use the available HTTP fetch method (`curl`, `wget`, or built-in web fetch) to retrieve the content.
+2. Identify the repo slug (`owner/repo`), branch, and file path.
+3. If the URL is a blob URL (`/blob/`), rewrite to raw (`/raw/` or `https://raw.githubusercontent.com/<slug>/<branch>/<path>`).
+4. Parse any TASKS file, ADR, or map document to extract the task manifest for the upcoming batch.
+
+```
+Pattern — blob → raw rewrite:
+  https://github.com/owner/repo/blob/<branch>/path/to/file.md
+  → https://raw.githubusercontent.com/owner/repo/<branch>/path/to/file.md
+```
+
+---
+
+## Step 2 — DISPATCH Prompt Format
+
+Every dispatch prompt must be a self-contained markdown document. No plain text. Required sections:
+
+### Dispatch Template
+
+````markdown
+## Batch <X> Dispatch — <ADR-NNN> <Phase range> [(corrected)]
+
+**Baseline:** `origin/main` at `<short-sha>`
+
+**Working branch setup — explicit remote ref to avoid stale local:**
+```sh
+git fetch origin
+git checkout -b <branch-name> origin/main
+```
+> `git checkout main && git pull` is not sufficient if local `main` is behind.
+> Branch directly from `origin/main`.
+
+---
+
+### Dependency graph
+
+```
+<ROOT> ✅
+  └── <TASK-A>
+        └── <TASK-B>
+              ├── <TASK-C>
+              └── <TASK-D>  ← [note any non-obvious dependency here]
+```
+
+### Execution order
+
+| Step | Task | Notes |
+| :--- | :--- | :--- |
+| 1 | TASK-A | entry point |
+| 2 | TASK-B | after TASK-A anchor green |
+| … | … | … |
+
+Stop at the first anchor that is **not green**. Do not proceed to its dependents.
+
+---
+
+### <TASK-ID> — <Title>
+
+**Target files:** `path/to/file.rs` (new or modified), …
+
+**Gate:** <PREV-TASK> anchor green [✅ if already done]
+
+**What to implement:**
+
+[implementation spec — types, traits, structs, env var names, parse rules, constraints]
+
+**Anchor test** (location `src/…` `#[cfg(test)]` or `tests/…`):
+```rust
+#[test]  // or #[tokio::test]
+fn test_<descriptive_name>() {
+    // …
+}
+```
+
+**Verification:**
+```sh
+cargo test --all-targets
+cargo test <anchor_test_fn_name> --all-targets
+```
+
+---
+
+### Hard constraints
+
+- Branch from `origin/main` using `git fetch origin && git checkout -b <branch> origin/main`.
+- Merge to `main` using a **merge commit only** — no squash, no rebase.
+- Stop immediately if any anchor is **not green**. Do not proceed to dependents.
+- [list any project-specific invariants here]
+
+---
+
+### Required final report
+
+1. **Task results** — `green` or `not green` for each task ID
+2. **Files changed** — full list of paths
+3. **Verification run** — each anchor test command with exit code
+4. **Open issues** — exact compile error or test failure for anything not green
+
+If any task is not green, all tasks that depend on it must say `not attempted`.
+````
+
+---
+
+## Step 3 — Dispatch Verification
+
+Before executing, pass the dispatch to a second agent or review pass. Frame the request as:
+
+```
+go ahead follow this exactly and do not make any other changes:
+<paste corrected dispatch>
+```
+
+The reviewing agent must check:
+- Dependency graph is internally consistent (no cycles, no missing gates)
+- Execution order matches the graph
+- All `Gate:` references name a real preceding task
+- No task spec contradicts a hard constraint
+- Anchor tests are syntactically valid Rust
+
+Return a corrected dispatch (labelled `(corrected)`) if any issues are found.
+
+---
+
+## Step 4 — EXECUTE
+
+The coding agent follows the dispatch:
+
+1. `git fetch origin && git checkout -b <branch> origin/main`
+2. Implement each task in execution order, stopping on any red anchor.
+3. Run `cargo test --all-targets` after each task.
+4. Commit with message: `Batch <X>: <ADR-NNN> Phases <range> implementation`
+5. `git push origin <branch>`
+6. Generate `/tmp/<safe-branch-name>-verification-urls.md` (see Step 5 script).
+
+---
+
+## Step 5 — Generate Verification URL Map
+
+Run from repo root. Produces `/tmp/<branch>-verification-urls.md`.
+
+```bash
+bash .agents/skills/vex-branch-contract/scripts/gen_verification_urls.sh \
+  -b <branch> \
+  --base origin/main
+```
+
+The output file lists every changed file as a raw GitHub URL grouped by category (Cargo & Config / Source / Tests / Other). It also records commit SHA, ahead/behind counts, and a clean working-tree assertion.
+
+**Manual equivalent** (if script unavailable):
+
+```bash
+git fetch origin
+branch="<branch>"
+repo_slug="$(git remote get-url origin | sed -E 's|.*github\.com[:/]||;s|\.git$||')"
+git diff --name-only "origin/main...origin/$branch" | while read -r f; do
+  echo "https://raw.githubusercontent.com/$repo_slug/$branch/$f"
+done
+```
+
+---
+
+## Step 6 — RAW URL Verification
+
+Paste the raw URLs into the next agent (one URL per line appended to the prompt). The agent must:
+
+1. Fetch each URL with the available HTTP mechanism (`curl`, `wget`, or built-in web fetch).
+2. Assert HTTP 200.
+3. If `--compare` mode: compare SHA-256 of fetched content against `git show origin/<branch>:<file>`.
+4. Report `[x] OK` or `[ ] FAIL` for every file.
+5. Emit `**PASS**` only when all files pass.
+
+```bash
+bash .agents/skills/vex-branch-contract/scripts/verify_raw_urls.sh \
+  -b <branch> \
+  --compare
+```
+
+**Only raw GitHub URLs are appended to agent prompts at this stage.** Do not paste full file content.
+
+---
+
+## Step 7 — DIFF URL Verification
+
+Fetch the `.diff` URL for the PR or compare view:
+
+```
+https://github.com/<owner>/<repo>/compare/main...<branch>.diff
+# or for a PR:
+https://patch-diff.githubusercontent.com/raw/<owner>/<repo>/pull/<N>.diff
+```
+
+```bash
+bash .agents/skills/vex-branch-contract/scripts/verify_diff_url.sh \
+  -b <branch> \
+  -u "https://github.com/<owner>/<repo>/compare/main...<branch>.diff"
+```
+
+The script parses all `diff --git a/<path>` headers and confirms every file from the verification URL map appears in the diff. Missing files → fail.
+
+---
+
+## Step 8 — CI Green Gate
+
+Before merging:
+
+- All anchor tests pass locally (`cargo test --all-targets`).
+- GitHub Actions workflow is green (no red jobs).
+- Resolve any conflicts with `git merge origin/main` on the feature branch, re-run anchor tests.
+- Working tree must be clean (`git status --porcelain` → empty).
+
+Do not create a PR until the branch is conflict-free and CI is green.
+
+---
+
+## Step 9 — PR Motivation Body
+
+Use `branch_summary.sh` or write manually. The motivation must include:
+
+```markdown
+### Motivation
+
+- Implements the batch dispatch contract for Batch <X> / ADR-<NNN>.
+- Targeted changes:
+  - `path/to/file.rs` — [one-line description]
+  - …
+- Verification:
+  - All anchor tests green (see CI)
+  - Raw GitHub URLs verified (HTTP 200)
+  - diff contains all expected paths
+```
+
+```bash
+bash .agents/skills/vex-branch-contract/scripts/branch_summary.sh -b <branch>
+```
+
+Merge with a **merge commit** only:
+
+```sh
+git checkout main
+git merge --no-ff <branch> -m "Merge batch-<x>/adr-<nnn>: <short description>"
+git push origin main
+```
+
+---
+
+## Step 10 — Post-Merge Verification
+
+After merge, re-fetch the original raw map URL (the TASKS or ADR document on main) and confirm:
+
+- The dispatch tasks are addressed by files now on `main`.
+- `git log --oneline -5` shows the merge commit.
+- `cargo test --all-targets` is green on `main`.
+
+---
+
+## Scripts Reference
+
+All scripts live in `.agents/skills/vex-branch-contract/scripts/`. Bootstrap them with:
+
+```bash
+mkdir -p .agents/skills/vex-branch-contract/scripts
+# copy scripts (see bundled files)
+git add .agents/skills
+git commit -m "Add branch contract skill scripts"
+```
+
+| Script | Purpose |
+| :--- | :--- |
+| `_lib.sh` | Shared helpers (`die`, `repo_slug_from_origin`, `sha256_file`) |
+| `gen_verification_urls.sh` | Generate raw URL map → `/tmp/<branch>-verification-urls.md` |
+| `verify_raw_urls.sh` | HTTP-check every raw URL; optionally compare content vs git ref |
+| `verify_diff_url.sh` | Confirm .diff URL contains all expected file paths |
+| `branch_summary.sh` | Print commit, files-changed, PR link, and motivation template |
+
+### Key flags
+
+| Flag | Meaning |
+| :--- | :--- |
+| `-b / --branch <name>` | Branch to operate on (inferred from HEAD if omitted) |
+| `--base <ref>` | Comparison base (default: `origin/main`) |
+| `--compare` | `verify_raw_urls`: also SHA-compare content vs git ref |
+| `-u / --url <url>` | `verify_diff_url`: the `.diff` URL to fetch |
+| `--urls-only` | `gen_verification_urls`: emit one raw URL per line, no decoration |
+| `--timeout <sec>` | curl timeout (default 20–30 s) |
+
+---
+
+## Hard Rules (Universal — Apply to Every Batch)
+
+1. **Always branch from `origin/main`** via `git fetch origin && git checkout -b <branch> origin/main`. Never from local `main`.
+2. **Merge commit only** — `git merge --no-ff`. No squash. No rebase.
+3. **Stop on red anchor** — never proceed to a dependent task if its gate is not green.
+4. **`ENV_LOCK.blocking_lock()`** in all sync tests — `.lock().unwrap()` will not compile against `tokio::sync::Mutex`.
+5. **Working tree must be clean** before any verification script runs.
+6. **Only raw GitHub URLs** in agent prompts during Step 6. No full file content paste.
+7. **All output is markdown** — no plain text paragraphs in dispatch or report documents.
+8. **Final report required** — every batch must close with task results table, files changed, verification commands with exit codes, and open issues.
