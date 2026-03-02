@@ -98,7 +98,7 @@ impl CommandRunner for DefaultCommandRunner {
         req: CommandRequest,
         tx: tokio::sync::mpsc::Sender<OutputChunk>,
     ) -> Result<CommandHandle> {
-        let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
+        let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
 
         let mut child = Command::new(&req.program)
             .args(&req.args)
@@ -108,72 +108,41 @@ impl CommandRunner for DefaultCommandRunner {
             .spawn()
             .with_context(|| format!("Failed to spawn command: {}", req.program))?;
 
-        let stdout = child
-            .stdout
-            .take()
-            .context("Failed to capture stdout")?;
-        let stderr = child
-            .stderr
-            .take()
-            .context("Failed to capture stderr")?;
+        let stdout = child.stdout.take().context("Failed to capture stdout")?;
+        let stderr = child.stderr.take().context("Failed to capture stderr")?;
 
         let tx_stdout = tx.clone();
-        let stdout_handle = tokio::spawn(async move {
-            let reader = BufReader::new(stdout);
-            let mut lines = reader.lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                if tx_stdout
-                    .send(OutputChunk {
-                        stream: StreamKind::Stdout,
-                        text: line + "\n",
-                    })
-                    .await
-                    .is_err()
-                {
+        let stdout_task = tokio::spawn(async move {
+            let mut reader = BufReader::new(stdout).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                if tx_stdout.send(OutputChunk { stream: StreamKind::Stdout, text: line + "\n" }).await.is_err() {
                     break;
                 }
             }
         });
 
         let tx_stderr = tx;
-        let stderr_handle = tokio::spawn(async move {
-            let reader = BufReader::new(stderr);
-            let mut lines = reader.lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                if tx_stderr
-                    .send(OutputChunk {
-                        stream: StreamKind::Stderr,
-                        text: line + "\n",
-                    })
-                    .await
-                    .is_err()
-                {
+        let stderr_task = tokio::spawn(async move {
+            let mut reader = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                if tx_stderr.send(OutputChunk { stream: StreamKind::Stderr, text: line + "\n" }).await.is_err() {
                     break;
                 }
             }
         });
 
-        // Spawn a task to handle the cancel signal
-        let cancel_handle = tokio::spawn(async move {
-            let _ = cancel_rx.await;
-            // Cancel signal received - child.kill() will be called when handle is dropped
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = cancel_rx => {
+                    let _ = child.kill().await;
+                }
+                _ = stdout_task => {}
+                _ = stderr_task => {}
+            }
+            let _ = child.wait().await;
         });
 
-        // Wait for both streams to complete or cancel
-        tokio::select! {
-            _ = cancel_handle => {
-                let _ = child.kill().await;
-            }
-            _ = stdout_handle => {}
-            _ = stderr_handle => {}
-        }
-
-        // Wait for child to complete
-        let _ = child.wait().await;
-
-        Ok(CommandHandle {
-            cancel_tx: Some(cancel_tx),
-        })
+        Ok(CommandHandle { cancel_tx: Some(cancel_tx) })
     }
 
     async fn cancel(&self, handle: CommandHandle) -> Result<()> {
@@ -234,38 +203,37 @@ mod tests {
     #[tokio::test]
     async fn test_command_runner_cancel_transitions_to_cancelling() {
         let runner = DefaultCommandRunner::new();
+
         let (tx, _rx) = tokio::sync::mpsc::channel(16);
         let req = CommandRequest {
             program: "sleep".into(),
-            args: vec!["2".into()],
+            args: vec!["30".into()],
         };
+
         let handle = runner.run_streaming(req, tx).await.expect("spawn failed");
+        assert!(!handle.is_cancelling());
 
-        // Verify handle is not cancelling before cancel is called
-        assert!(!handle.is_cancelling(), "handle should not be cancelling before cancel");
-
-        // Cancel immediately - test must complete quickly
-        let cancel_result = tokio::time::timeout(
-            tokio::time::Duration::from_millis(500),
+        let result = tokio::time::timeout(
+            tokio::time::Duration::from_secs(2),
             runner.cancel(handle),
         )
         .await;
 
-        assert!(cancel_result.is_ok(), "cancel should complete without hanging");
+        assert!(result.is_ok(), "cancel must complete within 2 seconds");
+        assert!(result.unwrap().is_ok(), "cancel must not error");
     }
-
+    
     #[test]
     fn test_cancellation_status_variants() {
-        // Verify CancellationStatus enum is accessible
         let status = CancellationStatus::Running;
         assert_eq!(status, CancellationStatus::Running);
-        
+
         let status = CancellationStatus::Cancelling;
         assert_eq!(status, CancellationStatus::Cancelling);
-        
+
         let status = CancellationStatus::Completed;
         assert_eq!(status, CancellationStatus::Completed);
-        
+
         let status = CancellationStatus::Failed;
         assert_eq!(status, CancellationStatus::Failed);
     }
