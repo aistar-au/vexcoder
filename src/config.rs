@@ -6,69 +6,88 @@ use crate::util::is_local_endpoint_url;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    pub api_key: Option<String>,
-    pub model: String,
-    pub api_url: String,
-    pub anthropic_version: String,
+    pub model_token: Option<String>,
+    pub model_name: String,
+    pub model_url: String,
     pub working_dir: PathBuf,
 }
 
 impl Config {
     pub fn load() -> Result<Self> {
-        let api_url = std::env::var("ANTHROPIC_API_URL")
-            .unwrap_or_else(|_| "https://api.anthropic.com/v1/messages".to_string());
-        let api_key = std::env::var("ANTHROPIC_API_KEY").ok().and_then(|v| {
+        let model_url = std::env::var("VEX_MODEL_URL").map_err(|_| {
+            anyhow::anyhow!("VEX_MODEL_URL must be set (e.g. http://localhost:8000/v1/messages)")
+        })?;
+        let model_token = std::env::var("VEX_MODEL_TOKEN").ok().and_then(|v| {
             if v.trim().is_empty() {
                 None
             } else {
                 Some(v)
             }
         });
-        let model = std::env::var("ANTHROPIC_MODEL")
-            .unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
-        let anthropic_version =
-            std::env::var("ANTHROPIC_VERSION").unwrap_or_else(|_| "2023-06-01".to_string());
+        let model_name =
+            std::env::var("VEX_MODEL_NAME").unwrap_or_else(|_| "local/default".to_string());
 
         Ok(Self {
-            api_key,
-            model,
-            api_url,
-            anthropic_version,
+            model_token,
+            model_name,
+            model_url,
             working_dir: std::env::current_dir()?,
         })
     }
 
     pub fn validate(&self) -> Result<()> {
-        if !self.api_url.starts_with("http://") && !self.api_url.starts_with("https://") {
+        if !self.model_url.starts_with("http://") && !self.model_url.starts_with("https://") {
             bail!(
-                "Invalid ANTHROPIC_API_URL '{}': expected http:// or https:// URL",
-                self.api_url
+                "Invalid VEX_MODEL_URL '{}': expected http:// or https:// URL",
+                self.model_url
             );
+        }
+
+        if self.model_name.trim().is_empty() {
+            bail!("VEX_MODEL_NAME must not be empty");
         }
 
         let local_endpoint = self.is_local_endpoint();
-        if !local_endpoint && self.api_key.is_none() {
+        if !local_endpoint && self.model_token.is_none() {
             bail!(
-                "ANTHROPIC_API_KEY must be set for non-local endpoints (url: '{}')",
-                self.api_url
+                "VEX_MODEL_TOKEN must be set for non-local endpoints (url: '{}')",
+                self.model_url
             );
         }
 
-        if !local_endpoint && self.model.starts_with("local/") {
+        if !local_endpoint && self.model_name.starts_with("local/") {
             bail!("Local models are only allowed for localhost endpoints");
-        }
-
-        if !local_endpoint && !self.model.starts_with("claude-") {
-            bail!(
-                "Invalid model name: '{}'. Expected a model starting with 'claude-'",
-                self.model
-            );
         }
 
         Ok(())
     }
 
     fn is_local_endpoint(&self) -> bool {
-        is_local_endpoint_url(&self.api_url)
+        is_local_endpoint_url(&self.model_url)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    #[test]
+    fn test_config_loads_vex_model_name_without_claude_prefix() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+        std::env::set_var("VEX_MODEL_NAME", "llama-3-70b");
+        std::env::remove_var("VEX_MODEL_TOKEN");
+
+        let cfg = Config::load().expect("load failed");
+        let result = cfg.validate();
+
+        std::env::remove_var("VEX_MODEL_URL");
+        std::env::remove_var("VEX_MODEL_NAME");
+
+        assert!(
+            result.is_ok(),
+            "neutral model name must pass validation: {:?}",
+            result
+        );
     }
 }
