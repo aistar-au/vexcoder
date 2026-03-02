@@ -25,7 +25,7 @@ Step 4  EXECUTE   Agent writes code, runs cargo test, pushes branch
 Step 5  URL MAP   Generate /tmp/<branch>-verification-urls.md
 Step 6  RAW CHECK Fetch every raw URL → HTTP 200 + content match
 Step 7  DIFF CHECK Fetch .diff URL → confirm all expected paths present
-Step 8  CI GREEN  All anchor tests + GitHub Actions pass
+Step 8  CI GREEN  clippy/rustfmt/tests + GitHub Actions pass
 Step 9  MAP GATE  Update/check TASKS/completed/REPO-RAW-URL-MAP.md for new files
 Step 10 MERGE     Merge commit (no squash, no rebase) → verify via raw map URL
 ```
@@ -168,9 +168,18 @@ The coding agent follows the dispatch:
 1. `git fetch origin && git checkout -b <branch> origin/main`
 2. Implement each task in execution order, stopping on any red anchor.
 3. Run `cargo test --all-targets` after each task.
-4. Commit with message: `Batch <X>: <ADR-NNN> Phases <range> implementation`
-5. `git push origin <branch>`
-6. Generate `/tmp/<safe-branch-name>-verification-urls.md` (see Step 5 script).
+4. Before push, run the local CI gate:
+
+```sh
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
+cargo test --all-targets
+```
+
+If any command fails, fix it before commit/push.
+5. Commit with message: `Batch <X>: <ADR-NNN> Phases <range> implementation`
+6. `git push origin <branch>`
+7. Generate `/tmp/<safe-branch-name>-verification-urls.md` (see Step 5 script).
 
 ---
 
@@ -243,12 +252,32 @@ The script parses all `diff --git a/<path>` headers and confirms every file from
 
 Before merging:
 
-- All anchor tests pass locally (`cargo test --all-targets`).
+- Local CI gate passes:
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --check`
+  - `cargo test --all-targets`
 - GitHub Actions workflow is green (no red jobs).
 - Resolve any conflicts with `git merge origin/main` on the feature branch, re-run anchor tests.
 - Working tree must be clean (`git status --porcelain` → empty).
 
 Do not create a PR until the branch is conflict-free and CI is green.
+
+### Clippy failure playbook (common blockers)
+
+When CI fails on clippy in this repo, apply these exact transformations before re-running checks:
+
+1. `clippy::unnecessary_lazy_evaluations`
+   - `opt.unwrap_or_else(|| <constant/cheap value>)` → `opt.unwrap_or(<value>)`
+2. `async_fn_in_trait`
+   - Public trait methods: `async fn` → `fn ... -> impl Future<Output = ...> + Send`
+   - Keep `async fn` in trait impl blocks.
+3. `clippy::should_implement_trait`
+   - Do not define ambiguous inherent methods like `fn default()`.
+   - Implement `Default` trait directly and move shared init into a helper with a non-conflicting name.
+4. `clippy::map_entry`
+   - Replace `contains_key` + `insert` with `entry(...).or_insert(...)`.
+5. `clippy::manual_clamp`
+   - Replace `.max(a).min(b)` with `.clamp(a, b)`.
 
 ---
 
