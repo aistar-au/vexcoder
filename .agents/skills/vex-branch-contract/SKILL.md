@@ -4,7 +4,8 @@ description: >
   Batch dispatch and branch-verification workflow for GitHub repos. Use this skill whenever the
   user wants to read raw/blob GitHub URLs, produce dispatch markdown with dependency gates and
   anchor tests, verify branch content through raw URLs or a .diff URL, generate a verification URL
-  map, draft a PR motivation body, or run the end-to-end loop:
+  map, maintain the repo-wide raw URL index for newly added files, draft a PR motivation body, or
+  run the end-to-end loop:
   read → dispatch → verify → push → raw-url-check → diff-check → merge.
 ---
 
@@ -25,7 +26,8 @@ Step 5  URL MAP   Generate /tmp/<branch>-verification-urls.md
 Step 6  RAW CHECK Fetch every raw URL → HTTP 200 + content match
 Step 7  DIFF CHECK Fetch .diff URL → confirm all expected paths present
 Step 8  CI GREEN  All anchor tests + GitHub Actions pass
-Step 9  MERGE     Merge commit (no squash, no rebase) → verify via raw map URL
+Step 9  MAP GATE  Update/check TASKS/completed/REPO-RAW-URL-MAP.md for new files
+Step 10 MERGE     Merge commit (no squash, no rebase) → verify via raw map URL
 ```
 
 Always output **pure markdown** when producing dispatch prompts or reports. Never emit plain prose paragraphs in dispatch output.
@@ -250,7 +252,38 @@ Do not create a PR until the branch is conflict-free and CI is green.
 
 ---
 
-## Step 9 — PR Body File and Merge
+## Step 9 — Repo Raw URL Map Gate
+
+Project policy:
+
+- `TASKS/TASKS-DISPATCH-MAP.md` is the descriptive dispatch contract document for this repo.
+- `TASKS/completed/REPO-RAW-URL-MAP.md` is the canonical whole-repo raw URL file map.
+- Keep this map synchronized with repository files.
+- Update it when new files are added to the repo.
+
+Check map coverage (required before push/PR):
+
+```sh
+bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh --check
+```
+
+If new tracked files are missing from the map, regenerate it:
+
+```sh
+bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh
+```
+
+Then verify again:
+
+```sh
+bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh --check
+```
+
+If no new files were added, update script prints a no-op message and leaves the file untouched.
+
+---
+
+## Step 10 — PR Body File and Merge
 
 Generate the PR summary and write a markdown body file in `/tmp`:
 
@@ -290,7 +323,7 @@ git push origin main
 
 ---
 
-## Step 10 — Post-Merge Verification
+## Step 11 — Post-Merge Verification
 
 After merge, re-fetch the original raw map URL (the TASKS or ADR document on main) and confirm:
 
@@ -317,6 +350,7 @@ git commit -m "Add branch contract skill scripts"
 | `gen_verification_urls.sh` | Generate raw URL map → `/tmp/<branch>-verification-urls.md` |
 | `verify_raw_urls.sh` | HTTP-check every raw URL; optionally compare content vs git ref |
 | `verify_diff_url.sh` | Confirm .diff URL contains all expected file paths |
+| `update_repo_raw_url_map.sh` | Check/update `TASKS/completed/REPO-RAW-URL-MAP.md` for new files |
 | `branch_summary.sh` | Print summary and optionally write `/tmp/<branch>-pr-body.md` |
 
 ### Key flags
@@ -324,6 +358,10 @@ git commit -m "Add branch contract skill scripts"
 | Flag | Meaning |
 | :--- | :--- |
 | `-b / --branch <name>` | Branch to operate on (inferred from HEAD if omitted) |
+| `--check` | `update_repo_raw_url_map`: fail if repo map misses tracked files |
+| `--force` | `update_repo_raw_url_map`: regenerate map even without missing files |
+| `--map <path>` | `update_repo_raw_url_map`: alternate raw map path |
+| `--repo-slug <owner/repo>` | `update_repo_raw_url_map`: override repo slug |
 | `--write-pr-body` | `branch_summary`: write markdown PR body to `/tmp` |
 | `-o / --out <path>` | `branch_summary`: custom output path for PR body markdown |
 | `--base <ref>` | Comparison base (default: `origin/main`) |
@@ -343,4 +381,5 @@ git commit -m "Add branch contract skill scripts"
 5. **Working tree must be clean** before any verification script runs.
 6. **Only raw GitHub URLs** in agent prompts during Step 6. No full file content paste.
 7. **All output is markdown** — no plain text paragraphs in dispatch or report documents.
-8. **Final report required** — every batch must close with task results table, files changed, verification commands with exit codes, and open issues.
+8. **Repo map gate required** — run `update_repo_raw_url_map.sh --check`; if missing files, update then re-check.
+9. **Final report required** — every batch must close with task results table, files changed, verification commands with exit codes, and open issues.
