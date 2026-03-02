@@ -61,20 +61,37 @@ fail=0
 
 for f in "${files[@]}"; do
   url="https://raw.githubusercontent.com/$repo_slug/$branch/$f"
-  fetched_via="curl"
+  fetched_via=""
 
-  code="$(curl -L -sS -o "$tmp_remote" --max-time "$timeout" -w '%{http_code}' "$url" || true)"
-  if [[ "$code" != "200" ]]; then
-    if command -v gh >/dev/null 2>&1 \
-      && gh api \
+  # --- Primary: curl with explicit HTTP code check ---
+  if command -v curl >/dev/null 2>&1; then
+    code="$(curl -L -sS -o "$tmp_remote" --max-time "$timeout" -w '%{http_code}' "$url" || true)"
+    if [[ "$code" == "200" ]]; then
+      fetched_via="curl"
+    fi
+  fi
+
+  # --- Fallback 1: wget (common on minimal Linux images where curl is absent) ---
+  if [[ -z "$fetched_via" ]] && command -v wget >/dev/null 2>&1; then
+    if wget -q --timeout="$timeout" -O "$tmp_remote" "$url" 2>/dev/null; then
+      fetched_via="wget"
+    fi
+  fi
+
+  # --- Fallback 2: gh api raw-content (when CDN is firewalled but API is reachable) ---
+  # BUG-2 fix: pass --timeout to gh api via GH_HTTP_TIMEOUT env var (gh respects it).
+  if [[ -z "$fetched_via" ]] && command -v gh >/dev/null 2>&1; then
+    if GH_HTTP_TIMEOUT="$timeout" gh api \
         -H "Accept: application/vnd.github.raw" \
         "repos/$repo_slug/contents/$f?ref=$branch" > "$tmp_remote" 2>/dev/null; then
       fetched_via="gh-api"
-    else
-      echo "- [ ] FAIL $f ($code) — $url"
-      fail=1
-      continue
     fi
+  fi
+
+  if [[ -z "$fetched_via" ]]; then
+    echo "- [ ] FAIL $f (all fetch methods failed: curl, wget, gh api) — $url"
+    fail=1
+    continue
   fi
 
   if [[ "$compare" == "true" ]]; then
@@ -95,11 +112,11 @@ for f in "${files[@]}"; do
     fi
   fi
 
-  if [[ "$fetched_via" == "gh-api" ]]; then
-    echo "- [x] OK   $f — $url (via gh api fallback)"
-  else
-    echo "- [x] OK   $f — $url"
-  fi
+  case "$fetched_via" in
+    curl)   echo "- [x] OK   $f — $url" ;;
+    wget)   echo "- [x] OK   $f — $url (via wget)" ;;
+    gh-api) echo "- [x] OK   $f — $url (via gh api fallback)" ;;
+  esac
 done
 
 rm -f "$tmp_remote" "$tmp_git" || true

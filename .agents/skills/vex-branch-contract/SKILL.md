@@ -38,7 +38,7 @@ Always output **pure markdown** when producing dispatch prompts or reports. Neve
 
 When given a raw GitHub URL (e.g. `https://raw.githubusercontent.com/...` or a blob URL ending in a file path):
 
-1. Use the available HTTP fetch method (`curl`, `wget`, or built-in web fetch) to retrieve the content.
+1. Use the available HTTP fetch method to retrieve the content. Scripts use a 3-tier cascade: `curl` (primary, HTTP code checked) → `wget` (fallback on images without curl) → `gh api` with `Accept: application/vnd.github.raw` (fallback when CDN is firewalled).
 2. Identify the repo slug (`owner/repo`), branch, and file path.
 3. If the URL is a blob URL (`/blob/`), rewrite to raw (`/raw/` or `https://raw.githubusercontent.com/<slug>/<branch>/<path>`).
 4. Parse any TASKS file, ADR, or map document to extract the task manifest for the upcoming batch.
@@ -212,12 +212,14 @@ done
 
 Paste the raw URLs into the next agent (one URL per line appended to the prompt). The agent must:
 
-1. Fetch each URL with the available HTTP mechanism (`curl`, `wget`, or built-in web fetch).
-2. Assert HTTP 200.
+1. Attempt fetch via 3-tier cascade per file:
+   - **curl** (primary): `curl -L -sS -w '%{http_code}'` — HTTP code must be `200`.
+   - **wget** (fallback): used when curl is absent (minimal Linux images).
+   - **gh api** (fallback): `gh api -H "Accept: application/vnd.github.raw"` with `GH_HTTP_TIMEOUT` set — used when CDN is firewalled but API is reachable.
+2. A file fails only if all three methods fail or return non-200.
 3. If `--compare` mode: compare SHA-256 of fetched content against `git show origin/<branch>:<file>`.
-4. Report `[x] OK` or `[ ] FAIL` for every file.
+4. Report `[x] OK <method>` or `[ ] FAIL` for every file.
 5. Emit `**PASS**` only when all files pass.
-6. If raw CDN access is blocked, use `gh api` raw-content fallback instead of failing the run.
 
 ```bash
 bash .agents/skills/vex-branch-contract/scripts/verify_raw_urls.sh \
