@@ -7,7 +7,7 @@
 
 ---
 
-## 🛠️ The Agentic Workflow (Test-Driven Manifest)
+## The Agentic Workflow (Test-Driven Manifest)
 
 `vexcoder` uses the **Test-Driven Manifest (TDM)** strategy for all bug fixes, features, and refactors. The full rationale is in [ADR-001](TASKS/completed/ADR-001-tdm-agentic-manifest-strategy.md). The short version:
 
@@ -31,7 +31,7 @@ See [`TASKS/manifest-strategy.md`](TASKS/manifest-strategy.md) for the operation
 
 ---
 
-## 🧾 Planning and Audit-Only Requests
+## Planning and Audit-Only Requests
 
 Planning-only and audit-only requests are strictly no-touch by default:
 no file create, edit, rename, move, or delete is allowed during a planning/audit-only pass.
@@ -44,7 +44,7 @@ naming-policy changes.
 
 ---
 
-## 📚 Docs Deployment Standard (GitHub Pages + mdBook)
+## Docs Deployment Standard (GitHub Pages + mdBook)
 
 Docs deployment changes must follow this baseline:
 
@@ -64,7 +64,7 @@ Do not mix runtime behavior changes into deployment-standard edits.
 
 ---
 
-## 📋 Task Naming Convention
+## Task Naming Convention
 
 | Prefix | Type | Example |
 | :--- | :--- | :--- |
@@ -79,7 +79,7 @@ Completed tasks move to `TASKS/completed/` — do not delete them.
 
 ---
 
-## 🧩 Rust Module File Naming (Rust 2018+)
+## Rust Module File Naming (Rust 2018+)
 
 Use path-based module entry files across `src/`.
 
@@ -93,7 +93,7 @@ requires that layout.
 
 ---
 
-## 🗺️ Runtime-core Status
+## Runtime-core Status
 
 REF-08 full cutover is complete and merged (2026-02-19).
 Canonical dispatch and layering rules are now governed by ADR-007 and ADR-008.
@@ -101,7 +101,7 @@ Historical REF manifests remain archived under `TASKS/completed/`.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # 1. Install Rust (stable toolchain required)
@@ -124,7 +124,7 @@ bash scripts/check_forbidden_imports.sh
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 vexcoder/
@@ -139,7 +139,7 @@ vexcoder/
 
 ---
 
-## 🦀 Tracked Rust Source Map (`*.rs`)
+## Tracked Rust Source Map (`*.rs`)
 
 | File | Short description (with raw URL) |
 | :--- | :--- |
@@ -187,7 +187,7 @@ vexcoder/
 
 ---
 
-## 🔗 Reference
+## Reference
 
 - [ADR index](TASKS/ADR-README.md) — architectural decisions and their rationale
 - [Agentic Repair Strategy](TASKS/manifest-strategy.md) — TDM workflow deep-dive
