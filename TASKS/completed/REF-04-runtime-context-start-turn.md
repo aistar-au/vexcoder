@@ -202,7 +202,7 @@ impl RuntimeContext {
         // 1. Record the user message in conversation history.
         self.conversation.REAL_push_user_message(input.clone());
 
-        // 2. Child token: cancel_turn() stops only THIS task, not future ones.
+        // 2. Per-turn token: cancel_turn() stops only THIS task, not future ones.
         //    Using the root token directly would poison all future turns.
         let turn_cancel = self.cancel.child_token();
 
@@ -354,7 +354,7 @@ Fix: delete the old call site.
 boundary is rejected by the borrow checker. Fix: clone owned data (`messages`,
 `client` Arc) before the `tokio::spawn` call. See §3 pattern.
 
-**`CancellationToken` child vs root:** passing `self.cancel` directly (not
+**`CancellationToken` per-turn token (`child_token()`) vs root:** passing `self.cancel` directly (not
 `child_token()`) into the spawn means `cancel_turn()` cancels the root and
 poisons all future turns. Always use `child_token()` per turn.
 

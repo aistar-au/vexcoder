@@ -249,21 +249,21 @@ impl ToolOperator {
         if root.is_file() {
             entries.push(self.to_workspace_relative_display(&root));
         } else {
-            let mut children: Vec<_> = fs::read_dir(&root)
+            let mut entries_in_dir: Vec<_> = fs::read_dir(&root)
                 .with_context(|| format!("Failed to read directory {}", root.display()))?
                 .collect::<std::result::Result<Vec<_>, _>>()
                 .with_context(|| format!("Failed to list entries in {}", root.display()))?;
-            children.sort_by_key(|entry| entry.path());
+            entries_in_dir.sort_by_key(|entry| entry.path());
 
-            for child in children {
-                let name = child.file_name();
+            for entry in entries_in_dir {
+                let name = entry.file_name();
                 let name = name.to_string_lossy();
                 if should_skip_list_entry(root.as_path(), self.working_dir.as_path(), &name) {
                     continue;
                 }
 
-                let path = child.path();
-                let is_dir = child
+                let path = entry.path();
+                let is_dir = entry
                     .file_type()
                     .with_context(|| format!("Failed to inspect {}", path.display()))?
                     .is_dir();
@@ -431,15 +431,15 @@ impl ToolOperator {
             }
 
             if path.is_dir() {
-                let mut children: Vec<_> = fs::read_dir(&path)
+                let mut entries_in_dir: Vec<_> = fs::read_dir(&path)
                     .with_context(|| format!("Failed to read directory {}", path.display()))?
                     .collect::<std::result::Result<Vec<_>, _>>()
                     .with_context(|| format!("Failed to list entries in {}", path.display()))?;
-                children.sort_by_key(|entry| entry.path());
-                for child in children {
-                    let child_path = child.path();
-                    if self.ensure_path_is_within_workspace(&child_path).is_ok() {
-                        stack.push(child_path);
+                entries_in_dir.sort_by_key(|entry| entry.path());
+                for entry in entries_in_dir {
+                    let entry_path = entry.path();
+                    if self.ensure_path_is_within_workspace(&entry_path).is_ok() {
+                        stack.push(entry_path);
                     }
                 }
                 continue;
@@ -503,15 +503,15 @@ impl ToolOperator {
             }
 
             if path.is_dir() {
-                let Ok(children) = fs::read_dir(&path) else {
+                let Ok(dir_entries_iter) = fs::read_dir(&path) else {
                     continue;
                 };
-                let mut children: Vec<_> = children.filter_map(|e| e.ok()).collect();
-                children.sort_by_key(|entry| entry.path());
-                for child in children {
-                    let child_path = child.path();
-                    if self.ensure_path_is_within_workspace(&child_path).is_ok() {
-                        stack.push(child_path);
+                let mut entries_in_dir: Vec<_> = dir_entries_iter.filter_map(|e| e.ok()).collect();
+                entries_in_dir.sort_by_key(|entry| entry.path());
+                for entry in entries_in_dir {
+                    let entry_path = entry.path();
+                    if self.ensure_path_is_within_workspace(&entry_path).is_ok() {
+                        stack.push(entry_path);
                     }
                 }
                 continue;
@@ -570,13 +570,13 @@ impl ToolOperator {
             }
 
             if path.is_dir() {
-                let Ok(children) = fs::read_dir(&path) else {
+                let Ok(dir_entries_iter) = fs::read_dir(&path) else {
                     continue;
                 };
-                for child in children.filter_map(|e| e.ok()) {
-                    let child_path = child.path();
-                    if self.ensure_path_is_within_workspace(&child_path).is_ok() {
-                        stack.push(child_path);
+                for entry in dir_entries_iter.filter_map(|e| e.ok()) {
+                    let entry_path = entry.path();
+                    if self.ensure_path_is_within_workspace(&entry_path).is_ok() {
+                        stack.push(entry_path);
                     }
                 }
                 continue;

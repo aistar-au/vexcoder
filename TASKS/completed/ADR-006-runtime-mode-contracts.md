@@ -91,7 +91,7 @@ impl RuntimeContext {
     pub fn start_turn(&mut self, input: String);
 
     /// Signal the in-flight turn to stop emitting updates.
-    /// Does not kill the task; the task drains cleanly then sends TurnComplete.
+    /// Does not force-stop the task; the task drains cleanly then sends TurnComplete.
     pub fn cancel_turn(&mut self);
 }
 ```
@@ -100,7 +100,7 @@ Design constraints:
 - `RuntimeContext` must not hold a `Terminal` or any UI type.
 - REF-02/03 intentionally keep `RuntimeContext<'a>` minimal (borrowed conversation only) to keep stubs compile-only.
 - `start_turn` is the **only** path through which API calls are initiated after REF-04. All existing `message_tx.send(content)` call sites in `App` migrate to `ctx.start_turn(input)` in REF-05.
-- `cancel_turn` sets a cancellation signal; it does not `abort()` the Tokio task, preserving clean shutdown.
+- `cancel_turn` sets a cancellation signal; it does not force-stop the Tokio task, preserving clean shutdown.
 
 ### 3. `UiUpdate` enum
 

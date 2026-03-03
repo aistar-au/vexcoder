@@ -47,7 +47,7 @@ pub enum CancellationStatus {
 
 pub struct PtySession {
     reader: Box<dyn Read + Send>,
-    _child: Box<dyn portable_pty::Child + Send>,
+    _pty_process: Box<dyn portable_pty::Child + Send>,
 }
 
 pub trait CommandRunner: Send + Sync {
@@ -105,7 +105,7 @@ impl CommandRunner for DefaultCommandRunner {
     ) -> Result<CommandHandle> {
         let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
 
-        let mut child = Command::new(&req.program)
+        let mut process = Command::new(&req.program)
             .args(&req.args)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -113,8 +113,8 @@ impl CommandRunner for DefaultCommandRunner {
             .spawn()
             .with_context(|| format!("Failed to spawn command: {}", req.program))?;
 
-        let stdout = child.stdout.take().context("Failed to capture stdout")?;
-        let stderr = child.stderr.take().context("Failed to capture stderr")?;
+        let stdout = process.stdout.take().context("Failed to capture stdout")?;
+        let stderr = process.stderr.take().context("Failed to capture stderr")?;
 
         let tx_stdout = tx.clone();
         let stdout_task = tokio::spawn(async move {
@@ -153,12 +153,12 @@ impl CommandRunner for DefaultCommandRunner {
         tokio::spawn(async move {
             tokio::select! {
                 _ = cancel_rx => {
-                    let _ = child.kill().await;
+                    let _ = process.kill().await;
                 }
                 _ = stdout_task => {}
                 _ = stderr_task => {}
             }
-            let _ = child.wait().await;
+            let _ = process.wait().await;
         });
 
         Ok(CommandHandle {
@@ -188,7 +188,7 @@ impl CommandRunner for DefaultCommandRunner {
         for arg in &req.args {
             cmd.arg(arg);
         }
-        let child = pair
+        let pty_process = pair
             .slave
             .spawn_command(cmd)
             .context("Failed to spawn command in PTY")?;
@@ -200,7 +200,7 @@ impl CommandRunner for DefaultCommandRunner {
 
         Ok(PtySession {
             reader,
-            _child: child,
+            _pty_process: pty_process,
         })
     }
 }

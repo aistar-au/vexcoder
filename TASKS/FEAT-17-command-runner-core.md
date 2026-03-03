@@ -41,7 +41,7 @@ pub trait CommandRunner: Send + Sync {
 2. Add `DefaultCommandRunner` backed by `tokio::process::Command`.
 3. Export from `src/runtime.rs`.
 4. One-shot captures full stdout+stderr and exit code.
-5. Streaming spawns the child and forwards chunks to `tx` until completion or cancel.
+5. Streaming spawns the process and forwards chunks to `tx` until completion or cancel.
 
 ---
 

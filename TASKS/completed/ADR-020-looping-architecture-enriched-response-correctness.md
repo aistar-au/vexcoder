@@ -63,7 +63,7 @@ explicit regression tests.
 
 - Convert `src/state/conversation.rs` into a thin module entrypoint with
   re-exports only.
-- Move conversation logic into responsibility-focused child modules:
+- Move conversation logic into responsibility-focused submodules:
   `state.rs`, `core.rs`, `tools.rs`, `streaming.rs`, `history.rs`, and
   `tests.rs`.
 - Preserve public API and behavior while reducing the god-file blast radius for

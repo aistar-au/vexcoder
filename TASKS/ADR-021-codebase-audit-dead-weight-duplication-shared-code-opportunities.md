@@ -381,7 +381,7 @@ git diff --numstat -- src/runtime/loop.rs
 ### 35) `src/runtime.rs` + `src/runtime/mod.rs` dual-entry claim
 - **Status**: **Not accurate (current tree)**
 - **Evidence**:
-  - Repository has `src/runtime.rs` and `src/runtime/*` children.
+  - Repository has `src/runtime.rs` and nested entries under `src/runtime/*`.
   - `src/runtime/mod.rs` does not exist.
 - **Priority**: **N/A**
 

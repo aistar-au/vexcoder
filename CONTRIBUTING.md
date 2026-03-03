@@ -86,7 +86,7 @@ Use path-based module entry files across `src/`.
 | Situation | Required path |
 | :--- | :--- |
 | Top-level module entry | `src/<module>.rs` |
-| Child module | `src/<module>/<child>.rs` |
+| Nested module | `src/<module>/<submodule>.rs` |
 
 Do not introduce new `src/*/mod.rs` files unless an external tool or macro
 requires that layout.

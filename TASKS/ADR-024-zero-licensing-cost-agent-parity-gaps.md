@@ -17,7 +17,7 @@ ADR-022 covers command execution, diff-native writes, capability-based approval,
 
 ## Context
 
-ADR-022 locked the first-milestone roadmap for `vexcoder` as a coding agent whose runtime and packaging dependencies carry exclusively permissive, no-cost licenses. A structured comparison against available reference implementations reveals twelve material gaps.
+ADR-022 locked the first-milestone roadmap for `vexcoder` as a coding agent whose runtime and packaging dependencies carry exclusively permissive, no-cost licenses. A structured comparison against available reference implementations reveals the following gaps.
 
 ### Dependency licensing constraint
 
@@ -46,6 +46,9 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 10 | No skills registry or discovery mechanism | Proposed |
 | 11 | No migration tooling for operators | Proposed |
 | 12 | Code search / indexing | Formally deferred |
+| 13 | No interactive permission-control command surface | Proposed |
+| 14 | No session-lifecycle command surface | Proposed |
+| 15 | No MCP command-level management surface | Proposed (extends Gap 5) |
 
 ### Gaps intentionally deferred by this ADR
 
@@ -55,7 +58,8 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | Multi-agent / parallel task execution | Out of scope for the first milestone per ADR-022 Decision item 5 (single active task) |
 | Cloud task delegation | Deferred indefinitely; contradicts the self-hostable, zero-licensing-cost posture established by the dependency licensing constraint above |
 | Built-in web search | Depends on MCP (Gap 5). Implementing web search before MCP exists would permanently couple it to the core runtime |
-| IDE extensions | Deferred to a post-first-milestone ADR per ADR-022 amendment Decision item 11. `vex exec` (Gap 2) must be stable before an editor extension is designed |
+| IDE extensions | Deferred to a post-first-milestone ADR per ADR-022 amendment Decision item 11. File-based editor extensions must use `vex exec` (Gap 2). Native GUI surfaces (IDE panels with live streaming, macOS native client) must use the `LocalApiServer` path reserved in Phase I |
+| Conversation compaction / context-window management | Long-running sessions that approach the model's context limit have no managed strategy for pruning or summarising old turns. `ConversationCheckpoint` in `TaskState` records a `message_count` and `summary` string but neither is populated nor acted upon by the runtime today. Implementing compaction requires a dedicated ADR: the summarisation prompt, the trigger threshold, and whether the summary is injected as a system message or a synthetic turn all affect model behaviour and must be decided deliberately. Deferred until the edit loop and BatchMode are stable — compaction adds the most value for long `vex exec` runs, and those require BatchMode to exist first. **Command-surface note:** reference CLIs expose active context management commands (`/compact`, `/usage`). ADR-023 `EL-12` introduces `/context` for read-only token-estimate display. `/compact` (trigger summarisation) and a richer `/usage` (per-tool token attribution) are part of this deferred gap and must not be implemented without the dedicated compaction ADR. This gap is a formal deferral gate: do not implement conversation pruning or summarisation without a dedicated ADR. |
 
 ---
 
@@ -63,11 +67,13 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 **Phases G and H (distribution and macOS packaging) are post-first-milestone** and must not block milestone-1 correctness work (ADR-022 phases 1–8 and ADR-023 edit loop). They may not begin until the edit loop, approval system, and task state persistence are validated end-to-end. Any dispatcher that begins Phase G or H work before those milestones are green must be considered out of scope.
 
+**Phase I (local API server) is post-Phase-H** and requires a dedicated ADR specifying wire protocol, local socket authentication, and streaming response format before any dispatcher begins work.
+
 ---
 
 ## Decision
 
-This ADR locks decisions for gaps 1–11. Gap 12 is formally deferred with rationale recorded.
+This ADR locks decisions for gaps 1–11 and gaps 13–15. Gap 12 is formally deferred with rationale recorded.
 
 ---
 
@@ -118,7 +124,7 @@ vex exec --task "refactor src/foo.rs to use the new error type" \
          [--format jsonl|text]
 ```
 
-`BatchMode` is the designated integration point for any future editor-surface extension. Extensions must shell out to `vex exec` rather than embedding the runtime directly.
+`BatchMode` is the designated integration point for file-based and CLI editor-surface extensions. Extensions that shell out to `vex exec`, read JSONL, and render it in a panel must use this path rather than embedding the runtime directly. Native GUI surfaces that require richer bidirectional communication should use the `LocalApiServer` path reserved in Phase I below.
 
 ---
 
@@ -148,9 +154,9 @@ At session start, `RuntimeContext::start_session` searches for a project instruc
 
 ### Gap 5 — MCP Server Integration
 
-Introduce `McpRegistry` loaded from the **user config file only** (`~/.config/vex/config.toml`) under a `[[mcp_servers]]` table. STDIO servers are launched as child processes at session start and terminated at session end. HTTP servers are connected by URL. Tools advertised by MCP servers are merged into the tool dispatch table with `mcp.<server_name>.<tool_name>` namespace prefixing to prevent collisions with built-in tools. A new `Capability::McpTool` variant is added with a default approval scope of `once`.
+Introduce `McpRegistry` loaded from the **user config file only** (`~/.config/vex/config.toml`) under a `[[mcp_servers]]` table. STDIO servers are launched as managed processes at session start and terminated at session end. HTTP servers are connected by URL. Tools advertised by MCP servers are merged into the tool dispatch table with `mcp.<server_name>.<tool_name>` namespace prefixing to prevent collisions with built-in tools. A new `Capability::McpTool` variant is added with a default approval scope of `once`.
 
-`[[mcp_servers]]` must not be permitted in repo-local config (`.vex/config.toml`). Allowing committed repo config to auto-launch arbitrary child processes is a supply-chain risk. Reject with a diagnostic at config load time.
+`[[mcp_servers]]` must not be permitted in repo-local config (`.vex/config.toml`). Allowing committed repo config to auto-launch arbitrary processes is a supply-chain risk. Reject with a diagnostic at config load time.
 
 ```toml
 # ~/.config/vex/config.toml — user config layer only
@@ -211,21 +217,27 @@ A Homebrew tap formula (`homebrew-vex`) is maintained as a separate repository. 
 
 #### Phase H — macOS application wrapper
 
-A Swift application under `packaging/macos/` that:
+A native macOS application under `packaging/macos/` that:
 
-- Launches and manages the `vex` binary as a child process.
+- Launches and manages the `vex` binary as a managed process.
 - Embeds the compiled `vex` binary in the app bundle at `Contents/MacOS/vex`.
-- Reads `VEX_MODEL_TOKEN` from the system keychain via `Security.framework` and injects it as an environment variable into the child process at launch. It must not write the token to disk.
+- Reads `VEX_MODEL_TOKEN` from the system keychain via `Security.framework` and injects it as an environment variable into the managed process at launch. It must not write the token to disk.
 - Presents a terminal surface (initially: launches the system terminal with the embedded binary; an embedded `NSTextView`-based terminal surface is a separately-scoped follow-up and not required for Phase H correctness).
 - Distributes via a `.dmg` attached to GitHub Releases.
 
 **Code signing and notarisation (required for distribution):** the macOS wrapper must be signed with a Developer ID Application certificate and notarised via `xcrun notarytool` before distribution. An unsigned `.dmg` will be blocked by Gatekeeper on every supported macOS version. The release workflow must include a signing and notarisation step. The certificate and App Store Connect API key must be stored as GitHub Actions secrets (`APPLE_DEVELOPER_ID_CERT`, `APPLE_NOTARYTOOL_KEY`). If these secrets are absent, the workflow must skip signing and attach a clearly labelled "unsigned development build" to the release rather than failing silently.
 
-**Boundary constraint:** the Swift wrapper is a packaging and credential layer only. It must not contain agent logic, model calls, conversation state, or tool dispatch. All such logic remains exclusively in the Rust binary. Any PR to `packaging/macos/` that modifies any file under `src/` in the same changeset is out of scope and must be rejected.
+**Phase H boundary constraint:** the native macOS application in Phase H is a packaging and credential layer only. It must not contain agent logic, model calls, conversation state, or tool dispatch. All such logic remains exclusively in the Rust binary. Any PR to `packaging/macos/` that modifies any file under `src/` in the same changeset is out of scope for Phase H and must be rejected.
 
-#### Phase I — Future editor surface (reserved)
+This constraint applies to Phase H specifically. It does not prohibit a future native macOS client that communicates with a `LocalApiServer: RuntimeMode + FrontendAdapter` (see Phase I below). That path involves adding a new `RuntimeMode` implementation to `src/` — which is an intended use of the runtime trait architecture — and a native macOS client that connects to it over a local socket or loopback interface. The architectural relationship is the same as any API client to a local server; the network path is shorter than a cloud API but the interface contract is identical. Phase I requires a dedicated ADR and must not begin before Phase H and the milestone-1 correctness work are validated end-to-end.
 
-Formally reserved per ADR-022 amendment Decision item 11. `vex exec` (Gap 2 / `BatchMode`) is the designated integration point. No editor surface is in scope until `BatchMode` is validated end-to-end.
+#### Phase I — Local API server surface (reserved)
+
+Formally reserved for a post-Phase-H ADR. The `LocalApiServer` is the third `RuntimeMode + FrontendAdapter` implementation after `TuiMode` and `BatchMode`. It exposes the shared runtime core over a local HTTP or Unix domain socket, enabling rich bidirectional communication with native GUI clients (native macOS application, web frontend, IDE extension) without duplicating any Rust logic in those clients. The server binds to loopback only by default; no external network exposure without an explicit operator configuration and a dedicated ADR.
+
+The relationship to cloud API servers is direct: architecturally, `LocalApiServer` and a cloud-hosted API server are the same construct — a `RuntimeMode` implementation that accepts requests and streams responses. The network path differs (loopback vs internet); the interface contract does not. This means a future cloud-hosted or enterprise-licensed deployment follows the same expansion path: a `RuntimeMode` implementation that routes to a remote transport rather than a local socket.
+
+`LocalApiServer` must not begin implementation until `BatchMode` is validated end-to-end and Phase H is complete. The ADR for Phase I must specify the wire protocol, authentication model for the local socket, and the streaming response format before any dispatcher begins work.
 
 ---
 
@@ -285,6 +297,134 @@ Add a `vex migrate config` sub-command that reads the environment for legacy var
 These are vexcoder's own pre-ADR-022 variable names. No third-party SDK variable names are mapped. Any migration from third-party tooling is the operator's responsibility and is documented in `docs/src/migration.md` but not automated.
 
 `docs/src/migration.md` must include the complete legacy-to-current variable mapping table, the `vex migrate config` usage guide, and a command alias reference (`/help` → `/commands`, etc.). The migration doc is the canonical source of truth; `vex migrate config` is a convenience generator that must match it exactly.
+
+---
+
+---
+
+### Gap 13 — Interactive Permission-Control Command Surface
+
+Reference CLIs expose runtime commands that let operators inspect and mutate the active capability grant set without restarting the process. Vexcoder's `active_grants: HashMap<Capability, ApprovalScope>` on `TaskState` is already the correct data structure; this gap adds the command surface to read and write it directly from the TUI.
+
+**Commands added to `try_handle_slash_command` (ADR-023 §6 dispatch):**
+
+```
+/permissions
+    Renders the current active_grants table to transcript via push_history_line.
+    No model turn. Output format:
+      [permissions]
+        ApplyPatch   : once
+        RunCommand   : session
+        McpTool      : (none)
+    If active_grants is empty, renders "[permissions] no active grants".
+
+/allow <capability> [once|session]
+    Grants the named Capability at the specified scope. Scope defaults to "once"
+    if omitted. Valid capability names are the kebab-case lowercase of each
+    Capability variant (e.g. "apply-patch", "run-command", "mcp-tool").
+    Unknown capability name → "[allow: unknown capability '<name>']", no grant.
+    Updates active_grants on the live TaskState in-session; does not persist to
+    disk (grants are session-scoped by design; TaskState::save is not called).
+    Emits "[allow: apply-patch granted for session]" on success.
+
+/deny <capability>
+    Removes the named capability from active_grants if present.
+    Unknown name or not-currently-granted → emits "[deny: apply-patch not in
+    active grants]" and returns without error.
+    Emits "[deny: apply-patch removed]" on success.
+```
+
+**Constraints:**
+
+- `/allow` and `/deny` must never start a model turn. All output is via `push_history_line`.
+- Capability names in the command surface must be derived from the `Capability` enum's variant list at compile time. No hardcoded string list is permitted — the kebab-case conversion must be a function that iterates the enum to prevent silent drift.
+- `/allow session` does not persist to `.vex/state/`. Session grants expire when the process exits. Persistence of capability policy belongs to `.vex/config.toml` (ADR-024 Gap 3 layered config), not to interactive grants.
+- `/permissions` renders the live `active_grants` from `TuiMode`'s task-state reference, not a cached snapshot.
+
+**Anchor tests:** `test_tui_permissions_renders_empty_grants`; `test_tui_allow_grants_capability_once`; `test_tui_allow_defaults_to_once_scope`; `test_tui_deny_removes_grant`; `test_tui_allow_unknown_capability_emits_error`; `test_tui_allow_does_not_call_start_turn`.
+
+---
+
+### Gap 14 — Session-Lifecycle Command Surface
+
+Reference CLIs expose commands to reset the active session and resume a previously interrupted task. Vexcoder has `TaskState::new`, `TaskState::save`, and `TaskState::load` (confirmed from `src/runtime/task_state.rs`) but no command surface over them.
+
+**Commands added to `try_handle_slash_command`:**
+
+```
+/new
+    Resets the active session: clears conversation history in RuntimeContext,
+    creates a new TaskState with a fresh TaskId (format: "task-<utc-ms>"),
+    clears active_edit_loop on TuiMode, and emits
+    "[new session: <new-task-id>]" to transcript. The previous TaskState is
+    saved to VEX_STATE_DIR before the reset (TaskState::save) so it can be
+    resumed. No model turn is started.
+
+/resume [<task-id>]
+    Loads a previously saved TaskState from VEX_STATE_DIR via TaskState::load.
+    With <task-id>: loads that specific task. Without argument: lists the five
+    most recently modified state files and prompts the operator to select by
+    number (rendered via push_history_line; input handled via the existing
+    overlay input path).
+    On successful load: restores active_grants and changed_files from the saved
+    state; emits "[resumed: <task-id> status=<status>]".
+    Note: conversation history is NOT restored — TaskState does not persist
+    message content. The operator resumes with an empty conversation but with
+    grants and file-change context intact.
+    Unknown or unreadable task-id → "[resume: task '<id>' not found]", no state
+    change.
+```
+
+**`/undo` — formally deferred:** An `/undo` command would revert the most recently applied patch. This requires either a git-based rollback (which requires the repo to be git-managed and the patch to have been committed or stashable) or a file-snapshot mechanism before each apply. Neither is in scope for this ADR. `/undo` is a formal deferral gate: do not implement it without a dedicated ADR specifying the rollback strategy.
+
+**`/rename` — deferred:** Renaming a task-id after creation is low-priority cosmetic infrastructure. Deferred indefinitely.
+
+**Constraints:**
+
+- `/new` must call `TaskState::save` before resetting. A new session must not begin if the save fails; emit the error and abort.
+- `/resume` must not attempt to restore conversation history. `ConversationCheckpoint.message_count` may be displayed informationally; the content is not stored.
+- `/resume` without argument must not start a model turn. The selection overlay must use the existing `PendingApproval` input path.
+- Both commands must clear `active_edit_loop` on `TuiMode` to prevent stale loop state. `[source: task_state.rs — TaskState::state_dir() for VEX_STATE_DIR resolution]`
+
+**Anchor tests:** `test_tui_new_saves_current_state_before_reset`; `test_tui_new_creates_fresh_task_id`; `test_tui_resume_restores_active_grants`; `test_tui_resume_does_not_restore_conversation`; `test_tui_resume_unknown_id_emits_error`; `test_tui_new_clears_active_edit_loop`.
+
+---
+
+### Gap 15 — MCP Command-Level Management Surface (extends Gap 5)
+
+Gap 5 defined `McpRegistry` config and tool dispatch. Reference CLIs additionally expose runtime commands to inspect which MCP servers are active and what tools they advertise. This gap adds that read-only command surface.
+
+**Commands added to `try_handle_slash_command`:**
+
+```
+/mcp list
+    Renders all loaded MCP servers from the live McpRegistry to transcript.
+    No model turn. Output format:
+      [mcp servers]
+        my-server   : running  (12 tools)
+        other-server: running  (3 tools)
+    If McpRegistry is empty: "[mcp] no MCP servers configured".
+    If McpRegistry is not yet loaded (session startup still in progress):
+    "[mcp] registry not yet available".
+
+/mcp show <server-name>
+    Renders all tool names advertised by the named server.
+    Output format:
+      [mcp: my-server]
+        mcp.my-server.read_file
+        mcp.my-server.write_file
+        ...
+    Unknown server name → "[mcp: '<name>' not found]".
+```
+
+**Constraints:**
+
+- Both commands are read-only and must never start a model turn or modify `McpRegistry`.
+- `McpRegistry` is read-only after session start; `/mcp` commands observe only, never mutate.
+- Tool names in `/mcp show` output must use the full `mcp.<server_name>.<tool_name>` namespace as registered in the dispatch table (Gap 5), so operators can use them as references in free-form prompts.
+- `/mcp add` and `/mcp remove` are explicitly out of scope for this ADR. Runtime MCP server management (adding servers mid-session) requires dynamic subprocess lifecycle management and a dedicated ADR.
+
+**Anchor tests:** `test_tui_mcp_list_renders_loaded_servers`; `test_tui_mcp_list_empty_registry`; `test_tui_mcp_show_renders_tool_names`; `test_tui_mcp_show_unknown_server_emits_error`; `test_tui_mcp_commands_do_not_start_turn`.
 
 ---
 
@@ -355,6 +495,10 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | Ship `vex migrate config` | Maps all legacy `VEX_API_PROTOCOL` / `VEX_STRUCTURED_TOOL_PROTOCOL` values correctly; non-destructive |
 | Populate `docs/src/migration.md` | Complete variable rename table, command alias reference, `vex migrate config` usage guide |
 
+**Note:** ModelProfile integration (ADR-023 EL-08 — the `model_profile` TOML key and `VEX_MODEL_PROFILE` env var) is explicitly deferred until after Phase A is locked and green. EL-07 (struct + files) may proceed in parallel; EL-08 may not.
+
+**Note:** `ModelProfile` config integration (ADR-023 EL-08 — the `model_profile` TOML key and `VEX_MODEL_PROFILE` env var) is explicitly gated on Phase A completion. EL-08 must not begin until the layered config chain above is locked and green. This sequencing is normative: ADR-023 EL-07 (struct and profile files) may proceed in parallel; EL-08 may not.
+
 ### Phase B — Shell completions, git hooks, skills registry
 
 | Objective | Completion condition |
@@ -387,7 +531,7 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | :--- | :--- |
 | `BatchMode: RuntimeMode + FrontendAdapter` | No `ratatui`/`crossterm` imports |
 | `vex exec` sub-command | Runs to completion without TUI |
-| Exit codes | 0 on `TaskStatus::Completed`; non-zero on `Failed` or approval denial |
+| Exit codes | 0 on `TaskStatus::Completed` only; non-zero on `Failed`, `ApprovalDenied`, or `MaxTurnsReached`. `MaxTurnsReached` must exit non-zero because the task was not completed — a CI pipeline must not treat it as success |
 | JSONL evidence | Includes turn evidence, changed files, command history |
 
 ### Phase F — MCP server integration
@@ -411,9 +555,9 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 
 | Objective | Completion condition |
 | :--- | :--- |
-| Swift wrapper — process management | Launches `vex` child process; embeds binary in bundle |
+| macOS application layer — process management | Launches `vex` process; embeds binary in bundle |
 | Keychain credential storage | `VEX_MODEL_TOKEN` sourced from keychain; injected as env var; not written to disk |
-| No agent logic | Wrapper contains no runtime, model, or state code |
+| No agent logic (Phase H) | Wrapper contains no runtime, model, or state code. Full native client capability deferred to Phase I (`LocalApiServer`) |
 | Code signing and notarisation | Binary signed with Developer ID; notarised via `xcrun notarytool`; unsigned builds labelled clearly |
 | Release artifact | `.dmg` attached to GitHub Release |
 | Boundary preserved | No PR to `packaging/macos/` requires changes to `src/` |
@@ -437,7 +581,7 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | 9 | `vex completions zsh` | Valid zsh completion syntax |
 | 10 | Tag `v1.0.0` | Release has archives + `checksums.txt` for all five targets |
 | 11 | `vex skills install <git-url> --subdir skills/edit-loop` | Skill installed; appears in `vex skills list` |
-| 12 | Open macOS app | Token sourced from keychain; no agent logic in Swift layer; app signed and notarised |
+| 12 | Open macOS app | Token sourced from keychain; no agent logic in native layer; app signed and notarised |
 
 ### Required tests
 
@@ -572,9 +716,11 @@ fn model_switch_backend_kind_is_error() {
 
 `CommandRunner` is responsible for spawning and managing processes. Sandboxing is a containment policy applied to command arguments before dispatch. Keeping `SandboxDriver` as a pre-dispatch wrapper means `CommandRunner` implementations remain transport-pure and independently testable. Capability approval and execution containment are also orthogonal concerns: an operator may want to sandbox all commands regardless of approval state, or run in passthrough mode in a trusted environment. Conflating them creates policy interactions that are hard to reason about.
 
-### Why is `BatchMode` the designated editor-extension integration point?
+### Why is `BatchMode` the designated integration point for CLI editor extensions?
 
 An editor extension that embeds the Rust runtime directly (via FFI or a native module) introduces a tight coupling between the extension's release cycle and the runtime's. `vex exec` over a subprocess is loosely coupled: the extension shells out, reads JSONL, and renders it. The runtime can evolve without breaking the extension as long as the JSONL output schema is stable. Any editor can integrate without language-specific bindings.
+
+This applies to file-based and CLI editor surfaces. A native GUI application that requires richer bidirectional communication — streaming partial results, session state queries, live approval prompts — should use the `LocalApiServer` path (Phase I) rather than `vex exec`. The two integration paths are complementary: `BatchMode` for simple, stateless editor surfaces; `LocalApiServer` for full native clients.
 
 ### Why is the Windows target `gnu` rather than `msvc`?
 
@@ -610,7 +756,7 @@ Rejected. Skills are workflow documents. A package manager adds lockfiles, depen
 
 ### Make the macOS wrapper a full native UI replacing the TUI
 
-Rejected. A native UI that replaces the TUI would require duplicating or closely tracking the Rust TUI state in Swift indefinitely. Any change to the Rust TUI would require a corresponding Swift change. Wrapping the terminal surface preserves the single canonical implementation and eliminates that maintenance surface.
+Rejected. A native UI that replaces the TUI would require duplicating or closely tracking the Rust TUI state in the native layer indefinitely. Any change to the Rust TUI would require a corresponding native change. Wrapping the terminal surface preserves the single canonical implementation and eliminates that maintenance surface.
 
 ### Use `x86_64-pc-windows-msvc` as the Windows build target from the start
 
@@ -643,9 +789,9 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 - `VEX_MODEL_TOKEN` must never be read from any config file layer. Files containing `model_token` must be rejected with a diagnostic at load time.
 - All new direct dependencies introduced under this ADR must be licensed under MIT, Apache 2.0, or a dual MIT/Apache 2.0 offering. Any deviation requires a separate ADR recording an explicit exception and its legal basis.
 - `[[mcp_servers]]` must not be permitted in repo-local config. Reject with a diagnostic.
-- `SandboxDriver::wrap` must be called on every `CommandRequest` before it reaches `CommandRunner`. Bypassing it must use `PassthroughSandbox` explicitly.
+- `SandboxDriver::wrap` must be called on every `CommandRequest` before it reaches `CommandRunner`. Bypassing it must use `PassthroughSandbox` explicitly. This includes `CommandRequest` instances produced by `ValidationSuite::run` (ADR-023) and by tool dispatch during edit-loop turns — the sandbox boundary applies uniformly to all subprocess execution regardless of the call site.
 - `BatchMode` must not import `ratatui` or `crossterm`. The REF-02 CI grep check must stay green.
-- The macOS Swift wrapper must not contain agent logic. Any changeset to `packaging/macos/` that also modifies `src/` must be rejected.
+- The native macOS application layer (Phase H) must not contain agent logic. Any changeset to `packaging/macos/` that also modifies `src/` is out of scope for Phase H and must be rejected. This constraint is Phase H scoped — a future `LocalApiServer: RuntimeMode + FrontendAdapter` implementation will legitimately reside in `src/` and is the intended expansion path for a full native macOS client.
 - `src/index/` must not be implemented without a dedicated ADR. Gap 12 is a formal gate.
 - Phases G and H must not begin until milestone-1 correctness work is validated end-to-end.
 - Runtime code and config must use only neutral, non-branded names. Documentation may reference external tools by name where necessary for operator clarity.
@@ -674,16 +820,24 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PG-01** | GitHub Releases workflow — Linux and macOS targets | [ ] |
 | **PG-02** | GitHub Releases workflow — Windows (gnu) target | [ ] |
 | **PG-03** | Homebrew tap formula + auto-update dispatch | [ ] |
-| **PH-01** | macOS Swift wrapper — process management + terminal surface | [ ] |
-| **PH-02** | macOS Swift wrapper — keychain credential storage + env injection | [ ] |
+| **PH-01** | macOS application layer — process management + terminal surface | [ ] |
+| **PH-02** | macOS application layer — keychain credential storage + env injection | [ ] |
 | **PH-03** | macOS code signing, notarisation, and `.dmg` release attachment | [ ] |
+| **PI-01** | `/permissions` — renders active_grants table; no model turn | [ ] |
+| **PI-02** | `/allow <cap> [once\|session]` — grants capability; enum-derived names; no persist | [ ] |
+| **PI-03** | `/deny <cap>` — removes capability from active_grants | [ ] |
+| **PI-04** | `/new` — saves current TaskState, resets session, new TaskId | [ ] |
+| **PI-05** | `/resume [<task-id>]` — loads TaskState; grants restored; conversation not restored | [ ] |
+| **PI-06** | `/mcp list` — renders loaded servers and tool counts from McpRegistry | [ ] |
+| **PI-07** | `/mcp show <server>` — renders full-namespace tool names for named server | [ ] |
+| **PI-08** | `/plan` and `/context` — see ADR-023 EL-11/EL-12 (tracked there; listed here for cross-ref) | [ ] |
 
 ## Dispatcher reporting contract (mandatory per checklist item)
 
 When checking a box above, append an evidence block under this section:
 
 ```markdown
-### [PA-01 … PH-03] - <short title>
+### [PA-01 … PI-08] - <short title>
 - Dispatcher: <name/id>
 - Commit: <sha>
 - Files changed:
@@ -710,8 +864,14 @@ When checking a box above, append an evidence block under this section:
 | Do not allow `/model` to change `ModelBackendKind` or `ModelProtocol` | Name-only switching; reject backend/protocol changes with a clear error |
 | Do not inject project instructions exceeding token budget | Emit warning and skip the file; do not truncate |
 | Do not auto-install git hooks | `vex install-hooks` must be an explicit operator action |
-| Do not add agent logic, model calls, or conversation state to `packaging/macos/` | Packaging and credential layer only |
+| Do not add agent logic, model calls, or conversation state to `packaging/macos/` | Phase H constraint: packaging and credential layer only. A future `LocalApiServer: RuntimeMode + FrontendAdapter` in `src/` is the correct expansion path for a full native client — it is not a violation of this rule |
 | Do not implement `src/index/` without a dedicated ADR | Gap 12 is a formal deferral gate |
+| Do not implement conversation compaction, turn pruning, or `ConversationCheckpoint` summarisation without a dedicated ADR | Formal deferral gate; `/compact` and richer `/usage` are part of this gate |
+| Do not implement `/undo` without a dedicated ADR specifying rollback strategy | Gap 14 formal deferral gate |
+| `/allow` and `/deny` must derive capability names from the `Capability` enum at compile time | No hardcoded string list permitted; drift between enum and command surface must be a compile error |
+| `/allow session` must not call `TaskState::save` | Session grants are in-memory only; persistence belongs to config layering (Gap 3) |
+| `/mcp add` and `/mcp remove` must not be implemented under this ADR | Runtime MCP lifecycle management requires a dedicated ADR |
+| `/new` must call `TaskState::save` before resetting; abort if save fails | Data loss prevention — never discard a live task state without a successful save |
 | Do not begin Phases G or H before milestone-1 correctness work is validated | Sequencing guard |
 | Do not add a dependency licensed under a commercial, copyleft, or conditionally-paid license | All direct dependencies must carry MIT, Apache 2.0, or dual MIT/Apache 2.0 licensing; exceptions require a dedicated ADR with explicit legal basis |
 | Do not use provider-branded names or proprietary product references in runtime code, config keys, or default values | Documentation may reference external tools by name for operator clarity; runtime behaviour must remain neutral |

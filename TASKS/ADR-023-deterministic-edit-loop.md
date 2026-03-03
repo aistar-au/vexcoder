@@ -6,7 +6,7 @@
 **ADR chain:** ADR-020 (L7 enrichment), ADR-022 (Phase 2 command runner, Phase 3 diff-native writes), ADR-016 (tool loop guard), ADR-006 (runtime mode contracts)
 **Depends on:** CRIT-19 (`PendingPatch` two-step write path), FEAT-17 (command runner one-shot), CORE-16 (approval wiring)
 
-> **Source-verified 2026-03-03 against:** `src/app.rs` (1 712 lines), `src/runtime/task_state.rs`. See inline `[source:]` annotations for traceability. Annotations marked `[source: verify ...]` are implementation directives that must be resolved against live source before the corresponding checklist item is closed — they are not yet confirmed against the current codebase. Files not fetchable in offline review are listed in the verification note at the foot of each relevant section.
+> **Source-verified 2026-03-03 against:** `src/app.rs` (1 712 lines), `src/runtime/task_state.rs`. See inline `[source:]` annotations for traceability. Files not fetchable in offline review are listed in the verification note at the foot of each relevant section.
 
 ---
 
@@ -20,7 +20,7 @@ What L7 does not address is the *task-level* problem: there is no runtime constr
 2. After a failed patch apply or a failing test run, the model receives no structured summary of what went wrong; it either loops vacuously or stalls.
 3. There is no bounded stop condition for a coding task; a runaway loop can exhaust the full context window without making progress.
 4. The TUI has no semantic entry points for common coding workflows; users type free-form instructions for operations that have well-defined shapes.
-5. Openly distributed, self-hostable inference models — including models distributed under permissive or publicly accessible weight licenses such as Qwen2.5-Coder (Apache 2.0 for most weight sizes), Code Llama (Meta Code Llama Community License), StarCoder2 (BigCode OpenRAIL-M), and DeepSeek-Coder-V2 (DeepSeek Model License) — respond significantly better to coding-specific system prompt framing and low-temperature presets than to the existing general-purpose prompt. These models are targeted because their weight distributions impose no per-call API fee and permit local, self-hosted inference; note that their individual licenses are not uniform and operators should verify each model's redistribution and use terms before deployment. There is currently no mechanism to load model-specific parameter profiles.
+5. Free/open models (Qwen2.5-Coder, DeepSeek-Coder-V2, Code Llama, StarCoder2) respond significantly better to coding-specific system prompt framing and low-temperature presets than to the existing general-purpose prompt. There is currently no mechanism to load model-specific parameter profiles.
 
 These gaps are distinct from the approval, sandboxing, and config-layering concerns addressed in ADR-022. They belong to a single coherent capability: a **deterministic edit loop** that automates the instruction → context → patch → apply → validate → retry-with-error cycle, together with the prompt and parameter infrastructure that makes free/open models perform reliably within it.
 
@@ -49,6 +49,8 @@ src/prompts/coder_system.txt
 src/prompts/edit_template.txt
 src/prompts/explain_template.txt
 src/prompts/fix_template.txt
+src/prompts/plan_template.txt
+src/prompts/review_template.txt
 ```
 
 `coder_system.txt` is the base coding persona injected as the supplementary system prompt when the edit loop or a semantic command is active (appended after `RuntimeCorePolicy`'s base prompt, never replacing it). It instructs the model to:
@@ -59,11 +61,11 @@ src/prompts/fix_template.txt
 - Read the relevant file via `read_file` before proposing a change if uncertain.
 - On patch failure, read the rejection error from the context block and propose a targeted correction.
 
-`edit_template.txt`, `explain_template.txt`, and `fix_template.txt` are task-specific user-turn templates with `{{instruction}}` and `{{context}}` substitution sites. They are loaded via `include_str!` at compile time and rendered by `EditLoop` and the standalone semantic commands before each `start_turn` call.
+`edit_template.txt`, `explain_template.txt`, `fix_template.txt`, `plan_template.txt`, and `review_template.txt` are task-specific user-turn templates with `{{instruction}}` and `{{context}}` substitution sites. `plan_template.txt` exposes an additional `{{scope}}` substitution site for the assembled file/symbol scope the plan will cover. `review_template.txt` additionally exposes a `{{diff_context}}` substitution site for the assembled diff payload. They are loaded via `include_str!` at compile time and rendered by `EditLoop` and the standalone semantic commands before each `start_turn` call.
 
 Constraints:
 
-- Template files must not contain provider names, model names, or proprietary product references. CI must include a `scripts/check_forbidden_names.sh` grep check covering **the content of files in `src/prompts/`**. Files under `models/` use model-family names as neutral identifiers in their *filenames* (e.g. `qwen-coder.toml`) — this is permitted and necessary for profile selection. The forbidden-names check therefore scans `src/prompts/` for prohibited strings in file content, and separately scans the *content* (not filenames) of `models/*.toml` files to ensure no proprietary API endpoint names, product trademarks, or provider branding appear inside the TOML values. This check is added to the dispatcher checklist as **EL-09** and must pass for every checklist item from EL-06 onward.
+- Template files must not contain provider names, model names, or proprietary product references. CI must include a `scripts/check_forbidden_names.sh` grep check covering `src/prompts/` and `models/`. This check is added to the dispatcher checklist as **EL-09** and must pass for every checklist item from EL-06 onward.
 - The coding system prompt is only injected when the edit loop or a semantic command is active. Free-form turns use the `RuntimeCorePolicy` base prompt only.
 - Templates are plain UTF-8 text files. `include_str!` keeps the binary self-contained while keeping the text separately auditable.
 
@@ -159,7 +161,7 @@ impl ContextAssembler {
 }
 ```
 
-`assemble` is a synchronous function with one implementation caveat: the two git subprocess calls must not be allowed to block the async runtime indefinitely. Each git call is executed inside `tokio::task::spawn_blocking` and wrapped with `tokio::time::timeout(git_timeout_ms)`. If the timeout fires, the `JoinHandle` is dropped and the corresponding field is set to `None`. **Important:** dropping a `spawn_blocking` `JoinHandle` does *not* terminate the underlying thread or any child process it has spawned — the blocking thread continues running until the closure returns. To prevent orphaned git processes in long-running sessions, the implementation must use `std::process::Child::kill()` on the child handle before or after the timeout, not rely on handle-drop for termination. A recommended pattern is to capture the `Child` handle from `Command::spawn()`, pass it into the `spawn_blocking` closure alongside a shared cancellation flag, and call `child.kill()` explicitly when the timeout fires. This means `assemble` itself must be called from an async context via `tokio::task::block_in_place` or from within a `spawn_blocking` wrapper at the call site in `EditLoop`. Callers must not invoke `assemble` on the async executor thread directly. `[source: verify src/runtime/loop.rs for the established spawn_blocking pattern before implementing]`
+`assemble` is a synchronous function with one implementation caveat: the two git subprocess calls must not be allowed to block the async runtime indefinitely. The correct implementation is to spawn each git call as a `std::process::Command` child inside a `tokio::task::spawn_blocking` closure, and wrap the resulting `JoinHandle` with `tokio::time::timeout(git_timeout_ms)`. If the timeout fires, the future is dropped — but dropping the `JoinHandle` does **not** terminate the child process; the `spawn_blocking` thread continues running until the blocking closure returns naturally. To achieve actual process termination on timeout the implementation must call `child.kill()` explicitly, either via a kill-on-drop guard struct wrapping the `Child`, or by checking a `tokio::sync::watch` receiver inside the blocking closure after each call. In either case, the corresponding `AssembledContext` field is set to `None` on timeout and a `[context: git diff timed out after 2000ms]` annotation is included in the rendered context block. This means `assemble` itself must be called from an async context via `tokio::task::block_in_place` or from within a `spawn_blocking` wrapper at the call site in `EditLoop`. Callers must not invoke `assemble` on the async executor thread directly. `[source: verify src/runtime/loop.rs for the established spawn_blocking pattern before implementing]`
 
 After reading named files and running git metadata collection, `assemble` infers related paths from simple `use`/`import` pattern matching in named files. No embeddings, no language-server calls, no symbol index.
 
@@ -220,8 +222,6 @@ impl EditLoop {
 │  EditLoop::run(instruction)                                     │
 │                                                                 │
 │  ┌─ turn N (max_turns = 6 default, ceiling 12) ───────────────┐│
-│  │ 0. turn_counter >= max_turns? → return MaxTurnsReached     ││
-│  │       (checked BEFORE ctx.start_turn; not after increment) ││
 │  │ 1. workspace_dirty_check()  ──── dirty? → warn, continue  ││
 │  │ 2. ContextAssembler::assemble(instruction)                 ││
 │  │ 3. render edit_template.txt {instruction, context}         ││
@@ -235,7 +235,9 @@ impl EditLoop {
 │  │                   pass  → return Success                   ││
 │  │                   fail  → store in last_validation_result  ││
 │  │       no patch → no validation                             ││
-│  │ 7. turn_counter++; enrich retry ctx, goto 0                ││
+│  │ 7. turn_counter++                                          ││
+│  │       == max_turns → return MaxTurnsReached{last_error}    ││
+│  │       else → enrich retry ctx, goto 1                      ││
 │  └────────────────────────────────────────────────────────────┘│
 │  CancellationToken checked at every await (steps 5, 6)         │
 │  → Cancelled returned immediately; no state mutation after     │
@@ -303,12 +305,12 @@ impl ValidationSuite {
 Constraints:
 
 - `ValidationSuite::run` must delegate to `CommandRunner::run_one_shot` (FEAT-17). Direct `std::process::Command` in `validation.rs` is prohibited.
-- Validation is never run if no patch was applied in the current turn.
 - `ValidationSuite` must not mutate any file.
+- **`ValidationSuite` itself has no patch precondition.** The constraint that validation only runs after a patch apply is an `EditLoop`-level policy (loop step 6): within the loop, `ValidationSuite::run` is only called when `apply_patch` has succeeded in the current turn. Standalone invocations — `/run`, `/test`, and `/review` — call `ValidationSuite::run` directly with no patch precondition; this is intentional and correct. The two uses are distinct: loop-internal validation feeds the retry context; standalone validation feeds the operator's transcript. Do not add a patch-check guard to `ValidationSuite::run` itself.
 
 ---
 
-### 6. Semantic slash commands — `/edit`, `/fix`, `/explain`, `/run`, `/test`
+### 6. Semantic slash commands — `/edit`, `/fix`, `/explain`, `/run`, `/test`, `/review`, `/plan`, `/context`
 
 **Source-critical note:** `TuiMode::on_user_input` in `src/app.rs` contains no slash-command dispatch. `[source: app.rs:484–512 — on_user_input calls ctx.start_turn(input) unconditionally after overlay and busy-guard checks]`. This ADR introduces the dispatch branch as new code. There is no existing dispatch to wire against.
 
@@ -372,11 +374,91 @@ active_edit_loop: Option<EditLoop>,  // carries last_validation_result between /
 /test
     Equivalent to /run with the full inferred or configured ValidationSuite.
     Renders all outputs to transcript. Does not start an EditLoop.
+
+/plan <instruction>
+    Assembles context for the files named in <instruction> (same path as
+    ContextAssembler::assemble) and starts a single ctx.start_turn using
+    plan_template.txt. EditLoop is not invoked. Any PendingPatch the model
+    produces is silently dropped — /plan is read-only. The model is instructed
+    by plan_template.txt to output a numbered plan with file paths and change
+    descriptions only; it must not emit tool calls or diffs.
+
+    plan_template.txt substitution sites:
+      {{instruction}}   The operator-supplied planning instruction.
+      {{scope}}         The assembled file-snapshot block (paths + content).
+      {{context}}       The git_status_summary if available; empty string otherwise.
+
+    Typical use: operator runs /plan, reads the plan, then issues /edit with
+    the same instruction to execute it. /plan output is never automatically
+    forwarded to /edit; the operator decides whether to proceed.
+
+/context
+    Renders current session state to the TUI transcript via push_history_line.
+    No model turn is started. Output format (normative):
+
+      [context]
+        model     : <active model name>
+        backend   : <ModelBackendKind>
+        profile   : <ModelProfile name or "default">
+        task      : <TaskId>
+        status    : <TaskStatus>
+        turns     : <EditLoop turn counter if active, else "—">
+        files     : <count of file snapshots in most recent AssembledContext>
+        git       : <git_status_summary first line, or "no git" / "timed out">
+        approvals : <active_grants count> active grant(s)
+        tokens    : ~<estimated token count for conversation so far>
+
+    Token estimation uses the same chars ÷ 4 approximation used elsewhere in
+    this ADR chain. The annotation "~" is mandatory — the estimate is not exact.
+    /context is the operator-visible counterpart to the formally-deferred
+    compaction gap (ADR-024 §deferred); it surfaces the information an operator
+    needs to decide whether to start a new session.
 ```
 
-`/run` and `/test` make the validation infrastructure independently accessible outside the edit loop. `/explain` is a read-only, no-patch workflow that uses the coding system prompt but creates no `PendingPatch`.
+`/run` and `/test` make the validation infrastructure independently accessible outside the edit loop. `/explain` is a read-only, no-patch workflow that uses the coding system prompt but creates no `PendingPatch`. `/review` is a read-only diff-analysis workflow; it assembles diff or file context and starts a single model turn with no patch gate. `/plan` is a read-only planning workflow; it produces a numbered plan without executing any changes. `/context` is a zero-turn status command; it renders session state to the transcript without starting a model turn.
 
-All five commands surface their outcome as a structured message in the TUI transcript on completion and do not replace free-form prompting.
+**Review command** (no `EditLoop`; single model turn; no patch accepted):
+
+```
+/review [--base <git-ref>] [--files <glob>] [<instruction>]
+
+    Assembles a diff context and starts a single ctx.start_turn using
+    review_template.txt. EditLoop is not invoked. Any PendingPatch the model
+    produces is silently dropped — /review is read-only and never calls
+    apply_patch.
+
+    Data-source resolution (normative):
+      --base <git-ref>   Diff assembled from `git diff <git-ref>` against the
+                         working tree. <git-ref> may be any ref git accepts:
+                         a commit SHA, branch name, or symbolic ref (e.g. HEAD~1,
+                         main, origin/main). Validated by `git rev-parse
+                         --verify <git-ref>` at parse time; invalid ref emits
+                         "[review: invalid base ref '<git-ref>']" and returns
+                         without starting a turn.
+      --files <glob>     ContextAssembler::assemble is called for all paths
+                         matching <glob> relative to the workspace root.
+                         Assembled context (file snapshots + git_status_summary)
+                         is used in place of a diff. Incompatible with --base;
+                         providing both emits "[review: --base and --files are
+                         mutually exclusive]" and returns.
+      (neither flag)     Equivalent to --base HEAD: assembles `git diff HEAD`
+                         (staged + unstaged changes in the working tree).
+      <instruction>      Optional free-text appended to the {{instruction}}
+                         substitution site in review_template.txt. If absent,
+                         review_template.txt provides a default instruction
+                         ("Review these changes for correctness, clarity, and
+                         potential issues.").
+
+    review_template.txt substitution sites:
+      {{diff_context}}   The assembled diff or file-snapshot block.
+      {{instruction}}    The operator-supplied instruction or the default.
+      {{context}}        Populated only when --files is used; empty string
+                         otherwise.
+```
+
+`/review` uses `ContextAssembler`'s existing `assemble` path for `--files` mode and calls `git diff <ref>` directly via the same `spawn_blocking` + `git_timeout_ms` mechanism as the `recent_diff` field, for `--base` mode. No new subprocess mechanism is introduced.
+
+All eight commands surface their outcome as a structured message in the TUI transcript on completion and do not replace free-form prompting.
 
 ---
 
@@ -388,7 +470,7 @@ All five commands surface their outcome as a structured message in the TUI trans
 
 ### Why is slash-command dispatch added as a new branch in `on_user_input`, not as a new `RuntimeMode`?
 
-`on_user_input` already guards against overlays and busy state before dispatching. Slash commands need the same guards. Adding a `try_handle_slash_command` branch before the unconditional `ctx.start_turn(input)` path is the minimum change: it intercepts the five new commands, falls through to `start_turn` for everything else, and does not require touching `RuntimeMode`, `on_frontend_event`, or any other path. A new `RuntimeMode` for slash commands would duplicate the overlay and busy guards already proven in `TuiMode`. `[source: app.rs:484–512 on_user_input structure]`
+`on_user_input` already guards against overlays and busy state before dispatching. Slash commands need the same guards. Adding a `try_handle_slash_command` branch before the unconditional `ctx.start_turn(input)` path is the minimum change: it intercepts the eight new commands, falls through to `start_turn` for everything else, and does not require touching `RuntimeMode`, `on_frontend_event`, or any other path. A new `RuntimeMode` for slash commands would duplicate the overlay and busy guards already proven in `TuiMode`. `[source: app.rs:484–512 on_user_input structure]`
 
 ### Why a separate `EditLoop` rather than extending `Runtime<M>`?
 
@@ -404,7 +486,23 @@ History visibility. These calls are pre-turn and must not appear as tool calls i
 
 ### Why cap `max_turns` at 12?
 
-ADR-016 caps raw tool-call depth at the conversation layer; the edit loop operates one level above. Both caps apply simultaneously. Six turns covers the majority of single-file edits with one or two validate-retry cycles. A ceiling of 12 prevents context-window exhaustion on self-hostable, openly distributed models with 8k–16k context windows.
+ADR-016 caps raw tool-call depth at the conversation layer; the edit loop operates one level above. Both caps apply simultaneously. Six turns covers the majority of single-file edits with one or two validate-retry cycles. A ceiling of 12 prevents context-window exhaustion on free/open models with 8k–16k context windows.
+
+### Why does `/plan` not start an `EditLoop` or accept patches?
+
+`/plan` is the deliberation step that precedes `/edit`. Its value is producing a human-readable plan the operator can verify and modify before any file is changed. Starting an `EditLoop` would bypass that gate. Silently dropping any `PendingPatch` the model produces keeps `/plan` safe to run at any point — including on a dirty working tree — without risk of unintended writes. The operator-confirms-then-executes pattern is the correct design for a planning command: produce the plan, let the operator decide, then execute only on explicit instruction.
+
+### Why does `/context` start no model turn?
+
+`/context` is a pure inspection command. Its output is computed locally from `TuiMode` state, `TaskState`, and the most recently cached `AssembledContext`; no model inference is required or appropriate. Starting a turn for a status query would consume context window budget unnecessarily and add latency. The token estimate it surfaces is the primary signal operators need to decide whether to start a new session — making it a zero-turn command means it remains usable even when the context window is nearly exhausted.
+
+### Why does `/review` not start an `EditLoop`?
+
+`/review` is a read-only analytical command. Its intent is to surface feedback on existing changes, not to propose or apply new ones. Starting an `EditLoop` would introduce a patch-apply-validate cycle for a command whose correct outcome is a model-generated commentary turn. The read-only boundary also means `/review` is always safe to run mid-session without affecting working-tree state.
+
+### Why does `/review` drop any `PendingPatch` the model produces?
+
+The model cannot be prevented at the API level from proposing tool calls during any turn. `/review` must silently discard any `PendingPatch` rather than surfacing an approval prompt, because surfacing an approval would confuse operators who issued a read-only command. The drop is silent to the operator; a debug-level log entry is sufficient. This is the same posture as `/explain` — no patch from a read-only command is ever approved.
 
 ### Why are `/run` and `/test` not starting an `EditLoop`?
 
@@ -449,10 +547,10 @@ Rejected. `TaskState`'s `CommandEvidence` struct records execution facts, not st
 **Easier:**
 
 - Coding tasks that previously required manual retry-and-re-prompt cycles are automated within a bounded, auditable loop.
-- Self-hostable, openly distributed inference models see structured context and error feedback instead of raw conversation history, improving patch quality without fine-tuning.
-- The TUI gains five high-value entry points that make the agent's core capabilities immediately discoverable.
+- Free/open models see structured context and error feedback instead of raw conversation history, improving patch quality without fine-tuning.
+- The TUI gains eight high-value entry points that make the agent's core capabilities immediately discoverable.
 - `ValidationSuite` is independently testable with `CommandRunner` mocks from ADR-005's injection pattern.
-- Model parameter tuning for self-hostable, openly distributed inference models is encapsulated in committed, auditable TOML files.
+- Model parameter tuning for free/open models is encapsulated in committed, auditable TOML files.
 
 **Harder:**
 
@@ -464,21 +562,21 @@ Rejected. `TaskState`'s `CommandEvidence` struct records execution facts, not st
 
 - `ContextAssembler` infers related files from `use`/`import` pattern matching only. Repos with non-standard module structures (C, unconventional Rust workspace layouts) may see incomplete related-path inference. Operators can supplement by naming additional files explicitly in their instruction.
 - `ValidationSuite::infer_from_repo` assumes `Cargo.toml`, `package.json`, or `Makefile` at the repo root. Makefile `test` target detection uses `grep -E "^test:" Makefile` — non-standard target names (e.g. `check`, `tests`) will not be detected and require `.vex/validate.toml`. Monorepos with nested project roots must also provide `.vex/validate.toml` for correct inference.
-- Loop turns that produce tool calls but no `PendingPatch` do not run validation. This is by design — validation requires a patch apply to have occurred. If a model turn reads files, runs commands, and produces output without proposing a diff, the loop increments the turn counter and retries. Operators who observe a loop consuming turns without patching should verify the instruction includes an explicit edit directive.
+- **Within `EditLoop`:** loop turns that produce tool calls but no `PendingPatch` do not run validation. Validation in the loop requires a patch apply to have occurred. If a model turn reads files, runs commands, and produces output without proposing a diff, the loop increments the turn counter and retries. Operators who observe a loop consuming turns without patching should verify the instruction includes an explicit edit directive. This constraint is `EditLoop`-scoped; standalone `/run`, `/test`, and `/review` are not subject to it.
 - **Interrupt between apply and validate:** If `CancellationToken` fires after `apply_patch` completes but before `ValidationSuite::run` returns, the patch is already written to disk. `EditLoopOutcome::Cancelled` is returned and the working tree contains the applied patch. This is not automatically rolled back. The operator's working tree is in a modified state and they must inspect and revert manually if needed. This window is noted as an inherent consequence of the two-step write gate in CRIT-19 and is not addressable without a rollback mechanism that is out of scope for this ADR.
 - In-session `/fix` pre-population is lost if the process is restarted between the failed run and the `/fix` invocation. Operators with long-running sessions who need persistent error context should use `vex exec --task-file` and inspect the JSONL output.
 - Git operations in `ContextAssembler` are bounded by `git_timeout_ms` (default: 2 000 ms) via `tokio::task::spawn_blocking` + `tokio::time::timeout`. Very large repos with slow I/O may see diff context degraded to `None` on first run; the timeout is configurable via `VEX_CONTEXT_GIT_TIMEOUT_MS`.
 
 **Documentation updates required (must accompany EL-06):**
 
-- `docs/src/generated/tools.md` — add `/edit`, `/fix`, `/explain`, `/run`, `/test` to the command reference.
+- `docs/src/generated/tools.md` — add `/edit`, `/fix`, `/explain`, `/run`, `/test`, `/review`, `/plan`, `/context` to the command reference.
 - `docs/src/policy.md` — add `Capability::ApplyPatch` approval note for edit-loop context.
 
 **Constraints imposed on future work:**
 
 - `EditLoop` must not call `ctx.start_turn()` more than `max_turns` times. Any future extension adding turns must decrement from the same counter.
 - `ContextAssembler` path resolution must use `ToolOperator`'s workspace-root guards. No second implementation is permitted.
-- All files in `src/prompts/` must not contain provider names in their content. The `models/` directory uses model-family identifiers as filenames — this is permitted. `scripts/check_forbidden_names.sh` must scan file content in both directories (not filenames).
+- All files in `src/prompts/` and `models/` must not contain provider names. `scripts/check_forbidden_names.sh` must cover both directories.
 - `ValidationSuite::run` must route through `CommandRunner`. Direct `std::process::Command` in `validation.rs` is prohibited.
 - `ModelProfile` config integration (EL-08) must not be implemented until ADR-022 Phase 1 is complete.
 - No `ratatui` or `crossterm` imports in `src/runtime/edit_loop.rs`, `context_assembler.rs`, or `validation.rs`.
@@ -494,18 +592,22 @@ Rejected. `TaskState`'s `CommandEvidence` struct records execution facts, not st
 | **EL-02** | `ValidationSuite` — `CommandRunner` mock, `format_for_retry`, multi-lang inference | Must be green before EL-03 | [ ] |
 | **EL-03** | `EditLoop::run` skeleton — `max_turns` guard, `Cancelled` outcome, workspace-dirty check | Must be green before EL-04 | [ ] |
 | **EL-04** | `/edit` and `/fix` wired via `try_handle_slash_command`; `active_edit_loop` field on `TuiMode`; `/fix` no-prior-result guard | Must be green before EL-05 | [ ] |
-| **EL-05** | `/explain`, `/run`, `/test` — no `EditLoop` invocation | Must be green before EL-06 | [ ] |
+| **EL-05** | `/explain`, `/run`, `/test` — no `EditLoop` invocation (note: `/review` is introduced separately in EL-10) | Must be green before EL-06 | [ ] |
 | **EL-06** | `src/prompts/` templates; `coder_system.txt` injection on loop activation only; `docs/` updates | Must be green before EL-07 | [ ] |
 | **EL-07** | `ModelProfile` struct; `models/*.toml` files; `default_for_backend` fallback | Must be green; EL-08 gated separately | [ ] |
 | **EL-08** | `ModelProfile` config integration via layered config | **Gated: ADR-022 Phase 1 must be complete** | [ ] |
 | **EL-09** | `scripts/check_forbidden_names.sh` — covers `src/prompts/` and `models/`; added to CI | Must pass for all items EL-06 onward | [ ] |
+| **EL-10** | `/review` — `review_template.txt`; `--base`/`--files` flag parsing; ref validation; PendingPatch drop; diff assembly via `spawn_blocking` | Must be green after EL-05; gated on EL-06 for template | [ ] |
+| **EL-11** | `/plan` — `plan_template.txt`; `{{scope}}` assembly via `ContextAssembler`; PendingPatch drop; no EditLoop invocation | Must be green after EL-05; gated on EL-06 for template | [ ] |
+| **EL-12** | `/context` — zero-turn status render; token estimate; `active_grants` count; git summary; no model turn | Must be green after EL-05 | [ ] |
+| **EL-13** | `/commands` and `/help` alias — runtime-generated from dispatch table; description registration; compile-error for missing descriptions | Must be green after EL-04 | [ ] |
 
 ## Dispatcher reporting contract (mandatory per checklist item)
 
 When checking a box above, append an evidence block under this section:
 
 ```markdown
-### [EL-01 … EL-09] - <short title>
+### [EL-01 … EL-13] - <short title>
 - Dispatcher: <name/id>
 - Commit: <sha>
 - Files changed:
@@ -531,11 +633,15 @@ When checking a box above, append an evidence block under this section:
 | EL-02 | `ValidationSuite` — `CommandRunner` mock, `format_for_retry`, multi-lang inference | `test_validation_suite_formats_failure_for_retry`; `test_validation_suite_infers_rust_and_node_when_both_present` | Must be green before EL-03 |
 | EL-03 | `EditLoop::run` skeleton — `max_turns` guard, `Cancelled`, workspace-dirty warning, reentrancy block | `test_edit_loop_terminates_at_max_turns`; `test_edit_loop_emits_dirty_workspace_warning`; `test_edit_loop_cancel_mid_validation`; `test_tui_second_edit_command_blocked_while_loop_active` | Must be green before EL-04 |
 | EL-04 | `try_handle_slash_command`; `/edit` and `/fix` dispatch; `active_edit_loop` on `TuiMode`; `/fix` guard | `test_tui_edit_command_starts_edit_loop`; `test_tui_fix_without_prior_loop_emits_guidance`; `test_slash_command_does_not_call_start_turn_directly`; `test_slash_command_returns_none_for_non_slash_input`; `test_validation_suite_empty_suite_exits_on_clean_patch`; `test_tui_fix_during_active_edit_emits_reentrancy_guard` | Must be green before EL-05 |
-| EL-05 | `/explain`, `/run`, `/test` — no `EditLoop` invocation | `test_tui_explain_does_not_invoke_edit_loop`; `test_tui_run_command_invokes_validation_suite_only` | Must be green before EL-06 |
+| EL-05 | `/explain`, `/run`, `/test` — no `EditLoop` invocation (note: `/review` is EL-10) | `test_tui_explain_does_not_invoke_edit_loop`; `test_tui_run_command_invokes_validation_suite_only` | Must be green before EL-06 |
 | EL-06 | `src/prompts/` templates; injection on loop activation only; docs updated | `test_coding_prompt_injected_during_edit_loop_only`; `test_docs_tools_md_lists_slash_commands` | Must be green before EL-07 |
 | EL-07 | `ModelProfile` struct; `models/*.toml`; `default_for_backend`; `structured_tools` fallback | `test_model_profile_loads_from_toml`; `test_model_profile_invalid_path_is_hard_failure`; `test_model_profile_structured_tools_false_uses_tagged_fallback`; `test_context_assembler_invalid_git_timeout_env_falls_back_to_default` | Must be green; EL-08 gated separately |
 | EL-08 | `ModelProfile` config integration via layered config | `test_model_profile_loaded_from_layered_config` | **Gated: ADR-022 Phase 1 must be complete** |
 | EL-09 | `scripts/check_forbidden_names.sh` — CI coverage of `src/prompts/` and `models/` | `check_forbidden_names_sh_blocks_proprietary_name_in_prompts_dir` | Must pass for EL-06 onward |
+| EL-10 | `/review` — flag parsing, ref validation error paths, PendingPatch drop, diff assembly | `test_tui_review_default_assembles_head_diff`; `test_tui_review_base_flag_validates_ref`; `test_tui_review_invalid_ref_emits_error_no_turn`; `test_tui_review_mutual_exclusion_base_and_files`; `test_tui_review_drops_pending_patch_silently`; `test_tui_review_files_flag_uses_context_assembler` | Must be green after EL-05; template requires EL-06 |
+| EL-11 | `/plan` — `plan_template.txt`; `{{scope}}` via `ContextAssembler`; PendingPatch drop; no EditLoop | `test_tui_plan_starts_single_turn_no_loop`; `test_tui_plan_drops_pending_patch_silently`; `test_tui_plan_scope_populated_from_assembler` | Must be green after EL-05; template requires EL-06 |
+| EL-12 | `/context` — zero-turn status output; token estimate annotation; no `ctx.start_turn` call | `test_tui_context_renders_without_model_turn`; `test_tui_context_shows_tilde_token_estimate`; `test_tui_context_shows_active_grants_count` | Must be green after EL-05 |
+| EL-13 | `/commands` and `/help` — runtime-generated from dispatch table; description per entry; compile error for missing description | `test_tui_commands_renders_all_registered_commands`; `test_tui_help_is_alias_for_commands`; `test_commands_output_does_not_call_start_turn`; `test_missing_command_description_is_compile_error` | Must be green after EL-04 |
 
 All tasks require `cargo test --all-targets`, `check_no_alternate_routing.sh`, `check_forbidden_imports.sh`, and (from EL-06) `check_forbidden_names.sh` to be green after every change. No task may touch files outside its declared scope.
 
@@ -550,7 +656,7 @@ All tasks require `cargo test --all-targets`, `check_no_alternate_routing.sh`, `
 | Do not use `std::process::Command` in `src/runtime/validation.rs` | All subprocess calls must route through `CommandRunner::run_one_shot` |
 | **`std::process::Command` IS permitted in `src/runtime/context_assembler.rs` for the two git read calls only** (`git status --short`, `git diff HEAD`) | These calls must not appear in the tool history or approval flow. Any other subprocess in `context_assembler.rs` is prohibited |
 | Do not inject the coding system prompt outside of an active `EditLoop` or semantic command turn | Verified by `test_coding_prompt_injected_during_edit_loop_only` |
-| Do not add provider names, model names, or proprietary product references to the **content** of any file in `src/prompts/` or to the TOML **values** inside `models/*.toml` | `scripts/check_forbidden_names.sh` CI check (EL-09). Model-family names used as filenames under `models/` (e.g. `qwen-coder.toml`) are permitted identifiers; the check scans file *content* only. The script must grep with at minimum: `grep -rniE "openai\|anthropic\|claude\|gemini\|gpt\|copilot\|cursor\|codewhisperer" src/prompts/` and `grep -niE "openai\|anthropic\|claude\|gemini\|gpt\|copilot\|cursor\|codewhisperer" models/*.toml` — any match in content is a CI failure |
+| Do not add provider names, model names, or proprietary product references to any file in `src/prompts/` or `models/` | `scripts/check_forbidden_names.sh` CI check (EL-09). The script must grep with at minimum: `grep -rniE "openai\|anthropic\|claude\|gemini\|gpt\|copilot\|cursor\|codewhisperer" src/prompts/ models/` — any match is a CI failure |
 | Do not implement `EditLoop` as a `RuntimeMode` | |
 | Do not implement EL-08 until ADR-022 Phase 1 is complete | |
 | Do not bypass `ContextAssembler`'s path-safety checks | All file reads must use `ToolOperator`'s workspace-root confinement guards |
@@ -559,4 +665,9 @@ All tasks require `cargo test --all-targets`, `check_no_alternate_routing.sh`, `
 | Do not source `/fix` pre-population from `TaskState` | `TaskState` carries no structured error payload. Use `EditLoop::last_validation_result()` only |
 | Clear `TuiMode::active_edit_loop` on session end or reset | Stale loop state must not persist across sessions |
 | Do not invoke `EditLoop::run` while `TuiMode::active_edit_loop` is already `Some` | `try_handle_slash_command` must guard against this; verified by `test_tui_second_edit_command_blocked_while_loop_active` |
+| `/review` must never call `apply_patch` or surface a `PendingApproval` overlay | Any `PendingPatch` produced during a `/review` turn must be silently dropped; verified by `test_tui_review_drops_pending_patch_silently` |
+| `/plan` must never call `apply_patch`, invoke `EditLoop`, or surface a `PendingApproval` overlay | Any `PendingPatch` produced during a `/plan` turn must be silently dropped; verified by `test_tui_plan_drops_pending_patch_silently` |
+| `/context` must never call `ctx.start_turn` | All output must be rendered via `push_history_line` only; verified by `test_tui_context_renders_without_model_turn` |
+| `/review --base <ref>` must validate `<ref>` via `git rev-parse --verify` before starting a turn | Invalid ref must emit a structured error message and return without calling `ctx.start_turn` |
+| `ValidationSuite::run` has no patch precondition at the function level | The EditLoop-internal "only validate after apply" policy must live in `EditLoop` step 6, not in `ValidationSuite::run` |
 | `try_handle_slash_command` must return `None` for all non-`/` input | The existing `ctx.start_turn(input)` path must be reached unchanged for free-form turns |
