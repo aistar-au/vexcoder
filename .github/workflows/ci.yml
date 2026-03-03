@@ -52,7 +52,7 @@ jobs:
       - name: Test (all)
         run: cargo test --all
         env:
-          ANTHROPIC_API_KEY: ""   # prevent accidental real requests in tests
+          VEX_MODEL_TOKEN: ""   # prevent accidental real requests in tests
 
       - name: No UI crates in src/runtime
         run: |

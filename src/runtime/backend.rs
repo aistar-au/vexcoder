@@ -29,7 +29,7 @@ pub enum ToolCallMode {
 impl ModelProtocol {
     pub fn request_headers(self) -> Vec<(&'static str, &'static str)> {
         match self {
-            ModelProtocol::MessagesV1 => vec![("anthropic-version", "2023-06-01")],
+            ModelProtocol::MessagesV1 => vec![],
             ModelProtocol::ChatCompat => vec![],
         }
     }

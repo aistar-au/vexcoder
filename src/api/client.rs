@@ -48,14 +48,15 @@ pub struct ApiClient {
     model_backend: ModelBackendKind,
     model_protocol: ModelProtocol,
     tool_call_mode: ToolCallMode,
+    model_headers: reqwest::header::HeaderMap,
     #[cfg(test)]
     mock_stream_producer: Option<Arc<dyn MockStreamProducer>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ApiProtocol {
-    AnthropicMessages,
-    OpenAiChatCompletions,
+    MessagesV1,
+    ChatCompat,
 }
 
 impl ApiClient {
@@ -68,6 +69,7 @@ impl ApiClient {
             model_backend: config.model_backend,
             model_protocol: config.model_protocol,
             tool_call_mode: config.tool_call_mode,
+            model_headers: config.model_headers.clone(),
             #[cfg(test)]
             mock_stream_producer: None,
         })
@@ -83,6 +85,7 @@ impl ApiClient {
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
+            model_headers: reqwest::header::HeaderMap::new(),
             mock_stream_producer: Some(mock_producer),
         }
     }
@@ -97,8 +100,8 @@ impl ApiClient {
 
     fn api_protocol(&self) -> ApiProtocol {
         match self.model_protocol {
-            ModelProtocol::MessagesV1 => ApiProtocol::AnthropicMessages,
-            ModelProtocol::ChatCompat => ApiProtocol::OpenAiChatCompletions,
+            ModelProtocol::MessagesV1 => ApiProtocol::MessagesV1,
+            ModelProtocol::ChatCompat => ApiProtocol::ChatCompat,
         }
     }
 
@@ -124,7 +127,7 @@ impl ApiClient {
         let max_tokens = resolve_max_tokens(&self.api_url);
         let api_protocol = self.api_protocol();
         let payload = match api_protocol {
-            ApiProtocol::AnthropicMessages => {
+            ApiProtocol::MessagesV1 => {
                 let mut payload = json!({
                     "model": self.model,
                     "max_tokens": max_tokens,
@@ -141,7 +144,7 @@ impl ApiClient {
                 }
                 payload
             }
-            ApiProtocol::OpenAiChatCompletions => {
+            ApiProtocol::ChatCompat => {
                 let mut payload = json!({
                     "model": self.model,
                     "max_tokens": max_tokens,
@@ -169,19 +172,24 @@ impl ApiClient {
             emit_debug_payload(&request_url, &payload);
         }
 
-        // Add protocol-specific headers from ModelProtocol
-        for (header_name, header_value) in self.model_protocol.request_headers() {
-            request = request.header(header_name, header_value);
+        // Apply operator-supplied headers. Reserved headers are excluded to
+        // prevent duplicates — reqwest::RequestBuilder::header() appends, not
+        // replaces, so auth headers must only be set once in the block below.
+        for (name, value) in &self.model_headers {
+            if !is_reserved_header(name.as_str()) {
+                request = request.header(name, value);
+            }
         }
 
-        // Add auth headers based on protocol
+        // Auth headers set last and exclusively. x-api-key and authorization
+        // are in the reserved list above, so they cannot arrive here duplicated.
         match api_protocol {
-            ApiProtocol::AnthropicMessages => {
+            ApiProtocol::MessagesV1 => {
                 if let Some(api_key) = &self.api_key {
                     request = request.header("x-api-key", api_key);
                 }
             }
-            ApiProtocol::OpenAiChatCompletions => {
+            ApiProtocol::ChatCompat => {
                 if let Some(api_key) = &self.api_key {
                     request = request.header("authorization", format!("Bearer {api_key}"));
                 }
@@ -204,10 +212,8 @@ impl ApiClient {
 
     fn request_url(&self) -> String {
         match self.api_protocol() {
-            ApiProtocol::AnthropicMessages => self.api_url.clone(),
-            ApiProtocol::OpenAiChatCompletions => {
-                adapt_to_openai_chat_completions_url(&self.api_url)
-            }
+            ApiProtocol::MessagesV1 => self.api_url.clone(),
+            ApiProtocol::ChatCompat => adapt_to_openai_chat_completions_url(&self.api_url),
         }
     }
 }
@@ -291,11 +297,9 @@ fn resolve_max_tokens(api_url: &str) -> u32 {
 #[allow(dead_code)]
 fn parse_protocol(value: String) -> Option<ApiProtocol> {
     match value.trim().to_ascii_lowercase().as_str() {
-        "anthropic" | "anthropic_messages" | "messages" | "v1/messages" => {
-            Some(ApiProtocol::AnthropicMessages)
-        }
-        "openai" | "chat" | "chat_completions" | "openai_chat_completions" => {
-            Some(ApiProtocol::OpenAiChatCompletions)
+        "messages-v1" | "messages_v1" | "messages" | "v1/messages" => Some(ApiProtocol::MessagesV1),
+        "chat-compat" | "chat_compat" | "chat" | "chat_completions" => {
+            Some(ApiProtocol::ChatCompat)
         }
         _ => None,
     }
@@ -305,10 +309,23 @@ fn parse_protocol(value: String) -> Option<ApiProtocol> {
 fn infer_api_protocol(api_url: &str) -> ApiProtocol {
     let normalized = api_url.trim().to_ascii_lowercase();
     if normalized.contains("/chat/completions") || normalized.ends_with("/v1") {
-        ApiProtocol::OpenAiChatCompletions
+        ApiProtocol::ChatCompat
     } else {
-        ApiProtocol::AnthropicMessages
+        ApiProtocol::MessagesV1
     }
+}
+
+fn is_reserved_header(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "authorization"
+            | "x-api-key"
+            | "content-type"
+            | "content-length"
+            | "host"
+            | "transfer-encoding"
+            | "connection"
+    )
 }
 
 fn adapt_to_openai_chat_completions_url(api_url: &str) -> String {
@@ -425,8 +442,8 @@ fn tool_input_to_json_string(value: &Value) -> String {
 }
 
 fn tool_definitions_openai() -> Value {
-    let anthropic = tool_definitions();
-    let converted = anthropic
+    let base = tool_definitions();
+    let converted = base
         .as_array()
         .map(|tools| {
             tools
@@ -646,13 +663,13 @@ mod tests {
     #[test]
     fn test_protocol_inference_defaults_to_anthropic_messages() {
         let protocol = infer_api_protocol("http://localhost:8000/v1/messages");
-        assert_eq!(protocol, ApiProtocol::AnthropicMessages);
+        assert_eq!(protocol, ApiProtocol::MessagesV1);
     }
 
     #[test]
     fn test_protocol_inference_detects_openai_chat() {
         let protocol = infer_api_protocol("http://localhost:8000/v1/chat/completions");
-        assert_eq!(protocol, ApiProtocol::OpenAiChatCompletions);
+        assert_eq!(protocol, ApiProtocol::ChatCompat);
     }
 
     #[test]
@@ -718,6 +735,7 @@ mod tests {
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::TaggedFallback,
+            model_headers: reqwest::header::HeaderMap::new(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -737,6 +755,7 @@ mod tests {
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::TaggedFallback,
+            model_headers: reqwest::header::HeaderMap::new(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -755,10 +774,22 @@ mod tests {
             model_backend: ModelBackendKind::ApiServer,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
+            model_headers: reqwest::header::HeaderMap::new(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
         assert!(client.supports_structured_tool_protocol());
+    }
+
+    #[test]
+    fn test_reserved_header_guard_blocks_auth_headers() {
+        assert!(is_reserved_header("authorization"));
+        assert!(is_reserved_header("Authorization"));
+        assert!(is_reserved_header("x-api-key"));
+        assert!(is_reserved_header("X-Api-Key"));
+        assert!(is_reserved_header("content-length"));
+        assert!(!is_reserved_header("x-custom-header"));
+        assert!(!is_reserved_header("x-api-version"));
     }
 
     #[test]

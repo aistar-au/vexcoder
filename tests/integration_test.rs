@@ -1,3 +1,4 @@
+use reqwest::header::HeaderMap;
 use vexcoder::config::Config;
 use vexcoder::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode};
 
@@ -11,6 +12,7 @@ fn test_config_validation_rejects_local_model_for_remote_endpoint() {
         model_backend: ModelBackendKind::ApiServer,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,
+        model_headers: HeaderMap::new(),
     };
     assert!(config.validate().is_err());
 }
@@ -25,6 +27,7 @@ fn test_config_validation_allows_local_endpoint_without_token() {
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::TaggedFallback,
+        model_headers: HeaderMap::new(),
     };
     assert!(config.validate().is_ok());
 }
