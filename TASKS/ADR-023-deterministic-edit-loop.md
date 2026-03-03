@@ -51,6 +51,8 @@ src/prompts/explain_template.txt
 src/prompts/fix_template.txt
 src/prompts/plan_template.txt
 src/prompts/review_template.txt
+src/prompts/generate_tests_template.txt
+src/prompts/pr_summary_template.txt
 ```
 
 `coder_system.txt` is the base coding persona injected as the supplementary system prompt when the edit loop or a semantic command is active (appended after `RuntimeCorePolicy`'s base prompt, never replacing it). It instructs the model to:
@@ -443,7 +445,16 @@ active_edit_loop: Option<EditLoop>,  // carries last_validation_result between /
         /mcp list                       — list loaded MCP servers
         /mcp show <server>              — show tools for an MCP server
         /commands                       — show this list
+        /quit                           — save and exit
+        /exit                           — alias for /quit
+        /about                          — show version and build info
+        /diff [--staged]                — show working-tree diff; no model turn
+        /tools [desc]                   — list active tools; no model turn
+        /generate-tests [path] [--framework <n>]  — generate tests; no model turn
     Registered alias: /help → /commands (identical handler; both are normative).
+    Input-level prefix expansions (applied before slash-command dispatch):
+        @<path>   — inject file content inline into free-form turn
+        !<cmd>    — shell passthrough; routed through SandboxDriver + ApprovalPolicy
 
     The command list is generated at runtime from the registered dispatch table,
     not from a hardcoded string. Each entry in the dispatch table carries a
@@ -454,7 +465,7 @@ active_edit_loop: Option<EditLoop>,  // carries last_validation_result between /
     implemented surface.
 ```
 
-`/run` and `/test` make the validation infrastructure independently accessible outside the edit loop. `/explain` is a read-only, no-patch workflow that uses the coding system prompt but creates no `PendingPatch`. `/review` is a read-only diff-analysis workflow; it assembles diff or file context and starts a single model turn with no patch gate. `/plan` is a read-only planning workflow; it produces a numbered plan without executing any changes. `/context` is a zero-turn status command; it renders session state to the transcript without starting a model turn.
+`/run` and `/test` make the validation infrastructure independently accessible outside the edit loop. `/explain` is a read-only, no-patch workflow that uses the coding system prompt but creates no `PendingPatch`. `/review` is a read-only diff-analysis workflow; it assembles diff or file context and starts a single model turn with no patch gate. `/plan` is a read-only planning workflow; it produces a numbered plan without executing any changes. `/context` is a zero-turn status command; it renders session state to the transcript without starting a model turn. `/diff` is a zero-turn working-tree diff display; it runs `git diff HEAD` and renders the output without starting a model turn.
 
 **Review command** (no `EditLoop`; single model turn; no patch accepted):
 
@@ -608,7 +619,7 @@ Rejected. `TaskState`'s `CommandEvidence` struct records execution facts, not st
 
 **Documentation updates required (must accompany EL-06):**
 
-- `docs/src/generated/tools.md` — add `/edit`, `/fix`, `/explain`, `/run`, `/test`, `/review`, `/plan`, `/context`, `/commands`, `/help` to the command reference.
+- `docs/src/generated/tools.md` — add `/edit`, `/fix`, `/explain`, `/run`, `/test`, `/review`, `/plan`, `/context`, `/commands`, `/help`, `/quit`, `/exit`, `/about`, `/diff`, `/tools`, `/generate-tests`, `@<path>` expansion, and `!<cmd>` passthrough to the command reference.
 - `docs/src/policy.md` — add `Capability::ApplyPatch` approval note for edit-loop context.
 
 **Constraints imposed on future work:**
@@ -712,3 +723,6 @@ All tasks require `cargo test --all-targets`, `check_no_alternate_routing.sh`, `
 | `try_handle_slash_command` must return `None` for all non-`/` input | The existing `ctx.start_turn(input)` path must be reached unchanged for free-form turns |
 | `/commands` and `/help` must render from the live dispatch table, not a hardcoded string | Any command added to `try_handle_slash_command` without a registered description is a compile error; verified by `test_missing_command_description_is_compile_error` |
 | `/commands` and `/help` must never call `ctx.start_turn` | All output via `push_history_line` only; verified by `test_commands_output_does_not_call_start_turn` |
+| `/diff` must use the `spawn_blocking` + `tokio::time::timeout` + `child.kill()` pattern | Same as `ContextAssembler` git calls; must never start a model turn |
+| `/quit` and `/exit` must cancel `active_edit_loop` via `CancellationToken` before shutdown | Never force-exit while a loop is running |
+| `/generate-tests` must never apply patches to non-test files | Test-file path filter applied before `PendingApproval` gate; non-test patches silently dropped |
