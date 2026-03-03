@@ -47,10 +47,15 @@ impl Config {
                 }
             });
 
-        let model_protocol = std::env::var("VEX_MODEL_PROTOCOL")
-            .ok()
-            .and_then(parse_model_protocol)
-            .unwrap_or_else(|| infer_model_protocol(&model_url));
+        let model_protocol = match std::env::var("VEX_MODEL_PROTOCOL") {
+            Ok(value) => parse_model_protocol(value.clone()).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Invalid VEX_MODEL_PROTOCOL '{}': expected one of messages-v1, chat-compat",
+                    value
+                )
+            })?,
+            Err(_) => infer_model_protocol(&model_url),
+        };
 
         let tool_call_mode = std::env::var("VEX_TOOL_CALL_MODE")
             .ok()
@@ -211,6 +216,20 @@ mod tests {
         std::env::remove_var("VEX_MODEL_BACKEND");
         std::env::remove_var("VEX_MODEL_URL");
         std::env::remove_var("VEX_MODEL_NAME");
+    }
+
+    #[test]
+    fn test_invalid_model_protocol_env_var_is_rejected() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+        std::env::set_var("VEX_MODEL_NAME", "mock-model");
+        std::env::set_var("VEX_MODEL_PROTOCOL", "legacy-value");
+
+        assert!(Config::load().is_err());
+
+        std::env::remove_var("VEX_MODEL_URL");
+        std::env::remove_var("VEX_MODEL_NAME");
+        std::env::remove_var("VEX_MODEL_PROTOCOL");
     }
 
     #[test]

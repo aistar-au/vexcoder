@@ -81,7 +81,8 @@ impl ApiClient {
             http: reqwest::Client::new(),
             api_key: None,
             model: "mock-model".to_string(),
-            api_url: "http://localhost:8000/v1/messages".to_string(),
+            api_url: std::env::var("VEX_TEST_MODEL_URL")
+                .unwrap_or_else(|_| "http://localhost/v1/messages".to_string()),
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,

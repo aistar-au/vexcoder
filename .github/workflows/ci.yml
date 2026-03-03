@@ -54,6 +54,9 @@ jobs:
         env:
           VEX_MODEL_TOKEN: ""   # prevent accidental real requests in tests
 
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
       - name: Forbidden branded names (src + .github)
         run: ./scripts/check_forbidden_names.sh
 
