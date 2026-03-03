@@ -73,15 +73,19 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | Gap | Rationale |
 | :--- | :--- |
 | Image/screenshot input | Deferred until the model backend seam (ADR-022 Phase 1) is stable and a multimodal local runtime target exists |
-| Multi-agent / parallel task execution | Out of scope for the first milestone per ADR-022 Decision item 5 (single active task) |
+| Multi-agent / parallel task execution | Out of scope for the first milestone per ADR-022 Decision item 5 (single active task). This gate also covers git worktree isolation per-agent (`isolation: worktree`), agent team definitions, inter-agent coordination, and background task lifecycle — none of which may be implemented without a dedicated post-milestone ADR. |
 | Cloud task delegation | Deferred indefinitely; contradicts the self-hostable, zero-licensing-cost posture established by the dependency licensing constraint above |
 | Inline code completion (LSP/language-server) | Fundamentally different runtime category from a turn-based agent. Requires a persistent language-server process, real-time keystroke handling, and IDE surface integration — none of which are compatible with the terminal-first, turn-based interaction model. Deferred indefinitely. |
 | Enterprise governance (audit logs, seat management, org policy) | Single-user, self-hosted by design. Multi-tenant governance infrastructure contradicts the zero-licensing-cost constraint and the self-hostable posture. Deferred indefinitely. |
+| OS-managed settings (macOS plist, Windows Registry fleet policy) | Requires platform-specific policy distribution infrastructure. Deferred indefinitely; operators use the layered config chain (ADR-024 Gap 3). Must not be implemented without a dedicated ADR. |
 | Voice input | Requires audio I/O subsystem incompatible with terminal-first constraint. Deferred indefinitely. |
 | Platform API integration (GitHub PR creation via REST API) | `vex pr-summary` (Gap 24) produces text for pipe to the operator's platform CLI; direct REST API calls require credential management for each platform and a dedicated ADR. Deferred indefinitely. |
 | Built-in web search | Depends on MCP (Gap 5). Implementing web search before MCP exists would permanently couple it to the core runtime |
 | IDE extensions | Deferred to a post-first-milestone ADR per ADR-022 amendment Decision item 11. File-based editor extensions must use `vex exec` (Gap 2). Native GUI surfaces (IDE panels with live streaming, macOS native client) must use the `LocalApiServer` path reserved in Phase I |
 | Conversation compaction / context-window management | Long-running sessions that approach the model's context limit have no managed strategy for pruning or summarising old turns. `ConversationCheckpoint` in `TaskState` records a `message_count` and `summary` string but neither is populated nor acted upon by the runtime today. Implementing compaction requires a dedicated ADR: the summarisation prompt, the trigger threshold, and whether the summary is injected as a system message or a synthetic turn all affect model behaviour and must be decided deliberately. Deferred until the edit loop and BatchMode are stable — compaction adds the most value for long `vex exec` runs, and those require BatchMode to exist first. **Command-surface note:** reference CLIs expose active context management commands (`/compact`, `/usage`). ADR-023 `EL-12` introduces `/context` for read-only token-estimate display. `/compact` (trigger summarisation) and a richer `/usage` (per-tool token attribution) are part of this deferred gap and must not be implemented without the dedicated compaction ADR. This gap is a formal deferral gate: do not implement conversation pruning or summarisation without a dedicated ADR. A per-session turn-token counter (Gap 28) is separable from this gate: it reads token counts reported by the API response and requires no summarisation strategy. Gap 28 must not be blocked by this deferral. |
+| Additional operator-utility slash commands (`/copy`, `/stats`, `/cost`, `/keybindings`) | Reference implementations expose `/copy` (interactive picker for copying code blocks), `/stats` (session usage visualisation), `/cost` (session cost display), and `/keybindings` (live keybinding editor). These are operator-convenience commands with no effect on agent behaviour. Deferred indefinitely; do not implement without a dedicated ADR identifying which commands to introduce and their exact behaviour. |
+| Minimal execution mode (`VEX_SIMPLE` equivalent) | Reference implementations expose an env var that disables MCP tools, hooks, `AGENTS.md` loading, skills, and custom agents for a minimal execution environment. Useful for CI and debugging. Deferred; do not implement without a dedicated ADR defining the exact feature-disable set and env var name. |
+| `vex remote-control` / remote environment serving | Reference implementations expose a `remote-control` subcommand enabling local environment serving for remote callers. This is distinct from `LocalApiServer` (Phase I): it serves the running local environment rather than exposing a new API server. Deferred indefinitely; requires a dedicated ADR separate from the Phase I `LocalApiServer` ADR. |
 
 ---
 
@@ -265,6 +269,8 @@ The relationship to cloud API servers is direct: architecturally, `LocalApiServe
 
 `LocalApiServer` must not begin implementation until `BatchMode` is validated end-to-end and Phase H is complete. The ADR for Phase I must specify the wire protocol, authentication model for the local socket, and the streaming response format before any dispatcher begins work.
 
+**`vex remote-control` is explicitly out of scope for Phase I.** A `remote-control` subcommand that serves the running local environment to remote callers is a distinct surface from `LocalApiServer`. It requires its own ADR covering network exposure model, authentication, and security boundary — it must not be conflated with the loopback-only `LocalApiServer` design.
+
 ---
 
 ### Gap 10 — Skills Registry and Discovery
@@ -303,6 +309,8 @@ vex skills remove <name>
 "Raw URL directory fetch" is not supported and must not be implemented. There is no standard mechanism for fetching a directory tree from a raw URL; any implementation would be non-deterministic across hosting providers.
 
 The `vex skills` commands are thin CLI utilities; they do not start the agent loop. Skills are passive workflow documents consumed by agents running in `TuiMode` or `BatchMode`; they are not executable code loaded into the runtime.
+
+**npm-based plugin distribution and marketplace ecosystem — formally deferred:** Reference implementations support plugins installable from npm registries, with marketplace discovery, version pinning, per-plugin default configuration, and custom registry support. This is a distinct distribution model from the flat git/tarball skills registry defined here. Do not implement npm-based plugin distribution, a marketplace index, or registry-version-pinning without a dedicated ADR extending this gap.
 
 ---
 
@@ -401,7 +409,7 @@ Reference CLIs expose commands to reset the active session and resume a previous
     change.
 ```
 
-**`/undo` — formally deferred:** An `/undo` command would revert the most recently applied patch. This requires either a git-based rollback (which requires the repo to be git-managed and the patch to have been committed or stashable) or a file-snapshot mechanism before each apply. Neither is in scope for this ADR. `/undo` is a formal deferral gate: do not implement it without a dedicated ADR specifying the rollback strategy.
+**`/undo` and checkpoints — formally deferred:** An `/undo` command would revert the most recently applied patch. A checkpoint system would snapshot code state before each change and expose a `/rewind` command to restore any prior snapshot, optionally restoring code only, conversation only, or both independently. Both require either a git-based rollback or a file-snapshot mechanism before each apply, plus a checkpoint store and a restore command surface. None of this is in scope for this ADR. This is a formal deferral gate covering `/undo`, `/rewind`, and any per-change checkpoint mechanism: do not implement any of them without a dedicated ADR specifying the rollback and snapshot strategy.
 
 **`/rename` — deferred:** Renaming a task-id after creation is low-priority cosmetic infrastructure. Deferred indefinitely.
 
@@ -527,6 +535,8 @@ Reference agents expose a user-level notes surface that persists across sessions
 - Token budget overflow is a warning, not an error. A session without notes injection is still a valid session.
 
 **Gating:** Gap 16 depends on Gap 3 (layered config) for the notes file path resolution. PJ-01 must not begin until PA-01 (layered config) is green.
+
+**Auto-memory (model-initiated) — formally deferred:** Reference agents additionally support automatic model-initiated memory extraction, where the model autonomously decides what context is worth saving across sessions. This is distinct from operator-driven `/memory add`: it requires a dedicated decision on what triggers extraction, what is saved, and how conflicts with operator-written notes are resolved. Do not implement automatic model-initiated memory capture without a dedicated ADR.
 
 **Anchor tests:** `test_tui_memory_renders_empty_notes`; `test_tui_memory_add_appends_to_file`; `test_tui_memory_clear_requires_confirmation`; `test_tui_memory_clear_cancellable`; `test_tui_memory_does_not_call_start_turn`; `test_memory_injection_within_budget`; `test_memory_injection_over_budget_emits_warning`.
 
@@ -800,6 +810,8 @@ on_fail = "warn"
 
 **Gating:** Gap 26 depends on Gap 3 (layered config) for the `[[hooks]]` table resolution. PL-01 must not begin until PA-01 (layered config) is green.
 
+**HTTP hooks and additional event types — formally deferred:** Reference implementations additionally support hooks that POST JSON to a URL and receive a JSON response (`transport = "http"`), with custom headers and env var interpolation. Additional event types beyond `pre_tool` and `post_tool` — including `Stop` (agent turn complete), `SubagentStop`, `ConfigChange`, and TUI status-line injection — are also unaddressed. These require a different config schema, response handling, and security model. Do not implement HTTP hook transport or additional hook event types without a dedicated ADR amending this gap.
+
 **Anchor tests:** `test_hook_post_apply_patch_runs_command`; `test_hook_pre_tool_runs_before_dispatch`; `test_hook_on_fail_abort_interrupts_turn`; `test_hook_on_fail_warn_continues`; `test_hook_requires_run_command_approval`; `test_hook_skipped_without_approval_emits_warning`; `test_hook_repo_local_config_rejected_at_load`.
 
 ---
@@ -934,6 +946,8 @@ X-Client-Id   = "vexcoder"
 
 **Anchor tests:** `test_mcp_http_header_injected_on_request`; `test_mcp_http_header_env_var_substituted`; `test_mcp_http_header_unset_env_var_is_hard_failure`; `test_mcp_http_header_literal_value_used_verbatim`; `test_mcp_stdio_headers_field_rejected`.
 
+**MCP OAuth — formally deferred:** Reference implementations support MCP server OAuth authentication flows, including browser-redirect and manual URL paste fallback, with managed token refresh. This is a distinct auth model from bearer token header injection and requires its own config schema, browser/redirect lifecycle, and token storage decisions. Do not implement MCP OAuth without a dedicated ADR amending this gap.
+
 ---
 
 ### Gap 32 — `-p`/`--print` One-Shot Plain-Text Flag
@@ -1066,6 +1080,7 @@ A `src/index/` module providing structured code search, symbol lookup, or semant
 | `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS` | Token budget for project instructions injection | `4096` |
 | `VEX_MAX_MEMORY_TOKENS` | Token budget for user notes injection | `2048` |
 | `VEX_AT_INJECT_MAX_BYTES` | Max bytes per `@<path>` inline file injection | `32768` (shared with `ContextAssembler::max_file_bytes`) |
+| `VEX_DISABLE_LARGE_CONTEXT` | When `true`, restricts context window requests to the model's standard context limit. Equivalent to `CLAUDE_CODE_DISABLE_1M_CONTEXT` in reference implementations. Not yet wired to runtime behaviour — reserved for when a large-context model backend is supported. | `false` |
 
 ### New prompt templates (additions to ADR-023 `src/prompts/`)
 
@@ -1489,7 +1504,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 When checking a box above, append an evidence block under this section:
 
 ```markdown
-### [PA-01 … PM-03] - <short title>
+### [PA-01 … PP-01] - <short title>
 - Dispatcher: <name/id>
 - Commit: <sha>
 - Files changed:
@@ -1550,6 +1565,8 @@ When checking a box above, append an evidence block under this section:
 | Do not use provider-branded names or proprietary product references in runtime code, config keys, or default values | Documentation may reference external tools by name for operator clarity; runtime behaviour must remain neutral. **Migration tooling exception (Gap 11):** `vex migrate config` is the sole permitted context in which pre-ADR-022 branded variable values (e.g. `VEX_API_PROTOCOL=anthropic`) may be read at runtime — exclusively to map them to neutral equivalents. No other code path may read or emit branded values. |
 | MCP HTTP header values containing secrets must use `${ENV_VAR_NAME}` substitution; literal secrets must never appear in config files | Enforced at config load time: values without `${}` syntax are used verbatim and are assumed non-secret; values with `${}` are resolved from environment only |
 | `-p`/`--print` must not be implemented before Gap 2 (`BatchMode`) is complete | `--print` is a routing flag over `BatchMode`; implementing it without `BatchMode` requires duplicating runtime logic, which is prohibited |
+| Do not implement a minimal/simple execution mode env var (`VEX_SIMPLE` or equivalent) without a dedicated ADR | The exact feature-disable set must be decided deliberately; disabling MCP, hooks, or skills piecemeal without a specification creates inconsistent operator expectations |
+| Do not implement `vex remote-control` or any remote environment serving surface without a dedicated ADR | This is distinct from `LocalApiServer` (Phase I) and requires its own network exposure, authentication, and security boundary decisions |
 
 ---
 

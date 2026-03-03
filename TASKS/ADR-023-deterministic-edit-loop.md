@@ -619,10 +619,11 @@ Rejected. `TaskState`'s `CommandEvidence` struct records execution facts, not st
 - **Interrupt between apply and validate:** If `CancellationToken` fires after `apply_patch` completes but before `ValidationSuite::run` returns, the patch is already written to disk. `EditLoopOutcome::Cancelled` is returned and the working tree contains the applied patch. This is not automatically rolled back. The operator's working tree is in a modified state and they must inspect and revert manually if needed. This window is noted as an inherent consequence of the two-step write gate in CRIT-19 and is not addressable without a rollback mechanism that is out of scope for this ADR.
 - In-session `/fix` pre-population is lost if the process is restarted between the failed run and the `/fix` invocation. Operators with long-running sessions who need persistent error context should use `vex exec --task-file` and inspect the JSONL output.
 - Git operations in `ContextAssembler` are bounded by `git_timeout_ms` (default: 2 000 ms) via `tokio::task::spawn_blocking` + `tokio::time::timeout`. Very large repos with slow I/O may see diff context degraded to `None` on first run; the timeout is configurable via `VEX_CONTEXT_GIT_TIMEOUT_MS`.
+- **Searchable prompt history** (`Ctrl+R` or equivalent in-session history search) is not addressed by this ADR. It requires a dedicated prompt-history store, a search UI overlay, and keyboard shortcut configuration that are distinct from the slash-command surface defined here. This is a formal deferral gate: do not implement in-session prompt history search without a dedicated ADR.
 
 **Documentation updates required (must accompany EL-06):**
 
-- `docs/src/generated/tools.md` — add `/edit`, `/fix`, `/explain`, `/run`, `/test`, `/review`, `/plan`, `/context`, `/commands`, `/help`, `/quit`, `/exit`, `/about`, `/diff`, `/tools`, `/generate-tests`, `@<path>` expansion, and `!<cmd>` passthrough to the command reference.
+- `docs/src/commands.md` — create this page with the full command reference: `/edit`, `/fix`, `/explain`, `/run`, `/test`, `/review`, `/plan`, `/context`, `/commands`, `/help`, `/quit`, `/exit`, `/about`, `/diff`, `/tools`, `/generate-tests`, `@<path>` expansion, and `!<cmd>` passthrough. Add the page to `docs/src/SUMMARY.md`.
 - `docs/src/policy.md` — add `Capability::ApplyPatch` approval note for edit-loop context.
 
 **Constraints imposed on future work:**
