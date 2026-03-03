@@ -63,6 +63,9 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 27 | No environment health check sub-command (`vex doctor`) | Proposed |
 | 28 | No session-level token counter | Proposed |
 | 29 | No conversation and task export sub-command (`vex export`) | Proposed |
+| 30 | No `--resume` CLI startup flag | Proposed |
+| 31 | No MCP HTTP server authentication headers | Proposed (extends Gap 5) |
+| 32 | No `-p`/`--print` one-shot plain-text flag | Proposed |
 
 ### Gaps intentionally deferred by this ADR
 
@@ -91,7 +94,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 ## Decision
 
-This ADR locks decisions for gaps 1–11 and gaps 13–29. Gap 12 is formally deferred with rationale recorded.
+This ADR locks decisions for gaps 1–11 and gaps 13–32. Gap 12 is formally deferred with rationale recorded.
 
 ---
 
@@ -172,7 +175,7 @@ At session start, `RuntimeContext::start_session` searches for a project instruc
 
 ### Gap 5 — MCP Server Integration
 
-Introduce `McpRegistry` loaded from the **user config file only** (`~/.config/vex/config.toml`) under a `[[mcp_servers]]` table. STDIO servers are launched as managed processes at session start and terminated at session end. HTTP servers are connected by URL. Tools advertised by MCP servers are merged into the tool dispatch table with `mcp.<server_name>.<tool_name>` namespace prefixing to prevent collisions with built-in tools. A new `Capability::McpTool` variant is added with a default approval scope of `once`.
+Introduce `McpRegistry` loaded from the **user config file only** (`~/.config/vex/config.toml`) under a `[[mcp_servers]]` table. STDIO servers are launched as managed processes at session start and terminated at session end. HTTP servers are connected by URL, with optional authentication headers (see Gap 31). Tools advertised by MCP servers are merged into the tool dispatch table with `mcp.<server_name>.<tool_name>` namespace prefixing to prevent collisions with built-in tools. A new `Capability::McpTool` variant is added with a default approval scope of `once`.
 
 `[[mcp_servers]]` must not be permitted in repo-local config (`.vex/config.toml`). Allowing committed repo config to auto-launch arbitrary processes is a supply-chain risk. Reject with a diagnostic at config load time.
 
@@ -886,6 +889,78 @@ vex export <task-id> [--format jsonl|markdown] [--output <path>] [--force]
 
 ---
 
+### Gap 30 — `--resume` CLI Startup Flag
+
+Gap 14 adds `/resume` as a TUI slash command for resuming a saved task from within a running session. This gap is distinct: `--resume [<task-id>]` is a CLI startup flag that loads a `TaskState` before `TuiMode` initialises, so operators who exited entirely can resume their last task without first landing in a blank session.
+
+```bash
+vex --resume                 # loads the most recently modified TaskState in VEX_STATE_DIR
+vex --resume <task-id>       # loads the named TaskState
+```
+
+**Behaviour:** The flag is handled in `src/bin/vex.rs` before `TuiMode` starts. `TaskState::load` is called for the specified or most-recent task-id. On success, `TuiMode` is initialised with `active_grants` and `changed_files` restored from the saved state, and an informational line `[resumed: <task-id> status=<status>]` is prepended to the transcript. On failure (task-id not found, state file unreadable), the process exits non-zero with a clear diagnostic before any TUI initialisation occurs. Conversation history is not restored — this matches the behaviour of `/resume` (Gap 14): `TaskState` does not persist message content.
+
+**Implementation scope:** `src/bin/vex.rs` only. No changes to `src/runtime/`, `src/state/`, or `src/tools/`. `TaskState::load` already exists; this is routing only.
+
+**Relationship to `-p`/`--print` (Gap 32):** `--resume` and `--print` are independent startup flags. `--resume --print "continue"` is a valid combination: load the saved task context, run one turn non-interactively, and print the result to stdout.
+
+**Anchor tests:** `test_cli_resume_flag_loads_task_state`; `test_cli_resume_flag_restores_active_grants`; `test_cli_resume_flag_unknown_task_id_exits_nonzero`; `test_cli_resume_flag_most_recent_when_no_id_given`.
+
+---
+
+### Gap 31 — MCP HTTP Server Authentication Headers (extends Gap 5)
+
+Gap 5 specifies HTTP-transport MCP servers by URL only. Self-hosted or LAN-hosted MCP servers commonly require an authentication header (e.g. `Authorization: Bearer <token>`). Without a header configuration field, any HTTP MCP server that requires authentication cannot be used with `vexcoder`.
+
+**Configuration** (user config only — same layer restriction as `[[mcp_servers]]`):
+
+```toml
+# ~/.config/vex/config.toml — user config layer only
+
+[[mcp_servers]]
+name      = "private-search"
+transport = "http"
+url       = "https://mcp.example.internal/mcp"
+
+[mcp_servers.headers]
+Authorization = "${MCP_PRIVATE_SEARCH_TOKEN}"   # env-var reference — value is never stored in config
+X-Client-Id   = "vexcoder"
+```
+
+**Secret handling:** Header values support `${ENV_VAR_NAME}` substitution. The substitution is resolved from the environment at session start, not stored in the config file. A header value that contains a literal `${}` reference to an unset environment variable is a hard startup failure with a diagnostic naming the missing variable and the server. A header value with no `${}` syntax is used verbatim — this permits non-secret headers such as `X-Client-Id`. Secrets must never be written to any config file layer; header values containing sensitive tokens must always use env-var references.
+
+**STDIO transport:** The `headers` field is not applicable to STDIO servers and must be rejected with a diagnostic at config load time if present on a STDIO entry.
+
+**Anchor tests:** `test_mcp_http_header_injected_on_request`; `test_mcp_http_header_env_var_substituted`; `test_mcp_http_header_unset_env_var_is_hard_failure`; `test_mcp_http_header_literal_value_used_verbatim`; `test_mcp_stdio_headers_field_rejected`.
+
+---
+
+### Gap 32 — `-p`/`--print` One-Shot Plain-Text Flag
+
+Reference CLI agents expose a `-p`/`--print` flag for pipe-friendly one-shot queries: the agent runs a single turn, prints the plain assistant response to stdout, and exits. This is distinct from `vex exec` (`BatchMode`): `BatchMode` is designed for multi-turn automation with full JSONL evidence output; `--print` is designed for scripting that needs only a plain text answer. Both are headless; their output formats and use cases do not overlap.
+
+```bash
+# pipe input
+git diff HEAD | vex -p "summarise these changes in one paragraph"
+cat src/foo.rs | vex -p "identify any error-handling issues"
+
+# direct task
+vex --print "what does the Config::validate function do?"
+
+# combined with --resume
+vex --resume <task-id> --print "what files did you change?"
+```
+
+**Behaviour:** `-p`/`--print` is a `BatchMode` invocation with the following fixed parameters: `--max-turns 1`, `--format text`, no JSONL evidence output, no changed-file tracking appended to `TaskState`. Stdin is read and prepended to the prompt if stdin is not a TTY (pipe mode). Output is the assistant's final response text only, written to stdout. Exit code: 0 on a completed turn; non-zero on model error or approval denial.
+
+**Implementation:** `-p`/`--print <prompt>` is a `clap` flag pair (short `-p`, long `--print`) in `src/bin/vex.rs` that routes to `BatchMode` with the parameters above. It does not introduce a new runtime mode. `BatchMode` must already exist (Gap 2) for this flag to be implemented; Gap 32 is therefore gated on Gap 2 completion.
+
+**No `ratatui` or `crossterm` in the execution path.** The existing `BatchMode` CI check covers this.
+
+**Anchor tests:** `test_print_flag_runs_single_turn`; `test_print_flag_reads_stdin_pipe`; `test_print_flag_outputs_plain_text`; `test_print_flag_exits_nonzero_on_error`; `test_print_flag_routes_to_batch_mode`.
+
+---
+
 ### Gap 12 — Code Search / Indexing (Formally Deferred)
 
 A `src/index/` module providing structured code search, symbol lookup, or semantic indexing is explicitly deferred to a post-first-milestone ADR.
@@ -1319,13 +1394,16 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PL-02** | `vex doctor` — config probe, endpoint reachability, sandbox probe, MCP connectivity, `--json` output | [ ] |
 | **PL-03** | Session token counter — turn accumulator; `/usage` command; `BatchMode` JSONL `tokens` field | [ ] |
 | **PL-04** | `vex export <task-id>` — JSONL and Markdown formats; read-only; `--output`/`--force` flags | [ ] |
+| **PM-01** | `--resume [<task-id>]` startup flag — `TaskState::load` before TUI init; non-zero exit on failure | [ ] |
+| **PM-02** | MCP HTTP `[mcp_servers.headers]` — env-var substitution; STDIO rejection; startup failure on unset var | [ ] |
+| **PM-03** | `-p`/`--print` flag — `BatchMode` single-turn; stdin pipe; plain-text stdout; gated on Gap 2 | [ ] |
 
 ## Dispatcher reporting contract (mandatory per checklist item)
 
 When checking a box above, append an evidence block under this section:
 
 ```markdown
-### [PA-01 … PL-04] - <short title>
+### [PA-01 … PM-03] - <short title>
 - Dispatcher: <name/id>
 - Commit: <sha>
 - Files changed:
@@ -1381,6 +1459,8 @@ When checking a box above, append an evidence block under this section:
 | Do not begin Phases G or H before milestone-1 correctness work is validated | Sequencing guard |
 | Do not add a dependency licensed under a commercial, copyleft, or conditionally-paid license | All direct dependencies must carry MIT, Apache 2.0, or dual MIT/Apache 2.0 licensing; exceptions require a dedicated ADR with explicit legal basis |
 | Do not use provider-branded names or proprietary product references in runtime code, config keys, or default values | Documentation may reference external tools by name for operator clarity; runtime behaviour must remain neutral. **Migration tooling exception (Gap 11):** `vex migrate config` is the sole permitted context in which pre-ADR-022 branded variable values (e.g. `VEX_API_PROTOCOL=anthropic`) may be read at runtime — exclusively to map them to neutral equivalents. No other code path may read or emit branded values. |
+| MCP HTTP header values containing secrets must use `${ENV_VAR_NAME}` substitution; literal secrets must never appear in config files | Enforced at config load time: values without `${}` syntax are used verbatim and are assumed non-secret; values with `${}` are resolved from environment only |
+| `-p`/`--print` must not be implemented before Gap 2 (`BatchMode`) is complete | `--print` is a routing flag over `BatchMode`; implementing it without `BatchMode` requires duplicating runtime logic, which is prohibited |
 
 ---
 
