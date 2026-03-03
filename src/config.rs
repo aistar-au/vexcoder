@@ -22,7 +22,7 @@ pub struct Config {
 impl Config {
     pub fn load() -> Result<Self> {
         let model_url = std::env::var("VEX_MODEL_URL").map_err(|_| {
-            anyhow::anyhow!("VEX_MODEL_URL must be set (e.g. http://localhost:8000/v1/messages)")
+            anyhow::anyhow!("VEX_MODEL_URL must be set (e.g. http://localhost:<port>/v1/messages)")
         })?;
         let model_token = std::env::var("VEX_MODEL_TOKEN").ok().and_then(|v| {
             if v.trim().is_empty() {

@@ -18,13 +18,13 @@ replaced with neutral `VEX_*` names.
 ### Local runtime (e.g. Ollama, llama.cpp, LM Studio)
 
 ```sh
-export VEX_MODEL_URL=http://localhost:8000/v1/messages
+export VEX_MODEL_URL=http://localhost:<port>/v1/messages
 export VEX_MODEL_NAME=llama3
 # VEX_MODEL_TOKEN is not required for local runtimes
 ```
 
 `VEX_MODEL_URL` has no default and must always be set explicitly. The port
-and path vary by server — `8000` and `/v1/messages` are examples only.
+and path vary by server — `<port>` and `/v1/messages` are examples only.
 
 ### Self-hosted server
 
