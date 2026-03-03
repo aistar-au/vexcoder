@@ -51,6 +51,14 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 15 | No MCP command-level management surface | Proposed (extends Gap 5) |
 | 16 | No user persistent notes (`/memory`) | Proposed |
 | 17 | No project bootstrapping sub-command (`vex init`) | Proposed |
+| 18 | No graceful exit command or session metadata display | Proposed |
+| 19 | No `@<path>` inline file injection | Proposed |
+| 20 | No `!<command>` inline shell passthrough | Proposed |
+| 21 | No user-defined slash commands | Proposed |
+| 22 | No `/tools` active tool enumeration | Proposed |
+| 23 | No `/diff` zero-turn working-tree diff display | Proposed |
+| 24 | No git workflow integration beyond commit attribution | Proposed |
+| 25 | No test generation semantic command (`/generate-tests`) | Proposed |
 
 ### Gaps intentionally deferred by this ADR
 
@@ -59,6 +67,10 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | Image/screenshot input | Deferred until the model backend seam (ADR-022 Phase 1) is stable and a multimodal local runtime target exists |
 | Multi-agent / parallel task execution | Out of scope for the first milestone per ADR-022 Decision item 5 (single active task) |
 | Cloud task delegation | Deferred indefinitely; contradicts the self-hostable, zero-licensing-cost posture established by the dependency licensing constraint above |
+| Inline code completion (LSP/language-server) | Fundamentally different runtime category from a turn-based agent. Requires a persistent language-server process, real-time keystroke handling, and IDE surface integration — none of which are compatible with the terminal-first, turn-based interaction model. Deferred indefinitely. |
+| Enterprise governance (audit logs, seat management, org policy) | Single-user, self-hosted by design. Multi-tenant governance infrastructure contradicts the zero-licensing-cost constraint and the self-hostable posture. Deferred indefinitely. |
+| Voice input | Requires audio I/O subsystem incompatible with terminal-first constraint. Deferred indefinitely. |
+| Platform API integration (GitHub PR creation via REST API) | `vex pr-summary` (Gap 24) produces text for pipe to the operator's platform CLI; direct REST API calls require credential management for each platform and a dedicated ADR. Deferred indefinitely. |
 | Built-in web search | Depends on MCP (Gap 5). Implementing web search before MCP exists would permanently couple it to the core runtime |
 | IDE extensions | Deferred to a post-first-milestone ADR per ADR-022 amendment Decision item 11. File-based editor extensions must use `vex exec` (Gap 2). Native GUI surfaces (IDE panels with live streaming, macOS native client) must use the `LocalApiServer` path reserved in Phase I |
 | Conversation compaction / context-window management | Long-running sessions that approach the model's context limit have no managed strategy for pruning or summarising old turns. `ConversationCheckpoint` in `TaskState` records a `message_count` and `summary` string but neither is populated nor acted upon by the runtime today. Implementing compaction requires a dedicated ADR: the summarisation prompt, the trigger threshold, and whether the summary is injected as a system message or a synthetic turn all affect model behaviour and must be decided deliberately. Deferred until the edit loop and BatchMode are stable — compaction adds the most value for long `vex exec` runs, and those require BatchMode to exist first. **Command-surface note:** reference CLIs expose active context management commands (`/compact`, `/usage`). ADR-023 `EL-12` introduces `/context` for read-only token-estimate display. `/compact` (trigger summarisation) and a richer `/usage` (per-tool token attribution) are part of this deferred gap and must not be implemented without the dedicated compaction ADR. This gap is a formal deferral gate: do not implement conversation pruning or summarisation without a dedicated ADR. |
@@ -75,7 +87,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 ## Decision
 
-This ADR locks decisions for gaps 1–11 and gaps 13–17. Gap 12 is formally deferred with rationale recorded.
+This ADR locks decisions for gaps 1–11 and gaps 13–25. Gap 12 is formally deferred with rationale recorded.
 
 ---
 
@@ -543,6 +555,207 @@ vex init [--dir <path>]
 
 ---
 
+### Gap 18 — Graceful Exit and Session Metadata Display (`/quit`, `/exit`, `/about`)
+
+**`/quit` and `/exit`:** Both reference CLIs expose an explicit exit command. Currently the only TUI exit path is Ctrl+C or Ctrl+D; nothing in the command directory tells an operator how to exit. Both `/quit` and `/exit` must be registered in the dispatch table and therefore appear in `/commands` output. They must trigger a clean shutdown: save any live `TaskState`, flush the TUI, and exit with code 0. A running `EditLoop` must be cancelled via its `CancellationToken` before shutdown proceeds.
+
+**`/about`:** Zero-turn display of build metadata to transcript:
+
+```
+/about
+    Renders session metadata to transcript via push_history_line. No model turn.
+    Output format (normative):
+      [about]
+        version   : <cargo package version from env!("CARGO_PKG_VERSION")>
+        build     : <BUILD_DATE env var or "unknown">
+        commit    : <GIT_COMMIT_SHORT env var or "unknown">
+        model     : <active model name>
+        backend   : <ModelBackendKind>
+        sandbox   : <SandboxKind>
+```
+
+`BUILD_DATE` and `GIT_COMMIT_SHORT` are injected at compile time via `build.rs` using `env!()` macros. Neither is required to be present; "unknown" is the fallback.
+
+**Constraints:** `/quit` and `/exit` must call `TaskState::save` before exiting; if save fails, emit the error and prompt the operator to confirm exit without save. A running `EditLoop` must be cancelled before shutdown — never force-exit while `active_edit_loop` is `Some`.
+
+**Anchor tests:** `test_tui_quit_saves_task_state`; `test_tui_quit_cancels_active_edit_loop`; `test_tui_about_renders_without_model_turn`; `test_tui_exit_is_alias_for_quit`.
+
+---
+
+### Gap 19 — `@<path>` Inline File Injection
+
+Operators frequently need to include a specific file's content in a free-form turn without using a slash command. The `@<path>` prefix is a pre-send prompt transformation: before the turn reaches `ctx.start_turn`, any `@<path>` tokens in the input are resolved and replaced with the file content as an inline fenced block.
+
+```
+@src/foo.rs what does the parse_header function do?
+```
+
+is transformed to:
+
+```
+[file: src/foo.rs]
+<content of src/foo.rs>
+
+what does the parse_header function do?
+```
+
+**Resolution rules:**
+- Path resolution uses `ToolOperator`'s workspace-root confinement guards. Any `@<path>` that resolves outside the workspace root is rejected with an inline error annotation and the turn proceeds without that substitution.
+- If the file does not exist: annotate `[file: <path> — not found]` inline; do not abort the turn.
+- If the file exceeds `max_file_bytes` (same limit as `ContextAssembler`): annotate `[file: <path> — truncated at <n> bytes]`.
+- Multiple `@<path>` tokens in a single input are all resolved in order.
+- `@<dir>` resolves to a compact file listing (paths only, no content) bounded to `max_related` entries.
+- `@` expansion is applied in `TuiMode::on_user_input` before the slash-command check and before `ctx.start_turn`. It must not be applied inside slash-command arguments — `/explain @src/foo.rs` already assembles context via `ContextAssembler`.
+
+**Anchor tests:** `test_at_prefix_injects_file_content`; `test_at_prefix_outside_workspace_is_rejected`; `test_at_prefix_missing_file_annotates_inline`; `test_at_prefix_multiple_tokens_resolved_in_order`; `test_at_prefix_not_expanded_inside_slash_command_args`.
+
+---
+
+### Gap 20 — `!<command>` Inline Shell Passthrough
+
+The `!` prefix runs a shell command from the TUI input and renders its output to the transcript. Distinct from `/run` (which invokes `ValidationSuite` and is model-adjacent) and `/test` (which runs the full inferred suite). `!<cmd>` is a zero-model-turn, operator-driven shell call for quick inspection.
+
+```
+!git log --oneline -10
+!cat src/foo.rs | grep "fn "
+```
+
+**Behaviour:**
+- The command is passed to `CommandRunner::run_one_shot` via `SandboxDriver::wrap` — the same approval and containment path as all other subprocess calls. `Capability::RunCommand` approval is required; if not in `active_grants`, the standard approval overlay is shown.
+- Output (stdout + stderr, capped at `VALIDATION_TAIL_BYTES`) is rendered to transcript via `push_history_line`. Exit code is shown: `[exit: <n>]`.
+- No model turn is started. Output is not automatically injected into the next turn's context. If the operator wants the output as model context, they can reference it in their next free-form prompt.
+- `!` expansion is applied in `TuiMode::on_user_input` before the slash-command check, after `@` expansion.
+
+**Constraints:** `!<cmd>` must route through `SandboxDriver::wrap` and `ApprovalPolicy`. It must never bypass the approval gate. It must never start a model turn.
+
+**Anchor tests:** `test_bang_prefix_routes_through_sandbox`; `test_bang_prefix_requires_run_command_approval`; `test_bang_prefix_renders_output_to_transcript`; `test_bang_prefix_does_not_start_model_turn`.
+
+---
+
+### Gap 21 — User-Defined Slash Commands
+
+Operators need reusable prompt templates that invoke the agent with consistent instructions without modifying runtime code. User-defined commands are TOML files stored in `~/.config/vex/commands/` (user-scoped) or `.vex/commands/` (project-scoped). Project-scoped commands take precedence over user-scoped commands of the same name.
+
+```toml
+# .vex/commands/standup.toml
+name        = "standup"
+description = "Summarise changed files as a standup update"
+template    = "Summarise the changes in {{context}} as a concise standup update. List each changed file and one sentence of what changed."
+```
+
+**Invocation:** `/standup` — resolved and rendered via `edit_template.txt`'s `{{instruction}}` site with `ContextAssembler` providing `{{context}}`. Starts a single `ctx.start_turn`; does not invoke `EditLoop`.
+
+**Rules:**
+- Built-in commands (all ADR-023 and ADR-024 slash commands) take precedence. A user-defined command may not shadow a built-in name.
+- The `name` field must match `[a-z0-9-]+`. Names beginning with `vex-` are reserved for future built-ins.
+- The `template` field supports `{{context}}` and `{{input}}` substitution sites. `{{context}}` is populated by `ContextAssembler`; `{{input}}` is the remainder of the operator's command invocation (`/standup last week` → `{{input}}` = `"last week"`).
+- User-defined commands are loaded at session start and appear in `/commands` output in a separate `[custom commands]` section.
+- Project-scoped command files in `.vex/commands/` must not be considered user-config-only; they are intentionally project-committed. This is an exception to the general principle that operator-personal config lives in the user layer. The rationale: shared team workflows are a legitimate use case for project-committed commands.
+
+**Anchor tests:** `test_custom_command_invokes_single_turn`; `test_custom_command_cannot_shadow_builtin`; `test_custom_command_input_substitution`; `test_custom_command_context_substitution`; `test_custom_command_appears_in_commands_list`; `test_custom_command_project_scoped_takes_precedence`.
+
+---
+
+### Gap 22 — `/tools` Active Tool Enumeration
+
+Operators need to inspect what tools the agent can invoke in the current session, especially after MCP servers load. `/tools` is a zero-turn command that renders all registered tools to transcript.
+
+```
+/tools [desc]
+    Renders all registered tools from the live dispatch table.
+    No model turn. Output format:
+      [tools]
+        read_file
+        write_file
+        apply_patch
+        run_command
+        mcp.my-server.read_file
+        mcp.my-server.write_file
+    /tools desc — includes one-line description per tool from the tool schema.
+    If McpRegistry is not yet loaded: "[tools] MCP registry not yet available; built-in tools only".
+```
+
+**Constraints:** `/tools` and `/tools desc` must never start a model turn. Tool list must be read from the live dispatch table, not a hardcoded list. MCP-namespaced tools use the same `mcp.<server>.<tool>` format as `/mcp show`.
+
+**Anchor tests:** `test_tui_tools_renders_builtin_tools`; `test_tui_tools_includes_mcp_tools`; `test_tui_tools_desc_includes_descriptions`; `test_tui_tools_does_not_start_model_turn`.
+
+---
+
+### Gap 23 — `/diff` Zero-Turn Working-Tree Diff Display
+
+`/context` surfaces a one-line git status summary. Operators frequently need to see the full working-tree diff without starting a model turn or using `/review` (which costs a model turn). `/diff` is the zero-turn complement to `/review`.
+
+```
+/diff [--staged]
+    Runs `git diff HEAD` (or `git diff --cached` with --staged) via the same
+    spawn_blocking + timeout pattern as ContextAssembler. Renders output to
+    transcript via push_history_line. No model turn.
+    If not a git repo: "[diff] not a git repository".
+    If diff is empty: "[diff] working tree is clean".
+    If diff exceeds max_diff_lines (ContextAssembler default: 200 lines):
+    renders the first max_diff_lines lines with a "[diff truncated — showing
+    first <n> lines]" annotation.
+```
+
+**Constraints:** `/diff` must use the same `spawn_blocking` + `tokio::time::timeout` + `child.kill()` pattern specified for `ContextAssembler` git calls. It must not start a model turn. Output must never be silently truncated.
+
+**Anchor tests:** `test_tui_diff_renders_working_tree_diff`; `test_tui_diff_staged_flag`; `test_tui_diff_non_git_repo`; `test_tui_diff_clean_working_tree`; `test_tui_diff_truncates_at_max_lines`; `test_tui_diff_does_not_start_model_turn`.
+
+---
+
+### Gap 24 — Git Workflow Integration Beyond Commit Attribution
+
+Gap 7 adds `vex install-hooks` for commit trailers. Reference CLI agents additionally support higher-level git workflow operations as CLI sub-commands: branch creation, PR preparation, and integration with the system `git` binary for common pre-commit/pre-PR workflows.
+
+```bash
+vex branch <name>
+    Creates a new git branch from HEAD. Equivalent to `git checkout -b <name>`.
+    Records the branch name in the active TaskState.
+    Does not start the agent loop.
+
+vex pr-summary
+    Assembles a diff from the current branch vs the merge-base of the default
+    branch (detected from `git symbolic-ref refs/remotes/origin/HEAD`) and
+    starts a single model turn using a pr_summary_template.txt prompt to
+    generate a PR title and description. Output is rendered to stdout (not
+    TUI transcript) for easy pipe to `gh pr create --body-file -` or similar.
+    This is a CLI sub-command, not a TUI slash command.
+```
+
+**Scope boundary:** These are thin wrappers over `git` binary calls and `ContextAssembler`-style diff assembly. They do not integrate with any specific hosting platform API (GitHub, GitLab, Gitea). Platform API integration (creating PRs via REST API) is explicitly out of scope and requires a dedicated ADR. `vex pr-summary` produces a text artifact the operator pipes to whatever CLI tool manages their remote.
+
+**New prompt template:** `src/prompts/pr_summary_template.txt` — added to EL-06 scope.
+
+**Anchor tests:** `test_vex_branch_creates_git_branch`; `test_vex_branch_records_in_task_state`; `test_vex_pr_summary_assembles_merge_base_diff`; `test_vex_pr_summary_outputs_to_stdout`; `test_vex_pr_summary_does_not_start_tui`.
+
+---
+
+### Gap 25 — Test Generation Semantic Command (`/generate-tests`)
+
+`ValidationSuite` (ADR-023) runs existing tests. Reference CLI agents additionally support generating new tests for existing code as a distinct semantic workflow. This is different from `/edit` (general code editing) because it uses a specialised prompt template that instructs the model to output test code matching the project's test framework, with no patch for non-test files.
+
+```
+/generate-tests [path] [--framework <name>]
+    Assembles context for the named path (or most recently accessed file)
+    using ContextAssembler. Starts a single ctx.start_turn using
+    generate_tests_template.txt. EditLoop is not invoked. Any PendingPatch
+    targeting non-test files is silently dropped — /generate-tests must only
+    apply patches to files matching test naming conventions
+    (*_test.rs, *.test.ts, test_*.py, *_spec.rb, etc.) or directories
+    named test/ or tests/. Patches to other paths require explicit /edit.
+    --framework <name>: injects the framework name into the template
+    (e.g. "jest", "pytest", "cargo-test"). Defaults to inferred framework
+    from ValidationSuite::infer_from_repo.
+```
+
+**New prompt template:** `src/prompts/generate_tests_template.txt` — added to EL-06 scope.
+
+**Constraints:** `/generate-tests` must never apply patches to non-test files. The test-file path filter must be applied before the `PendingApproval` gate, not after — the operator should never be asked to approve a patch to a source file from this command.
+
+**Anchor tests:** `test_tui_generate_tests_assembles_context`; `test_tui_generate_tests_drops_non_test_patches`; `test_tui_generate_tests_infers_framework`; `test_tui_generate_tests_framework_flag_overrides_inference`.
+
+---
+
 ### Gap 12 — Code Search / Indexing (Formally Deferred)
 
 A `src/index/` module providing structured code search, symbol lookup, or semantic indexing is explicitly deferred to a post-first-milestone ADR.
@@ -562,6 +775,20 @@ A `src/index/` module providing structured code search, symbol lookup, or semant
 | `VEX_SANDBOX_REQUIRE` | Abort rather than fall back if sandbox is unavailable: `true`/`false` | `false` |
 | `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS` | Token budget for project instructions injection | `4096` |
 | `VEX_MAX_MEMORY_TOKENS` | Token budget for user notes injection | `2048` |
+| `VEX_AT_INJECT_MAX_BYTES` | Max bytes per `@<path>` inline file injection | `32768` (shared with `ContextAssembler::max_file_bytes`) |
+
+### New prompt templates (additions to ADR-023 `src/prompts/`)
+
+These files are added to the `src/prompts/` directory under ADR-023 EL-06 scope:
+
+```
+src/prompts/pr_summary_template.txt   — Gap 24: branch diff → PR title + body
+src/prompts/generate_tests_template.txt — Gap 25: source file → test file
+```
+
+Both files must pass `scripts/check_forbidden_names.sh`. Both are loaded via `include_str!` at compile time.
+
+---
 
 ### New `Capability` variant (addition to ADR-022 enum)
 
@@ -949,13 +1176,22 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [ ] |
 | **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [ ] |
 | **PJ-04** | `vex init` — scaffolds `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [ ] |
+| **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [ ] |
+| **PK-02** | `/about` — build metadata display; `build.rs` compile-time injection | [ ] |
+| **PK-03** | `@<path>` inline injection — workspace-confined; truncation annotation; multi-token | [ ] |
+| **PK-04** | `!<command>` passthrough — SandboxDriver + ApprovalPolicy; no model turn | [ ] |
+| **PK-05** | User-defined commands — TOML loader; project + user scopes; `/commands` integration | [ ] |
+| **PK-06** | `/tools [desc]` — live dispatch table enumeration; MCP-namespaced tools | [ ] |
+| **PK-07** | `/diff [--staged]` — spawn_blocking git diff; truncation; no model turn | [ ] |
+| **PK-08** | `vex branch` and `vex pr-summary` — thin git wrappers; stdout output; no platform API | [ ] |
+| **PK-09** | `/generate-tests` — generate_tests_template.txt; non-test patch filter; framework flag | [ ] |
 
 ## Dispatcher reporting contract (mandatory per checklist item)
 
 When checking a box above, append an evidence block under this section:
 
 ```markdown
-### [PA-01 … PJ-04] - <short title>
+### [PA-01 … PK-09] - <short title>
 - Dispatcher: <name/id>
 - Commit: <sha>
 - Files changed:
@@ -997,6 +1233,14 @@ When checking a box above, append an evidence block under this section:
 | `/memory clear` must require a confirmation prompt in `TuiMode`; must treat confirmation as denied in `BatchMode` unless `--auto-approve` is passed | Non-interactive clear without explicit operator confirmation is prohibited |
 | `vex init` must not overwrite existing files | Non-destructive scaffolding only; skip and report any file that already exists |
 | `vex init` generated `.vex/config.toml` must contain all normative config keys from this ADR, commented out | Enforced by `test_vex_init_config_keys_match_normative_list` |
+| `/quit` and `/exit` must call `TaskState::save` before exiting; cancel any active `EditLoop` via `CancellationToken` | Never force-exit while `active_edit_loop` is `Some` |
+| `@<path>` expansion must use `ToolOperator`'s workspace-root confinement | Reject out-of-workspace paths with inline annotation; do not abort the turn |
+| `@<path>` expansion must not be applied inside slash-command arguments | Only applied to free-form input before the slash-command check |
+| `!<command>` must route through `SandboxDriver::wrap` and require `Capability::RunCommand` approval | Never bypass the approval gate for shell passthrough |
+| User-defined commands must not shadow built-in command names | Built-in names take precedence at dispatch; user commands that conflict are silently skipped with a startup warning |
+| User-defined command `name` field must match `[a-z0-9-]+`; names beginning `vex-` are reserved | Enforced at load time; invalid names cause a startup warning and the command is skipped |
+| `/generate-tests` must never apply patches to non-test files | Test-file path filter applied before `PendingApproval` gate; non-test patches silently dropped |
+| `pr_summary_template.txt` and `generate_tests_template.txt` must pass `check_forbidden_names.sh` | Added to EL-06 CI scope |
 | Do not begin Phases G or H before milestone-1 correctness work is validated | Sequencing guard |
 | Do not add a dependency licensed under a commercial, copyleft, or conditionally-paid license | All direct dependencies must carry MIT, Apache 2.0, or dual MIT/Apache 2.0 licensing; exceptions require a dedicated ADR with explicit legal basis |
 | Do not use provider-branded names or proprietary product references in runtime code, config keys, or default values | Documentation may reference external tools by name for operator clarity; runtime behaviour must remain neutral |
