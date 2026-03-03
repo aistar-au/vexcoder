@@ -1,1 +1,194 @@
-IyBDb250cmlidXRpbmcgdG8gdmV4Y29kZXIKCj4gKipWZXJzaW9uOioqIFRoaXMgd29ya2Zsb3cgYXBwbGllcyBmcm9tIGB2MC4xLjAtYWxwaGFgIG9ud2FyZC4gIAo+ICoqQXJjaGl0ZWN0dXJlIGRlY2lzaW9ucyoqIGxpdmUgaW4gW2BUQVNLUy9gXShUQVNLUy9BRFItUkVBRE1FLm1kKS4gIAo+ICoqRGlzcGF0Y2ggQURScyBub3QgeWV0IGNvbXBsZXRlZCoqIGxpdmUgaW4gW2BUQVNLUy9gXShUQVNLUy9UQVNLUy1ESVNQQVRDSC1NQVAubWQpIGFzIGBUQVNLUy9BRFItWFhYLSoubWRgLiAgCj4gVGhlIEFEUnMgZXhwbGFpbiAqd2h5KiB0aGUgcHJvamVjdCBpcyBzdHJ1Y3R1cmVkIHRoaXMgd2F5LiBSZWFkIHRoZW0gYmVmb3JlIG9wZW5pbmcgYSBQUi4KCi0tLQoKIyMgVGhlIEFnZW50aWMgV29ya2Zsb3cgKFRlc3QtRHJpdmVuIE1hbmlmZXN0KQoKYHZleGNvZGVyYCB1c2VzIHRoZSAqKlRlc3QtRHJpdmVuIE1hbmlmZXN0IChURE0pKiogc3RyYXRlZ3kgZm9yIGFsbCBidWcgZml4ZXMsIGZlYXR1cmVzLCBhbmQgcmVmYWN0b3JzLiBUaGUgZnVsbCByYXRpb25hbGUgaXMgaW4gW0FEUi0wMDFdKFRBU0tTL2NvbXBsZXRlZC9BRFItMDAxLXRkbS1hZ2VudGljLW1hbmlmZXN0LXN0cmF0ZWd5Lm1kKS4gVGhlIHNob3J0IHZlcnNpb246CgoxLiAqKklkZW50aWZ5IHRhc2sqKiDigJQgQ2hlY2sgYFRBU0tTL2AgZm9yIG9wZW4gaXRlbXMuCiAgIC0gVGhpcyBpbmNsdWRlcyBhY3RpdmUgZGlzcGF0Y2ggQURSIG1hbmlmZXN0cyAoYFRBU0tTL0FEUi1YWFgtKi5tZGApLgoyLiAqKkFuY2hvciB0ZXN0Kiog4oCUIEV2ZXJ5IHRhc2sgaGFzIGV4YWN0bHkgb25lIGZhaWxpbmcgUnVzdCB0ZXN0IGJlZm9yZSB3b3JrIGJlZ2lucy4gTm8gYW5jaG9yLCBubyBkaXNwYXRjaC4KMy4gKipNb2R1bGUgaXNvbGF0aW9uKiog4oCUIFdvcmsgaXMgY29uZmluZWQgdG8gdGhlIGBUYXJnZXQgRmlsZWAgbmFtZWQgaW4gdGhlIHRhc2sgbWFuaWZlc3QgKMKxIG9uZSBoZWxwZXIgZmlsZSkuCjQuICoqVmVyaWZpY2F0aW9uKiog4oCUIFN1Y2Nlc3MgaXMgYGNhcmdvIHRlc3QgPGFuY2hvcl9uYW1lPmAgcGFzc2luZywgcGx1cyBgY2FyZ28gdGVzdCAtLWFsbC10YXJnZXRzYCBzaG93aW5nIG5vIHJlZ3Jlc3Npb25zLgoKUnVudGltZSBtb2RlIGFkZGl0aW9ucyBhbmQgbmFtaW5nLXBvbGljeSBjaGFuZ2VzIHJlcXVpcmUgZXhwbGljaXQgY29uZmlybWF0aW9uIGJlZm9yZSBpbXBsZW1lbnRhdGlvbiBvciBkb2N1bWVudGF0aW9uLiBTZWUgQURSLTAwNy4KQ2Fub25pY2FsIHByb2R1Y3Rpb24gZGlzcGF0Y2ggaXMgcnVudGltZS1jb3JlIG9ubHk6IGBSdW50aW1lPE0+OjpydW5gIOKGkiBgUnVudGltZU1vZGU6Om9uX3VzZXJfaW5wdXRgIOKGkiBgUnVudGltZUNvbnRleHQ6OnN0YXJ0X3R1cm5gLgpBbHRlcm5hdGUgYXBwLW93bmVkIGRpc3BhdGNoIGNoYW5uZWxzIGFyZSBmb3JiaWRkZW4gaW4gcHJvZHVjdGlvbiBwYXRocy4KUnVudGltZS1jb3JlIHJhdGF0dWkgVFVJIGJlaGF2aW9yIG11c3QgY29uZm9ybSB0byBBRFItMDA5LCBBRFItMDEwLCBhbmQgQURSLTAxMSBiZWZvcmUgbWVyZ2UuClJ1bnRpbWUtY29yZSBUVUkgZGVwbG95bWVudCBpcyBnYXRlZCBieSBBRFItMDEyOyBubyBkZXBsb3kgaWYgYW55IEFEUi0wMTIgaXRlbSBpcyB1bm1ldC4KQXJjaGl0ZWN0dXJlIGdhdGVzIGVuZm9yY2luZyBBRFItMDA3IG11c3QgcmVtYWluIGdyZWVuOgpgYmFzaCBzY3JpcHRzL2NoZWNrX25vX2FsdGVybmF0ZV9yb3V0aW5nLnNoYApgYmFzaCBzY3JpcHRzL2NoZWNrX2ZvcmJpZGRlbl9pbXBvcnRzLnNoYApUZXN0cyB0aGF0IG11dGF0ZSBwcm9jZXNzIGVudmlyb25tZW50IHZhcmlhYmxlcyBtdXN0IGhvbGQgYGNyYXRlOjp0ZXN0X3N1cHBvcnQ6OkVOVl9MT0NLYDsgYGNhcmdvIHRlc3QgLS1hbGwtdGFyZ2V0c2AgbXVzdCBwYXNzIHdpdGhvdXQgYC0tdGVzdC10aHJlYWRzPTFgLgoKU2VlIFtgVEFTS1MvbWFuaWZlc3Qtc3RyYXRlZ3kubWRgXShUQVNLUy9tYW5pZmVzdC1zdHJhdGVneS5tZCkgZm9yIHRoZSBvcGVyYXRpb25hbCBndWlkZS4KCi0tLQoKIyMgUGxhbm5pbmcgYW5kIEF1ZGl0LU9ubHkgUmVxdWVzdHMKClBsYW5uaW5nLW9ubHkgYW5kIGF1ZGl0LW9ubHkgcmVxdWVzdHMgYXJlIHN0cmljdGx5IG5vLXRvdWNoIGJ5IGRlZmF1bHQ6Cm5vIGZpbGUgY3JlYXRlLCBlZGl0LCByZW5hbWUsIG1vdmUsIG9yIGRlbGV0ZSBpcyBhbGxvd2VkIGR1cmluZyBhIHBsYW5uaW5nL2F1ZGl0LW9ubHkgcGFzcy4KCklmIHRoZSB1c2VyIGxhdGVyIGFza3MgdG8gaW1wbGVtZW50IGNoYW5nZXMgaW4gdGhlIHNhbWUgc2Vzc2lvbiwgc3dpdGNoIHRvIGVkaXQgbW9kZSBvbmx5CmFmdGVyIGV4cGxpY2l0IHVzZXIgY29uZmlybWF0aW9uLgoKVXNlIHRoZSBzYW1lIGV4cGxpY2l0LWNvbmZpcm1hdGlvbiBzdGFuZGFyZCBhbHJlYWR5IHJlcXVpcmVkIGZvciBydW50aW1lIG1vZGUgYWRkaXRpb25zIGFuZApuYW1pbmctcG9saWN5IGNoYW5nZXMuCgotLS0KCiMjIERvY3MgRGVwbG95bWVudCBTdGFuZGFyZCAoR2l0SHViIFBhZ2VzICsgbWRCb29rKQoKRG9jcyBkZXBsb3ltZW50IGNoYW5nZXMgbXVzdCBmb2xsb3cgdGhpcyBiYXNlbGluZToKCjEuIEdpdEh1YiBQYWdlcyBwcmVmbGlnaHQ6CiAgIC0gUmVwb3NpdG9yeSBQYWdlcyBzb3VyY2UgaXMgc2V0IHRvICoqR2l0SHViIEFjdGlvbnMqKi4KICAgLSBSZXBvc2l0b3J5IGFuZCBicmFuY2ggcG9saWN5IHBlcm1pdCB0aGUgZG9jcyB3b3JrZmxvdyB0byBydW4gb24gdGhlIHByb3RlY3RlZCBpbnRlZ3JhdGlvbiBwYXRoCiAgICAgKG5vcm1hbGx5IGBtYWluYCB2aWEgcHVsbCByZXF1ZXN0IG1lcmdlKS4KMi4gV29ya2Zsb3cgcGVybWlzc2lvbnMgbWluaW11bXM6CiAgIC0gYHBhZ2VzOiB3cml0ZWAKICAgLSBgaWQtdG9rZW46IHdyaXRlYAozLiBDYW5vbmljYWwgZG9jcyBzdHJ1Y3R1cmUgcmVxdWlyZW1lbnRzOgogICAtIGBkb2NzL2Jvb2sudG9tbGAKICAgLSBgZG9jcy9zcmMvU1VNTUFSWS5tZGAKCktlZXAgZG9jcyBkZXBsb3ltZW50IGd1aWRhbmNlIHNjb3BlZCB0byBkb2N1bWVudGF0aW9uIHB1Ymxpc2hpbmcgb25seS4KRG8gbm90IG1peCBydW50aW1lIGJlaGF2aW9yIGNoYW5nZXMgaW50byBkZXBsb3ltZW50LXN0YW5kYXJkIGVkaXRzLgoKLS0tCgojIyBUYXNrIE5hbWluZyBDb252ZW50aW9uCgp8IFByZWZpeCB8IFR5cGUgfCBFeGFtcGxlIHwKfCA6LS0tIHwgOi0tLSB8IDotLS0gfAp8IGBDUklULVhYYCB8IENyaXRpY2FsIGJ1ZyB8IGBDUklULTAyLXNlcmRlLWZpeC5tZGAgfAp8IGBGRUFULVhYYCB8IEZlYXR1cmUgfCBgRkVBVC0wMS1zdHJlYW1pbmctdWkubWRgIHwKfCBgUkVGLVhYYCB8IFJlZmFjdG9yIHwgYFJFRi0wMi1ydW50aW1lLWNvbnRyYWN0Lm1kYCB8CnwgYFNFQy1YWGAgfCBTZWN1cml0eSB8IGBTRUMtMDEtcGF0aC1zZWN1cml0eS5tZGAgfAp8IGBDT1JFLVhYYCB8IENvcmUgaW5mcmFzdHJ1Y3R1cmUgfCBgQ09SRS0wMS1zc2UtcGFyc2VyLm1kYCB8CnwgYERPQy1YWGAgfCBEb2N1bWVudGF0aW9uIHwgYERPQy0wMS1hcGktZG9jcy5tZGAgfAoKQ29tcGxldGVkIHRhc2tzIG1vdmUgdG8gYFRBU0tTL2NvbXBsZXRlZC9gIOKAlCBkbyBub3QgZGVsZXRlIHRoZW0uCgotLS0KCiMjIFJ1c3QgTW9kdWxlIEZpbGUgTmFtaW5nIChSdXN0IDIwMTgrKQoKVXNlIHBhdGgtYmFzZWQgbW9kdWxlIGVudHJ5IGZpbGVzIGFjcm9zcyBgc3JjL2AuCgp8IFNpdHVhdGlvbiB8IFJlcXVpcmVkIHBhdGggfAp8IDotLS0gfCA6LS0tIHwKfCBUb3AtbGV2ZWwgbW9kdWxlIGVudHJ5IHwgYHNyYy88bW9kdWxlPi5yc2AgfAp8IE5lc3RlZCBtb2R1bGUgfCBgc3JjLzxtb2R1bGU+LzxzdWJtb2R1bGU+LnJzYCB8CgpEbyBub3QgaW50cm9kdWNlIG5ldyBgc3JjLyovbW9kLnJzYCBmaWxlcyB1bmxlc3MgYW4gZXh0ZXJuYWwgdG9vbCBvciBtYWNybwpyZXF1aXJlcyB0aGF0IGxheW91dC4KCi0tLQoKIyMgUnVudGltZS1jb3JlIFN0YXR1cwoKUkVGLTA4IGZ1bGwgY3V0b3ZlciBpcyBjb21wbGV0ZSBhbmQgbWVyZ2VkICgyMDI2LTAyLTE5KS4KQ2Fub25pY2FsIGRpc3BhdGNoIGFuZCBsYXllcmluZyBydWxlcyBhcmUgbm93IGdvdmVybmVkIGJ5IEFEUi0wMDcgYW5kIEFEUi0wMDguCkhpc3RvcmljYWwgUkVGIG1hbmlmZXN0cyByZW1haW4gYXJjaGl2ZWQgdW5kZXIgYFRBU0tTL2NvbXBsZXRlZC9gLgoKLS0tCgojIyBRdWljayBTdGFydAoKYGBgYmFzaAojIDEuIEluc3RhbGwgUnVzdCAoc3RhYmxlIHRvb2xjaGFpbiByZXF1aXJlZCkKY3VybCAtLXByb3RvICc9aHR0cHMnIC0tdGxzdjEuMiAtc1NmIGh0dHBzOi8vc2gucnVzdHVwLnJzIHwgc2ggLXMgLS0gLXkKc291cmNlICIkSE9NRS8uY2FyZ28vZW52IgoKIyAyLiBWZXJpZnkgdGhlIGVudmlyb25tZW50CmNhcmdvIHRlc3QgLS1hbGwtdGFyZ2V0cwoKIyAzLiBQaWNrIGEgdGFzayBmcm9tIFRBU0tTLywgcmVhZCBpdHMgbWFuaWZlc3QsIGlkZW50aWZ5IHRoZSBhbmNob3IgdGVzdAoKIyA0LiBJbXBsZW1lbnQsIHRoZW4gdmVyaWZ5CmNhcmdvIHRlc3QgdGVzdF9jcml0X1hYX2FuY2hvcl9uYW1lIC0tIC0tbm9jYXB0dXJlCgojIDUuIENvbmZpcm0gbm8gcmVncmVzc2lvbnMKY2FyZ28gdGVzdCAtLWFsbC10YXJnZXRzCmJhc2ggc2NyaXB0cy9jaGVja19ub19hbHRlcm5hdGVfcm91dGluZy5zaApiYXNoIHNjcmlwdHMvY2hlY2tfZm9yYmlkZGVuX2ltcG9ydHMuc2gKYGBgCgotLS0KCiMjIFByb2plY3QgU3RydWN0dXJlCgpgYGAKdmV4Y29kZXIvCuKUnOKUgOKUgCBDT05UUklCVVRJTkcubWQgICAgICAgICAgICAgICAgIyBXb3JrZmxvdyBndWlkZSArIHNvdXJjZSBtYXAK4pSc4pSA4pSAIFJFQURNRS5tZCAgICAgICAgICAgICAgICAgICAgICAjIFJ1bnRpbWUgYW5kIHF1aWNrc3RhcnQK4pSc4pSA4pSAIGRvY3MvICAgICAgICAgICAgICAgICAgICAgICAgICAjIG1kQm9vayBkb2NzIGZvciBHaXRIdWIgUGFnZXMK4pSc4pSA4pSAIFRBU0tTLyAgICAgICAgICAgICAgICAgICAgICAgICAjIEFEUnMgYW5kIHRhc2sgbWFuaWZlc3RzIChvcGVuICsgY29tcGxldGVkKQrilJzilIDilIAgc3JjLyAgICAgICAgICAgICAgICAgICAgICAgICAgICMgUnVzdCBjcmF0ZSBzb3VyY2UK4pSCICAg4pSU4pSA4pSAIGJpbi92ZXgucnMgICAgICAgICAgICAgICAgICMgQmluYXJ5IGVudHJ5cG9pbnQK4pSU4pSA4pSAIHRlc3RzLyAgICAgICAgICAgICAgICAgICAgICAgICAjIEludGVncmF0aW9uIHRlc3RzCmBgYAoKLS0tCgojIyBUcmFja2VkIFJ1c3QgU291cmNlIE1hcCAoYCoucnNgKQoKfCBGaWxlIHwgU2hvcnQgZGVzY3JpcHRpb24gKHdpdGggcmF3IFVSTCkgfAp8IDotLS0gfCA6LS0tIHwKfCBgc3JjL2xpYi5yc2AgfCBDcmF0ZSByb290IGV4cG9ydGluZyBydW50aW1lL2FwcC9hcGkvc3RhdGUvdG9vbHMvdWkgbW9kdWxlcy4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy9saWIucnM+IHwKfCBgc3JjL2Jpbi92ZXgucnNgIHwgUHJvZHVjdGlvbiBiaW5hcnkgZW50cnlwb2ludCBhbmQgbWFuYWdlZCBUVUkgc3RhcnR1cCBsb29wLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL2Jpbi92ZXgucnM+IHwKfCBgc3JjL2FwaS5yc2AgfCBBUEkgbW9kdWxlIGVudHJ5IGFuZCByZS1leHBvcnRzLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL2FwaS5ycz4gfAp8IGBzcmMvYXBpL2NsaWVudC5yc2AgfCBIVFRQIGNsaWVudCwgcHJvdG9jb2wgc2VsZWN0aW9uLCByZXF1ZXN0L3N0cmVhbSBzZXR1cCwgdG9vbCBzY2hlbWFzLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL2FwaS9jbGllbnQucnM+IHwKfCBgc3JjL2FwaS9sb2dnaW5nLnJzYCB8IFNoYXJlZCBBUEkgZGVidWcvZXJyb3IgbG9nZ2VyIGFuZCBlbnYtYmFzZWQgbG9nIHBhdGggaGFuZGxpbmcuIFJhdzogPGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9haXN0YXItYXUvdmV4Y29kZXIvbWFpbi9zcmMvYXBpL2xvZ2dpbmcucnM+IHwKfCBgc3JjL2FwaS9tb2NrX2NsaWVudC5yc2AgfCBNb2NrIHN0cmVhbWluZyBjbGllbnQgdXNlZCBieSB0ZXN0cy4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy9hcGkvbW9ja19jbGllbnQucnM+IHwKfCBgc3JjL2FwaS9zdHJlYW0ucnNgIHwgU3RyZWFtL1NTRSBldmVudCBwYXJzaW5nIGhlbHBlcnMgdXNlZCBieSBBUEkgbGF5ZXIuIFJhdzogPGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9haXN0YXItYXUvdmV4Y29kZXIvbWFpbi9zcmMvYXBpL3N0cmVhbS5ycz4gfAp8IGBzcmMvYXBwLnJzYCB8IFRVSSBtb2RlIHN0YXRlIG1hY2hpbmU6IGlucHV0LCBvdmVybGF5cywgaGlzdG9yeSwgYW5kIFVJIGV2ZW50IGhhbmRsaW5nLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL2FwcC5ycz4gfAp8IGBzcmMvY29uZmlnLnJzYCB8IENvbmZpZyBsb2FkaW5nL3ZhbGlkYXRpb24gZnJvbSBlbnZpcm9ubWVudCB2YXJpYWJsZXMuIFJhdzogPGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9haXN0YXItYXUvdmV4Y29kZXIvbWFpbi9zcmMvY29uZmlnLnJzPiB8CnwgYHNyYy9lZGl0X2RpZmYucnNgIHwgRWRpdCBwcmV2aWV3IGRpZmYvaHVuayBmb3JtYXR0aW5nIHV0aWxpdGllcy4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy9lZGl0X2RpZmYucnM+IHwKfCBgc3JjL3J1bnRpbWUucnNgIHwgUnVudGltZSBtb2R1bGUgZW50cnkgYW5kIHJlLWV4cG9ydHMuIFJhdzogPGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9haXN0YXItYXUvdmV4Y29kZXIvbWFpbi9zcmMvcnVudGltZS5ycz4gfAp8IGBzcmMvcnVudGltZS9jb250ZXh0LnJzYCB8IEFzeW5jIHR1cm4gZXhlY3V0aW9uIGNvbnRleHQgYW5kIGNvbnZlcnNhdGlvbiB1cGRhdGUgZm9yd2FyZGluZy4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy9ydW50aW1lL2NvbnRleHQucnM+IHwKfCBgc3JjL3J1bnRpbWUvZnJvbnRlbmQucnNgIHwgRnJvbnRlbmQgYWRhcHRlciBjb250cmFjdHMgYW5kIHJ1bnRpbWUtZmFjaW5nIGlucHV0IGV2ZW50IHR5cGVzLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL3J1bnRpbWUvZnJvbnRlbmQucnM+IHwKfCBgc3JjL3J1bnRpbWUvbG9vcC5yc2AgfCBSdW50aW1lIGV2ZW50IGxvb3Agb3JjaGVzdHJhdGlvbiBiZXR3ZWVuIG1vZGUsIGZyb250ZW5kLCBhbmQgY29udGV4dC4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy9ydW50aW1lL2xvb3AucnM+IHwKfCBgc3JjL3J1bnRpbWUvbW9kZS5yc2AgfCBSdW50aW1lIG1vZGUgdHJhaXQgZGVmaW5pbmcgaW5wdXQvdXBkYXRlIGhvb2tzLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL3J1bnRpbWUvbW9kZS5ycz4gfAp8IGBzcmMvcnVudGltZS9wb2xpY3kucnNgIHwgT3V0cHV0IHNhbml0aXphdGlvbiBhbmQgdG9vbC1ldmlkZW5jZSBwb2xpY3kgaGVscGVycy4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy9ydW50aW1lL3BvbGljeS5ycz4gfAp8IGBzcmMvcnVudGltZS91cGRhdGUucnNgIHwgYFVpVXBkYXRlYCBtZXNzYWdlIHR5cGVzIGVtaXR0ZWQgZnJvbSBydW50aW1lIHRvIGZyb250ZW5kLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL3J1bnRpbWUvdXBkYXRlLnJzPiB8CnwgYHNyYy9zdGF0ZS5yc2AgfCBTdGF0ZSBtb2R1bGUgZW50cnkgYW5kIHJlLWV4cG9ydHMuIFJhdzogPGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9haXN0YXItYXUvdmV4Y29kZXIvbWFpbi9zcmMvc3RhdGUucnM+IHwKfCBgc3JjL3N0YXRlL2NvbnZlcnNhdGlvbi5yc2AgfCBDb252ZXJzYXRpb24gbW9kdWxlIGVudHJ5cG9pbnQgYW5kIHJlLWV4cG9ydHMgZm9yIHNwbGl0IGNvbnZlcnNhdGlvbiBzdWJtb2R1bGVzLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL3N0YXRlL2NvbnZlcnNhdGlvbi5ycz4gfAp8IGBzcmMvc3RhdGUvY29udmVyc2F0aW9uL2NvcmUucnNgIHwgTWFpbiBjb252ZXJzYXRpb24gdHVybiBsb29wLCBzdHJlYW1pbmcgZXZlbnQgcHJvY2Vzc2luZywgYW5kIG1vZGVsL3Rvb2wgcm91bmQgb3JjaGVzdHJhdGlvbi4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy9zdGF0ZS9jb252ZXJzYXRpb24vY29yZS5ycz4gfAp8IGBzcmMvc3RhdGUvY29udmVyc2F0aW9uL2hpc3RvcnkucnNgIHwgTWVzc2FnZSBoaXN0b3J5IHBydW5pbmcsIHRydW5jYXRpb24sIGFuZCByZWFkLWZpbGUgcmVzdWx0IHN1bW1hcml6YXRpb24gaGVscGVycy4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy9zdGF0ZS9jb252ZXJzYXRpb24vaGlzdG9yeS5ycz4gfAp8IGBzcmMvc3RhdGUvY29udmVyc2F0aW9uL3N0YXRlLnJzYCB8IENvbnZlcnNhdGlvbiBzdGF0ZSB0eXBlcyBhbmQgYENvbnZlcnNhdGlvbk1hbmFnZXJgIGNvbnN0cnVjdG9ycy9hY2Nlc3NvcnMuIFJhdzogPGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9haXN0YXItYXUvdmV4Y29kZXIvbWFpbi9zcmMvc3RhdGUvY29udmVyc2F0aW9uL3N0YXRlLnJzPiB8CnwgYHNyYy9zdGF0ZS9jb252ZXJzYXRpb24vc3RyZWFtaW5nLnJzYCB8IFN0cmVhbSBibG9jayBsaWZlY3ljbGUgaGVscGVycywgYmxvY2sgcHJvbW90aW9uLCBhbmQgZGVsdGEgZW1pc3Npb24gdXRpbGl0aWVzLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL3N0YXRlL2NvbnZlcnNhdGlvbi9zdHJlYW1pbmcucnM+IHwKfCBgc3JjL3N0YXRlL2NvbnZlcnNhdGlvbi90ZXN0cy5yc2AgfCBDb252ZXJzYXRpb24gbW9kdWxlIHRlc3RzIGNvdmVyaW5nIHByb3RvY29sIGZsb3csIGxvb3AgZ3VhcmRzLCBhbmQgcmVncmVzc2lvbiBhbmNob3JzLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL3N0YXRlL2NvbnZlcnNhdGlvbi90ZXN0cy5ycz4gfAp8IGBzcmMvc3RhdGUvY29udmVyc2F0aW9uL3Rvb2xzLnJzYCB8IFRvb2wgZXhlY3V0aW9uIGRpc3BhdGNoLCBhcHByb3ZhbCBnYXRpbmcsIGlucHV0IHBhcnNpbmcsIGFuZCB0b29sLWxvb3AgZ3VhcmQgaGVscGVycy4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy9zdGF0ZS9jb252ZXJzYXRpb24vdG9vbHMucnM+IHwKfCBgc3JjL3N0YXRlL3N0cmVhbV9ibG9jay5yc2AgfCBTdHJ1Y3R1cmVkIHN0cmVhbSBibG9jayBtb2RlbHMgYW5kIHRvb2wgc3RhdHVzIGVudW0uIFJhdzogPGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9haXN0YXItYXUvdmV4Y29kZXIvbWFpbi9zcmMvc3RhdGUvc3RyZWFtX2Jsb2NrLnJzPiB8CnwgYHNyYy90ZXJtaW5hbC5yc2AgfCBUZXJtaW5hbCByYXctbW9kZSBsaWZlY3ljbGUgYW5kIHBhbmljLXNhZmUgcmVzdG9yZSBndWFyZC4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy90ZXJtaW5hbC5ycz4gfAp8IGBzcmMvdGVzdF9zdXBwb3J0LnJzYCB8IFNoYXJlZCB0ZXN0IHN5bmNocm9uaXphdGlvbiBoZWxwZXJzIChlLmcuLCBlbnYgbG9jaykuIFJhdzogPGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9haXN0YXItYXUvdmV4Y29kZXIvbWFpbi9zcmMvdGVzdF9zdXBwb3J0LnJzPiB8CnwgYHNyYy90b29sX3ByZXZpZXcucnNgIHwgVG9vbCBhcHByb3ZhbCBwcmV2aWV3IHJlbmRlcmluZyBhbmQgcmVhZC1maWxlIHNuYXBzaG90IHN1bW1hcmllcy4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy90b29sX3ByZXZpZXcucnM+IHwKfCBgc3JjL3Rvb2xzLnJzYCB8IFRvb2xzIG1vZHVsZSBlbnRyeSBhbmQgcmUtZXhwb3J0cy4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy90b29scy5ycz4gfAp8IGBzcmMvdG9vbHMvb3BlcmF0b3IucnNgIHwgU2FuZGJveGVkIGZpbGUvZ2l0IHRvb2wgb3BlcmF0b3Igd2l0aCBwYXRoIHNhZmV0eSBhbmQgbGl0ZXJhbCBzZWFyY2guIFJhdzogPGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9haXN0YXItYXUvdmV4Y29kZXIvbWFpbi9zcmMvdG9vbHMvb3BlcmF0b3IucnM+IHwKfCBgc3JjL3R5cGVzLnJzYCB8IFR5cGVzIG1vZHVsZSBlbnRyeSBhbmQgcmUtZXhwb3J0cy4gUmF3OiA8aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2Fpc3Rhci1hdS92ZXhjb2Rlci9tYWluL3NyYy90eXBlcy5ycz4gfAp8IGBzcmMvdHlwZXMvYXBpX3R5cGVzLnJzYCB8IEFQSSByZXF1ZXN0L3Jlc3BvbnNlIGNvbnRlbnQgYW5kIHN0cmVhbWluZyBldmVudCBzdHJ1Y3RzL2VudW1zLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL3R5cGVzL2FwaV90eXBlcy5ycz4gfAp8IGBzcmMvdWkucnNgIHwgVUkgbW9kdWxlIGVudHJ5IGFuZCByZS1leHBvcnRzLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL3VpLnJzPiB8CnwgYHNyYy91aS9pbnB1dF9tZXRyaWNzLnJzYCB8IElucHV0IGVkaXRvciByb3cvd2lkdGggbWV0cmljcyBmb3Igdmlld3BvcnQtc2FmZSByZW5kZXJpbmcuIFJhdzogPGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9haXN0YXItYXUvdmV4Y29kZXIvbWFpbi9zcmMvdWkvaW5wdXRfbWV0cmljcy5ycz4gfAp8IGBzcmMvdWkvbGF5b3V0LnJzYCB8IFJhdGF0dWkgcGFuZSBsYXlvdXQgc3BsaXR0aW5nIGFuZCBnZW9tZXRyeSBoZWxwZXJzLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL3VpL2xheW91dC5ycz4gfAp8IGBzcmMvdWkvcmVuZGVyLnJzYCB8IFJhdGF0dWkgcmVuZGVyIGZ1bmN0aW9ucyBmb3Igc3RhdHVzLCBoaXN0b3J5LCBpbnB1dCwgYW5kIG92ZXJsYXlzLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL3VpL3JlbmRlci5ycz4gfAp8IGBzcmMvdXRpbC5yc2AgfCBTaGFyZWQgdXRpbGl0eSBmdW5jdGlvbnMgKGJvb2wvZW52IHBhcnNpbmcgYW5kIGVuZHBvaW50IGhlbHBlcnMpLiBSYXc6IDxodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vYWlzdGFyLWF1L3ZleGNvZGVyL21haW4vc3JjL3V0aWwucnM+IHwKfCBgdGVzdHMvaW50ZWd
+# Contributing to vexcoder
+
+> **Version:** This workflow applies from `v0.1.0-alpha` onward.  
+> **Architecture decisions** live in [`TASKS/`](TASKS/ADR-README.md).  
+> **Dispatch ADRs not yet completed** live in [`TASKS/`](TASKS/TASKS-DISPATCH-MAP.md) as `TASKS/ADR-XXX-*.md`.  
+> The ADRs explain *why* the project is structured this way. Read them before opening a PR.
+
+---
+
+## 🛠️ The Agentic Workflow (Test-Driven Manifest)
+
+`vexcoder` uses the **Test-Driven Manifest (TDM)** strategy for all bug fixes, features, and refactors. The full rationale is in [ADR-001](TASKS/completed/ADR-001-tdm-agentic-manifest-strategy.md). The short version:
+
+1. **Identify task** — Check `TASKS/` for open items.
+   - This includes active dispatch ADR manifests (`TASKS/ADR-XXX-*.md`).
+2. **Anchor test** — Every task has exactly one failing Rust test before work begins. No anchor, no dispatch.
+3. **Module isolation** — Work is confined to the `Target File` named in the task manifest (± one helper file).
+4. **Verification** — Success is `cargo test <anchor_name>` passing, plus `cargo test --all-targets` showing no regressions.
+
+Runtime mode additions and naming-policy changes require explicit confirmation before implementation or documentation. See ADR-007.
+Canonical production dispatch is runtime-core only: `Runtime<M>::run` → `RuntimeMode::on_user_input` → `RuntimeContext::start_turn`.
+Alternate app-owned dispatch channels are forbidden in production paths.
+Runtime-core ratatui TUI behavior must conform to ADR-009, ADR-010, and ADR-011 before merge.
+Runtime-core TUI deployment is gated by ADR-012; no deploy if any ADR-012 item is unmet.
+Architecture gates enforcing ADR-007 must remain green:
+`bash scripts/check_no_alternate_routing.sh`
+`bash scripts/check_forbidden_imports.sh`
+Tests that mutate process environment variables must hold `crate::test_support::ENV_LOCK`; `cargo test --all-targets` must pass without `--test-threads=1`.
+
+See [`TASKS/manifest-strategy.md`](TASKS/manifest-strategy.md) for the operational guide.
+
+---
+
+## 🧾 Planning and Audit-Only Requests
+
+Planning-only and audit-only requests are strictly no-touch by default:
+no file create, edit, rename, move, or delete is allowed during a planning/audit-only pass.
+
+If the user later asks to implement changes in the same session, switch to edit mode only
+after explicit user confirmation.
+
+Use the same explicit-confirmation standard already required for runtime mode additions and
+naming-policy changes.
+
+---
+
+## 📚 Docs Deployment Standard (GitHub Pages + mdBook)
+
+Docs deployment changes must follow this baseline:
+
+1. GitHub Pages preflight:
+   - Repository Pages source is set to **GitHub Actions**.
+   - Repository and branch policy permit the docs workflow to run on the protected integration path
+     (normally `main` via pull request merge).
+2. Workflow permissions minimums:
+   - `pages: write`
+   - `id-token: write`
+3. Canonical docs structure requirements:
+   - `docs/book.toml`
+   - `docs/src/SUMMARY.md`
+
+Keep docs deployment guidance scoped to documentation publishing only.
+Do not mix runtime behavior changes into deployment-standard edits.
+
+---
+
+## 📋 Task Naming Convention
+
+| Prefix | Type | Example |
+| :--- | :--- | :--- |
+| `CRIT-XX` | Critical bug | `CRIT-02-serde-fix.md` |
+| `FEAT-XX` | Feature | `FEAT-01-streaming-ui.md` |
+| `REF-XX` | Refactor | `REF-02-runtime-contract.md` |
+| `SEC-XX` | Security | `SEC-01-path-security.md` |
+| `CORE-XX` | Core infrastructure | `CORE-01-sse-parser.md` |
+| `DOC-XX` | Documentation | `DOC-01-api-docs.md` |
+
+Completed tasks move to `TASKS/completed/` — do not delete them.
+
+---
+
+## 🧩 Rust Module File Naming (Rust 2018+)
+
+Use path-based module entry files across `src/`.
+
+| Situation | Required path |
+| :--- | :--- |
+| Top-level module entry | `src/<module>.rs` |
+| Nested module | `src/<module>/<submodule>.rs` |
+
+Do not introduce new `src/*/mod.rs` files unless an external tool or macro
+requires that layout.
+
+---
+
+## 🗺️ Runtime-core Status
+
+REF-08 full cutover is complete and merged (2026-02-19).
+Canonical dispatch and layering rules are now governed by ADR-007 and ADR-008.
+Historical REF manifests remain archived under `TASKS/completed/`.
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# 1. Install Rust (stable toolchain required)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+
+# 2. Verify the environment
+cargo test --all-targets
+
+# 3. Pick a task from TASKS/, read its manifest, identify the anchor test
+
+# 4. Implement, then verify
+cargo test test_crit_XX_anchor_name -- --nocapture
+
+# 5. Confirm no regressions
+cargo test --all-targets
+bash scripts/check_no_alternate_routing.sh
+bash scripts/check_forbidden_imports.sh
+```
+
+---
+
+## 📁 Project Structure
+
+```
+vexcoder/
+├── CONTRIBUTING.md                # Workflow guide + source map
+├── README.md                      # Runtime and quickstart
+├── docs/                          # mdBook docs for GitHub Pages
+├── TASKS/                         # ADRs and task manifests (open + completed)
+├── src/                           # Rust crate source
+│   └── bin/vex.rs                 # Binary entrypoint
+└── tests/                         # Integration tests
+```
+
+---
+
+## 🦀 Tracked Rust Source Map (`*.rs`)
+
+| File | Short description (with raw URL) |
+| :--- | :--- |
+| `src/lib.rs` | Crate root exporting runtime/app/api/state/tools/ui modules. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/lib.rs> |
+| `src/bin/vex.rs` | Production binary entrypoint and managed TUI startup loop. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/bin/vex.rs> |
+| `src/api.rs` | API module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api.rs> |
+| `src/api/client.rs` | HTTP client, protocol selection, request/stream setup, tool schemas. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client.rs> |
+| `src/api/logging.rs` | Shared API debug/error logger and env-based log path handling. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/logging.rs> |
+| `src/api/mock_client.rs` | Mock streaming client used by tests. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
+| `src/api/stream.rs` | Stream/SSE event parsing helpers used by API layer. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
+| `src/app.rs` | TUI mode state machine: input, overlays, history, and UI event handling. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
+| `src/config.rs` | Config loading/validation from environment variables. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
+| `src/edit_diff.rs` | Edit preview diff/hunk formatting utilities. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/edit_diff.rs> |
+| `src/runtime.rs` | Runtime module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime.rs> |
+| `src/runtime/context.rs` | Async turn execution context and conversation update forwarding. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context.rs> |
+| `src/runtime/frontend.rs` | Frontend adapter contracts and runtime-facing input event types. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/frontend.rs> |
+| `src/runtime/loop.rs` | Runtime event loop orchestration between mode, frontend, and context. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/loop.rs> |
+| `src/runtime/mode.rs` | Runtime mode trait defining input/update hooks. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/mode.rs> |
+| `src/runtime/policy.rs` | Output sanitization and tool-evidence policy helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/policy.rs> |
+| `src/runtime/update.rs` | `UiUpdate` message types emitted from runtime to frontend. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/update.rs> |
+| `src/state.rs` | State module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state.rs> |
+| `src/state/conversation.rs` | Conversation module entrypoint and re-exports for split conversation submodules. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation.rs> |
+| `src/state/conversation/core.rs` | Main conversation turn loop, streaming event processing, and model/tool round orchestration. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/core.rs> |
+| `src/state/conversation/history.rs` | Message history pruning, truncation, and read-file result summarization helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/history.rs> |
+| `src/state/conversation/state.rs` | Conversation state types and `ConversationManager` constructors/accessors. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/state.rs> |
+| `src/state/conversation/streaming.rs` | Stream block lifecycle helpers, block promotion, and delta emission utilities. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/streaming.rs> |
+| `src/state/conversation/tests.rs` | Conversation module tests covering protocol flow, loop guards, and regression anchors. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tests.rs> |
+| `src/state/conversation/tools.rs` | Tool execution dispatch, approval gating, input parsing, and tool-loop guard helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools.rs> |
+| `src/state/stream_block.rs` | Structured stream block models and tool status enum. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/stream_block.rs> |
+| `src/terminal.rs` | Terminal raw-mode lifecycle and panic-safe restore guard. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/terminal.rs> |
+| `src/test_support.rs` | Shared test synchronization helpers (e.g., env lock). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/test_support.rs> |
+| `src/tool_preview.rs` | Tool approval preview rendering and read-file snapshot summaries. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tool_preview.rs> |
+| `src/tools.rs` | Tools module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools.rs> |
+| `src/tools/operator.rs` | Sandboxed file/git tool operator with path safety and literal search. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/operator.rs> |
+| `src/types.rs` | Types module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types.rs> |
+| `src/types/api_types.rs` | API request/response content and streaming event structs/enums. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/api_types.rs> |
+| `src/ui.rs` | UI module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui.rs> |
+| `src/ui/input_metrics.rs` | Input editor row/width metrics for viewport-safe rendering. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/input_metrics.rs> |
+| `src/ui/layout.rs` | Ratatui pane layout splitting and geometry helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/layout.rs> |
+| `src/ui/render.rs` | Ratatui render functions for status, history, input, and overlays. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render.rs> |
+| `src/util.rs` | Shared utility functions (bool/env parsing and endpoint helpers). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/util.rs> |
+| `tests/integration_test.rs` | Integration tests for config validation behavior. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/integration_test.rs> |
+| `tests/stream_parser_tests.rs` | Stream parser protocol and fragmentation tests. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/stream_parser_tests.rs> |
+| `tests/tool_operator_tests.rs` | Tool operator behavior/security tests for file and git actions. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |
+
+---
+
+## 🔗 Reference
+
+- [ADR index](TASKS/ADR-README.md) — architectural decisions and their rationale
+- [Agentic Repair Strategy](TASKS/manifest-strategy.md) — TDM workflow deep-dive
+- [Repository Raw URL Map](TASKS/completed/REPO-RAW-URL-MAP.md) — raw.githubusercontent.com links for every tracked file
