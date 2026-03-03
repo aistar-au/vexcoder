@@ -21,13 +21,13 @@ ADR-022 locked the first-milestone roadmap for `vexcoder` as a coding agent whos
 
 ### Dependency licensing constraint
 
-Every direct dependency of `vexcoder` must be licensed under a permissive, royalty-free license — specifically MIT, Apache 2.0, or a dual MIT/Apache 2.0 offering — such that building, distributing, and operating the application imposes no licensing fee, royalty obligation, or copyright assignment requirement on any party. This is the operative reason the project uses Rust (MIT/Apache 2.0) and ratatui (MIT): neither the language toolchain, the TUI framework, nor any crate in the dependency graph charges a licensing fee or restricts redistribution. The same constraint applies to all future Rust crate dependencies added under this ADR. Any crate carrying a commercial license, a copyleft license that would require source disclosure of this codebase, or a license that conditions use on a paid tier is prohibited without a dedicated ADR recording an explicit exception and its legal basis.
+Every direct dependency of `vexcoder` must be licensed under a permissive, royalty-free license — specifically MIT, Apache 2.0, or a dual MIT/Apache 2.0 offering — such that building, distributing, and operating the application imposes no licensing fee, royalty obligation, or copyright assignment requirement on any party. This is the operative reason the project uses Rust (MIT/Apache 2.0) and ratatui (MIT): neither the language toolchain, the TUI framework, nor any crate in the dependency graph charges a licensing fee or restricts redistribution. Crates introduced directly by this ADR: `clap_complete` (Gap 6, MIT/Apache 2.0). All satisfy the constraint. The same constraint applies to all future Rust crate dependencies added under this ADR. Any crate carrying a commercial license, a copyleft license that would require source disclosure of this codebase, or a license that conditions use on a paid tier is prohibited without a dedicated ADR recording an explicit exception and its legal basis.
 
 **Operational and runtime dependency scope:** This ADR also introduces optional operational dependencies — Docker (Apache 2.0, used by `DockerSandbox`), npm-distributed MCP server packages (licenses vary per package), Homebrew (BSD 2-Clause), and GitHub Actions CI tooling (license varies per action). These are not Rust crate dependencies compiled into the binary; they are operator-provided runtime components or CI infrastructure. The licensing constraint for these is therefore different: they are not required for the binary to build or run in `PassthroughSandbox` mode, and operators who use them accept their respective license terms independently. However, for long-term multi-year legal clarity the following rules apply:
 
 - **Docker (`DockerSandbox`):** Docker Engine is Apache 2.0 for the community edition. Docker Desktop has a separate commercial license that applies to certain business uses. The ADR does not bundle Docker; operators install it independently. Documentation must note that operators using Docker Desktop in a commercial context must verify their Docker Desktop licensing.
 - **MCP server packages:** The `[[mcp_servers]]` config allows operators to configure arbitrary npm packages as tool servers. `vexcoder` makes no representation about the licenses of third-party MCP packages. Documentation must note that operators are responsible for verifying the license of any MCP server package they configure.
-- **CI tooling (GitHub Actions, `cross`, mingw toolchain):** These are build and release infrastructure, not runtime components. Their licensing does not affect the distributed binary's license obligations.
+- **CI tooling (GitHub Actions, `cross`, mingw toolchain):** These are build and release infrastructure, not runtime components. Their licensing does not affect the distributed binary's license obligations. **mingw runtime library exception:** the mingw runtime libraries (`libgcc`, `libwinpthread`) are distributed under the GCC Runtime Library Exception, which explicitly permits static linking into permissively-licensed binaries without copyleft propagation. No licensing obligation is imposed on the distributed `vex` binary by the mingw toolchain.
 - **Homebrew tap:** The tap formula is maintained under the same license as the `vexcoder` repository.
 
 ### Gaps addressed by this ADR
@@ -59,6 +59,10 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 23 | No `/diff` zero-turn working-tree diff display | Proposed |
 | 24 | No git workflow integration beyond commit attribution | Proposed |
 | 25 | No test generation semantic command (`/generate-tests`) | Proposed |
+| 26 | No pre/post-tool-call hooks system | Proposed |
+| 27 | No environment health check sub-command (`vex doctor`) | Proposed |
+| 28 | No session-level token counter | Proposed |
+| 29 | No conversation and task export sub-command (`vex export`) | Proposed |
 
 ### Gaps intentionally deferred by this ADR
 
@@ -73,7 +77,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | Platform API integration (GitHub PR creation via REST API) | `vex pr-summary` (Gap 24) produces text for pipe to the operator's platform CLI; direct REST API calls require credential management for each platform and a dedicated ADR. Deferred indefinitely. |
 | Built-in web search | Depends on MCP (Gap 5). Implementing web search before MCP exists would permanently couple it to the core runtime |
 | IDE extensions | Deferred to a post-first-milestone ADR per ADR-022 amendment Decision item 11. File-based editor extensions must use `vex exec` (Gap 2). Native GUI surfaces (IDE panels with live streaming, macOS native client) must use the `LocalApiServer` path reserved in Phase I |
-| Conversation compaction / context-window management | Long-running sessions that approach the model's context limit have no managed strategy for pruning or summarising old turns. `ConversationCheckpoint` in `TaskState` records a `message_count` and `summary` string but neither is populated nor acted upon by the runtime today. Implementing compaction requires a dedicated ADR: the summarisation prompt, the trigger threshold, and whether the summary is injected as a system message or a synthetic turn all affect model behaviour and must be decided deliberately. Deferred until the edit loop and BatchMode are stable — compaction adds the most value for long `vex exec` runs, and those require BatchMode to exist first. **Command-surface note:** reference CLIs expose active context management commands (`/compact`, `/usage`). ADR-023 `EL-12` introduces `/context` for read-only token-estimate display. `/compact` (trigger summarisation) and a richer `/usage` (per-tool token attribution) are part of this deferred gap and must not be implemented without the dedicated compaction ADR. This gap is a formal deferral gate: do not implement conversation pruning or summarisation without a dedicated ADR. |
+| Conversation compaction / context-window management | Long-running sessions that approach the model's context limit have no managed strategy for pruning or summarising old turns. `ConversationCheckpoint` in `TaskState` records a `message_count` and `summary` string but neither is populated nor acted upon by the runtime today. Implementing compaction requires a dedicated ADR: the summarisation prompt, the trigger threshold, and whether the summary is injected as a system message or a synthetic turn all affect model behaviour and must be decided deliberately. Deferred until the edit loop and BatchMode are stable — compaction adds the most value for long `vex exec` runs, and those require BatchMode to exist first. **Command-surface note:** reference CLIs expose active context management commands (`/compact`, `/usage`). ADR-023 `EL-12` introduces `/context` for read-only token-estimate display. `/compact` (trigger summarisation) and a richer `/usage` (per-tool token attribution) are part of this deferred gap and must not be implemented without the dedicated compaction ADR. This gap is a formal deferral gate: do not implement conversation pruning or summarisation without a dedicated ADR. A per-session turn-token counter (Gap 28) is separable from this gate: it reads token counts reported by the API response and requires no summarisation strategy. Gap 28 must not be blocked by this deferral. |
 
 ---
 
@@ -87,7 +91,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 ## Decision
 
-This ADR locks decisions for gaps 1–11 and gaps 13–25. Gap 12 is formally deferred with rationale recorded.
+This ADR locks decisions for gaps 1–11 and gaps 13–29. Gap 12 is formally deferred with rationale recorded.
 
 ---
 
@@ -187,6 +191,8 @@ transport = "http"
 url       = "http://localhost:3000/mcp"
 ```
 
+The example package `@modelcontextprotocol/server-filesystem` is MIT-licensed. This is noted for documentation completeness only; the operator licensing obligation in the dependency constraint section above applies to all configured MCP packages regardless.
+
 ---
 
 ### Gap 6 — Shell Completions
@@ -223,7 +229,7 @@ Add a `release.yml` GitHub Actions workflow triggered on semver tags (`v*.*.*`).
 | `aarch64-apple-darwin` | `macos-latest` | Native runner (Apple Silicon) |
 | `x86_64-pc-windows-gnu` | `ubuntu-latest` | Cross-compiled via `cross` + mingw toolchain |
 
-**Windows target note:** `x86_64-pc-windows-msvc` requires a Windows CI runner and the MSVC toolchain. `x86_64-pc-windows-gnu` (mingw) is cross-compilable from Linux via `cross` with no Windows runner required. Use `gnu` as the default Windows target. A future ADR may add an `msvc` build on a Windows runner if installer tooling requires it.
+**Windows target note:** `x86_64-pc-windows-msvc` requires a Windows CI runner and the MSVC toolchain. `x86_64-pc-windows-gnu` (mingw) is cross-compilable from Linux via `cross` with no Windows runner required. Use `gnu` as the default Windows target. A future ADR may add an `msvc` build on a Windows runner if installer tooling requires it. See the dependency licensing constraint section for the mingw runtime library exception applicable to static builds.
 
 Each target produces a compressed archive (`vex-<version>-<target>.tar.gz` or `.zip` for the Windows target) attached to the GitHub Release. A `checksums.txt` file containing `sha256` hashes for all archives is published alongside them.
 
@@ -244,6 +250,8 @@ A native macOS application under `packaging/macos/` that:
 **Phase H boundary constraint:** the native macOS application in Phase H is a packaging and credential layer only. It must not contain agent logic, model calls, conversation state, or tool dispatch. All such logic remains exclusively in the Rust binary. Any PR to `packaging/macos/` that modifies any file under `src/` in the same changeset is out of scope for Phase H and must be rejected.
 
 This constraint applies to Phase H specifically. It does not prohibit a future native macOS client that communicates with a `LocalApiServer: RuntimeMode + FrontendAdapter` (see Phase I below). That path involves adding a new `RuntimeMode` implementation to `src/` — which is an intended use of the runtime trait architecture — and a native macOS client that connects to it over a local socket or loopback interface. The architectural relationship is the same as any API client to a local server; the network path is shorter than a cloud API but the interface contract is identical. Phase I requires a dedicated ADR and must not begin before Phase H and the milestone-1 correctness work are validated end-to-end.
+
+**OS-vendor API licensing note (Phase H):** `Security.framework` (keychain access) and `xcrun notarytool` (notarisation) are Apple proprietary APIs available under Apple's macOS SDK terms. Their use in the Phase H packaging layer imposes no additional licensing obligation on the Rust binary itself — the binary's MIT license is unaffected. Phase H is macOS-exclusive by design; the Apple SDK terms are accepted by operators at OS installation time, not imposed by `vexcoder`'s distribution.
 
 #### Phase I — Local API server surface (reserved)
 
@@ -756,6 +764,128 @@ vex pr-summary
 
 ---
 
+### Gap 26 — Pre/Post-Tool-Call Hooks
+
+Reference implementations (Codex, Claude Code) support a `hooks` configuration table that fires operator-defined shell commands before or after specific tool calls — for example, running a formatter after every `write_file`, or a linter before any `apply_patch`. Gap 7 adds git commit hooks only; a general-purpose hooks system addressing the same feature present in reference CLIs is a separate and higher-value capability.
+
+**Configuration** (user config only — `~/.config/vex/config.toml`; repo-local hooks carry the same supply-chain risk as `[[mcp_servers]]` and are rejected at config load time):
+
+```toml
+# ~/.config/vex/config.toml — user config layer only
+
+[[hooks]]
+event   = "post_tool"
+tool    = "apply_patch"
+command = "cargo"
+args    = ["fmt"]
+on_fail = "warn"   # "warn" | "abort" | "ignore"
+
+[[hooks]]
+event   = "post_tool"
+tool    = "write_file"
+command = "prettier"
+args    = ["--write", "{{path}}"]
+on_fail = "warn"
+```
+
+**Events:** `pre_tool` (fires before `SandboxDriver::wrap`) and `post_tool` (fires after the tool result is recorded in evidence). The `tool` field matches tool names as they appear in the dispatch table: built-in names (e.g. `apply_patch`, `write_file`) or MCP-namespaced names (e.g. `mcp.my-server.write_file`).
+
+**Execution:** Hook commands run via `CommandRunner::run_one_shot` wrapped in `SandboxDriver::wrap`. `Capability::RunCommand` approval is required; a hook without approval in `active_grants` is skipped with a warning and the turn continues — hooks must never silently block a turn. `on_fail = "abort"` aborts the pending tool result and surfaces the error to the operator; the agent turn is interrupted at that point but the process continues running. `on_fail = "warn"` records the error to transcript and continues. `on_fail = "ignore"` suppresses the error entirely.
+
+**Template substitution:** `{{path}}` in `args` is substituted with the primary file path of the tool invocation where available. `{{tool}}` is substituted with the tool name. No other substitution sites are supported in this ADR.
+
+**Gating:** Gap 26 depends on Gap 3 (layered config) for the `[[hooks]]` table resolution. PL-01 must not begin until PA-01 (layered config) is green.
+
+**Anchor tests:** `test_hook_post_apply_patch_runs_command`; `test_hook_pre_tool_runs_before_dispatch`; `test_hook_on_fail_abort_interrupts_turn`; `test_hook_on_fail_warn_continues`; `test_hook_requires_run_command_approval`; `test_hook_skipped_without_approval_emits_warning`; `test_hook_repo_local_config_rejected_at_load`.
+
+---
+
+### Gap 27 — Environment Health Check (`vex doctor`)
+
+Operators starting a new deployment need a way to verify that their environment is configured correctly before running a task. `vex doctor` is a read-only CLI sub-command (not a TUI slash command) that probes each runtime dependency in sequence and reports a pass/warn/fail result per check. This is the free/open equivalent of the environment verification present in reference CLI agents.
+
+```bash
+vex doctor [--json]
+```
+
+**Checks performed (in order):**
+
+| Check | Pass condition | Fail behaviour |
+| :--- | :--- | :--- |
+| Config load | Layered config resolves without error | Fail with file path and key reference |
+| `VEX_MODEL_URL` set | Non-empty, well-formed URL | Fail |
+| Model endpoint reachable | HTTP GET to `<VEX_MODEL_URL>` returns any response within 5 s | Warn (endpoint may require auth) |
+| `VEX_MODEL_TOKEN` present | Non-empty (value not inspected) | Warn for non-local endpoints only |
+| Sandbox probe | `SandboxDriver::probe()` returns ok | Warn with fallback note if `sandbox_require = false`; Fail if `sandbox_require = true` |
+| MCP server connectivity | STDIO: binary resolvable on PATH; HTTP: URL reachable within 5 s | Warn per failing server; does not start servers |
+| State directory writable | `VEX_STATE_DIR` (or default `.vex/state`) exists and is writable | Warn |
+| Policy file parseable | `.vex/policy.toml` parses without error if present | Fail |
+
+Output is rendered to stdout as a human-readable list. `--json` emits a JSON array of `{"check": "...", "status": "pass|warn|fail", "message": "..."}` objects for machine consumption and CI integration. Exit code: 0 if all checks pass or warn; non-zero if any check fails.
+
+`vex doctor` must not start the agent loop, modify any state, or write any files. It is safe to run before `vex init` has been completed.
+
+**Anchor tests:** `test_vex_doctor_passes_with_valid_config`; `test_vex_doctor_fails_on_missing_model_url`; `test_vex_doctor_warns_on_unreachable_endpoint`; `test_vex_doctor_json_output_structure`; `test_vex_doctor_does_not_start_agent_loop`; `test_vex_doctor_sandbox_probe_warns_on_fallback`.
+
+---
+
+### Gap 28 — Session-Level Token Counter
+
+Reference implementations (Codex, Claude Code) display per-turn and cumulative token usage from API responses. This gap is explicitly separable from the compaction deferral gate: counting tokens reported in API responses requires no summarisation strategy and must not be blocked by the compaction ADR requirement.
+
+**Source:** token counts are read from the `usage` field in model API responses (`input_tokens`, `output_tokens`). For local runtimes that do not return usage fields, counts are estimated at `chars ÷ 4` with an `(estimated)` annotation displayed wherever the count appears.
+
+**Session accumulator:** `RuntimeContext` maintains a `SessionTokens { input: u64, output: u64, last_input: u64, last_output: u64, estimated: bool }` field incremented after each completed turn. The accumulator is reset on `/new` and `/clear` — conversation history is discarded at those points, making the running total meaningless.
+
+**`/usage` command** (added to `try_handle_slash_command`):
+
+```
+/usage
+    Renders token usage for the current session to transcript via
+    push_history_line. No model turn.
+    Output format:
+      [usage]
+        this turn   : <last_input> in / <last_output> out
+        session     : <total_input> in / <total_output> out  (estimated)
+    If no turns have completed: "[usage] no turns completed this session".
+    The "(estimated)" annotation is appended when estimated = true.
+```
+
+**`BatchMode` JSONL:** each turn evidence block includes a `tokens` object: `{"input": N, "output": N, "estimated": false}`.
+
+**Gating:** the `/usage` TUI command does not depend on Gap 2 (`BatchMode`) and may be implemented independently. The `BatchMode` JSONL `tokens` field extension requires Gap 2 to exist first.
+
+**Anchor tests:** `test_session_token_accumulator_increments_per_turn`; `test_session_token_accumulator_resets_on_new`; `test_session_token_accumulator_resets_on_clear`; `test_tui_usage_renders_last_and_session_totals`; `test_tui_usage_empty_session`; `test_tui_usage_does_not_call_start_turn`; `test_batch_mode_jsonl_includes_tokens_field`.
+
+---
+
+### Gap 29 — Conversation and Task Export (`vex export`)
+
+Reference implementations allow operators to export conversation and task artifacts for archiving, audit, or sharing. `vex export` is a read-only CLI sub-command that reads a saved `TaskState` from `VEX_STATE_DIR` and writes a structured export artifact to stdout or a named file.
+
+```bash
+vex export <task-id> [--format jsonl|markdown] [--output <path>] [--force]
+```
+
+**Formats:**
+
+| Format | Content |
+| :--- | :--- |
+| `jsonl` (default) | One JSON object per line: task metadata, changed files, command history, turn evidence. Schema is identical to `BatchMode` JSONL output so tooling built for `vex exec` works for `vex export` without modification. |
+| `markdown` | Human-readable document: task metadata header, changed files table, command history, and per-turn summaries (tool names and outcomes only — not full model response text). |
+
+**Rules:**
+
+- `vex export` is read-only. It must not modify `TaskState`, change file content, or write any state.
+- Output defaults to stdout. `--output <path>` writes to a file; fails with a non-zero exit and a diagnostic if the file already exists unless `--force` is passed.
+- Unknown or unreadable task-id produces a non-zero exit with a clear diagnostic.
+- The Markdown format must not reproduce full model response text — turn summaries contain tool invocations and outcomes only. Full model response content is available only in JSONL.
+- `vex export` does not require a running agent session; it operates entirely from persisted `TaskState` on disk.
+
+**Anchor tests:** `test_vex_export_jsonl_matches_batch_schema`; `test_vex_export_markdown_omits_model_response_text`; `test_vex_export_unknown_task_id_exits_nonzero`; `test_vex_export_does_not_modify_state`; `test_vex_export_output_path_flag`; `test_vex_export_force_flag_overwrites`.
+
+---
+
 ### Gap 12 — Code Search / Indexing (Formally Deferred)
 
 A `src/index/` module providing structured code search, symbol lookup, or semantic indexing is explicitly deferred to a post-first-milestone ADR.
@@ -1185,13 +1315,17 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PK-07** | `/diff [--staged]` — spawn_blocking git diff; truncation; no model turn | [ ] |
 | **PK-08** | `vex branch` and `vex pr-summary` — thin git wrappers; stdout output; no platform API | [ ] |
 | **PK-09** | `/generate-tests` — generate_tests_template.txt; non-test patch filter; framework flag | [ ] |
+| **PL-01** | Pre/post-tool-call hooks — `[[hooks]]` config; `Capability`-triggered; `SandboxDriver`-wrapped; user-layer only | [ ] |
+| **PL-02** | `vex doctor` — config probe, endpoint reachability, sandbox probe, MCP connectivity, `--json` output | [ ] |
+| **PL-03** | Session token counter — turn accumulator; `/usage` command; `BatchMode` JSONL `tokens` field | [ ] |
+| **PL-04** | `vex export <task-id>` — JSONL and Markdown formats; read-only; `--output`/`--force` flags | [ ] |
 
 ## Dispatcher reporting contract (mandatory per checklist item)
 
 When checking a box above, append an evidence block under this section:
 
 ```markdown
-### [PA-01 … PK-09] - <short title>
+### [PA-01 … PL-04] - <short title>
 - Dispatcher: <name/id>
 - Commit: <sha>
 - Files changed:
@@ -1241,9 +1375,12 @@ When checking a box above, append an evidence block under this section:
 | User-defined command `name` field must match `[a-z0-9-]+`; names beginning `vex-` are reserved | Enforced at load time; invalid names cause a startup warning and the command is skipped |
 | `/generate-tests` must never apply patches to non-test files | Test-file path filter applied before `PendingApproval` gate; non-test patches silently dropped |
 | `pr_summary_template.txt` and `generate_tests_template.txt` must pass `check_forbidden_names.sh` | Added to EL-06 CI scope |
+| `[[hooks]]` must not be permitted in repo-local `.vex/config.toml` | Same supply-chain rationale as `[[mcp_servers]]`; reject with a diagnostic at config load time |
+| `[[hooks]]` commands must route through `SandboxDriver::wrap` and require `Capability::RunCommand` approval | A hook skipped for missing approval emits a warning and continues the turn; it must never silently block |
+| `[[hooks]]` `on_fail = "abort"` must abort the pending tool result and surface the error to the operator; it must not terminate the process | A hook failure is a tool-level event, not a session-level event |
 | Do not begin Phases G or H before milestone-1 correctness work is validated | Sequencing guard |
 | Do not add a dependency licensed under a commercial, copyleft, or conditionally-paid license | All direct dependencies must carry MIT, Apache 2.0, or dual MIT/Apache 2.0 licensing; exceptions require a dedicated ADR with explicit legal basis |
-| Do not use provider-branded names or proprietary product references in runtime code, config keys, or default values | Documentation may reference external tools by name for operator clarity; runtime behaviour must remain neutral |
+| Do not use provider-branded names or proprietary product references in runtime code, config keys, or default values | Documentation may reference external tools by name for operator clarity; runtime behaviour must remain neutral. **Migration tooling exception (Gap 11):** `vex migrate config` is the sole permitted context in which pre-ADR-022 branded variable values (e.g. `VEX_API_PROTOCOL=anthropic`) may be read at runtime — exclusively to map them to neutral equivalents. No other code path may read or emit branded values. |
 
 ---
 
