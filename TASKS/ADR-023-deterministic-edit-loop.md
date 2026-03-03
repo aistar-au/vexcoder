@@ -67,7 +67,7 @@ src/prompts/pr_summary_template.txt
 
 Constraints:
 
-- Template files must not contain provider names, model names, or proprietary product references. CI must include a `scripts/check_forbidden_names.sh` grep check covering `src/prompts/` and `models/`. This check is added to the dispatcher checklist as **EL-09** and must pass for every checklist item from EL-06 onward.
+- Template files must not contain provider names or proprietary product references. CI must include a `scripts/check_forbidden_names.sh` grep check covering the content of `src/prompts/` files and the content of `models/*.toml` files. **Scope note:** the check targets proprietary vendor-branded identifiers (e.g. `claude`, `openai`, `anthropic`, `gpt`) — not free/open model family names. Profile *filenames* in `models/` (e.g. `qwen-coder.toml`, `deepseek-coder.toml`) are exempt from the filename check; only file content is checked. This check is added to the dispatcher checklist as **EL-09** and must pass for every checklist item from EL-06 onward.
 - The coding system prompt is only injected when the edit loop or a semantic command is active. Free-form turns use the `RuntimeCorePolicy` base prompt only.
 - Templates are plain UTF-8 text files. `include_str!` keeps the binary self-contained while keeping the text separately auditable.
 
@@ -95,6 +95,7 @@ top_p            = 0.95
 max_tokens       = 4096
 stop_sequences   = ["\n```\n", "<|endoftext|>"]
 structured_tools = true
+reasoning_budget = 0     # 0 = disabled; positive integer = max reasoning tokens (DeepSeek-R1, QwQ-32B, Qwen3 and equivalent free/open R1-class models)
 ```
 
 The corresponding Rust type:
@@ -109,6 +110,7 @@ pub struct ModelProfile {
     pub max_tokens: u32,
     pub stop_sequences: Vec<String>,
     pub structured_tools: bool,
+    pub reasoning_budget: u32,  // 0 = disabled; injected as the chain-of-thought token budget for R1-class models
 }
 
 impl ModelProfile {
@@ -126,6 +128,7 @@ Constraints:
 - The `system_prompt` field is a path to a prompt template file, not an inlined text blob.
 - Profile files live in `models/` at the repo root, are committed to source control, and must not reference proprietary names.
 - **`structured_tools = false` fallback:** When a profile sets `structured_tools = false`, the runtime must fall back to tagged-fallback tool call mode (the same path used by `model_protocol = "chat-compat"` backends in ADR-022). This is the correct default for models that do not reliably follow structured tool schemas. A profile must never be loaded without a well-defined tool call mode resolution; the absence of a `structured_tools` key is a hard validation failure at load time.
+- **`reasoning_budget` semantics:** When `reasoning_budget > 0`, the value is injected as the model's chain-of-thought token budget using the wire parameter appropriate to the backend protocol (`thinking.budget_tokens` for `messages-v1`, the equivalent `reasoning_effort` integer for `chat-compat` backends that support it). When `reasoning_budget = 0`, no thinking parameter is emitted and the model behaves as a standard completion. A profile that sets `reasoning_budget > 0` on a backend that does not support a thinking parameter emits a startup warning and continues with the parameter omitted — it must not abort the session. This field is the designated extension point for DeepSeek-R1-class, QwQ-32B, and Qwen3 models on free/open self-hosted runtimes (Ollama, llama.cpp, vLLM) that expose a reasoning budget parameter, matching the extended-thinking capability present in reference CLI agents.
 - **Sequencing gate:** `ModelProfile` config integration (`model_profile` TOML key, `VEX_MODEL_PROFILE` env var) is gated on ADR-022 Phase 1 (layered config) completion. EL-07 (struct and files) may proceed; EL-08 (config integration) may not.
 
 ---
