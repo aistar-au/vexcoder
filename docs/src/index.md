@@ -8,41 +8,40 @@ Terminal-first coding assistant with streaming responses, tool execution, and ra
 cargo run
 ```
 
-## API Endpoint Configuration
+## Configuration
 
-Set `ANTHROPIC_API_URL` to the protocol-specific endpoint. `VEX_API_PROTOCOL` can
-be set explicitly, or omitted and inferred from the URL.
+`vexcoder` is configured via environment variables. `VEX_MODEL_URL` is the only required variable.
 
-| Protocol | `VEX_API_PROTOCOL` | `ANTHROPIC_API_URL` endpoint |
+| Variable | Required | Description |
 |---|---|---|
-| Anthropic Messages | `anthropic` | `.../v1/messages` |
-| OpenAI Chat Completions | `openai` | `.../v1/chat/completions` |
+| `VEX_MODEL_URL` | Yes | API endpoint URL |
+| `VEX_MODEL_TOKEN` | Remote only | Bearer token for non-local endpoints |
+| `VEX_MODEL_NAME` | No | Model identifier (default: `local/default`) |
+| `VEX_MODEL_PROTOCOL` | No | `messages-v1` or `chat-compat` (inferred from URL if omitted) |
+| `VEX_TOOL_CALL_MODE` | No | `structured` (remote default) or `tagged-fallback` (local default) |
+| `VEX_MODEL_BACKEND` | No | `api-server` or `local-runtime` (inferred from URL if omitted) |
+| `VEX_WORKDIR` | No | Working directory override (defaults to current directory) |
 
-Remote endpoints require `ANTHROPIC_API_KEY`. Localhost endpoints do not.
+`VEX_MODEL_PROTOCOL` is inferred from the URL: endpoints containing `/chat/completions` or ending in `/v1` default to `chat-compat`; all others default to `messages-v1`.
 
-Structured tool protocol defaults:
-
-- Remote endpoints: enabled (`VEX_STRUCTURED_TOOL_PROTOCOL=on`)
-- Local endpoints: disabled by default (text-protocol fallback)
-- Override explicitly with `VEX_STRUCTURED_TOOL_PROTOCOL=on|off`
-
-Anthropic example:
+Local endpoint example:
 
 ```bash
-ANTHROPIC_API_URL=https://api.anthropic.com/v1/messages \
-VEX_API_PROTOCOL=anthropic \
-ANTHROPIC_API_KEY=your_key \
+VEX_MODEL_URL=http://localhost:8000/v1/messages \
+VEX_MODEL_NAME=local/default \
 cargo run
 ```
 
-OpenAI example:
+Remote endpoint example:
 
 ```bash
-ANTHROPIC_API_URL=https://api.openai.com/v1/chat/completions \
-VEX_API_PROTOCOL=openai \
-ANTHROPIC_API_KEY=your_key \
+VEX_MODEL_URL=https://your-inference-server/v1/messages \
+VEX_MODEL_TOKEN=your-token \
+VEX_MODEL_NAME=your-model-name \
 cargo run
 ```
+
+For operators migrating from a pre-ADR-022 deployment, see the [ADR-022 Migration Guide](migration.md).
 
 ## Built-in TUI Commands
 
@@ -58,7 +57,7 @@ cargo run
 This site is built with mdBook and published through GitHub Pages.
 
 - Policy: [Documentation Policy](policy.md)
-- Generated page: [Tooling Snapshot](generated/tools.md)
+- Migration: [ADR-022 Migration Guide](migration.md)
 
 ADR files are not stored in `docs/`.
 
