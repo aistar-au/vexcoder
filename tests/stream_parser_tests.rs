@@ -75,7 +75,7 @@ fn test_tool_use_start_without_input_is_accepted() {
 }
 
 #[test]
-fn test_openai_tool_call_stream_maps_to_unified_events() {
+fn test_chat_compat_tool_call_stream_maps_to_unified_events() {
     let mut parser = StreamParser::new();
 
     let chunk1 = br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"Reading file now. "},"finish_reason":null}]}
@@ -83,7 +83,7 @@ fn test_openai_tool_call_stream_maps_to_unified_events() {
 "#;
     let events1 = parser
         .process(chunk1)
-        .expect("openai content delta should parse");
+        .expect("chat-compat content delta should parse");
     assert_eq!(events1.len(), 1);
     match &events1[0] {
         StreamEvent::ContentBlockDelta { index, delta } => {
@@ -98,7 +98,7 @@ fn test_openai_tool_call_stream_maps_to_unified_events() {
 "#;
     let events2 = parser
         .process(chunk2)
-        .expect("openai tool call delta should parse");
+        .expect("chat-compat tool call delta should parse");
     assert_eq!(events2.len(), 3);
 
     match &events2[0] {

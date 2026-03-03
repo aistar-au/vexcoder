@@ -54,6 +54,9 @@ jobs:
         env:
           VEX_MODEL_TOKEN: ""   # prevent accidental real requests in tests
 
+      - name: Forbidden branded names (src + .github)
+        run: ./scripts/check_forbidden_names.sh
+
       - name: No UI crates in src/runtime
         run: |
           if grep -r "ratatui\|crossterm" src/runtime/; then

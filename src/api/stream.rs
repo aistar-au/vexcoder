@@ -6,11 +6,11 @@ use serde::Deserialize;
 #[derive(Default)]
 pub struct StreamParser {
     buffer: Vec<u8>,
-    openai_tools: Vec<OpenAiToolState>,
+    chat_compat_tools: Vec<ChatCompatToolState>,
 }
 
 #[derive(Default, Clone)]
-struct OpenAiToolState {
+struct ChatCompatToolState {
     id: String,
     name: String,
     pending_arguments: String,
@@ -19,39 +19,39 @@ struct OpenAiToolState {
 }
 
 #[derive(Debug, Deserialize)]
-struct OpenAiChunk {
+struct ChatCompatChunk {
     #[serde(default)]
-    choices: Vec<OpenAiChoice>,
+    choices: Vec<ChatCompatChoice>,
 }
 
 #[derive(Debug, Deserialize)]
-struct OpenAiChoice {
+struct ChatCompatChoice {
     #[serde(default)]
-    delta: OpenAiDelta,
+    delta: ChatCompatDelta,
     #[serde(default)]
     finish_reason: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct OpenAiDelta {
+struct ChatCompatDelta {
     #[serde(default)]
     content: Option<String>,
     #[serde(default)]
-    tool_calls: Option<Vec<OpenAiToolCallDelta>>,
+    tool_calls: Option<Vec<ChatCompatToolCallDelta>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct OpenAiToolCallDelta {
+struct ChatCompatToolCallDelta {
     #[serde(default)]
     index: Option<usize>,
     #[serde(default)]
     id: Option<String>,
     #[serde(default)]
-    function: Option<OpenAiFunctionDelta>,
+    function: Option<ChatCompatFunctionDelta>,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct OpenAiFunctionDelta {
+struct ChatCompatFunctionDelta {
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
@@ -104,14 +104,16 @@ impl StreamParser {
                 if should_parse {
                     match serde_json::from_str::<StreamEvent>(&json_data) {
                         Ok(evt) => events.push(evt),
-                        Err(anthropic_error) => {
-                            if let Some(openai_events) = self.parse_openai_chunk(&json_data) {
-                                events.extend(openai_events);
+                        Err(messages_v1_error) => {
+                            if let Some(chat_compat_events) =
+                                self.parse_chat_compat_chunk(&json_data)
+                            {
+                                events.extend(chat_compat_events);
                             } else {
                                 emit_sse_parse_error(
                                     event_type.as_deref(),
                                     &json_data,
-                                    &anthropic_error,
+                                    &messages_v1_error,
                                 );
                             }
                         }
@@ -133,14 +135,14 @@ impl StreamParser {
         None
     }
 
-    fn parse_openai_chunk(&mut self, json_data: &str) -> Option<Vec<StreamEvent>> {
+    fn parse_chat_compat_chunk(&mut self, json_data: &str) -> Option<Vec<StreamEvent>> {
         if json_data == "[DONE]" {
             let mut events = Vec::new();
-            self.close_openai_tool_blocks(&mut events);
+            self.close_chat_compat_tool_blocks(&mut events);
             return Some(events);
         }
 
-        let chunk = serde_json::from_str::<OpenAiChunk>(json_data).ok()?;
+        let chunk = serde_json::from_str::<ChatCompatChunk>(json_data).ok()?;
         if chunk.choices.is_empty() {
             return Some(Vec::new());
         }
@@ -160,26 +162,26 @@ impl StreamParser {
 
             if let Some(tool_calls) = choice.delta.tool_calls {
                 for tool_call in tool_calls {
-                    self.apply_openai_tool_delta(tool_call, &mut events);
+                    self.apply_chat_compat_tool_delta(tool_call, &mut events);
                 }
             }
 
             if choice.finish_reason.is_some() {
-                self.close_openai_tool_blocks(&mut events);
+                self.close_chat_compat_tool_blocks(&mut events);
             }
         }
 
         Some(events)
     }
 
-    fn apply_openai_tool_delta(
+    fn apply_chat_compat_tool_delta(
         &mut self,
-        tool_call: OpenAiToolCallDelta,
+        tool_call: ChatCompatToolCallDelta,
         events: &mut Vec<StreamEvent>,
     ) {
         let block_index = tool_call.index.unwrap_or(0) + 1;
-        self.ensure_openai_tool_state(block_index);
-        let state = &mut self.openai_tools[block_index];
+        self.ensure_chat_compat_tool_state(block_index);
+        let state = &mut self.chat_compat_tools[block_index];
 
         if let Some(id) = tool_call.id {
             if !id.is_empty() {
@@ -199,7 +201,7 @@ impl StreamParser {
 
         if !state.started && !state.name.is_empty() {
             let id = if state.id.is_empty() {
-                format!("toolu_openai_{block_index}")
+                format!("toolu_chat_compat_{block_index}")
             } else {
                 state.id.clone()
             };
@@ -228,15 +230,15 @@ impl StreamParser {
         }
     }
 
-    fn ensure_openai_tool_state(&mut self, index: usize) {
-        if self.openai_tools.len() <= index {
-            self.openai_tools
-                .resize_with(index + 1, OpenAiToolState::default);
+    fn ensure_chat_compat_tool_state(&mut self, index: usize) {
+        if self.chat_compat_tools.len() <= index {
+            self.chat_compat_tools
+                .resize_with(index + 1, ChatCompatToolState::default);
         }
     }
 
-    fn close_openai_tool_blocks(&mut self, events: &mut Vec<StreamEvent>) {
-        for (index, state) in self.openai_tools.iter_mut().enumerate() {
+    fn close_chat_compat_tool_blocks(&mut self, events: &mut Vec<StreamEvent>) {
+        for (index, state) in self.chat_compat_tools.iter_mut().enumerate() {
             if index == 0 {
                 continue;
             }

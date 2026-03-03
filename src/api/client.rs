@@ -149,14 +149,14 @@ impl ApiClient {
                     "model": self.model,
                     "max_tokens": max_tokens,
                     "stream": true,
-                    "messages": openai_messages(messages, SYSTEM_PROMPT),
+                    "messages": chat_compat_messages(messages, SYSTEM_PROMPT),
                 });
                 if self.supports_structured_tool_protocol() {
                     let payload_object = payload
                         .as_object_mut()
                         .expect("payload must be a JSON object");
                     payload_object.insert("tool_choice".to_string(), json!("auto"));
-                    payload_object.insert("tools".to_string(), tool_definitions_openai());
+                    payload_object.insert("tools".to_string(), tool_definitions_chat_compat());
                 }
                 payload
             }
@@ -213,7 +213,7 @@ impl ApiClient {
     fn request_url(&self) -> String {
         match self.api_protocol() {
             ApiProtocol::MessagesV1 => self.api_url.clone(),
-            ApiProtocol::ChatCompat => adapt_to_openai_chat_completions_url(&self.api_url),
+            ApiProtocol::ChatCompat => adapt_to_chat_compat_url(&self.api_url),
         }
     }
 }
@@ -328,7 +328,7 @@ fn is_reserved_header(name: &str) -> bool {
     )
 }
 
-fn adapt_to_openai_chat_completions_url(api_url: &str) -> String {
+fn adapt_to_chat_compat_url(api_url: &str) -> String {
     let normalized = api_url.trim_end_matches('/');
     if normalized.ends_with("/chat/completions") {
         return normalized.to_string();
@@ -342,7 +342,7 @@ fn adapt_to_openai_chat_completions_url(api_url: &str) -> String {
     normalized.to_string()
 }
 
-fn openai_messages(messages: &[ApiMessage], system_prompt: &str) -> Vec<Value> {
+fn chat_compat_messages(messages: &[ApiMessage], system_prompt: &str) -> Vec<Value> {
     let mut out = Vec::with_capacity(messages.len() + 1);
     out.push(json!({
         "role": "system",
@@ -350,13 +350,13 @@ fn openai_messages(messages: &[ApiMessage], system_prompt: &str) -> Vec<Value> {
     }));
 
     for message in messages {
-        append_openai_message(&mut out, message);
+        append_chat_compat_message(&mut out, message);
     }
 
     out
 }
 
-fn append_openai_message(out: &mut Vec<Value>, message: &ApiMessage) {
+fn append_chat_compat_message(out: &mut Vec<Value>, message: &ApiMessage) {
     match (&message.role[..], &message.content) {
         (role, Content::Text(text)) => {
             out.push(json!({
@@ -441,7 +441,7 @@ fn tool_input_to_json_string(value: &Value) -> String {
     }
 }
 
-fn tool_definitions_openai() -> Value {
+fn tool_definitions_chat_compat() -> Value {
     let base = tool_definitions();
     let converted = base
         .as_array()
@@ -661,26 +661,26 @@ mod tests {
     use std::collections::BTreeSet;
 
     #[test]
-    fn test_protocol_inference_defaults_to_anthropic_messages() {
+    fn test_protocol_inference_defaults_to_messages_v1() {
         let protocol = infer_api_protocol("http://localhost:8000/v1/messages");
         assert_eq!(protocol, ApiProtocol::MessagesV1);
     }
 
     #[test]
-    fn test_protocol_inference_detects_openai_chat() {
+    fn test_protocol_inference_detects_chat_compat() {
         let protocol = infer_api_protocol("http://localhost:8000/v1/chat/completions");
         assert_eq!(protocol, ApiProtocol::ChatCompat);
     }
 
     #[test]
-    fn test_openai_url_adapter_from_messages_endpoint() {
-        let adapted = adapt_to_openai_chat_completions_url("http://localhost:8000/v1/messages");
+    fn test_chat_compat_url_adapter_from_messages_endpoint() {
+        let adapted = adapt_to_chat_compat_url("http://localhost:8000/v1/messages");
         assert_eq!(adapted, "http://localhost:8000/v1/chat/completions");
     }
 
     #[test]
-    fn test_openai_url_adapter_from_v1_base_endpoint() {
-        let adapted = adapt_to_openai_chat_completions_url("http://localhost:8000/v1");
+    fn test_chat_compat_url_adapter_from_v1_base_endpoint() {
+        let adapted = adapt_to_chat_compat_url("http://localhost:8000/v1");
         assert_eq!(adapted, "http://localhost:8000/v1/chat/completions");
     }
 
@@ -793,7 +793,7 @@ mod tests {
     }
 
     #[test]
-    fn test_openai_tool_definitions_match_base_tool_names() {
+    fn test_chat_compat_tool_definitions_match_base_tool_names() {
         let base_names: BTreeSet<String> = tool_definitions()
             .as_array()
             .expect("tool definitions must be an array")
@@ -802,9 +802,9 @@ mod tests {
             .map(ToOwned::to_owned)
             .collect();
 
-        let openai_names: BTreeSet<String> = tool_definitions_openai()
+        let chat_compat_names: BTreeSet<String> = tool_definitions_chat_compat()
             .as_array()
-            .expect("openai tool definitions must be an array")
+            .expect("chat-compat tool definitions must be an array")
             .iter()
             .filter_map(|tool| {
                 tool.get("function")
@@ -814,7 +814,7 @@ mod tests {
             .map(ToOwned::to_owned)
             .collect();
 
-        assert_eq!(openai_names, base_names);
+        assert_eq!(chat_compat_names, base_names);
     }
 
     #[test]

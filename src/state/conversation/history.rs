@@ -33,7 +33,7 @@ impl ConversationManager {
         let len = self.api_messages.len();
         let mut keep_start = len.saturating_sub(max_api_messages);
 
-        // Anthropic requires history to begin with a user message.
+        // MessagesV1 requires history to begin with a user message.
         // Additionally, a leading user tool_result is invalid without its preceding assistant tool_use.
         while keep_start < len {
             let message = &self.api_messages[keep_start];

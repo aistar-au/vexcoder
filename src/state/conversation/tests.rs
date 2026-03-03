@@ -721,7 +721,7 @@ data: {"type":"message_stop"}"#.to_string(),
 }
 
 #[tokio::test]
-async fn test_openai_stream_tool_call_round_trip() -> Result<()> {
+async fn test_chat_compat_stream_tool_call_round_trip() -> Result<()> {
     let first_response_sse = vec![
         r#"data: {"id":"chatcmpl_mock_1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"I'll read it. "},"finish_reason":null}]}"#.to_string(),
         r#"data: {"id":"chatcmpl_mock_1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_mock_1","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"file.txt\"}"}}]},"finish_reason":"tool_calls"}]}"#.to_string(),
@@ -729,7 +729,7 @@ async fn test_openai_stream_tool_call_round_trip() -> Result<()> {
     ];
 
     let second_response_sse = vec![
-        r#"data: {"id":"chatcmpl_mock_2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"The content is Hello from OpenAI stream."},"finish_reason":"stop"}]}"#.to_string(),
+        r#"data: {"id":"chatcmpl_mock_2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"The content is Hello from chat-compat stream."},"finish_reason":"stop"}]}"#.to_string(),
         "data: [DONE]".to_string(),
     ];
 
@@ -742,12 +742,12 @@ async fn test_openai_stream_tool_call_round_trip() -> Result<()> {
     let mut mock_tool_responses = HashMap::new();
     mock_tool_responses.insert(
         "file.txt".to_string(),
-        "Hello from OpenAI stream.".to_string(),
+        "Hello from chat-compat stream.".to_string(),
     );
     let mut manager = ConversationManager::new_mock(mock_api_client, mock_tool_responses);
 
     let final_text = manager.send_message("Read file".into(), None).await?;
-    assert!(final_text.contains("Hello from OpenAI stream."));
+    assert!(final_text.contains("Hello from chat-compat stream."));
 
     let messages = &manager.api_messages;
     assert_eq!(messages.len(), 4);
