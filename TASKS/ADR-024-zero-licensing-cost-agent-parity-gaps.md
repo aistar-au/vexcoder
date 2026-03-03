@@ -66,6 +66,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 30 | No `--resume` CLI startup flag | Proposed |
 | 31 | No MCP HTTP server authentication headers | Proposed (extends Gap 5) |
 | 32 | No `-p`/`--print` one-shot plain-text flag | Proposed |
+| 35 | No model-callable workspace exploration tools (`search_files`, `list_dir`, `glob_files`) | Proposed |
 
 ### Gaps intentionally deferred by this ADR
 
@@ -94,7 +95,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 ## Decision
 
-This ADR locks decisions for gaps 1–11 and gaps 13–32. Gap 12 is formally deferred with rationale recorded.
+This ADR locks decisions for gaps 1–11, gaps 13–32, and gap 35. Gap 12 is formally deferred with rationale recorded.
 
 ---
 
@@ -961,6 +962,90 @@ vex --resume <task-id> --print "what files did you change?"
 
 ---
 
+### Gap 35 — Model-Callable Workspace Exploration Tools
+
+Reference CLI agents expose a set of read-only, model-callable tools for autonomous
+workspace exploration: file-pattern search (`search_files`), directory listing
+(`list_dir`), and glob-based path enumeration (`glob_files`). These are distinct
+from every existing mechanism in the ADR chain:
+
+- `ContextAssembler` (ADR-023) runs automatically before each turn and provides a
+  pre-assembled snapshot — it is not model-callable.
+- `@<path>` expansion (Gap 19) is an operator-driven input transformation — the
+  model cannot invoke it.
+- `!<command>` passthrough (Gap 20) routes through `SandboxDriver::wrap` and
+  requires `Capability::RunCommand` approval — appropriate for arbitrary shell
+  commands, not for read-only file enumeration.
+- Gap 12 (code indexing) is a semantic/embedding-based search capability —
+  formally deferred. The tools in this gap are literal-string-matching and
+  directory-listing primitives that require no index, no external service, and
+  no crate beyond the Rust standard library.
+
+Without these tools, the model cannot autonomously discover where a symbol is used,
+what files exist in a directory, or which paths match a pattern in an unfamiliar
+codebase. It must rely on the operator to supply context via `@<path>` or `!<cmd>`
+for every exploration step.
+
+**Tools introduced:**
+
+```
+search_files(pattern: &str, path: Option<&str>) -> SearchResult
+    Searches file content for lines containing <pattern> as a literal string
+    (case-sensitive, fixed-string match via `str::contains`). No regex support.
+    <path> is relative to the workspace root; defaults to workspace root if omitted.
+    Returns up to MAX_SEARCH_RESULTS (default: 50) matching lines, each annotated
+    with relative path and line number. Workspace-root confinement applies;
+    out-of-workspace paths return a structured error annotation.
+
+list_dir(path: &str) -> DirListing
+    Lists the immediate contents of <path> relative to the workspace root.
+    Returns file names, directory names (suffixed /), and sizes. Does not recurse.
+    Bounded to MAX_DIR_ENTRIES (default: 200) entries.
+
+glob_files(pattern: &str) -> GlobResult
+    Returns all workspace-relative paths matching <pattern> (standard glob syntax:
+    *, **, ?). Bounded to MAX_GLOB_RESULTS (default: 100) paths. Workspace-root
+    confinement applies.
+```
+
+**Capability tier:** These tools are read-only and require no subprocess execution.
+They are gated under `Capability::ReadFile` (the existing capability for
+`read_file`). A future ADR may introduce a distinct `Capability::ReadWorkspace` if
+finer-grained control is needed; this ADR does not require it.
+
+**Ignore rules:** All three tools must skip paths excluded by `.gitignore` and any
+workspace ignore mechanism active at the time of implementation. PP-01 must not
+begin until a workspace ignore ruleset is available in the codebase; the exact
+mechanism must be confirmed green before PP-01 starts.
+
+**Implementation scope:** `src/tools/workspace_explore.rs` — new file. Three tool
+handler functions registered in the existing dispatch table alongside `read_file`,
+`write_file`, and `apply_patch`. No new `RuntimeMode`, no new `Capability` variant,
+no subprocess calls.
+
+**Constraints:**
+- All three tools must use `ToolOperator`'s workspace-root confinement guards
+  (ADR-002). Out-of-workspace paths return a structured error, not an abort.
+- `search_files` must not use `std::process::Command`. Pattern matching is
+  implemented in-process using `str::contains` from the Rust standard library.
+  No regex support; no crate dependency beyond `std`.
+- None of the three tools start a model turn or modify any file.
+- Results must be bounded. Truncated results include an annotation:
+  `[results truncated — showing first <n> of <total> matches]`.
+
+**Anchor tests:** `test_search_files_returns_matching_lines`;
+`test_search_files_respects_workspace_root`;
+`test_search_files_skips_gitignore_excluded_paths`;
+`test_search_files_literal_match_no_partial_regex_interpretation`;
+`test_list_dir_returns_immediate_contents`;
+`test_list_dir_does_not_recurse`;
+`test_glob_files_returns_matching_paths`;
+`test_glob_files_bounded_results`;
+`test_workspace_tools_do_not_start_model_turn`;
+`test_workspace_tools_out_of_workspace_path_returns_error`.
+
+---
+
 ### Gap 12 — Code Search / Indexing (Formally Deferred)
 
 A `src/index/` module providing structured code search, symbol lookup, or semantic indexing is explicitly deferred to a post-first-milestone ADR.
@@ -1397,6 +1482,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PM-01** | `--resume [<task-id>]` startup flag — `TaskState::load` before TUI init; non-zero exit on failure | [ ] |
 | **PM-02** | MCP HTTP `[mcp_servers.headers]` — env-var substitution; STDIO rejection; startup failure on unset var | [ ] |
 | **PM-03** | `-p`/`--print` flag — `BatchMode` single-turn; stdin pipe; plain-text stdout; gated on Gap 2 | [ ] |
+| **PP-01** | `search_files`, `list_dir`, `glob_files` — workspace-confined; `.gitignore`-aware; bounded results; registered in dispatch table; gated on workspace ignore mechanism being available | [ ] |
 
 ## Dispatcher reporting contract (mandatory per checklist item)
 
@@ -1432,6 +1518,9 @@ When checking a box above, append an evidence block under this section:
 | Do not auto-install git hooks | `vex install-hooks` must be an explicit operator action |
 | Do not add agent logic, model calls, or conversation state to `packaging/macos/` | Phase H constraint: packaging and credential layer only. A future `LocalApiServer: RuntimeMode + FrontendAdapter` in `src/` is the correct expansion path for a full native client — it is not a violation of this rule |
 | Do not implement `src/index/` without a dedicated ADR | Gap 12 is a formal deferral gate |
+| Do not use `std::process::Command` in `src/tools/workspace_explore.rs` | `search_files` must use `str::contains` from the Rust standard library; no subprocess permitted; no `regex` crate or external pattern-matching dependency |
+| `search_files`, `list_dir`, and `glob_files` must skip `.gitignore`-excluded paths | Apply at minimum `.gitignore` rules before returning results; extend to any workspace ignore mechanism once available |
+| PP-01 must not begin until a workspace ignore ruleset is available in the codebase | Ignore integration is a correctness requirement, not an enhancement |
 | Do not implement conversation compaction, turn pruning, or `ConversationCheckpoint` summarisation without a dedicated ADR | Formal deferral gate; `/compact` and richer `/usage` are part of this gate |
 | Do not implement `/undo` without a dedicated ADR specifying rollback strategy | Gap 14 formal deferral gate |
 | `/allow` and `/deny` must derive capability names from the `Capability` enum at compile time | No hardcoded string list permitted; drift between enum and command surface must be a compile error |
