@@ -49,6 +49,8 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 13 | No interactive permission-control command surface | Proposed |
 | 14 | No session-lifecycle command surface | Proposed |
 | 15 | No MCP command-level management surface | Proposed (extends Gap 5) |
+| 16 | No user persistent notes (`/memory`) | Proposed |
+| 17 | No project bootstrapping sub-command (`vex init`) | Proposed |
 
 ### Gaps intentionally deferred by this ADR
 
@@ -73,7 +75,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 ## Decision
 
-This ADR locks decisions for gaps 1–11 and gaps 13–15. Gap 12 is formally deferred with rationale recorded.
+This ADR locks decisions for gaps 1–11 and gaps 13–17. Gap 12 is formally deferred with rationale recorded.
 
 ---
 
@@ -379,14 +381,49 @@ Reference CLIs expose commands to reset the active session and resume a previous
 
 **`/rename` — deferred:** Renaming a task-id after creation is low-priority cosmetic infrastructure. Deferred indefinitely.
 
+**`/clear` — clear conversation history without changing task:**
+
+```
+/clear
+    Clears the conversation history in RuntimeContext without changing TaskState,
+    TaskId, or active_grants. The task remains active; only the message window
+    is reset. Emits "[cleared: conversation history reset; task <task-id> continues]".
+    No model turn.
+    Use: conversation window is growing large and the operator wants a fresh
+    exchange within the same task without discarding grants or file-change
+    context. Distinct from /new, which saves the task and creates a fresh TaskId.
+    active_edit_loop on TuiMode must be cleared; a running loop cannot continue
+    after the conversation history it was operating on is discarded.
+```
+
+**`/fork` — branch current session to a new task-id:**
+
+```
+/fork [<label>]
+    Saves the current TaskState to VEX_STATE_DIR under its existing TaskId
+    (preserving the parent). Creates a new TaskState with a fresh TaskId
+    (format: "task-<utc-ms>-fork" or "task-<utc-ms>-<label>" if <label> given)
+    that copies active_grants, changed_files, and TaskStatus from the parent.
+    The current session continues on the fork; the parent is preserved and
+    resumable via /resume. Emits "[fork: <new-task-id> branched from
+    <parent-task-id>]". No model turn.
+    Conversation history is NOT copied to the fork — the fork begins with an
+    empty conversation window and the inherited grants and file-change context.
+    If TaskState::save fails for the parent, the fork is aborted with an error;
+    the session continues unchanged.
+```
+
 **Constraints:**
 
 - `/new` must call `TaskState::save` before resetting. A new session must not begin if the save fails; emit the error and abort.
 - `/resume` must not attempt to restore conversation history. `ConversationCheckpoint.message_count` may be displayed informationally; the content is not stored.
 - `/resume` without argument must not start a model turn. The selection overlay must use the existing `PendingApproval` input path.
 - Both commands must clear `active_edit_loop` on `TuiMode` to prevent stale loop state. `[source: task_state.rs — TaskState::state_dir() for VEX_STATE_DIR resolution]`
+- `/clear` must clear `active_edit_loop` on `TuiMode`. A running edit loop cannot continue after its conversation history is discarded.
+- `/fork` must call `TaskState::save` for the parent before creating the fork. Fork must be aborted if the save fails.
+- `/fork` must not copy conversation history to the fork. The fork begins with an empty conversation window.
 
-**Anchor tests:** `test_tui_new_saves_current_state_before_reset`; `test_tui_new_creates_fresh_task_id`; `test_tui_resume_restores_active_grants`; `test_tui_resume_does_not_restore_conversation`; `test_tui_resume_unknown_id_emits_error`; `test_tui_new_clears_active_edit_loop`.
+**Anchor tests:** `test_tui_new_saves_current_state_before_reset`; `test_tui_new_creates_fresh_task_id`; `test_tui_resume_restores_active_grants`; `test_tui_resume_does_not_restore_conversation`; `test_tui_resume_unknown_id_emits_error`; `test_tui_new_clears_active_edit_loop`; `test_tui_clear_resets_conversation_history`; `test_tui_clear_preserves_task_id_and_grants`; `test_tui_clear_clears_active_edit_loop`; `test_tui_fork_saves_parent_before_branching`; `test_tui_fork_creates_new_task_id`; `test_tui_fork_does_not_copy_conversation`; `test_tui_fork_aborts_on_save_failure`.
 
 ---
 
@@ -428,6 +465,84 @@ Gap 5 defined `McpRegistry` config and tool dispatch. Reference CLIs additionall
 
 ---
 
+### Gap 16 — User Persistent Notes (`/memory`)
+
+Reference agents expose a user-level notes surface that persists across sessions and is injected into every conversation. This is distinct from project instructions (Gap 4 / `AGENTS.md`): project instructions are project-scoped and committed to the repo; user notes are operator-scoped, stored in the user config layer, and never committed.
+
+**Storage:** `~/.config/vex/memory.md` (XDG path) or `~/.vex/memory.md` as fallback. Plain UTF-8 Markdown. The file is created on first `/memory add` if it does not exist.
+
+**Session injection:** At session start, after project instructions are loaded, the notes file is read and appended to the system prompt using the same labelled-delimiter pattern as Gap 4. Token budget: `VEX_MAX_MEMORY_TOKENS` (default: 2 048). If the notes file exceeds the budget, it is not injected and a startup warning is emitted. The budget is checked independently of `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS`; both may be active simultaneously and their token counts do not sum toward a shared limit.
+
+**Commands added to `try_handle_slash_command`:**
+
+```
+/memory
+    Renders the current contents of the notes file to transcript via
+    push_history_line. No model turn.
+    If the notes file does not exist or is empty: "[memory] no notes".
+
+/memory add <note>
+    Appends <note> as a new line to the notes file.
+    Creates the file if it does not exist.
+    Emits "[memory: note added]" on success.
+    No model turn.
+
+/memory clear
+    Clears all notes from the file after an in-TUI confirmation prompt
+    (rendered via the existing overlay input path: "clear all notes? [y/N]").
+    Emits "[memory: cleared]" on confirmation; "[memory: cancelled]" otherwise.
+    No model turn.
+```
+
+**Constraints:**
+
+- `/memory` commands must never start a model turn. All output is via `push_history_line`.
+- The notes file path is resolved from the user config layer (priority 3 in the Gap 3 layered chain). It must not be overrideable via repo-local config — notes are operator-personal and must not be settable per-project.
+- The notes file is never committed to source control. `vex init` (Gap 17) must write `~/.config/vex/memory.md` to a global `.gitignore_global` recommendation in `docs/src/migration.md`, not to the repo `.gitignore`.
+- `/memory clear` requires the confirmation overlay. Non-interactive (`BatchMode`) invocation must treat `/memory clear` as an error unless `--auto-approve` is passed.
+- Token budget overflow is a warning, not an error. A session without notes injection is still a valid session.
+
+**Gating:** Gap 16 depends on Gap 3 (layered config) for the notes file path resolution. PJ-01 must not begin until PA-01 (layered config) is green.
+
+**Anchor tests:** `test_tui_memory_renders_empty_notes`; `test_tui_memory_add_appends_to_file`; `test_tui_memory_clear_requires_confirmation`; `test_tui_memory_clear_cancellable`; `test_tui_memory_does_not_call_start_turn`; `test_memory_injection_within_budget`; `test_memory_injection_over_budget_emits_warning`.
+
+---
+
+### Gap 17 — Project Bootstrapping (`vex init`)
+
+Operators starting a new project must currently create the `.vex/` directory and config files manually. `vex init` is a one-shot CLI sub-command (not a TUI slash command) that scaffolds the standard project structure.
+
+```bash
+vex init [--dir <path>]
+```
+
+**Actions (non-destructive — skips files that already exist):**
+
+1. Create `.vex/` directory in the current working directory (or `--dir`).
+2. Write `.vex/config.toml` with all keys present but commented out, matching the canonical key names from the ADR-024 normative additions table.
+3. Write `AGENTS.md` at the repo root with a minimal template instructing the operator to fill in project-specific guidance.
+4. Write `.vex/validate.toml` with an empty `[[commands]]` table and comments explaining the format.
+5. Print a summary of created and skipped files to stdout.
+
+**It must not:**
+
+- Start the agent loop.
+- Overwrite existing files.
+- Modify `~/.config/vex/` or any user-layer config path.
+- Require network access.
+
+**Relationship to `vex install-hooks` (Gap 7):** `vex init` does not install git hooks. The operator runs `vex install-hooks` separately after `vex init`. This preserves the opt-in nature of hook installation.
+
+**Constraints:**
+
+- `vex init` must exit 0 on success and on the "file already exists, skipping" case.
+- `vex init` must exit non-zero if the target directory is not writeable.
+- The generated `.vex/config.toml` must be kept in sync with the ADR-024 normative TOML table. Any new config key added to this ADR must also appear commented-out in the generated template; this is enforced by a test that parses the generated file and compares keys to the normative list.
+
+**Anchor tests:** `test_vex_init_creates_vex_dir`; `test_vex_init_writes_config_toml_skeleton`; `test_vex_init_writes_agents_md_template`; `test_vex_init_skips_existing_files`; `test_vex_init_config_keys_match_normative_list`; `test_vex_init_does_not_start_agent_loop`.
+
+---
+
 ### Gap 12 — Code Search / Indexing (Formally Deferred)
 
 A `src/index/` module providing structured code search, symbol lookup, or semantic indexing is explicitly deferred to a post-first-milestone ADR.
@@ -446,6 +561,7 @@ A `src/index/` module providing structured code search, symbol lookup, or semant
 | `VEX_SANDBOX_PROFILE` | Path to `sandbox-exec` profile or Docker image name | `""` (built-in default) |
 | `VEX_SANDBOX_REQUIRE` | Abort rather than fall back if sandbox is unavailable: `true`/`false` | `false` |
 | `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS` | Token budget for project instructions injection | `4096` |
+| `VEX_MAX_MEMORY_TOKENS` | Token budget for user notes injection | `2048` |
 
 ### New `Capability` variant (addition to ADR-022 enum)
 
@@ -494,8 +610,6 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | Inject project instructions | Injected when present and within budget; warning emitted and skipped when over budget |
 | Ship `vex migrate config` | Maps all legacy `VEX_API_PROTOCOL` / `VEX_STRUCTURED_TOOL_PROTOCOL` values correctly; non-destructive |
 | Populate `docs/src/migration.md` | Complete variable rename table, command alias reference, `vex migrate config` usage guide |
-
-**Note:** ModelProfile integration (ADR-023 EL-08 — the `model_profile` TOML key and `VEX_MODEL_PROFILE` env var) is explicitly deferred until after Phase A is locked and green. EL-07 (struct + files) may proceed in parallel; EL-08 may not.
 
 **Note:** `ModelProfile` config integration (ADR-023 EL-08 — the `model_profile` TOML key and `VEX_MODEL_PROFILE` env var) is explicitly gated on Phase A completion. EL-08 must not begin until the layered config chain above is locked and green. This sequencing is normative: ADR-023 EL-07 (struct and profile files) may proceed in parallel; EL-08 may not.
 
@@ -831,13 +945,17 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-06** | `/mcp list` — renders loaded servers and tool counts from McpRegistry | [ ] |
 | **PI-07** | `/mcp show <server>` — renders full-namespace tool names for named server | [ ] |
 | **PI-08** | `/plan` and `/context` — see ADR-023 EL-11/EL-12 (tracked there; listed here for cross-ref) | [ ] |
+| **PJ-01** | `/clear` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [ ] |
+| **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [ ] |
+| **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [ ] |
+| **PJ-04** | `vex init` — scaffolds `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [ ] |
 
 ## Dispatcher reporting contract (mandatory per checklist item)
 
 When checking a box above, append an evidence block under this section:
 
 ```markdown
-### [PA-01 … PI-08] - <short title>
+### [PA-01 … PJ-04] - <short title>
 - Dispatcher: <name/id>
 - Commit: <sha>
 - Files changed:
@@ -872,6 +990,13 @@ When checking a box above, append an evidence block under this section:
 | `/allow session` must not call `TaskState::save` | Session grants are in-memory only; persistence belongs to config layering (Gap 3) |
 | `/mcp add` and `/mcp remove` must not be implemented under this ADR | Runtime MCP lifecycle management requires a dedicated ADR |
 | `/new` must call `TaskState::save` before resetting; abort if save fails | Data loss prevention — never discard a live task state without a successful save |
+| `/clear` must clear `active_edit_loop` on `TuiMode` | A running edit loop cannot continue after its conversation history is discarded |
+| `/fork` must call `TaskState::save` for the parent before creating the fork; abort fork if save fails | Data loss prevention — never branch without preserving the parent |
+| `/fork` must not copy conversation history to the fork | The fork begins with an empty conversation window and inherited grants only |
+| `/memory` notes file must be resolved from the user config layer only | Notes are operator-personal; repo-local config must not be able to set the notes file path |
+| `/memory clear` must require a confirmation prompt in `TuiMode`; must treat confirmation as denied in `BatchMode` unless `--auto-approve` is passed | Non-interactive clear without explicit operator confirmation is prohibited |
+| `vex init` must not overwrite existing files | Non-destructive scaffolding only; skip and report any file that already exists |
+| `vex init` generated `.vex/config.toml` must contain all normative config keys from this ADR, commented out | Enforced by `test_vex_init_config_keys_match_normative_list` |
 | Do not begin Phases G or H before milestone-1 correctness work is validated | Sequencing guard |
 | Do not add a dependency licensed under a commercial, copyleft, or conditionally-paid license | All direct dependencies must carry MIT, Apache 2.0, or dual MIT/Apache 2.0 licensing; exceptions require a dedicated ADR with explicit legal basis |
 | Do not use provider-branded names or proprietary product references in runtime code, config keys, or default values | Documentation may reference external tools by name for operator clarity; runtime behaviour must remain neutral |
