@@ -15,6 +15,32 @@ This skill governs tone, structure, and posting mechanics.
 
 ---
 
+## Bootstrap (required — read before any action)
+
+Before writing any review text, posting any comment, or producing any output:
+
+1. Load this file in full from `.agents/skills/github-pr-review/SKILL.md`.
+2. Load `.agents/skills/vex-remote-contract/SKILL.md` in full.
+3. Read both files completely before writing or posting anything.
+
+**Emojis are forbidden in all output.** This rule appears in the Style rules section
+and is repeated here as a bootstrap guard. No emoji in any position — not in headings,
+not in status indicators, not in table cells, not inline. Use plain text labels:
+`Blocker`, `Non-blocking`, `Resolved`, `Open`. No Unicode symbols as status markers
+(`->`, `=>` outside code blocks, `:x:`, `:white_check_mark:`, `✅`, `❌` are all
+forbidden).
+
+**Confirmation required before any remote change.** When a prompt requests changes to
+a remote branch, file, or PR, stop and present the full planned change to the user
+before executing. Do not push, commit, create reviews, or call any write API until the
+user has explicitly confirmed. A statement of intent is not confirmation.
+
+**All changes must be exact diffs applied as patches.** Never rewrite a skill file or
+repository file from memory or a cached copy. Fetch the current content from the remote
+branch, produce a precise unified diff, present it for review, then apply only the
+patch. No full-file rewrites.
+
+---
 ## Style rules
 
 These rules apply to every character of text posted to GitHub — review bodies,
@@ -173,6 +199,9 @@ Do not close a blocker with assertion text alone.
 
 - Evidence-only blockers: collect artifact + URL + status; no code change required.
 - Code-change findings: make the smallest possible patch; do not bundle unrelated refactors.
+- All code-change patches must be produced as exact unified diffs against the current remote
+  content, presented to the user for review, and applied as patches. Do not reconstruct or
+  rewrite files from memory.
 - Commit message guideline:
   - `Address PR review follow-ups: <short summary>`
 
@@ -253,3 +282,10 @@ Rules:
 - Do not add a numbered summary table. Use a plain findings section.
 - Do not claim a blocker is resolved without evidence (artifact URL, status, or exact patch).
 - Do not use `main` as `<target-branch>` for routine PR follow-up pushes.
+- Do not skip the Bootstrap section. Load and read both skill files before any output.
+- Do not make any remote change (push, commit, file write, PR creation, review post) without
+  first presenting the planned change and receiving explicit user confirmation. A statement of
+  intent is not confirmation.
+- Do not rewrite or reconstruct any file from memory or a cached copy. Fetch the current remote
+  content, produce an exact unified diff, present it, and apply the patch. Full-file rewrites
+  are not permitted.
