@@ -1,5 +1,5 @@
 ---
-name: vex-branch-contract
+name: vex-remote-contract
 description: >
   Batch dispatch and branch-verification workflow for GitHub repos. Use this skill whenever the
   user wants to read raw/blob GitHub URLs, produce dispatch markdown with dependency gates and
@@ -9,7 +9,7 @@ description: >
   read → dispatch → verify → push → raw-url-check → diff-check → merge.
 ---
 
-# Vex Branch Contract Skill
+# Vex Remote Contract Skill
 
 An end-to-end skill for the **read → dispatch → verify → push → raw-url-check → diff-check → merge** loop used in Rust repo automation. Works with any locally-running coding agent.
 
@@ -220,7 +220,7 @@ test "$LOCAL_SHA" = "$REMOTE_SHA"
 Run from repo root. Produces `/tmp/<branch>-verification-urls.md`.
 
 ```bash
-bash .agents/skills/vex-branch-contract/scripts/gen_verification_urls.sh \
+bash .agents/skills/vex-remote-contract/scripts/gen_verification_urls.sh \
   -b <branch> \
   --base origin/main
 ```
@@ -254,7 +254,7 @@ Paste the raw URLs into the next agent (one URL per line appended to the prompt)
 5. Emit `**PASS**` only when all files pass.
 
 ```bash
-bash .agents/skills/vex-branch-contract/scripts/verify_raw_urls.sh \
+bash .agents/skills/vex-remote-contract/scripts/verify_raw_urls.sh \
   -b <branch> \
   --compare
 ```
@@ -274,7 +274,7 @@ https://patch-diff.githubusercontent.com/raw/<owner>/<repo>/pull/<N>.diff
 ```
 
 ```bash
-bash .agents/skills/vex-branch-contract/scripts/verify_diff_url.sh \
+bash .agents/skills/vex-remote-contract/scripts/verify_diff_url.sh \
   -b <branch> \
   -u "https://github.com/<owner>/<repo>/compare/main...<branch>.diff"
 ```
@@ -329,19 +329,19 @@ Project policy:
 Check map coverage (required before push/PR):
 
 ```sh
-bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh --check
+bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check
 ```
 
 If the check reports drift, regenerate it:
 
 ```sh
-bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh
+bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
 ```
 
 Then verify again:
 
 ```sh
-bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh --check
+bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check
 ```
 
 If no drift is present, update script prints a no-op message and leaves the file untouched.
@@ -353,7 +353,7 @@ If no drift is present, update script prints a no-op message and leaves the file
 Generate the PR summary and write a markdown body file in `/tmp`:
 
 ```sh
-bash .agents/skills/vex-branch-contract/scripts/branch_summary.sh \
+bash .agents/skills/vex-remote-contract/scripts/branch_summary.sh \
   -b <branch> \
   --write-pr-body
 # writes: /tmp/<safe-branch-name>-pr-body.md
@@ -362,7 +362,7 @@ bash .agents/skills/vex-branch-contract/scripts/branch_summary.sh \
 Optional custom output path:
 
 ```sh
-bash .agents/skills/vex-branch-contract/scripts/branch_summary.sh \
+bash .agents/skills/vex-remote-contract/scripts/branch_summary.sh \
   -b <branch> \
   --write-pr-body \
   -o /tmp/<custom>-pr-body.md
@@ -402,12 +402,13 @@ test "$PARENT_COUNT" -ge 2
 
 ## Step 11 — Post-Merge Verification
 
-After merge, re-fetch the original raw map URL (the TASKS or ADR document on main) and confirm:
+After merge, open the report with `Repo: <owner/repo>` and `Verified at commit: <full-sha>`.
+Re-fetch the original raw map URL (the TASKS or ADR document on main) and confirm:
 
-- The dispatch tasks are addressed by files now on `main`.
+- The dispatch tasks are addressed by files present at commit `<full-sha>` on `main`.
 - `git log --oneline -5` shows the merge commit.
 - `cargo test --all-targets` is green on `main`.
-- Every claimed landed file is re-checked directly from `HEAD` (`git ls-tree HEAD <path>`)
+- Every claimed file is verified at commit `<full-sha>` via `git ls-tree HEAD <path>`
   and reported with blob SHA; do not infer file state from commit membership alone.
 
 ### Direct push exception flow (required when applicable)
@@ -419,6 +420,7 @@ before pushing, then include this exception record in the final report:
 
 ```markdown
 ### Commit Hygiene Exception
+- Repo: `<owner/repo>`
 - Type: direct push to `main`
 - Scope: `<start-sha>..<end-sha>`
 - Reason: `<why merge-commit flow was bypassed>`
@@ -430,10 +432,10 @@ before pushing, then include this exception record in the final report:
 
 ## Scripts Reference
 
-All scripts live in `.agents/skills/vex-branch-contract/scripts/`. Bootstrap them with:
+All scripts live in `.agents/skills/vex-remote-contract/scripts/`. Bootstrap them with:
 
 ```bash
-mkdir -p .agents/skills/vex-branch-contract/scripts
+mkdir -p .agents/skills/vex-remote-contract/scripts
 # copy scripts (see bundled files)
 git add .agents/skills
 git commit -m "Add branch contract skill scripts"
@@ -481,4 +483,5 @@ git commit -m "Add branch contract skill scripts"
 10. **Ensure push landed** — after every `git push`, run `git fetch origin --prune` and confirm `git rev-parse HEAD` equals `git rev-parse origin/<branch>`.
 11. **Commit hygiene gate required** — batch promotions on `main` must end on a merge commit (`git rev-list --parents -n 1 HEAD` parent count `>= 2`).
 12. **Direct push requires explicit exception record** — if `main` is updated without merge commit flow, include a `Commit Hygiene Exception` section with scope, reason, approval, and follow-up.
-13. **File-level landed verification required** — for each claimed landed file, report the blob SHA from `HEAD` (`git ls-tree HEAD <path>`).
+13. **File-level commit verification required** — for each claimed file, report the blob SHA and the exact commit SHA from `HEAD` (`git ls-tree HEAD <path>`). Reference the commit SHA directly; do not use informal status labels in place of identifiers.
+14. **Full repo slug required in every transaction report** — every verification report, push confirmation, merge record, and exception record must identify the repository as `owner/repo` (e.g. `aistar-au/vexcoder`) in the opening line. Bare repo names and local path references are not permitted.

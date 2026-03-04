@@ -48,7 +48,7 @@ naming-policy changes.
 
 Use repository skills before ad-hoc procedures whenever a request matches their scope.
 
-- Branch and verification workflow: [`.agents/skills/vex-branch-contract/SKILL.md`](.agents/skills/vex-branch-contract/SKILL.md)
+- Branch and verification workflow: [`.agents/skills/vex-remote-contract/SKILL.md`](.agents/skills/vex-remote-contract/SKILL.md)
 - PR review and review-response workflow: [`.agents/skills/github-pr-review/SKILL.md`](.agents/skills/github-pr-review/SKILL.md)
 
 When a task maps to one of these workflows, follow the skill instructions first, then layer any

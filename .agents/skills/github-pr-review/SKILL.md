@@ -44,6 +44,11 @@ Do not restate what was already confirmed correct in a previous review pass
 unless something changed. Prior-pass confirmations belong in a brief
 "Changes since last review" line, not re-listed in full.
 
+**Full repo slug in every review.**
+Every review body, follow-up report, and exception record must identify the
+repository as `owner/repo` (e.g. `aistar-au/vexcoder`) in the opening line.
+Bare repo names and local path references are not permitted.
+
 ---
 
 ## Review body structure
@@ -51,8 +56,9 @@ unless something changed. Prior-pass confirmations belong in a brief
 Use this template exactly. Omit sections that have nothing to say.
 
 ```
-## Review — <branch> -> <base>
+## Review — <owner/repo> <branch> -> <base>
 
+**Repo:** `<owner/repo>`
 **Head:** `<short-sha>` — <commit message of HEAD>
 **CI:** <current status — e.g., "0 checks registered", "passing", "failing on step X">
 
@@ -81,6 +87,7 @@ no severity icon, no number prefix.
 ```markdown
 #### <Short plain-English label>
 
+**Repo:** `<owner/repo>`
 **File:** `<path/to/file>` — [view on branch](<raw github link>)
 **Commit:** `<sha>` — <commit message>
 **Why this matters:** <One sentence on the consequence if not fixed.>
@@ -200,6 +207,7 @@ hygiene exception record in the follow-up:
 
 ```markdown
 ### Commit Hygiene Exception
+- Repo: `<owner/repo>`
 - Type: direct push to `main`
 - Scope: `<start-sha>..<end-sha>`
 - Reason: `<why PR/merge flow was bypassed>`
@@ -214,6 +222,8 @@ Report both SHAs in the follow-up so landing is explicit and machine-checkable.
 Use this canonical response shape:
 
 ```markdown
+**Repo:** `<owner/repo>`
+
 **Brief TODO**
 
 1. <What was added/updated>

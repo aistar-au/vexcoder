@@ -9,9 +9,9 @@
 # - --force regenerates the map even when no drift is detected.
 #
 # Usage:
-#   bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh
-#   bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh --check
-#   bash .agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh --force
+#   bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
+#   bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check
+#   bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --force
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_lib.sh

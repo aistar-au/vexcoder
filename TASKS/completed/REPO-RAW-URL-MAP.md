@@ -10,13 +10,13 @@ Canonical raw URL index for every tracked file in this repository.
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
 | 1 | `.agents/skills/github-pr-review/SKILL.md` | ~228 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/github-pr-review/SKILL.md> |
-| 2 | `.agents/skills/vex-branch-contract/SKILL.md` | ~459 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-branch-contract/SKILL.md> |
-| 3 | `.agents/skills/vex-branch-contract/scripts/_lib.sh` | ~37 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-branch-contract/scripts/_lib.sh> |
-| 4 | `.agents/skills/vex-branch-contract/scripts/branch_summary.sh` | ~125 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-branch-contract/scripts/branch_summary.sh> |
-| 5 | `.agents/skills/vex-branch-contract/scripts/gen_verification_urls.sh` | ~135 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-branch-contract/scripts/gen_verification_urls.sh> |
-| 6 | `.agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh` | ~136 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-branch-contract/scripts/update_repo_raw_url_map.sh> |
-| 7 | `.agents/skills/vex-branch-contract/scripts/verify_diff_url.sh` | ~124 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-branch-contract/scripts/verify_diff_url.sh> |
-| 8 | `.agents/skills/vex-branch-contract/scripts/verify_raw_urls.sh` | ~129 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-branch-contract/scripts/verify_raw_urls.sh> |
+| 2 | `.agents/skills/vex-remote-contract/SKILL.md` | ~459 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/SKILL.md> |
+| 3 | `.agents/skills/vex-remote-contract/scripts/_lib.sh` | ~37 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/scripts/_lib.sh> |
+| 4 | `.agents/skills/vex-remote-contract/scripts/branch_summary.sh` | ~125 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/scripts/branch_summary.sh> |
+| 5 | `.agents/skills/vex-remote-contract/scripts/gen_verification_urls.sh` | ~135 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/scripts/gen_verification_urls.sh> |
+| 6 | `.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh` | ~136 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh> |
+| 7 | `.agents/skills/vex-remote-contract/scripts/verify_diff_url.sh` | ~124 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/scripts/verify_diff_url.sh> |
+| 8 | `.agents/skills/vex-remote-contract/scripts/verify_raw_urls.sh` | ~129 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/scripts/verify_raw_urls.sh> |
 | 9 | `.gitattributes` | ~3 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitattributes> |
 | 10 | `.github/workflows/arch-contracts.yml` | ~26 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/arch-contracts.yml> |
 | 11 | `.github/workflows/autofix.yml` | ~247 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/autofix.yml> |

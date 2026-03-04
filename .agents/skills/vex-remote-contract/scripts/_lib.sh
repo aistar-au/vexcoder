@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# _lib.sh — shared helpers for vex-branch-contract scripts
+# _lib.sh — shared helpers for vex-remote-contract scripts
 # Source this file at the top of each script:
 #   SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 #   source "$SCRIPT_DIR/_lib.sh"

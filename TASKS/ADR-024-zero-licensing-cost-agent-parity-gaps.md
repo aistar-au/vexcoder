@@ -281,10 +281,10 @@ Introduce a lightweight skills registry backed by `.agents/skills/registry.toml`
 # .agents/skills/registry.toml
 
 [[skills]]
-name    = "vex-branch-contract"
+name    = "vex-remote-contract"
 version = "1.0.0"
 source  = "local"
-path    = ".agents/skills/vex-branch-contract"
+path    = ".agents/skills/vex-remote-contract"
 
 [[skills]]
 name    = "edit-loop"
