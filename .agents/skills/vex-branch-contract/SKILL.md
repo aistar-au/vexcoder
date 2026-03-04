@@ -202,7 +202,16 @@ cargo test --all-targets
 If any command fails, fix it before commit/push.
 5. Commit with message: `Batch <X>: <ADR-NNN> Phases <range> implementation`
 6. `git push origin <branch>`
-7. Generate `/tmp/<safe-branch-name>-verification-urls.md` (see Step 5 script).
+7. Ensure push landed by verifying local and remote SHAs match:
+
+```sh
+git fetch origin --prune
+LOCAL_SHA="$(git rev-parse HEAD)"
+REMOTE_SHA="$(git rev-parse origin/<branch>)"
+test "$LOCAL_SHA" = "$REMOTE_SHA"
+```
+
+8. Generate `/tmp/<safe-branch-name>-verification-urls.md` (see Step 5 script).
 
 ---
 
@@ -438,3 +447,4 @@ git commit -m "Add branch contract skill scripts"
 7. **All output is markdown** — no plain text paragraphs in dispatch or report documents.
 8. **Repo map gate required** — run `update_repo_raw_url_map.sh --check`; if drift is reported, update then re-check.
 9. **Final report required** — every batch must close with task results table, files changed, verification commands with exit codes, and open issues.
+10. **Ensure push landed** — after every `git push`, run `git fetch origin --prune` and confirm `git rev-parse HEAD` equals `git rev-parse origin/<branch>`.

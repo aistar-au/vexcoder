@@ -117,6 +117,9 @@ Before any review text, verification claim, or patch validation, establish
 the correct branch context. Never blindly checkout `main` — doing so switches
 away from the active feature branch and may verify the wrong SHA.
 
+If the working tree is dirty when the skill is invoked, stop and report it.
+Do not attempt checkout over uncommitted changes.
+
 Always use the branch-aware preflight:
 
 ```sh
@@ -128,11 +131,10 @@ git fetch origin --prune
 # For a PR review this is always the PR branch, not main.
 # Only use main here when main is explicitly the verification target.
 git checkout <target-branch>
-git pull --ff-only
+# Use the already-fetched ref — avoids a second fetch and does not
+# depend on local branch tracking config being set correctly.
+git merge --ff-only origin/<target-branch>
 ```
-
-If the working tree is dirty when the skill is invoked, stop and report it.
-Do not attempt checkout over uncommitted changes.
 
 Report the head SHA used for verification. Do not verify against stale local
 content.
@@ -176,6 +178,22 @@ cargo test --all-targets
 ./scripts/check_forbidden_names.sh   # if present
 ```
 
+### Ensure push landed (required)
+
+After pushing review follow-up commits, verify the remote branch points to the
+same commit as local `HEAD`.
+
+```sh
+git push origin <target-branch>
+git fetch origin --prune
+
+LOCAL_SHA="$(git rev-parse HEAD)"
+REMOTE_SHA="$(git rev-parse origin/<target-branch>)"
+test "$LOCAL_SHA" = "$REMOTE_SHA"
+```
+
+Report both SHAs in the follow-up so landing is explicit and machine-checkable.
+
 ### Follow-up report format
 
 Use this canonical response shape:
@@ -193,6 +211,7 @@ Rules:
 - Every blocker must include at least one artifact URL and status.
 - Evidence-only outcomes must explicitly state `no code change required`.
 - Code-change outcomes must include the exact unified diff.
+- After push, confirm local `HEAD` equals `origin/<target-branch>` and report both SHAs.
 
 ---
 
