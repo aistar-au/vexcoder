@@ -9,8 +9,8 @@ Canonical raw URL index for every tracked file in this repository.
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
-| 1 | `.agents/skills/github-pr-review/SKILL.md` | ~183 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/github-pr-review/SKILL.md> |
-| 2 | `.agents/skills/vex-branch-contract/SKILL.md` | ~416 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-branch-contract/SKILL.md> |
+| 1 | `.agents/skills/github-pr-review/SKILL.md` | ~228 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/github-pr-review/SKILL.md> |
+| 2 | `.agents/skills/vex-branch-contract/SKILL.md` | ~459 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-branch-contract/SKILL.md> |
 | 3 | `.agents/skills/vex-branch-contract/scripts/_lib.sh` | ~37 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-branch-contract/scripts/_lib.sh> |
 | 4 | `.agents/skills/vex-branch-contract/scripts/branch_summary.sh` | ~125 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-branch-contract/scripts/branch_summary.sh> |
 | 5 | `.agents/skills/vex-branch-contract/scripts/gen_verification_urls.sh` | ~135 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-branch-contract/scripts/gen_verification_urls.sh> |
