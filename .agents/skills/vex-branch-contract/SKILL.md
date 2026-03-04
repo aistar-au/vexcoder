@@ -18,6 +18,7 @@ An end-to-end skill for the **read → dispatch → verify → push → raw-url-
 ## Overview of the Loop
 
 ```
+Step 0  SYNC      Update local branch from remote before any verification/read
 Step 1  READ      Fetch raw GitHub URL(s) from a branch or main
 Step 2  DISPATCH  Write the batch dispatch prompt (markdown only, no plain text)
 Step 3  VERIFY    Second-agent review of dispatch; apply corrections
@@ -31,6 +32,28 @@ Step 10 MERGE     Merge commit (no squash, no rebase) → verify via raw map URL
 ```
 
 Always output **pure markdown** when producing dispatch prompts or reports. Never emit plain prose paragraphs in dispatch output.
+
+---
+
+## Step 0 — Sync Local Before Verification
+
+Before reading files, checking anchors, validating hunks, or producing gate
+status, sync local state first:
+
+```sh
+git checkout main
+git pull --ff-only
+```
+
+If the verification target is a non-`main` branch:
+
+```sh
+git fetch origin
+git checkout <branch>
+git pull --ff-only
+```
+
+Always report the head SHA used for verification.
 
 ---
 

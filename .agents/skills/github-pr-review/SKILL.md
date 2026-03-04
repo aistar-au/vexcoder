@@ -111,6 +111,27 @@ no emoji, plain text, one focused point per comment. Label the comment
 
 ## Posting mechanics
 
+### Repository sync preflight (required)
+
+Before any review text, verification claim, or patch validation, sync local
+state first:
+
+```sh
+git checkout main
+git pull --ff-only
+```
+
+If reviewing a non-`main` branch, sync that branch before reading files:
+
+```sh
+git fetch origin
+git checkout <branch>
+git pull --ff-only
+```
+
+Report the head SHA used for verification. Do not verify against stale local
+content.
+
 When updating a prior review rather than opening a fresh one:
 
 - Post a new review body (GitHub does not support editing review bodies via API).
