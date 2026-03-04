@@ -113,21 +113,26 @@ no emoji, plain text, one focused point per comment. Label the comment
 
 ### Repository sync preflight (required)
 
-Before any review text, verification claim, or patch validation, sync local
-state first:
+Before any review text, verification claim, or patch validation, establish
+the correct branch context. Never blindly checkout `main` — doing so switches
+away from the active feature branch and may verify the wrong SHA.
+
+Always use the branch-aware preflight:
 
 ```sh
-git checkout main
+# Fetch and prune in one step regardless of target branch.
+# Do not run git pull before this — local state may be stale.
+git fetch origin --prune
+
+# Checkout the actual verification target.
+# For a PR review this is always the PR branch, not main.
+# Only use main here when main is explicitly the verification target.
+git checkout <target-branch>
 git pull --ff-only
 ```
 
-If reviewing a non-`main` branch, sync that branch before reading files:
-
-```sh
-git fetch origin
-git checkout <branch>
-git pull --ff-only
-```
+If the working tree is dirty when the skill is invoked, stop and report it.
+Do not attempt checkout over uncommitted changes.
 
 Report the head SHA used for verification. Do not verify against stale local
 content.
