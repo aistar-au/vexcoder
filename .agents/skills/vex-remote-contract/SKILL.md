@@ -47,12 +47,12 @@ diff --git a/<path> b/<path>
 Required application sequence:
 
 ```sh
-cat > /tmp/<name>.patch <<'PATCH'
+cat > /tmp/<n>.patch <<'PATCH'
 <exact unified diff>
 PATCH
 
-git apply --check --recount /tmp/<name>.patch
-git apply --recount /tmp/<name>.patch
+git apply --check --recount /tmp/<n>.patch
+git apply --recount /tmp/<n>.patch
 ```
 
 Do not reconstruct or overwrite whole files to apply a hunk. Do not use non-diff
@@ -356,9 +356,9 @@ When CI fails on clippy in this repo, apply these exact transformations before r
    - Do not define ambiguous inherent methods like `fn default()`.
    - Implement `Default` trait directly and move shared init into a helper with a non-conflicting name.
 4. `clippy::map_entry`
-   - Replace `contains_key` + `insert` with `entry(...).or_insert(...)`.
+   - Replace `contains_key` + `insert` with `entry(...).or_insert(...)`
 5. `clippy::manual_clamp`
-   - Replace `.max(a).min(b)` with `.clamp(a, b)`.
+   - Replace `.max(a).min(b)` with `.clamp(a, b)`
 
 ---
 
@@ -499,7 +499,7 @@ git commit -m "Add branch contract skill scripts"
 
 | Flag | Meaning |
 | :--- | :--- |
-| `-b / --branch <name>` | Branch to operate on (inferred from HEAD if omitted) |
+| `-b / --branch <n>` | Branch to operate on (inferred from HEAD if omitted) |
 | `--check` | `update_repo_raw_url_map`: fail if repo map misses tracked files |
 | `--force` | `update_repo_raw_url_map`: regenerate map even without missing files |
 | `--map <path>` | `update_repo_raw_url_map`: alternate raw map path |
@@ -532,7 +532,7 @@ git commit -m "Add branch contract skill scripts"
 14. **Full repo slug required in every transaction report** — every verification report, push confirmation, merge record, and exception record must identify the repository as `owner/repo` (e.g. `aistar-au/vexcoder`) in the opening line. Bare repo names and local path references are not permitted.
 15. **Code review gate required (Step 6.5)** — no merge and no next-batch dispatch until all blockers from Step 6.5 are resolved. Blob SHA verification and anchor test presence are not a substitute for reading implementation content.
 16. **Load skills before any action** — at the start of every session, load and read both `.agents/skills/vex-remote-contract/SKILL.md` and `.agents/skills/github-pr-review/SKILL.md` in full before writing any dispatch, diff, or review output. Do not proceed past the Bootstrap section until both files have been read completely.
-17. **Emojis forbidden in all output** — no emoji, Unicode symbol, or icon in any position in any text produced by this skill. Use plain text labels only. This rule applies to every output channel: review bodies, dispatch docs, findings tables, inline comments, commit messages, PR titles, PR bodies, log lines, and script output.
+17. **Emojis forbidden in all output** — no emoji, Unicode symbol, or icon in any position in any text produced by this skill. Use GitHub API state labels only: `CHANGES_REQUESTED`, `COMMENT`, `APPROVED`, `resolved`, `open`. This rule applies to every output channel: review bodies, dispatch docs, findings tables, inline comments, commit messages, PR titles, PR bodies, log lines, and script output.
 18. **Confirmation required before remote writes** — before any push, commit, file write, or write API call, present the full planned change to the user and wait for explicit confirmation. A description of intent is not confirmation. Do not proceed until the user responds with explicit approval.
 19. **Exact diffs only — no full-file rewrites** — all file changes must be created as a precise unified diff against the current remote content and applied as a patch. The required steps are: fetch current content, produce diff, present diff for review, apply patch. Reconstructing a file from memory or a cached copy is not permitted under any circumstance.
 20. **Hunk patches must use `git apply` only** — prepare exact unified diffs and run `git apply --check --recount` before `git apply --recount`.
