@@ -292,7 +292,8 @@ Before merging:
   - `cargo fmt --check`
   - `cargo test --all-targets`
 - GitHub Actions workflow is green (no red jobs).
-- Resolve any conflicts with `git merge origin/main` on the feature branch, re-run anchor tests.
+- Resolve any conflicts with the following, then re-run anchor tests:
+  `git fetch origin --prune && git merge origin/main`
 - Working tree must be clean (`git status --porcelain` → empty).
 
 Do not create a PR until the branch is conflict-free and CI is green.
@@ -381,6 +382,8 @@ When CI is green and review is complete, merge with a **merge commit** only:
 
 ```sh
 git checkout main
+# Sync local main with remote before merging — push will be rejected if behind.
+git fetch origin --prune && git merge --ff-only origin/main
 git merge --no-ff <branch> -m "Merge batch-<x>/adr-<nnn>: <short description>"
 git push origin main
 
