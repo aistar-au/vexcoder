@@ -1,8 +1,9 @@
 ---
 name: github-pr-review
 description: >
-  Write and post GitHub pull request reviews and inline comments. Use this skill whenever
-  writing a PR review comment, posting a code review, updating an existing review, or
+  Write and post GitHub pull request reviews and inline comments, and respond to review
+  findings with evidence-backed updates. Use this skill whenever writing a PR review
+  comment, posting a code review, updating an existing review, triaging PR findings, or
   producing any GitHub-facing review text. Enforces repo style: plain English markdown,
   no emoji, no numbered fix lists, single consolidated review body.
 ---
@@ -119,6 +120,56 @@ When updating a prior review rather than opening a fresh one:
 
 ---
 
+## PR Response Workflow
+
+Use this section when addressing review comments on an existing PR.
+
+### Triage
+
+Fetch all reviews first and classify each item:
+
+- `Blocker - evidence only`: close with verifiable evidence only (for example CI pass URL, `git ls-tree` mode output).
+- `Blocker - code change required`: requires a focused code/doc patch.
+- `Non-blocking`: apply small unambiguous fixes, or explicitly accept as a known gap with rationale.
+
+Do not close a blocker with assertion text alone.
+
+### Resolution rules
+
+- Evidence-only blockers: collect artifact + URL + status; no code change required.
+- Code-change findings: make the smallest possible patch; do not bundle unrelated refactors.
+- Commit message guideline:
+  - `Address PR review follow-ups: <short summary>`
+
+### Verification before push
+
+```sh
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
+cargo test --all-targets
+./scripts/check_forbidden_names.sh   # if present
+```
+
+### Follow-up report format
+
+Use this canonical response shape:
+
+```markdown
+**Brief TODO**
+
+1. <What was added/updated>
+2. <Which review comments were addressed and how>
+3. Exact diff of required changes (pushed)
+```
+
+Rules:
+
+- Every blocker must include at least one artifact URL and status.
+- Evidence-only outcomes must explicitly state `no code change required`.
+- Code-change outcomes must include the exact unified diff.
+
+---
+
 ## What not to do
 
 - Do not post a summary table with a `#` or index column.
@@ -129,3 +180,4 @@ When updating a prior review rather than opening a fresh one:
   Mark them resolved in "Changes since last review" and move on.
 - Do not use the phrase "round N" as a section heading — use the head SHA instead.
 - Do not add a numbered summary table. Use a plain findings section.
+- Do not claim a blocker is resolved without evidence (artifact URL, status, or exact patch).
