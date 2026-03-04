@@ -231,14 +231,9 @@ Do not close a CHANGES_REQUESTED item with assertion text alone.
 
 - Evidence-only CHANGES_REQUESTED: collect artifact + URL + status; no code change required.
 - Code-change findings: make the smallest possible patch; do not bundle unrelated refactors.
-<<<<<<< HEAD
 - All code-change patches must be produced as exact unified diffs against the current remote
-  content, presented to the user for review, and applied as patches. Do not reconstruct or
-  rewrite files from memory.
-=======
-- Code-change hunks must be provided as exact unified diffs and applied via
-  `git apply --check --recount` then `git apply --recount`.
->>>>>>> 342fb97 (skills: enforce git-apply-only hunk patch workflow)
+  content, presented to the user for review, and applied via
+  `git apply --check --recount` then `git apply --recount`. Do not reconstruct or rewrite files from memory.
 - Commit message guideline:
   - `Address PR review follow-ups: <short summary>`
 
