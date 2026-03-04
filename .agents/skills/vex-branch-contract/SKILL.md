@@ -87,7 +87,7 @@ Every dispatch prompt must be a self-contained markdown document. No plain text.
 
 **Working branch setup — explicit remote ref to avoid stale local:**
 ```sh
-git fetch origin
+git fetch origin --prune
 git checkout -b <branch-name> origin/main
 ```
 > `git checkout main && git pull` is not sufficient if local `main` is behind.
@@ -447,7 +447,7 @@ git commit -m "Add branch contract skill scripts"
 
 ## Hard Rules (Universal — Apply to Every Batch)
 
-1. **Always branch from `origin/main`** via `git fetch origin && git checkout -b <branch> origin/main`. Never from local `main`.
+1. **Always branch from `origin/main`** via `git fetch origin --prune && git checkout -b <branch> origin/main`. Never from local `main`.
 2. **Merge commit only** — `git merge --no-ff`. No squash. No rebase.
 3. **Stop on red anchor** — never proceed to a dependent task if its gate is not green.
 4. **`ENV_LOCK.blocking_lock()`** in all sync tests — `.lock().unwrap()` will not compile against `tokio::sync::Mutex`.
