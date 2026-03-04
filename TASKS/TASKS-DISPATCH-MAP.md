@@ -51,7 +51,7 @@ ADR-018 (must be green) ──► FEAT-19
 | C — Execution core | FEAT-17, FEAT-18 | REF-09 green |
 | D — Safety + policy | CRIT-19, CORE-16 | FEAT-17 green |
 | E — Durability | CORE-17 | CORE-16 green |
-| F — UX | FEAT-19, FEAT-20 | ADR-018 green + CORE-17 green |
+| F — UX | FEAT-19, FEAT-20 | ADR-018 dispatch gates green + CORE-17 green |
 | G — Autonomy | CORE-18 | CORE-16 green |
 
 No batch is promoted until all required dependency manifests are green.

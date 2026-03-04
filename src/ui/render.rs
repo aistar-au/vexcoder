@@ -502,4 +502,40 @@ mod tests {
         assert_eq!(history_row_style("@@ -1 +1 @@").fg, Some(Color::Cyan));
         assert_eq!(history_row_style("plain text").fg, Some(Color::White));
     }
+
+    #[test]
+    fn test_changed_files_and_live_approval_prompt_render() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = crate::app::TaskLayoutState {
+            task_id: "task-001".into(),
+            status_line: "AwaitingApproval".into(),
+            activity_rows: vec!["[?] ApplyPatch: src/main.rs".into()],
+            output_rows: vec![],
+            changed_files: vec!["src/main.rs".into()],
+            pending_approval: Some("ApplyPatch: src/main.rs".into()),
+        };
+
+        terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+
+        let rendered = terminal.backend().buffer().clone();
+        let flat = rendered
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<Vec<_>>()
+            .join("");
+        assert!(
+            flat.contains("src/main.rs"),
+            "changed file must appear in rendered output"
+        );
+        assert!(
+            flat.contains("ApplyPatch"),
+            "approval prompt must appear in rendered output"
+        );
+        assert!(
+            flat.contains("[y/n/s]"),
+            "approval choices must appear in rendered output"
+        );
+    }
 }

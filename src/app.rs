@@ -5,7 +5,7 @@ use crate::runtime::frontend::{ScrollAction, ScrollTarget, UserInputEvent};
 use crate::runtime::mode::RuntimeMode;
 use crate::runtime::policy::sanitize_assistant_text;
 use crate::runtime::r#loop::Runtime;
-use crate::runtime::UiUpdate;
+use crate::runtime::{TaskState, UiUpdate};
 use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest};
 use crate::tools::ToolOperator;
 use crate::ui::render::history_visual_line_count;
@@ -208,18 +208,20 @@ impl TuiMode {
             .into_iter()
             .rev()
             .collect();
+        let task_id = self
+            .history_state
+            .active_assistant_index
+            .map(|idx| format!("task-{idx:03}"))
+            .unwrap_or_else(|| "task-active".to_string());
+        let changed_files = load_changed_files_for_task(&task_id);
 
         Some(TaskLayoutState {
-            task_id: self
-                .history_state
-                .active_assistant_index
-                .map(|idx| format!("task-{idx:03}"))
-                .unwrap_or_else(|| "task-active".to_string()),
+            task_id,
             status_line: self.status_line(),
             activity_rows,
             output_rows: self.history_state.lines.clone(),
             pending_approval,
-            changed_files: Vec::new(),
+            changed_files,
         })
     }
 
@@ -410,6 +412,19 @@ fn resolve_repo_label() -> String {
                 .filter(|name| !name.trim().is_empty())
         })
         .unwrap_or_else(|| "workspace".to_string())
+}
+
+fn load_changed_files_for_task(task_id: &str) -> Vec<String> {
+    let state_dir = TaskState::state_dir();
+    let Ok(state) = TaskState::load(&state_dir, task_id) else {
+        return Vec::new();
+    };
+
+    state
+        .changed_files
+        .into_iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect()
 }
 
 #[cfg(test)]
