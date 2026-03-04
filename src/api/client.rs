@@ -81,6 +81,7 @@ impl ApiClient {
             http: reqwest::Client::new(),
             api_key: None,
             model: "mock-model".to_string(),
+            // Test-only override for mock endpoint URL; defaults to portless localhost.
             api_url: std::env::var("VEX_TEST_MODEL_URL")
                 .unwrap_or_else(|_| "http://localhost/v1/messages".to_string()),
             model_backend: ModelBackendKind::LocalRuntime,
@@ -292,17 +293,6 @@ fn resolve_max_tokens(api_url: &str) -> u32 {
         1024
     } else {
         4096
-    }
-}
-
-#[allow(dead_code)]
-fn parse_protocol(value: String) -> Option<ApiProtocol> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "messages-v1" | "messages_v1" | "messages" | "v1/messages" => Some(ApiProtocol::MessagesV1),
-        "chat-compat" | "chat_compat" | "chat" | "chat_completions" => {
-            Some(ApiProtocol::ChatCompat)
-        }
-        _ => None,
     }
 }
 

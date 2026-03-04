@@ -50,7 +50,7 @@ impl Config {
         let model_protocol = match std::env::var("VEX_MODEL_PROTOCOL") {
             Ok(value) => parse_model_protocol(value.clone()).ok_or_else(|| {
                 anyhow::anyhow!(
-                    "Invalid VEX_MODEL_PROTOCOL '{}': expected one of messages-v1, chat-compat",
+                    "Invalid VEX_MODEL_PROTOCOL '{}': expected one of messages-v1, messages_v1, messages, v1, chat-compat, chat_compat, chat",
                     value
                 )
             })?,
