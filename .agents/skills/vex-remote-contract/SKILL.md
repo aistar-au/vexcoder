@@ -13,6 +13,21 @@ description: >
 
 An end-to-end skill for the **read → dispatch → verify → push → raw-url-check → diff-check → merge** loop used in Rust repo automation. Works with any locally-running coding agent.
 
+**Confirmation required before any remote change.** When a prompt requests changes to
+a remote branch, file, or PR, stop and present the full planned change to the user
+before executing. Do not push, commit, or call any write API until the user has
+explicitly confirmed. A statement of intent ("I will do X") is not confirmation —
+explicit user approval ("yes", "go ahead", "confirmed") is required. If confirmation
+is not received, do not proceed.
+
+**All changes must be exact diffs applied as patches.** Never edit a skill file or any
+other repository file by rewriting it in full from memory or a cached copy. The
+required workflow is: (1) fetch the current file content from the remote branch,
+(2) produce a precise unified diff showing only the lines that change, (3) present
+the diff to the user for review, (4) apply the patch by writing the new content that
+results from applying the diff. Any change that cannot be expressed as a diff against
+the current remote file content must not be applied.
+
 ---
 
 ## Overview of the Loop
@@ -485,3 +500,8 @@ git commit -m "Add branch contract skill scripts"
 12. **Direct push requires explicit exception record** — if `main` is updated without merge commit flow, include a `Commit Hygiene Exception` section with scope, reason, approval, and follow-up.
 13. **File-level commit verification required** — for each claimed file, report the blob SHA and the exact commit SHA from `HEAD` (`git ls-tree HEAD <path>`). Reference the commit SHA directly; do not use informal status labels in place of identifiers.
 14. **Full repo slug required in every transaction report** — every verification report, push confirmation, merge record, and exception record must identify the repository as `owner/repo` (e.g. `aistar-au/vexcoder`) in the opening line. Bare repo names and local path references are not permitted.
+15. **Code review gate required (Step 6.5)** — no merge and no next-batch dispatch until all blockers from Step 6.5 are resolved. Blob SHA verification and anchor test presence are not a substitute for reading implementation content.
+16. **Load skills before any action** — at the start of every session, load and read both `.agents/skills/vex-remote-contract/SKILL.md` and `.agents/skills/github-pr-review/SKILL.md` in full before writing any dispatch, diff, or review output. Do not proceed past the Bootstrap section until both files have been read completely.
+17. **Emojis forbidden in all output** — no emoji, Unicode symbol, or icon in any position in any text produced by this skill. Use plain text labels only. This rule applies to every output channel: review bodies, dispatch docs, findings tables, inline comments, commit messages, PR titles, PR bodies, log lines, and script output.
+18. **Confirmation required before remote writes** — before any push, commit, file write, or write API call, present the full planned change to the user and wait for explicit confirmation. A description of intent is not confirmation. Do not proceed until the user responds with explicit approval.
+19. **Exact diffs only — no full-file rewrites** — all file changes must be created as a precise unified diff against the current remote content and applied as a patch. The required steps are: fetch current content, produce diff, present diff for review, apply patch. Reconstructing a file from memory or a cached copy is not permitted under any circumstance.
