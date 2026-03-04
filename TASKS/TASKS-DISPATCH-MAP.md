@@ -14,19 +14,20 @@ Uncompleted dispatch ADRs live in `TASKS/` root.
 
 ## ADR-022 Dispatch Manifests (Wave 1)
 
-Added with ADR-022 (2026-03-01):
+All Wave 1 manifests are green and promoted to `TASKS/completed/`.
 
-1. `TASKS/CORE-15-neutral-config-cutover.md`
-2. `TASKS/REF-09-model-backend-seam.md`
-3. `TASKS/FEAT-17-command-runner-core.md`
-4. `TASKS/FEAT-18-command-cancel-and-pty.md`
-5. `TASKS/CRIT-19-diff-native-write-flow.md`
-6. `TASKS/CORE-16-capability-approval-policy.md`
-7. `TASKS/CORE-17-task-state-persistence.md`
-8. `TASKS/FEAT-19-task-first-ui-shell.md`
-9. `TASKS/FEAT-20-changed-files-and-evidence-pane.md`
-10. `TASKS/CORE-18-repo-navigation-operator-surface.md`
-11. `TASKS/DOC-03-adr-022-migration-guide.md`
+| Manifest | Batch | Anchor verified at commit |
+| :--- | :--- | :--- |
+| CORE-15-neutral-config-cutover | A | `37a4012` |
+| DOC-03-adr-022-migration-guide | A | `37a4012` |
+| REF-09-model-backend-seam | B | `37a4012` |
+| FEAT-17-command-runner-core | C | `37a4012` |
+| FEAT-18-command-cancel-and-pty | C | `37a4012` |
+| CRIT-19-diff-native-write-flow | D | `37a4012` |
+| CORE-16-capability-approval-policy | D | `37a4012` |
+| CORE-17-task-state-persistence | E | `37a4012` |
+| FEAT-19-task-first-ui-shell | F | `37a4012` |
+| FEAT-20-changed-files-and-evidence-pane | F | `37a4012` |
 
 ## ADR-022 Sequencing
 
@@ -44,17 +45,15 @@ ADR-018 (must be green) ──► FEAT-19
 
 ## ADR-022 Execution Batches
 
-| Batch | Manifests | Gate |
+| Batch | Manifests | Status |
 | :--- | :--- | :--- |
-| A — Foundation | CORE-15, DOC-03 | No dependencies |
-| B — Backend seam | REF-09 | CORE-15 green |
-| C — Execution core | FEAT-17, FEAT-18 | REF-09 green |
-| D — Safety + policy | CRIT-19, CORE-16 | FEAT-17 green |
-| E — Durability | CORE-17 | CORE-16 green |
-| F — UX | FEAT-19, FEAT-20 | ADR-018 dispatch gates green + CORE-17 green |
-| G — Autonomy | CORE-18 | CORE-16 green |
-
-No batch is promoted until all required dependency manifests are green.
+| A — Foundation | CORE-15, DOC-03 | green — merged PR #41 |
+| B — Backend seam | REF-09 | green — verified at `37a4012`, zero-diff |
+| C — Execution core | FEAT-17, FEAT-18 | green — verified at `37a4012`, zero-diff |
+| D — Safety + policy | CRIT-19, CORE-16 | green — verified at `37a4012`, zero-diff |
+| E — Durability | CORE-17 | green — verified at `37a4012`, zero-diff |
+| F — UX | FEAT-19, FEAT-20 | green — verified at `37a4012`, zero-diff |
+| G — Autonomy | CORE-18 | anchor not yet committed — dispatch pending |
 
 ---
 
