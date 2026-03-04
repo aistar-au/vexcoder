@@ -26,7 +26,7 @@ Before writing any review text, posting any comment, or producing any output:
 **Emojis are forbidden in all output.** This rule appears in the Style rules section
 and is repeated here as a bootstrap guard. No emoji in any position — not in headings,
 not in status indicators, not in table cells, not inline. Use plain text labels:
-`Blocker`, `Non-blocking`, `Resolved`, `Open`. No Unicode symbols as status markers
+`CHANGES_REQUESTED`, `COMMENT`, `resolved`, `open`. No Unicode symbols as status markers
 (`->`, `=>` outside code blocks, `:x:`, `:white_check_mark:`, `✅`, `❌` are all
 forbidden).
 
@@ -49,7 +49,7 @@ inline comments, issue comments, and commit comments.
 **No emoji.**
 GitHub text in this repo is plain markdown. No emoji in any position:
 not in headings, not in status indicators, not in table cells, not inline.
-Use plain text labels instead: `Blocker`, `Non-blocking`, `Resolved`, `Open`.
+Use plain text labels instead: `CHANGES_REQUESTED`, `COMMENT`, `resolved`, `open`.
 
 **No numbered fix lists.**
 Numbered lists for open issues go stale the moment a fix is added or resolved.
@@ -96,15 +96,15 @@ diff --git a/<path> b/<path>
 
 ```sh
 # 1) Write patch text to a file
-cat > /tmp/<name>.patch <<'PATCH'
+cat > /tmp/<n>.patch <<'PATCH'
 <exact unified diff>
 PATCH
 
 # 2) Validate patch shape and hunk alignment
-git apply --check --recount /tmp/<name>.patch
+git apply --check --recount /tmp/<n>.patch
 
 # 3) Apply the patch
-git apply --recount /tmp/<name>.patch
+git apply --recount /tmp/<n>.patch
 ```
 
 ---
@@ -129,9 +129,9 @@ If this is a first review, omit this section entirely.>
 
 <Use one headed subsection per finding. See Finding subsection format below.>
 
-### Non-blocking notes
+### Comments
 
-<Use one headed subsection per note. Same format as findings but labelled Non-blocking.
+<Use one headed subsection per note. Same format as findings but labelled COMMENT.
 If none, omit this section.>
 ```
 
@@ -166,10 +166,10 @@ Fold the action into the finding. One block per finding, no sub-bullets.
 
 Inline comments on specific diff lines must follow the same style rules:
 no emoji, plain text, one focused point per comment. Label the comment
-`Blocker` or `Non-blocking` in bold at the start.
+`CHANGES_REQUESTED` or `COMMENT` in bold at the start.
 
 ```
-**Blocker:** <finding in one sentence>. <Detail and action in two to three sentences.>
+**CHANGES_REQUESTED:** <finding in one sentence>. <Detail and action in two to three sentences.>
 ```
 
 ---
@@ -221,15 +221,15 @@ Use this section when addressing review comments on an existing PR.
 
 Fetch all reviews first and classify each item:
 
-- `Blocker - evidence only`: close with verifiable evidence only (for example CI pass URL, `git ls-tree` mode output).
-- `Blocker - code change required`: requires a focused code/doc patch.
-- `Non-blocking`: apply small unambiguous fixes, or explicitly accept as a known gap with rationale.
+- `CHANGES_REQUESTED - evidence only`: close with verifiable evidence only (for example CI pass URL, `git ls-tree` mode output).
+- `CHANGES_REQUESTED - code change required`: requires a focused code/doc patch.
+- `COMMENT`: apply small unambiguous fixes, or explicitly accept as a known gap with rationale.
 
-Do not close a blocker with assertion text alone.
+Do not close a CHANGES_REQUESTED item with assertion text alone.
 
 ### Resolution rules
 
-- Evidence-only blockers: collect artifact + URL + status; no code change required.
+- Evidence-only CHANGES_REQUESTED: collect artifact + URL + status; no code change required.
 - Code-change findings: make the smallest possible patch; do not bundle unrelated refactors.
 <<<<<<< HEAD
 - All code-change patches must be produced as exact unified diffs against the current remote
@@ -299,7 +299,7 @@ Use this canonical response shape:
 
 Rules:
 
-- Every blocker must include at least one artifact URL and status.
+- Every CHANGES_REQUESTED item must include at least one artifact URL and status.
 - Evidence-only outcomes must explicitly state `no code change required`.
 - Code-change outcomes must include the exact unified diff.
 - After push, confirm local `HEAD` equals `origin/<target-branch>` and report both SHAs.
@@ -317,7 +317,7 @@ Rules:
   Mark them resolved in "Changes since last review" and move on.
 - Do not use the phrase "round N" as a section heading — use the head SHA instead.
 - Do not add a numbered summary table. Use a plain findings section.
-- Do not claim a blocker is resolved without evidence (artifact URL, status, or exact patch).
+- Do not claim a CHANGES_REQUESTED item is resolved without evidence (artifact URL, status, or exact patch).
 - Do not use `main` as `<target-branch>` for routine PR follow-up pushes.
 - Do not skip the Bootstrap section. Load and read both skill files before any output.
 - Do not make any remote change (push, commit, file write, PR creation, review post) without
