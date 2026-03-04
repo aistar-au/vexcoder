@@ -28,6 +28,36 @@ the diff to the user for review, (4) apply the patch by writing the new content 
 results from applying the diff. Any change that cannot be expressed as a diff against
 the current remote file content must not be applied.
 
+## Patch Hunk Standard (required)
+
+For any hunk-level repository change in this workflow, use exact unified diffs
+applied with `git apply` only.
+
+Required format:
+
+```diff
+diff --git a/<path> b/<path>
+--- a/<path>
++++ b/<path>
+@@ -<old_start>,<old_count> +<new_start>,<new_count> @@
+-<old line>
++<new line>
+```
+
+Required application sequence:
+
+```sh
+cat > /tmp/<name>.patch <<'PATCH'
+<exact unified diff>
+PATCH
+
+git apply --check --recount /tmp/<name>.patch
+git apply --recount /tmp/<name>.patch
+```
+
+Do not reconstruct or overwrite whole files to apply a hunk. Do not use non-diff
+editing methods for hunk-level changes.
+
 ---
 
 ## Overview of the Loop
@@ -505,3 +535,5 @@ git commit -m "Add branch contract skill scripts"
 17. **Emojis forbidden in all output** — no emoji, Unicode symbol, or icon in any position in any text produced by this skill. Use plain text labels only. This rule applies to every output channel: review bodies, dispatch docs, findings tables, inline comments, commit messages, PR titles, PR bodies, log lines, and script output.
 18. **Confirmation required before remote writes** — before any push, commit, file write, or write API call, present the full planned change to the user and wait for explicit confirmation. A description of intent is not confirmation. Do not proceed until the user responds with explicit approval.
 19. **Exact diffs only — no full-file rewrites** — all file changes must be created as a precise unified diff against the current remote content and applied as a patch. The required steps are: fetch current content, produce diff, present diff for review, apply patch. Reconstructing a file from memory or a cached copy is not permitted under any circumstance.
+20. **Hunk patches must use `git apply` only** — prepare exact unified diffs and run `git apply --check --recount` before `git apply --recount`.
+21. **No file reconstruction for hunk edits** — do not rewrite complete files from memory or cached content when a focused patch hunk is required.

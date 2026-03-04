@@ -75,6 +75,38 @@ Every review body, follow-up report, and exception record must identify the
 repository as `owner/repo` (e.g. `aistar-au/vexcoder`) in the opening line.
 Bare repo names and local path references are not permitted.
 
+**Hunk patching method is `git apply` only.**
+When code or docs must change, prepare an exact unified diff and apply it with
+`git apply`. Do not use edit tools that rewrite full files and do not reconstruct
+file content from memory.
+
+**Exact unified diff format is required.**
+Each patch must include the standard header and focused hunks:
+
+```diff
+diff --git a/<path> b/<path>
+--- a/<path>
++++ b/<path>
+@@ -<old_start>,<old_count> +<new_start>,<new_count> @@
+-<old line>
++<new line>
+```
+
+**Apply flow (required):**
+
+```sh
+# 1) Write patch text to a file
+cat > /tmp/<name>.patch <<'PATCH'
+<exact unified diff>
+PATCH
+
+# 2) Validate patch shape and hunk alignment
+git apply --check --recount /tmp/<name>.patch
+
+# 3) Apply the patch
+git apply --recount /tmp/<name>.patch
+```
+
 ---
 
 ## Review body structure
@@ -199,9 +231,14 @@ Do not close a blocker with assertion text alone.
 
 - Evidence-only blockers: collect artifact + URL + status; no code change required.
 - Code-change findings: make the smallest possible patch; do not bundle unrelated refactors.
+<<<<<<< HEAD
 - All code-change patches must be produced as exact unified diffs against the current remote
   content, presented to the user for review, and applied as patches. Do not reconstruct or
   rewrite files from memory.
+=======
+- Code-change hunks must be provided as exact unified diffs and applied via
+  `git apply --check --recount` then `git apply --recount`.
+>>>>>>> 342fb97 (skills: enforce git-apply-only hunk patch workflow)
 - Commit message guideline:
   - `Address PR review follow-ups: <short summary>`
 
@@ -289,3 +326,5 @@ Rules:
 - Do not rewrite or reconstruct any file from memory or a cached copy. Fetch the current remote
   content, produce an exact unified diff, present it, and apply the patch. Full-file rewrites
   are not permitted.
+- Do not skip `git apply --check --recount` before applying a patch.
+- Do not use non-diff editing methods for hunk-level changes.
