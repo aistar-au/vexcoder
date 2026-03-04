@@ -26,15 +26,6 @@ pub enum ToolCallMode {
     TaggedFallback,
 }
 
-impl ModelProtocol {
-    pub fn request_headers(self) -> Vec<(&'static str, &'static str)> {
-        match self {
-            ModelProtocol::MessagesV1 => vec![("anthropic-version", "2023-06-01")],
-            ModelProtocol::ChatCompat => vec![],
-        }
-    }
-}
-
 pub trait ModelBackend: Send + Sync {
     fn backend_kind(&self) -> ModelBackendKind;
     fn protocol(&self) -> ModelProtocol;

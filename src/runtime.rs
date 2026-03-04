@@ -85,7 +85,7 @@ mod tests {
             "https://127.0.0.1/v1/messages"
         ));
         assert!(!crate::util::is_local_endpoint_url(
-            "https://api.anthropic.com/v1/messages"
+            "https://api.example.com/v1/messages"
         ));
     }
 }

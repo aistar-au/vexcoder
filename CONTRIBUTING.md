@@ -44,6 +44,18 @@ naming-policy changes.
 
 ---
 
+## Skills-First Note
+
+Use repository skills before ad-hoc procedures whenever a request matches their scope.
+
+- Branch and verification workflow: [`.agents/skills/vex-branch-contract/SKILL.md`](.agents/skills/vex-branch-contract/SKILL.md)
+- PR review and review-response workflow: [`.agents/skills/github-pr-review/SKILL.md`](.agents/skills/github-pr-review/SKILL.md)
+
+When a task maps to one of these workflows, follow the skill instructions first, then layer any
+task-specific constraints from ADRs or task manifests.
+
+---
+
 ## Docs Deployment Standard (GitHub Pages + mdBook)
 
 Docs deployment changes must follow this baseline:
@@ -128,6 +140,8 @@ bash scripts/check_forbidden_imports.sh
 
 ```
 vexcoder/
+├── .agents/                       # Local skill definitions and helper scripts
+│   └── skills/                    # Skill workflows used by agent tasks
 ├── CONTRIBUTING.md                # Workflow guide + source map
 ├── README.md                      # Runtime and quickstart
 ├── docs/                          # mdBook docs for GitHub Pages

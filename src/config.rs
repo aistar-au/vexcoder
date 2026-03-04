@@ -1,4 +1,5 @@
 use anyhow::{bail, Context, Result};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -14,12 +15,14 @@ pub struct Config {
     pub model_backend: ModelBackendKind,
     pub model_protocol: ModelProtocol,
     pub tool_call_mode: ToolCallMode,
+    #[serde(skip)]
+    pub model_headers: HeaderMap,
 }
 
 impl Config {
     pub fn load() -> Result<Self> {
         let model_url = std::env::var("VEX_MODEL_URL").map_err(|_| {
-            anyhow::anyhow!("VEX_MODEL_URL must be set (e.g. http://localhost:8000/v1/messages)")
+            anyhow::anyhow!("VEX_MODEL_URL must be set (e.g. http://localhost:<port>/v1/messages)")
         })?;
         let model_token = std::env::var("VEX_MODEL_TOKEN").ok().and_then(|v| {
             if v.trim().is_empty() {
@@ -44,10 +47,15 @@ impl Config {
                 }
             });
 
-        let model_protocol = std::env::var("VEX_MODEL_PROTOCOL")
-            .ok()
-            .and_then(parse_model_protocol)
-            .unwrap_or_else(|| infer_model_protocol(&model_url));
+        let model_protocol = match std::env::var("VEX_MODEL_PROTOCOL") {
+            Ok(value) => parse_model_protocol(value.clone()).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Invalid VEX_MODEL_PROTOCOL '{}': expected one of messages-v1, messages_v1, messages, v1, chat-compat, chat_compat, chat",
+                    value
+                )
+            })?,
+            Err(_) => infer_model_protocol(&model_url),
+        };
 
         let tool_call_mode = std::env::var("VEX_TOOL_CALL_MODE")
             .ok()
@@ -78,6 +86,7 @@ impl Config {
             model_backend,
             model_protocol,
             tool_call_mode,
+            model_headers: parse_model_headers_json()?,
         })
     }
 
@@ -123,10 +132,8 @@ fn parse_model_backend(value: String) -> Option<ModelBackendKind> {
 
 fn parse_model_protocol(value: String) -> Option<ModelProtocol> {
     match value.trim().to_ascii_lowercase().as_str() {
-        "messages-v1" | "messages_v1" | "messages" | "v1" | "anthropic" => {
-            Some(ModelProtocol::MessagesV1)
-        }
-        "chat-compat" | "chat_compat" | "chat" | "openai" => Some(ModelProtocol::ChatCompat),
+        "messages-v1" | "messages_v1" | "messages" | "v1" => Some(ModelProtocol::MessagesV1),
+        "chat-compat" | "chat_compat" | "chat" => Some(ModelProtocol::ChatCompat),
         _ => None,
     }
 }
@@ -150,12 +157,35 @@ fn infer_model_protocol(api_url: &str) -> ModelProtocol {
     }
 }
 
+fn parse_model_headers_json() -> Result<HeaderMap> {
+    let raw = match std::env::var("VEX_MODEL_HEADERS_JSON") {
+        Ok(v) if !v.trim().is_empty() => v,
+        _ => return Ok(HeaderMap::new()),
+    };
+    let map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&raw)
+        .map_err(|e| anyhow::anyhow!("VEX_MODEL_HEADERS_JSON is not a valid JSON object: {e}"))?;
+    let mut headers = HeaderMap::new();
+    for (k, v) in &map {
+        let name = HeaderName::from_bytes(k.as_bytes()).map_err(|e| {
+            anyhow::anyhow!("VEX_MODEL_HEADERS_JSON invalid header name {k:?}: {e}")
+        })?;
+        let val_str = v.as_str().ok_or_else(|| {
+            anyhow::anyhow!("VEX_MODEL_HEADERS_JSON value for {k:?} must be a string")
+        })?;
+        let value = HeaderValue::from_str(val_str).map_err(|e| {
+            anyhow::anyhow!("VEX_MODEL_HEADERS_JSON invalid header value for {k:?}: {e}")
+        })?;
+        headers.insert(name, value);
+    }
+    Ok(headers)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Config, ModelBackendKind};
 
     #[test]
-    fn test_config_loads_vex_model_name_without_claude_prefix() {
+    fn test_config_loads_vex_model_name_without_vendor_prefix() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
         std::env::set_var("VEX_MODEL_NAME", "llama-3-70b");
@@ -186,5 +216,55 @@ mod tests {
         std::env::remove_var("VEX_MODEL_BACKEND");
         std::env::remove_var("VEX_MODEL_URL");
         std::env::remove_var("VEX_MODEL_NAME");
+    }
+
+    #[test]
+    fn test_invalid_model_protocol_env_var_is_rejected() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+        std::env::set_var("VEX_MODEL_NAME", "mock-model");
+        std::env::set_var("VEX_MODEL_PROTOCOL", "legacy-value");
+
+        assert!(Config::load().is_err());
+
+        std::env::remove_var("VEX_MODEL_URL");
+        std::env::remove_var("VEX_MODEL_NAME");
+        std::env::remove_var("VEX_MODEL_PROTOCOL");
+    }
+
+    #[test]
+    fn test_parse_model_headers_json_valid() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var(
+            "VEX_MODEL_HEADERS_JSON",
+            r#"{"x-custom-header": "value1", "x-other": "value2"}"#,
+        );
+        let headers = super::parse_model_headers_json().unwrap();
+        assert_eq!(headers.len(), 2);
+        std::env::remove_var("VEX_MODEL_HEADERS_JSON");
+    }
+
+    #[test]
+    fn test_parse_model_headers_json_invalid_name_rejected() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_MODEL_HEADERS_JSON", r#"{"invalid header!": "v"}"#);
+        assert!(super::parse_model_headers_json().is_err());
+        std::env::remove_var("VEX_MODEL_HEADERS_JSON");
+    }
+
+    #[test]
+    fn test_parse_model_headers_json_non_string_value_rejected() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_MODEL_HEADERS_JSON", r#"{"x-count": 42}"#);
+        assert!(super::parse_model_headers_json().is_err());
+        std::env::remove_var("VEX_MODEL_HEADERS_JSON");
+    }
+
+    #[test]
+    fn test_parse_model_headers_json_empty_env_returns_empty_map() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::remove_var("VEX_MODEL_HEADERS_JSON");
+        let headers = super::parse_model_headers_json().unwrap();
+        assert!(headers.is_empty());
     }
 }

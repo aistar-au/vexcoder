@@ -27,7 +27,7 @@ cargo run
 Local endpoint example:
 
 ```bash
-VEX_MODEL_URL=http://localhost:8000/v1/messages \
+VEX_MODEL_URL=http://localhost:<port>/v1/messages \
 VEX_MODEL_NAME=local/default \
 cargo run
 ```
