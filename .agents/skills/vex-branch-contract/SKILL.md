@@ -145,7 +145,7 @@ cargo test <anchor_test_fn_name> --all-targets
 
 ### Hard constraints
 
-- Branch from `origin/main` using `git fetch origin && git checkout -b <branch> origin/main`.
+- Branch from `origin/main` using `git fetch origin --prune && git checkout -b <branch> origin/main`.
 - Merge to `main` using a **merge commit only** — no squash, no rebase.
 - Stop immediately if any anchor is **not green**. Do not proceed to dependents.
 - [list any project-specific invariants here]
@@ -188,7 +188,7 @@ Return a corrected dispatch (labelled `(corrected)`) if any issues are found.
 
 The coding agent follows the dispatch:
 
-1. `git fetch origin && git checkout -b <branch> origin/main`
+1. `git fetch origin --prune && git checkout -b <branch> origin/main`
 2. Implement each task in execution order, stopping on any red anchor.
 3. Run `cargo test --all-targets` after each task.
 4. Before push, run the local CI gate:
