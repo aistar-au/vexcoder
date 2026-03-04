@@ -21,9 +21,11 @@ pub struct Config {
 
 impl Config {
     pub fn load() -> Result<Self> {
-        let model_url = std::env::var("VEX_MODEL_URL").map_err(|_| {
-            anyhow::anyhow!("VEX_MODEL_URL must be set (e.g. http://localhost:<port>/v1/messages)")
-        })?;
+        let model_url = std::env::var("VEX_MODEL_URL")
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| "http://localhost:11434/v1".to_string());
         let model_token = std::env::var("VEX_MODEL_TOKEN").ok().and_then(|v| {
             if v.trim().is_empty() {
                 None
@@ -185,23 +187,19 @@ mod tests {
     use super::{Config, ModelBackendKind};
 
     #[test]
-    fn test_config_loads_vex_model_name_without_vendor_prefix() {
+    fn test_config_loads_vex_model_name_without_claude_prefix() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
         std::env::set_var("VEX_MODEL_NAME", "llama-3-70b");
         std::env::remove_var("VEX_MODEL_TOKEN");
 
         let cfg = Config::load().expect("load failed");
-        let result = cfg.validate();
-
+        assert!(
+            cfg.validate().is_ok(),
+            "neutral model name must pass validation"
+        );
         std::env::remove_var("VEX_MODEL_URL");
         std::env::remove_var("VEX_MODEL_NAME");
-
-        assert!(
-            result.is_ok(),
-            "neutral model name must pass validation: {:?}",
-            result
-        );
     }
 
     #[test]
