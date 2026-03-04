@@ -392,6 +392,10 @@ git fetch origin --prune
 LOCAL_SHA="$(git rev-parse HEAD)"
 REMOTE_SHA="$(git rev-parse origin/main)"
 test "$LOCAL_SHA" = "$REMOTE_SHA"
+
+# Commit hygiene gate — batch promotions must land as merge commits on main.
+PARENT_COUNT="$(git rev-list --parents -n 1 HEAD | awk '{print NF-1}')"
+test "$PARENT_COUNT" -ge 2
 ```
 
 ---
@@ -403,6 +407,24 @@ After merge, re-fetch the original raw map URL (the TASKS or ADR document on mai
 - The dispatch tasks are addressed by files now on `main`.
 - `git log --oneline -5` shows the merge commit.
 - `cargo test --all-targets` is green on `main`.
+- Every claimed landed file is re-checked directly from `HEAD` (`git ls-tree HEAD <path>`)
+  and reported with blob SHA; do not infer file state from commit membership alone.
+
+### Direct push exception flow (required when applicable)
+
+For batch promotions, direct pushes to `main` are hygiene failures by default.
+
+If a direct push is explicitly requested, stop and capture explicit user confirmation
+before pushing, then include this exception record in the final report:
+
+```markdown
+### Commit Hygiene Exception
+- Type: direct push to `main`
+- Scope: `<start-sha>..<end-sha>`
+- Reason: `<why merge-commit flow was bypassed>`
+- Approval: `<explicit user confirmation text or link>`
+- Follow-up: `<how normal merge flow will resume>`
+```
 
 ---
 
@@ -457,3 +479,6 @@ git commit -m "Add branch contract skill scripts"
 8. **Repo map gate required** — run `update_repo_raw_url_map.sh --check`; if drift is reported, update then re-check.
 9. **Final report required** — every batch must close with task results table, files changed, verification commands with exit codes, and open issues.
 10. **Ensure push landed** — after every `git push`, run `git fetch origin --prune` and confirm `git rev-parse HEAD` equals `git rev-parse origin/<branch>`.
+11. **Commit hygiene gate required** — batch promotions on `main` must end on a merge commit (`git rev-list --parents -n 1 HEAD` parent count `>= 2`).
+12. **Direct push requires explicit exception record** — if `main` is updated without merge commit flow, include a `Commit Hygiene Exception` section with scope, reason, approval, and follow-up.
+13. **File-level landed verification required** — for each claimed landed file, report the blob SHA from `HEAD` (`git ls-tree HEAD <path>`).

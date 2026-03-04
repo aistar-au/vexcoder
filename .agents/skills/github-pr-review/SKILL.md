@@ -183,6 +183,9 @@ cargo test --all-targets
 After pushing review follow-up commits, verify the remote branch points to the
 same commit as local `HEAD`.
 
+For PR follow-ups, `<target-branch>` is the PR branch. Do not push review
+follow-up commits directly to `main` as a default path.
+
 ```sh
 git push origin <target-branch>
 git fetch origin --prune
@@ -190,6 +193,18 @@ git fetch origin --prune
 LOCAL_SHA="$(git rev-parse HEAD)"
 REMOTE_SHA="$(git rev-parse origin/<target-branch>)"
 test "$LOCAL_SHA" = "$REMOTE_SHA"
+```
+
+If `<target-branch>` is `main` by explicit user request, include a commit
+hygiene exception record in the follow-up:
+
+```markdown
+### Commit Hygiene Exception
+- Type: direct push to `main`
+- Scope: `<start-sha>..<end-sha>`
+- Reason: `<why PR/merge flow was bypassed>`
+- Approval: `<explicit user confirmation text or link>`
+- Follow-up: `<how normal PR flow will resume>`
 ```
 
 Report both SHAs in the follow-up so landing is explicit and machine-checkable.
@@ -212,6 +227,7 @@ Rules:
 - Evidence-only outcomes must explicitly state `no code change required`.
 - Code-change outcomes must include the exact unified diff.
 - After push, confirm local `HEAD` equals `origin/<target-branch>` and report both SHAs.
+- If `main` was updated directly, include the `Commit Hygiene Exception` block.
 
 ---
 
@@ -226,3 +242,4 @@ Rules:
 - Do not use the phrase "round N" as a section heading — use the head SHA instead.
 - Do not add a numbered summary table. Use a plain findings section.
 - Do not claim a blocker is resolved without evidence (artifact URL, status, or exact patch).
+- Do not use `main` as `<target-branch>` for routine PR follow-up pushes.
