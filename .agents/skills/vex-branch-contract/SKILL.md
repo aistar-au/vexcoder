@@ -38,19 +38,19 @@ Always output **pure markdown** when producing dispatch prompts or reports. Neve
 ## Step 0 — Sync Local Before Verification
 
 Before reading files, checking anchors, validating hunks, or producing gate
-status, sync local state first:
+status, establish the correct branch context. If the working tree is dirty,
+stop and report it — do not attempt checkout over uncommitted changes.
 
 ```sh
-git checkout main
-git pull --ff-only
-```
+# Fetch and prune in one step. Do not run git pull before this.
+git fetch origin --prune
 
-If the verification target is a non-`main` branch:
-
-```sh
-git fetch origin
-git checkout <branch>
-git pull --ff-only
+# Checkout the actual verification target.
+# Only use main here when main is explicitly the subject.
+git checkout <target-branch>
+# Use the already-fetched ref — avoids a second network call and does not
+# depend on local branch tracking config being set.
+git merge --ff-only origin/<target-branch>
 ```
 
 Always report the head SHA used for verification.
@@ -230,7 +230,7 @@ The output file lists every changed file as a raw GitHub URL grouped by category
 **Manual equivalent** (if script unavailable):
 
 ```bash
-git fetch origin
+git fetch origin --prune
 branch="<branch>"
 repo_slug="$(git remote get-url origin | sed -E 's|.*github\.com[:/]||;s|\.git$||')"
 git diff --name-only "origin/main...origin/$branch" | while read -r f; do
@@ -383,6 +383,12 @@ When CI is green and review is complete, merge with a **merge commit** only:
 git checkout main
 git merge --no-ff <branch> -m "Merge batch-<x>/adr-<nnn>: <short description>"
 git push origin main
+
+# Verify main landed — required by Hard Rule 10.
+git fetch origin --prune
+LOCAL_SHA="$(git rev-parse HEAD)"
+REMOTE_SHA="$(git rev-parse origin/main)"
+test "$LOCAL_SHA" = "$REMOTE_SHA"
 ```
 
 ---
