@@ -138,6 +138,8 @@ Full detail for each step is in `vex-remote-contract/SKILL.md`.
 
 Required before the first batch action in any session:
 
+- `HEAD` references in this document appear in Section 6 guardrails,
+  Section 8 checklist, and Section 9 calibration tasks.
 - [ ] `vex-local-bash/SKILL.md` loaded and read in full
 - [ ] `vex-remote-contract/SKILL.md` loaded and read in full
 - [ ] Current `main` HEAD SHA confirmed via GitHub MCP
