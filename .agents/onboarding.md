@@ -74,8 +74,8 @@ Violating it causes unchecked writes or fact-free assertions.
 **Language and toolchain:** Rust, async via Tokio, TUI via Ratatui.
 
 **Architecture decisions:** All significant design decisions are recorded as
-ADR files under `TASKS/`. The active roadmap is
-[ADR-023 deterministic edit loop](https://github.com/aistar-au/vexcoder/blob/main/TASKS/ADR-023-deterministic-edit-loop.md).
+ADR files under `TASKS/`. Canonical active roadmap state:
+[`TASKS/ACTIVE-ROADMAP.md`](https://github.com/aistar-au/vexcoder/blob/main/TASKS/ACTIVE-ROADMAP.md).
 Read the relevant ADR before writing any dispatch or PR body.
 
 **Module boundaries enforced by CI:**

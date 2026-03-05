@@ -3,9 +3,12 @@
 This is the full sequence across all tracks. Docs and TUI are independent
 tracks and can run in parallel across sessions.
 
-## Active ADR Dispatch Manifests
+Canonical active roadmap state: `TASKS/ACTIVE-ROADMAP.md`.
+This file covers pre-ADR-024 dispatch waves only.
 
-Uncompleted dispatch ADRs live in `TASKS/` root.
+## Pre-ADR-024 Dispatch Manifests
+
+Uncompleted pre-ADR-024 dispatch ADRs live in `TASKS/` root.
 
 1. `TASKS/ADR-013-tui-completion-deployment-plan.md`
 2. `TASKS/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md`
