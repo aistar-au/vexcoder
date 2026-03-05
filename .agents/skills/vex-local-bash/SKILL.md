@@ -157,6 +157,11 @@ Before handoff to remote posting:
 - Confirm all required artifact URLs are present.
 - Confirm repo slug, file links, and commit IDs are present.
 - Mark any unverified CI/field/routing claims as pending verification.
+- Require branch-currency evidence from the remote phase: latest
+  `origin/main` SHA, merge-base SHA, and changed-path list.
+- If the branch is not based on the latest `origin/main` head commit, or
+  changed paths include unrelated scope, require explicit user confirmation
+  before any remote write.
 
 ---
 
@@ -168,3 +173,4 @@ Before handoff to remote posting:
 - Do not generate local `/tmp` PR body files.
 - Do not enforce manual Rust line wrapping in draft guidance; leave final
   layout decisions to `rustfmt`.
+- Do not hand off remote write text without branch-currency and scope evidence.
