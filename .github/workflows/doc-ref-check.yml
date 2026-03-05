@@ -22,33 +22,48 @@ jobs:
           echo ""
           echo "Scanning markdown files for skill path references..."
 
-          while IFS= read -r doc_file; do
-            while IFS= read -r line; do
-              case "$line" in
-                *".agents/skills/"*"/SKILL.md"*)
-                  # Tokenize on common markdown punctuation, then match literal path tokens.
-                  cleaned="$(printf '%s\n' "$line" | tr '[]()<>`\",;:|' ' ')"
-                  for token in $cleaned; do
-                    case "$token" in
-                      .agents/skills/*/SKILL.md)
-                        case "$token" in
-                          *'*'*)
-                            # Ignore wildcard examples like .agents/skills/*/SKILL.md.
-                            continue
-                            ;;
-                        esac
+          while IFS= read -r match; do
+            doc_file="${match%%:*}"
+            line="${match#*:}"
+            rest="$line"
 
-                        entry="$doc_file:$token"
-                        if ! grep -qxF "$entry" "$REF_LIST"; then
-                          echo "$entry" >> "$REF_LIST"
-                        fi
-                        ;;
-                    esac
-                  done
+            while :; do
+              case "$rest" in
+                *".agents/skills/"*)
+                  after_prefix="${rest#*.agents/skills/}"
+                  case "$after_prefix" in
+                    *"/SKILL.md"*)
+                      skill_name="${after_prefix%%/SKILL.md*}"
+                      ref_path=".agents/skills/$skill_name/SKILL.md"
+
+                      case "$skill_name" in
+                        "")
+                          break
+                          ;;
+                        *"*"*)
+                          # Ignore wildcard examples like .agents/skills/*/SKILL.md.
+                          ;;
+                        *)
+                          entry="$doc_file:$ref_path"
+                          if ! grep -qxF "$entry" "$REF_LIST"; then
+                            echo "$entry" >> "$REF_LIST"
+                          fi
+                          ;;
+                      esac
+
+                      rest="${after_prefix#*/SKILL.md}"
+                      ;;
+                    *)
+                      break
+                      ;;
+                  esac
+                  ;;
+                *)
+                  break
                   ;;
               esac
-            done < "$doc_file"
-          done < <(find . -type f -name '*.md' | sort)
+            done
+          done < <(grep -rHF --include='*.md' '.agents/skills/' .)
 
           while IFS= read -r entry; do
             doc_file="${entry%%:*}"
