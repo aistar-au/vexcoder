@@ -24,8 +24,6 @@ Before writing draft text:
 
 1. Load this file in full.
 2. Load `.agents/skills/vex-remote-contract/SKILL.md` in full.
-3. Load `.agents/skills/vex-remote-contract/references/pr-remote-guardrails.md`
-   in full.
 
 Do not post to GitHub from this skill. Hand off final posting to
 `vex-remote-contract` after explicit user confirmation.
