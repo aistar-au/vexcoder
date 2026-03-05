@@ -738,3 +738,11 @@ git commit -m "Add branch contract skill scripts"
 23. **MCP-only PR-body enforcement** — PR motivation authoring and PR body updates must use GitHub MCP; local PR-body file construction is prohibited.
 24. **Rust canonicalization is mandatory for Rust edits** — if a batch touches `*.rs`, run `cargo fmt` before final diff generation and require `cargo fmt --check` to pass before push. Manual line-wrapping of Rust call arguments/chains is prohibited; formatter output is canonical.
 25. **Branch currency and scope confirmation required** - before any commit/push/write on a branch other than `main`, fetch `origin/main`, compare `git merge-base HEAD origin/main` to `git rev-parse origin/main`, and inspect `git diff --name-only origin/main...HEAD`. If the branch is not based on the latest `origin/main` head or includes unrelated paths, stop and request explicit user confirmation before proceeding.
+26. **AI product and brand names forbidden in all output** — no AI assistant names,
+    competing product names, or tool brand names in any position in any text produced
+    by this skill. Refer to tools by generic category only: "the coding agent",
+    "the language model", "the remote API", "the CI system".
+    Wire protocol identifiers used as technical configuration values are not subject
+    to this rule. Applies to every output channel: dispatch docs, review bodies,
+    PR bodies, findings tables, inline comments, commit messages, PR titles, and
+    script output.

@@ -1,0 +1,45 @@
+name: doc-ref-check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check-skill-refs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check all markdown skill path references
+        run: |
+          set +e
+          FAILED=0
+
+          echo "Existing skills:"
+          find .agents/skills -maxdepth 1 -mindepth 1 -type d | sort
+
+          echo ""
+          echo "Scanning markdown files for skill path references..."
+
+          while IFS= read -r match; do
+            doc_file="${match%%:*}"
+            ref_path="$(echo "${match#*:}" | grep -oP '\.agents/skills/[^\s\)\"]+/SKILL\.md')"
+
+            [ -z "$ref_path" ] && continue
+
+            if [ ! -f "$ref_path" ]; then
+              echo "STALE REF: $doc_file -> $ref_path (does not exist)"
+              FAILED=1
+            else
+              echo "ok: $doc_file -> $ref_path"
+            fi
+          done < <(grep -rn '\.agents/skills/[^/]*/SKILL\.md' --include='*.md')
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo ""
+            echo "Fix: update the references above to match an existing skill path,"
+            echo "or create the missing skill directory with a SKILL.md entrypoint."
+            exit 1
+          fi
+
+          echo "All skill path references are valid."
