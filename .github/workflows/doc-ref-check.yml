@@ -14,6 +14,7 @@ jobs:
         run: |
           set +e
           FAILED=0
+          REF_LIST="$(mktemp)"
 
           echo "Existing skills:"
           find .agents/skills -maxdepth 1 -mindepth 1 -type d | sort
@@ -21,11 +22,37 @@ jobs:
           echo ""
           echo "Scanning markdown files for skill path references..."
 
-          while IFS= read -r match; do
-            doc_file="${match%%:*}"
-            ref_path="$(echo "${match#*:}" | grep -oP '\.agents/skills/[^\s\)\"]+/SKILL\.md')"
+          while IFS= read -r doc_file; do
+            while IFS= read -r line; do
+              case "$line" in
+                *".agents/skills/"*"/SKILL.md"*)
+                  # Tokenize on common markdown punctuation, then match literal path tokens.
+                  cleaned="$(printf '%s\n' "$line" | tr '[]()<>`\",;:|' ' ')"
+                  for token in $cleaned; do
+                    case "$token" in
+                      .agents/skills/*/SKILL.md)
+                        case "$token" in
+                          *'*'*)
+                            # Ignore wildcard examples like .agents/skills/*/SKILL.md.
+                            continue
+                            ;;
+                        esac
 
-            [ -z "$ref_path" ] && continue
+                        entry="$doc_file:$token"
+                        if ! grep -qxF "$entry" "$REF_LIST"; then
+                          echo "$entry" >> "$REF_LIST"
+                        fi
+                        ;;
+                    esac
+                  done
+                  ;;
+              esac
+            done < "$doc_file"
+          done < <(find . -type f -name '*.md' | sort)
+
+          while IFS= read -r entry; do
+            doc_file="${entry%%:*}"
+            ref_path="${entry#*:}"
 
             if [ ! -f "$ref_path" ]; then
               echo "STALE REF: $doc_file -> $ref_path (does not exist)"
@@ -33,7 +60,9 @@ jobs:
             else
               echo "ok: $doc_file -> $ref_path"
             fi
-          done < <(grep -rn '\.agents/skills/[^/]*/SKILL\.md' --include='*.md')
+          done < "$REF_LIST"
+
+          rm -f "$REF_LIST"
 
           if [ "$FAILED" -eq 1 ]; then
             echo ""
