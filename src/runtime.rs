@@ -2,12 +2,15 @@ pub mod approval;
 pub mod backend;
 pub mod command;
 pub mod context;
+pub mod context_assembler;
 pub mod frontend;
 pub mod r#loop;
 pub mod mode;
 pub mod policy;
 pub mod task_state;
+pub mod text_util;
 pub mod update;
+pub mod validation;
 
 pub use approval::{
     load_policy_from_env, ApprovalPolicy, ApprovalScope, Capability, FileApprovalPolicy,
@@ -15,26 +18,19 @@ pub use approval::{
 };
 pub use backend::{ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode};
 pub use command::{
-    CancellationStatus, CommandHandle, CommandRequest, CommandResult, CommandRunner,
-    DefaultCommandRunner, OutputChunk, StreamKind,
+    CommandHandle, CommandRequest, CommandResult, CommandRunner, DefaultCommandRunner, OutputChunk,
+    StreamKind,
 };
+pub use context_assembler::{AssembledContext, ContextAssembler, FileSnapshot};
 pub use task_state::{
     CommandEvidence, ConversationCheckpoint, InterruptedCommand, TaskId, TaskState, TaskStatus,
 };
+pub use text_util::{truncate_head_bytes, truncate_tail_bytes};
 pub use update::UiUpdate;
+pub use validation::{ValidationCommand, ValidationOutput, ValidationResult, ValidationSuite};
 
 #[cfg(test)]
 mod tests {
-
-    #[test]
-    fn test_parse_bool_helpers() {
-        assert_eq!(crate::util::parse_bool_str("true"), Some(true));
-        assert_eq!(crate::util::parse_bool_str("0"), Some(false));
-        assert_eq!(crate::util::parse_bool_flag("YES".to_string()), Some(true));
-        assert_eq!(crate::util::parse_bool_flag("off".to_string()), Some(false));
-        assert_eq!(crate::util::parse_bool_str("maybe"), None);
-    }
-
     #[test]
     fn test_ref_02_runtime_types_compile() {
         use crate::runtime::{

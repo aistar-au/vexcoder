@@ -31,18 +31,12 @@ pub struct CommandHandle {
 }
 
 impl CommandHandle {
-    /// Check if cancellation was requested (handle has been consumed)
-    pub fn is_cancelling(&self) -> bool {
+    /// Returns true if this handle has not yet sent a cancel signal.
+    /// Only used in tests to assert handle state after `cancel` is called.
+    #[cfg(test)]
+    pub fn is_consumed(&self) -> bool {
         self.cancel_tx.is_none()
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CancellationStatus {
-    Running,
-    Cancelling,
-    Completed,
-    Failed,
 }
 
 pub struct PtySession {
@@ -238,27 +232,12 @@ mod tests {
         };
 
         let handle = runner.run_streaming(req, tx).await.expect("spawn failed");
-        assert!(!handle.is_cancelling());
+        assert!(!handle.is_consumed());
 
         let result =
             tokio::time::timeout(tokio::time::Duration::from_secs(2), runner.cancel(handle)).await;
 
         assert!(result.is_ok(), "cancel must complete within 2 seconds");
         assert!(result.unwrap().is_ok(), "cancel must not error");
-    }
-
-    #[test]
-    fn test_cancellation_status_variants() {
-        let status = CancellationStatus::Running;
-        assert_eq!(status, CancellationStatus::Running);
-
-        let status = CancellationStatus::Cancelling;
-        assert_eq!(status, CancellationStatus::Cancelling);
-
-        let status = CancellationStatus::Completed;
-        assert_eq!(status, CancellationStatus::Completed);
-
-        let status = CancellationStatus::Failed;
-        assert_eq!(status, CancellationStatus::Failed);
     }
 }
