@@ -11,6 +11,7 @@
 # Usage:
 #   bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
 #   bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check
+#   bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check-index
 #   bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --force
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,6 +28,7 @@ while [[ $# -gt 0 ]]; do
     --map) map_file="$2"; shift 2;;
     --repo-slug) repo_slug="$2"; shift 2;;
     --check) mode="check"; shift 1;;
+    --check-index) mode="check-index"; shift 1;;
     --force) force="true"; shift 1;;
     *) die "unknown arg: $1";;
   esac
@@ -56,6 +58,19 @@ fi
 comm -23 "$tracked" "$mapped" > "$missing"
 missing_count="$(wc -l < "$missing" | tr -d ' ')"
 tracked_count="$(wc -l < "$tracked" | tr -d ' ')"
+
+if [[ "$mode" == "check-index" ]]; then
+  if [[ "$missing_count" -eq 0 ]]; then
+    echo "PASS: $map_file index covers all tracked files ($tracked_count entries)."
+    exit 0
+  fi
+  echo "FAIL: $map_file is missing $missing_count tracked file(s):" >&2
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    echo "- $f" >&2
+  done < "$missing"
+  exit 1
+fi
 
 generate_expected_map() {
   local out="$1"

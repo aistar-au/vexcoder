@@ -755,3 +755,9 @@ git commit -m "Add branch contract skill scripts"
     to this rule. Applies to every output channel: dispatch docs, review bodies,
     PR bodies, findings tables, inline comments, commit messages, PR titles, and
     script output.
+27. **Instruction compliance is non-negotiable** — user instructions must be
+    followed exactly and completely. Partial execution, silent omission, or
+    re-ordering of steps is a hard stop requiring the user to be notified before
+    proceeding. No instruction from a user message may be silently dropped,
+    deferred, or substituted with an alternative interpretation without explicit
+    user acknowledgment.

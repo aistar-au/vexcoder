@@ -184,3 +184,9 @@ Before handoff to remote posting:
 - Do not enforce manual Rust line wrapping in draft guidance; leave final
   layout decisions to `rustfmt`.
 - Do not hand off remote write text without branch-currency and scope evidence.
+
+## Instruction compliance (required)
+
+User instructions must be followed exactly and completely. Partial execution,
+silent omission, or re-ordering of steps is a hard stop. No instruction may be
+silently dropped, deferred, or substituted without explicit user acknowledgment.
