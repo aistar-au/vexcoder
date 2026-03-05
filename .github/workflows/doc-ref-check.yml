@@ -2,6 +2,7 @@ name: doc-ref-check
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -42,6 +43,12 @@ jobs:
                           ;;
                         *"*"*)
                           # Ignore wildcard examples like .agents/skills/*/SKILL.md.
+                          ;;
+                        *"/"* | *" "*)
+                          # Skill name contains a path separator or whitespace;
+                          # the extracted segment spans multiple path components,
+                          # meaning the match crossed a non-SKILL.md prefix on
+                          # the same line. Skip it.
                           ;;
                         *)
                           entry="$doc_file:$ref_path"

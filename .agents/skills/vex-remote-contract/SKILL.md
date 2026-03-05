@@ -596,10 +596,10 @@ without updating the map will fail CI and cannot be merged.
 Check map coverage (required before push/PR):
 
 ```sh
-bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check
+bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check-index
 ```
 
-If the check reports drift, regenerate it:
+If missing entries are reported, regenerate the map:
 
 ```sh
 bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
@@ -608,10 +608,10 @@ bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
 Then verify again:
 
 ```sh
-bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check
+bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check-index
 ```
 
-If no drift is present, update script prints a no-op message and leaves the file untouched.
+If no missing entries are found, the update script prints a no-op message and leaves the file untouched.
 
 ---
 
@@ -708,7 +708,8 @@ git commit -m "Add branch contract skill scripts"
 | Flag | Meaning |
 | :--- | :--- |
 | `-b / --branch <n>` | Branch to operate on (inferred from HEAD if omitted) |
-| `--check` | `update_repo_raw_url_map`: fail if repo map misses tracked files |
+| `--check` | `update_repo_raw_url_map`: full byte-for-byte map content check; use for explicit map maintenance or pre-release |
+| `--check-index` | `update_repo_raw_url_map`: check that all tracked files appear in the map (index coverage only); required PR gate |
 | `--force` | `update_repo_raw_url_map`: regenerate map even without missing files |
 | `--map <path>` | `update_repo_raw_url_map`: alternate raw map path |
 | `--repo-slug <owner/repo>` | `update_repo_raw_url_map`: override repo slug |
@@ -729,7 +730,7 @@ git commit -m "Add branch contract skill scripts"
 5. **Working tree must be clean** before any verification script runs.
 6. **Only raw GitHub URLs** in agent prompts during Step 6. No full file content paste.
 7. **All output is markdown** — no plain text paragraphs in dispatch or report documents.
-8. **Repo map gate required** — run `update_repo_raw_url_map.sh --check`; if drift is reported, update then re-check. Any PR that adds a `.github/workflows/*.yml` or `.agents/skills/*/SKILL.md` file must update the map in the same commit — the `doc-ref-check` CI workflow enforces this and will block merge if violated.
+8. **Repo map gate required** — run `update_repo_raw_url_map.sh --check-index`; if missing entries are reported, update the map then re-check. Any PR that adds a `.github/workflows/*.yml` or `.agents/skills/*/SKILL.md` file must update the map in the same commit — the `doc-ref-check` CI workflow enforces this and will block merge if the map entry is missing.
 9. **Final report required** — every batch must close with task results table, files changed, verification commands with exit codes, and open issues.
 10. **Ensure push landed** — after every `git push`, run `git fetch origin --prune` and confirm `git rev-parse HEAD` equals `git rev-parse origin/<branch>`.
 11. **Commit hygiene gate required** — batch promotions on `main` must end on a merge commit (`git rev-list --parents -n 1 HEAD` parent count `>= 2`).
@@ -747,14 +748,12 @@ git commit -m "Add branch contract skill scripts"
 23. **MCP-only PR-body enforcement** — PR motivation authoring and PR body updates must use GitHub MCP; local PR-body file construction is prohibited.
 24. **Rust canonicalization is mandatory for Rust edits** — if a batch touches `*.rs`, run `cargo fmt` before final diff generation and require `cargo fmt --check` to pass before push. Manual line-wrapping of Rust call arguments/chains is prohibited; formatter output is canonical.
 25. **Branch currency and scope confirmation required** - before any commit/push/write on a branch other than `main`, fetch `origin/main`, compare `git merge-base HEAD origin/main` to `git rev-parse origin/main`, and inspect `git diff --name-only origin/main...HEAD`. If the branch is not based on the latest `origin/main` head or includes unrelated paths, stop and request explicit user confirmation before proceeding.
-26. **AI product and brand names forbidden in all output** — no AI assistant names,
-    competing product names, or tool brand names in any position in any text produced
-    by this skill. Refer to tools by generic category only: "the coding agent",
-    "the language model", "the remote API", "the CI system".
-    Wire protocol identifiers used as technical configuration values are not subject
-    to this rule. Applies to every output channel: dispatch docs, review bodies,
-    PR bodies, findings tables, inline comments, commit messages, PR titles, and
-    script output.
+26. **AI product and competing product names forbidden in agent-authored prose** — no AI
+    assistant names or competing product names in PR bodies, review bodies, findings
+    tables, inline comments, or dispatch documents. Refer to the model and agent by
+    generic category only: "the coding agent", "the language model", "the remote API",
+    "the CI system". Excluded from this rule: command evidence blocks, terminal output,
+    tool invocations, file paths, CI logs, commit messages, and PR titles.
 27. **Instruction compliance is non-negotiable** — user instructions must be
     followed exactly and completely. Partial execution, silent omission, or
     re-ordering of steps is a hard stop requiring the user to be notified before

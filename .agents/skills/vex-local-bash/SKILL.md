@@ -53,13 +53,13 @@ These rules apply to all drafted text:
 - No nested markdown links (`[[text](url)](url)`).
 - Use full repo slug (`owner/repo`) in opening lines.
 - One narrative review body per pass.
-- No AI assistant names, competing product names, or tool brand names in any
-  output. Refer to tools by generic category only: "the coding agent",
+- No AI assistant names or competing product names in agent-authored prose.
+  Refer to the model and agent by generic category only: "the coding agent",
   "the language model", "the remote API", "the CI system".
-  Wire protocol identifiers used as technical configuration values
-  (such as protocol scheme names) are not subject to this rule.
-  This rule applies to all output channels: PR bodies, review text,
-  inline comments, findings, and dispatch docs.
+  This rule applies to: PR bodies, review text, inline comments, findings,
+  and dispatch documents.
+  Excluded from this rule: command evidence blocks, terminal output, tool
+  invocations, CI logs, file paths, commit messages, and PR titles.
 
 ---
 
@@ -171,7 +171,8 @@ Before handoff to remote posting:
   before any remote write.
 - If the PR introduces any `.github/workflows/*.yml` or `.agents/skills/*/SKILL.md`
   file, confirm the map update is present in the diff before handoff. The
-  `doc-ref-check` CI step enforces this and will block merge if the map is stale.
+  `doc-ref-check` CI step enforces this and will block merge if the map
+  entry is missing.
 
 ---
 

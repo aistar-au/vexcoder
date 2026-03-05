@@ -88,7 +88,7 @@ Read the relevant ADR before writing any dispatch or PR body.
 - `.agents/skills/` — agent skills (this directory)
 
 **Canonical repo map:** `TASKS/completed/REPO-RAW-URL-MAP.md` — must be
-checked for drift before every PR (Hard Rule 8).
+checked for coverage before every PR (Hard Rule 8).
 
 ---
 
@@ -125,7 +125,7 @@ Step 5   URL MAP     gen_verification_urls.sh
 Step 6   RAW CHECK   verify_raw_urls.sh --compare
 Step 7   DIFF CHECK  verify_diff_url.sh
 Step 8   CI GATE     clippy + rustfmt + tests
-Step 9   MAP GATE    update_repo_raw_url_map.sh --check
+Step 9   MAP GATE    update_repo_raw_url_map.sh --check-index
 Step 10  PR+MERGE    Draft via vex-local-bash; post via vex-remote-contract MCP; merge --no-ff
 Step 11  POST-MERGE  Re-fetch raw map URL; verify files at merge commit SHA
 ```
@@ -144,7 +144,7 @@ Required before the first batch action in any session:
 - [ ] `vex-remote-contract/SKILL.md` loaded and read in full
 - [ ] Current `main` HEAD SHA confirmed via GitHub MCP
 - [ ] Relevant ADR fetched and read
-- [ ] `REPO-RAW-URL-MAP.md` drift check run (`--check` flag)
+- [ ] `REPO-RAW-URL-MAP.md` coverage check run (`--check-index` flag)
 - [ ] User confirmation received before any write action
 
 ---
