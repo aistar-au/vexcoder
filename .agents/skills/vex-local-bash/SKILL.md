@@ -13,6 +13,9 @@ description: >
 Use this skill to draft PR text locally (motivation bodies, review bodies,
 inline comments, and follow-up reports). Remote writes are out of scope here.
 
+This is the canonical local drafting/review skill for the repository and
+supersedes legacy PR-review naming used in earlier sessions.
+
 ---
 
 ## Bootstrap
