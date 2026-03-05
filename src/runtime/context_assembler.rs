@@ -648,8 +648,11 @@ mod tests {
     async fn test_context_assembler_named_paths_not_capped_by_max_related() {
         let workspace = tempfile::tempdir().expect("tempdir");
         for i in 0..5 {
-            fs::write(workspace.path().join(format!("file{i}.txt")), format!("content {i}"))
-                .expect("write");
+            fs::write(
+                workspace.path().join(format!("file{i}.txt")),
+                format!("content {i}"),
+            )
+            .expect("write");
         }
 
         let operator = ToolOperator::new(workspace.path().to_path_buf());
@@ -657,8 +660,7 @@ mod tests {
             max_related: 2,
             ..ContextAssembler::default()
         };
-        let instruction =
-            "inspect file0.txt file1.txt file2.txt file3.txt file4.txt";
+        let instruction = "inspect file0.txt file1.txt file2.txt file3.txt file4.txt";
         let ctx = assembler
             .assemble(instruction, &operator)
             .expect("assemble failed");

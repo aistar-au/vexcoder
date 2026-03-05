@@ -278,9 +278,7 @@ fn makefile_has_test_target(root: &Path) -> bool {
     let Ok(content) = fs::read_to_string(makefile) else {
         return false;
     };
-    content
-        .lines()
-        .any(|line| line.starts_with("test:"))
+    content.lines().any(|line| line.starts_with("test:"))
 }
 
 fn load_validate_toml(raw: &str) -> std::result::Result<Vec<ValidationCommand>, toml::de::Error> {
@@ -300,7 +298,10 @@ fn load_validate_toml(raw: &str) -> std::result::Result<Vec<ValidationCommand>, 
 
 #[cfg(test)]
 mod tests {
-    use super::{load_validate_toml, makefile_has_test_target, ValidationOutput, ValidationResult, ValidationSuite};
+    use super::{
+        load_validate_toml, makefile_has_test_target, ValidationOutput, ValidationResult,
+        ValidationSuite,
+    };
     use std::fs;
 
     #[tokio::test]
@@ -413,11 +414,8 @@ mod tests {
     #[test]
     fn test_makefile_target_detection_accepts_column_zero_test_target() {
         let workspace = tempfile::tempdir().expect("tempdir");
-        fs::write(
-            workspace.path().join("Makefile"),
-            "test:\n\tcargo test\n",
-        )
-        .expect("write Makefile");
+        fs::write(workspace.path().join("Makefile"), "test:\n\tcargo test\n")
+            .expect("write Makefile");
         assert!(
             makefile_has_test_target(workspace.path()),
             "column-zero test: must be detected"
