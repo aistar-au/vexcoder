@@ -206,5 +206,3 @@ vexcoder/
 - [ADR index](TASKS/ADR-README.md) — architectural decisions and their rationale
 - [Agentic Repair Strategy](TASKS/manifest-strategy.md) — TDM workflow deep-dive
 - [Repository Raw URL Map](TASKS/completed/REPO-RAW-URL-MAP.md) — raw.githubusercontent.com links for every tracked file
-
-- test stale ref: `.agents/skills/does-not-exist/SKILL.md`
