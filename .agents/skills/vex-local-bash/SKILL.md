@@ -36,6 +36,8 @@ Do not post to GitHub from this skill. Hand off final posting to
 - Do not call PR create/update/review APIs from this skill.
 - Do not create local `/tmp` PR body artifacts.
 - Produce markdown in the assistant response for user approval.
+- If drafting Rust code diffs/snippets, treat them as pre-format only; final
+  canonical layout must be produced by `cargo fmt` in `vex-remote-contract`.
 - Hand off posting, source verification, and CI-state assertions to
   `vex-remote-contract`.
 
@@ -155,6 +157,11 @@ Before handoff to remote posting:
 - Confirm all required artifact URLs are present.
 - Confirm repo slug, file links, and commit IDs are present.
 - Mark any unverified CI/field/routing claims as pending verification.
+- Require branch-currency evidence from the remote phase: latest
+  `origin/main` SHA, merge-base SHA, and changed-path list.
+- If the branch is not based on the latest `origin/main` head commit, or
+  changed paths include unrelated scope, require explicit user confirmation
+  before any remote write.
 
 ---
 
@@ -164,3 +171,6 @@ Before handoff to remote posting:
 - Do not claim CI or source-verification outcomes without remote verification.
 - Do not use emoji, numbered fix lists, or malformed links.
 - Do not generate local `/tmp` PR body files.
+- Do not enforce manual Rust line wrapping in draft guidance; leave final
+  layout decisions to `rustfmt`.
+- Do not hand off remote write text without branch-currency and scope evidence.

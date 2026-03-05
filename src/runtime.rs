@@ -3,6 +3,7 @@ pub mod backend;
 pub mod command;
 pub mod context;
 pub mod context_assembler;
+pub mod edit_loop;
 pub mod frontend;
 pub mod r#loop;
 pub mod mode;
@@ -22,6 +23,7 @@ pub use command::{
     StreamKind,
 };
 pub use context_assembler::{AssembledContext, ContextAssembler, FileSnapshot};
+pub use edit_loop::{EditLoop, EditLoopOutcome};
 pub use task_state::{
     CommandEvidence, ConversationCheckpoint, InterruptedCommand, TaskId, TaskState, TaskStatus,
 };

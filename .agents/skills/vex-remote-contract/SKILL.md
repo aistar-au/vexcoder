@@ -95,6 +95,16 @@ git apply --recount /tmp/<n>.patch
 Do not reconstruct or overwrite whole files to apply a hunk. Do not use non-diff
 editing methods for hunk-level changes.
 
+### Rust Canonicalization (required for `*.rs` changes)
+
+- For any change touching `*.rs`, run `cargo fmt` before producing the final unified diff.
+- Do not hand-wrap or hand-unwrap Rust call arguments/chains to satisfy style.
+  Rust layout must come from `rustfmt` output only.
+- After patch apply and before push, run `cargo fmt --check`.
+- If `cargo fmt --check` reports diffs, classify it as
+  `rustfmt-canonicalization-drift`: run `cargo fmt`, refresh staged diff, and
+  re-run the check before proceeding.
+
 ---
 
 ## Overview of the Loop
@@ -439,11 +449,17 @@ cargo test --all-targets
 If any command fails, fix it before commit/push.
 5. Commit with message: `Batch <X>: <ADR-NNN> Phases <range> implementation`
 6. `git push origin <branch>`
-7. Ensure push landed by verifying local and remote SHAs match:
+7. Ensure push landed by verifying local and remote SHAs match.
+
+Before push, run rustfmt canonicalization and the local CI gate:
 
 ```sh
-git fetch origin --prune
-LOCAL_SHA="$(git rev-parse HEAD)"
+# Required when any *.rs file changed in this batch
+cargo fmt
+
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
+cargo test --all-targets
 REMOTE_SHA="$(git rev-parse origin/<branch>)"
 test "$LOCAL_SHA" = "$REMOTE_SHA"
 ```
@@ -538,6 +554,11 @@ Do not create a PR until the branch is conflict-free and CI is green.
 ### CI failures playbook (common CI failures)
 
 When CI fails on clippy in this repo, apply these exact transformations before re-running checks:
+
+0. `rustfmt-canonicalization-drift`
+   - Symptom: `cargo fmt --check` shows call/chaining reflow diffs.
+   - Fix: run `cargo fmt`, stage formatter output, re-run `cargo fmt --check`.
+   - Gate: do not continue to clippy/tests or push until rustfmt is clean.
 
 1. `clippy::unnecessary_lazy_evaluations`
    - `opt.unwrap_or_else(|| <constant/cheap value>)` → `opt.unwrap_or(<value>)`
@@ -715,3 +736,5 @@ git commit -m "Add branch contract skill scripts"
 21. **No file reconstruction for hunk edits** — do not rewrite complete files from memory or cached content when a focused patch hunk is required.
 22. **Push method: count KB not lines** — when committing recovered or batch files, use `gh` CLI locally (cherry-pick + push) when the total payload of all changed files is >= 50 KB. Use MCP `push_files` only when total payload is < 50 KB, and only in a single batched call — never one file per call. Cargo.lock counts toward the total; a single large lockfile can exceed the threshold alone.
 23. **MCP-only PR-body enforcement** — PR motivation authoring and PR body updates must use GitHub MCP; local PR-body file construction is prohibited.
+24. **Rust canonicalization is mandatory for Rust edits** — if a batch touches `*.rs`, run `cargo fmt` before final diff generation and require `cargo fmt --check` to pass before push. Manual line-wrapping of Rust call arguments/chains is prohibited; formatter output is canonical.
+25. **Branch currency and scope confirmation required** - before any commit/push/write on a branch other than `main`, fetch `origin/main`, compare `git merge-base HEAD origin/main` to `git rev-parse origin/main`, and inspect `git diff --name-only origin/main...HEAD`. If the branch is not based on the latest `origin/main` head or includes unrelated paths, stop and request explicit user confirmation before proceeding.
