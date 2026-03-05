@@ -26,12 +26,6 @@ Two skills govern this repo. They are separated by execution boundary:
 | `vex-local-bash` | `.agents/skills/vex-local-bash/SKILL.md` | Local drafting only. PR motivation bodies, review text, inline comments. No remote writes. |
 | `vex-remote-contract` | `.agents/skills/vex-remote-contract/SKILL.md` | Batch dispatch, branch verification, raw URL checks, repo map gate, merge loop, and remote PR posting via GitHub MCP. |
 
-And one reference document:
-
-| Reference | Path | Scope |
-| :--- | :--- | :--- |
-| PR remote guardrails | `.agents/skills/vex-remote-contract/references/pr-remote-guardrails.md` | Evidence and assertion rules for all remote PR writes. |
-
 ---
 
 ## 3. Required load order (every session)
@@ -40,9 +34,8 @@ Load and read all of the following in full before producing any output:
 
 1. `.agents/skills/vex-local-bash/SKILL.md`
 2. `.agents/skills/vex-remote-contract/SKILL.md`
-3. `.agents/skills/vex-remote-contract/references/pr-remote-guardrails.md`
 
-Do not produce dispatch prompts, diffs, reviews, or PR bodies until all three
+Do not produce dispatch prompts, diffs, reviews, or PR bodies until both
 files have been read completely.
 
 ---
@@ -59,7 +52,7 @@ Violating it causes unchecked writes or fact-free assertions.
 - Do not write to `/tmp` or any local path for PR body work.
 - Hand off final text to the remote posting step after explicit user approval.
 
-### Remote boundary (vex-remote-contract + pr-remote-guardrails)
+### Remote boundary (vex-remote-contract)
 
 - All GitHub writes use GitHub MCP only.
 - Source-verify struct field names and subprocess routing claims against the
@@ -147,7 +140,6 @@ Required before the first batch action in any session:
 
 - [ ] `vex-local-bash/SKILL.md` loaded and read in full
 - [ ] `vex-remote-contract/SKILL.md` loaded and read in full
-- [ ] `pr-remote-guardrails.md` loaded and read in full
 - [ ] Current `main` HEAD SHA confirmed via GitHub MCP
 - [ ] Relevant ADR fetched and read
 - [ ] `REPO-RAW-URL-MAP.md` drift check run (`--check` flag)
@@ -162,12 +154,10 @@ These are read-only checks that verify policy compliance before any batch work.
 1. Fetch `vex-remote-contract/SKILL.md` and confirm Hard Rule 23 is present.
 2. Fetch `vex-local-bash/SKILL.md` and confirm the `Local boundary (required)`
    section is present and that the skill explicitly prohibits GitHub write API calls.
-3. Fetch `pr-remote-guardrails.md` and confirm the Evidence rules section is
-   present.
-4. Fetch `main` HEAD and report the current SHA and last commit message.
-5. Fetch `TASKS/completed/REPO-RAW-URL-MAP.md` and confirm the file exists.
+3. Fetch `main` HEAD and report the current SHA and last commit message.
+4. Fetch `TASKS/completed/REPO-RAW-URL-MAP.md` and confirm the file exists.
 
-Report all five as confirmed before proceeding to any batch task.
+Report all four as confirmed before proceeding to any batch task.
 
 ---
 
