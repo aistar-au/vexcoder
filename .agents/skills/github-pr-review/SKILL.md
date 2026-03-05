@@ -227,6 +227,22 @@ Fetch all reviews first and classify each item:
 
 Do not close a CHANGES_REQUESTED item with assertion text alone.
 
+#### Deleted head branch guard
+
+Before triaging review findings, verify the PR head branch exists on the remote.
+If `git ls-remote --exit-code origin <head-branch>` returns non-zero, or if the
+GitHub API reports the branch as deleted, pause all review actions and execute
+**Step 0.5 — Branch Recovery (Deleted Branch)** from `vex-remote-contract/SKILL.md`
+before continuing. Do not post any review outcomes until the head branch is restored
+and the recovered HEAD SHA is verified against `origin/<head-branch>`.
+
+```sh
+# Check remote branch existence before triage
+git fetch origin --prune
+git ls-remote --exit-code origin <head-branch> \
+  || echo "BRANCH MISSING — execute Step 0.5 before proceeding"
+```
+
 ### Resolution rules
 
 - Evidence-only CHANGES_REQUESTED: collect artifact + URL + status; no code change required.
@@ -323,3 +339,5 @@ Rules:
   are not permitted.
 - Do not skip `git apply --check --recount` before applying a patch.
 - Do not use non-diff editing methods for hunk-level changes.
+- Do not triage or post review outcomes when the PR head branch is deleted or missing.
+  Execute Step 0.5 branch recovery first and verify the restored HEAD before continuing.

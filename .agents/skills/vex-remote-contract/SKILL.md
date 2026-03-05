@@ -63,17 +63,18 @@ editing methods for hunk-level changes.
 ## Overview of the Loop
 
 ```
-Step 0  SYNC      Update local branch from remote before any verification/read
-Step 1  READ      Fetch raw GitHub URL(s) from a branch or main
-Step 2  DISPATCH  Write the batch dispatch prompt (markdown only, no plain text)
-Step 3  VERIFY    Second-agent review of dispatch; apply corrections
-Step 4  EXECUTE   Agent writes code, runs cargo test, pushes branch
-Step 5  URL MAP   Generate /tmp/<branch>-verification-urls.md
-Step 6  RAW CHECK Fetch every raw URL → HTTP 200 + content match
-Step 7  DIFF CHECK Fetch .diff URL → confirm all expected paths present
-Step 8  CI GREEN  clippy/rustfmt/tests + GitHub Actions pass
-Step 9  MAP GATE  Update/check TASKS/completed/REPO-RAW-URL-MAP.md for new files
-Step 10 MERGE     Merge commit (no squash, no rebase) → verify via raw map URL
+Step 0   SYNC      Update local branch from remote before any verification/read
+Step 0.5 RECOVER   Resurrect deleted branch from dangling commits (when applicable)
+Step 1   READ      Fetch raw GitHub URL(s) from a branch or main
+Step 2   DISPATCH  Write the batch dispatch prompt (markdown only, no plain text)
+Step 3   VERIFY    Second-agent review of dispatch; apply corrections
+Step 4   EXECUTE   Agent writes code, runs cargo test, pushes branch
+Step 5   URL MAP   Generate /tmp/<branch>-verification-urls.md
+Step 6   RAW CHECK Fetch every raw URL → HTTP 200 + content match
+Step 7   DIFF CHECK Fetch .diff URL → confirm all expected paths present
+Step 8   CI GREEN  clippy/rustfmt/tests + GitHub Actions pass
+Step 9   MAP GATE  Update/check TASKS/completed/REPO-RAW-URL-MAP.md for new files
+Step 10  MERGE     Merge commit (no squash, no rebase) → verify via raw map URL
 ```
 
 Always output **pure markdown** when producing dispatch prompts or reports. Never emit plain prose paragraphs in dispatch output.
@@ -99,6 +100,93 @@ git merge --ff-only origin/<target-branch>
 ```
 
 Always report the head SHA used for verification.
+
+---
+
+## Step 0.5 — Branch Recovery (Deleted Branch)
+
+If a branch was deleted but its tip SHA is still reachable (dangling commit retained
+by GitHub for ~90 days, or known from a prior session), recover it before proceeding.
+
+### Push method decision: count KB, not lines
+
+| Condition | Method |
+| :--- | :--- |
+| Total payload of all changed files **< 50 KB** | MCP `push_files` — single call, all files batched |
+| Total payload **>= 50 KB** | `gh` CLI — `git cherry-pick` + `git push origin` |
+
+A single large file (e.g. `Cargo.lock` at ~65 KB) can exceed the threshold alone.
+Never loop MCP `push_files` one file at a time regardless of size.
+
+### Recovery via `gh` CLI (required when total payload >= 50 KB)
+
+```sh
+TARGET=<branch-name>
+OLD_TIP=<full-sha>   # dangling commit SHA; from prior session, review, or reflog
+
+# 1. Attach the dangling commit to a local recovery ref.
+#    If SHA is not local, fetch it first (works while GitHub retains it).
+git fetch origin "$OLD_TIP" 2>/dev/null || true
+git branch recover/temp "$OLD_TIP"
+
+# 2. Switch to target branch (create from origin if absent locally).
+git fetch origin --prune
+git checkout "$TARGET" 2>/dev/null \
+  || git checkout -b "$TARGET" "origin/$TARGET"
+
+# 3. Identify commits on recovery ref missing from target.
+git log --oneline "$TARGET"..recover/temp
+git cherry -v "$TARGET" recover/temp
+
+# 4. Cherry-pick selected commits.
+git cherry-pick <sha>
+# To collapse multiple commits into one:
+# git cherry-pick --no-commit <sha1> <sha2> <sha3>
+# git commit -m "Recover <description> from deleted branch"
+
+# 5. Push.
+git push origin "$TARGET"
+
+# 6. Verify push landed (Hard Rule 10).
+git fetch origin --prune
+test "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$TARGET")"
+
+# 7. Clean up.
+git branch -D recover/temp
+```
+
+If the SHA is not present locally but the remote still retains the dangling object:
+
+```sh
+git fetch origin <full-sha>
+git branch recover/temp FETCH_HEAD
+# then continue from step 2
+```
+
+### Verification report (required after recovery push)
+
+Include these fields in the follow-up report:
+
+```markdown
+**Repo:** `<owner/repo>`
+**Target branch:** `<branch-name>`
+**Recovered commit SHA(s):** `<sha>`
+**Local HEAD SHA:** `<sha>`
+**origin/<branch> SHA:** `<sha>`
+**Verification:** match
+```
+
+If local HEAD and origin SHA do not match, stop and report mismatch — do not proceed to PR creation.
+
+### Recovery via MCP `push_files` (small payloads only, < 50 KB total)
+
+When file content was already fetched from the dangling commit via `github:get_file_contents`
+and the total payload of all changed files is confirmed < 50 KB:
+
+1. Recreate the branch from main with `github:create_branch`.
+2. Sum the `size` field on every blob returned. If >= 50 KB, switch to the `gh` CLI path.
+3. Push **all files in a single `github:push_files` call** — never loop one file per call.
+4. Confirm the restored HEAD SHA by re-fetching at least one key blob and comparing.
 
 ---
 
@@ -143,7 +231,7 @@ git checkout -b <branch-name> origin/main
 ### Dependency graph
 
 ```
-<ROOT> ✅
+<ROOT>
   └── <TASK-A>
         └── <TASK-B>
               ├── <TASK-C>
@@ -166,7 +254,7 @@ Stop at the first anchor that is **not green**. Do not proceed to its dependents
 
 **Target files:** `path/to/file.rs` (new or modified), …
 
-**Gate:** <PREV-TASK> anchor green [✅ if already done]
+**Gate:** <PREV-TASK> anchor green [if already done]
 
 **What to implement:**
 
@@ -343,7 +431,7 @@ Before merging:
 
 Do not create a PR until the branch is conflict-free and CI is green.
 
-### Clippy failure playbook (common CI failures)
+### CI failures playbook (common CI failures)
 
 When CI fails on clippy in this repo, apply these exact transformations before re-running checks:
 
@@ -537,3 +625,4 @@ git commit -m "Add branch contract skill scripts"
 19. **Exact diffs only — no full-file rewrites** — all file changes must be created as a precise unified diff against the current remote content and applied as a patch. The required steps are: fetch current content, produce diff, present diff for review, apply patch. Reconstructing a file from memory or a cached copy is not permitted under any circumstance.
 20. **Hunk patches must use `git apply` only** — prepare exact unified diffs and run `git apply --check --recount` before `git apply --recount`.
 21. **No file reconstruction for hunk edits** — do not rewrite complete files from memory or cached content when a focused patch hunk is required.
+22. **Push method: count KB not lines** — when committing recovered or batch files, use `gh` CLI locally (cherry-pick + push) when the total payload of all changed files is >= 50 KB. Use MCP `push_files` only when total payload is < 50 KB, and only in a single batched call — never one file per call. Cargo.lock counts toward the total; a single large lockfile can exceed the threshold alone.
