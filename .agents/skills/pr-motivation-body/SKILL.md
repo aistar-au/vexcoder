@@ -30,6 +30,14 @@ Before writing any text or posting anything:
 the user and wait for explicit approval before creating, updating, or posting
 anything to GitHub. A statement of intent is not confirmation.
 
+## Execution boundary (required)
+
+- GitHub writes for PR body updates must use GitHub MCP only.
+- Do not create, edit, or delete local files for PR body work (`/tmp` included).
+- Do not generate local PR body artifacts.
+- Keep the draft in the assistant response, then apply via MCP after approval.
+- If MCP is unavailable, stop and request explicit user override before any non-MCP path.
+
 ---
 
 ## Style rules (both surfaces)
@@ -72,7 +80,7 @@ None of the following may appear in a PR motivation body:
 - Results, verification, or CI sections — no `cargo test` output, clippy
   output, pass/fail summaries, SHA lines, or anchor test names.
 - Shell or Rust code blocks.
-- The words "green", "red", "passing", "failing".
+- The words “green”, “red”, “passing”, “failing”.
 - Any sentence that begins with a git command, a cargo invocation, or a raw SHA.
 - Numbered lists — use flat bullet points only.
 
@@ -95,7 +103,7 @@ apply per-file differently; assert only what the source confirms.
 **CI status:** Do not claim tests passed or CI was clean unless the GitHub PR
 status API returns a completed check with a success conclusion on the head SHA.
 If the API returns `state: pending` or `total_count: 0`, omit all CI claims.
-The words "green", "passing", and "failing" are prohibited regardless.
+The words “green”, “passing”, and “failing” are prohibited regardless.
 
 ---
 
@@ -143,8 +151,8 @@ Source verification above).>
 
 Tone: write as a senior contributor explaining the change to a colleague who
 has not read the ADR. Be specific but concise. The two prose paragraphs
-together must not exceed ten sentences. Do not use "this PR" more than once.
-Do not use filler phrases like "this change aims to".
+together must not exceed ten sentences. Do not use “this PR” more than once.
+Do not use filler phrases like “this change aims to”.
 
 ---
 
@@ -157,7 +165,7 @@ Use this template. Omit sections that have nothing to say.
 
 **Repo:** `<owner/repo>`
 **Head:** `<short-sha>` — <commit message of HEAD>
-**CI:** <current status from GitHub API — e.g. "0 checks registered">
+**CI:** <current status from GitHub API — e.g. “0 checks registered”>
 
 ### Changes since last review
 
@@ -241,10 +249,12 @@ Do not close a `CHANGES_REQUESTED` item with assertion text alone.
 - Do not use emoji or Unicode status symbols.
 - Do not split one review pass into multiple API calls.
 - Do not re-confirm prior-pass findings that are resolved — note them in
-  "Changes since last review" and move on.
+  “Changes since last review” and move on.
 - Do not claim a CHANGES_REQUESTED item is resolved without evidence.
 - Do not use nested markdown links.
 - Do not assert struct field names, subprocess routing, or CI status without
   source verification via the GitHub MCP.
 - Do not include shell commands, cargo invocations, or raw SHAs in a PR body.
-- Do not use the words "green", "red", "passing", or "failing" in a PR body.
+- Do not use the words “green”, “red”, “passing”, or “failing” in a PR body.
+- Do not write PR body content to local files or `/tmp`; keep drafts in the
+  assistant response and apply via GitHub MCP only.

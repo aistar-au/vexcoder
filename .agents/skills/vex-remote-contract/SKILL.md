@@ -4,7 +4,7 @@ description: >
   Batch dispatch and branch-verification workflow for GitHub repos. Use this skill whenever the
   user wants to read raw/blob GitHub URLs, produce dispatch markdown with dependency gates and
   anchor tests, verify branch content through raw URLs or a .diff URL, generate a verification URL
-  map, maintain the repo-wide raw URL index for newly added files, draft a PR motivation body, or
+  map, maintain the repo-wide raw URL index for newly added files, and prepare PR evidence inputs, or
   run the end-to-end loop:
   read → dispatch → verify → push → raw-url-check → diff-check → merge.
 ---
@@ -548,35 +548,19 @@ If no drift is present, update script prints a no-op message and leaves the file
 
 ---
 
-## Step 10 — PR Body File and Merge
+## Step 10 — PR Evidence and Merge
 
-Generate the PR summary and write a markdown body file in `/tmp`:
-
-```sh
-bash .agents/skills/vex-remote-contract/scripts/branch_summary.sh \
-  -b <branch> \
-  --write-pr-body
-# writes: /tmp/<safe-branch-name>-pr-body.md
-```
-
-Optional custom output path:
+Generate branch evidence only (no local PR body files):
 
 ```sh
 bash .agents/skills/vex-remote-contract/scripts/branch_summary.sh \
-  -b <branch> \
-  --write-pr-body \
-  -o /tmp/<custom>-pr-body.md
+  -b <branch>
 ```
 
-Create the PR using the generated markdown file:
+Then produce motivation prose using `pr-motivation-body` and update the PR body through GitHub MCP only.
+Do not write PR body markdown to `/tmp` or any local path.
 
-```sh
-gh pr create \
-  --base main \
-  --head <branch> \
-  --title "Batch <X>: ADR-<NNN> <short title>" \
-  --body-file /tmp/<safe-branch-name>-pr-body.md
-```
+PR creation/update text must be carried in MCP API payloads, not local files.
 
 When CI is green and review is complete, merge with a **merge commit** only:
 
@@ -648,7 +632,7 @@ git commit -m "Add branch contract skill scripts"
 | `verify_raw_urls.sh` | HTTP-check every raw URL; optionally compare content vs git ref |
 | `verify_diff_url.sh` | Confirm .diff URL contains all expected file paths |
 | `update_repo_raw_url_map.sh` | Check/update `TASKS/completed/REPO-RAW-URL-MAP.md` for new files |
-| `branch_summary.sh` | Print summary and optionally write `/tmp/<branch>-pr-body.md` |
+| `branch_summary.sh` | Print summary/evidence only (no PR body file output) |
 
 ### Key flags
 
@@ -659,8 +643,6 @@ git commit -m "Add branch contract skill scripts"
 | `--force` | `update_repo_raw_url_map`: regenerate map even without missing files |
 | `--map <path>` | `update_repo_raw_url_map`: alternate raw map path |
 | `--repo-slug <owner/repo>` | `update_repo_raw_url_map`: override repo slug |
-| `--write-pr-body` | `branch_summary`: write markdown PR body to `/tmp` |
-| `-o / --out <path>` | `branch_summary`: custom output path for PR body markdown |
 | `--base <ref>` | Comparison base (default: `origin/main`) |
 | `--compare` | `verify_raw_urls`: also SHA-compare content vs git ref |
 | `-u / --url <url>` | `verify_diff_url`: the `.diff` URL to fetch |
@@ -686,10 +668,11 @@ git commit -m "Add branch contract skill scripts"
 13. **File-level commit verification required** — for each claimed file, report the blob SHA and the exact commit SHA from `HEAD` (`git ls-tree HEAD <path>`). Reference the commit SHA directly; do not use informal status labels in place of identifiers.
 14. **Full repo slug required in every transaction report** — every verification report, push confirmation, merge record, and exception record must identify the repository as `owner/repo` (e.g. `aistar-au/vexcoder`) in the opening line. Bare repo names and local path references are not permitted.
 15. **Code review gate required (Step 6.5)** — no merge and no next-batch dispatch until all CHANGES_REQUESTED items from Step 6.5 are resolved. Blob SHA verification and anchor test presence are not a substitute for reading implementation content.
-16. **Load skills before any action** — at the start of every session, load and read both `.agents/skills/vex-remote-contract/SKILL.md` and `.agents/skills/github-pr-review/SKILL.md` in full before writing any dispatch, diff, or review output. Do not proceed past the Bootstrap section until both files have been read completely.
+16. **Load skills before any action** — at the start of every session, load and read both `.agents/skills/vex-remote-contract/SKILL.md` and `.agents/skills/pr-motivation-body/SKILL.md` in full before writing any dispatch, diff, or review output. Do not proceed past the Bootstrap section until both files have been read completely.
 17. **Emojis forbidden in all output** — no emoji, Unicode symbol, or icon in any position in any text produced by this skill. Use GitHub API state labels only: `CHANGES_REQUESTED`, `COMMENT`, `APPROVED`, `resolved`, `open`. This rule applies to every output channel: review bodies, dispatch docs, findings tables, inline comments, commit messages, PR titles, PR bodies, log lines, and script output.
 18. **Confirmation required before remote writes** — before any push, commit, file write, or write API call, present the full planned change to the user and wait for explicit confirmation. A description of intent is not confirmation. Do not proceed until the user responds with explicit approval.
 19. **Exact diffs only — no full-file rewrites** — all file changes must be created as a precise unified diff against the current remote content and applied as a patch. The required steps are: fetch current content, produce diff, present diff for review, apply patch. Reconstructing a file from memory or a cached copy is not permitted under any circumstance.
 20. **Hunk patches must use `git apply` only** — prepare exact unified diffs and run `git apply --check --recount` before `git apply --recount`.
 21. **No file reconstruction for hunk edits** — do not rewrite complete files from memory or cached content when a focused patch hunk is required.
 22. **Push method: count KB not lines** — when committing recovered or batch files, use `gh` CLI locally (cherry-pick + push) when the total payload of all changed files is >= 50 KB. Use MCP `push_files` only when total payload is < 50 KB, and only in a single batched call — never one file per call. Cargo.lock counts toward the total; a single large lockfile can exceed the threshold alone.
+23. **MCP-only PR-body enforcement** — PR motivation authoring and PR body updates must use GitHub MCP; local PR-body file construction is prohibited.

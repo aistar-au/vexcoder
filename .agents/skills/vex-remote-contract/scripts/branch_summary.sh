@@ -1,21 +1,18 @@
 #!/usr/bin/env bash
-# branch_summary.sh — Print commit/files summary and optionally write PR body markdown.
+# branch_summary.sh — Print commit/files summary only (MCP PR body flow).
 # Usage:
-#   branch_summary.sh [-b <branch>] [--write-pr-body] [-o <path>]
+#   branch_summary.sh [-b <branch>]
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_lib.sh
 source "$SCRIPT_DIR/_lib.sh"
 
 branch=""
-write_pr_body="false"
-pr_body_out=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -b|--branch) branch="$2"; shift 2;;
-    --write-pr-body) write_pr_body="true"; shift 1;;
-    -o|--out) pr_body_out="$2"; shift 2;;
+    --write-pr-body|-o|--out) die "local PR body file output is disabled; use GitHub MCP to update PR body";;
     *) die "unknown arg: $1";;
   esac
 done
@@ -50,9 +47,6 @@ count="${#files[@]}"
 
 safe="${branch//\//-}"
 ver_file="/tmp/${safe}-verification-urls.md"
-if [[ -z "$pr_body_out" ]]; then
-  pr_body_out="/tmp/${safe}-pr-body.md"
-fi
 
 # Extract ADR and batch hints from branch name.
 adr_hint=""
@@ -73,7 +67,7 @@ echo "- Ref: \`$ref\`"
 echo "- Files: \`$count\` changed"
 echo "- Verification URLs file: \`$ver_file\`"
 echo "- PR URL (create): \`https://github.com/$repo_slug/pull/new/$branch\`"
-echo "- PR body file: \`$pr_body_out\`"
+echo "- PR body update mode: \`GitHub MCP only\`"
 echo
 
 echo "### Motivation"
@@ -84,7 +78,6 @@ for f in "${files[@]}"; do
   echo "  - \`$f\`"
 done
 echo "- Verification:"
-echo "  - All anchor tests green (see CI)"
 echo "  - Raw GitHub URLs verified (HTTP 200)"
 echo "  - diff contains all expected paths"
 echo
@@ -92,34 +85,3 @@ echo "### Files changed: ${count}"
 for f in "${files[@]}"; do
   echo "  - \`$f\`"
 done
-
-if [[ "$write_pr_body" == "true" ]]; then
-  {
-    echo "## Summary"
-    echo
-    echo "- Implements the batch dispatch contract for ${batch_hint:+$batch_hint / }${adr_hint:-<ADR>}."
-    echo "- Branch: \`$branch\`"
-    echo "- Commit: \`$short_sha\`"
-    echo
-    echo "## Motivation"
-    echo
-    echo "- Targeted changes:"
-    for f in "${files[@]}"; do
-      echo "  - \`$f\`"
-    done
-    echo
-    echo "## Verification"
-    echo
-    echo "- All anchor tests green (see CI)"
-    echo "- Raw GitHub URLs verified (HTTP 200)"
-    echo "- diff contains all expected paths"
-    echo
-    echo "## Files changed (${count})"
-    for f in "${files[@]}"; do
-      echo "- \`$f\`"
-    done
-  } > "$pr_body_out"
-
-  echo
-  echo "- PR body markdown written: \`$pr_body_out\`"
-fi
