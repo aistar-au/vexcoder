@@ -584,6 +584,15 @@ Project policy:
 - Keep this map synchronized with repository files.
 - Update it on any drift (new/missing files, line-count drift, URL drift, header totals).
 
+**File types that require a map update in the same PR:**
+- Any new `.github/workflows/*.yml` file
+- Any new `.agents/skills/*/SKILL.md` file
+- Any new `src/**/*.rs`, `tests/**/*.rs`, `scripts/*.sh`, or `TASKS/**/*.md` file
+
+The `doc-ref-check` CI workflow enforces map coverage for `.github/workflows/*.yml`
+and `.agents/skills/*/SKILL.md` files automatically. A PR that adds either file type
+without updating the map will fail CI and cannot be merged.
+
 Check map coverage (required before push/PR):
 
 ```sh
@@ -720,7 +729,7 @@ git commit -m "Add branch contract skill scripts"
 5. **Working tree must be clean** before any verification script runs.
 6. **Only raw GitHub URLs** in agent prompts during Step 6. No full file content paste.
 7. **All output is markdown** — no plain text paragraphs in dispatch or report documents.
-8. **Repo map gate required** — run `update_repo_raw_url_map.sh --check`; if drift is reported, update then re-check.
+8. **Repo map gate required** — run `update_repo_raw_url_map.sh --check`; if drift is reported, update then re-check. Any PR that adds a `.github/workflows/*.yml` or `.agents/skills/*/SKILL.md` file must update the map in the same commit — the `doc-ref-check` CI workflow enforces this and will block merge if violated.
 9. **Final report required** — every batch must close with task results table, files changed, verification commands with exit codes, and open issues.
 10. **Ensure push landed** — after every `git push`, run `git fetch origin --prune` and confirm `git rev-parse HEAD` equals `git rev-parse origin/<branch>`.
 11. **Commit hygiene gate required** — batch promotions on `main` must end on a merge commit (`git rev-list --parents -n 1 HEAD` parent count `>= 2`).

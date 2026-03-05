@@ -169,6 +169,9 @@ Before handoff to remote posting:
 - If the branch is not based on the latest `origin/main` head commit, or
   changed paths include unrelated scope, require explicit user confirmation
   before any remote write.
+- If the PR introduces any `.github/workflows/*.yml` or `.agents/skills/*/SKILL.md`
+  file, confirm the map update is present in the diff before handoff. The
+  `doc-ref-check` CI step enforces this and will block merge if the map is stale.
 
 ---
 
