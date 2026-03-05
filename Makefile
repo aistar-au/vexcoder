@@ -285,7 +285,7 @@ fix: _require-taplo
 	taplo fmt
 	git add --renormalize .
 	@.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
-	git add -A
+	git add TASKS/completed/REPO-RAW-URL-MAP.md
 	@echo ""
 	@echo "fix: applied — run 'make gate' to verify"
 
