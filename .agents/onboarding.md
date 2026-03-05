@@ -19,13 +19,12 @@ Three rules apply before any task begins:
 
 ## 2. Skill architecture
 
-Three skills govern this repo. They are separated by execution boundary:
+Two skills govern this repo. They are separated by execution boundary:
 
 | Skill | Path | Scope |
 | :--- | :--- | :--- |
 | `vex-local-bash` | `.agents/skills/vex-local-bash/SKILL.md` | Local drafting only. PR motivation bodies, review text, inline comments. No remote writes. |
-| `vex-remote-contract` | `.agents/skills/vex-remote-contract/SKILL.md` | Batch dispatch, branch verification, raw URL checks, repo map gate, merge loop, and PR evidence collection. |
-| `pull-request` | `.agents/skills/pr-motivation-body/SKILL.md` | Remote PR posting and review submission via GitHub MCP. Source verification before asserting facts. |
+| `vex-remote-contract` | `.agents/skills/vex-remote-contract/SKILL.md` | Batch dispatch, branch verification, raw URL checks, repo map gate, merge loop, and remote PR posting via GitHub MCP. |
 
 And one reference document:
 
@@ -41,10 +40,9 @@ Load and read all of the following in full before producing any output:
 
 1. `.agents/skills/vex-local-bash/SKILL.md`
 2. `.agents/skills/vex-remote-contract/SKILL.md`
-3. `.agents/skills/pr-motivation-body/SKILL.md`
-4. `.agents/skills/vex-remote-contract/references/pr-remote-guardrails.md`
+3. `.agents/skills/vex-remote-contract/references/pr-remote-guardrails.md`
 
-Do not produce dispatch prompts, diffs, reviews, or PR bodies until all four
+Do not produce dispatch prompts, diffs, reviews, or PR bodies until all three
 files have been read completely.
 
 ---
@@ -61,7 +59,7 @@ Violating it causes unchecked writes or fact-free assertions.
 - Do not write to `/tmp` or any local path for PR body work.
 - Hand off final text to the remote posting step after explicit user approval.
 
-### Remote boundary (vex-remote-contract + pr-motivation-body)
+### Remote boundary (vex-remote-contract + pr-remote-guardrails)
 
 - All GitHub writes use GitHub MCP only.
 - Source-verify struct field names and subprocess routing claims against the
@@ -118,7 +116,6 @@ Violation of any of these is a hard stop requiring user intervention.
 - Every push must be verified: local HEAD SHA must equal `origin/<branch>` SHA
   (Hard Rule 10).
 - `vex-local-bash` never calls GitHub write APIs.
-- `pr-motivation-body` never writes to local files or `/tmp`.
 
 ---
 
@@ -136,9 +133,8 @@ Step 6   RAW CHECK   verify_raw_urls.sh --compare
 Step 7   DIFF CHECK  verify_diff_url.sh
 Step 8   CI GATE     clippy + rustfmt + tests
 Step 9   MAP GATE    update_repo_raw_url_map.sh --check
-Step 10  PR BODY     Draft via vex-local-bash; post via pr-motivation-body MCP
-Step 11  MERGE       merge --no-ff; verify SHAs; commit hygiene gate
-Step 12  POST-MERGE  Re-fetch raw map URL; verify files at merge commit SHA
+Step 10  PR+MERGE    Draft via vex-local-bash; post via vex-remote-contract MCP; merge --no-ff
+Step 11  POST-MERGE  Re-fetch raw map URL; verify files at merge commit SHA
 ```
 
 Full detail for each step is in `vex-remote-contract/SKILL.md`.
@@ -151,7 +147,6 @@ Required before the first batch action in any session:
 
 - [ ] `vex-local-bash/SKILL.md` loaded and read in full
 - [ ] `vex-remote-contract/SKILL.md` loaded and read in full
-- [ ] `pr-motivation-body/SKILL.md` loaded and read in full
 - [ ] `pr-remote-guardrails.md` loaded and read in full
 - [ ] Current `main` HEAD SHA confirmed via GitHub MCP
 - [ ] Relevant ADR fetched and read
@@ -165,8 +160,8 @@ Required before the first batch action in any session:
 These are read-only checks that verify policy compliance before any batch work.
 
 1. Fetch `vex-remote-contract/SKILL.md` and confirm Hard Rule 23 is present.
-2. Fetch `vex-local-bash/SKILL.md` and confirm the Local boundary section is
-   present and that the skill explicitly prohibits GitHub write API calls.
+2. Fetch `vex-local-bash/SKILL.md` and confirm the `Local boundary (required)`
+   section is present and that the skill explicitly prohibits GitHub write API calls.
 3. Fetch `pr-remote-guardrails.md` and confirm the Evidence rules section is
    present.
 4. Fetch `main` HEAD and report the current SHA and last commit message.
