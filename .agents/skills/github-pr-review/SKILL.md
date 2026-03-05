@@ -233,14 +233,18 @@ Before triaging review findings, verify the PR head branch exists on the remote.
 If `git ls-remote --exit-code origin <head-branch>` returns non-zero, or if the
 GitHub API reports the branch as deleted, pause all review actions and execute
 **Step 0.5 — Branch Recovery (Deleted Branch)** from `vex-remote-contract/SKILL.md`
-before continuing. Do not post any review outcomes until the head branch is restored
-and the recovered HEAD SHA is verified against `origin/<head-branch>`.
+before continuing. Follow the priority ladder in Step 0.5: present the Priority 1
+local CLI recovery script to the user first, wait for their verification output
+(both SHAs + VERIFIED line), and only fall back to MCP `push_files` (Priority 2)
+or `git apply` (Priority 3) if the user confirms local git access is unavailable.
+Do not post any review outcomes until the head branch is restored and the recovered
+HEAD SHA is verified against `origin/<head-branch>`.
 
 ```sh
 # Check remote branch existence before triage
 git fetch origin --prune
 git ls-remote --exit-code origin <head-branch> \
-  || echo "BRANCH MISSING — execute Step 0.5 before proceeding"
+  || echo "BRANCH MISSING — run Step 0.5 Priority 1 before proceeding"
 ```
 
 ### Resolution rules
@@ -340,4 +344,6 @@ Rules:
 - Do not skip `git apply --check --recount` before applying a patch.
 - Do not use non-diff editing methods for hunk-level changes.
 - Do not triage or post review outcomes when the PR head branch is deleted or missing.
-  Execute Step 0.5 branch recovery first and verify the restored HEAD before continuing.
+  Execute Step 0.5 branch recovery first (Priority 1 local CLI, then Priority 2 MCP
+  push_files, then Priority 3 git apply as absolute last resort) and verify the
+  restored HEAD before continuing.

@@ -108,85 +108,152 @@ Always report the head SHA used for verification.
 If a branch was deleted but its tip SHA is still reachable (dangling commit retained
 by GitHub for ~90 days, or known from a prior session), recover it before proceeding.
 
-### Push method decision: count KB, not lines
+### Recovery priority ladder
 
-| Condition | Method |
-| :--- | :--- |
-| Total payload of all changed files **< 50 KB** | MCP `push_files` — single call, all files batched |
-| Total payload **>= 50 KB** | `gh` CLI — `git cherry-pick` + `git push origin` |
+Use the highest-priority method available. Do not attempt a lower-priority method
+until the higher-priority path has been confirmed unavailable or has failed.
 
-A single large file (e.g. `Cargo.lock` at ~65 KB) can exceed the threshold alone.
-Never loop MCP `push_files` one file at a time regardless of size.
+| Priority | Method | Condition |
+| :--- | :--- | :--- |
+| 1 — lowest latency | Local `git`/`gh` CLI — cherry-pick + push | **Always try first.** Requires local git access. |
+| 2 | MCP `push_files` — single batched call | Local CLI unavailable **and** total payload < 50 KB. |
+| 3 — highest latency | `git apply` unified diff patch | Last resort. Never use when cherry-pick is viable. |
 
-### Recovery via `gh` CLI (required when total payload >= 50 KB)
+For payloads of ~2k lines across 15+ files, Priority 1 (local CLI) is the only
+practical option. Attempting MCP or `git apply` at that scale wastes significant
+round-trip time. Do not proceed to Priority 2 or 3 until the local path is
+confirmed unavailable or has explicitly failed.
 
-```sh
-TARGET=<branch-name>
-OLD_TIP=<full-sha>   # dangling commit SHA; from prior session, review, or reflog
+---
 
-# 1. Attach the dangling commit to a local recovery ref.
-#    If SHA is not local, fetch it first (works while GitHub retains it).
+### Priority 1 — Local CLI recovery (preferred)
+
+Present the following script to the user as a **paste-and-run terminal prompt**.
+Fill in `TARGET` and `OLD_TIP` from the session context, then ask the user to
+run it locally before any MCP action is attempted.
+
+```zsh
+#!/usr/bin/env zsh
+# Branch recovery from dangling commit.
+# Run from your repo root. Fill in TARGET and OLD_TIP before running.
+
+TARGET="dispatcher/adr-023-el-01-el-02-runtime-only"
+OLD_TIP="<full-sha>"   # dangling commit SHA from prior session or review
+
+set -euo pipefail
+
+# 1. Fetch the dangling commit object from the remote (works while GitHub retains it).
 git fetch origin "$OLD_TIP" 2>/dev/null || true
-git branch recover/temp "$OLD_TIP"
-
-# 2. Switch to target branch (create from origin if absent locally).
 git fetch origin --prune
+
+# 2. Create a local recovery ref pointing at the dangling commit.
+git branch -f recover/temp "$OLD_TIP"
+
+# 3. Switch to the target branch (creates a local tracking branch if absent).
 git checkout "$TARGET" 2>/dev/null \
   || git checkout -b "$TARGET" "origin/$TARGET"
 
-# 3. Identify commits on recovery ref missing from target.
-git log --oneline "$TARGET"..recover/temp
+# 4. Inspect what the recovery ref adds over the current target HEAD.
+echo "=== Commits to recover ==="
+git log --oneline "$TARGET..recover/temp"
 git cherry -v "$TARGET" recover/temp
 
-# 4. Cherry-pick selected commits.
+# 5. Cherry-pick the dangling commit(s) onto the target branch.
+#    Replace <sha> with the commit SHA(s) printed above.
 git cherry-pick <sha>
-# To collapse multiple commits into one:
-# git cherry-pick --no-commit <sha1> <sha2> <sha3>
-# git commit -m "Recover <description> from deleted branch"
+#
+# To collapse multiple commits into one squashed commit:
+#   git cherry-pick --no-commit <sha1> <sha2> <sha3> && \
+#   git commit -m "Recover <description> from deleted branch"
 
-# 5. Push.
+# 6. Push the restored branch.
 git push origin "$TARGET"
 
-# 6. Verify push landed (Hard Rule 10).
+# 7. Verify push landed (Hard Rule 10).
 git fetch origin --prune
-test "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$TARGET")"
+LOCAL_SHA="$(git rev-parse HEAD)"
+REMOTE_SHA="$(git rev-parse "origin/$TARGET")"
+echo "Local : $LOCAL_SHA"
+echo "Remote: $REMOTE_SHA"
+test "$LOCAL_SHA" = "$REMOTE_SHA" \
+  && echo "VERIFIED - SHAs match" \
+  || { echo "MISMATCH - do not proceed"; exit 1; }
 
-# 7. Clean up.
+# 8. Clean up recovery ref.
 git branch -D recover/temp
 ```
 
-If the SHA is not present locally but the remote still retains the dangling object:
+**Verification checkpoint — required before any MCP fallback**
+
+After presenting the script above, pause and ask the user to confirm:
+
+> _"Please run the recovery script above in your local terminal and paste the step 7
+> output (both SHAs and the VERIFIED or MISMATCH line). I will not attempt MCP
+> push_files until you confirm the local path has been tried."_
+
+Do not proceed to Priority 2 or 3 until the user either:
+
+- (a) pastes the step 7 verification output showing a mismatch or a run error, or
+- (b) explicitly states that local git access is unavailable in their environment.
+
+This checkpoint is mandatory when the payload is ~2k lines or 15+ files.
+
+---
+
+### Priority 2 — MCP `push_files` (< 50 KB total payload only)
+
+Use only after the Priority 1 verification checkpoint is satisfied and total file
+payload is confirmed below 50 KB.
+
+A single large file (e.g. `Cargo.lock` at ~65 KB) can exceed the threshold alone.
+Sum the `size` field on every blob returned before committing to this path.
+
+1. Recreate the branch from main with `github:create_branch` if absent on remote.
+2. Sum blob `size` fields for all changed files. If the total is >= 50 KB, stop —
+   escalate to local CLI access (Priority 1). Do not use this path.
+3. Push **all files in a single `github:push_files` call** — never loop one file per call.
+4. Confirm the restored HEAD SHA by re-fetching at least one key blob and comparing.
+
+---
+
+### Priority 3 — `git apply` unified diff patch (last resort)
+
+Use only when Priority 1 and Priority 2 are both confirmed unavailable. This method
+has the highest per-file latency because each changed file must be expressed as a
+unified diff hunk and applied via `git apply` separately.
+
+For payloads exceeding ~10 files or ~500 lines the cumulative round-trip cost is
+prohibitive. Escalate to local CLI access instead of proceeding here.
+
+Follow the **Patch Hunk Standard** at the top of this skill exactly:
 
 ```sh
-git fetch origin <full-sha>
-git branch recover/temp FETCH_HEAD
-# then continue from step 2
+cat > /tmp/<n>.patch <<'PATCH'
+<exact unified diff>
+PATCH
+
+git apply --check --recount /tmp/<n>.patch
+git apply --recount /tmp/<n>.patch
 ```
 
-### Verification report (required after recovery push)
+Never use `git apply` to recover large dangling commits (~2k lines, 15+ files).
 
-Include these fields in the follow-up report:
+---
+
+### Verification report (required after recovery push via any method)
 
 ```markdown
 **Repo:** `<owner/repo>`
 **Target branch:** `<branch-name>`
 **Recovered commit SHA(s):** `<sha>`
+**Recovery method used:** Priority <1 | 2 | 3>
 **Local HEAD SHA:** `<sha>`
 **origin/<branch> SHA:** `<sha>`
 **Verification:** match
 ```
 
-If local HEAD and origin SHA do not match, stop and report mismatch — do not proceed to PR creation.
-
-### Recovery via MCP `push_files` (small payloads only, < 50 KB total)
-
-When file content was already fetched from the dangling commit via `github:get_file_contents`
-and the total payload of all changed files is confirmed < 50 KB:
-
-1. Recreate the branch from main with `github:create_branch`.
-2. Sum the `size` field on every blob returned. If >= 50 KB, switch to the `gh` CLI path.
-3. Push **all files in a single `github:push_files` call** — never loop one file per call.
-4. Confirm the restored HEAD SHA by re-fetching at least one key blob and comparing.
+If local HEAD and origin SHA do not match, stop and report mismatch — do not
+proceed to PR creation.
 
 ---
 
