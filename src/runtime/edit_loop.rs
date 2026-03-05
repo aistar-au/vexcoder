@@ -144,7 +144,11 @@ mod tests {
         let cancel = CancellationToken::new();
 
         let outcome = edit_loop
-            .run("edit src/runtime/edit_loop.rs".to_string(), &mut ctx, &cancel)
+            .run(
+                "edit src/runtime/edit_loop.rs".to_string(),
+                &mut ctx,
+                &cancel,
+            )
             .await
             .expect("run should succeed");
 
@@ -159,7 +163,11 @@ mod tests {
         cancel.cancel();
 
         let outcome = edit_loop
-            .run("edit src/runtime/edit_loop.rs".to_string(), &mut ctx, &cancel)
+            .run(
+                "edit src/runtime/edit_loop.rs".to_string(),
+                &mut ctx,
+                &cancel,
+            )
             .await
             .expect("run should succeed");
 
@@ -185,19 +193,15 @@ mod tests {
             ],
         );
 
-        let clean = EditLoop::check_workspace_dirty(
-            workspace.path(),
-            &[PathBuf::from("tracked.txt")],
-        )
-        .expect("clean check");
+        let clean =
+            EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("tracked.txt")])
+                .expect("clean check");
         assert!(!clean, "workspace should be clean after commit");
 
         fs::write(workspace.path().join("tracked.txt"), "v2\n").expect("mutate file");
-        let dirty = EditLoop::check_workspace_dirty(
-            workspace.path(),
-            &[PathBuf::from("tracked.txt")],
-        )
-        .expect("dirty check");
+        let dirty =
+            EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("tracked.txt")])
+                .expect("dirty check");
         assert!(dirty, "workspace should be dirty after tracked file change");
     }
 
