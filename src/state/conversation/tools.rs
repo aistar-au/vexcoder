@@ -255,7 +255,7 @@ pub(super) fn execute_tool_dispatch(
                 .map(|m| {
                     format!(
                         "{}:{}: {}",
-                        tool_operator.relative_path_display(&m.file),
+                        tool_operator.to_workspace_relative_display(&m.file),
                         m.line_number,
                         m.line_text
                     )
@@ -268,7 +268,7 @@ pub(super) fn execute_tool_dispatch(
             let files = tool_operator.find_files(name_glob)?;
             Ok(files
                 .iter()
-                .map(|p| tool_operator.relative_path_display(p))
+                .map(|p| tool_operator.to_workspace_relative_display(p))
                 .collect::<Vec<_>>()
                 .join("\n"))
         }

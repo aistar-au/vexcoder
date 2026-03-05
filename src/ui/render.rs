@@ -168,15 +168,33 @@ fn format_history_row_segment(
     ])
 }
 
-fn history_row_style(row: &str) -> Style {
-    if row.starts_with('+') && !row.starts_with("+++") {
-        Style::default().fg(Color::Green)
-    } else if row.starts_with('-') && !row.starts_with("---") {
-        Style::default().fg(Color::Red)
-    } else if row.starts_with("@@") || row.starts_with("diff --git") || row.starts_with("index ") {
-        Style::default().fg(Color::Cyan)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DiffLineKind {
+    Added,
+    Removed,
+    Header,
+    Other,
+}
+
+fn classify_diff_line(line: &str) -> DiffLineKind {
+    if line.starts_with('+') && !line.starts_with("+++") {
+        DiffLineKind::Added
+    } else if line.starts_with('-') && !line.starts_with("---") {
+        DiffLineKind::Removed
+    } else if line.starts_with("@@") || line.starts_with("diff --git") || line.starts_with("index ")
+    {
+        DiffLineKind::Header
     } else {
-        Style::default().fg(Color::White)
+        DiffLineKind::Other
+    }
+}
+
+fn history_row_style(row: &str) -> Style {
+    match classify_diff_line(row) {
+        DiffLineKind::Added => Style::default().fg(Color::Green),
+        DiffLineKind::Removed => Style::default().fg(Color::Red),
+        DiffLineKind::Header => Style::default().fg(Color::Cyan),
+        DiffLineKind::Other => Style::default().fg(Color::White),
     }
 }
 
@@ -385,15 +403,13 @@ fn modal_content(
 }
 
 fn styled_diff_line(line: &str) -> Line<'static> {
-    if line.starts_with('+') && !line.starts_with("+++") {
-        Line::styled(line.to_string(), Style::default().fg(Color::Green))
-    } else if line.starts_with('-') && !line.starts_with("---") {
-        Line::styled(line.to_string(), Style::default().fg(Color::Red))
-    } else if line.starts_with("@@") {
-        Line::styled(line.to_string(), Style::default().fg(Color::Cyan))
-    } else {
-        Line::styled(line.to_string(), Style::default().fg(Color::Gray))
-    }
+    let style = match classify_diff_line(line) {
+        DiffLineKind::Added => Style::default().fg(Color::Green),
+        DiffLineKind::Removed => Style::default().fg(Color::Red),
+        DiffLineKind::Header => Style::default().fg(Color::Cyan),
+        DiffLineKind::Other => Style::default().fg(Color::Gray),
+    };
+    Line::styled(line.to_string(), style)
 }
 
 fn centered_modal_area(size: Rect, preferred_height: u16) -> Rect {
@@ -501,6 +517,13 @@ mod tests {
         assert_eq!(history_row_style("-del").fg, Some(Color::Red));
         assert_eq!(history_row_style("@@ -1 +1 @@").fg, Some(Color::Cyan));
         assert_eq!(history_row_style("plain text").fg, Some(Color::White));
+    }
+
+    #[test]
+    fn classify_diff_line_keeps_header_markers_consistent() {
+        assert_eq!(classify_diff_line("diff --git a b"), DiffLineKind::Header);
+        assert_eq!(classify_diff_line("index 123..456"), DiffLineKind::Header);
+        assert_eq!(classify_diff_line("@@ -1 +1 @@"), DiffLineKind::Header);
     }
 
     #[test]

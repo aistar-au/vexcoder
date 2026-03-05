@@ -39,6 +39,30 @@ pub struct FileApprovalPolicy {
     rules: HashMap<Capability, PolicyAction>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PolicyConfig {
+    #[serde(default)]
+    capabilities: CapabilityTable,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapabilityTable {
+    #[serde(default, rename = "ReadFile", alias = "read_file")]
+    read_file: Option<String>,
+    #[serde(default, rename = "WriteFile", alias = "write_file")]
+    write_file: Option<String>,
+    #[serde(default, rename = "ApplyPatch", alias = "apply_patch")]
+    apply_patch: Option<String>,
+    #[serde(default, rename = "RunCommand", alias = "run_command")]
+    run_command: Option<String>,
+    #[serde(default, rename = "Network", alias = "network")]
+    network: Option<String>,
+    #[serde(default, rename = "Browser", alias = "browser")]
+    browser: Option<String>,
+}
+
 impl FileApprovalPolicy {
     fn default_rules() -> HashMap<Capability, PolicyAction> {
         let mut rules = HashMap::new();
@@ -98,55 +122,36 @@ impl ApprovalPolicy for FileApprovalPolicy {
     fn load_from_file(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read policy file: {}", path.display()))?;
+        let config = toml::from_str::<PolicyConfig>(&content)
+            .with_context(|| format!("Failed to parse policy TOML: {}", path.display()))?;
 
-        let mut rules = HashMap::new();
-
-        // Simple TOML-like parsing for capability rules
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-
-            if let Some((key, value)) = line.split_once('=') {
-                let key = key.trim();
-                let value = value.trim().trim_matches('"').trim_matches('\'');
-
-                let capability = match key {
-                    "ReadFile" | "read_file" => Some(Capability::ReadFile),
-                    "WriteFile" | "write_file" => Some(Capability::WriteFile),
-                    "ApplyPatch" | "apply_patch" => Some(Capability::ApplyPatch),
-                    "RunCommand" | "run_command" => Some(Capability::RunCommand),
-                    "Network" | "network" => Some(Capability::Network),
-                    "Browser" | "browser" => Some(Capability::Browser),
-                    _ => None,
-                };
-
-                if let Some(cap) = capability {
-                    if let Some(action) = Self::parse_toml_value(value) {
-                        rules.insert(cap, action);
-                    }
-                }
-            }
-        }
-
-        // Fill in defaults for unspecified capabilities
-        rules
-            .entry(Capability::ReadFile)
-            .or_insert(PolicyAction::Allow);
-        for cap in [
-            Capability::WriteFile,
-            Capability::ApplyPatch,
-            Capability::RunCommand,
-            Capability::Network,
-            Capability::Browser,
+        let mut policy = Self::default();
+        for (capability, maybe_value) in [
+            (
+                Capability::ReadFile,
+                config.capabilities.read_file.as_deref(),
+            ),
+            (
+                Capability::WriteFile,
+                config.capabilities.write_file.as_deref(),
+            ),
+            (
+                Capability::ApplyPatch,
+                config.capabilities.apply_patch.as_deref(),
+            ),
+            (
+                Capability::RunCommand,
+                config.capabilities.run_command.as_deref(),
+            ),
+            (Capability::Network, config.capabilities.network.as_deref()),
+            (Capability::Browser, config.capabilities.browser.as_deref()),
         ] {
-            rules
-                .entry(cap)
-                .or_insert(PolicyAction::Prompt(ApprovalScope::Once));
+            if let Some(action) = maybe_value.and_then(Self::parse_toml_value) {
+                policy.rules.insert(capability, action);
+            }
         }
 
-        Ok(Self { rules })
+        Ok(policy)
     }
 }
 
@@ -157,7 +162,14 @@ pub fn load_policy_from_env() -> FileApprovalPolicy {
 
     let path = Path::new(&policy_path);
     if path.exists() {
-        FileApprovalPolicy::load_from_file(path).unwrap_or_else(|_| FileApprovalPolicy::default())
+        match FileApprovalPolicy::load_from_file(path) {
+            Ok(policy) => policy,
+            Err(err) => {
+                eprintln!("[policy] failed to load {}: {err:#}", path.display());
+                eprintln!("[policy] using default policy");
+                FileApprovalPolicy::default()
+            }
+        }
     } else {
         FileApprovalPolicy::default()
     }
@@ -166,6 +178,7 @@ pub fn load_policy_from_env() -> FileApprovalPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn test_approval_policy_read_file_auto_allows_without_prompt() {
@@ -207,6 +220,48 @@ mod tests {
         assert_eq!(
             FileApprovalPolicy::parse_toml_value("session"),
             Some(PolicyAction::Prompt(ApprovalScope::Session))
+        );
+    }
+
+    #[test]
+    fn test_load_from_file_parses_single_quoted_toml_values() {
+        let workspace = tempfile::tempdir().expect("tempdir");
+        let policy_path = workspace.path().join("policy.toml");
+        fs::write(
+            &policy_path,
+            "[capabilities]\nReadFile = 'allow'\nWriteFile = 'task'\nNetwork = 'deny'\n",
+        )
+        .expect("write policy");
+
+        let policy = FileApprovalPolicy::load_from_file(&policy_path).expect("load policy");
+        assert!(matches!(
+            policy.evaluate(Capability::ReadFile),
+            PolicyAction::Allow
+        ));
+        assert!(matches!(
+            policy.evaluate(Capability::WriteFile),
+            PolicyAction::Prompt(ApprovalScope::Task)
+        ));
+        assert!(matches!(
+            policy.evaluate(Capability::Network),
+            PolicyAction::Deny
+        ));
+        assert!(matches!(
+            policy.evaluate(Capability::ApplyPatch),
+            PolicyAction::Prompt(ApprovalScope::Once)
+        ));
+    }
+
+    #[test]
+    fn test_load_from_file_rejects_non_conformant_top_level_capability_keys() {
+        let workspace = tempfile::tempdir().expect("tempdir");
+        let policy_path = workspace.path().join("policy.toml");
+        fs::write(&policy_path, "ReadFile = 'allow'\n").expect("write policy");
+
+        let err = FileApprovalPolicy::load_from_file(&policy_path).expect_err("must fail");
+        assert!(
+            err.to_string().contains("Failed to parse policy TOML"),
+            "expected parse failure, got: {err:#}"
         );
     }
 }

@@ -16,15 +16,17 @@ RUNTIME_POLICY_PATTERNS=(
 )
 
 FAIL=0
+APP_TARGET="src/app.rs"
+STATE_TARGET="src/state/"
 for pattern in "${PATTERNS[@]}"; do
-    if grep -rn "$pattern" src/app/; then
-        echo "FAIL: forbidden pattern '$pattern' found in src/app/"
+    if grep -rn "$pattern" "$APP_TARGET"; then
+        echo "FAIL: forbidden pattern '$pattern' found in $APP_TARGET"
         FAIL=1
     fi
 done
 
 for pattern in "${RUNTIME_POLICY_PATTERNS[@]}"; do
-    if grep -rn "$pattern" src/app/ src/state/; then
+    if grep -rn "$pattern" "$APP_TARGET" "$STATE_TARGET"; then
         echo "FAIL: runtime policy duplicate '$pattern' found outside src/runtime/policy.rs"
         FAIL=1
     fi

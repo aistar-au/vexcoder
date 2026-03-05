@@ -32,6 +32,13 @@ struct PendingPatchApproval {
     response_tx: Option<tokio::sync::oneshot::Sender<bool>>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ApprovalSelection {
+    ApproveOnce,
+    ApproveSession,
+    Deny,
+}
+
 const DEFAULT_MAX_HISTORY_LINES: usize = 2000;
 const MAX_HISTORY_LINES_ENV: &str = "VEX_MAX_HISTORY_LINES";
 const HISTORY_CONTENT_WIDTH_FALLBACK: usize = usize::MAX;
@@ -232,28 +239,27 @@ impl TuiMode {
     }
 
     fn handle_approval_input(&mut self, input: &str) {
-        let normalized = input.trim().to_lowercase();
         let context = self
             .overlay_state
             .pending_approval
             .as_ref()
             .map(|p| summarize_tool_approval_context(&p.tool_name, &p.input_preview))
             .unwrap_or_else(|| "unknown".to_string());
-        match normalized.as_str() {
-            "1" | "y" | "yes" => {
+        match parse_approval_selection(input) {
+            Some(ApprovalSelection::ApproveOnce) => {
                 self.push_history_line(format!("[tool approval accepted once: {context}]"));
                 self.resolve_pending_approval(true);
             }
-            "2" | "a" | "always" => {
+            Some(ApprovalSelection::ApproveSession) => {
                 self.overlay_state.auto_approve_session = true;
                 self.push_history_line(format!("[tool approval enabled for session: {context}]"));
                 self.resolve_pending_approval(true);
             }
-            "3" | "n" | "no" | "esc" => {
+            Some(ApprovalSelection::Deny) => {
                 self.push_history_line(format!("[tool approval denied: {context}]"));
                 self.resolve_pending_approval(false);
             }
-            _ => {
+            None => {
                 self.push_history_line("[invalid selection, expected 1/2/3]".to_string());
             }
         }
@@ -301,11 +307,10 @@ impl TuiMode {
             return;
         }
 
-        let normalized = input.trim().to_lowercase();
-        match normalized.as_str() {
-            "1" | "y" | "yes" => self.resolve_pending_patch_approval(true),
-            "3" | "n" | "no" | "esc" => self.resolve_pending_patch_approval(false),
-            _ => {}
+        match parse_approval_selection(input) {
+            Some(ApprovalSelection::ApproveOnce) => self.resolve_pending_patch_approval(true),
+            Some(ApprovalSelection::Deny) => self.resolve_pending_patch_approval(false),
+            Some(ApprovalSelection::ApproveSession) | None => {}
         }
     }
 
@@ -678,6 +683,16 @@ fn summarize_tool_approval_context(tool_name: &str, input_preview: &str) -> Stri
     }
 }
 
+fn parse_approval_selection(input: &str) -> Option<ApprovalSelection> {
+    let normalized = input.trim().to_lowercase();
+    match normalized.as_str() {
+        "1" | "y" | "yes" => Some(ApprovalSelection::ApproveOnce),
+        "2" | "a" | "always" => Some(ApprovalSelection::ApproveSession),
+        "3" | "n" | "no" | "esc" => Some(ApprovalSelection::Deny),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 fn overlay_event_to_user_input(event: Event) -> Option<UserInputEvent> {
     match event {
@@ -814,6 +829,32 @@ mod tests {
             Some(UserInputEvent::Text(value)) => assert_eq!(value, "esc"),
             _ => panic!("overlay Esc must route to modal deny action"),
         }
+    }
+
+    #[test]
+    fn approval_selection_parser_handles_shared_overlay_inputs() {
+        assert_eq!(
+            parse_approval_selection("1"),
+            Some(ApprovalSelection::ApproveOnce)
+        );
+        assert_eq!(
+            parse_approval_selection("yes"),
+            Some(ApprovalSelection::ApproveOnce)
+        );
+        assert_eq!(
+            parse_approval_selection("2"),
+            Some(ApprovalSelection::ApproveSession)
+        );
+        assert_eq!(
+            parse_approval_selection("always"),
+            Some(ApprovalSelection::ApproveSession)
+        );
+        assert_eq!(parse_approval_selection("3"), Some(ApprovalSelection::Deny));
+        assert_eq!(
+            parse_approval_selection("esc"),
+            Some(ApprovalSelection::Deny)
+        );
+        assert_eq!(parse_approval_selection("later"), None);
     }
 
     #[test]

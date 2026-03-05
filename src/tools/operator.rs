@@ -1,4 +1,4 @@
-use aho_corasick::AhoCorasickBuilder;
+use aho_corasick::{AhoCorasick, AhoCorasickBuilder};
 use anyhow::{bail, Context, Result};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -401,61 +401,26 @@ impl ToolOperator {
         }
     }
 
-    fn to_workspace_relative_display(&self, path: &Path) -> String {
+    pub fn to_workspace_relative_display(&self, path: &Path) -> String {
         path.strip_prefix(&self.working_dir)
             .map(|relative| relative.to_string_lossy().to_string())
             .unwrap_or_else(|_| path.to_string_lossy().to_string())
     }
 
-    pub fn relative_path_display(&self, path: &Path) -> String {
-        self.to_workspace_relative_display(path)
+    pub fn working_dir(&self) -> &Path {
+        &self.working_dir
     }
 
     fn search_literal(&self, query: &str, root: &Path, max_results: usize) -> Result<String> {
         let mut results = Vec::new();
-        let mut stack = vec![root.to_path_buf()];
-        let case_sensitive = query.chars().any(char::is_uppercase);
-        let matcher = AhoCorasickBuilder::new()
-            .ascii_case_insensitive(!case_sensitive)
-            .build([query])
-            .context("Failed to build literal search matcher")?;
-        let unicode_case_folded_query = if !case_sensitive && !query.is_ascii() {
-            Some(query.to_lowercase())
-        } else {
-            None
-        };
-
-        while let Some(path) = stack.pop() {
-            if self.ensure_path_is_within_workspace(&path).is_err() {
-                continue;
-            }
-
-            if path.is_dir() {
-                let mut entries_in_dir: Vec<_> = fs::read_dir(&path)
-                    .with_context(|| format!("Failed to read directory {}", path.display()))?
-                    .collect::<std::result::Result<Vec<_>, _>>()
-                    .with_context(|| format!("Failed to list entries in {}", path.display()))?;
-                entries_in_dir.sort_by_key(|entry| entry.path());
-                for entry in entries_in_dir {
-                    let entry_path = entry.path();
-                    if self.ensure_path_is_within_workspace(&entry_path).is_ok() {
-                        stack.push(entry_path);
-                    }
-                }
-                continue;
-            }
-
+        let (matcher, unicode_case_folded_query) = build_line_matcher(query)?;
+        for path in self.walk_workspace_files(root)? {
             let Ok(content) = fs::read_to_string(&path) else {
                 continue;
             };
 
             for (idx, line) in content.lines().enumerate() {
-                let is_match = if let Some(case_folded_query) = &unicode_case_folded_query {
-                    line.to_lowercase().contains(case_folded_query)
-                } else {
-                    matcher.is_match(line)
-                };
-                if is_match {
+                if line_matches_literal_query(line, &matcher, &unicode_case_folded_query) {
                     results.push(format!(
                         "{}:{}:{}",
                         self.to_workspace_relative_display(&path),
@@ -485,38 +450,9 @@ impl ToolOperator {
         let glob_pattern = path_glob.and_then(non_empty_trimmed);
 
         let mut matches = Vec::new();
-        let mut stack = vec![self.working_dir.clone()];
-        let case_sensitive = query.chars().any(char::is_uppercase);
-        let matcher = AhoCorasickBuilder::new()
-            .ascii_case_insensitive(!case_sensitive)
-            .build([query])
-            .context("Failed to build literal search matcher")?;
-        let unicode_case_folded_query = if !case_sensitive && !query.is_ascii() {
-            Some(query.to_lowercase())
-        } else {
-            None
-        };
+        let (matcher, unicode_case_folded_query) = build_line_matcher(query)?;
 
-        while let Some(path) = stack.pop() {
-            if self.ensure_path_is_within_workspace(&path).is_err() {
-                continue;
-            }
-
-            if path.is_dir() {
-                let Ok(dir_entries_iter) = fs::read_dir(&path) else {
-                    continue;
-                };
-                let mut entries_in_dir: Vec<_> = dir_entries_iter.filter_map(|e| e.ok()).collect();
-                entries_in_dir.sort_by_key(|entry| entry.path());
-                for entry in entries_in_dir {
-                    let entry_path = entry.path();
-                    if self.ensure_path_is_within_workspace(&entry_path).is_ok() {
-                        stack.push(entry_path);
-                    }
-                }
-                continue;
-            }
-
+        for path in self.walk_workspace_files(&self.working_dir)? {
             let relative = path
                 .strip_prefix(&self.working_dir)
                 .unwrap_or_else(|_| Path::new(""));
@@ -532,12 +468,7 @@ impl ToolOperator {
             };
 
             for (idx, line) in content.lines().enumerate() {
-                let is_match = if let Some(case_folded_query) = &unicode_case_folded_query {
-                    line.to_lowercase().contains(case_folded_query)
-                } else {
-                    matcher.is_match(line)
-                };
-                if is_match {
+                if line_matches_literal_query(line, &matcher, &unicode_case_folded_query) {
                     matches.push(SearchMatch {
                         file: path.clone(),
                         line_number: idx + 1,
@@ -562,26 +493,7 @@ impl ToolOperator {
             .context("find_files requires a non-empty 'name_glob' field")?;
 
         let mut results = Vec::new();
-        let mut stack = vec![self.working_dir.clone()];
-
-        while let Some(path) = stack.pop() {
-            if self.ensure_path_is_within_workspace(&path).is_err() {
-                continue;
-            }
-
-            if path.is_dir() {
-                let Ok(dir_entries_iter) = fs::read_dir(&path) else {
-                    continue;
-                };
-                for entry in dir_entries_iter.filter_map(|e| e.ok()) {
-                    let entry_path = entry.path();
-                    if self.ensure_path_is_within_workspace(&entry_path).is_ok() {
-                        stack.push(entry_path);
-                    }
-                }
-                continue;
-            }
-
+        for path in self.walk_workspace_files(&self.working_dir)? {
             let relative = path
                 .strip_prefix(&self.working_dir)
                 .unwrap_or_else(|_| Path::new(""));
@@ -594,6 +506,36 @@ impl ToolOperator {
         results.sort();
         Ok(results)
     }
+
+    fn walk_workspace_files(&self, root: &Path) -> Result<Vec<PathBuf>> {
+        let mut files = Vec::new();
+        let mut stack = vec![root.to_path_buf()];
+
+        while let Some(path) = stack.pop() {
+            if self.ensure_path_is_within_workspace(&path).is_err() {
+                continue;
+            }
+
+            if path.is_dir() {
+                let mut entries_in_dir: Vec<_> = fs::read_dir(&path)
+                    .with_context(|| format!("Failed to read directory {}", path.display()))?
+                    .collect::<std::result::Result<Vec<_>, _>>()
+                    .with_context(|| format!("Failed to list entries in {}", path.display()))?;
+                entries_in_dir.sort_by_key(|entry| entry.path());
+                for entry in entries_in_dir {
+                    let entry_path = entry.path();
+                    if self.ensure_path_is_within_workspace(&entry_path).is_ok() {
+                        stack.push(entry_path);
+                    }
+                }
+                continue;
+            }
+
+            files.push(path);
+        }
+
+        Ok(files)
+    }
 }
 
 fn non_empty_trimmed(value: &str) -> Option<&str> {
@@ -602,6 +544,32 @@ fn non_empty_trimmed(value: &str) -> Option<&str> {
         None
     } else {
         Some(trimmed)
+    }
+}
+
+fn build_line_matcher(query: &str) -> Result<(AhoCorasick, Option<String>)> {
+    let case_sensitive = query.chars().any(char::is_uppercase);
+    let matcher = AhoCorasickBuilder::new()
+        .ascii_case_insensitive(!case_sensitive)
+        .build([query])
+        .context("Failed to build literal search matcher")?;
+    let unicode_case_folded_query = if !case_sensitive && !query.is_ascii() {
+        Some(query.to_lowercase())
+    } else {
+        None
+    };
+    Ok((matcher, unicode_case_folded_query))
+}
+
+fn line_matches_literal_query(
+    line: &str,
+    matcher: &AhoCorasick,
+    unicode_case_folded_query: &Option<String>,
+) -> bool {
+    if let Some(case_folded_query) = unicode_case_folded_query {
+        line.to_lowercase().contains(case_folded_query)
+    } else {
+        matcher.is_match(line)
     }
 }
 
