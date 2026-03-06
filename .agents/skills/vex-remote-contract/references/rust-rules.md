@@ -2,12 +2,11 @@
 
 This is a repo-local pinned reference for Rust implementation guidance.
 
-## Source pin
+## Local maintenance
 
-- Upstream repo: `https://github.com/leonardomso/rust-skills`
-- Upstream file: `SKILL.md`
-- Upstream commit used for pin: `0373001db0b774a84a691847bc2d248186063f39`
-- Declared license upstream: MIT
+- This file is maintained locally as part of the vexcoder agent skill set.
+- Rules are updated by explicit dispatcher-authored patches only.
+- Do not fetch or merge upstream content automatically.
 
 ## Local usage contract
 
@@ -33,6 +32,5 @@ This is a repo-local pinned reference for Rust implementation guidance.
 
 ## Refresh procedure
 
-1. Fetch upstream file at a pinned commit.
-2. Update this file by exact diff.
-3. Run map update and include generated map changes in the same PR.
+1. Update this file by exact diff authored in a dispatcher-owned branch.
+2. Run map update and include generated map changes in the same PR.

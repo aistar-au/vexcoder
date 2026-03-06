@@ -23,4 +23,4 @@ and `.github/workflows/update-roadmaps.yml`.
 
 - The `AUTO` blocks are generated and synchronized by `scripts/update_active_roadmaps.py`.
 - Do not edit the `AUTO` blocks manually.
-- Edit ADR source files under `TASKS/ADR-*.md`; the sync workflow raises a PR with updates.
+- Edit ADR source files under `TASKS/ADR-*.md`; dispatcher-owned branches must carry any generated sync diff before merge. The sync workflow validates and reports drift only.

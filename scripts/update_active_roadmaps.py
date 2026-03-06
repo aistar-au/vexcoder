@@ -9,10 +9,15 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 TASKS_DIR = ROOT / "TASKS"
 
-ACTIVE_ADR_IDS = ("ADR-022", "ADR-023", "ADR-024")
+CANONICAL_ADR_FILES = {
+    "ADR-022": "ADR-022-free-open-coding-agent-roadmap.md",
+    "ADR-023": "ADR-023-deterministic-edit-loop.md",
+    "ADR-024": "ADR-024-zero-licensing-cost-agent-parity-gaps.md",
+}
+AMENDMENT_FILES = {"ADR-022": "ADR-022-amendment-2026-03-03.md"}
 
 NOTES = {
-    "ADR-022": "2026-03-03 amendment must be locked before Phases G-H begin.",
+    "ADR-022": "2026-03-03 amendment constrains first-milestone scope and later-surface sequencing.",
     "ADR-023": "Deterministic edit loop implementation track.",
     "ADR-024": "Parity-gap roadmap; source of gap sequencing and constraints.",
 }
@@ -27,29 +32,50 @@ class AdrInfo:
     note: str
 
 
-def _find_adr_file(adr_id: str) -> Path:
-    matches = sorted(TASKS_DIR.glob(f"{adr_id}-*.md"))
-    if not matches:
-        raise FileNotFoundError(f"Missing ADR file for {adr_id}")
-    return matches[0]
+def _canonical_adr_path(adr_id: str) -> Path:
+    path = TASKS_DIR / CANONICAL_ADR_FILES[adr_id]
+    if not path.exists():
+        raise FileNotFoundError(f"Missing ADR file for {adr_id}: {path}")
+    return path
+
+
+def _amendment_path(adr_id: str) -> Path | None:
+    name = AMENDMENT_FILES.get(adr_id)
+    if name is None:
+        return None
+    path = TASKS_DIR / name
+    return path if path.exists() else None
+
+
+def _parse_status(text: str) -> str | None:
+    for line in text.splitlines():
+        stripped = line.strip()
+        for prefix in (
+            "**Status:**",
+            "Status:",
+            "**Amendment status:**",
+            "Amendment status:",
+        ):
+            if stripped.startswith(prefix):
+                return stripped[len(prefix) :].strip()
+    return None
 
 
 def _parse_adr(adr_id: str) -> AdrInfo:
-    path = _find_adr_file(adr_id)
+    path = _canonical_adr_path(adr_id)
     text = path.read_text(encoding="utf-8")
     title = path.stem
-    status = "Unknown"
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("# "):
             title = stripped[2:].strip()
-            continue
-        if stripped.startswith("**Status:**"):
-            status = stripped[len("**Status:**") :].strip()
             break
-        if stripped.startswith("Status:"):
-            status = stripped[len("Status:") :].strip()
-            break
+    status = _parse_status(text) or "Unknown"
+    amendment = _amendment_path(adr_id)
+    if amendment is not None:
+        amendment_status = _parse_status(amendment.read_text(encoding="utf-8"))
+        if amendment_status:
+            status = f"{amendment_status} (amendment)"
     return AdrInfo(
         adr_id=adr_id,
         path=path,
@@ -102,7 +128,7 @@ def _render_summary(rows: list[AdrInfo]) -> str:
 
 
 def main() -> int:
-    rows = [_parse_adr(adr_id) for adr_id in ACTIVE_ADR_IDS]
+    rows = [_parse_adr(adr_id) for adr_id in CANONICAL_ADR_FILES]
 
     active_file = ROOT / "TASKS/ACTIVE-ROADMAP.md"
     onboarding_file = ROOT / ".agents/onboarding.md"
