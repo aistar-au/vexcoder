@@ -920,16 +920,35 @@ git commit -m "Add branch contract skill scripts"
     `uses:` line and replace the step with a fail-on-drift report step.
 32. **Multi-model commit review gate required before any push of Rust source** —
     before any `git push` or MCP push that includes changes to `src/` or
-    `tests/`, run the vexdraft commit-debug gate locally:
+    `tests/`, run the vexdraft commit-debug gate through the orchestrator so
+    the managed virtualenv, default key file, target repo, and archive root
+    stay aligned:
     ```sh
-    python3 ~/git-repo/vexdraft/scripts/commit-debug.py \
-      --diff-ref origin/main..HEAD \
-      --api-keys-file ~/git-repo/vexdraft/config/api_keys.txt \
-      --repo-root ~/git-repo/vexcoder
+    ~/git-repo/vexdraft/main-script.sh commit-debug --diff-ref origin/main..HEAD
     ```
-    Exit 0 (no blocking findings) is required to proceed. If the gate
-    auto-applies patches, run `cargo fmt --check` and re-verify before
-    incorporating the patched files into the commit. Exit 1 (unresolved
-    findings) is a hard stop. Exit 2 (all API calls failed) may be skipped
-    with explicit user approval and a `Commit Debug Exception` record in the
-    batch report.
+    Treat the printed `Summary:` path as the handoff artifact for dispatcher
+    verification and push decisions. Read the corresponding
+    `dispatcher-summary.json` instead of parsing stdout.
+    Exit 0 is required only when `dispatcher-summary.json` reports
+    `status: ready_to_push` or `status: no_diff`. Exit 1 means local follow-up
+    is still required, including reruns after in-place auto-patches. Exit 2
+    means reliable handoff was not achieved, including zero successful
+    providers or fewer than the required distinct providers; it may be skipped
+    only with explicit user approval and a `Commit Debug Exception` record in
+    the batch report.
+    Proceed with push only when `ready_to_push` is `true` and `quorum_reached`
+    is `true`. If `rerun_required` is `true`, rerun the gate before any push.
+    If the branch edits `~/git-repo/vexdraft/scripts/providers.py` or
+    `~/git-repo/vexdraft/scripts/commit-debug.py`, run these smoke checks
+    before handoff:
+    ```sh
+    PYTHONPYCACHEPREFIX=/tmp python3 -m py_compile \
+      ~/git-repo/vexdraft/scripts/providers.py \
+      ~/git-repo/vexdraft/scripts/commit-debug.py
+
+    PYTHONPYCACHEPREFIX=/tmp python3 \
+      ~/git-repo/vexdraft/scripts/commit-debug.py --help
+    ```
+    If the gate auto-applies patches, run `cargo fmt --check` and `cargo check`
+    on the patched tree, then rerun `commit-debug` on the new diff before
+    incorporating the patched files into the commit.
