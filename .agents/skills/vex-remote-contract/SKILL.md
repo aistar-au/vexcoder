@@ -601,13 +601,22 @@ Project policy:
 - Reserve `--check` full drift validation (line counts, URLs, header totals, ordering) for explicit map-maintenance or pre-release checks.
 
 **File types that require a map update in the same PR:**
-- Any new `.github/workflows/*.yml` file
-- Any new `.agents/skills/*/SKILL.md` file
-- Any new `src/**/*.rs`, `tests/**/*.rs`, `scripts/*.sh`, or `TASKS/**/*.md` file
+
+| File glob | CI enforcement | Manual check required |
+| :--- | :--- | :--- |
+| `.github/workflows/*.yml` | yes — `doc-ref-check` blocks merge | no |
+| `.agents/skills/*/SKILL.md` | yes — `doc-ref-check` blocks merge | no |
+| `src/**/*.rs` | none | yes — run `--check-index` before push |
+| `tests/**/*.rs` | none | yes — run `--check-index` before push |
+| `scripts/*.sh` | none | yes — run `--check-index` before push |
+| `TASKS/**/*.md` | none | yes — run `--check-index` before push |
+| any other new file | none | yes — run `--check-index` before push |
 
 The `doc-ref-check` CI workflow enforces map coverage for `.github/workflows/*.yml`
 and `.agents/skills/*/SKILL.md` files automatically. A PR that adds either file type
 without updating the map will fail CI and cannot be merged.
+
+For all other file types, CI does not enforce map coverage. Verify manually before push.
 
 Check map coverage (required before push/PR):
 
@@ -699,6 +708,90 @@ before pushing, then include this exception record in the final report:
 
 ---
 
+## PR body preflight (required before update_pull_request)
+
+Before asserting any factual claim in a PR body draft:
+
+- Fetch the current PR head SHA and changed file list via `pull_request_read(get)` and
+  `pull_request_read(get_files)`.
+- Generate the target files list from the live PR API response, not from session memory.
+- Compare each trigger-scope claim, script-behavior description, and CI-scope assertion
+  against a verified source fetch from the current branch head. If a claim cannot be
+  backed by a fetched file at the current head SHA, remove it.
+- Any wording describing what a workflow file does (e.g., its trigger scope, the commands
+  it runs) must be confirmed by fetching and reading that file at the current head SHA.
+- Do not use phrases that contradict current file content. Stale phrasing from prior
+  drafts must be discarded and regenerated from live sources.
+- Run `check_pr_body_claims.sh` against the draft before posting:
+  ```sh
+  echo "$DRAFT" | bash .agents/skills/vex-remote-contract/scripts/check_pr_body_claims.sh
+  ```
+  Do not call `update_pull_request` until the script exits 0.
+
+---
+
+## File count verification (required after map update)
+
+After running `update_repo_raw_url_map.sh`, verify the header count matches the actual
+tracked file count:
+
+```sh
+EXPECTED=$(git ls-files | wc -l | tr -d ' ')
+HEADER=$(grep 'Total tracked files:' TASKS/completed/REPO-RAW-URL-MAP.md | grep -oE '[0-9]+')
+test "$EXPECTED" = "$HEADER" \
+  && echo "count match: $EXPECTED" \
+  || { echo "MISMATCH: map=$HEADER git=$EXPECTED"; exit 1; }
+```
+
+Do not proceed until counts match. A mismatch means the map is stale, the script ran
+against a different working tree state, or the header total was hand-edited incorrectly.
+
+---
+
+## Git add scope (required)
+
+When staging map updates or any fix-related changes:
+
+- Never use `git add -A` — this stages all uncommitted changes in the working directory,
+  not just fix-related files, and risks including unrelated work in the commit.
+- Always specify exact paths: `git add TASKS/completed/REPO-RAW-URL-MAP.md`
+- If a diff or Makefile target contains `git add -A`, reject it and require correction
+  before merge.
+
+---
+
+## Flag consistency (required before PR)
+
+Before asserting map gate configuration in PR body text, onboarding, or skill prose,
+verify all three references are aligned:
+
+- `Makefile` `map-check` target: must invoke `--check-index`
+- `.agents/onboarding.md` map gate description: must say `--check-index`
+- This skill Step 8 Hard Rule and Step 9 policy: must say `--check-index`
+
+If any reference uses `--check` when `--check-index` is intended, it is outdated and
+must be corrected in the same PR.
+
+The distinction:
+- `--check-index`: file presence gate only; used for PR gates and CI.
+- `--check`: full byte-for-byte sync including line counts; used for pre-release or
+  explicit map-maintenance PRs only.
+
+---
+
+## Workflow trigger scope (required when reviewing workflow files)
+
+When describing a workflow's CI trigger scope in a PR body or review:
+
+- Do not assert trigger scope from memory. Fetch the workflow file at the current head
+  SHA and read the `on:` block before making any claim.
+- `push:` without a `branches:` filter means the workflow runs on every push to every
+  branch. Verify this is intentional for CI gate workflows.
+- CI gate workflows (e.g., `doc-ref-check.yml`) should have `push: branches: [main]`
+  to avoid noisy runs on feature branches where the map is intentionally incomplete.
+
+---
+
 ## Scripts Reference
 
 All scripts live in `.agents/skills/vex-remote-contract/scripts/`. Bootstrap them with:
@@ -713,11 +806,12 @@ git commit -m "Add branch contract skill scripts"
 | Script | Purpose |
 | :--- | :--- |
 | `_lib.sh` | Shared helpers (`die`, `repo_slug_from_origin`, `sha256_file`) |
-| `gen_verification_urls.sh` | Generate raw URL map → `/tmp/<branch>-verification-urls.md` |
-| `verify_raw_urls.sh` | HTTP-check every raw URL; optionally compare content vs git ref |
-| `verify_diff_url.sh` | Confirm .diff URL contains all expected file paths |
-| `update_repo_raw_url_map.sh` | Check/update `TASKS/completed/REPO-RAW-URL-MAP.md` for new files |
 | `branch_summary.sh` | Print summary/evidence only (no PR body file output) |
+| `check_pr_body_claims.sh` | String-only preflight: blocks known drift-prone phrases before PR body post |
+| `gen_verification_urls.sh` | Generate raw URL map → `/tmp/<branch>-verification-urls.md` |
+| `update_repo_raw_url_map.sh` | Check/update `TASKS/completed/REPO-RAW-URL-MAP.md` for new files |
+| `verify_diff_url.sh` | Confirm .diff URL contains all expected file paths |
+| `verify_raw_urls.sh` | HTTP-check every raw URL; optionally compare content vs git ref |
 
 ### Key flags
 
