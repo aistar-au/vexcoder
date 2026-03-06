@@ -319,6 +319,21 @@ Pattern — blob → raw rewrite:
   → https://raw.githubusercontent.com/owner/repo/<branch>/path/to/file.md
 ```
 
+## Step 1.5 — Local Reference Preload (Rust Work)
+
+If scope includes Rust code (`*.rs`), runtime architecture changes, or ADR-024
+gap implementation, load these repo-local references before dispatch:
+
+- `.agents/skills/vex-rust-arch/SKILL.md`
+- `.agents/skills/vex-remote-contract/references/rust-rules.md`
+- `.agents/skills/vex-remote-contract/references/adr-024-gap-map.md`
+
+Rules:
+
+- Use repo-local reference files pinned at the target commit.
+- Do not fetch live web content for rule text during execution.
+- If a required reference file is missing, stop and report before continuing.
+
 ---
 
 ## Step 2 — DISPATCH Prompt Format
