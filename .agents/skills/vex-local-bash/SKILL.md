@@ -59,7 +59,8 @@ These rules apply to all drafted text:
   This rule applies to: PR bodies, review text, inline comments, findings,
   and dispatch documents.
   Excluded from this rule: command evidence blocks, terminal output, tool
-  invocations, CI logs, file paths, commit messages, and PR titles.
+  invocations, CI logs, file paths, URLs, raw URLs, commit messages, and PR
+  titles.
 
 ---
 
