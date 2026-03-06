@@ -13,7 +13,7 @@ jobs:
 
       - name: Check all markdown skill path references
         run: |
-          set +e
+          set -euo pipefail
           FAILED=0
           REF_LIST="$(mktemp)"
 
@@ -70,7 +70,7 @@ jobs:
                   ;;
               esac
             done
-          done < <(grep -rHF --include='*.md' '.agents/skills/' .)
+          done < <(grep -rHF --include='*.md' '.agents/skills/' . || true)
 
           while IFS= read -r entry; do
             doc_file="${entry%%:*}"
@@ -95,47 +95,7 @@ jobs:
 
           echo "All skill path references are valid."
 
-      - name: Check REPO-RAW-URL-MAP.md covers all workflow and skill files
+      - name: Check REPO-RAW-URL-MAP.md index coverage
         run: |
-          set +e
-          FAILED=0
-          MAP="TASKS/completed/REPO-RAW-URL-MAP.md"
-
-          if [ ! -f "$MAP" ]; then
-            echo "MISSING: $MAP does not exist"
-            exit 1
-          fi
-
-          echo "Checking .github/workflows/*.yml entries in map..."
-          for f in .github/workflows/*.yml; do
-            if ! grep -qF "$f" "$MAP"; then
-              echo "MAP MISSING: $f is not listed in $MAP"
-              FAILED=1
-            else
-              echo "ok: $f"
-            fi
-          done
-
-          echo ""
-          echo "Checking .agents/skills/*/SKILL.md entries in map..."
-          while IFS= read -r skill_dir; do
-            skill_path="$skill_dir/SKILL.md"
-            if [ ! -f "$skill_path" ]; then
-              continue
-            fi
-            if ! grep -qF "${skill_path#./}" "$MAP"; then
-              echo "MAP MISSING: $skill_path is not listed in $MAP"
-              FAILED=1
-            else
-              echo "ok: $skill_path"
-            fi
-          done < <(find .agents/skills -maxdepth 1 -mindepth 1 -type d)
-
-          if [ "$FAILED" -eq 1 ]; then
-            echo ""
-            echo "Fix: add the missing paths to $MAP and update the total tracked files count."
-            echo "The map must be updated in the same PR that introduces the new file."
-            exit 1
-          fi
-
-          echo "Map coverage check passed."
+          set -euo pipefail
+          bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check-index
