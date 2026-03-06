@@ -32,9 +32,9 @@ jobs:
           echo ""
           echo "=== Is Cargo.toml tracked? ==="
           if git ls-files --error-unmatch Cargo.toml 2>/dev/null; then
-            echo "✅ Cargo.toml IS tracked"
+            echo "OK: Cargo.toml is tracked"
           else
-            echo "❌ Cargo.toml is NOT tracked"
+            echo "FAIL: Cargo.toml is not tracked"
           fi
 
       - name: Debug Cargo.toml bytes (before)
@@ -64,7 +64,7 @@ jobs:
 
           p = Path("Cargo.toml")
           if not p.exists():
-              print("❌ Cargo.toml does not exist")
+              print("FAIL: Cargo.toml does not exist")
               exit(1)
 
           data = p.read_bytes()
@@ -76,23 +76,23 @@ jobs:
           if data.count(b'\n') == 0 and data.count(b'\r') == 0:
               if not data.endswith(b'\n'):
                   data = data + b'\n'
-                  print("✅ Added LF terminator")
+                  print("OK: Added LF terminator")
               else:
-                  print("⚠️  File already ends with LF but has no internal breaks")
+                  print("WARN: File already ends with LF but has no internal breaks")
           # Fix: CR-only to LF
           elif data.count(b'\r') > 0 and data.count(b'\n') == 0:
               data = data.replace(b'\r', b'\n')
               if not data.endswith(b'\n'):
                   data = data + b'\n'
-              print("✅ Converted CR-only to LF")
+              print("OK: Converted CR-only to LF")
           # Fix: CRLF to LF
           elif b'\r\n' in data:
               data = data.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
               if not data.endswith(b'\n'):
                   data = data + b'\n'
-              print("✅ Converted CRLF to LF")
+              print("OK: Converted CRLF to LF")
           else:
-              print("⚠️  No line ending issues detected")
+              print("WARN: No line ending issues detected")
 
           p.write_bytes(data)
 
@@ -145,9 +145,9 @@ jobs:
                           p.write_bytes(modified)
                           changed.append(name)
                   except Exception as e:
-                      print(f"⚠️  Skipping {name}: {e}")
+                      print(f"WARN: Skipping {name}: {e}")
 
-          print(f"\n✅ Fixed {len(changed)} other file(s)")
+          print(f"\nOK: Fixed {len(changed)} other file(s)")
           for x in changed[:50]:
               print(" -", x)
           PY
@@ -160,7 +160,7 @@ jobs:
             exit 1
           fi
           grep -q 'text=auto eol=lf' .gitattributes || exit 1
-          echo "✅ .gitattributes verified"
+          echo "OK: .gitattributes verified"
 
       - name: Normalize line endings (LF)
         run: |
