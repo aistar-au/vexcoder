@@ -582,7 +582,8 @@ Project policy:
 - `TASKS/TASKS-DISPATCH-MAP.md` is the descriptive dispatch contract document for this repo.
 - `TASKS/completed/REPO-RAW-URL-MAP.md` is the canonical whole-repo raw URL file map.
 - Keep this map synchronized with repository files.
-- Update it on any drift (new/missing files, line-count drift, URL drift, header totals).
+- For routine PR gates, enforce map coverage with `--check-index` (missing-entry check only).
+- Reserve `--check` full drift validation (line counts, URLs, header totals, ordering) for explicit map-maintenance or pre-release checks.
 
 **File types that require a map update in the same PR:**
 - Any new `.github/workflows/*.yml` file
@@ -753,7 +754,7 @@ git commit -m "Add branch contract skill scripts"
     tables, inline comments, or dispatch documents. Refer to the model and agent by
     generic category only: "the coding agent", "the language model", "the remote API",
     "the CI system". Excluded from this rule: command evidence blocks, terminal output,
-    tool invocations, file paths, CI logs, commit messages, and PR titles.
+    tool invocations, file paths, URLs, raw URLs, CI logs, commit messages, and PR titles.
 27. **Instruction compliance is non-negotiable** — user instructions must be
     followed exactly and completely. Partial execution, silent omission, or
     re-ordering of steps is a hard stop requiring the user to be notified before
