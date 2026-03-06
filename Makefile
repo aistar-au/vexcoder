@@ -111,10 +111,10 @@ _require-rg:
 # ------------------------------------------------------------------------------
 # Build
 # ------------------------------------------------------------------------------
-build: ## cargo build --all-targets (debug)
+build:
 	cargo build --all-targets
 
-check: ## cargo check --all-targets (fast compile check, no codegen)
+check:
 	cargo check --all-targets
 
 
@@ -122,11 +122,11 @@ check: ## cargo check --all-targets (fast compile check, no codegen)
 # Format
 # Source: ci.yml steps "Format (rustfmt)", "TOML format (taplo)", "TOML lint"
 # ------------------------------------------------------------------------------
-fmt: _require-taplo ## apply rustfmt + taplo (write — use before committing)
+fmt: _require-taplo
 	cargo fmt
 	taplo fmt
 
-fmt-check: _require-taplo ## check-only rustfmt + taplo lint (CI mode, read-only)
+fmt-check: _require-taplo
 	cargo fmt --check
 	taplo fmt --check --diff
 	taplo lint
@@ -136,7 +136,7 @@ fmt-check: _require-taplo ## check-only rustfmt + taplo lint (CI mode, read-only
 # Lint
 # Source: ci.yml step "Clippy (deny warnings)"
 # ------------------------------------------------------------------------------
-lint: ## cargo clippy --all-targets -D warnings
+lint:
 	cargo clippy --all-targets -- -D warnings
 
 
@@ -159,13 +159,13 @@ check-boundary:
 	fi
 	@echo "check-boundary: clean"
 
-check-routing: ## assert no alternate routing patterns (ADR-007, ADR-014)
+check-routing:
 	@bash scripts/check_no_alternate_routing.sh
 
-check-imports: ## assert no forbidden cross-layer imports (ADR-007)
+check-imports:
 	@bash scripts/check_forbidden_imports.sh
 
-check-names: _require-rg ## assert no proprietary vendor brand names (ADR-023)
+check-names: _require-rg
 	@./scripts/check_forbidden_names.sh
 
 check-module-names:
@@ -183,7 +183,7 @@ check-arch: \
   check-routing \
   check-imports \
   check-names \
-  check-module-names ## all architecture boundary checks (ci.yml + arch-contracts.yml)
+  check-module-names
 	@echo "check-arch: all boundaries clean"
 
 
@@ -205,13 +205,13 @@ check-arch: \
 # Requires: update_repo_raw_url_map.sh --check-index flag added via patch
 #   0001-add-check-index-flag.patch (apply before landing this Makefile)
 # ------------------------------------------------------------------------------
-map-check: ## index-only map drift check — fails only on missing tracked files
+map-check:
 	@.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check-index
 
-map-check-full: ## full byte-for-byte map sync check including line counts
+map-check-full:
 	@.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check
 
-map-update: ## regenerate REPO-RAW-URL-MAP (full sync)
+map-update:
 	@.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
 
 
@@ -228,13 +228,13 @@ map-update: ## regenerate REPO-RAW-URL-MAP (full sync)
 #
 # Both run in make gate. Removing either changes CI coverage semantics.
 # ------------------------------------------------------------------------------
-test: ## cargo test --all with VEX_MODEL_TOKEN="" (ci.yml variant)
+test:
 	VEX_MODEL_TOKEN="" cargo test --all
 
-test-targets: ## cargo test --all-targets (arch-contracts.yml variant)
+test-targets:
 	cargo test --all-targets
 
-test-single: ## run one test by name: make test-single T=test_fn_name
+test-single:
 	cargo test $(T) --all-targets
 
 
@@ -255,7 +255,7 @@ gate: \
   check-arch \
   test \
   test-targets \
-  map-check ## FULL gate: ci.yml + arch-contracts.yml + map index check
+  map-check
 	@echo ""
 	@echo "gate: all checks passed"
 
@@ -265,7 +265,7 @@ gate-fast: \
   check \
   check-arch \
   test \
-  test-targets ## fast gate: full gate minus map-check (local edit loop)
+  test-targets
 	@echo ""
 	@echo "gate-fast: passed (map-check skipped — run 'make gate' before push)"
 
@@ -293,5 +293,5 @@ fix: _require-taplo
 # ------------------------------------------------------------------------------
 # Clean
 # ------------------------------------------------------------------------------
-clean: ## cargo clean
+clean:
 	cargo clean
