@@ -4,10 +4,12 @@ set -euo pipefail
 # Keep this check scoped to proprietary/vendor-branded terms.
 # "cursor" is intentionally not matched as a standalone token because it
 # collides with legitimate editor/caret variable names across the codebase.
-PATTERN='\b(claude|anthropic|openai|gpt|copilot|gemini|codewhisperer)\b|cursor\.com|\bcursor ai\b'
+PATTERN='\b(claude|anthropic|openai|gpt|copilot|gemini|codewhisperer)\b|cursor\.com|\bcursor ai\b|peter-evans/create-pull-request|leonardomso/rust-skills|\bVS Code\b'
 
-if rg -n --hidden -i --glob '!.git' "$PATTERN" src .github; then
-  echo "FAIL: forbidden branded names found in src/.github"
+TARGETS=(src .github .agents)
+
+if rg -n --hidden -i --glob '!.git' "$PATTERN" "${TARGETS[@]}"; then
+  echo "FAIL: forbidden branded names found in ${TARGETS[*]}"
   exit 1
 fi
 

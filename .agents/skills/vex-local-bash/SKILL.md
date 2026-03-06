@@ -53,14 +53,24 @@ These rules apply to all drafted text:
 - No nested markdown links (`[[text](url)](url)`).
 - Use full repo slug (`owner/repo`) in opening lines.
 - One narrative review body per pass.
-- No AI assistant names or competing product names in agent-authored prose.
-  Refer to the model and agent by generic category only: "the coding agent",
-  "the language model", "the remote API", "the CI system".
+- No AI product names or third-party company, product, brand, logo,
+  repository, or action-package names in agent-authored prose. Refer to the
+  model and agent by generic category only: "the coding agent", "the language
+  model", "the remote API", "the CI system". Third-party tools, libraries,
+  repositories, action packages, and platforms must be referred to by generic
+  category ("the CI platform", "the version control system", "the dependency
+  manager") unless the exact name is required by a code block, command, or URL.
   This rule applies to: PR bodies, review text, inline comments, findings,
   and dispatch documents.
   Excluded from this rule: command evidence blocks, terminal output, tool
   invocations, CI logs, file paths, URLs, raw URLs, commit messages, and PR
   titles.
+- Do not reproduce copyrighted text from external tools, documentation pages,
+  or third-party skill files in agent-authored prose or dispatches.
+- When drafting or reviewing `.github/workflows/*.yml` files, do not include
+  any `uses:` step that references a third-party repository and performs
+  repository write operations (e.g. creating commits, branches, or PRs).
+  Replace such steps with a fail-on-drift report step.
 - No tables with pass, landed, or status columns in PR bodies or review text.
   No checkbox lists (`- [ ]`, `- [x]`). Bullet points are acceptable for
   listing target files and ADR-defined changes.
