@@ -4,7 +4,7 @@ This is the full sequence across all tracks. Docs and TUI are independent
 tracks and can run in parallel across sessions.
 
 Canonical active roadmap state: `TASKS/ACTIVE-ROADMAP.md`.
-This file covers pre-ADR-024 dispatch waves only.
+This file covers pre-ADR-024 dispatch waves and active ADR-024 seed batches.
 
 ## Active ADR Index (Auto-Managed)
 
@@ -66,7 +66,23 @@ ADR-018 (must be green) ──► FEAT-19
 | D — Safety + policy | CRIT-19, CORE-16 | green — verified at `37a4012`, zero-diff |
 | E — Durability | CORE-17 | green — verified at `37a4012`, zero-diff |
 | F — UX | FEAT-19, FEAT-20 | green — verified at `37a4012`, zero-diff |
-| G — Autonomy | CORE-18 | anchor not yet committed — dispatch pending |
+| G — Autonomy | CORE-18 | green — verified at `2565354`, zero-diff |
+
+## ADR-024 Dispatch Seeds
+
+Initial ADR-024 dispatch starts with the config foundation because it gates
+notes-path resolution and hook config resolution.
+
+| Batch | Manifests | Status |
+| :--- | :--- | :--- |
+| A - Config foundation | PA-01 | dispatch ready |
+
+### ADR-024 Immediate Gates
+
+```text
+PA-01 -> PJ-03
+PA-01 -> PL-01
+```
 
 ---
 
