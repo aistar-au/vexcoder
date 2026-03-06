@@ -1,4 +1,4 @@
-# vexcoder
+# VexCoder
 
 Terminal-first coding assistant with streaming responses, tool execution, and ratatui UI.
 
@@ -66,4 +66,4 @@ Source maps:
 
 - App/raw links for the Rust application code: `CONTRIBUTING.md`
 - Full repository raw URL map: `TASKS/completed/REPO-RAW-URL-MAP.md`
-- Sponsor Vexcoder: bc1q9c4ur9qw7gdxvs8lyuewvw36y99sqqct05u4q6
+- Sponsor VexCoder: SegWit bc1q9c4ur9qw7gdxvs8lyuewvw36y99sqqct05u4q6, Eth 0xe5D746f089D155f0E1C6dD6C663E3F5D853BAe6a
