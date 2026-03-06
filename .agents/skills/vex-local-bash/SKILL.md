@@ -263,3 +263,33 @@ test "$EXPECTED" = "$HEADER" \
 
 Do not proceed until counts match. A mismatch means the map is stale, the script
 ran against a different working tree state, or the header total was hand-edited.
+
+---
+
+## Commit-debug gate (required before any push of Rust source)
+
+Before any `git push` that includes changes to `src/` or `tests/`, invoke the
+multi-model commit review gate from the vexdraft tool:
+
+```sh
+python3 ~/git-repo/vexdraft/scripts/commit-debug.py \
+  --diff-ref origin/main..HEAD \
+  --api-keys-file ~/git-repo/vexdraft/config/api_keys.txt \
+  --repo-root ~/git-repo/vexcoder
+```
+
+Or via the orchestrator shorthand:
+
+```sh
+~/git-repo/vexdraft/main-script.sh commit-debug --diff-ref origin/main..HEAD
+```
+
+Exit codes:
+- **0**: gate passed — no critical or high findings remain. Proceed with push.
+- **1**: gate failed — one or more critical/high findings remain unpatched.
+  Address each finding before pushing. Hard stop.
+- **2**: all API calls failed — may skip with explicit user approval; record
+  the skip as a `Commit Debug Exception` in the batch report.
+
+If the gate auto-applies patches, run `cargo fmt --check` and verify the
+patched files compile (`cargo check`) before incorporating them into the commit.

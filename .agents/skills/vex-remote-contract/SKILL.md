@@ -918,3 +918,18 @@ git commit -m "Add branch contract skill scripts"
     write operations (committing, pushing, or opening PRs on behalf of the
     workflow). When reviewing or drafting a workflow file, reject any such
     `uses:` line and replace the step with a fail-on-drift report step.
+32. **Multi-model commit review gate required before any push of Rust source** —
+    before any `git push` or MCP push that includes changes to `src/` or
+    `tests/`, run the vexdraft commit-debug gate locally:
+    ```sh
+    python3 ~/git-repo/vexdraft/scripts/commit-debug.py \
+      --diff-ref origin/main..HEAD \
+      --api-keys-file ~/git-repo/vexdraft/config/api_keys.txt \
+      --repo-root ~/git-repo/vexcoder
+    ```
+    Exit 0 (no blocking findings) is required to proceed. If the gate
+    auto-applies patches, run `cargo fmt --check` and re-verify before
+    incorporating the patched files into the commit. Exit 1 (unresolved
+    findings) is a hard stop. Exit 2 (all API calls failed) may be skipped
+    with explicit user approval and a `Commit Debug Exception` record in the
+    batch report.
