@@ -465,9 +465,21 @@ cargo test --all-targets
 
 If any command fails, fix it before commit/push.
 5. Commit with message: `Batch <X>: <ADR-NNN> Phases <range> implementation`
-6. Push (MCP-first): sum `size` bytes of all changed files.
+6. Sync local, then push (MCP-first): before pushing, run:
+   ```sh
+   git fetch origin --prune
+   git merge --ff-only origin/<branch>
+   ```
+   Then sum `size` bytes of all changed files.
    - If total < 50 KB: push via `github:push_files` in a single batched call.
+     After the MCP push, restore pushed files and sync local:
+     ```sh
+     git restore <changed-files...>
+     git fetch origin --prune
+     git merge --ff-only origin/<branch>
+     ```
    - If total >= 50 KB: fall back to `git push origin <branch>` (latency exception).
+     After push: `git fetch origin --prune && git merge --ff-only origin/<branch>`
    Never loop one file per MCP call.
 7. Ensure push landed by verifying local and remote SHAs match.
 
@@ -880,3 +892,8 @@ git commit -m "Add branch contract skill scripts"
     landed, or status columns, nor checkbox lists (`- [ ]`, `- [x]`). Use bullet
     points to list target files and ADR-defined changes. In review vocabulary,
     do not use "blocking" — use `CHANGES_REQUESTED` instead.
+29. **Sync local before and after every push** — before any push (MCP or local git),
+    run `git fetch origin --prune && git merge --ff-only origin/<branch>` to
+    establish a clean baseline. After any `github:push_files` call, immediately
+    restore the pushed files (`git restore <files...>`) then fetch and fast-forward
+    to prevent working-tree divergence from blocking subsequent merges.
