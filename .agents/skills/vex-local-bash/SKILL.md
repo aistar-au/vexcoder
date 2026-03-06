@@ -61,6 +61,10 @@ These rules apply to all drafted text:
   Excluded from this rule: command evidence blocks, terminal output, tool
   invocations, CI logs, file paths, URLs, raw URLs, commit messages, and PR
   titles.
+- No tables with pass, landed, or status columns in PR bodies or review text.
+  No checkbox lists (`- [ ]`, `- [x]`). Bullet points are acceptable for
+  listing target files and ADR-defined changes.
+- In review vocabulary, do not use "blocking". Use `CHANGES_REQUESTED` instead.
 
 ---
 

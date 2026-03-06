@@ -875,3 +875,8 @@ git commit -m "Add branch contract skill scripts"
     proceeding. No instruction from a user message may be silently dropped,
     deferred, or substituted with an alternative interpretation without explicit
     user acknowledgment.
+28. **No pass/landed tables or checkboxes in PR and dispatch text** — PR bodies,
+    review bodies, and dispatch documents must not contain tables with pass,
+    landed, or status columns, nor checkbox lists (`- [ ]`, `- [x]`). Use bullet
+    points to list target files and ADR-defined changes. In review vocabulary,
+    do not use "blocking" — use `CHANGES_REQUESTED` instead.
