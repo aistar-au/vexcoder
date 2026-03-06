@@ -319,6 +319,21 @@ Pattern — blob → raw rewrite:
   → https://raw.githubusercontent.com/owner/repo/<branch>/path/to/file.md
 ```
 
+## Step 1.5 — Local Reference Preload (Rust Work)
+
+If scope includes Rust code (`*.rs`), runtime architecture changes, or ADR-024
+gap implementation, load these repo-local references before dispatch:
+
+- `.agents/skills/vex-rust-arch/SKILL.md`
+- `.agents/skills/vex-remote-contract/references/rust-rules.md`
+- `.agents/skills/vex-remote-contract/references/adr-024-gap-map.md`
+
+Rules:
+
+- Use repo-local reference files pinned at the target commit.
+- Do not fetch live web content for rule text during execution.
+- If a required reference file is missing, stop and report before continuing.
+
 ---
 
 ## Step 2 — DISPATCH Prompt Format
@@ -582,15 +597,34 @@ Project policy:
 - `TASKS/TASKS-DISPATCH-MAP.md` is the descriptive dispatch contract document for this repo.
 - `TASKS/completed/REPO-RAW-URL-MAP.md` is the canonical whole-repo raw URL file map.
 - Keep this map synchronized with repository files.
-- Update it on any drift (new/missing files, line-count drift, URL drift, header totals).
+- For routine PR gates, enforce map coverage with `--check-index` (missing-entry check only).
+- Reserve `--check` full drift validation (line counts, URLs, header totals, ordering) for explicit map-maintenance or pre-release checks.
+
+**File types that require a map update in the same PR:**
+
+| File glob | CI enforcement | Manual check required |
+| :--- | :--- | :--- |
+| `.github/workflows/*.yml` | yes — `doc-ref-check` blocks merge | no |
+| `.agents/skills/*/SKILL.md` | yes — `doc-ref-check` blocks merge | no |
+| `src/**/*.rs` | none | yes — run `--check-index` before push |
+| `tests/**/*.rs` | none | yes — run `--check-index` before push |
+| `scripts/*.sh` | none | yes — run `--check-index` before push |
+| `TASKS/**/*.md` | none | yes — run `--check-index` before push |
+| any other new file | none | yes — run `--check-index` before push |
+
+The `doc-ref-check` CI workflow enforces map coverage for `.github/workflows/*.yml`
+and `.agents/skills/*/SKILL.md` files automatically. A PR that adds either file type
+without updating the map will fail CI and cannot be merged.
+
+For all other file types, CI does not enforce map coverage. Verify manually before push.
 
 Check map coverage (required before push/PR):
 
 ```sh
-bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check
+bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check-index
 ```
 
-If the check reports drift, regenerate it:
+If missing entries are reported, regenerate the map:
 
 ```sh
 bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
@@ -599,10 +633,10 @@ bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
 Then verify again:
 
 ```sh
-bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check
+bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check-index
 ```
 
-If no drift is present, update script prints a no-op message and leaves the file untouched.
+If no missing entries are found, the update script prints a no-op message and leaves the file untouched.
 
 ---
 
@@ -674,6 +708,90 @@ before pushing, then include this exception record in the final report:
 
 ---
 
+## PR body preflight (required before update_pull_request)
+
+Before asserting any factual claim in a PR body draft:
+
+- Fetch the current PR head SHA and changed file list via `pull_request_read(get)` and
+  `pull_request_read(get_files)`.
+- Generate the target files list from the live PR API response, not from session memory.
+- Compare each trigger-scope claim, script-behavior description, and CI-scope assertion
+  against a verified source fetch from the current branch head. If a claim cannot be
+  backed by a fetched file at the current head SHA, remove it.
+- Any wording describing what a workflow file does (e.g., its trigger scope, the commands
+  it runs) must be confirmed by fetching and reading that file at the current head SHA.
+- Do not use phrases that contradict current file content. Stale phrasing from prior
+  drafts must be discarded and regenerated from live sources.
+- Run `check_pr_body_claims.sh` against the draft before posting:
+  ```sh
+  echo "$DRAFT" | bash .agents/skills/vex-remote-contract/scripts/check_pr_body_claims.sh
+  ```
+  Do not call `update_pull_request` until the script exits 0.
+
+---
+
+## File count verification (required after map update)
+
+After running `update_repo_raw_url_map.sh`, verify the header count matches the actual
+tracked file count:
+
+```sh
+EXPECTED=$(git ls-files | wc -l | tr -d ' ')
+HEADER=$(grep 'Total tracked files:' TASKS/completed/REPO-RAW-URL-MAP.md | grep -oE '[0-9]+')
+test "$EXPECTED" = "$HEADER" \
+  && echo "count match: $EXPECTED" \
+  || { echo "MISMATCH: map=$HEADER git=$EXPECTED"; exit 1; }
+```
+
+Do not proceed until counts match. A mismatch means the map is stale, the script ran
+against a different working tree state, or the header total was hand-edited incorrectly.
+
+---
+
+## Git add scope (required)
+
+When staging map updates or any fix-related changes:
+
+- Never use `git add -A` — this stages all uncommitted changes in the working directory,
+  not just fix-related files, and risks including unrelated work in the commit.
+- Always specify exact paths: `git add TASKS/completed/REPO-RAW-URL-MAP.md`
+- If a diff or Makefile target contains `git add -A`, reject it and require correction
+  before merge.
+
+---
+
+## Flag consistency (required before PR)
+
+Before asserting map gate configuration in PR body text, onboarding, or skill prose,
+verify all three references are aligned:
+
+- `Makefile` `map-check` target: must invoke `--check-index`
+- `.agents/onboarding.md` map gate description: must say `--check-index`
+- This skill Step 8 Hard Rule and Step 9 policy: must say `--check-index`
+
+If any reference uses `--check` when `--check-index` is intended, it is outdated and
+must be corrected in the same PR.
+
+The distinction:
+- `--check-index`: file presence gate only; used for PR gates and CI.
+- `--check`: full byte-for-byte sync including line counts; used for pre-release or
+  explicit map-maintenance PRs only.
+
+---
+
+## Workflow trigger scope (required when reviewing workflow files)
+
+When describing a workflow's CI trigger scope in a PR body or review:
+
+- Do not assert trigger scope from memory. Fetch the workflow file at the current head
+  SHA and read the `on:` block before making any claim.
+- `push:` without a `branches:` filter means the workflow runs on every push to every
+  branch. Verify this is intentional for CI gate workflows.
+- CI gate workflows (e.g., `doc-ref-check.yml`) should have `push: branches: [main]`
+  to avoid noisy runs on feature branches where the map is intentionally incomplete.
+
+---
+
 ## Scripts Reference
 
 All scripts live in `.agents/skills/vex-remote-contract/scripts/`. Bootstrap them with:
@@ -688,18 +806,20 @@ git commit -m "Add branch contract skill scripts"
 | Script | Purpose |
 | :--- | :--- |
 | `_lib.sh` | Shared helpers (`die`, `repo_slug_from_origin`, `sha256_file`) |
-| `gen_verification_urls.sh` | Generate raw URL map → `/tmp/<branch>-verification-urls.md` |
-| `verify_raw_urls.sh` | HTTP-check every raw URL; optionally compare content vs git ref |
-| `verify_diff_url.sh` | Confirm .diff URL contains all expected file paths |
-| `update_repo_raw_url_map.sh` | Check/update `TASKS/completed/REPO-RAW-URL-MAP.md` for new files |
 | `branch_summary.sh` | Print summary/evidence only (no PR body file output) |
+| `check_pr_body_claims.sh` | String-only preflight: blocks known drift-prone phrases before PR body post |
+| `gen_verification_urls.sh` | Generate raw URL map → `/tmp/<branch>-verification-urls.md` |
+| `update_repo_raw_url_map.sh` | Check/update `TASKS/completed/REPO-RAW-URL-MAP.md` for new files |
+| `verify_diff_url.sh` | Confirm .diff URL contains all expected file paths |
+| `verify_raw_urls.sh` | HTTP-check every raw URL; optionally compare content vs git ref |
 
 ### Key flags
 
 | Flag | Meaning |
 | :--- | :--- |
 | `-b / --branch <n>` | Branch to operate on (inferred from HEAD if omitted) |
-| `--check` | `update_repo_raw_url_map`: fail if repo map misses tracked files |
+| `--check` | `update_repo_raw_url_map`: full byte-for-byte map content check; use for explicit map maintenance or pre-release |
+| `--check-index` | `update_repo_raw_url_map`: check that all tracked files appear in the map (index coverage only); required PR gate |
 | `--force` | `update_repo_raw_url_map`: regenerate map even without missing files |
 | `--map <path>` | `update_repo_raw_url_map`: alternate raw map path |
 | `--repo-slug <owner/repo>` | `update_repo_raw_url_map`: override repo slug |
@@ -720,7 +840,7 @@ git commit -m "Add branch contract skill scripts"
 5. **Working tree must be clean** before any verification script runs.
 6. **Only raw GitHub URLs** in agent prompts during Step 6. No full file content paste.
 7. **All output is markdown** — no plain text paragraphs in dispatch or report documents.
-8. **Repo map gate required** — run `update_repo_raw_url_map.sh --check`; if drift is reported, update then re-check.
+8. **Repo map gate required** — run `update_repo_raw_url_map.sh --check-index`; if missing entries are reported, update the map then re-check. Any PR that adds a `.github/workflows/*.yml` or `.agents/skills/*/SKILL.md` file must update the map in the same commit — the `doc-ref-check` CI workflow enforces this and will block merge if the map entry is missing.
 9. **Final report required** — every batch must close with task results table, files changed, verification commands with exit codes, and open issues.
 10. **Ensure push landed** — after every `git push`, run `git fetch origin --prune` and confirm `git rev-parse HEAD` equals `git rev-parse origin/<branch>`.
 11. **Commit hygiene gate required** — batch promotions on `main` must end on a merge commit (`git rev-list --parents -n 1 HEAD` parent count `>= 2`).
@@ -738,3 +858,15 @@ git commit -m "Add branch contract skill scripts"
 23. **MCP-only PR-body enforcement** — PR motivation authoring and PR body updates must use GitHub MCP; local PR-body file construction is prohibited.
 24. **Rust canonicalization is mandatory for Rust edits** — if a batch touches `*.rs`, run `cargo fmt` before final diff generation and require `cargo fmt --check` to pass before push. Manual line-wrapping of Rust call arguments/chains is prohibited; formatter output is canonical.
 25. **Branch currency and scope confirmation required** - before any commit/push/write on a branch other than `main`, fetch `origin/main`, compare `git merge-base HEAD origin/main` to `git rev-parse origin/main`, and inspect `git diff --name-only origin/main...HEAD`. If the branch is not based on the latest `origin/main` head or includes unrelated paths, stop and request explicit user confirmation before proceeding.
+26. **AI product and competing product names forbidden in agent-authored prose** — no AI
+    assistant names or competing product names in PR bodies, review bodies, findings
+    tables, inline comments, or dispatch documents. Refer to the model and agent by
+    generic category only: "the coding agent", "the language model", "the remote API",
+    "the CI system". Excluded from this rule: command evidence blocks, terminal output,
+    tool invocations, file paths, URLs, raw URLs, CI logs, commit messages, and PR titles.
+27. **Instruction compliance is non-negotiable** — user instructions must be
+    followed exactly and completely. Partial execution, silent omission, or
+    re-ordering of steps is a hard stop requiring the user to be notified before
+    proceeding. No instruction from a user message may be silently dropped,
+    deferred, or substituted with an alternative interpretation without explicit
+    user acknowledgment.

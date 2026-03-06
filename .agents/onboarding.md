@@ -19,12 +19,13 @@ Three rules apply before any task begins:
 
 ## 2. Skill architecture
 
-Two skills govern this repo. They are separated by execution boundary:
+Two baseline skills govern every session. Additional skills are loaded by scope.
 
 | Skill | Path | Scope |
 | :--- | :--- | :--- |
 | `vex-local-bash` | `.agents/skills/vex-local-bash/SKILL.md` | Local drafting only. PR motivation bodies, review text, inline comments. No remote writes. |
 | `vex-remote-contract` | `.agents/skills/vex-remote-contract/SKILL.md` | Batch dispatch, branch verification, raw URL checks, repo map gate, merge loop, and remote PR posting via GitHub MCP. |
+| `vex-rust-arch` | `.agents/skills/vex-rust-arch/SKILL.md` | Repo-local Rust architecture pattern dictionary. Load only when task scope includes Rust implementation, architecture changes, or ADR-024 gap work. |
 
 ---
 
@@ -37,6 +38,17 @@ Load and read all of the following in full before producing any output:
 
 Do not produce dispatch prompts, diffs, reviews, or PR bodies until both
 files have been read completely.
+
+### Conditional routing (after required load order)
+
+| Scope trigger | Load this file | Purpose |
+| :--- | :--- | :--- |
+| Rust implementation or refactor in `src/**/*.rs` | `.agents/skills/vex-rust-arch/SKILL.md` | Repo-specific Rust architecture patterns and touchpoint guidance. |
+| Rust coding task needs expanded language guidance | `.agents/skills/vex-remote-contract/references/rust-rules.md` | Pinned local Rust rules reference. |
+| ADR-024 gap planning, dispatch, or validation | `.agents/skills/vex-remote-contract/references/adr-024-gap-map.md` | ADR-024 gap semantics and inference-labeled touchpoints. |
+
+Do not fetch live web content for these references during execution. Use
+repo-local files pinned at the working commit.
 
 ---
 
@@ -74,9 +86,16 @@ Violating it causes unchecked writes or fact-free assertions.
 **Language and toolchain:** Rust, async via Tokio, TUI via Ratatui.
 
 **Architecture decisions:** All significant design decisions are recorded as
-ADR files under `TASKS/`. The active roadmap is
-[ADR-023 deterministic edit loop](https://github.com/aistar-au/vexcoder/blob/main/TASKS/ADR-023-deterministic-edit-loop.md).
+ADR files under `TASKS/`. Canonical active roadmap state:
+[`TASKS/ACTIVE-ROADMAP.md`](https://github.com/aistar-au/vexcoder/blob/main/TASKS/ACTIVE-ROADMAP.md).
 Read the relevant ADR before writing any dispatch or PR body.
+
+**Active roadmaps summary (auto-managed):**
+<!-- AUTO:ACTIVE_ROADMAPS:BEGIN -->
+- `ADR-022` - Proposed (amendment)
+- `ADR-023` - Locked
+- `ADR-024` - Proposed
+<!-- AUTO:ACTIVE_ROADMAPS:END -->
 
 **Module boundaries enforced by CI:**
 
@@ -88,7 +107,7 @@ Read the relevant ADR before writing any dispatch or PR body.
 - `.agents/skills/` — agent skills (this directory)
 
 **Canonical repo map:** `TASKS/completed/REPO-RAW-URL-MAP.md` — must be
-checked for drift before every PR (Hard Rule 8).
+checked for coverage before every PR (Hard Rule 8).
 
 ---
 
@@ -125,7 +144,7 @@ Step 5   URL MAP     gen_verification_urls.sh
 Step 6   RAW CHECK   verify_raw_urls.sh --compare
 Step 7   DIFF CHECK  verify_diff_url.sh
 Step 8   CI GATE     clippy + rustfmt + tests
-Step 9   MAP GATE    update_repo_raw_url_map.sh --check
+Step 9   MAP GATE    update_repo_raw_url_map.sh --check-index
 Step 10  PR+MERGE    Draft via vex-local-bash; post via vex-remote-contract MCP; merge --no-ff
 Step 11  POST-MERGE  Re-fetch raw map URL; verify files at merge commit SHA
 ```
@@ -144,7 +163,7 @@ Required before the first batch action in any session:
 - [ ] `vex-remote-contract/SKILL.md` loaded and read in full
 - [ ] Current `main` HEAD SHA confirmed via GitHub MCP
 - [ ] Relevant ADR fetched and read
-- [ ] `REPO-RAW-URL-MAP.md` drift check run (`--check` flag)
+- [ ] `REPO-RAW-URL-MAP.md` coverage check run (`--check-index` flag)
 - [ ] User confirmation received before any write action
 
 ---

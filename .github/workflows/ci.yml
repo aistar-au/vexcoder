@@ -29,50 +29,13 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Format (rustfmt)
-        run: cargo fmt --check
-
-      - name: Clippy (deny warnings)
-        run: cargo clippy --all-targets -- -D warnings
-
       - name: Install Taplo (TOML formatter/linter)
         uses: uncenter/setup-taplo@v1
         with:
           version: "0.8.1"
 
-      - name: TOML format (taplo)
-        run: taplo fmt --check --diff
-
-      - name: TOML lint (taplo)
-        run: taplo lint
-
-      - name: Check (all targets)
-        run: cargo check --all-targets
-
-      - name: Test (all)
-        run: cargo test --all
-        env:
-          VEX_MODEL_TOKEN: ""   # prevent accidental real requests in tests
-
       - name: Install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 
-      - name: Forbidden branded names (src + .github)
-        run: ./scripts/check_forbidden_names.sh
-
-      - name: No UI crates in src/runtime
-        run: |
-          if grep -r "ratatui\|crossterm" src/runtime/; then
-            echo "FAIL: terminal crates leaked into src/runtime/"
-            exit 1
-          fi
-          echo "clean"
-
-      - name: Enforce Rust 2018 module entry naming
-        run: |
-          if find src -mindepth 2 -maxdepth 2 -type f -name 'mod.rs' | grep -q .; then
-            echo "FAIL: Rust 2018 path-based module convention violated."
-            find src -mindepth 2 -maxdepth 2 -type f -name 'mod.rs' | sort
-            exit 1
-          fi
-          echo "clean"
+      - name: Run consolidated gate
+        run: make gate
