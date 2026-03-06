@@ -450,7 +450,9 @@ Return a corrected dispatch (labelled `(corrected)`) if any issues are found.
 
 The coding agent follows the dispatch:
 
-1. `git fetch origin --prune && git checkout -b <branch> origin/main`
+1. Create branch on remote via GitHub MCP (`github:create_branch` from `main`).
+   Then locally: `git fetch origin --prune && git checkout <branch>`.
+   Do not use `git checkout -b` to create branches — remote creation via MCP is required.
 2. Implement each task in execution order, stopping on any red anchor.
 3. Run `cargo test --all-targets` after each task.
 4. Before push, run the local CI gate:
@@ -463,7 +465,10 @@ cargo test --all-targets
 
 If any command fails, fix it before commit/push.
 5. Commit with message: `Batch <X>: <ADR-NNN> Phases <range> implementation`
-6. `git push origin <branch>`
+6. Push (MCP-first): sum `size` bytes of all changed files.
+   - If total < 50 KB: push via `github:push_files` in a single batched call.
+   - If total >= 50 KB: fall back to `git push origin <branch>` (latency exception).
+   Never loop one file per MCP call.
 7. Ensure push landed by verifying local and remote SHAs match.
 
 Before push, run rustfmt canonicalization and the local CI gate:
@@ -854,7 +859,7 @@ git commit -m "Add branch contract skill scripts"
 19. **Exact diffs only — no full-file rewrites** — all file changes must be created as a precise unified diff against the current remote content and applied as a patch. The required steps are: fetch current content, produce diff, present diff for review, apply patch. Reconstructing a file from memory or a cached copy is not permitted under any circumstance.
 20. **Hunk patches must use `git apply` only** — prepare exact unified diffs and run `git apply --check --recount` before `git apply --recount`.
 21. **No file reconstruction for hunk edits** — do not rewrite complete files from memory or cached content when a focused patch hunk is required.
-22. **Push method: count KB not lines** — when committing recovered or batch files, use `gh` CLI locally (cherry-pick + push) when the total payload of all changed files is >= 50 KB. Use MCP `push_files` only when total payload is < 50 KB, and only in a single batched call — never one file per call. Cargo.lock counts toward the total; a single large lockfile can exceed the threshold alone.
+22. **MCP-first for all branch and commit operations** — GitHub MCP is the first preference for new branch creation and all commit/push operations. Create branches via `github:create_branch`. For file pushes: use `github:push_files` (single batched call, never per-file) when total payload of all changed files is < 50 KB. Fall back to local `git push` only when payload is >= 50 KB (latency exception). Local git/bash is a fallback for the 50 KB latency threshold, not a default. Cargo.lock counts toward the total; a single large lockfile can exceed the threshold alone. This applies to all operations, including new branches, dispatch commits, and batch file sets — not only dangling-commit recovery.
 23. **MCP-only PR-body enforcement** — PR motivation authoring and PR body updates must use GitHub MCP; local PR-body file construction is prohibited.
 24. **Rust canonicalization is mandatory for Rust edits** — if a batch touches `*.rs`, run `cargo fmt` before final diff generation and require `cargo fmt --check` to pass before push. Manual line-wrapping of Rust call arguments/chains is prohibited; formatter output is canonical.
 25. **Branch currency and scope confirmation required** - before any commit/push/write on a branch other than `main`, fetch `origin/main`, compare `git merge-base HEAD origin/main` to `git rev-parse origin/main`, and inspect `git diff --name-only origin/main...HEAD`. If the branch is not based on the latest `origin/main` head or includes unrelated paths, stop and request explicit user confirmation before proceeding.

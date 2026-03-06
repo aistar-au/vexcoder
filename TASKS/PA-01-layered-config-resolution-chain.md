@@ -80,3 +80,44 @@ fn test_config_prefers_env_over_repo_user_system_and_defaults() {
 - Do not add provider-branded config names back into the runtime surface.
 - Do not make config-file parse failures soft warnings.
 - Do not modify `src/runtime/`, `src/state/`, or `src/api/` in this task.
+
+---
+
+## Dispatch Verification (dispatch only — implementation not yet landed)
+
+### [PA-01] - Layered config resolution chain (dispatch only)
+
+- Dispatcher: `dispatcher/adr-024-pa01-dispatch`
+- Commit: `d3e8bf7b261702636d918121268297b95f5b39b7`
+- Files changed:
+  - `TASKS/PA-01-layered-config-resolution-chain.md` (+82 -0)
+  - `TASKS/TASKS-DISPATCH-MAP.md` (+18 -2)
+  - `TASKS/completed/REPO-RAW-URL-MAP.md` (+160 -159)
+- Validation:
+  - `cargo test test_config_prefers_env_over_repo_user_system_and_defaults --all-targets` : not valid yet (`0` tests matched; implementation not landed)
+  - `cargo test --all-targets` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - This branch stages the PA-01 dispatch manifest and map updates only.
+  - Do not mark PA-01 green until the implementation branch lands the anchor test and it passes.
+
+---
+
+## Completion Verification (fill in when implementation lands)
+
+### [PA-01] - Layered config resolution chain
+
+- Dispatcher: `<branch-name>`
+- Commit: `<sha>`
+- Files changed:
+  - `src/config.rs` (+`<n>` -`<n>`)
+  - `tests/integration_test.rs` (+`<n>` -`<n>`)
+- Validation:
+  - `cargo test test_config_prefers_env_over_repo_user_system_and_defaults --all-targets` : pass
+  - `cargo test --all-targets` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - Layered config resolution implemented per ADR-024 Gap 3.
+  - `model_token` remains environment-only.
