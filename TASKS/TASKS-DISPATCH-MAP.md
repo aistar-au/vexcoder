@@ -6,6 +6,16 @@ tracks and can run in parallel across sessions.
 Canonical active roadmap state: `TASKS/ACTIVE-ROADMAP.md`.
 This file covers pre-ADR-024 dispatch waves only.
 
+## Active ADR Index (Auto-Managed)
+
+Source of truth: `TASKS/ACTIVE-ROADMAP.md`.
+
+<!-- AUTO:ACTIVE_ROADMAPS:BEGIN -->
+- `ADR-022` - Proposed (amendment)
+- `ADR-023` - Locked
+- `ADR-024` - Proposed
+<!-- AUTO:ACTIVE_ROADMAPS:END -->
+
 ## Pre-ADR-024 Dispatch Manifests
 
 Uncompleted pre-ADR-024 dispatch ADRs live in `TASKS/` root.
