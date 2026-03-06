@@ -73,6 +73,9 @@ For PR motivation body drafts:
 - No pass/fail language (`green`, `red`, `passing`, `failing`).
 - No sentence that begins with git/cargo commands or raw SHA.
 - Keep prose concise and factual.
+- The files changed list must come from `pull_request_read(get_files)` at the
+  current head SHA. Do not write a file list from session memory or prior
+  context. Call the API first, then draft.
 
 ADR references must be inline markdown links to `main` blob URLs:
 
@@ -167,6 +170,9 @@ Before handoff to remote posting:
 - Mark any unverified CI/field/routing claims as pending verification.
 - Require branch-currency evidence from the remote phase: latest
   `origin/main` SHA, merge-base SHA, and changed-path list.
+- Require the target files list to be generated from `pull_request_read(get_files)`
+  at the current head SHA, not from session memory. Any manually constructed
+  file list must be verified against the API response before handoff.
 - If the branch is not based on the latest `origin/main` head commit, or
   changed paths include unrelated scope, require explicit user confirmation
   before any remote write.
@@ -192,3 +198,54 @@ Before handoff to remote posting:
 User instructions must be followed exactly and completely. Partial execution,
 silent omission, or re-ordering of steps is a hard stop. No instruction may be
 silently dropped, deferred, or substituted without explicit user acknowledgment.
+
+---
+
+## Map update verification (required before handoff)
+
+When any file is added, removed, or renamed in the branch:
+
+- Run `bash .agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh`
+- Verify the header count matches `git ls-files | wc -l`
+- Verify each new file appears in the map table with the correct path
+- Stage the update: `git add TASKS/completed/REPO-RAW-URL-MAP.md`
+
+Do not hand off to remote posting until the map is updated and staged.
+
+The `doc-ref-check` CI step enforces map coverage for `.github/workflows/*.yml`
+and `.agents/skills/*/SKILL.md` files only. All other file types must be verified
+via `--check-index` before handoff — CI will not catch missing entries for those
+paths automatically.
+
+---
+
+## Git add scope (required)
+
+When staging map updates or any fix-related changes:
+
+- Never use `git add -A` — this stages all uncommitted changes in the working
+  directory, not just fix-related files, and risks committing unrelated work.
+- Always specify exact paths: `git add TASKS/completed/REPO-RAW-URL-MAP.md`
+- For Makefile `fix` targets: the only map-related staging line should be
+  `git add TASKS/completed/REPO-RAW-URL-MAP.md`, not `git add -A`.
+
+If a diff or Makefile target contains `git add -A`, reject it and require
+correction before handoff.
+
+---
+
+## File count verification (required after map update)
+
+After running `update_repo_raw_url_map.sh`, verify the header count matches the
+actual tracked file count:
+
+```sh
+EXPECTED=$(git ls-files | wc -l | tr -d ' ')
+HEADER=$(grep 'Total tracked files:' TASKS/completed/REPO-RAW-URL-MAP.md | grep -oE '[0-9]+')
+test "$EXPECTED" = "$HEADER" \
+  && echo "count match: $EXPECTED" \
+  || { echo "MISMATCH: map=$HEADER git=$EXPECTED"; exit 1; }
+```
+
+Do not proceed until counts match. A mismatch means the map is stale, the script
+ran against a different working tree state, or the header total was hand-edited.
