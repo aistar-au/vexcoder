@@ -1,7 +1,7 @@
 # Active Roadmap
 
 **Repo:** `aistar-au/vexcoder`
-**Last updated:** 2026-03-06
+**Last updated:** 2026-03-07
 **Update procedure:** Auto-managed by `scripts/update_active_roadmaps.py`
 and `.github/workflows/update-roadmaps.yml`.
 
