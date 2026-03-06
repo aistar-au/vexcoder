@@ -875,16 +875,18 @@ git commit -m "Add branch contract skill scripts"
 23. **MCP-only PR-body enforcement** — PR motivation authoring and PR body updates must use GitHub MCP; local PR-body file construction is prohibited.
 24. **Rust canonicalization is mandatory for Rust edits** — if a batch touches `*.rs`, run `cargo fmt` before final diff generation and require `cargo fmt --check` to pass before push. Manual line-wrapping of Rust call arguments/chains is prohibited; formatter output is canonical.
 25. **Branch currency and scope confirmation required** - before any commit/push/write on a branch other than `main`, fetch `origin/main`, compare `git merge-base HEAD origin/main` to `git rev-parse origin/main`, and inspect `git diff --name-only origin/main...HEAD`. If the branch is not based on the latest `origin/main` head or includes unrelated paths, stop and request explicit user confirmation before proceeding.
-26. **AI product, third-party tool, and copyrighted product names forbidden in
-    agent-authored prose** — no AI assistant names, competing product names, or
-    named third-party tool brands in PR bodies, review bodies, findings, inline
-    comments, or dispatch documents. Refer to the model and agent by generic
-    category only: "the coding agent", "the language model", "the remote API",
-    "the CI system". Third-party tools must be referred to by generic category
-    ("the CI platform", "the version control system") unless exact names are
-    required by code, commands, or URLs. Excluded from this rule: command
-    evidence blocks, terminal output, tool invocations, file paths, URLs, raw
-    URLs, CI logs, commit messages, and PR titles.
+26. **AI product names and third-party company, product, brand, logo,
+    repository, and action-package names forbidden in agent-authored prose** —
+    no AI assistant names, competing product names, or named third-party
+    products, repositories, or action packages in PR bodies, review bodies,
+    findings, inline comments, or dispatch documents. Refer to the model and
+    agent by generic category only: "the coding agent", "the language model",
+    "the remote API", "the CI system". Third-party tools, repositories, and
+    action packages must be referred to by generic category ("the CI platform",
+    "the version control system") unless exact names are required by code,
+    commands, or URLs. Excluded from this rule: command evidence blocks,
+    terminal output, tool invocations, file paths, URLs, raw URLs, CI logs,
+    commit messages, and PR titles.
 27. **Copyrighted third-party content must not be reproduced in agent-authored
     prose** — do not quote, paraphrase, or reconstruct text from external tool
     documentation, copyrighted skill files, or upstream source files in PR
@@ -906,13 +908,13 @@ git commit -m "Add branch contract skill scripts"
     establish a clean baseline. After any `github:push_files` call, immediately
     restore the pushed files (`git restore <files...>`) then fetch and fast-forward
     to prevent working-tree divergence from blocking subsequent merges.
-31. **Automation validators must be read-only; write-capable third-party GitHub
-    Actions are prohibited** — CI workflow scripts and automation validators may
-    only read, diff, and report. They must not create commits, branches, or pull
-    requests, and must not push changes to any branch. Any generated sync diff
-    must be carried in a dispatcher-owned branch commit before merge. Workflows
-    in `.github/workflows/` must not use any third-party `uses:` step that
-    performs repository write operations (committing, pushing, or opening PRs
-    on behalf of the workflow). When reviewing or drafting a workflow file,
-    reject any such `uses:` line and replace the step with a fail-on-drift
-    report step.
+31. **Automation validators must be read-only; write-capable third-party
+    repository-backed GitHub Actions are prohibited** — CI workflow scripts and
+    automation validators may only read, diff, and report. They must not create
+    commits, branches, or pull requests, and must not push changes to any
+    branch. Any generated sync diff must be carried in a dispatcher-owned branch
+    commit before merge. Workflows in `.github/workflows/` must not use any
+    `uses:` step that points to a third-party repository and performs repository
+    write operations (committing, pushing, or opening PRs on behalf of the
+    workflow). When reviewing or drafting a workflow file, reject any such
+    `uses:` line and replace the step with a fail-on-drift report step.

@@ -38,7 +38,7 @@ jobs:
       - name: Fail on drift
         run: |
           if ! git diff --quiet; then
-            echo "Roadmap drift detected. Commit the following diff to main before merging:"
+            echo "Roadmap drift detected. Commit the following diff to a dispatcher-owned branch before merging:"
             git diff
             exit 1
           fi

@@ -53,10 +53,11 @@ These rules apply to all drafted text:
 - No nested markdown links (`[[text](url)](url)`).
 - Use full repo slug (`owner/repo`) in opening lines.
 - One narrative review body per pass.
-- No AI product names, third-party tool names, or copyrighted product names in
-  agent-authored prose. Refer to the model and agent by generic category only:
-  "the coding agent", "the language model", "the remote API", "the CI system".
-  Third-party tools, libraries, and platforms must be referred to by generic
+- No AI product names or third-party company, product, brand, logo,
+  repository, or action-package names in agent-authored prose. Refer to the
+  model and agent by generic category only: "the coding agent", "the language
+  model", "the remote API", "the CI system". Third-party tools, libraries,
+  repositories, action packages, and platforms must be referred to by generic
   category ("the CI platform", "the version control system", "the dependency
   manager") unless the exact name is required by a code block, command, or URL.
   This rule applies to: PR bodies, review text, inline comments, findings,
