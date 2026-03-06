@@ -92,7 +92,7 @@ Read the relevant ADR before writing any dispatch or PR body.
 
 **Active roadmaps summary (auto-managed):**
 <!-- AUTO:ACTIVE_ROADMAPS:BEGIN -->
-- `ADR-022` - Proposed (amendment)
+- `ADR-022` - Unknown
 - `ADR-023` - Locked
 - `ADR-024` - Proposed
 <!-- AUTO:ACTIVE_ROADMAPS:END -->

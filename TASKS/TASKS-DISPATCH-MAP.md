@@ -11,7 +11,7 @@ This file covers pre-ADR-024 dispatch waves and active ADR-024 seed batches.
 Source of truth: `TASKS/ACTIVE-ROADMAP.md`.
 
 <!-- AUTO:ACTIVE_ROADMAPS:BEGIN -->
-- `ADR-022` - Proposed (amendment)
+- `ADR-022` - Unknown
 - `ADR-023` - Locked
 - `ADR-024` - Proposed
 <!-- AUTO:ACTIVE_ROADMAPS:END -->

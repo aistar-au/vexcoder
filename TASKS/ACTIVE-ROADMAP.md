@@ -12,9 +12,9 @@ and `.github/workflows/update-roadmaps.yml`.
 <!-- AUTO:ACTIVE_ADRS:BEGIN -->
 | ADR | Status | Notes |
 | :--- | :--- | :--- |
-| [ADR-022](https://github.com/aistar-au/vexcoder/blob/main/TASKS/ADR-022-free-open-coding-agent-roadmap.md) | Proposed (amendment) | 2026-03-03 amendment must be locked before Phases G–H begin. Wave G (CORE-18) pending dispatch. |
-| [ADR-023](https://github.com/aistar-au/vexcoder/blob/main/TASKS/ADR-023-deterministic-edit-loop.md) | Locked | Deterministic edit loop. Active implementation phase. |
-| [ADR-024](https://github.com/aistar-au/vexcoder/blob/main/TASKS/ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Proposed | Agent parity gap ADR. Blocked on ADR-022 amendment lock before Phases G–H. |
+| [ADR-022](https://github.com/aistar-au/vexcoder/blob/main/TASKS/ADR-022-amendment-2026-03-03.md) | Unknown | 2026-03-03 amendment must be locked before Phases G-H begin. |
+| [ADR-023](https://github.com/aistar-au/vexcoder/blob/main/TASKS/ADR-023-deterministic-edit-loop.md) | Locked | Deterministic edit loop implementation track. |
+| [ADR-024](https://github.com/aistar-au/vexcoder/blob/main/TASKS/ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Proposed | Parity-gap roadmap; source of gap sequencing and constraints. |
 <!-- AUTO:ACTIVE_ADRS:END -->
 
 ---
