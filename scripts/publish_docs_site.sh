@@ -36,6 +36,8 @@ touch "$WORKTREE_DIR/.nojekyll"
 
 git -C "$WORKTREE_DIR" add -A
 
+trap - EXIT
+
 printf '%s\n' \
   "Prepared local publish worktree:" \
   "  $WORKTREE_DIR" \
