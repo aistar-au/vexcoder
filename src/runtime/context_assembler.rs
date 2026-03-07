@@ -709,14 +709,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_context_assembler_non_git_repo_returns_none_diff() {
+        let _lock = crate::test_support::ENV_LOCK.lock().await;
         let workspace = tempfile::tempdir().expect("tempdir");
         fs::write(workspace.path().join("note.txt"), "note").expect("write");
+
+        // On some macOS CI runners TMPDIR resolves to a path inside the Actions
+        // work tree, so `git status` in the tempdir succeeds by discovering a
+        // parent repo.  Set GIT_CEILING_DIRECTORIES to the workspace itself so
+        // git cannot traverse above it; the workspace has no .git, which is the
+        // condition we are testing.
+        let ceiling = workspace.path().to_string_lossy().to_string();
+        std::env::set_var("GIT_CEILING_DIRECTORIES", &ceiling);
 
         let operator = ToolOperator::new(workspace.path().to_path_buf());
         let assembler = ContextAssembler::default();
         let ctx = assembler
             .assemble("read note.txt", &operator)
             .expect("assemble failed");
+
+        std::env::remove_var("GIT_CEILING_DIRECTORIES");
 
         assert!(ctx.git_status_summary.is_none());
         assert!(ctx.recent_diff.is_none());
