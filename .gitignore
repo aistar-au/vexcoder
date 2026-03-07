@@ -13,6 +13,7 @@ Cargo.lock.report
 
 # --- IDEs ---
 .vscode/
+.claude/
 .idea/
 *.swp
 *.bak
