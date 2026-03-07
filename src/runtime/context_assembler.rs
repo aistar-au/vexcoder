@@ -93,7 +93,7 @@ impl ContextAssembler {
                 if !seen_paths.insert(inferred.clone()) {
                     continue;
                 }
-                let candidate = inferred.to_string_lossy().to_string();
+                let candidate = inferred.to_string_lossy().replace('\\', "/");
                 let Ok(content) = operator.read_file(&candidate) else {
                     continue;
                 };

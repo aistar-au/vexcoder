@@ -9,7 +9,9 @@ param(
     [Parameter(Position = 2)]
     [string]$OutDir = $(if ($env:OUT_DIR) { $env:OUT_DIR } else { "dist" }),
 
-    [string]$BuildTool = $(if ($env:BUILD_TOOL) { $env:BUILD_TOOL } else { "cargo" })
+    [string]$BuildTool = $(if ($env:BUILD_TOOL) { $env:BUILD_TOOL } else { "cargo" }),
+
+    [switch]$RunGate
 )
 
 Set-StrictMode -Version Latest
@@ -26,6 +28,7 @@ Inputs:
   TARGET  / arg2   Rust target triple to package
   OUT_DIR / arg3   output directory (default: dist)
   BUILD_TOOL       cargo or cross (default: cargo)
+  RUN_GATE         run cargo fmt/clippy/check/test before packaging
 "@
 }
 
@@ -130,6 +133,49 @@ function Set-MsvcEnvironment {
     $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = $linkerPath
 }
 
+function Invoke-NativeGate {
+    param([Parameter(Mandatory = $true)][string]$CargoPath)
+
+    & $CargoPath fmt --check
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+
+    & $CargoPath clippy --all-targets -- -D warnings
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+
+    & $CargoPath check --all-targets
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+
+    $hadToken = Test-Path Env:VEX_MODEL_TOKEN
+    if ($hadToken) {
+        $previousToken = $env:VEX_MODEL_TOKEN
+    }
+    $env:VEX_MODEL_TOKEN = ""
+
+    try {
+        & $CargoPath test --all
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+    } finally {
+        if ($hadToken) {
+            $env:VEX_MODEL_TOKEN = $previousToken
+        } else {
+            Remove-Item Env:VEX_MODEL_TOKEN -ErrorAction SilentlyContinue
+        }
+    }
+
+    & $CargoPath test --all-targets
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($Version) -or [string]::IsNullOrWhiteSpace($Target)) {
     Show-Usage
     exit 1
@@ -148,11 +194,15 @@ if (Test-Path $cargoBin) {
     $env:PATH = "$cargoBin;$env:PATH"
 }
 
-$null = Get-RequiredCommand -Name "cargo"
-$buildToolPath = Get-RequiredCommand -Name $BuildTool
+$cargoPath = Get-RequiredCommand -Name "cargo"
+$buildToolPath = if ($BuildTool -eq "cargo") { $cargoPath } else { Get-RequiredCommand -Name $BuildTool }
 
 if ($Target -like "*windows-msvc") {
     Set-MsvcEnvironment
+}
+
+if ($RunGate) {
+    Invoke-NativeGate -CargoPath $cargoPath
 }
 
 $archiveVersion = $Version.TrimStart("v")

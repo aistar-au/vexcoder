@@ -106,7 +106,25 @@ rg --version
 taplo --version
 ```
 
-### 5. Build the release binary
+### 5. Run the native Windows gate
+
+The PowerShell packaging script can run the native Rust validation path before it packages the archive:
+
+```powershell
+.\scripts\release.ps1 -Version v0.1.0-alpha.1 -Target x86_64-pc-windows-msvc -RunGate
+```
+
+That runs:
+
+- `cargo fmt --check`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo check --all-targets`
+- `cargo test --all`
+- `cargo test --all-targets`
+
+Use the switch when you want CI-equivalent native validation on Windows. Omit it only when you are repackaging an already validated build.
+
+### 6. Build the release binary
 
 The Windows-native release build validated in this session was:
 
@@ -120,12 +138,12 @@ Run the binary directly:
 .\target\release\vex.exe
 ```
 
-### 6. Package a Windows release archive
+### 7. Package a Windows release archive
 
 Use the PowerShell-native packaging script added for this workflow:
 
 ```powershell
-.\scripts\release.ps1 -Version v0.1.0-alpha.1 -Target x86_64-pc-windows-msvc
+.\scripts\release.ps1 -Version v0.1.0-alpha.1 -Target x86_64-pc-windows-msvc -RunGate
 ```
 
 That script automatically:
@@ -134,6 +152,7 @@ That script automatically:
 - discovers the Windows SDK install
 - sets `PATH`, `LIB`, `INCLUDE`, and `LIBPATH`
 - sets `CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER`
+- optionally runs the native Rust gate before packaging
 - builds the release binary
 - writes `dist\vex-<version>-x86_64-pc-windows-msvc.zip`
 - writes the matching `.sha256` file
@@ -151,7 +170,11 @@ The validated archive produced in this session contained:
 - `README.md`
 - `LICENSE`
 
-### 7. Optional GitHub CLI setup
+Windows alpha archives are unsigned today. SmartScreen will show an "Unknown Publisher" warning until Authenticode signing is added. SignPath.io is the planned first signing path for open-source release automation.
+
+GitHub Releases publish the same `x86_64-pc-windows-msvc` archive that the native PowerShell packaging flow builds locally.
+
+### 8. Optional GitHub CLI setup
 
 If `gh` is already installed but not on PATH, verify it directly first:
 
@@ -175,7 +198,7 @@ gh auth status
 gh api user --jq .login
 ```
 
-### 8. Install and use mdBook
+### 9. Install and use mdBook
 
 Install mdBook with Cargo:
 

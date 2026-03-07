@@ -27,9 +27,9 @@ jobs:
           - target: aarch64-unknown-linux-musl
             runner: ubuntu-24.04
             build_tool: cross
-          - target: x86_64-pc-windows-gnu
-            runner: ubuntu-24.04
-            build_tool: cross
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            build_tool: cargo
           - target: x86_64-apple-darwin
             runner: macos-15-intel
             build_tool: cargo
@@ -39,6 +39,7 @@ jobs:
 
     steps:
       - name: Checkout repository
+        if: runner.os != 'Windows'
         env:
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
@@ -51,13 +52,32 @@ jobs:
           git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
           git checkout --detach FETCH_HEAD
 
+      - name: Checkout repository (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/checkout@v4
+
       - name: Install stable Rust
+        if: runner.os != 'Windows'
         run: |
           set -euo pipefail
           source "$HOME/.cargo/env" 2>/dev/null || true
           rustup toolchain install stable --profile minimal
           rustup default stable
           rustup target add ${{ matrix.target }}
+
+      - name: Install stable Rust (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+
+      - name: Add Cargo bin to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install cross
         if: matrix.build_tool == 'cross'
@@ -68,22 +88,34 @@ jobs:
 
       - name: Resolve package version
         id: version
+        shell: pwsh
         run: |
-          set -euo pipefail
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          else
-            version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)"
-            echo "value=v${version}" >> "$GITHUB_OUTPUT"
-          fi
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            "value=$env:GITHUB_REF_NAME" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          } else {
+            $versionMatch = Select-String -Path Cargo.toml -Pattern '^version = "(.+)"'
+            $version = $versionMatch.Matches[0].Groups[1].Value
+            "value=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
 
       - name: Package release archive
+        if: runner.os != 'Windows'
         env:
           VERSION: ${{ steps.version.outputs.value }}
           TARGET: ${{ matrix.target }}
           OUT_DIR: dist
           BUILD_TOOL: ${{ matrix.build_tool }}
         run: bash scripts/release.sh
+
+      - name: Package release archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          TARGET: ${{ matrix.target }}
+          OUT_DIR: dist
+        run: |
+          .\scripts\release.ps1 -Version $env:VERSION -Target $env:TARGET -OutDir $env:OUT_DIR
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4

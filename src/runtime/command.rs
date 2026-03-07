@@ -209,13 +209,44 @@ impl PtySession {
 mod tests {
     use super::*;
 
+    fn echo_request() -> CommandRequest {
+        if cfg!(windows) {
+            CommandRequest {
+                program: "cmd".into(),
+                args: vec!["/C".into(), "echo".into(), "hello".into()],
+            }
+        } else {
+            CommandRequest {
+                program: "echo".into(),
+                args: vec!["hello".into()],
+            }
+        }
+    }
+
+    fn long_running_request() -> CommandRequest {
+        if cfg!(windows) {
+            CommandRequest {
+                program: "cmd".into(),
+                args: vec![
+                    "/C".into(),
+                    "ping".into(),
+                    "-n".into(),
+                    "30".into(),
+                    "127.0.0.1".into(),
+                ],
+            }
+        } else {
+            CommandRequest {
+                program: "sleep".into(),
+                args: vec!["30".into()],
+            }
+        }
+    }
+
     #[tokio::test]
     async fn test_command_runner_one_shot_captures_exit_code_and_stdout() {
         let runner = DefaultCommandRunner::new();
-        let req = CommandRequest {
-            program: "echo".into(),
-            args: vec!["hello".into()],
-        };
+        let req = echo_request();
         let result = runner.run_one_shot(req).await.expect("run failed");
         assert_eq!(result.exit_code, 0);
         assert!(result.stdout.contains("hello"));
@@ -226,10 +257,7 @@ mod tests {
         let runner = DefaultCommandRunner::new();
 
         let (tx, _rx) = tokio::sync::mpsc::channel(16);
-        let req = CommandRequest {
-            program: "sleep".into(),
-            args: vec!["30".into()],
-        };
+        let req = long_running_request();
 
         let handle = runner.run_streaming(req, tx).await.expect("spawn failed");
         assert!(!handle.is_consumed());

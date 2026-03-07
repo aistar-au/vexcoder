@@ -153,9 +153,11 @@ On Windows PowerShell 7, use the native packaging script instead of `make releas
 git switch -c dispatcher/v0.1.0-alpha.1-packaging
 $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
 cargo build --release --bin vex
-.\scripts\release.ps1 -Version v0.1.0-alpha.1 -Target x86_64-pc-windows-msvc
+.\scripts\release.ps1 -Version v0.1.0-alpha.1 -Target x86_64-pc-windows-msvc -RunGate
 git push -u origin dispatcher/v0.1.0-alpha.1-packaging
 ```
+
+Windows packaging is currently an unsigned alpha path. SmartScreen warnings are expected until Authenticode signing lands; SignPath.io is the first signing path to evaluate for open-source release automation.
 
 Branch pushes to `.github/workflows/release.yml` upload packaging artifacts for review only. Once the branch workflow is green and the archives look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
 

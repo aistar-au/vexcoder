@@ -29,18 +29,30 @@ cargo build --release --bin vex
 To package a Windows archive locally, install Visual Studio Build Tools with the C++ workload and run:
 
 ```powershell
-.\scripts\release.ps1 -Version v0.1.0-alpha.1 -Target x86_64-pc-windows-msvc
+.\scripts\release.ps1 -Version v0.1.0-alpha.1 -Target x86_64-pc-windows-msvc -RunGate
 ```
 
 ### From GitHub Releases
 
 Download the archive for your platform from the GitHub Releases page, unpack it, and run `vex`.
 
+macOS/Linux:
+
 ```bash
 curl -L -o vex.tar.gz https://github.com/aistar-au/vexcoder/releases/download/v0.1.0-alpha.1/vex-0.1.0-alpha.1-x86_64-unknown-linux-musl.tar.gz
 tar -xzf vex.tar.gz
 ./vex-0.1.0-alpha.1-x86_64-unknown-linux-musl/vex
 ```
+
+Windows PowerShell 7:
+
+```powershell
+Invoke-WebRequest -Uri "https://github.com/aistar-au/vexcoder/releases/download/v0.1.0-alpha.1/vex-0.1.0-alpha.1-x86_64-pc-windows-msvc.zip" -OutFile vex.zip
+Expand-Archive vex.zip -DestinationPath .
+.\vex-0.1.0-alpha.1-x86_64-pc-windows-msvc\vex.exe
+```
+
+Windows alpha archives are unsigned today. SmartScreen will show an "Unknown Publisher" warning until Authenticode signing is added. SignPath.io is the planned first signing path for open-source release automation.
 
 ## Quick Start
 
