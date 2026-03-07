@@ -104,20 +104,22 @@ fn test_config_prefers_env_over_repo_user_system_and_defaults() {
 
 ---
 
-## Completion Verification (fill in when implementation lands)
+## Completion Verification
 
 ### [PA-01] - Layered config resolution chain
 
-- Dispatcher: `<branch-name>`
-- Commit: `<sha>`
+- Dispatcher: `dispatcher/adr-024-pa01-layered-config`
+- Commit: `39d7ab385f5e8c53eac5b1e15a651eeb61c36dcc`
 - Files changed:
-  - `src/config.rs` (+`<n>` -`<n>`)
-  - `tests/integration_test.rs` (+`<n>` -`<n>`)
+  - `src/config.rs` (+323 -72)
+  - `tests/integration_test.rs` (+110 -0)
 - Validation:
   - `cargo test test_config_prefers_env_over_repo_user_system_and_defaults --all-targets` : pass
   - `cargo test --all-targets` : pass
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
+- Gate: commit-debug (2 providers: cerebras + google), 0 blocking findings; 5 findings auto-patched on first run (second run clean)
 - Notes:
   - Layered config resolution implemented per ADR-024 Gap 3.
   - `model_token` remains environment-only.
+  - Auto-patched: alias lists in TOML enum error messages; explicit validation of VEX_MODEL_BACKEND and VEX_TOOL_CALL_MODE env vars (both previously fell through silently).
