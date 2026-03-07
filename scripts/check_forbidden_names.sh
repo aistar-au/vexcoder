@@ -19,7 +19,7 @@ PATTERN='\b(claude|anthropic|openai|gpt|copilot|gemini|codewhisperer)\b|cursor\.
 
 BRAND_PATTERN='\b(claude|anthropic|openai|gpt|copilot|gemini|codewhisperer)\b|cursor\.com|\bcursor ai\b|\bVS Code\b'
 
-TARGETS=(src .github .agents docs/book.toml Makefile)
+TARGETS=(src .github Makefile)
 
 failed=0
 

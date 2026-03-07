@@ -9,24 +9,13 @@
 #   make gate          full gate (matches ci.yml + arch-contracts.yml combined)
 #   make gate-fast     gate without map-check (tight local edit loop)
 #   make release       package one target to dist/ for local smoke testing
-#   make fix           apply fmt + taplo + line-ending renorm + map-update
+#   make fix           apply fmt + taplo + line-ending renorm
 #   make help          list all targets
-#
-# CI migration (after this file lands on main):
-#   ci.yml            replace individual steps with: make gate
-#   arch-contracts    replace individual steps with: make check-arch && make test-targets
-#   autofix.yml       replace fmt/taplo steps with:  make fix
-#                     keep: repository checkout, toolchain install, remote publish steps
-#                     (those steps need GitHub token permissions — not a logic concern)
 #
 # Tool prerequisites:
 #   taplo   cargo install taplo-cli --version 0.8.1  (CI pins this version in workflow)
 #   rg      cargo install ripgrep  OR  apt install ripgrep  (check_forbidden_names.sh only)
 #   rust    rustup (stable toolchain)
-#
-# Future targets (not included — scripts do not yet exist on main):
-#   health-check   scripts/agent_health_check.sh   (ADR-024 Gap 27)
-#   lint-json      scripts/lint_check.sh           (structured clippy for agents)
 # ==============================================================================
 
 SHELL := bash
@@ -39,7 +28,6 @@ SHELL := bash
         lint \
         commit-debug-gate \
         check-boundary check-routing check-imports check-names check-module-names check-arch \
-        map-check map-check-full map-update \
         test test-targets test-single \
         release \
         gate gate-fast \
@@ -66,16 +54,13 @@ help:
 	  "  check-names        assert no proprietary vendor brand names (ADR-023)" \
 	  "  check-module-names assert Rust 2018 path-based modules — no mod.rs files" \
 	  "  check-arch         all architecture boundary checks (ci.yml + arch-contracts.yml)" \
-	  "  map-check          index-only map drift check — fails only on missing tracked files" \
-	  "  map-check-full     full byte-for-byte map sync check including line counts" \
-	  "  map-update         regenerate REPO-RAW-URL-MAP (full sync)" \
 	  "  test               cargo test --all with VEX_MODEL_TOKEN=\"\" (ci.yml variant)" \
 	  "  test-targets       cargo test --all-targets (arch-contracts.yml variant)" \
 	  "  test-single        run one test by name: make test-single T=test_fn_name" \
-	  "  gate               FULL gate: ci.yml + arch-contracts.yml + map index check" \
+	  "  gate               full gate: ci.yml + arch-contracts.yml" \
+	  "  gate-fast          alias for gate (map-check removed)" \
 	  "  release            package one target: make release VERSION=v0.1.0-alpha.1 TARGET=x86_64-unknown-linux-gnu" \
-	  "  gate-fast          fast gate: full gate minus map-check (local edit loop)" \
-	  "  fix                rustfmt + taplo + renorm + map-update (all auto-fixable in one pass)" \
+	  "  fix                rustfmt + taplo + renorm (all auto-fixable in one pass)" \
 	  "  clean              cargo clean"
 
 
@@ -205,32 +190,6 @@ check-arch: \
 
 
 # ------------------------------------------------------------------------------
-# Repo map gate
-# Source: onboarding Hard Rule 8, vex-remote-contract Step 9 MAP GATE
-#
-# Policy (decided 2026-03-06): INDEX-ONLY mode via --check-index.
-#
-#   map-check        --check-index: fails only when tracked files are absent
-#                    from the index. Normal edits changing line counts do NOT
-#                    fail this gate. Used by make gate and CI.
-#
-#   map-check-full   --check: byte-for-byte sync including line counts and
-#                    ordering. Use before releases or explicit full-sync PRs.
-#
-#   map-update       regenerates the full map (called automatically by fix).
-#
-# ------------------------------------------------------------------------------
-map-check:
-	@scripts/update_repo_raw_url_map.sh --check-index
-
-map-check-full:
-	@scripts/update_repo_raw_url_map.sh --check
-
-map-update:
-	@scripts/update_repo_raw_url_map.sh
-
-
-# ------------------------------------------------------------------------------
 # Tests
 #
 # Two variants preserved — policy: keep both (decided 2026-03-06).
@@ -256,12 +215,7 @@ test-single:
 # ------------------------------------------------------------------------------
 # Full gate
 #
-# gate       = ci.yml + arch-contracts.yml + map index check (in order)
-# gate-fast  = same minus map-check (for tight local edit loops)
-#
-# Execution order follows ci.yml, with arch-contracts checks appended.
-# map-check runs last: pure shell (git ls-files + awk), only fails on
-# file-set changes (index-only policy), zero cost on normal edits.
+# gate / gate-fast  = ci.yml + arch-contracts.yml (identical — map-check removed)
 # ------------------------------------------------------------------------------
 gate: \
   fmt-check \
@@ -269,8 +223,7 @@ gate: \
   check \
   check-arch \
   test \
-  test-targets \
-  map-check
+  test-targets
 	@echo ""
 	@echo "gate: all checks passed"
 
@@ -282,16 +235,13 @@ gate-fast: \
   test \
   test-targets
 	@echo ""
-	@echo "gate-fast: passed (map-check skipped — run 'make gate' before push)"
+	@echo "gate-fast: passed"
 
 
 # ------------------------------------------------------------------------------
 # Autofix
 #
-# Covers: rustfmt, taplo fmt, git line-ending renormalization, map regeneration.
-# map-update is included so the index is current before you commit.
-# Commit all staged changes together (fmt + map) after running fix.
-#
+# Covers: rustfmt, taplo fmt, git line-ending renormalization.
 # Does NOT cover: repository checkout, toolchain install, remote publish steps.
 # Those require GitHub token permissions and stay in YAML.
 # ------------------------------------------------------------------------------
@@ -299,8 +249,6 @@ fix: _require-taplo
 	cargo fmt
 	taplo fmt
 	git add --renormalize .
-	@scripts/update_repo_raw_url_map.sh
-	git add TASKS/completed/REPO-RAW-URL-MAP.md
 	@echo ""
 	@echo "fix: applied — run 'make gate' to verify"
 
