@@ -54,7 +54,9 @@ For operators migrating from a pre-ADR-022 deployment, see the [ADR-022 Migratio
 
 ## Documentation Structure
 
-This site is built with mdBook and published through GitHub Pages.
+This site is built with mdBook. CI validates the build only. Site
+publication is prepared locally with `scripts/publish_docs_site.sh` and
+pushed as an explicit dispatcher-authored branch update.
 
 - Policy: [Documentation Policy](policy.md)
 - Migration: [ADR-022 Migration Guide](migration.md)

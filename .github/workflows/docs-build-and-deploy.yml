@@ -1,4 +1,4 @@
-name: docs-build-and-deploy
+name: docs-build
 
 on:
   workflow_dispatch:
@@ -14,36 +14,38 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          git init .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
+          git checkout --detach FETCH_HEAD
 
       - name: Install mdBook 0.5.0
         run: cargo install mdbook --version 0.5.0 --locked
 
       - name: Build docs
-        run: mdbook build docs
+        run: |
+          bash scripts/generate-docs.sh
+          mdbook build docs
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs/book
-
-  deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    permissions:
-      pages: write
-      id-token: write
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Report publish contract
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          {
+            echo "Docs build succeeded."
+            echo "CI validates the docs build only."
+            echo "Prepare site publication locally with \`bash scripts/publish_docs_site.sh\`."
+            echo "Review the generated publish worktree, then commit and push the branch update explicitly."
+          }

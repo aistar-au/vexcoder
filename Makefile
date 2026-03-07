@@ -14,11 +14,11 @@
 #   ci.yml            replace individual steps with: make gate
 #   arch-contracts    replace individual steps with: make check-arch && make test-targets
 #   autofix.yml       replace fmt/taplo steps with:  make fix
-#                     keep: checkout, toolchain install, peter-evans PR creation
+#                     keep: repository checkout, toolchain install, remote publish steps
 #                     (those steps need GitHub token permissions — not a logic concern)
 #
 # Tool prerequisites:
-#   taplo   cargo install taplo-cli --version 0.8.1  (CI pins via setup-taplo@v1)
+#   taplo   cargo install taplo-cli --version 0.8.1  (CI pins this version in workflow)
 #   rg      cargo install ripgrep  OR  apt install ripgrep  (check_forbidden_names.sh only)
 #   rust    rustup (stable toolchain)
 #
@@ -90,7 +90,7 @@ _require-taplo:
 	  echo ""; \
 	  echo "MISSING TOOL: taplo"; \
 	  echo "  Install: cargo install taplo-cli --version 0.8.1"; \
-	  echo "  (CI pins this version via uncenter/setup-taplo@v1)"; \
+	  echo "  (CI pins this version in workflow)"; \
 	  echo ""; \
 	  exit 1; \
 	}
@@ -277,7 +277,7 @@ gate-fast: \
 # map-update is included so the index is current before you commit.
 # Commit all staged changes together (fmt + map) after running fix.
 #
-# Does NOT cover: checkout, toolchain install, peter-evans PR creation.
+# Does NOT cover: repository checkout, toolchain install, remote publish steps.
 # Those require GitHub token permissions and stay in YAML.
 # ------------------------------------------------------------------------------
 fix: _require-taplo
