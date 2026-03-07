@@ -769,6 +769,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_context_assembler_large_diff_does_not_timeout() {
+        let _lock = crate::test_support::ENV_LOCK.lock().await;
         let workspace = tempfile::tempdir().expect("tempdir");
         init_git_repo(workspace.path());
 
