@@ -455,7 +455,8 @@ The coding agent follows the dispatch:
    Do not use `git checkout -b` to create branches — remote creation via MCP is required.
 2. Implement each task in execution order, stopping on any red anchor.
 3. Run `cargo test --all-targets` after each task.
-4. Before push, run the commit-debug gate (Rule 32) and the local CI gate:
+4. For batches touching `src/` or `tests/`, run the commit-debug gate before
+   push. Then run the local CI gate:
 
 ```sh
 cargo clippy --all-targets -- -D warnings
@@ -465,8 +466,8 @@ cargo test --all-targets
 
 If any command fails, fix it before commit/push.
 
-The commit-debug gate writes a run directory under `~/git-repo/vexdraft-archive/`
-containing:
+When the commit-debug gate is used, treat its run-directory artifacts as the
+handoff contract:
 - `dispatcher-summary.json` — machine-readable handoff contract (v2 schema):
   `status`, `ready_to_push`, `quorum_reached`, `rerun_required`,
   `successful_providers`, `blocking_findings`, `patch_results`,
@@ -482,7 +483,9 @@ containing:
 - `applied-patches.patch` — bundle of all applied patches (when present).
 
 Proceed only when `ready_to_push=true`, `quorum_reached=true`, and
-`rerun_required=false`. See Rule 32 for the full gate contract.
+`rerun_required=false`. If the batch does not touch `src/` or `tests/`, skip
+this gate and rely on the local CI gate plus the repo-specific verification
+required by the batch.
 5. Commit with message: `Batch <X>: <ADR-NNN> Phases <range> implementation`
 6. Sync local, then push (MCP-first): before pushing, run:
    ```sh
