@@ -9,12 +9,25 @@ jobs:
   arch-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          git init .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
+          git checkout --detach FETCH_HEAD
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.93.1"
+        run: |
+          set -euo pipefail
+          source "$HOME/.cargo/env" 2>/dev/null || true
+          rustup toolchain install 1.93.1 --profile minimal
+          rustup default 1.93.1
 
       - name: Install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep

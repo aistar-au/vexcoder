@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import datetime
+import os
 from pathlib import Path
 import sys
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 TASKS_DIR = ROOT / "TASKS"
+ROADMAP_TIMEZONE = os.environ.get("ROADMAP_TIMEZONE", "UTC")
+LAST_UPDATED_PREFIX = f"**Last updated ({ROADMAP_TIMEZONE}):**"
 
 CANONICAL_ADR_FILES = {
     "ADR-022": "ADR-022-free-open-coding-agent-roadmap.md",
@@ -127,6 +131,10 @@ def _render_summary(rows: list[AdrInfo]) -> str:
     return "\n".join([f"- `{row.adr_id}` - {row.status}" for row in rows])
 
 
+def _roadmap_today_iso() -> str:
+    return datetime.now(ZoneInfo(ROADMAP_TIMEZONE)).date().isoformat()
+
+
 def main() -> int:
     rows = [_parse_adr(adr_id) for adr_id in CANONICAL_ADR_FILES]
 
@@ -136,8 +144,8 @@ def main() -> int:
 
     _replace_line_prefix(
         active_file,
-        "**Last updated:**",
-        f"**Last updated:** {date.today().isoformat()}",
+        LAST_UPDATED_PREFIX,
+        f"{LAST_UPDATED_PREFIX} {_roadmap_today_iso()}",
     )
     _replace_block(active_file, "ACTIVE_ADRS", _render_active_table(rows))
     _replace_block(onboarding_file, "ACTIVE_ROADMAPS", _render_summary(rows))
