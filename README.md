@@ -2,6 +2,28 @@
 
 Terminal-first coding assistant with streaming responses, tool execution, and ratatui UI.
 
+## Installation
+
+### From Source
+
+```bash
+git clone https://github.com/aistar-au/vexcoder.git
+cd vexcoder
+make gate-fast
+cargo build --release
+./target/release/vex
+```
+
+### From GitHub Releases
+
+Download the archive for your platform from the GitHub Releases page, unpack it, and run `vex`.
+
+```bash
+curl -L -o vex.tar.gz https://github.com/aistar-au/vexcoder/releases/download/v0.1.0-alpha.1/vex-0.1.0-alpha.1-x86_64-unknown-linux-musl.tar.gz
+tar -xzf vex.tar.gz
+./vex-0.1.0-alpha.1-x86_64-unknown-linux-musl/vex
+```
+
 ## Quick Start
 
 ```bash

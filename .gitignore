@@ -1,5 +1,6 @@
 # --- Rust/Cargo ---
 /target/
+/dist/
 **/*.rs.bk
 Cargo.lock.report
 /mutants.out/

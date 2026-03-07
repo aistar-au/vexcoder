@@ -1,6 +1,6 @@
 # Contributing to vexcoder
 
-> **Version:** This workflow applies from `v0.1.0-alpha` onward.  
+> **Version:** This workflow applies from `v0.1.0-alpha.1` onward.  
 > **Architecture decisions** live in [`TASKS/`](TASKS/ADR-README.md).  
 > **Dispatch ADRs not yet completed** live in [`TASKS/`](TASKS/TASKS-DISPATCH-MAP.md) as `TASKS/ADR-XXX-*.md`.  
 > The ADRs explain *why* the project is structured this way. Read them before opening a PR.
@@ -133,6 +133,30 @@ cargo test --all-targets
 bash scripts/check_no_alternate_routing.sh
 bash scripts/check_forbidden_imports.sh
 ```
+
+---
+
+## Release Packaging
+
+Package release changes on a dispatcher branch first and debug the packaging workflow there before opening a PR.
+
+```bash
+git switch -c dispatcher/v0.1.0-alpha.1-packaging
+make gate
+make release VERSION=v0.1.0-alpha.1 TARGET=x86_64-unknown-linux-gnu
+git push -u origin dispatcher/v0.1.0-alpha.1-packaging
+```
+
+Branch pushes to `.github/workflows/release.yml` upload packaging artifacts for review only. Once the branch workflow is green and the archives look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
+
+```bash
+git switch main
+git pull --ff-only origin main
+git tag v0.1.0-alpha.1
+git push origin v0.1.0-alpha.1
+```
+
+Do not merge packaging work directly from a local debug session; keep the review and merge step explicit.
 
 ---
 

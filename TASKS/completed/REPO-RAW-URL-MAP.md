@@ -9,9 +9,9 @@ Canonical raw URL index for every tracked file in this repository.
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
-| 1 | `.agents/onboarding.md` | ~199 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/onboarding.md> |
-| 2 | `.agents/skills/vex-local-bash/SKILL.md` | ~265 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-local-bash/SKILL.md> |
-| 3 | `.agents/skills/vex-remote-contract/SKILL.md` | ~920 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/SKILL.md> |
+| 1 | `.agents/onboarding.md` | ~206 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/onboarding.md> |
+| 2 | `.agents/skills/vex-local-bash/SKILL.md` | ~342 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-local-bash/SKILL.md> |
+| 3 | `.agents/skills/vex-remote-contract/SKILL.md` | ~1001 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/SKILL.md> |
 | 4 | `.agents/skills/vex-remote-contract/references/adr-024-gap-map.md` | ~34 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/references/adr-024-gap-map.md> |
 | 5 | `.agents/skills/vex-remote-contract/references/rust-rules.md` | ~36 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/references/rust-rules.md> |
 | 6 | `.agents/skills/vex-remote-contract/scripts/_lib.sh` | ~37 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/scripts/_lib.sh> |
@@ -21,7 +21,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 10 | `.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh` | ~151 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh> |
 | 11 | `.agents/skills/vex-remote-contract/scripts/verify_diff_url.sh` | ~124 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/scripts/verify_diff_url.sh> |
 | 12 | `.agents/skills/vex-remote-contract/scripts/verify_raw_urls.sh` | ~129 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-remote-contract/scripts/verify_raw_urls.sh> |
-| 13 | `.agents/skills/vex-rust-arch/SKILL.md` | ~44 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-rust-arch/SKILL.md> |
+| 13 | `.agents/skills/vex-rust-arch/SKILL.md` | ~112 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.agents/skills/vex-rust-arch/SKILL.md> |
 | 14 | `.gitattributes` | ~3 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitattributes> |
 | 15 | `.github/workflows/arch-contracts.yml` | ~38 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/arch-contracts.yml> |
 | 16 | `.github/workflows/autofix.yml` | ~237 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/autofix.yml> |
@@ -29,13 +29,13 @@ Canonical raw URL index for every tracked file in this repository.
 | 18 | `.github/workflows/doc-ref-check.yml` | ~112 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/doc-ref-check.yml> |
 | 19 | `.github/workflows/docs-build-and-deploy.yml` | ~51 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/docs-build-and-deploy.yml> |
 | 20 | `.github/workflows/update-roadmaps.yml` | ~59 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/update-roadmaps.yml> |
-| 21 | `.gitignore` | ~30 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitignore> |
-| 22 | `CONTRIBUTING.md` | ~208 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
+| 21 | `.gitignore` | ~31 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitignore> |
+| 22 | `CONTRIBUTING.md` | ~232 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
 | 23 | `Cargo.lock` | ~2581 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.lock> |
 | 24 | `Cargo.toml` | ~29 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.toml> |
 | 25 | `LICENSE` | ~21 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/LICENSE> |
-| 26 | `Makefile` | ~297 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Makefile> |
-| 27 | `README.md` | ~69 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/README.md> |
+| 26 | `Makefile` | ~325 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Makefile> |
+| 27 | `README.md` | ~91 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/README.md> |
 | 28 | `TASKS/ACTIVE-ROADMAP.md` | ~26 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
 | 29 | `TASKS/ADR-013-tui-completion-deployment-plan.md` | ~236 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ADR-013-tui-completion-deployment-plan.md> |
 | 30 | `TASKS/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md` | ~80 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md> |
@@ -146,7 +146,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 135 | `scripts/check_forbidden_names.sh` | ~18 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/check_forbidden_names.sh> |
 | 136 | `scripts/check_no_alternate_routing.sh` | ~42 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/check_no_alternate_routing.sh> |
 | 137 | `scripts/generate-docs.sh` | ~4 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/generate-docs.sh> |
-| 138 | `scripts/publish_docs_site.sh` | ~47 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/publish_docs_site.sh> |
+| 138 | `scripts/publish_docs_site.sh` | ~48 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/publish_docs_site.sh> |
 | 139 | `scripts/update_active_roadmaps.py` | ~166 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/update_active_roadmaps.py> |
 | 140 | `src/api.rs` | ~6 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api.rs> |
 | 141 | `src/api/client.rs` | ~819 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client.rs> |

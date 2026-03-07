@@ -1,0 +1,135 @@
+name: release
+
+on:
+  push:
+    branches:
+      - "dispatcher/**"
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: package (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-24.04
+            build_tool: cross
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04
+            build_tool: cross
+          - target: x86_64-pc-windows-gnu
+            runner: ubuntu-24.04
+            build_tool: cross
+          - target: x86_64-apple-darwin
+            runner: macos-15-intel
+            build_tool: cargo
+          - target: aarch64-apple-darwin
+            runner: macos-15
+            build_tool: cargo
+
+    steps:
+      - name: Checkout repository
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          git init .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
+          git checkout --detach FETCH_HEAD
+
+      - name: Install stable Rust
+        run: |
+          set -euo pipefail
+          source "$HOME/.cargo/env" 2>/dev/null || true
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.build_tool == 'cross'
+        run: |
+          set -euo pipefail
+          source "$HOME/.cargo/env" 2>/dev/null || true
+          cargo install cross --locked
+
+      - name: Resolve package version
+        id: version
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)"
+            echo "value=v${version}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package release archive
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          TARGET: ${{ matrix.target }}
+          OUT_DIR: dist
+          BUILD_TOOL: ${{ matrix.build_tool }}
+        run: bash scripts/release.sh
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Assemble checksums
+        run: |
+          set -euo pipefail
+          find dist -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' \) | sort
+          find dist -maxdepth 1 -type f -name '*.sha256' | sort | xargs cat > dist/checksums.txt
+          ls -la dist
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          prerelease_flag=()
+          case "$TAG" in
+            *-*) prerelease_flag+=(--prerelease) ;;
+          esac
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt --clobber
+          else
+            gh release create "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt --verify-tag --generate-notes "${prerelease_flag[@]}"
+          fi

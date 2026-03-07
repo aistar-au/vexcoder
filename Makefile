@@ -1,12 +1,14 @@
 # ==============================================================================
 # vexcoder — Makefile v0
 #
-# Wraps the exact gates that already run across ci.yml and arch-contracts.yml.
-# No new checks. No new scripts. No phantom targets.
+# Wraps the exact gates that already run across ci.yml and arch-contracts.yml,
+# plus the release packaging entrypoint used by release.yml.
+# No new checks. No phantom targets.
 #
 # Usage:
 #   make gate          full gate (matches ci.yml + arch-contracts.yml combined)
 #   make gate-fast     gate without map-check (tight local edit loop)
+#   make release       package one target to dist/ for local smoke testing
 #   make fix           apply fmt + taplo + line-ending renorm + map-update
 #   make help          list all targets
 #
@@ -23,7 +25,6 @@
 #   rust    rustup (stable toolchain)
 #
 # Future targets (not included — scripts do not yet exist on main):
-#   release        scripts/release.sh              (ADR-024 Gap 9 — Phase G)
 #   health-check   scripts/agent_health_check.sh   (ADR-024 Gap 27)
 #   lint-json      scripts/lint_check.sh           (structured clippy for agents)
 # ==============================================================================
@@ -40,6 +41,7 @@ SHELL := bash
         check-boundary check-routing check-imports check-names check-module-names check-arch \
         map-check map-check-full map-update \
         test test-targets test-single \
+        release \
         gate gate-fast \
         fix \
         clean
@@ -71,6 +73,7 @@ help:
 	  "  test-targets       cargo test --all-targets (arch-contracts.yml variant)" \
 	  "  test-single        run one test by name: make test-single T=test_fn_name" \
 	  "  gate               FULL gate: ci.yml + arch-contracts.yml + map index check" \
+	  "  release            package one target: make release VERSION=v0.1.0-alpha.1 TARGET=x86_64-unknown-linux-gnu" \
 	  "  gate-fast          fast gate: full gate minus map-check (local edit loop)" \
 	  "  fix                rustfmt + taplo + renorm + map-update (all auto-fixable in one pass)" \
 	  "  clean              cargo clean"
@@ -302,6 +305,17 @@ fix: _require-taplo
 	git add TASKS/completed/REPO-RAW-URL-MAP.md
 	@echo ""
 	@echo "fix: applied — run 'make gate' to verify"
+
+
+# ------------------------------------------------------------------------------
+# Release packaging
+# ------------------------------------------------------------------------------
+release:
+	@VERSION="$(VERSION)" \
+	 TARGET="$(TARGET)" \
+	 OUT_DIR="$(if $(OUT_DIR),$(OUT_DIR),dist)" \
+	 BUILD_TOOL="$(BUILD_TOOL)" \
+	 bash scripts/release.sh
 
 
 # ------------------------------------------------------------------------------
