@@ -292,11 +292,25 @@ Dispatcher rules:
 - Proceed only when `ready_to_push` is `true` and `quorum_reached` is `true`.
 - If `rerun_required` is `true`, rerun the gate before push.
 - If exit 2 is accepted, record a `Commit Debug Exception` in the batch report.
+- Treat `findings.json` as the machine-readable bug ledger for the run. It
+  records every finding, the blocking subset, the provider/model source, and
+  whether each finding had a patch artifact and patch status.
+- Treat `pipeline-events.jsonl` as the chronological audit log for dispatcher
+  automation. It records run start/finish, slot attempts, waits, retries, and
+  patch outcomes in append-only JSONL form.
 - For provider-side troubleshooting, inspect `attempts[*].stream_log_path`
   together with `quota_scope`, `quota_id`, and `quota_metric` in
   `dispatcher-summary.json`. Each attempt archives a
   `stream-<provider>-<account>-<model>-attempt-<n>.sse.log` file under the
   run directory.
+- If auto-patching occurs, archive the per-finding patch files under
+  `patches/` and the optional `applied-patches.patch` bundle. Use
+  `patch_results`, `patched_finding_ids`, and `unpatched_finding_ids` in
+  `dispatcher-summary.json` to distinguish found issues from issues that were
+  actually actioned.
+- Use `repo_branch`, `repo_head_sha`, `merge_base_sha`, `changed_paths`, and
+  `diff_sha256` from `dispatcher-summary.json` to tie a run to the exact
+  reviewed tree state.
 - The gate applies a conservative shared-account RPM guard across Google model
   slots and bounds stalled stream reads to about 120 seconds. Treat
   `skipped_local_rate_window` and timed-out stream attempts as gate evidence,
