@@ -125,6 +125,10 @@ Violation of any of these is a hard stop requiring user intervention.
 - `branch_summary.sh --write-pr-body` is disabled; the script dies on that
   flag. Use GitHub MCP for all PR body writes (Hard Rule 23).
 - Merge commits only on `main` — no squash, no rebase (Hard Rule 2).
+- No push of `src/**/*.rs` or `tests/**/*.rs` changes without a clean
+  `../vexdraft/main-script.sh commit-debug --diff-ref origin/main..HEAD \
+  --providers cerebras,google --min-providers 2` rerun, unless an explicit
+  emergency exception is recorded and approved by the user.
 - Every push must be verified: local HEAD SHA must equal `origin/<branch>` SHA
   (Hard Rule 10).
 - `vex-local-bash` never calls GitHub write APIs.
@@ -144,6 +148,7 @@ Step 5   URL MAP     gen_verification_urls.sh
 Step 6   RAW CHECK   verify_raw_urls.sh --compare
 Step 7   DIFF CHECK  verify_diff_url.sh
 Step 8   CI GATE     clippy + rustfmt + tests
+Step 8.5 DEBUG GATE  `../vexdraft/main-script.sh commit-debug --diff-ref origin/main..HEAD --providers cerebras,google --min-providers 2` for `src/**/*.rs` and `tests/**/*.rs`
 Step 9   MAP GATE    update_repo_raw_url_map.sh --check-index
 Step 10  PR+MERGE    Draft via vex-local-bash; post via vex-remote-contract MCP; merge --no-ff
 Step 11  POST-MERGE  Re-fetch raw map URL; verify files at merge commit SHA
@@ -163,6 +168,8 @@ Required before the first batch action in any session:
 - [ ] `vex-remote-contract/SKILL.md` loaded and read in full
 - [ ] Current `main` HEAD SHA confirmed via GitHub MCP
 - [ ] Relevant ADR fetched and read
+- [ ] If changed paths include `src/**/*.rs` or `tests/**/*.rs`, `vexdraft`
+      `commit-debug` reached clean exit `0`, or an emergency exception is recorded
 - [ ] `REPO-RAW-URL-MAP.md` coverage check run (`--check-index` flag)
 - [ ] User confirmation received before any write action
 

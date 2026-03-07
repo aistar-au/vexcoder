@@ -36,6 +36,7 @@ SHELL := bash
         build check \
         fmt fmt-check \
         lint \
+        commit-debug-gate \
         check-boundary check-routing check-imports check-names check-module-names check-arch \
         map-check map-check-full map-update \
         test test-targets test-single \
@@ -56,6 +57,7 @@ help:
 	  "  fmt                cargo fmt + taplo fmt (write)" \
 	  "  fmt-check          cargo fmt --check + taplo fmt --check + taplo lint" \
 	  "  lint               cargo clippy --all-targets -- -D warnings" \
+	  "  commit-debug-gate  run sibling vexdraft commit-debug gate (required before push for src/tests edits)" \
 	  "  check-boundary     assert no ratatui/crossterm in src/runtime/ (ADR-006)" \
 	  "  check-routing      assert no alternate routing patterns (ADR-007, ADR-014)" \
 	  "  check-imports      assert no forbidden cross-layer imports (ADR-007)" \
@@ -138,6 +140,18 @@ fmt-check: _require-taplo
 # ------------------------------------------------------------------------------
 lint:
 	cargo clippy --all-targets -- -D warnings
+
+
+# ------------------------------------------------------------------------------
+# Commit-debug gate
+#
+# Required before push when changed paths include `src/**/*.rs` or `tests/**/*.rs`.
+# The sibling vexdraft repo provides the two-provider debug gate and auto-patch loop.
+# Re-run this target until it exits 0, unless an explicit emergency exception is
+# approved and recorded.
+# ------------------------------------------------------------------------------
+commit-debug-gate:
+	@../vexdraft/main-script.sh commit-debug --diff-ref origin/main..HEAD --providers cerebras,google --min-providers 2
 
 
 # ------------------------------------------------------------------------------

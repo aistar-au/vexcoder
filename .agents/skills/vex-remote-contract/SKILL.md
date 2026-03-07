@@ -455,8 +455,10 @@ The coding agent follows the dispatch:
    Do not use `git checkout -b` to create branches — remote creation via MCP is required.
 2. Implement each task in execution order, stopping on any red anchor.
 3. Run `cargo test --all-targets` after each task.
-4. For batches touching `src/` or `tests/`, run the commit-debug gate before
-   push. Then run the local CI gate:
+4. For batches touching `src/` or `tests/`, run the vexdraft commit-debug gate
+   before push and re-run it until `ready_to_push=true` and
+   `rerun_required=false`. Skip it only under an explicitly recorded emergency
+   exception approved by the user. Then run the local CI gate:
 
 ```sh
 cargo clippy --all-targets -- -D warnings
@@ -645,8 +647,8 @@ Project policy:
 | :--- | :--- | :--- |
 | `.github/workflows/*.yml` | yes — `doc-ref-check` blocks merge | no |
 | `.agents/skills/*/SKILL.md` | yes — `doc-ref-check` blocks merge | no |
-| `src/**/*.rs` | none | yes — run `--check-index` before push |
-| `tests/**/*.rs` | none | yes — run `--check-index` before push |
+| `src/**/*.rs` | none | yes — run `commit-debug` and `--check-index` before push |
+| `tests/**/*.rs` | none | yes — run `commit-debug` and `--check-index` before push |
 | `scripts/*.sh` | none | yes — run `--check-index` before push |
 | `TASKS/**/*.md` | none | yes — run `--check-index` before push |
 | any other new file | none | yes — run `--check-index` before push |
@@ -879,7 +881,7 @@ git commit -m "Add branch contract skill scripts"
 5. **Working tree must be clean** before any verification script runs.
 6. **Only raw GitHub URLs** in agent prompts during Step 6. No full file content paste.
 7. **All output is markdown** — no plain text paragraphs in dispatch or report documents.
-8. **Repo map gate required** — run `update_repo_raw_url_map.sh --check-index`; if missing entries are reported, update the map then re-check. Any PR that adds a `.github/workflows/*.yml` or `.agents/skills/*/SKILL.md` file must update the map in the same commit — the `doc-ref-check` CI workflow enforces this and will block merge if the map entry is missing.
+8. **Repo map and debug gates required** — run `update_repo_raw_url_map.sh --check-index`; if missing entries are reported, update the map then re-check. When changed paths include `src/**/*.rs` or `tests/**/*.rs`, run the vexdraft commit-debug gate and re-run it until `ready_to_push=true` and `rerun_required=false`. Skip the debug gate only under an explicitly recorded emergency exception approved by the user. Any PR that adds a `.github/workflows/*.yml` or `.agents/skills/*/SKILL.md` file must update the map in the same commit — the `doc-ref-check` CI workflow enforces this and will block merge if the map entry is missing.
 9. **Final report required** — every batch must close with a bullet-listed task results section (one bullet per task ID with status), files changed, verification commands with exit codes, and open issues.
 10. **Ensure push landed** — after every `git push`, run `git fetch origin --prune` and confirm `git rev-parse HEAD` equals `git rev-parse origin/<branch>`.
 11. **Commit hygiene gate required** — batch promotions on `main` must end on a merge commit (`git rev-list --parents -n 1 HEAD` parent count `>= 2`).
@@ -946,7 +948,10 @@ git commit -m "Add branch contract skill scripts"
     the managed virtualenv, default key file, target repo, and archive root
     stay aligned:
     ```sh
-    ~/git-repo/vexdraft/main-script.sh commit-debug --diff-ref origin/main..HEAD
+    ../vexdraft/main-script.sh commit-debug \
+      --diff-ref origin/main..HEAD \
+      --providers cerebras,google \
+      --min-providers 2
     ```
     Treat the printed `Summary:` path as the handoff artifact for dispatcher
     verification and push decisions. Read the corresponding
@@ -956,8 +961,8 @@ git commit -m "Add branch contract skill scripts"
     is still required, including reruns after in-place auto-patches. Exit 2
     means reliable handoff was not achieved, including zero successful
     providers or fewer than the required distinct providers; it may be skipped
-    only with explicit user approval and a `Commit Debug Exception` record in
-    the batch report.
+    only with explicit user approval, an emergency reason, and a
+    `Commit Debug Exception` record in the batch report.
     Proceed with push only when `ready_to_push` is `true` and `quorum_reached`
     is `true`. If `rerun_required` is `true`, rerun the gate before any push.
     Treat `findings.json` as the machine-readable bug ledger for the run. It
