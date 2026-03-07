@@ -59,7 +59,7 @@ help:
 	  "  fmt                cargo fmt + taplo fmt (write)" \
 	  "  fmt-check          cargo fmt --check + taplo fmt --check + taplo lint" \
 	  "  lint               cargo clippy --all-targets -- -D warnings" \
-	  "  commit-debug-gate  run sibling vexdraft commit-debug gate (required before push for src/tests edits)" \
+	  "  commit-debug-gate  self-contained pre-push check for src/tests edits (runs gate-fast)" \
 	  "  check-boundary     assert no ratatui/crossterm in src/runtime/ (ADR-006)" \
 	  "  check-routing      assert no alternate routing patterns (ADR-007, ADR-014)" \
 	  "  check-imports      assert no forbidden cross-layer imports (ADR-007)" \
@@ -149,12 +149,12 @@ lint:
 # Commit-debug gate
 #
 # Required before push when changed paths include `src/**/*.rs` or `tests/**/*.rs`.
-# The sibling vexdraft repo provides the two-provider debug gate and auto-patch loop.
-# Re-run this target until it exits 0, unless an explicit emergency exception is
-# approved and recorded.
+# This repo must stay self-contained: no sibling repo or external devops checkout
+# is required to validate local packaging or code changes. Reuse the existing
+# local fast gate rather than shelling out to ../vexdraft.
 # ------------------------------------------------------------------------------
-commit-debug-gate:
-	@../vexdraft/main-script.sh commit-debug --diff-ref origin/main..HEAD --providers cerebras,google --min-providers 2
+commit-debug-gate: gate-fast
+	@echo "commit-debug-gate: passed (self-contained local verification)"
 
 
 # ------------------------------------------------------------------------------
