@@ -7,8 +7,6 @@ on:
     paths:
       - "TASKS/ADR-*.md"
       - "TASKS/ACTIVE-ROADMAP.md"
-      - "TASKS/TASKS-DISPATCH-MAP.md"
-      - ".agents/onboarding.md"
       - "scripts/update_active_roadmaps.py"
 
 permissions:

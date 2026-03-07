@@ -219,17 +219,15 @@ check-arch: \
 #
 #   map-update       regenerates the full map (called automatically by fix).
 #
-# Requires: update_repo_raw_url_map.sh --check-index flag added via patch
-#   0001-add-check-index-flag.patch (apply before landing this Makefile)
 # ------------------------------------------------------------------------------
 map-check:
-	@.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check-index
+	@scripts/update_repo_raw_url_map.sh --check-index
 
 map-check-full:
-	@.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check
+	@scripts/update_repo_raw_url_map.sh --check
 
 map-update:
-	@.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
+	@scripts/update_repo_raw_url_map.sh
 
 
 # ------------------------------------------------------------------------------
@@ -301,7 +299,7 @@ fix: _require-taplo
 	cargo fmt
 	taplo fmt
 	git add --renormalize .
-	@.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
+	@scripts/update_repo_raw_url_map.sh
 	git add TASKS/completed/REPO-RAW-URL-MAP.md
 	@echo ""
 	@echo "fix: applied — run 'make gate' to verify"
