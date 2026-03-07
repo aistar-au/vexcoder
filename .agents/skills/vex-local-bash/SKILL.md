@@ -90,6 +90,10 @@ For PR motivation body drafts:
 - The files changed list must come from `pull_request_read(get_files)` at the
   current head SHA. Do not write a file list from session memory or prior
   context. Call the API first, then draft.
+- Gate findings and auto-patch outcomes belong in the motivation body only as
+  plain-prose summaries ("N issues were identified and corrected automatically
+  before push"). Do not embed findings tables, patch paths, or JSONL excerpts
+  in motivation text — those belong in the review body or as attached artifacts.
 
 ADR references must be inline markdown links to `main` blob URLs:
 
@@ -194,6 +198,11 @@ Before handoff to remote posting:
   file, confirm the map update is present in the diff before handoff. The
   `doc-ref-check` CI step enforces this and will block merge if the map
   entry is missing.
+- If the batch ran the commit-debug gate, ground gate-related claims in
+  `dispatcher-summary.json` and `findings.json` rather than paraphrasing terminal
+  output. Use `repo_head_sha` and `merge_base_sha` to anchor the evidence to the
+  exact tree reviewed. For auto-patched findings, cite `patch_results[*].status`
+  and the patch artifact path; do not describe the fix from memory.
 
 ---
 

@@ -455,7 +455,7 @@ The coding agent follows the dispatch:
    Do not use `git checkout -b` to create branches — remote creation via MCP is required.
 2. Implement each task in execution order, stopping on any red anchor.
 3. Run `cargo test --all-targets` after each task.
-4. Before push, run the local CI gate:
+4. Before push, run the commit-debug gate (Rule 32) and the local CI gate:
 
 ```sh
 cargo clippy --all-targets -- -D warnings
@@ -464,6 +464,25 @@ cargo test --all-targets
 ```
 
 If any command fails, fix it before commit/push.
+
+The commit-debug gate writes a run directory under `~/git-repo/vexdraft-archive/`
+containing:
+- `dispatcher-summary.json` — machine-readable handoff contract (v2 schema):
+  `status`, `ready_to_push`, `quorum_reached`, `rerun_required`,
+  `successful_providers`, `blocking_findings`, `patch_results`,
+  `repo_branch`, `repo_head_sha`, `merge_base_sha`, `changed_paths`,
+  `diff_sha256`, `attempts` (per-slot metadata with `key_fingerprint`,
+  `verdict`, token counts, `stream_log_path`).
+- `findings.json` — per-finding bug ledger with `blocking_findings_detail`
+  (provider, model, patch artifact path, patch status for each blocking item).
+- `pipeline-events.jsonl` — chronological audit log (run_started, diff_loaded,
+  provider_keys_loaded, prompt_built, slot_started, attempt_recorded,
+  query_completed, patch_result, patch_bundle_written, run_finished).
+- `patches/` — one `.patch` file per finding that had an auto-applied fix.
+- `applied-patches.patch` — bundle of all applied patches (when present).
+
+Proceed only when `ready_to_push=true`, `quorum_reached=true`, and
+`rerun_required=false`. See Rule 32 for the full gate contract.
 5. Commit with message: `Batch <X>: <ADR-NNN> Phases <range> implementation`
 6. Sync local, then push (MCP-first): before pushing, run:
    ```sh
