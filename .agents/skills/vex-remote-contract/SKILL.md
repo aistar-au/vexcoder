@@ -455,8 +455,9 @@ The coding agent follows the dispatch:
    Do not use `git checkout -b` to create branches — remote creation via MCP is required.
 2. Implement each task in execution order, stopping on any red anchor.
 3. Run `cargo test --all-targets` after each task.
-4. For batches touching `src/` or `tests/`, run the vexdraft commit-debug gate
-   before push and re-run it until `ready_to_push=true` and
+4. For batches touching `src/` or `tests/`, run the pre-push debugger
+   (`../vexdraft/.venv/bin/python3 ../vexdraft/scripts/commit-debug.py --diff-ref origin/main..HEAD`) and
+   re-run it until `ready_to_push=true` and
    `rerun_required=false`. Skip it only under an explicitly recorded emergency
    exception approved by the user. Then run the local CI gate:
 
@@ -486,8 +487,8 @@ handoff contract:
 
 Proceed only when `ready_to_push=true`, `quorum_reached=true`, and
 `rerun_required=false`. If the batch does not touch `src/` or `tests/`, skip
-this gate and rely on the local CI gate plus the repo-specific verification
-required by the batch.
+the pre-push debugger and rely on the local CI gate plus the repo-specific
+verification required by the batch.
 5. Commit with message: `Batch <X>: <ADR-NNN> Phases <range> implementation`
 6. Sync local, then push (MCP-first): before pushing, run:
    ```sh
@@ -881,7 +882,7 @@ git commit -m "Add branch contract skill scripts"
 5. **Working tree must be clean** before any verification script runs.
 6. **Only raw GitHub URLs** in agent prompts during Step 6. No full file content paste.
 7. **All output is markdown** — no plain text paragraphs in dispatch or report documents.
-8. **Repo map and debug gates required** — run `update_repo_raw_url_map.sh --check-index`; if missing entries are reported, update the map then re-check. When changed paths include `src/**/*.rs` or `tests/**/*.rs`, run the vexdraft commit-debug gate and re-run it until `ready_to_push=true` and `rerun_required=false`. Skip the debug gate only under an explicitly recorded emergency exception approved by the user. Any PR that adds a `.github/workflows/*.yml` or `.agents/skills/*/SKILL.md` file must update the map in the same commit — the `doc-ref-check` CI workflow enforces this and will block merge if the map entry is missing.
+8. **Repo map and debug gates required** — run `update_repo_raw_url_map.sh --check-index`; if missing entries are reported, update the map then re-check. When changed paths include `src/**/*.rs` or `tests/**/*.rs`, run the pre-push debugger (`../vexdraft/.venv/bin/python3 ../vexdraft/scripts/commit-debug.py --diff-ref origin/main..HEAD`) and re-run it until `ready_to_push=true` and `rerun_required=false`. Skip the pre-push debugger only under an explicitly recorded emergency exception approved by the user. Any PR that adds a `.github/workflows/*.yml` or `.agents/skills/*/SKILL.md` file must update the map in the same commit — the `doc-ref-check` CI workflow enforces this and will block merge if the map entry is missing.
 9. **Final report required** — every batch must close with a bullet-listed task results section (one bullet per task ID with status), files changed, verification commands with exit codes, and open issues.
 10. **Ensure push landed** — after every `git push`, run `git fetch origin --prune` and confirm `git rev-parse HEAD` equals `git rev-parse origin/<branch>`.
 11. **Commit hygiene gate required** — batch promotions on `main` must end on a merge commit (`git rev-list --parents -n 1 HEAD` parent count `>= 2`).
@@ -948,10 +949,10 @@ git commit -m "Add branch contract skill scripts"
     the managed virtualenv, default key file, target repo, and archive root
     stay aligned:
     ```sh
-    ../vexdraft/main-script.sh commit-debug \
+    ../vexdraft/.venv/bin/python3 ../vexdraft/scripts/commit-debug.py \
       --diff-ref origin/main..HEAD \
-      --providers cerebras,google \
-      --min-providers 2
+      --api-keys-file ../vexdraft/config/api_keys.txt \
+      --repo-root .
     ```
     Treat the printed `Summary:` path as the handoff artifact for dispatcher
     verification and push decisions. Read the corresponding
@@ -985,16 +986,15 @@ git commit -m "Add branch contract skill scripts"
     actually actioned. Use `repo_branch`, `repo_head_sha`, `merge_base_sha`,
     `changed_paths`, and `diff_sha256` to tie a run to the exact reviewed tree
     state.
-    If the branch edits `~/git-repo/vexdraft/scripts/providers.py` or
-    `~/git-repo/vexdraft/scripts/commit-debug.py`, run these smoke checks
-    before handoff:
+    If the branch edits `../vexdraft/scripts/providers.py` or
+    `../vexdraft/scripts/commit-debug.py`, run these smoke checks before handoff:
     ```sh
     PYTHONPYCACHEPREFIX=/tmp python3 -m py_compile \
-      ~/git-repo/vexdraft/scripts/providers.py \
-      ~/git-repo/vexdraft/scripts/commit-debug.py
+      ../vexdraft/scripts/providers.py \
+      ../vexdraft/scripts/commit-debug.py
 
     PYTHONPYCACHEPREFIX=/tmp python3 \
-      ~/git-repo/vexdraft/scripts/commit-debug.py --help
+      ../vexdraft/scripts/commit-debug.py --help
     ```
     If the gate auto-applies patches, run `cargo fmt --check` and `cargo check`
     on the patched tree, then rerun `commit-debug` on the new diff before

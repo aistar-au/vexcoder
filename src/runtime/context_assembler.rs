@@ -93,7 +93,7 @@ impl ContextAssembler {
                 if !seen_paths.insert(inferred.clone()) {
                     continue;
                 }
-                let candidate = inferred.to_string_lossy().to_string();
+                let candidate = inferred.to_string_lossy().replace('\\', "/");
                 let Ok(content) = operator.read_file(&candidate) else {
                     continue;
                 };
@@ -769,6 +769,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_context_assembler_large_diff_does_not_timeout() {
+        let _lock = crate::test_support::ENV_LOCK.lock().await;
         let workspace = tempfile::tempdir().expect("tempdir");
         init_git_repo(workspace.path());
 

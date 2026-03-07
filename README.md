@@ -2,6 +2,58 @@
 
 Terminal-first coding assistant with streaming responses, tool execution, and ratatui UI.
 
+## Installation
+
+### From Source
+
+macOS/Linux:
+
+```bash
+git clone https://github.com/aistar-au/vexcoder.git
+cd vexcoder
+make gate-fast
+cargo build --release
+./target/release/vex
+```
+
+Windows PowerShell 7:
+
+```powershell
+git clone https://github.com/aistar-au/vexcoder.git
+cd vexcoder
+$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+cargo build --release --bin vex
+.\target\release\vex.exe
+```
+
+To package a Windows archive locally, install Visual Studio Build Tools with the C++ workload and run:
+
+```powershell
+.\scripts\release.ps1 -Version v0.1.0-alpha.1 -Target x86_64-pc-windows-msvc -RunGate
+```
+
+### From GitHub Releases
+
+Download the archive for your platform from the GitHub Releases page, unpack it, and run `vex`.
+
+macOS/Linux:
+
+```bash
+curl -L -o vex.tar.gz https://github.com/aistar-au/vexcoder/releases/download/v0.1.0-alpha.1/vex-0.1.0-alpha.1-x86_64-unknown-linux-musl.tar.gz
+tar -xzf vex.tar.gz
+./vex-0.1.0-alpha.1-x86_64-unknown-linux-musl/vex
+```
+
+Windows PowerShell 7:
+
+```powershell
+Invoke-WebRequest -Uri "https://github.com/aistar-au/vexcoder/releases/download/v0.1.0-alpha.1/vex-0.1.0-alpha.1-x86_64-pc-windows-msvc.zip" -OutFile vex.zip
+Expand-Archive vex.zip -DestinationPath .
+.\vex-0.1.0-alpha.1-x86_64-pc-windows-msvc\vex.exe
+```
+
+Windows alpha archives are unsigned today. SmartScreen will show an "Unknown Publisher" warning until Authenticode signing is added. SignPath.io is the planned first signing path for open-source release automation.
+
 ## Quick Start
 
 ```bash
@@ -67,3 +119,4 @@ Source maps:
 - App/raw links for the Rust application code: `CONTRIBUTING.md`
 - Full repository raw URL map: `TASKS/completed/REPO-RAW-URL-MAP.md`
 - Sponsor VexCoder: SegWit bc1qrv27qmjvleyrllr3ed7pxstxgvrjesxxj0dzwa, Eth 0xe5D746f089D155f0E1C6dD6C663E3F5D853BAe6a
+

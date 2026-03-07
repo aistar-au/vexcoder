@@ -368,7 +368,7 @@ impl ToolOperator {
         let relative = resolved
             .strip_prefix(&self.working_dir)
             .context("Path escapes working directory")?;
-        Ok(relative.to_string_lossy().to_string())
+        Ok(path_to_repo_relative_string(relative))
     }
 
     fn run_git(&self, args: Vec<String>) -> Result<String> {
@@ -403,8 +403,8 @@ impl ToolOperator {
 
     pub fn to_workspace_relative_display(&self, path: &Path) -> String {
         path.strip_prefix(&self.working_dir)
-            .map(|relative| relative.to_string_lossy().to_string())
-            .unwrap_or_else(|_| path.to_string_lossy().to_string())
+            .map(path_to_repo_relative_string)
+            .unwrap_or_else(|_| path_to_repo_relative_string(path))
     }
 
     pub fn working_dir(&self) -> &Path {
@@ -457,7 +457,7 @@ impl ToolOperator {
                 .strip_prefix(&self.working_dir)
                 .unwrap_or_else(|_| Path::new(""));
             if let Some(pattern) = glob_pattern {
-                let candidate = relative.to_string_lossy();
+                let candidate = path_to_repo_relative_string(relative);
                 if !glob_matches(pattern, &candidate) {
                     continue;
                 }
@@ -497,7 +497,7 @@ impl ToolOperator {
             let relative = path
                 .strip_prefix(&self.working_dir)
                 .unwrap_or_else(|_| Path::new(""));
-            let candidate = relative.to_string_lossy();
+            let candidate = path_to_repo_relative_string(relative);
             if glob_matches(pattern, &candidate) {
                 results.push(path);
             }
@@ -545,6 +545,10 @@ fn non_empty_trimmed(value: &str) -> Option<&str> {
     } else {
         Some(trimmed)
     }
+}
+
+fn path_to_repo_relative_string(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 fn build_line_matcher(query: &str) -> Result<(AhoCorasick, Option<String>)> {

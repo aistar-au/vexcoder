@@ -275,14 +275,20 @@ ran against a different working tree state, or the header total was hand-edited.
 
 ---
 
-## Commit-debug gate (required before any push of Rust source)
+## Pre-push debugger — vexdraft commit-debug gate
 
-Before any `git push` that includes changes to `src/` or `tests/`, invoke the
-multi-model commit review gate through the vexdraft orchestrator so the managed
-virtualenv, default key file, target repo, and archive root stay aligned:
+**Repository:** `../vexdraft` relative to the vexcoder root (absolute: `~/git-repo/vexdraft`).
+This is the designated pre-push debugger for `aistar-au/vexcoder`. Always invoke it
+through the vexdraft orchestrator so the managed virtualenv, default key file, target
+repo, and archive root stay aligned.
+
+**Required before any `git push` that includes changes to `src/` or `tests/`.**
 
 ```sh
-~/git-repo/vexdraft/main-script.sh commit-debug --diff-ref origin/main..HEAD
+../vexdraft/.venv/bin/python3 ../vexdraft/scripts/commit-debug.py \
+  --diff-ref origin/main..HEAD \
+  --api-keys-file ../vexdraft/config/api_keys.txt \
+  --repo-root .
 ```
 
 Treat the printed `Summary:` path as the machine-readable handoff artifact for
@@ -325,17 +331,16 @@ Dispatcher rules:
   `skipped_local_rate_window` and timed-out stream attempts as gate evidence,
   not as stdout-only noise.
 
-If the branch edits `~/git-repo/vexdraft/scripts/providers.py` or
-`~/git-repo/vexdraft/scripts/commit-debug.py`, run these smoke checks before
-handoff:
+If the branch edits `../vexdraft/scripts/providers.py` or
+`../vexdraft/scripts/commit-debug.py`, run these smoke checks before handoff:
 
 ```sh
 PYTHONPYCACHEPREFIX=/tmp python3 -m py_compile \
-  ~/git-repo/vexdraft/scripts/providers.py \
-  ~/git-repo/vexdraft/scripts/commit-debug.py
+  ../vexdraft/scripts/providers.py \
+  ../vexdraft/scripts/commit-debug.py
 
 PYTHONPYCACHEPREFIX=/tmp python3 \
-  ~/git-repo/vexdraft/scripts/commit-debug.py --help
+  ../vexdraft/scripts/commit-debug.py --help
 ```
 
 If the gate auto-applies patches, run `cargo fmt --check` and `cargo check` on

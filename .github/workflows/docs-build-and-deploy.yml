@@ -1,4 +1,4 @@
-name: docs-build
+name: docs-build-and-deploy
 
 on:
   workflow_dispatch:
@@ -6,14 +6,22 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+      - "scripts/generate-docs.sh"
       - ".github/workflows/docs-build-and-deploy.yml"
   pull_request:
     paths:
       - "docs/**"
+      - "scripts/generate-docs.sh"
       - ".github/workflows/docs-build-and-deploy.yml"
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: docs-pages
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -40,12 +48,20 @@ jobs:
           bash scripts/generate-docs.sh
           mdbook build docs
 
-      - name: Report publish contract
+      - name: Upload GitHub Pages artifact
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: |
-          {
-            echo "Docs build succeeded."
-            echo "CI validates the docs build only."
-            echo "Prepare site publication locally with \`bash scripts/publish_docs_site.sh\`."
-            echo "Review the generated publish worktree, then commit and push the branch update explicitly."
-          }
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/book
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

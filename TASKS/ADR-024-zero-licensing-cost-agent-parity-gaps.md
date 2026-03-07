@@ -223,11 +223,11 @@ Add `/model <name>` to `TuiMode::handle_slash_command`. The command updates `Run
 
 ### Gap 9 — Binary Distribution Pipeline and macOS Packaging
 
-**Sequencing:** all Phase G and H work is post-first-milestone. See sequencing guard above.
+**Sequencing:** branch-debug packaging lands on `dispatcher/**` first; prerelease and stable publishing happens from tags after the reviewed branch is merged. Homebrew automation remains deferred for the alpha packaging cut.
 
 #### Phase G — GitHub Releases pipeline
 
-Add a `release.yml` GitHub Actions workflow triggered on semver tags (`v*.*.*`). The workflow produces pre-built binaries for the following targets:
+Add a `release.yml` GitHub Actions workflow triggered on dispatcher branch pushes for packaging verification and on semver tags, including prerelease tags such as `v0.1.0-alpha.1`. Branch pushes build the archives below and upload them as Actions artifacts only. Tag pushes publish pre-built binaries for the following targets:
 
 | Target | CI runner | Notes |
 | :--- | :--- | :--- |
@@ -239,9 +239,9 @@ Add a `release.yml` GitHub Actions workflow triggered on semver tags (`v*.*.*`).
 
 **Windows target note:** `x86_64-pc-windows-msvc` requires a Windows CI runner and the MSVC toolchain. `x86_64-pc-windows-gnu` (mingw) is cross-compilable from Linux via `cross` with no Windows runner required. Use `gnu` as the default Windows target. A future ADR may add an `msvc` build on a Windows runner if installer tooling requires it. See the dependency licensing constraint section for the mingw runtime library exception applicable to static builds.
 
-Each target produces a compressed archive (`vex-<version>-<target>.tar.gz` or `.zip` for the Windows target) attached to the GitHub Release. A `checksums.txt` file containing `sha256` hashes for all archives is published alongside them.
+Each target produces a compressed archive (`vex-<version>-<target>.tar.gz` or `.zip` for the Windows target). Tag-triggered runs attach the archives to the GitHub Release. A `checksums.txt` file containing `sha256` hashes for all archives is published alongside them.
 
-A Homebrew tap formula (`homebrew-vex`) is maintained as a separate repository. The release workflow updates the tap formula automatically via a repository dispatch event on successful release.
+A Homebrew tap formula (`homebrew-vex`) is maintained as a separate repository, but its automatic repository-dispatch update remains deferred for the alpha packaging cut.
 
 #### Phase H — macOS application wrapper
 
@@ -1189,13 +1189,13 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | Clean shutdown | Server terminates at session exit |
 | Repo-local prohibition | `[[mcp_servers]]` in repo-local config rejected with diagnostic |
 
-### Phase G — Binary distribution pipeline (post-first-milestone)
+### Phase G — Binary distribution pipeline
 
 | Objective | Completion condition |
 | :--- | :--- |
-| GitHub Releases workflow | Tagging `v*.*.*` produces release with all five target archives |
+| GitHub Releases workflow | Branch pushes to `dispatcher/**` upload packaging artifacts; tagging `v*.*.*` or prerelease tags such as `v0.1.0-alpha.1` publishes all five target archives |
 | Checksums | `checksums.txt` with `sha256` published alongside archives |
-| Homebrew tap | Formula updated automatically via repository dispatch |
+| Homebrew tap | Deferred for the alpha packaging cut; future repository dispatch updates the formula |
 
 ### Phase H — macOS application wrapper (post-first-milestone)
 
