@@ -75,14 +75,20 @@ notes-path resolution and hook config resolution.
 
 | Batch | Manifests | Status |
 | :--- | :--- | :--- |
-| A - Config foundation | PA-01 | dispatch ready |
+| A - Config foundation | PA-01 | green — merged PR #48 |
+| B - Notes + Hooks | PJ-03, PL-01 | dispatch ready |
 
-### ADR-024 Immediate Gates
+### ADR-024 Sequencing
 
 ```text
 PA-01 -> PJ-03
 PA-01 -> PL-01
 ```
+
+### ADR-024 Batch B Gates
+
+PJ-03 and PL-01 are independent of each other and may be dispatched in
+parallel. Both are gated on PA-01 (config foundation), which is green.
 
 ---
 
