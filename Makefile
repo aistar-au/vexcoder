@@ -32,7 +32,6 @@ SHELL := bash
         release \
         gate gate-fast \
         fix \
-        checklist-status health-check lint-json _require-jq \
         clean
 
 
@@ -54,17 +53,14 @@ help:
 	  "  check-imports      assert no forbidden cross-layer imports (ADR-007)" \
 	  "  check-names        assert no proprietary vendor brand names (ADR-023)" \
 	  "  check-module-names assert Rust 2018 path-based modules — no mod.rs files" \
-	  "  check-arch         all architecture boundary checks (ci.yml + arch-contracts.yml)" \
+	  "  check-arch         all architecture boundary checks" \
 	  "  test               cargo test --all with VEX_MODEL_TOKEN=\"\" (ci.yml variant)" \
-	  "  test-targets       cargo test --all-targets (arch-contracts.yml variant)" \
+	  "  test-targets       cargo test --all-targets" \
 	  "  test-single        run one test by name: make test-single T=test_fn_name" \
-	  "  gate               full gate: ci.yml + arch-contracts.yml" \
+	  "  gate               full gate: fmt + lint + arch + tests" \
 	  "  gate-fast          full gate (identical to gate)" \
 	  "  release            package one target: make release VERSION=v0.1.0-alpha.1 TARGET=x86_64-unknown-linux-gnu" \
 	  "  fix                rustfmt + taplo + renorm (all auto-fixable in one pass)" \
-	  "  checklist-status   emit JSONL status per EL-* item from ADR-023 dispatcher checklist" \
-	  "  health-check       gate-fast + anchor tests for all done checklist items (requires jq)" \
-	  "  lint-json          structured clippy errors for agent consumption" \
 	  "  clean              cargo clean"
 
 
@@ -273,31 +269,3 @@ release:
 # ------------------------------------------------------------------------------
 clean:
 	cargo clean
-
-
-# ------------------------------------------------------------------------------
-# Dispatcher automation targets (ADR-024 Gap 27)
-#
-# checklist-status  emit JSONL per EL-* item from ADR-023 (no deps)
-# health-check      gate-fast + anchor tests for all "done" items (requires jq)
-# lint-json         structured clippy errors for agent consumption
-# ------------------------------------------------------------------------------
-_require-jq:
-	@command -v jq >/dev/null 2>&1 || { \
-	  echo ""; \
-	  echo "MISSING TOOL: jq"; \
-	  echo "  Required by: health-check"; \
-	  echo "  Install (brew):   brew install jq"; \
-	  echo "  Install (apt):    sudo apt-get install jq"; \
-	  echo ""; \
-	  exit 1; \
-	}
-
-checklist-status:
-	@bash scripts/checklist_status.sh
-
-health-check: _require-jq
-	@bash scripts/agent_health_check.sh
-
-lint-json:
-	@bash scripts/lint_check.sh
