@@ -1,12 +1,9 @@
-# Architecture Decision Records (TASKS Canonical)
+# Architecture Decision Records
 
-All ADR files live under `TASKS/`.
+All ADR files live under `docs/adr/`.
 
-- Open/dispatch ADRs: `TASKS/ADR-XXX-*.md`
-- Accepted/superseded ADR records: `TASKS/completed/ADR-XXX-*.md`
-
-`docs/` is reserved for mdBook/GitHub Pages content and must not be used to
-store ADR files.
+- Open ADRs: `docs/adr/ADR-XXX-*.md`
+- Accepted/superseded ADR records: `docs/adr/completed/ADR-XXX-*.md`
 
 ## Status vocabulary
 

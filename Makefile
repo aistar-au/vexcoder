@@ -7,7 +7,7 @@
 #
 # Usage:
 #   make gate          full gate (matches ci.yml + arch-contracts.yml combined)
-#   make gate-fast     gate without map-check (tight local edit loop)
+#   make gate-fast     full gate (identical to gate)
 #   make release       package one target to dist/ for local smoke testing
 #   make fix           apply fmt + taplo + line-ending renorm
 #   make help          list all targets
@@ -59,7 +59,7 @@ help:
 	  "  test-targets       cargo test --all-targets (arch-contracts.yml variant)" \
 	  "  test-single        run one test by name: make test-single T=test_fn_name" \
 	  "  gate               full gate: ci.yml + arch-contracts.yml" \
-	  "  gate-fast          alias for gate (map-check removed)" \
+	  "  gate-fast          full gate (identical to gate)" \
 	  "  release            package one target: make release VERSION=v0.1.0-alpha.1 TARGET=x86_64-unknown-linux-gnu" \
 	  "  fix                rustfmt + taplo + renorm (all auto-fixable in one pass)" \
 	  "  checklist-status   emit JSONL status per EL-* item from ADR-023 dispatcher checklist" \
@@ -219,7 +219,7 @@ test-single:
 # ------------------------------------------------------------------------------
 # Full gate
 #
-# gate / gate-fast  = ci.yml + arch-contracts.yml (identical — map-check removed)
+# gate / gate-fast  = ci.yml + arch-contracts.yml (identical)
 # ------------------------------------------------------------------------------
 gate: \
   fmt-check \

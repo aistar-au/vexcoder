@@ -93,7 +93,7 @@ VEX_MODEL_NAME=your-model-name \
 cargo run
 ```
 
-For operators migrating from a pre-ADR-022 deployment, see `docs/src/migration.md`.
+For operators migrating from a pre-ADR-022 deployment, see [ADR-022](docs/adr/ADR-022-free-open-coding-agent-roadmap.md) and its [amendment](docs/adr/ADR-022-amendment-2026-03-03.md).
 
 ## Built-in TUI Commands
 
@@ -106,17 +106,9 @@ For operators migrating from a pre-ADR-022 deployment, see `docs/src/migration.m
 
 ## Documentation
 
-This repository uses mdBook + GitHub Pages for documentation.
-
-- Config: `docs/book.toml`
-- Pages: `docs/src/`
-- Build locally: `mdbook build docs`
-
-ADR files are stored under `TASKS/`, not under `docs/`.
+Architecture Decision Records are in [`docs/adr/`](docs/adr/ADR-README.md).
 
 Source maps:
 
 - App/raw links for the Rust application code: `CONTRIBUTING.md`
-- Full repository raw URL map: `TASKS/completed/REPO-RAW-URL-MAP.md`
 - Sponsor VexCoder: SegWit bc1qrv27qmjvleyrllr3ed7pxstxgvrjesxxj0dzwa, Eth 0xe5D746f089D155f0E1C6dD6C663E3F5D853BAe6a
-

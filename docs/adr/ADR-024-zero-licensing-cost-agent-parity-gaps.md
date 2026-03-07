@@ -3,9 +3,9 @@
 **Date:** 2026-03-03  
 **Status:** Proposed  
 **Deciders:** Core maintainer  
-**Location:** `TASKS/ADR-024-zero-licensing-cost-agent-parity-gaps.md`  
-**ADR chain:** ADR-022 (as amended 2026-03-03 — amendment status: Proposed, must be locked before Phases G–H begin), ADR-023 (deterministic edit loop), ADR-014, ADR-006  
-**Related:** `TASKS/ADR-022-free-open-coding-agent-roadmap.md` (zero-licensing-cost roadmap), `TASKS/ADR-023-deterministic-edit-loop.md`
+**Location:** `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md`
+**ADR chain:** ADR-022 (as amended 2026-03-03 — amendment status: Proposed, must be locked before Phases G–H begin), ADR-023 (deterministic edit loop), ADR-014, ADR-006
+**Related:** `docs/adr/ADR-022-free-open-coding-agent-roadmap.md` (zero-licensing-cost roadmap), `docs/adr/ADR-023-deterministic-edit-loop.md`
 
 ---
 
@@ -1572,16 +1572,16 @@ When checking a box above, append an evidence block under this section:
 
 ## Appendix — ADR-022 Amendment (2026-03-03)
 
-The amendment that authorises native packaging and editor-surface work is recorded in `TASKS/ADR-022-amendment-2026-03-03.md` and must be applied to `TASKS/ADR-022-free-open-coding-agent-roadmap.md` before Phases G–H work begins. See that file for exact application instructions.
+The amendment that authorises native packaging and editor-surface work is recorded in `docs/adr/ADR-022-amendment-2026-03-03.md` and must be applied to `docs/adr/ADR-022-free-open-coding-agent-roadmap.md` before Phases G–H work begins. See that file for exact application instructions.
 
 ---
 
 ## References
 
-- `TASKS/ADR-022-free-open-coding-agent-roadmap.md` — zero-licensing-cost coding agent roadmap (permissive-dependency constraint, self-hostable posture)
-- `TASKS/ADR-022-amendment-2026-03-03.md` — terminal-first constraint scoped to milestone 1
-- `TASKS/ADR-023-deterministic-edit-loop.md` — edit loop, context assembly, model profiles, semantic commands
-- `TASKS/completed/ADR-014-runtime-core-policy-dedup-and-enforcement.md` — policy separation
-- `TASKS/completed/ADR-006-runtime-mode-contracts.md` — runtime mode contracts
-- `docs/src/migration.md` — canonical variable rename table and migration guide
+- `docs/adr/ADR-022-free-open-coding-agent-roadmap.md` — zero-licensing-cost coding agent roadmap (permissive-dependency constraint, self-hostable posture)
+- `docs/adr/ADR-022-amendment-2026-03-03.md` — terminal-first constraint scoped to milestone 1
+- `docs/adr/ADR-023-deterministic-edit-loop.md` — edit loop, context assembly, model profiles, semantic commands
+- `docs/adr/completed/ADR-014-runtime-core-policy-dedup-and-enforcement.md` — policy separation
+- `docs/adr/completed/ADR-006-runtime-mode-contracts.md` — runtime mode contracts
+- `docs/adr/ADR-022-amendment-2026-03-03.md` — canonical migration guide and variable rename table
 - `.agents/skills/registry.toml` — skills registry manifest

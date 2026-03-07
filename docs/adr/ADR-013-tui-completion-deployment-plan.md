@@ -24,7 +24,7 @@ into two categories:
 
 **Category A — Existing task manifests already written, not yet dispatched:**
 CORE-07, CORE-08, CORE-09, CORE-10, CORE-11, FEAT-10, FEAT-11, FEAT-12, FEAT-13,
-FEAT-14. These manifests exist in `TASKS/` and are ready to dispatch in the sequence
+FEAT-14. These manifests are in the internal devops repo and are ready to dispatch in the sequence
 defined below.
 
 **Category B — Gaps not covered by any existing manifest:**
@@ -89,9 +89,9 @@ CORE-11 require CORE-08. FEAT-10 through FEAT-14 require CORE-10 and CORE-11.
 
 ### Phase 2 — Runtime correctness and lifecycle
 
-New task manifests at `TASKS/completed/CORE-12-*.md`, `TASKS/completed/CORE-13-*.md`,
-`TASKS/completed/FEAT-15-*.md`, and `TASKS/completed/FEAT-16-*.md`, with CORE-14 archived at
-`TASKS/completed/CORE-14-panic-hook-terminal-restore.md`.
+New task manifests at `docs/adr/completed/CORE-12-*.md`, `docs/adr/completed/CORE-13-*.md`,
+`docs/adr/completed/FEAT-15-*.md`, and `docs/adr/completed/FEAT-16-*.md`, with CORE-14 archived at
+`docs/adr/completed/CORE-14-panic-hook-terminal-restore.md`.
 
 | Task | Target files | ADR-012 gate | Anchor test |
 | :--- | :--- | :--- | :--- |

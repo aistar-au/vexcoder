@@ -4,7 +4,7 @@
 # Implements ADR-024 Gap 27 (make health-check).
 #
 # Runs:
-#   1. make gate-fast          — full local gate minus map-check
+#   1. make gate-fast          — full local gate
 #   2. Anchor tests for every "done" checklist item (via checklist_status.sh)
 #
 # Usage:

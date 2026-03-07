@@ -1,7 +1,7 @@
 # ADR-022 Amendment — 2026-03-03
 
-**Amendment status:** Proposed  
-**Amends:** ADR-022 Decision item 1 and the final Compliance note; adds Decision item 11  
+**Amendment status:** Proposed
+**Amends:** ADR-022 Decision item 1 and the final Compliance note; adds Decision item 11
 **Reason:** ADR-022 as written frames terminal-agent-first and no-editor-integration as permanent identity statements. This amendment re-scopes them as first-milestone sequencing constraints, preserving architectural priority without permanently prohibiting native application packaging or future editor surfaces.
 
 ---
@@ -60,7 +60,7 @@ The critical architectural constraint preserved by this amendment:
 
 ## Application instructions
 
-Apply by editing `TASKS/ADR-022-free-open-coding-agent-roadmap.md` in place:
+Apply by editing `docs/adr/ADR-022-free-open-coding-agent-roadmap.md` in place:
 
 1. Replace Decision item 1 with the amended text above.
 2. Append Decision item 11 after item 10.
