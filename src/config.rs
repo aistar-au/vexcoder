@@ -171,7 +171,7 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
             if parse_model_backend(v.clone()).is_none() {
                 bail!(
                     "Invalid VEX_MODEL_BACKEND '{}': expected one of \
-                     local-runtime, local_runtime, local, api-server, api_server, api",
+                     local-runtime, local_runtime, local, api-server, api_server, api, remote",
                     v
                 );
             }
@@ -186,7 +186,7 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
                 bail!(
                     "Invalid VEX_TOOL_CALL_MODE '{}': expected one of \
                      structured, structured-tool-calls, structured_tool_calls, \
-                     tagged-fallback, tagged_fallback, tagged",
+                     tagged-fallback, tagged_fallback, fallback, tagged",
                     v
                 );
             }
@@ -251,7 +251,7 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
         if parse_model_backend(s.clone()).is_none() {
             bail!(
                 "config file '{}': invalid model_backend '{}': expected one of \
-                 local-runtime, local_runtime, local, api-server, api_server, api",
+                 local-runtime, local_runtime, local, api-server, api_server, api, remote",
                 path.display(),
                 s
             );
@@ -272,7 +272,7 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
             bail!(
                 "config file '{}': invalid tool_call_mode '{}': expected one of \
                  structured, structured-tool-calls, structured_tool_calls, \
-                 tagged-fallback, tagged_fallback, tagged",
+                 tagged-fallback, tagged_fallback, fallback, tagged",
                 path.display(),
                 s
             );
@@ -356,6 +356,27 @@ fn find_repo_local_config(cwd: &Path) -> Option<PathBuf> {
 }
 
 fn user_config_path() -> Option<PathBuf> {
+    let primary = user_config_xdg_path();
+    if primary.as_ref().is_some_and(|path| path.exists()) {
+        return primary;
+    }
+
+    let legacy = user_config_legacy_path();
+    if legacy.as_ref().is_some_and(|path| path.exists()) {
+        return legacy;
+    }
+
+    primary.or(legacy)
+}
+
+fn user_config_xdg_path() -> Option<PathBuf> {
+    if let Some(root) = std::env::var("XDG_CONFIG_HOME")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+    {
+        return Some(PathBuf::from(root).join("vex").join("config.toml"));
+    }
+
     std::env::var("HOME")
         .ok()
         .filter(|v| !v.is_empty())
@@ -365,6 +386,13 @@ fn user_config_path() -> Option<PathBuf> {
                 .join("vex")
                 .join("config.toml")
         })
+}
+
+fn user_config_legacy_path() -> Option<PathBuf> {
+    std::env::var("HOME")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .map(|home| PathBuf::from(home).join(".vex").join("config.toml"))
 }
 
 fn system_config_path() -> Option<PathBuf> {
@@ -437,6 +465,29 @@ fn parse_model_headers_json() -> Result<HeaderMap> {
 mod tests {
     use super::{Config, ModelBackendKind};
 
+    struct EnvRestore {
+        key: &'static str,
+        value: Option<String>,
+    }
+
+    impl EnvRestore {
+        fn capture(key: &'static str) -> Self {
+            Self {
+                key,
+                value: std::env::var(key).ok(),
+            }
+        }
+    }
+
+    impl Drop for EnvRestore {
+        fn drop(&mut self) {
+            match &self.value {
+                Some(value) => std::env::set_var(self.key, value),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
+
     #[test]
     fn test_config_loads_vex_model_name_without_claude_prefix() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
@@ -479,6 +530,74 @@ mod tests {
         std::env::remove_var("VEX_MODEL_URL");
         std::env::remove_var("VEX_MODEL_NAME");
         std::env::remove_var("VEX_MODEL_PROTOCOL");
+    }
+
+    #[test]
+    fn test_invalid_model_backend_error_lists_remote_alias() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_MODEL_BACKEND", "legacy-value");
+
+        let err = super::read_env_layer().unwrap_err();
+        let msg = format!("{err:#}");
+
+        assert!(
+            msg.contains("remote"),
+            "expected remote alias in error: {msg}"
+        );
+        std::env::remove_var("VEX_MODEL_BACKEND");
+    }
+
+    #[test]
+    fn test_invalid_tool_call_mode_error_lists_fallback_alias() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_TOOL_CALL_MODE", "legacy-value");
+
+        let err = super::read_env_layer().unwrap_err();
+        let msg = format!("{err:#}");
+
+        assert!(
+            msg.contains("fallback"),
+            "expected fallback alias in error: {msg}"
+        );
+        std::env::remove_var("VEX_TOOL_CALL_MODE");
+    }
+
+    #[test]
+    fn test_user_config_path_prefers_xdg_config_home() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _home = EnvRestore::capture("HOME");
+        let _xdg = EnvRestore::capture("XDG_CONFIG_HOME");
+        let temp = tempfile::tempdir().unwrap();
+        let xdg_root = temp.path().join("xdg-root");
+        let legacy_home = temp.path().join("home");
+        let xdg_path = xdg_root.join("vex").join("config.toml");
+        let legacy_path = legacy_home.join(".vex").join("config.toml");
+
+        std::fs::create_dir_all(xdg_path.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
+        std::fs::write(&xdg_path, "model_name = \"xdg\"\n").unwrap();
+        std::fs::write(&legacy_path, "model_name = \"legacy\"\n").unwrap();
+        std::env::set_var("HOME", &legacy_home);
+        std::env::set_var("XDG_CONFIG_HOME", &xdg_root);
+
+        assert_eq!(super::user_config_path(), Some(xdg_path));
+    }
+
+    #[test]
+    fn test_user_config_path_falls_back_to_legacy_home_config() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _home = EnvRestore::capture("HOME");
+        let _xdg = EnvRestore::capture("XDG_CONFIG_HOME");
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().join("home");
+        let legacy_path = home.join(".vex").join("config.toml");
+
+        std::fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
+        std::fs::write(&legacy_path, "model_name = \"legacy\"\n").unwrap();
+        std::env::set_var("HOME", &home);
+        std::env::remove_var("XDG_CONFIG_HOME");
+
+        assert_eq!(super::user_config_path(), Some(legacy_path));
     }
 
     #[test]
