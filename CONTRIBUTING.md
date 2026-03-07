@@ -136,7 +136,23 @@ Do not merge packaging work directly from a local debug session; keep the review
 ## Project Structure
 
 ```
-vexcoder/
+~/git-repo/
+├── vexcoder/               # This repo — product code and release CI only
+│   ├── CONTRIBUTING.md
+│   ├── README.md
+│   ├── docs/adr/           # Architecture Decision Records
+│   ├── src/                # Rust crate source
+│   └── tests/              # Integration tests
+└── vexdraft/               # Sibling devops repo — dispatcher, commit-debug, skills
+    └── scripts/
+        └── commit-debug.py # Multi-provider pre-push reviewer (called by dispatcher)
+```
+
+`vexdraft` must exist at `../vexdraft` relative to this repo for the dispatcher
+loop and pre-push review to function. The sibling layout is the assumed path contract.
+
+```
+vexcoder/ (standalone view)
 ├── CONTRIBUTING.md                # Workflow guide + source map
 ├── README.md                      # Runtime and quickstart
 ├── docs/adr/                      # Architecture Decision Records (open + completed)

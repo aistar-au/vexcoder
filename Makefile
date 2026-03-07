@@ -133,10 +133,14 @@ lint:
 # ------------------------------------------------------------------------------
 # Commit-debug gate
 #
-# Required before push when changed paths include `src/**/*.rs` or `tests/**/*.rs`.
-# This repo must stay self-contained: no sibling repo or external devops checkout
-# is required to validate local packaging or code changes. Reuse the existing
-# local fast gate rather than shelling out to ../vexdraft.
+# For src/ and tests/ changes, multi-provider review (commit-debug.py) is owned
+# by the dispatcher in the sibling devops repo at ../vexdraft relative to this
+# repo root. The dispatcher invokes it as part of the loop cycle before push.
+# This target runs gate-fast only — the local Rust gate. It is intentionally
+# self-contained so vexcoder's Makefile carries no cross-repo path assumptions.
+#
+# Sibling layout (required): ~/git-repo/vexcoder and ~/git-repo/vexdraft must
+# exist side by side. The dispatcher calls commit-debug.py from vexdraft directly.
 # ------------------------------------------------------------------------------
 commit-debug-gate: gate-fast
 	@echo "commit-debug-gate: passed (self-contained local verification)"
