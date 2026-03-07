@@ -938,6 +938,14 @@ git commit -m "Add branch contract skill scripts"
     the batch report.
     Proceed with push only when `ready_to_push` is `true` and `quorum_reached`
     is `true`. If `rerun_required` is `true`, rerun the gate before any push.
+    For provider-side troubleshooting, inspect `attempts[*].stream_log_path`
+    together with `quota_scope`, `quota_id`, and `quota_metric` in
+    `dispatcher-summary.json`. Each attempt archives a
+    `stream-<provider>-<account>-<model>-attempt-<n>.sse.log` file under the
+    run directory. The gate applies a conservative shared-account RPM guard
+    across Google model slots and bounds stalled stream reads to about 120
+    seconds, so `skipped_local_rate_window` and timed-out stream attempts are
+    part of the expected handoff evidence.
     If the branch edits `~/git-repo/vexdraft/scripts/providers.py` or
     `~/git-repo/vexdraft/scripts/commit-debug.py`, run these smoke checks
     before handoff:
