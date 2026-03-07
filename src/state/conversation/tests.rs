@@ -77,6 +77,13 @@ fn test_read_only_tool_round_helpers() {
     }];
     assert!(is_read_only_tool_round(&read_round));
 
+    let git_read_round = vec![ContentBlock::ToolUse {
+        id: "tool_git".to_string(),
+        name: "git_diff".to_string(),
+        input: json!({}),
+    }];
+    assert!(is_read_only_tool_round(&git_read_round));
+
     let write_round = vec![ContentBlock::ToolUse {
         id: "tool_2".to_string(),
         name: "write_file".to_string(),
@@ -478,8 +485,15 @@ fn test_missing_mutating_location_prompt_requires_explicit_paths() {
 fn test_read_only_user_request_detection_and_mutating_guard() {
     assert!(is_read_only_user_request("show me calculator.rs"));
     assert!(is_read_only_user_request("what is in src/runtime/loop.rs"));
+    assert!(is_read_only_user_request(
+        "read-only review src/app.rs and provide an exact diff if changes are needed"
+    ));
+    assert!(is_read_only_user_request("show tests/fixtures/data.txt"));
     assert!(!is_read_only_user_request(
         "add a new function and commit it"
+    ));
+    assert!(!is_read_only_user_request(
+        "show tests/fixtures/data.txt and fix it"
     ));
 
     let guard = mutating_tool_read_only_conflict_prompt("show the git diff", "write_file");
@@ -495,6 +509,11 @@ fn test_read_only_user_request_detection_and_mutating_guard() {
     assert!(
         mutating_tool_read_only_conflict_prompt("add calculator.rs", "write_file").is_none(),
         "explicit mutating intent should not be blocked"
+    );
+    assert!(
+        mutating_tool_read_only_conflict_prompt("read-only inspect src/app.rs", "edit_file")
+            .is_some(),
+        "explicit read-only phrasing should block mutating calls"
     );
 }
 
