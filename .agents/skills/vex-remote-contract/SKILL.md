@@ -940,3 +940,57 @@ git commit -m "Add branch contract skill scripts"
     write operations (committing, pushing, or opening PRs on behalf of the
     workflow). When reviewing or drafting a workflow file, reject any such
     `uses:` line and replace the step with a fail-on-drift report step.
+32. **Multi-model commit review gate required before any push of Rust source** —
+    before any `git push` or MCP push that includes changes to `src/` or
+    `tests/`, run the vexdraft commit-debug gate through the orchestrator so
+    the managed virtualenv, default key file, target repo, and archive root
+    stay aligned:
+    ```sh
+    ~/git-repo/vexdraft/main-script.sh commit-debug --diff-ref origin/main..HEAD
+    ```
+    Treat the printed `Summary:` path as the handoff artifact for dispatcher
+    verification and push decisions. Read the corresponding
+    `dispatcher-summary.json` instead of parsing stdout.
+    Exit 0 is required only when `dispatcher-summary.json` reports
+    `status: ready_to_push` or `status: no_diff`. Exit 1 means local follow-up
+    is still required, including reruns after in-place auto-patches. Exit 2
+    means reliable handoff was not achieved, including zero successful
+    providers or fewer than the required distinct providers; it may be skipped
+    only with explicit user approval and a `Commit Debug Exception` record in
+    the batch report.
+    Proceed with push only when `ready_to_push` is `true` and `quorum_reached`
+    is `true`. If `rerun_required` is `true`, rerun the gate before any push.
+    Treat `findings.json` as the machine-readable bug ledger for the run. It
+    records every finding, the blocking subset, the provider/model source, and
+    whether each finding had a patch artifact and patch status. Treat
+    `pipeline-events.jsonl` as the chronological audit log for dispatcher
+    automation.
+    For provider-side troubleshooting, inspect `attempts[*].stream_log_path`
+    together with `quota_scope`, `quota_id`, and `quota_metric` in
+    `dispatcher-summary.json`. Each attempt archives a
+    `stream-<provider>-<account>-<model>-attempt-<n>.sse.log` file under the
+    run directory. The gate applies a conservative shared-account RPM guard
+    across Google model slots and bounds stalled stream reads to about 120
+    seconds, so `skipped_local_rate_window` and timed-out stream attempts are
+    part of the expected handoff evidence.
+    If auto-patching occurs, archive the per-finding patch files under
+    `patches/` and the optional `applied-patches.patch` bundle. Use
+    `patch_results`, `patched_finding_ids`, and `unpatched_finding_ids` in
+    `dispatcher-summary.json` to distinguish found issues from issues that were
+    actually actioned. Use `repo_branch`, `repo_head_sha`, `merge_base_sha`,
+    `changed_paths`, and `diff_sha256` to tie a run to the exact reviewed tree
+    state.
+    If the branch edits `~/git-repo/vexdraft/scripts/providers.py` or
+    `~/git-repo/vexdraft/scripts/commit-debug.py`, run these smoke checks
+    before handoff:
+    ```sh
+    PYTHONPYCACHEPREFIX=/tmp python3 -m py_compile \
+      ~/git-repo/vexdraft/scripts/providers.py \
+      ~/git-repo/vexdraft/scripts/commit-debug.py
+
+    PYTHONPYCACHEPREFIX=/tmp python3 \
+      ~/git-repo/vexdraft/scripts/commit-debug.py --help
+    ```
+    If the gate auto-applies patches, run `cargo fmt --check` and `cargo check`
+    on the patched tree, then rerun `commit-debug` on the new diff before
+    incorporating the patched files into the commit.
