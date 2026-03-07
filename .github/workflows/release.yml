@@ -2,18 +2,22 @@ name: release
 
 on:
   push:
-    branches:
-      - "dispatcher/**"
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
+  id-token: write
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Signing phases:
+  #   Phase 1 (now): Sigstore cosign keyless signatures with OIDC-backed bundles.
+  #   Phase 2 (future): SignPath.io OSS Authenticode signing for Windows artifacts.
+  #   Phase 3 (future): EV Authenticode signing for end-user Windows distribution.
   build:
     name: package (${{ matrix.target }})
     runs-on: ${{ matrix.runner }}
@@ -39,52 +43,33 @@ jobs:
 
     steps:
       - name: Checkout repository
-        if: runner.os != 'Windows'
-        env:
-          REPO: ${{ github.repository }}
-          SHA: ${{ github.sha }}
-          TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
-          git init .
-          git remote add origin "https://github.com/${REPO}.git"
-          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
-          git checkout --detach FETCH_HEAD
-
-      - name: Checkout repository (Windows)
-        if: runner.os == 'Windows'
         uses: actions/checkout@v4
 
-      - name: Install stable Rust
-        if: runner.os != 'Windows'
-        run: |
-          set -euo pipefail
-          source "$HOME/.cargo/env" 2>/dev/null || true
-          rustup toolchain install stable --profile minimal
-          rustup default stable
-          rustup target add ${{ matrix.target }}
-
-      - name: Install stable Rust (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
-          rustup target add ${{ matrix.target }}
-
-      - name: Add Cargo bin to PATH (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: ${{ matrix.target }}
 
       - name: Install cross
         if: matrix.build_tool == 'cross'
+        shell: bash
+        run: cargo install cross --locked
+
+      - name: Install ripgrep (Linux)
+        if: runner.os == 'Linux'
         run: |
-          set -euo pipefail
-          source "$HOME/.cargo/env" 2>/dev/null || true
-          cargo install cross --locked
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
+      - name: Install ripgrep (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ripgrep
+
+      - name: Install Taplo (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: cargo install taplo-cli --version 0.8.1 --locked
 
       - name: Resolve package version
         id: version
@@ -98,8 +83,14 @@ jobs:
             "value=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           }
 
-      - name: Package release archive
+      - name: Run gate (Unix)
         if: runner.os != 'Windows'
+        shell: bash
+        run: make gate-fast
+
+      - name: Package release archive (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
         env:
           VERSION: ${{ steps.version.outputs.value }}
           TARGET: ${{ matrix.target }}
@@ -115,53 +106,123 @@ jobs:
           TARGET: ${{ matrix.target }}
           OUT_DIR: dist
         run: |
-          .\scripts\release.ps1 -Version $env:VERSION -Target $env:TARGET -OutDir $env:OUT_DIR
+          .\scripts\release.ps1 -Version $env:VERSION -Target $env:TARGET -OutDir $env:OUT_DIR -RunGate
 
-      - name: Upload packaged artifact
+      - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.target }}
+          name: dist-${{ matrix.target }}
           path: |
             dist/*.tar.gz
             dist/*.zip
             dist/*.sha256
           if-no-files-found: error
 
-  publish:
-    if: startsWith(github.ref, 'refs/tags/')
+  sign:
+    name: sign artifacts
     needs: build
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      id-token: write
 
     steps:
       - name: Download packaged artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: release-*
+          pattern: dist-*
           path: dist
           merge-multiple: true
 
-      - name: Assemble checksums
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign artifacts with cosign (Phase 1)
+        shell: bash
         run: |
           set -euo pipefail
-          find dist -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' \) | sort
-          find dist -maxdepth 1 -type f -name '*.sha256' | sort | xargs cat > dist/checksums.txt
-          ls -la dist
+          for f in dist/*.tar.gz dist/*.zip; do
+            [ -f "$f" ] || continue
+            cosign sign-blob "$f" \
+              --bundle "${f}.sigstore.json" \
+              --yes
+          done
 
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          prerelease_flag=()
-          case "$TAG" in
-            *-*) prerelease_flag+=(--prerelease) ;;
-          esac
+      # Phase 2: SignPath.io OSS CA signing for Windows artifacts.
+      # Uncomment after SignPath approval and secret provisioning.
+      #
+      # - name: Sign Windows zip with SignPath (Phase 2)
+      #   uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+      #     organization-id: "<your-org-id>"
+      #     project-slug: "vexcoder"
+      #     signing-policy-slug: "release-signing"
+      #     artifact-configuration-slug: "windows-zip"
+      #     github-artifact-id: "dist-x86_64-pc-windows-msvc"
+      #     output-artifact-directory: dist
+      #     wait-for-completion: true
 
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt --clobber
-          else
-            gh release create "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt --verify-tag --generate-notes "${prerelease_flag[@]}"
-          fi
+      # Phase 3: EV Authenticode signing for Windows distribution.
+      # Uncomment after provisioning an EV certificate and repository secrets.
+      #
+      # - name: Sign vex.exe with Authenticode (Phase 3)
+      #   shell: pwsh
+      #   run: |
+      #     $certBytes = [Convert]::FromBase64String($env:CERT_PFX_B64)
+      #     $certPath = "$env:TEMP\codesign.pfx"
+      #     [IO.File]::WriteAllBytes($certPath, $certBytes)
+      #     $pfxPass = ConvertTo-SecureString $env:CERT_PASSWORD -AsPlainText -Force
+      #     $cert = Get-PfxCertificate -FilePath $certPath -Password $pfxPass
+      #     Set-AuthenticodeSignature `
+      #       -FilePath dist\vex.exe `
+      #       -Certificate $cert `
+      #       -TimestampServer "http://timestamp.digicert.com" `
+      #       -HashAlgorithm SHA256
+      #   env:
+      #     CERT_PFX_B64: ${{ secrets.WINDOWS_CERT_PFX }}
+      #     CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-signed
+          path: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+            dist/*.tar.gz.sigstore.json
+            dist/*.zip
+            dist/*.zip.sha256
+            dist/*.zip.sigstore.json
+          if-no-files-found: error
+
+  release:
+    name: publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: sign
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download signed artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-signed
+          path: dist
+
+      - name: List dist contents
+        shell: bash
+        run: ls -lh dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+            dist/*.tar.gz.sigstore.json
+            dist/*.zip
+            dist/*.zip.sha256
+            dist/*.zip.sigstore.json

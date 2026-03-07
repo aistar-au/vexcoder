@@ -58,6 +58,7 @@ This site is built with mdBook and published automatically to GitHub Pages from 
 Preview locally with `mdbook serve docs --open`.
 
 - Setup: [Build Environment](setup/build-environment.md)
+- Setup: [Release Signing](setup/signing.md)
 - Policy: [Documentation Policy](policy.md)
 - Migration: [ADR-022 Migration Guide](migration.md)
 
