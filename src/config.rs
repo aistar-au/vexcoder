@@ -79,7 +79,11 @@ impl Config {
         let repo_layer = repo_cfg.map(load_config_layer).transpose()?.flatten();
 
         // notes_path is user-only; reject it if found in repo-local config.
-        if repo_layer.as_ref().map(|l| l.notes_path.is_some()).unwrap_or(false) {
+        if repo_layer
+            .as_ref()
+            .map(|l| l.notes_path.is_some())
+            .unwrap_or(false)
+        {
             bail!(
                 "'notes_path' found in repo-local config '{}': notes path must be set in user config layer only",
                 repo_cfg.unwrap_or(Path::new("<unknown>")).display()

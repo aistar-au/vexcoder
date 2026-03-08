@@ -438,9 +438,7 @@ impl TuiMode {
     }
 
     fn resolved_notes_path(&self) -> PathBuf {
-        self.notes_path
-            .clone()
-            .unwrap_or_else(notes_path_default)
+        self.notes_path.clone().unwrap_or_else(notes_path_default)
     }
 
     fn handle_memory_display(&mut self) {
@@ -511,9 +509,7 @@ impl TuiMode {
             _ => return input,
         };
         if content.len() > MAX_NOTES_CHARS {
-            self.push_history_line(
-                "[memory] notes exceed token budget, skipped".to_string(),
-            );
+            self.push_history_line("[memory] notes exceed token budget, skipped".to_string());
             return input;
         }
         format!(
@@ -1980,7 +1976,10 @@ mod tests {
             mode.pending_memory_clear_overlay(),
             "memory clear must enter overlay state"
         );
-        assert!(mode.overlay_active(), "overlay must be active during memory clear");
+        assert!(
+            mode.overlay_active(),
+            "overlay must be active during memory clear"
+        );
         // File must not be cleared until confirmed
         let content = std::fs::read_to_string(&notes_path).unwrap();
         assert!(content.contains("existing note"));
@@ -2027,11 +2026,17 @@ mod tests {
 
         // /memory add
         mode.on_user_input("/memory add another".to_string(), &mut ctx);
-        assert!(!mode.is_turn_in_progress(), "/memory add must not start a turn");
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/memory add must not start a turn"
+        );
 
         // /memory clear + cancel
         mode.on_user_input("/memory clear".to_string(), &mut ctx);
-        assert!(!mode.is_turn_in_progress(), "/memory clear must not start a turn");
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/memory clear must not start a turn"
+        );
         mode.on_user_input("n".to_string(), &mut ctx);
         assert!(!mode.is_turn_in_progress(), "cancel must not start a turn");
     }
