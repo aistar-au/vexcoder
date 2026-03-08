@@ -1,5 +1,6 @@
 pub mod api;
 pub mod app;
+pub mod batch_mode;
 pub mod config;
 pub mod edit_diff;
 pub mod runtime;
