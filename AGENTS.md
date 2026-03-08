@@ -2,12 +2,12 @@
 
 `vexcoder` is the public product repo. The dispatcher skills, PR-contract
 rules, commit-debug tooling, docs automation, and roadmap automation that drive
-agent workflows now live in the sibling private repo `../vexdraft`.
+agent workflows now live in the internal private repo `../vexdraft`.
 
 This file is the bootstrap dependency map for agents working in `vexcoder`.
-Read it first, then follow the linked local and sibling-repo sources.
+Read it first, then follow the linked local and internal-repo sources.
 
-## Required sibling layout
+## Required internal layout
 
 The expected checkout layout is:
 
@@ -99,7 +99,7 @@ Minimum local verification for repo changes:
 - `bash scripts/check_forbidden_imports.sh`
 
 If the changed paths include `src/**/*.rs` or `tests/**/*.rs`, the dispatcher
-workflow in `../vexdraft` also expects the sibling-repo review path described in
+workflow in `../vexdraft` also expects the internal-repo review path described in
 `../vexdraft/agents/vexcoder/skills/vex-remote-contract/SKILL.md`.
 
 ## Dispatcher contract notes
