@@ -118,8 +118,8 @@ fmt: _require-taplo
 
 fmt-check: _require-taplo
 	cargo fmt --check
-	taplo fmt --check --diff
-	taplo lint
+	bash scripts/taplo_safe.sh fmt-check
+	bash scripts/taplo_safe.sh lint
 
 
 # ------------------------------------------------------------------------------
