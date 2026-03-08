@@ -12,6 +12,7 @@ All ADR files live under `docs/adr/`.
 | **Proposed** | Under discussion and dispatchable |
 | **Accepted** | In effect — code must conform |
 | **Superseded by ADR-XXX** | Replaced; retained for history |
+| **Locked** | Accepted and immutable — no further amendments without a new ADR |
 | **Deprecated** | Was accepted, no longer applies |
 
 ## Open ADRs (Dispatch)
@@ -21,7 +22,10 @@ All ADR files live under `docs/adr/`.
 | [ADR-013](ADR-013-tui-completion-deployment-plan.md) | TUI completion and deployment plan | Proposed |
 | [ADR-018](ADR-018-managed-tui-scrollback-streaming-cell-overlays.md) | Managed TUI scrollback, streaming cell, overlays | Proposed |
 | [ADR-021](ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md) | Codebase audit: dead weight, duplication, and shared-code opportunities | Accepted (follow-up maintenance items remain) |
+| [ADR-022 amendment](ADR-022-amendment-2026-03-03.md) | ADR-022 scope amendment — re-scopes terminal-first as milestone constraint, not permanent identity | Proposed |
 | [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed |
+| [ADR-023](ADR-023-deterministic-edit-loop.md) | Deterministic edit loop — context assembly, patch-apply-validate cycle | Locked |
+| [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps — sandboxing, headless, layered config, MCP | Proposed |
 
 ## Completed ADR Records
 
