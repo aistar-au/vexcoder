@@ -17,6 +17,9 @@ pub enum TaskStatus {
     Completed,
     Failed,
     Cancelled,
+    /// Headless batch run stopped because `--max-turns` was reached before the
+    /// task completed. Distinct from `Completed` so CI can treat it as failure.
+    MaxTurnsReached,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -164,5 +167,12 @@ mod tests {
         let loaded = TaskState::load(dir.path(), "task-456").expect("load failed");
         assert_eq!(loaded.command_history.len(), 1);
         assert!(loaded.command_history[0].interrupted);
+    }
+
+    #[test]
+    fn test_max_turns_reached_is_distinct_from_completed() {
+        assert_ne!(TaskStatus::MaxTurnsReached, TaskStatus::Completed);
+        assert_ne!(TaskStatus::MaxTurnsReached, TaskStatus::Cancelled);
+        assert_ne!(TaskStatus::MaxTurnsReached, TaskStatus::Failed);
     }
 }

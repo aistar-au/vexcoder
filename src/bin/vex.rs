@@ -6,7 +6,7 @@ use vexcoder::app::{build_runtime, TuiMode};
 use vexcoder::batch_mode::{run_batch, AutoApproveScope, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
 use vexcoder::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
-use vexcoder::runtime::task_state::TaskStatus;
+use vexcoder::runtime::TaskStatus;
 use vexcoder::terminal;
 use vexcoder::ui::editor::{InputAction, InputEditor};
 use vexcoder::ui::layout::split_three_pane_layout;
@@ -67,7 +67,7 @@ fn looks_like_terminal_transcript(text: &str) -> bool {
 }
 
 struct ManagedTuiFrontend {
-    terminal: terminal::TerminalType,
+    terminal: vexcoder::terminal::TerminalType,
     quit: bool,
     editor: InputEditor,
     started_at: Instant,
@@ -75,7 +75,7 @@ struct ManagedTuiFrontend {
 
 impl ManagedTuiFrontend {
     fn new() -> Result<Self> {
-        let terminal = terminal::setup()?;
+        let terminal = vexcoder::terminal::setup()?;
         Self::drain_startup_events();
         Ok(Self {
             terminal,
@@ -216,7 +216,7 @@ impl ManagedTuiFrontend {
 
 impl Drop for ManagedTuiFrontend {
     fn drop(&mut self) {
-        let _ = terminal::restore();
+        let _ = vexcoder::terminal::restore();
     }
 }
 
@@ -356,22 +356,25 @@ fn parse_exec_args(args: &[String]) -> Result<ExecArgs> {
         match args[i].as_str() {
             "--task" => {
                 i += 1;
-                task = Some(args.get(i).cloned().ok_or_else(|| {
-                    anyhow::anyhow!("--task requires a value")
-                })?);
+                task = Some(
+                    args.get(i)
+                        .cloned()
+                        .ok_or_else(|| anyhow::anyhow!("--task requires a value"))?,
+                );
             }
             "--task-file" => {
                 i += 1;
-                let path = args.get(i).ok_or_else(|| {
-                    anyhow::anyhow!("--task-file requires a path")
-                })?;
+                let path = args
+                    .get(i)
+                    .ok_or_else(|| anyhow::anyhow!("--task-file requires a path"))?;
                 task = Some(std::fs::read_to_string(path)?);
             }
             "--max-turns" => {
                 i += 1;
-                let n: usize = args.get(i).ok_or_else(|| {
-                    anyhow::anyhow!("--max-turns requires a number")
-                })?.parse()?;
+                let n: usize = args
+                    .get(i)
+                    .ok_or_else(|| anyhow::anyhow!("--max-turns requires a number"))?
+                    .parse()?;
                 max_turns = Some(n);
             }
             "--auto-approve" => {
@@ -387,9 +390,11 @@ fn parse_exec_args(args: &[String]) -> Result<ExecArgs> {
             }
             "--output" => {
                 i += 1;
-                output = Some(args.get(i).cloned().ok_or_else(|| {
-                    anyhow::anyhow!("--output requires a path")
-                })?);
+                output = Some(
+                    args.get(i)
+                        .cloned()
+                        .ok_or_else(|| anyhow::anyhow!("--output requires a path"))?,
+                );
             }
             "--format" => {
                 i += 1;
@@ -402,7 +407,7 @@ fn parse_exec_args(args: &[String]) -> Result<ExecArgs> {
                     ),
                 };
             }
-            flag => anyhow::bail!("unknown flag: {}", flag),
+            flag => anyhow::bail!("unknown flag for vex exec: {}", flag),
         }
         i += 1;
     }
@@ -411,7 +416,13 @@ fn parse_exec_args(args: &[String]) -> Result<ExecArgs> {
         anyhow::anyhow!("vex exec requires --task <TEXT> or --task-file <PATH>")
     })?;
 
-    Ok(ExecArgs { task, max_turns, auto_approve, output, format })
+    Ok(ExecArgs {
+        task,
+        max_turns,
+        auto_approve,
+        output,
+        format,
+    })
 }
 
 async fn run_exec(exec: ExecArgs, config: Config) -> Result<()> {
@@ -443,7 +454,7 @@ async fn run_exec(exec: ExecArgs, config: Config) -> Result<()> {
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
-    // Dispatch to `vex exec` if first arg is "exec".
+    // Dispatch to `vex exec` if first positional arg is "exec".
     if args.get(1).map(|s| s.as_str()) == Some("exec") {
         let exec_args = parse_exec_args(&args[2..])?;
         let config = Config::load()?;
