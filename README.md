@@ -1,6 +1,6 @@
 # VexCoder
 
-Terminal-first coding assistant with streaming responses, tool execution, and a terminal UI.
+Agentic coding assistant CLI app, implemented as a Rust + Ratatui application.
 
 ## Documentation
 
