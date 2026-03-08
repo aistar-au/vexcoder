@@ -6,6 +6,15 @@
 
 ---
 
+## Agent Bootstrap
+
+Dispatchers (Claude, Copilot, Codex, and equivalent agents) should read
+[`AGENTS.md`](AGENTS.md) first. It contains the session bootstrap, the active
+ADR-021 through ADR-024 dispatch state, skill locations in the sibling
+`../vexdraft` repo, and hard rules required before any write operation.
+
+---
+
 ## The Agentic Workflow (Test-Driven Manifest)
 
 `vexcoder` uses the **Test-Driven Manifest (TDM)** strategy for all bug fixes, features, and refactors. The full rationale is in [ADR-001](docs/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md). The short version:
@@ -138,12 +147,16 @@ Do not merge packaging work directly from a local debug session; keep the review
 ```
 ~/git-repo/
 ├── vexcoder/               # This repo — product code and release CI only
+│   ├── AGENTS.md           # Agent bootstrap — read first
 │   ├── CONTRIBUTING.md
 │   ├── README.md
 │   ├── docs/adr/           # Architecture Decision Records
 │   ├── src/                # Rust crate source
 │   └── tests/              # Integration tests
 └── vexdraft/               # Sibling devops repo — dispatcher, commit-debug, skills
+    ├── agents/vexcoder/    # Dispatcher skills and onboarding
+    ├── tasks/vexcoder/     # Task manifests and dispatch map
+    ├── scripts/vexcoder/   # Dispatcher helper scripts
     └── scripts/
         └── commit-debug.py # Multi-provider pre-push reviewer (called by dispatcher)
 ```
@@ -153,6 +166,7 @@ loop and pre-push review to function. The sibling layout is the assumed path con
 
 ```
 vexcoder/ (standalone view)
+├── AGENTS.md                      # Agent bootstrap and active dispatch state
 ├── CONTRIBUTING.md                # Workflow guide + source map
 ├── README.md                      # Runtime and quickstart
 ├── docs/adr/                      # Architecture Decision Records (open + completed)
@@ -213,4 +227,5 @@ vexcoder/ (standalone view)
 
 ## Reference
 
+- [Agent bootstrap](AGENTS.md) — session bootstrap and active dispatch state
 - [ADR index](docs/adr/ADR-README.md) — architectural decisions and their rationale
