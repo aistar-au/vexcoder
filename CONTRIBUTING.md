@@ -3,15 +3,12 @@
 > **Version:** This workflow applies from `v0.1.0-alpha.1` onward.
 > **Architecture decisions** live in [`docs/adr/`](docs/adr/ADR-README.md).
 > The ADRs explain *why* the project is structured this way. Read them before opening a PR.
-
----
-
-## Agent Bootstrap
-
-Dispatchers (Claude, Copilot, Codex, and equivalent agents) should read
-[`AGENTS.md`](AGENTS.md) first. It contains the session bootstrap, the active
-ADR-021 through ADR-024 dispatch state, skill locations in the sibling
-`../vexdraft` repo, and hard rules required before any write operation.
+>
+> **Agent bootstrap:** repo-local product guidance stays here, but the active
+> dispatcher skills now live in the sibling private repo
+> `../vexdraft/agents/vexcoder/skills/`.
+> Read [`AGENTS.md`](AGENTS.md) first for the dependency map and required load
+> order before using the private skill tree against this repo.
 
 ---
 
@@ -147,16 +144,12 @@ Do not merge packaging work directly from a local debug session; keep the review
 ```
 ~/git-repo/
 ├── vexcoder/               # This repo — product code and release CI only
-│   ├── AGENTS.md           # Agent bootstrap — read first
 │   ├── CONTRIBUTING.md
 │   ├── README.md
 │   ├── docs/adr/           # Architecture Decision Records
 │   ├── src/                # Rust crate source
 │   └── tests/              # Integration tests
 └── vexdraft/               # Sibling devops repo — dispatcher, commit-debug, skills
-    ├── agents/vexcoder/    # Dispatcher skills and onboarding
-    ├── tasks/vexcoder/     # Task manifests and dispatch map
-    ├── scripts/vexcoder/   # Dispatcher helper scripts
     └── scripts/
         └── commit-debug.py # Multi-provider pre-push reviewer (called by dispatcher)
 ```
@@ -166,7 +159,6 @@ loop and pre-push review to function. The sibling layout is the assumed path con
 
 ```
 vexcoder/ (standalone view)
-├── AGENTS.md                      # Agent bootstrap and active dispatch state
 ├── CONTRIBUTING.md                # Workflow guide + source map
 ├── README.md                      # Runtime and quickstart
 ├── docs/adr/                      # Architecture Decision Records (open + completed)
@@ -227,5 +219,5 @@ vexcoder/ (standalone view)
 
 ## Reference
 
-- [Agent bootstrap](AGENTS.md) — session bootstrap and active dispatch state
+- [AGENTS.md](AGENTS.md) — bootstrap dependency map for the private dispatcher skill tree
 - [ADR index](docs/adr/ADR-README.md) — architectural decisions and their rationale
