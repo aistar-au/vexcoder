@@ -382,10 +382,9 @@ fn parse_exec_args(args: &[String]) -> Result<ExecArgs> {
                 auto_approve = Some(match args.get(i).map(|s| s.as_str()) {
                     Some("once") => AutoApproveScope::Once,
                     Some("task") => AutoApproveScope::Task,
-                    other => anyhow::bail!(
-                        "--auto-approve must be 'once' or 'task', got: {:?}",
-                        other
-                    ),
+                    other => {
+                        anyhow::bail!("--auto-approve must be 'once' or 'task', got: {:?}", other)
+                    }
                 });
             }
             "--output" => {
@@ -401,10 +400,7 @@ fn parse_exec_args(args: &[String]) -> Result<ExecArgs> {
                 format = match args.get(i).map(|s| s.as_str()) {
                     Some("jsonl") => OutputFormat::Jsonl,
                     Some("text") => OutputFormat::Text,
-                    other => anyhow::bail!(
-                        "--format must be 'jsonl' or 'text', got: {:?}",
-                        other
-                    ),
+                    other => anyhow::bail!("--format must be 'jsonl' or 'text', got: {:?}", other),
                 };
             }
             flag => anyhow::bail!("unknown flag for vex exec: {}", flag),
@@ -412,9 +408,8 @@ fn parse_exec_args(args: &[String]) -> Result<ExecArgs> {
         i += 1;
     }
 
-    let task = task.ok_or_else(|| {
-        anyhow::anyhow!("vex exec requires --task <TEXT> or --task-file <PATH>")
-    })?;
+    let task = task
+        .ok_or_else(|| anyhow::anyhow!("vex exec requires --task <TEXT> or --task-file <PATH>"))?;
 
     Ok(ExecArgs {
         task,

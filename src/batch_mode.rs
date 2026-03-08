@@ -8,8 +8,8 @@ use crate::config::Config;
 use crate::runtime::{
     context::RuntimeContext,
     frontend::{FrontendAdapter, UserInputEvent},
-    r#loop::Runtime,
     mode::RuntimeMode,
+    r#loop::Runtime,
     task_state::{TaskId, TaskStatus},
     UiUpdate,
 };
