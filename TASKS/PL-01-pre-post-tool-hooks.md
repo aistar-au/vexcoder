@@ -123,7 +123,7 @@ fn test_hook_repo_local_config_rejected_at_load() {
 ### [PL-01] - Pre/post-tool-call hooks
 
 - Dispatcher: `dispatcher/vexcoder-adr-024-batch-b`
-- Commit: (fill in at dispatch)
+- Commit: `c289cac`
 - Files changed:
   - `TASKS/PJ-03-memory-notes-injection.md`
   - `TASKS/PL-01-pre-post-tool-hooks.md` (this file)

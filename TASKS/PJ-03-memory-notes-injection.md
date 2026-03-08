@@ -110,7 +110,7 @@ fn test_tui_memory_does_not_call_start_turn() {
 ### [PJ-03] - User persistent notes (`/memory`)
 
 - Dispatcher: `dispatcher/vexcoder-adr-024-batch-b`
-- Commit: (fill in at dispatch)
+- Commit: `c289cac`
 - Files changed:
   - `TASKS/PJ-03-memory-notes-injection.md` (this file)
   - `TASKS/PL-01-pre-post-tool-hooks.md`
