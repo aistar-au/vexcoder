@@ -305,7 +305,7 @@ impl FrontendAdapter<BatchMode> for BatchFrontendQuit {
 /// loop themselves via `Runtime::run`. Most callers should use `run_batch`.
 pub fn build_batch_runtime(
     config: &Config,
-    task: String,
+    _task: String,
     opts: BatchRunOpts,
 ) -> Result<(Runtime<BatchMode>, RuntimeContext, TaskId)> {
     let task_id = uuid_task_id();
