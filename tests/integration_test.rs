@@ -19,6 +19,7 @@ fn test_config_validation_rejects_local_model_for_remote_endpoint() {
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,
         model_headers: HeaderMap::new(),
+        notes_path: None,
     };
     assert!(config.validate().is_err());
 }
@@ -34,6 +35,7 @@ fn test_config_validation_allows_local_endpoint_without_token() {
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::TaggedFallback,
         model_headers: HeaderMap::new(),
+        notes_path: None,
     };
     assert!(config.validate().is_ok());
 }
@@ -139,5 +141,26 @@ fn test_config_rejects_unknown_toml_keys() {
     assert!(
         msg.contains("user.toml"),
         "expected file name in error: {msg}"
+    );
+}
+
+#[test]
+fn test_config_rejects_notes_path_in_repo_local_config() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let repo_root = temp.path().join("repo");
+    let cwd = repo_root.join("sub");
+    std::fs::create_dir_all(repo_root.join(".vex")).unwrap();
+    std::fs::create_dir_all(&cwd).unwrap();
+    std::fs::write(
+        repo_root.join(".vex/config.toml"),
+        "notes_path = \"/tmp/notes.md\"\n",
+    )
+    .unwrap();
+    let err = Config::load_for_tests(&cwd, None, None).unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("notes_path"),
+        "expected 'notes_path' in error: {msg}"
     );
 }

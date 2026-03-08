@@ -17,6 +17,7 @@ pub struct Config {
     pub tool_call_mode: ToolCallMode,
     #[serde(skip)]
     pub model_headers: HeaderMap,
+    pub notes_path: Option<PathBuf>,
 }
 
 /// Intermediate per-layer config built from a TOML file.
@@ -30,6 +31,7 @@ struct ConfigLayer {
     model_backend: Option<String>,
     model_protocol: Option<String>,
     tool_call_mode: Option<String>,
+    notes_path: Option<PathBuf>,
 }
 
 impl Config {
@@ -75,6 +77,14 @@ impl Config {
         let system_layer = system_cfg.map(load_config_layer).transpose()?.flatten();
         let user_layer = user_cfg.map(load_config_layer).transpose()?.flatten();
         let repo_layer = repo_cfg.map(load_config_layer).transpose()?.flatten();
+
+        // notes_path is user-only; reject it if found in repo-local config.
+        if repo_layer.as_ref().map(|l| l.notes_path.is_some()).unwrap_or(false) {
+            bail!(
+                "'notes_path' found in repo-local config '{}': notes path must be set in user config layer only",
+                repo_cfg.unwrap_or(Path::new("<unknown>")).display()
+            );
+        }
 
         // Env layer is parsed separately so errors name the env var, not a file.
         let (env_layer, env_token) = read_env_layer()?;
@@ -136,6 +146,7 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
         model_backend: over.model_backend.or(base.model_backend),
         model_protocol: over.model_protocol.or(base.model_protocol),
         tool_call_mode: over.tool_call_mode.or(base.tool_call_mode),
+        notes_path: over.notes_path.or(base.notes_path),
     }
 }
 
@@ -210,6 +221,7 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         model_backend,
         model_protocol,
         tool_call_mode,
+        notes_path: None,
     };
 
     Ok((layer, env_token))
@@ -334,7 +346,18 @@ fn resolve_config(
         model_protocol,
         tool_call_mode,
         model_headers: parse_model_headers_json()?,
+        notes_path: merged.notes_path.map(expand_home),
     })
+}
+
+fn expand_home(path: PathBuf) -> PathBuf {
+    let s = path.to_string_lossy();
+    if let Some(rest) = s.strip_prefix("~/") {
+        if let Some(home) = std::env::var("HOME").ok().filter(|v| !v.is_empty()) {
+            return PathBuf::from(home).join(rest);
+        }
+    }
+    path
 }
 
 // ---------------------------------------------------------------------------

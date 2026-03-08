@@ -727,6 +727,7 @@ mod tests {
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::TaggedFallback,
             model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -747,6 +748,7 @@ mod tests {
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::TaggedFallback,
             model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -766,6 +768,7 @@ mod tests {
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
             model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
         };
 
         let client = ApiClient::new(&config).expect("client should build");

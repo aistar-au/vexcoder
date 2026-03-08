@@ -15,6 +15,8 @@ use anyhow::Result;
 #[cfg(test)]
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use std::cell::Cell;
+use std::io::Write;
+use std::path::PathBuf;
 #[cfg(test)]
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -72,6 +74,7 @@ struct OverlayState {
     pending_approval: Option<PendingApproval>,
     pending_patch_approval: Option<PendingPatchApproval>,
     auto_approve_session: bool,
+    pending_memory_clear: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -93,10 +96,18 @@ pub struct TuiMode {
     active_stream_blocks: std::collections::HashMap<usize, StreamBlock>,
     pending_quit: bool,
     quit_requested: bool,
+    notes_path: Option<PathBuf>,
+    notes_injected: bool,
+    #[cfg(test)]
+    pub last_turn_input: Option<String>,
 }
 
 impl TuiMode {
     pub fn new() -> Self {
+        Self::new_with_notes(None)
+    }
+
+    pub fn new_with_notes(notes_path: Option<PathBuf>) -> Self {
         Self {
             history_state: HistoryState::default(),
             overlay_state: OverlayState::default(),
@@ -106,6 +117,10 @@ impl TuiMode {
             active_stream_blocks: std::collections::HashMap::new(),
             pending_quit: false,
             quit_requested: false,
+            notes_path,
+            notes_injected: false,
+            #[cfg(test)]
+            last_turn_input: None,
         }
     }
 
@@ -148,6 +163,7 @@ impl TuiMode {
     pub fn overlay_active(&self) -> bool {
         self.overlay_state.pending_approval.is_some()
             || self.overlay_state.pending_patch_approval.is_some()
+            || self.overlay_state.pending_memory_clear
     }
 
     fn patch_overlay_active(&self) -> bool {
@@ -185,6 +201,10 @@ impl TuiMode {
                 self.overlay_state.auto_approve_session,
             )
         })
+    }
+
+    pub fn pending_memory_clear_overlay(&self) -> bool {
+        self.overlay_state.pending_memory_clear
     }
 
     pub fn set_history_content_width(&self, width: usize) {
@@ -392,6 +412,132 @@ impl TuiMode {
             ScrollAction::End => self.apply_end(),
         }
     }
+
+    fn try_handle_slash_command(&mut self, input: &str) -> bool {
+        let trimmed = input.trim();
+        if trimmed == "/memory" {
+            self.handle_memory_display();
+            return true;
+        }
+        if let Some(note) = trimmed.strip_prefix("/memory add ") {
+            self.handle_memory_add(note.trim().to_string());
+            return true;
+        }
+        if trimmed == "/memory add" {
+            self.push_history_line("[memory] usage: /memory add <note>".to_string());
+            return true;
+        }
+        if trimmed == "/memory clear" {
+            self.overlay_state.pending_memory_clear = true;
+            self.push_history_line(
+                "[memory] clear all notes? type y to confirm or n to cancel".to_string(),
+            );
+            return true;
+        }
+        false
+    }
+
+    fn resolved_notes_path(&self) -> PathBuf {
+        self.notes_path
+            .clone()
+            .unwrap_or_else(notes_path_default)
+    }
+
+    fn handle_memory_display(&mut self) {
+        let path = self.resolved_notes_path();
+        match std::fs::read_to_string(&path) {
+            Ok(content) if !content.trim().is_empty() => {
+                for line in content.lines() {
+                    self.push_history_line(line.to_string());
+                }
+            }
+            _ => {
+                self.push_history_line("[memory] no notes".to_string());
+            }
+        }
+    }
+
+    fn handle_memory_add(&mut self, note: String) {
+        if note.is_empty() {
+            self.push_history_line("[memory] usage: /memory add <note>".to_string());
+            return;
+        }
+        let path = self.resolved_notes_path();
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        match std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
+            Ok(mut f) => {
+                if let Err(e) = writeln!(f, "{}", note) {
+                    self.push_history_line(format!("[memory] error writing: {e}"));
+                    return;
+                }
+                self.push_history_line("[memory: note added]".to_string());
+            }
+            Err(e) => {
+                self.push_history_line(format!("[memory] error opening file: {e}"));
+            }
+        }
+    }
+
+    fn handle_memory_clear_input(&mut self, input: &str) {
+        self.overlay_state.pending_memory_clear = false;
+        match input.trim().to_lowercase().as_str() {
+            "y" | "yes" => {
+                let path = self.resolved_notes_path();
+                if path.exists() {
+                    if let Err(e) = std::fs::write(&path, "") {
+                        self.push_history_line(format!("[memory] error clearing: {e}"));
+                        return;
+                    }
+                }
+                self.push_history_line("[memory: cleared]".to_string());
+            }
+            _ => {
+                self.push_history_line("[memory: cancelled]".to_string());
+            }
+        }
+    }
+
+    fn build_turn_with_notes_prefix(&mut self, input: String) -> String {
+        const MAX_NOTES_CHARS: usize = 1024 * 4; // ~1024 tokens at chars/4
+        let path = self.resolved_notes_path();
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) if !c.trim().is_empty() => c,
+            _ => return input,
+        };
+        if content.len() > MAX_NOTES_CHARS {
+            self.push_history_line(
+                "[memory] notes exceed token budget, skipped".to_string(),
+            );
+            return input;
+        }
+        format!(
+            "[memory notes]\n{}\n[end memory notes]\n\n{}",
+            content.trim(),
+            input
+        )
+    }
+}
+
+fn notes_path_default() -> PathBuf {
+    if let Some(root) = std::env::var("XDG_CONFIG_HOME")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+    {
+        return PathBuf::from(root).join("vex").join("memory.md");
+    }
+    if let Some(home) = std::env::var("HOME").ok().filter(|v| !v.is_empty()) {
+        return PathBuf::from(home)
+            .join(".config")
+            .join("vex")
+            .join("memory.md");
+    }
+    PathBuf::from(".vex-memory.md")
 }
 
 fn resolve_history_line_cap() -> usize {
@@ -503,12 +649,16 @@ impl RuntimeMode for TuiMode {
 
     fn on_user_input(&mut self, input: String, ctx: &mut RuntimeContext) {
         if self.overlay_active() {
-            if self.patch_overlay_active() {
+            if self.overlay_state.pending_memory_clear {
+                self.handle_memory_clear_input(&input);
+                return;
+            } else if self.patch_overlay_active() {
                 self.handle_patch_overlay_input(&input);
+                return;
             } else {
                 self.handle_approval_input(&input);
+                return;
             }
-            return;
         }
 
         if self.history_state.turn_in_progress {
@@ -527,9 +677,27 @@ impl RuntimeMode for TuiMode {
         self.history_state.cancel_pending = false;
         self.push_history_line(format!("> {input}"));
         self.push_history_line(String::new());
+
+        if input.starts_with('/') && self.try_handle_slash_command(&input) {
+            return;
+        }
+
+        let turn_input = if !self.notes_injected {
+            self.notes_injected = true;
+            self.build_turn_with_notes_prefix(input)
+        } else {
+            input
+        };
+
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
-        ctx.start_turn(input);
+
+        #[cfg(test)]
+        {
+            self.last_turn_input = Some(turn_input.clone());
+        }
+
+        ctx.start_turn(turn_input);
     }
 
     fn on_model_update(&mut self, update: UiUpdate, _ctx: &mut RuntimeContext) {
@@ -747,7 +915,7 @@ pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
 
-    let mode = TuiMode::new();
+    let mode = TuiMode::new_with_notes(config.notes_path.clone());
     let runtime = Runtime::new(mode, update_rx);
     Ok((runtime, ctx))
 }
@@ -1764,5 +1932,146 @@ mod tests {
             !mode.overlay_active(),
             "overlay lifecycle should clear cleanly after sender resolution"
         );
+    }
+
+    #[test]
+    fn test_tui_memory_renders_empty_notes() {
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new_with_notes(Some(notes_path));
+        mode.on_user_input("/memory".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[memory] no notes")),
+            "expected '[memory] no notes' in history"
+        );
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_tui_memory_add_appends_to_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
+        mode.on_user_input("/memory add hello world".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[memory: note added]")),
+            "expected '[memory: note added]' in history"
+        );
+        let content = std::fs::read_to_string(&notes_path).unwrap();
+        assert!(content.contains("hello world"));
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_tui_memory_clear_requires_confirmation() {
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        std::fs::write(&notes_path, "existing note\n").unwrap();
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
+        mode.on_user_input("/memory clear".to_string(), &mut ctx);
+        assert!(
+            mode.pending_memory_clear_overlay(),
+            "memory clear must enter overlay state"
+        );
+        assert!(mode.overlay_active(), "overlay must be active during memory clear");
+        // File must not be cleared until confirmed
+        let content = std::fs::read_to_string(&notes_path).unwrap();
+        assert!(content.contains("existing note"));
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_tui_memory_clear_cancellable() {
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        std::fs::write(&notes_path, "keep this note\n").unwrap();
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
+        mode.on_user_input("/memory clear".to_string(), &mut ctx);
+        mode.on_user_input("n".to_string(), &mut ctx);
+        assert!(
+            !mode.pending_memory_clear_overlay(),
+            "overlay must clear after cancel"
+        );
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[memory: cancelled]")),
+            "expected '[memory: cancelled]' in history"
+        );
+        let content = std::fs::read_to_string(&notes_path).unwrap();
+        assert!(
+            content.contains("keep this note"),
+            "file must not be cleared on cancel"
+        );
+    }
+
+    #[test]
+    fn test_tui_memory_does_not_call_start_turn() {
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        std::fs::write(&notes_path, "a note\n").unwrap();
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
+
+        // /memory
+        mode.on_user_input("/memory".to_string(), &mut ctx);
+        assert!(!mode.is_turn_in_progress(), "/memory must not start a turn");
+
+        // /memory add
+        mode.on_user_input("/memory add another".to_string(), &mut ctx);
+        assert!(!mode.is_turn_in_progress(), "/memory add must not start a turn");
+
+        // /memory clear + cancel
+        mode.on_user_input("/memory clear".to_string(), &mut ctx);
+        assert!(!mode.is_turn_in_progress(), "/memory clear must not start a turn");
+        mode.on_user_input("n".to_string(), &mut ctx);
+        assert!(!mode.is_turn_in_progress(), "cancel must not start a turn");
+    }
+
+    #[test]
+    fn test_memory_injection_within_budget() {
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        std::fs::write(&notes_path, "my project note\n").unwrap();
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new_with_notes(Some(notes_path));
+        mode.on_user_input("hello".to_string(), &mut ctx);
+        let last = mode.last_turn_input.as_deref().unwrap_or("");
+        assert!(
+            last.contains("my project note"),
+            "notes must be prepended to first turn: got {last:?}"
+        );
+        assert!(
+            last.contains("[memory notes]"),
+            "expected memory notes block prefix: got {last:?}"
+        );
+    }
+
+    #[test]
+    fn test_memory_injection_over_budget_emits_warning() {
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        // Write content larger than 4096 bytes (>1024 token estimate)
+        let big_content = "x".repeat(4097 * 4 + 1);
+        std::fs::write(&notes_path, &big_content).unwrap();
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new_with_notes(Some(notes_path));
+        mode.on_user_input("hello".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("notes exceed token budget")),
+            "expected budget warning in history"
+        );
+        let last = mode.last_turn_input.as_deref().unwrap_or("");
+        assert_eq!(last, "hello", "input must not be prefixed when over budget");
     }
 }

@@ -313,6 +313,15 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                             auto_approve_enabled,
                         },
                     );
+                } else if mode.pending_memory_clear_overlay() {
+                    render_overlay_modal(
+                        frame,
+                        OverlayModal::ToolPermission {
+                            tool_name: "memory clear",
+                            input_preview: "clear all notes? type y to confirm, n to cancel",
+                            auto_approve_enabled: false,
+                        },
+                    );
                 }
             }
         });
