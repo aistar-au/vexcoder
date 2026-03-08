@@ -49,6 +49,7 @@ pub struct ApiClient {
     model_protocol: ModelProtocol,
     tool_call_mode: ToolCallMode,
     model_headers: reqwest::header::HeaderMap,
+    notes_content: Option<String>,
     #[cfg(test)]
     mock_stream_producer: Option<Arc<dyn MockStreamProducer>>,
 }
@@ -70,6 +71,7 @@ impl ApiClient {
             model_protocol: config.model_protocol,
             tool_call_mode: config.tool_call_mode,
             model_headers: config.model_headers.clone(),
+            notes_content: None,
             #[cfg(test)]
             mock_stream_producer: None,
         })
@@ -88,8 +90,14 @@ impl ApiClient {
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
             model_headers: reqwest::header::HeaderMap::new(),
+            notes_content: None,
             mock_stream_producer: Some(mock_producer),
         }
+    }
+
+    pub fn with_notes_content(mut self, content: Option<String>) -> Self {
+        self.notes_content = content;
+        self
     }
 
     pub fn supports_structured_tool_protocol(&self) -> bool {
@@ -104,6 +112,15 @@ impl ApiClient {
         match self.model_protocol {
             ModelProtocol::MessagesV1 => ApiProtocol::MessagesV1,
             ModelProtocol::ChatCompat => ApiProtocol::ChatCompat,
+        }
+    }
+
+    fn system_prompt(&self) -> String {
+        match self.notes_content.as_deref().map(str::trim) {
+            Some(notes) if !notes.is_empty() => {
+                format!("{SYSTEM_PROMPT}\n\n<memory>\n{notes}\n</memory>")
+            }
+            _ => SYSTEM_PROMPT.to_string(),
         }
     }
 
@@ -128,13 +145,14 @@ impl ApiClient {
         let request_url = self.request_url();
         let max_tokens = resolve_max_tokens(&self.api_url);
         let api_protocol = self.api_protocol();
+        let system_prompt = self.system_prompt();
         let payload = match api_protocol {
             ApiProtocol::MessagesV1 => {
                 let mut payload = json!({
                     "model": self.model,
                     "max_tokens": max_tokens,
                     "stream": true,
-                    "system": SYSTEM_PROMPT,
+                    "system": system_prompt.clone(),
                     "messages": messages,
                 });
                 if self.supports_structured_tool_protocol() {
@@ -151,7 +169,7 @@ impl ApiClient {
                     "model": self.model,
                     "max_tokens": max_tokens,
                     "stream": true,
-                    "messages": chat_compat_messages(messages, SYSTEM_PROMPT),
+                    "messages": chat_compat_messages(messages, &system_prompt),
                 });
                 if self.supports_structured_tool_protocol() {
                     let payload_object = payload
@@ -809,6 +827,26 @@ mod tests {
             .collect();
 
         assert_eq!(chat_compat_names, base_names);
+    }
+
+    #[test]
+    fn test_system_prompt_includes_memory_notes() {
+        let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
+            vec![],
+        )))
+        .with_notes_content(Some("remember this".to_string()));
+        let prompt = client.system_prompt();
+        assert!(prompt.starts_with(SYSTEM_PROMPT));
+        assert!(prompt.contains("<memory>\nremember this\n</memory>"));
+    }
+
+    #[test]
+    fn test_system_prompt_omits_blank_memory_notes() {
+        let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
+            vec![],
+        )))
+        .with_notes_content(Some("   \n".to_string()));
+        assert_eq!(client.system_prompt(), SYSTEM_PROMPT);
     }
 
     #[test]

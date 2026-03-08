@@ -97,7 +97,6 @@ pub struct TuiMode {
     pending_quit: bool,
     quit_requested: bool,
     notes_path: Option<PathBuf>,
-    notes_injected: bool,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }
@@ -118,7 +117,6 @@ impl TuiMode {
             pending_quit: false,
             quit_requested: false,
             notes_path,
-            notes_injected: false,
             #[cfg(test)]
             last_turn_input: None,
         }
@@ -441,10 +439,16 @@ impl TuiMode {
         self.notes_path.clone().unwrap_or_else(notes_path_default)
     }
 
+    fn resolved_existing_notes_path(&self) -> Option<PathBuf> {
+        resolve_notes_path_for_read(self.notes_path.as_deref())
+    }
+
     fn handle_memory_display(&mut self) {
-        let path = self.resolved_notes_path();
-        match std::fs::read_to_string(&path) {
-            Ok(content) if !content.trim().is_empty() => {
+        let content = self
+            .resolved_existing_notes_path()
+            .and_then(|path| std::fs::read_to_string(path).ok());
+        match content {
+            Some(content) if !content.trim().is_empty() => {
                 for line in content.lines() {
                     self.push_history_line(line.to_string());
                 }
@@ -460,7 +464,9 @@ impl TuiMode {
             self.push_history_line("[memory] usage: /memory add <note>".to_string());
             return;
         }
-        let path = self.resolved_notes_path();
+        let path = self
+            .resolved_existing_notes_path()
+            .unwrap_or_else(|| self.resolved_notes_path());
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -486,7 +492,9 @@ impl TuiMode {
         self.overlay_state.pending_memory_clear = false;
         match input.trim().to_lowercase().as_str() {
             "y" | "yes" => {
-                let path = self.resolved_notes_path();
+                let path = self
+                    .resolved_existing_notes_path()
+                    .unwrap_or_else(|| self.resolved_notes_path());
                 if path.exists() {
                     if let Err(e) = std::fs::write(&path, "") {
                         self.push_history_line(format!("[memory] error clearing: {e}"));
@@ -499,24 +507,6 @@ impl TuiMode {
                 self.push_history_line("[memory: cancelled]".to_string());
             }
         }
-    }
-
-    fn build_turn_with_notes_prefix(&mut self, input: String) -> String {
-        const MAX_NOTES_CHARS: usize = 1024 * 4; // ~1024 tokens at chars/4
-        let path = self.resolved_notes_path();
-        let content = match std::fs::read_to_string(&path) {
-            Ok(c) if !c.trim().is_empty() => c,
-            _ => return input,
-        };
-        if content.len() > MAX_NOTES_CHARS {
-            self.push_history_line("[memory] notes exceed token budget, skipped".to_string());
-            return input;
-        }
-        format!(
-            "[memory notes]\n{}\n[end memory notes]\n\n{}",
-            content.trim(),
-            input
-        )
     }
 }
 
@@ -534,6 +524,72 @@ fn notes_path_default() -> PathBuf {
             .join("memory.md");
     }
     PathBuf::from(".vex-memory.md")
+}
+
+fn memory_token_budget() -> usize {
+    std::env::var("VEX_MAX_MEMORY_TOKENS")
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|budget| *budget > 0)
+        .unwrap_or(2048)
+}
+
+fn resolve_notes_path_for_read(explicit_path: Option<&std::path::Path>) -> Option<PathBuf> {
+    if let Some(path) = explicit_path {
+        return Some(path.to_path_buf());
+    }
+    if let Some(root) = std::env::var("XDG_CONFIG_HOME")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    {
+        let path = PathBuf::from(root).join("vex").join("memory.md");
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    if let Some(home) = std::env::var("HOME").ok().filter(|value| !value.is_empty()) {
+        let xdg_path = PathBuf::from(&home)
+            .join(".config")
+            .join("vex")
+            .join("memory.md");
+        if xdg_path.exists() {
+            return Some(xdg_path);
+        }
+        let legacy_path = PathBuf::from(home).join(".vex").join("memory.md");
+        if legacy_path.exists() {
+            return Some(legacy_path);
+        }
+    }
+    let fallback = PathBuf::from(".vex-memory.md");
+    fallback.exists().then_some(fallback)
+}
+
+fn resolve_notes_for_injection(
+    explicit_path: Option<&std::path::Path>,
+) -> (Option<String>, Option<String>) {
+    let Some(path) = resolve_notes_path_for_read(explicit_path) else {
+        return (None, None);
+    };
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return (None, None);
+    };
+    let trimmed = content.trim();
+    if trimmed.is_empty() {
+        return (None, None);
+    }
+
+    let token_budget = memory_token_budget();
+    let estimated_tokens = trimmed.len().saturating_add(3) / 4;
+    if estimated_tokens > token_budget {
+        return (
+            None,
+            Some(format!(
+                "[memory] notes exceed token budget ({estimated_tokens} > {token_budget}), skipped"
+            )),
+        );
+    }
+
+    (Some(trimmed.to_string()), None)
 }
 
 fn resolve_history_line_cap() -> usize {
@@ -678,12 +734,7 @@ impl RuntimeMode for TuiMode {
             return;
         }
 
-        let turn_input = if !self.notes_injected {
-            self.notes_injected = true;
-            self.build_turn_with_notes_prefix(input)
-        } else {
-            input
-        };
+        let turn_input = input;
 
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
@@ -904,14 +955,18 @@ fn render_pass_order(mode: &TuiMode) -> Vec<RenderPass> {
 }
 
 pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext)> {
-    let client = ApiClient::new(&config)?;
+    let (notes_content, notes_warning) = resolve_notes_for_injection(config.notes_path.as_deref());
+    let client = ApiClient::new(&config)?.with_notes_content(notes_content);
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new(client, operator);
 
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
 
-    let mode = TuiMode::new_with_notes(config.notes_path.clone());
+    let mut mode = TuiMode::new_with_notes(config.notes_path.clone());
+    if let Some(warning) = notes_warning {
+        mode.push_history_line(warning);
+    }
     let runtime = Runtime::new(mode, update_rx);
     Ok((runtime, ctx))
 }
@@ -2042,41 +2097,85 @@ mod tests {
     }
 
     #[test]
-    fn test_memory_injection_within_budget() {
+    fn test_tui_memory_reads_legacy_fallback_notes() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
         let temp = tempfile::tempdir().unwrap();
-        let notes_path = temp.path().join("memory.md");
-        std::fs::write(&notes_path, "my project note\n").unwrap();
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(home.join(".vex")).unwrap();
+        std::fs::write(home.join(".vex/memory.md"), "legacy note\n").unwrap();
+
+        let old_home = std::env::var("HOME").ok();
+        let old_xdg = std::env::var("XDG_CONFIG_HOME").ok();
+        std::env::set_var("HOME", home.as_os_str());
+        std::env::remove_var("XDG_CONFIG_HOME");
+
         let mut ctx = setup_ctx();
-        let mut mode = TuiMode::new_with_notes(Some(notes_path));
-        mode.on_user_input("hello".to_string(), &mut ctx);
-        let last = mode.last_turn_input.as_deref().unwrap_or("");
+        let mut mode = TuiMode::new_with_notes(None);
+        mode.on_user_input("/memory".to_string(), &mut ctx);
+
+        match old_home {
+            Some(value) => std::env::set_var("HOME", value),
+            None => std::env::remove_var("HOME"),
+        }
+        match old_xdg {
+            Some(value) => std::env::set_var("XDG_CONFIG_HOME", value),
+            None => std::env::remove_var("XDG_CONFIG_HOME"),
+        }
+
         assert!(
-            last.contains("my project note"),
-            "notes must be prepended to first turn: got {last:?}"
-        );
-        assert!(
-            last.contains("[memory notes]"),
-            "expected memory notes block prefix: got {last:?}"
+            mode.history_lines()
+                .iter()
+                .any(|line| line.contains("legacy note")),
+            "expected legacy fallback notes to render"
         );
     }
 
     #[test]
-    fn test_memory_injection_over_budget_emits_warning() {
+    fn test_memory_injection_within_budget_returns_content() {
         let temp = tempfile::tempdir().unwrap();
         let notes_path = temp.path().join("memory.md");
-        // Write content larger than 4096 bytes (>1024 token estimate)
-        let big_content = "x".repeat(4097 * 4 + 1);
-        std::fs::write(&notes_path, &big_content).unwrap();
-        let mut ctx = setup_ctx();
-        let mut mode = TuiMode::new_with_notes(Some(notes_path));
-        mode.on_user_input("hello".to_string(), &mut ctx);
+        std::fs::write(&notes_path, "my project note\n").unwrap();
+        let (content, warning) = resolve_notes_for_injection(Some(notes_path.as_path()));
+        assert!(warning.is_none(), "notes within budget must not warn");
+        let content = content.as_deref().unwrap_or("");
         assert!(
-            mode.history_lines()
-                .iter()
-                .any(|l| l.contains("notes exceed token budget")),
-            "expected budget warning in history"
+            content.contains("my project note"),
+            "notes content must be returned for system prompt injection"
         );
-        let last = mode.last_turn_input.as_deref().unwrap_or("");
-        assert_eq!(last, "hello", "input must not be prefixed when over budget");
+    }
+
+    #[test]
+    fn test_memory_injection_over_budget_emits_startup_warning() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        let big_content = "x".repeat((2048 * 4) + 1);
+        std::fs::write(&notes_path, &big_content).unwrap();
+        let old_budget = std::env::var("VEX_MAX_MEMORY_TOKENS").ok();
+        std::env::remove_var("VEX_MAX_MEMORY_TOKENS");
+
+        let config = Config {
+            model_token: None,
+            model_name: "mock-model".to_string(),
+            model_url: "http://localhost:8000/v1/messages".to_string(),
+            working_dir: temp.path().to_path_buf(),
+            model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
+            model_protocol: crate::runtime::ModelProtocol::MessagesV1,
+            tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: Some(notes_path),
+        };
+
+        let (runtime, _ctx) = build_runtime(config).expect("runtime should build");
+        let has_warning = runtime
+            .mode
+            .history_lines()
+            .iter()
+            .any(|l| l.contains("notes exceed token budget"));
+        match old_budget {
+            Some(value) => std::env::set_var("VEX_MAX_MEMORY_TOKENS", value),
+            None => std::env::remove_var("VEX_MAX_MEMORY_TOKENS"),
+        }
+        assert!(has_warning, "expected startup budget warning in history");
     }
 }
