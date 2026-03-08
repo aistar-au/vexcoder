@@ -42,22 +42,6 @@ test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" \
 A stale local HEAD in either repo is a hard stop. Confirm sync before the first
 tool call in any session. See `vex-remote-contract` Hard Rule 34.
 
-## Repo identity verification before remote writes
-
-Before any commit, push, PR create, or PR update for this repo, verify that the
-working tree and remote both identify `aistar-au/vexcoder`:
-
-```sh
-pwd
-git remote get-url origin
-printf 'expected repo: aistar-au/vexcoder\n'
-```
-
-Remote write operations in this repo depend on `origin` resolving to the
-intended `aistar-au/vexcoder` remote. If the current checkout or remote URL
-identifies a different repository, stop and switch to the intended repo before
-proceeding.
-
 ## Bootstrap dependencies
 
 Read these files in order before producing dispatch prompts, PR motivation, or
