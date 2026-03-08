@@ -362,12 +362,22 @@ pub(super) fn missing_mutating_location_prompt(
 }
 
 pub(super) fn is_read_only_user_request(input: &str) -> bool {
-    const READ_ONLY_HINTS: [&str; 15] = [
+    const READ_ONLY_HINTS: [&str; 25] = [
         "show",
         "read",
         "list",
         "count",
         "how many",
+        "read-only",
+        "read only",
+        "readonly",
+        "review only",
+        "no changes",
+        "without changes",
+        "do not change",
+        "don't change",
+        "do not modify",
+        "don't modify",
         "what is in",
         "what's in",
         "whats in",
@@ -401,10 +411,25 @@ pub(super) fn is_read_only_user_request(input: &str) -> bool {
     ];
 
     let normalized = input.to_ascii_lowercase();
-    let has_read_only_hint = READ_ONLY_HINTS.iter().any(|hint| normalized.contains(hint));
-    let has_mutating_hint = MUTATING_HINTS.iter().any(|hint| normalized.contains(hint));
+    let has_read_only_hint = READ_ONLY_HINTS
+        .iter()
+        .any(|hint| contains_hint(&normalized, hint));
+    let has_mutating_hint = MUTATING_HINTS
+        .iter()
+        .any(|hint| contains_hint(&normalized, hint));
 
     has_read_only_hint && !has_mutating_hint
+}
+
+fn contains_hint(normalized: &str, hint: &str) -> bool {
+    normalized.match_indices(hint).any(|(start, _)| {
+        let end = start + hint.len();
+        let previous = normalized[..start].chars().next_back();
+        let next = normalized[end..].chars().next();
+
+        previous.is_none_or(|value| !value.is_ascii_alphanumeric())
+            && next.is_none_or(|value| !value.is_ascii_alphanumeric())
+    })
 }
 
 pub(super) fn mutating_tool_read_only_conflict_prompt(
@@ -646,7 +671,15 @@ pub(super) fn render_loop_guard_message(last_assistant_text: &str, reason: Strin
 pub(super) fn is_read_only_tool_name(name: &str) -> bool {
     matches!(
         name,
-        "read_file" | "search" | "search_files" | "list_files" | "list_directory"
+        "read_file"
+            | "search"
+            | "search_files"
+            | "list_files"
+            | "list_directory"
+            | "git_status"
+            | "git_diff"
+            | "git_log"
+            | "git_show"
     )
 }
 

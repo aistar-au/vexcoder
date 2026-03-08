@@ -7,26 +7,15 @@
 #
 # Usage:
 #   make gate          full gate (matches ci.yml + arch-contracts.yml combined)
-#   make gate-fast     gate without map-check (tight local edit loop)
+#   make gate-fast     full gate (identical to gate)
 #   make release       package one target to dist/ for local smoke testing
-#   make fix           apply fmt + taplo + line-ending renorm + map-update
+#   make fix           apply fmt + taplo + line-ending renorm
 #   make help          list all targets
-#
-# CI migration (after this file lands on main):
-#   ci.yml            replace individual steps with: make gate
-#   arch-contracts    replace individual steps with: make check-arch && make test-targets
-#   autofix.yml       replace fmt/taplo steps with:  make fix
-#                     keep: repository checkout, toolchain install, remote publish steps
-#                     (those steps need GitHub token permissions — not a logic concern)
 #
 # Tool prerequisites:
 #   taplo   cargo install taplo-cli --version 0.8.1  (CI pins this version in workflow)
 #   rg      cargo install ripgrep  OR  apt install ripgrep  (check_forbidden_names.sh only)
 #   rust    rustup (stable toolchain)
-#
-# Future targets (not included — scripts do not yet exist on main):
-#   health-check   scripts/agent_health_check.sh   (ADR-024 Gap 27)
-#   lint-json      scripts/lint_check.sh           (structured clippy for agents)
 # ==============================================================================
 
 SHELL := bash
@@ -39,7 +28,6 @@ SHELL := bash
         lint \
         commit-debug-gate \
         check-boundary check-routing check-imports check-names check-module-names check-arch \
-        map-check map-check-full map-update \
         test test-targets test-single \
         release \
         gate gate-fast \
@@ -65,17 +53,14 @@ help:
 	  "  check-imports      assert no forbidden cross-layer imports (ADR-007)" \
 	  "  check-names        assert no proprietary vendor brand names (ADR-023)" \
 	  "  check-module-names assert Rust 2018 path-based modules — no mod.rs files" \
-	  "  check-arch         all architecture boundary checks (ci.yml + arch-contracts.yml)" \
-	  "  map-check          index-only map drift check — fails only on missing tracked files" \
-	  "  map-check-full     full byte-for-byte map sync check including line counts" \
-	  "  map-update         regenerate REPO-RAW-URL-MAP (full sync)" \
+	  "  check-arch         all architecture boundary checks" \
 	  "  test               cargo test --all with VEX_MODEL_TOKEN=\"\" (ci.yml variant)" \
-	  "  test-targets       cargo test --all-targets (arch-contracts.yml variant)" \
+	  "  test-targets       cargo test --all-targets" \
 	  "  test-single        run one test by name: make test-single T=test_fn_name" \
-	  "  gate               FULL gate: ci.yml + arch-contracts.yml + map index check" \
+	  "  gate               full gate: fmt + lint + arch + tests" \
+	  "  gate-fast          full gate (identical to gate)" \
 	  "  release            package one target: make release VERSION=v0.1.0-alpha.1 TARGET=x86_64-unknown-linux-gnu" \
-	  "  gate-fast          fast gate: full gate minus map-check (local edit loop)" \
-	  "  fix                rustfmt + taplo + renorm + map-update (all auto-fixable in one pass)" \
+	  "  fix                rustfmt + taplo + renorm (all auto-fixable in one pass)" \
 	  "  clean              cargo clean"
 
 
@@ -133,8 +118,8 @@ fmt: _require-taplo
 
 fmt-check: _require-taplo
 	cargo fmt --check
-	taplo fmt --check --diff
-	taplo lint
+	bash scripts/taplo_safe.sh fmt-check
+	bash scripts/taplo_safe.sh lint
 
 
 # ------------------------------------------------------------------------------
@@ -148,10 +133,14 @@ lint:
 # ------------------------------------------------------------------------------
 # Commit-debug gate
 #
-# Required before push when changed paths include `src/**/*.rs` or `tests/**/*.rs`.
-# This repo must stay self-contained: no sibling repo or external devops checkout
-# is required to validate local packaging or code changes. Reuse the existing
-# local fast gate rather than shelling out to ../vexdraft.
+# For src/ and tests/ changes, multi-provider review (commit-debug.py) is owned
+# by the dispatcher in the sibling devops repo at ../vexdraft relative to this
+# repo root. The dispatcher invokes it as part of the loop cycle before push.
+# This target runs gate-fast only — the local Rust gate. It is intentionally
+# self-contained so vexcoder's Makefile carries no cross-repo path assumptions.
+#
+# Sibling layout (required): ~/git-repo/vexcoder and ~/git-repo/vexdraft must
+# exist side by side. The dispatcher calls commit-debug.py from vexdraft directly.
 # ------------------------------------------------------------------------------
 commit-debug-gate: gate-fast
 	@echo "commit-debug-gate: passed (self-contained local verification)"
@@ -205,34 +194,6 @@ check-arch: \
 
 
 # ------------------------------------------------------------------------------
-# Repo map gate
-# Source: onboarding Hard Rule 8, vex-remote-contract Step 9 MAP GATE
-#
-# Policy (decided 2026-03-06): INDEX-ONLY mode via --check-index.
-#
-#   map-check        --check-index: fails only when tracked files are absent
-#                    from the index. Normal edits changing line counts do NOT
-#                    fail this gate. Used by make gate and CI.
-#
-#   map-check-full   --check: byte-for-byte sync including line counts and
-#                    ordering. Use before releases or explicit full-sync PRs.
-#
-#   map-update       regenerates the full map (called automatically by fix).
-#
-# Requires: update_repo_raw_url_map.sh --check-index flag added via patch
-#   0001-add-check-index-flag.patch (apply before landing this Makefile)
-# ------------------------------------------------------------------------------
-map-check:
-	@.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check-index
-
-map-check-full:
-	@.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh --check
-
-map-update:
-	@.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
-
-
-# ------------------------------------------------------------------------------
 # Tests
 #
 # Two variants preserved — policy: keep both (decided 2026-03-06).
@@ -258,12 +219,7 @@ test-single:
 # ------------------------------------------------------------------------------
 # Full gate
 #
-# gate       = ci.yml + arch-contracts.yml + map index check (in order)
-# gate-fast  = same minus map-check (for tight local edit loops)
-#
-# Execution order follows ci.yml, with arch-contracts checks appended.
-# map-check runs last: pure shell (git ls-files + awk), only fails on
-# file-set changes (index-only policy), zero cost on normal edits.
+# gate / gate-fast  = ci.yml + arch-contracts.yml (identical)
 # ------------------------------------------------------------------------------
 gate: \
   fmt-check \
@@ -271,8 +227,7 @@ gate: \
   check \
   check-arch \
   test \
-  test-targets \
-  map-check
+  test-targets
 	@echo ""
 	@echo "gate: all checks passed"
 
@@ -284,16 +239,13 @@ gate-fast: \
   test \
   test-targets
 	@echo ""
-	@echo "gate-fast: passed (map-check skipped — run 'make gate' before push)"
+	@echo "gate-fast: passed"
 
 
 # ------------------------------------------------------------------------------
 # Autofix
 #
-# Covers: rustfmt, taplo fmt, git line-ending renormalization, map regeneration.
-# map-update is included so the index is current before you commit.
-# Commit all staged changes together (fmt + map) after running fix.
-#
+# Covers: rustfmt, taplo fmt, git line-ending renormalization.
 # Does NOT cover: repository checkout, toolchain install, remote publish steps.
 # Those require GitHub token permissions and stay in YAML.
 # ------------------------------------------------------------------------------
@@ -301,8 +253,6 @@ fix: _require-taplo
 	cargo fmt
 	taplo fmt
 	git add --renormalize .
-	@.agents/skills/vex-remote-contract/scripts/update_repo_raw_url_map.sh
-	git add TASKS/completed/REPO-RAW-URL-MAP.md
 	@echo ""
 	@echo "fix: applied — run 'make gate' to verify"
 

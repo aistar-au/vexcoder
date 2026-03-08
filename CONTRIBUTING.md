@@ -1,18 +1,22 @@
 # Contributing to vexcoder
 
-> **Version:** This workflow applies from `v0.1.0-alpha.1` onward.  
-> **Architecture decisions** live in [`TASKS/`](TASKS/ADR-README.md).  
-> **Dispatch ADRs not yet completed** live in [`TASKS/`](TASKS/TASKS-DISPATCH-MAP.md) as `TASKS/ADR-XXX-*.md`.  
+> **Version:** This workflow applies from `v0.1.0-alpha.1` onward.
+> **Architecture decisions** live in [`docs/adr/`](docs/adr/ADR-README.md).
 > The ADRs explain *why* the project is structured this way. Read them before opening a PR.
+>
+> **Agent bootstrap:** repo-local product guidance stays here, but the active
+> dispatcher skills now live in the sibling private repo
+> `../vexdraft/agents/vexcoder/skills/`.
+> Read [`AGENTS.md`](AGENTS.md) first for the dependency map and required load
+> order before using the private skill tree against this repo.
 
 ---
 
 ## The Agentic Workflow (Test-Driven Manifest)
 
-`vexcoder` uses the **Test-Driven Manifest (TDM)** strategy for all bug fixes, features, and refactors. The full rationale is in [ADR-001](TASKS/completed/ADR-001-tdm-agentic-manifest-strategy.md). The short version:
+`vexcoder` uses the **Test-Driven Manifest (TDM)** strategy for all bug fixes, features, and refactors. The full rationale is in [ADR-001](docs/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md). The short version:
 
-1. **Identify task** — Check `TASKS/` for open items.
-   - This includes active dispatch ADR manifests (`TASKS/ADR-XXX-*.md`).
+1. **Identify task** — Check `docs/adr/` for open architecture decisions.
 2. **Anchor test** — Every task has exactly one failing Rust test before work begins. No anchor, no dispatch.
 3. **Module isolation** — Work is confined to the `Target File` named in the task manifest (± one helper file).
 4. **Verification** — Success is `cargo test <anchor_name>` passing, plus `cargo test --all-targets` showing no regressions.
@@ -26,8 +30,6 @@ Architecture gates enforcing ADR-007 must remain green:
 `bash scripts/check_no_alternate_routing.sh`
 `bash scripts/check_forbidden_imports.sh`
 Tests that mutate process environment variables must hold `crate::test_support::ENV_LOCK`; `cargo test --all-targets` must pass without `--test-threads=1`.
-
-See [`TASKS/manifest-strategy.md`](TASKS/manifest-strategy.md) for the operational guide.
 
 ---
 
@@ -44,38 +46,6 @@ naming-policy changes.
 
 ---
 
-## Skills-First Note
-
-Use repository skills before ad-hoc procedures whenever a request matches their scope.
-
-- Branch and verification workflow: [`.agents/skills/vex-remote-contract/SKILL.md`](.agents/skills/vex-remote-contract/SKILL.md)
-- Local drafting and review text workflow: [`.agents/skills/vex-local-bash/SKILL.md`](.agents/skills/vex-local-bash/SKILL.md)
-
-When a task maps to one of these workflows, follow the skill instructions first, then layer any
-task-specific constraints from ADRs or task manifests.
-
----
-
-## Docs Deployment Standard (GitHub Pages + mdBook)
-
-Docs deployment changes must follow this baseline:
-
-1. GitHub Pages preflight:
-   - Repository Pages source is set to **GitHub Actions**.
-   - Repository and branch policy permit the docs workflow to run on the protected integration path
-     (normally `main` via pull request merge).
-2. Workflow permissions minimums:
-   - `pages: write`
-   - `id-token: write`
-3. Canonical docs structure requirements:
-   - `docs/book.toml`
-   - `docs/src/SUMMARY.md`
-
-Keep docs deployment guidance scoped to documentation publishing only.
-Do not mix runtime behavior changes into deployment-standard edits.
-
----
-
 ## Task Naming Convention
 
 | Prefix | Type | Example |
@@ -86,8 +56,6 @@ Do not mix runtime behavior changes into deployment-standard edits.
 | `SEC-XX` | Security | `SEC-01-path-security.md` |
 | `CORE-XX` | Core infrastructure | `CORE-01-sse-parser.md` |
 | `DOC-XX` | Documentation | `DOC-01-api-docs.md` |
-
-Completed tasks move to `TASKS/completed/` — do not delete them.
 
 ---
 
@@ -109,7 +77,6 @@ requires that layout.
 
 REF-08 full cutover is complete and merged (2026-02-19).
 Canonical dispatch and layering rules are now governed by ADR-007 and ADR-008.
-Historical REF manifests remain archived under `TASKS/completed/`.
 
 ---
 
@@ -123,7 +90,7 @@ source "$HOME/.cargo/env"
 # 2. Verify the environment
 cargo test --all-targets
 
-# 3. Pick a task from TASKS/, read its manifest, identify the anchor test
+# 3. Read the relevant ADR in docs/adr/, identify the anchor test
 
 # 4. Implement, then verify
 cargo test test_crit_XX_anchor_name -- --nocapture
@@ -175,13 +142,26 @@ Do not merge packaging work directly from a local debug session; keep the review
 ## Project Structure
 
 ```
-vexcoder/
-├── .agents/                       # Local skill definitions and helper scripts
-│   └── skills/                    # Skill workflows used by agent tasks
+~/git-repo/
+├── vexcoder/               # This repo — product code and release CI only
+│   ├── CONTRIBUTING.md
+│   ├── README.md
+│   ├── docs/adr/           # Architecture Decision Records
+│   ├── src/                # Rust crate source
+│   └── tests/              # Integration tests
+└── vexdraft/               # Sibling devops repo — dispatcher, commit-debug, skills
+    └── scripts/
+        └── commit-debug.py # Multi-provider pre-push reviewer (called by dispatcher)
+```
+
+`vexdraft` must exist at `../vexdraft` relative to this repo for the dispatcher
+loop and pre-push review to function. The sibling layout is the assumed path contract.
+
+```
+vexcoder/ (standalone view)
 ├── CONTRIBUTING.md                # Workflow guide + source map
 ├── README.md                      # Runtime and quickstart
-├── docs/                          # mdBook docs for GitHub Pages
-├── TASKS/                         # ADRs and task manifests (open + completed)
+├── docs/adr/                      # Architecture Decision Records (open + completed)
 ├── src/                           # Rust crate source
 │   └── bin/vex.rs                 # Binary entrypoint
 └── tests/                         # Integration tests
@@ -239,7 +219,5 @@ vexcoder/
 
 ## Reference
 
-- [ADR index](TASKS/ADR-README.md) — architectural decisions and their rationale
-- [Agentic Repair Strategy](TASKS/manifest-strategy.md) — TDM workflow deep-dive
-- [Repository Raw URL Map](TASKS/completed/REPO-RAW-URL-MAP.md) — raw.githubusercontent.com links for every tracked file
-
+- [AGENTS.md](AGENTS.md) — bootstrap dependency map for the private dispatcher skill tree
+- [ADR index](docs/adr/ADR-README.md) — architectural decisions and their rationale
