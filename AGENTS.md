@@ -2,12 +2,12 @@
 
 `vexcoder` is the public product repo. The dispatcher skills, PR-contract
 rules, commit-debug tooling, docs automation, and roadmap automation that drive
-agent workflows now live in the internal private repo `../vexdraft`.
+agent workflows now live in the sibling private repo `../vexdraft`.
 
 This file is the bootstrap dependency map for agents working in `vexcoder`.
-Read it first, then follow the linked local and internal-repo sources.
+Read it first, then follow the linked local and sibling-repo sources.
 
-## Required internal layout
+## Required sibling layout
 
 The expected checkout layout is:
 
@@ -19,6 +19,28 @@ The expected checkout layout is:
 
 If `../vexdraft` is missing, skill bootstrap is incomplete and dispatcher-owned
 workflows cannot be verified from this repo alone.
+
+## Session start sync (required)
+
+Before any work in this repo — reading, drafting, implementing, or verifying —
+run the following in both working trees:
+
+```sh
+# In ~/git-repo/vexcoder
+git fetch origin --prune
+git merge --ff-only origin/main
+test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" \
+  && echo "vexcoder in sync" || { echo "vexcoder MISMATCH — do not proceed"; exit 1; }
+
+# In ~/git-repo/vexdraft
+git fetch origin --prune
+git merge --ff-only origin/main
+test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" \
+  && echo "vexdraft in sync" || { echo "vexdraft MISMATCH — do not proceed"; exit 1; }
+```
+
+A stale local HEAD in either repo is a hard stop. Confirm sync before the first
+tool call in any session. See `vex-remote-contract` Hard Rule 34.
 
 ## Bootstrap dependencies
 
@@ -77,7 +99,7 @@ Minimum local verification for repo changes:
 - `bash scripts/check_forbidden_imports.sh`
 
 If the changed paths include `src/**/*.rs` or `tests/**/*.rs`, the dispatcher
-workflow in `../vexdraft` also expects the internal-repo review path described in
+workflow in `../vexdraft` also expects the sibling-repo review path described in
 `../vexdraft/agents/vexcoder/skills/vex-remote-contract/SKILL.md`.
 
 ## Dispatcher contract notes
