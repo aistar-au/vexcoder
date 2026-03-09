@@ -7,7 +7,9 @@ use crate::runtime::r#loop::Runtime;
 use crate::runtime::{TaskState, UiUpdate};
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
-use crate::session_notes::{build_api_client_with_notes, resolve_notes_path_for_read};
+use crate::session_notes::{
+    build_api_client_with_notes, resolve_notes_path_for_read, resolve_notes_path_for_write,
+};
 use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest};
 use crate::tools::ToolOperator;
 use crate::ui::render::history_visual_line_count;
@@ -437,8 +439,8 @@ impl TuiMode {
         false
     }
 
-    fn resolved_notes_path(&self) -> PathBuf {
-        self.notes_path.clone().unwrap_or_else(notes_path_default)
+    fn resolved_notes_path(&self) -> Option<PathBuf> {
+        resolve_notes_path_for_write(self.notes_path.as_deref())
     }
 
     fn resolved_existing_notes_path(&self) -> Option<PathBuf> {
@@ -468,7 +470,11 @@ impl TuiMode {
         }
         let path = self
             .resolved_existing_notes_path()
-            .unwrap_or_else(|| self.resolved_notes_path());
+            .or_else(|| self.resolved_notes_path());
+        let Some(path) = path else {
+            self.push_history_line("[memory] error resolving notes path".to_string());
+            return;
+        };
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -496,7 +502,11 @@ impl TuiMode {
             "y" | "yes" => {
                 let path = self
                     .resolved_existing_notes_path()
-                    .unwrap_or_else(|| self.resolved_notes_path());
+                    .or_else(|| self.resolved_notes_path());
+                let Some(path) = path else {
+                    self.push_history_line("[memory] error resolving notes path".to_string());
+                    return;
+                };
                 if path.exists() {
                     if let Err(e) = std::fs::write(&path, "") {
                         self.push_history_line(format!("[memory] error clearing: {e}"));
@@ -510,22 +520,6 @@ impl TuiMode {
             }
         }
     }
-}
-
-fn notes_path_default() -> PathBuf {
-    if let Some(root) = std::env::var("XDG_CONFIG_HOME")
-        .ok()
-        .filter(|v| !v.trim().is_empty())
-    {
-        return PathBuf::from(root).join("vex").join("memory.md");
-    }
-    if let Some(home) = std::env::var("HOME").ok().filter(|v| !v.is_empty()) {
-        return PathBuf::from(home)
-            .join(".config")
-            .join("vex")
-            .join("memory.md");
-    }
-    PathBuf::from(".vex-memory.md")
 }
 
 fn resolve_history_line_cap() -> usize {

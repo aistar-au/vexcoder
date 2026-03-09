@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde::Serialize;
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -10,11 +10,11 @@ use crate::runtime::{
     frontend::{FrontendAdapter, UserInputEvent},
     mode::RuntimeMode,
     r#loop::Runtime,
-    task_state::{TaskId, TaskStatus},
+    task_state::{CommandEvidence, TaskId, TaskStatus},
     UiUpdate,
 };
 use crate::session_notes::{build_api_client_with_notes, clear_notes_file};
-use crate::state::{ConversationManager, ToolApprovalRequest};
+use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest};
 use crate::tools::ToolOperator;
 use std::path::PathBuf;
 
@@ -95,7 +95,16 @@ pub struct BatchMode {
     notes_path: Option<PathBuf>,
     current_response: String,
     current_turn: usize,
+    current_turn_changed_files: BTreeSet<String>,
+    current_turn_command_history: Vec<CommandEvidence>,
+    pending_tool_calls: HashMap<String, PendingToolCall>,
     output_lines: Vec<String>,
+}
+
+#[derive(Clone)]
+struct PendingToolCall {
+    name: String,
+    input: serde_json::Value,
 }
 
 impl BatchMode {
@@ -111,6 +120,9 @@ impl BatchMode {
             notes_path,
             current_response: String::new(),
             current_turn: 0,
+            current_turn_changed_files: BTreeSet::new(),
+            current_turn_command_history: Vec::new(),
+            pending_tool_calls: HashMap::new(),
             output_lines: Vec::new(),
         }
     }
@@ -131,18 +143,44 @@ impl BatchMode {
         self.auto_approve.is_some()
     }
 
+    fn reset_current_turn_state(&mut self) {
+        self.current_response.clear();
+        self.current_turn_changed_files.clear();
+        self.current_turn_command_history.clear();
+        self.pending_tool_calls.clear();
+    }
+
+    fn mark_max_turns_reached(&mut self) {
+        self.status = TaskStatus::MaxTurnsReached;
+        self.append_summary();
+        self.done = true;
+        self.turn_in_progress = false;
+    }
+
     fn finish_turn(&mut self) {
         self.current_turn += 1;
 
         let response = std::mem::take(&mut self.current_response);
+        let changed_files = self
+            .current_turn_changed_files
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let command_history = self
+            .current_turn_command_history
+            .iter()
+            .map(|entry| {
+                serde_json::to_value(entry).expect("command evidence serialization must succeed")
+            })
+            .collect::<Vec<_>>();
 
         match self.format {
             OutputFormat::Jsonl => {
                 let record = TurnRecord {
                     turn: self.current_turn,
                     response: &response,
-                    changed_files: vec![],
-                    command_history: vec![],
+                    changed_files,
+                    command_history,
                 };
                 let line = serde_json::to_string(&record)
                     .expect("batch JSONL turn record serialization must succeed");
@@ -156,18 +194,8 @@ impl BatchMode {
             }
         }
 
-        let max_reached = self
-            .max_turns
-            .map(|max| self.current_turn >= max)
-            .unwrap_or(false);
-
-        if max_reached {
-            self.status = TaskStatus::MaxTurnsReached;
-            self.append_summary();
-            self.done = true;
-        }
-
         self.turn_in_progress = false;
+        self.pending_tool_calls.clear();
     }
 
     fn append_summary(&mut self) {
@@ -178,7 +206,7 @@ impl BatchMode {
                 status: &status_str,
                 task_id: &self.task_id,
                 total_turns: self.current_turn,
-                changed_files: vec![],
+                changed_files: self.current_turn_changed_files.iter().cloned().collect(),
             };
             let line = serde_json::to_string(&record)
                 .expect("batch JSONL summary record serialization must succeed");
@@ -187,6 +215,7 @@ impl BatchMode {
     }
 
     fn complete_without_model(&mut self, message: String) {
+        self.reset_current_turn_state();
         self.status = TaskStatus::Running;
         self.turn_in_progress = true;
         self.current_response = message;
@@ -199,6 +228,7 @@ impl BatchMode {
     }
 
     fn fail_without_model(&mut self, message: String) {
+        self.reset_current_turn_state();
         self.status = TaskStatus::Running;
         self.turn_in_progress = true;
         self.current_response = message;
@@ -228,6 +258,53 @@ impl BatchMode {
         }
         true
     }
+
+    fn note_changed_files_from_tool_call(&mut self, name: &str, input: &serde_json::Value) {
+        match name {
+            "write_file" | "edit_file" | "git_add" => {
+                if let Some(path) =
+                    first_string_field(input, &["path", "file_path", "file", "filename"])
+                {
+                    self.current_turn_changed_files.insert(path.to_string());
+                }
+            }
+            "rename_file" => {
+                for key in [
+                    "old_path",
+                    "from",
+                    "source_path",
+                    "new_path",
+                    "to",
+                    "target_path",
+                ] {
+                    if let Some(path) = first_string_field(input, &[key]) {
+                        self.current_turn_changed_files.insert(path.to_string());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn note_command_history_from_tool_result(&mut self, name: &str, is_error: bool) {
+        let program = match name {
+            "git_status" => Some("git status"),
+            "git_diff" => Some("git diff"),
+            "git_log" => Some("git log"),
+            "git_show" => Some("git show"),
+            "git_add" => Some("git add"),
+            "git_commit" => Some("git commit"),
+            _ => None,
+        };
+        let Some(program) = program else {
+            return;
+        };
+        self.current_turn_command_history.push(CommandEvidence {
+            program: program.to_string(),
+            exit_code: Some(if is_error { 1 } else { 0 }),
+            interrupted: false,
+        });
+    }
 }
 
 impl RuntimeMode for BatchMode {
@@ -235,9 +312,18 @@ impl RuntimeMode for BatchMode {
         if self.done {
             return;
         }
+        let max_reached = self
+            .max_turns
+            .map(|max| self.current_turn >= max)
+            .unwrap_or(false);
+        if max_reached {
+            self.mark_max_turns_reached();
+            return;
+        }
         if self.try_handle_batch_memory_clear(&input) {
             return;
         }
+        self.reset_current_turn_state();
         self.status = TaskStatus::Running;
         self.turn_in_progress = true;
         ctx.start_turn(input);
@@ -259,10 +345,32 @@ impl RuntimeMode for BatchMode {
             UiUpdate::Error(msg) => {
                 self.current_response.push_str(&msg);
                 self.finish_turn();
-                self.status = TaskStatus::Failed;
-                self.append_summary();
-                self.done = true;
+                if !self.done {
+                    self.status = TaskStatus::Failed;
+                    self.append_summary();
+                    self.done = true;
+                }
             }
+            UiUpdate::StreamBlockStart { block, .. } => match block {
+                StreamBlock::ToolCall {
+                    id, name, input, ..
+                } => {
+                    self.note_changed_files_from_tool_call(&name, &input);
+                    self.pending_tool_calls
+                        .insert(id, PendingToolCall { name, input });
+                }
+                StreamBlock::ToolResult {
+                    tool_call_id,
+                    is_error,
+                    ..
+                } => {
+                    if let Some(pending) = self.pending_tool_calls.remove(&tool_call_id) {
+                        self.note_changed_files_from_tool_call(&pending.name, &pending.input);
+                        self.note_command_history_from_tool_result(&pending.name, is_error);
+                    }
+                }
+                StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. } => {}
+            },
             UiUpdate::ToolApprovalRequest(ToolApprovalRequest { response_tx, .. }) => {
                 let approved = self.approval_decision();
                 let _ = response_tx.send(approved);
@@ -274,6 +382,13 @@ impl RuntimeMode for BatchMode {
     fn is_turn_in_progress(&self) -> bool {
         self.turn_in_progress
     }
+}
+
+fn first_string_field<'a>(input: &'a serde_json::Value, keys: &[&str]) -> Option<&'a str> {
+    keys.iter()
+        .find_map(|key| input.get(*key).and_then(|value| value.as_str()))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }
 
 // ── BatchFrontend (FrontendAdapter impl) ───────────────────────────────────────
@@ -572,10 +687,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_batch_mode_max_turns_stops_run() {
-        // With MockApiClient returning no responses, the turn completes
-        // immediately (TurnComplete). max_turns = 1 means after 1 turn the
-        // mode transitions to MaxTurnsReached before a second turn can start.
+    async fn test_batch_mode_completes_on_final_allowed_turn() {
         let result = run_batch_mode_with_opts(
             "keep going",
             BatchRunOpts {
@@ -585,7 +697,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(result.status, TaskStatus::MaxTurnsReached);
+        assert_eq!(result.status, TaskStatus::Completed);
     }
 
     #[tokio::test]
@@ -725,6 +837,96 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_batch_mode_jsonl_output_captures_streamed_tool_evidence() {
+        let mut ctx = setup_batch_ctx();
+        let opts = BatchRunOpts {
+            format: OutputFormat::Jsonl,
+            ..Default::default()
+        };
+        let mut mode = BatchMode::new("test-task".to_string(), opts, None);
+
+        mode.on_user_input("task".to_string(), &mut ctx);
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 0,
+                block: StreamBlock::ToolCall {
+                    id: "tool-1".to_string(),
+                    name: "write_file".to_string(),
+                    input: serde_json::json!({
+                        "path": "src/main.rs",
+                        "content": "fn main() {}\n"
+                    }),
+                    status: crate::state::ToolStatus::Executing,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 1,
+                block: StreamBlock::ToolCall {
+                    id: "tool-2".to_string(),
+                    name: "git_commit".to_string(),
+                    input: serde_json::json!({
+                        "message": "record evidence"
+                    }),
+                    status: crate::state::ToolStatus::Executing,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 2,
+                block: StreamBlock::ToolResult {
+                    tool_call_id: "tool-2".to_string(),
+                    output: "Committed".to_string(),
+                    is_error: false,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(UiUpdate::StreamDelta("done".to_string()), &mut ctx);
+        mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+
+        let turn_line = mode.output_lines.first().expect("expected turn line");
+        let turn_json: serde_json::Value = serde_json::from_str(turn_line).unwrap();
+        let changed_files = turn_json["changed_files"]
+            .as_array()
+            .expect("changed_files must be present");
+        assert!(changed_files
+            .iter()
+            .filter_map(|value| value.as_str())
+            .any(|path| path == "src/main.rs"));
+        let command_history = turn_json["command_history"]
+            .as_array()
+            .expect("command_history must be present");
+        assert_eq!(command_history.len(), 1);
+        assert_eq!(command_history[0]["program"], "git commit");
+        assert_eq!(command_history[0]["exit_code"], 0);
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_marks_second_turn_attempt_as_max_turns_reached() {
+        let mut ctx = setup_batch_ctx();
+        let mut mode = BatchMode::new(
+            "test-task".to_string(),
+            BatchRunOpts {
+                max_turns: Some(1),
+                format: OutputFormat::Jsonl,
+                ..Default::default()
+            },
+            None,
+        );
+        mode.current_turn = 1;
+
+        mode.on_user_input("second turn".to_string(), &mut ctx);
+
+        assert_eq!(mode.status, TaskStatus::MaxTurnsReached);
+        assert!(mode.is_done());
+    }
+
+    #[tokio::test]
     async fn test_batch_mode_text_format_outputs_plain_response() {
         let output = capture_batch_text("echo hello", 3).await.unwrap();
         // Text format must not begin with a JSON envelope character.
@@ -761,5 +963,17 @@ mod tests {
             system_prompt.contains("<memory>\nbatch note\n</memory>"),
             "expected batch runtime client to include memory notes in system prompt"
         );
+    }
+
+    fn setup_batch_ctx() -> RuntimeContext {
+        use crate::api::{mock_client::MockApiClient, ApiClient};
+        use crate::state::ConversationManager;
+        use std::collections::HashMap;
+        use std::sync::Arc;
+
+        let (tx, _rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+        let conversation = ConversationManager::new_mock(client, HashMap::new());
+        RuntimeContext::new(conversation, tx, CancellationToken::new())
     }
 }
