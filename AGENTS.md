@@ -49,17 +49,17 @@ review text:
 
 | Order | File | Why it is a dependency |
 | :--- | :--- | :--- |
-| 1 | `../vexdraft/agents/vexcoder/skills/vex-local-bash/SKILL.md` | Local drafting rules for summaries, findings, and PR motivation text. |
-| 2 | `../vexdraft/agents/vexcoder/skills/vex-remote-contract/SKILL.md` | Cross-repo branch verification, raw URL validation, PR-body posting, and push/merge contract. |
-| 3 | `../vexdraft/agents/vexcoder/skills/vex-rust-arch/SKILL.md` | Rust-specific architecture guidance when the task touches `src/**/*.rs`, `tests/**/*.rs`, or ADR-024 gaps. |
+| 1 | `../vexdraft/.agents/skills/vex-local-bash/SKILL.md` | Local drafting rules for summaries, findings, and PR motivation text. |
+| 2 | `../vexdraft/.agents/skills/vex-remote-contract/SKILL.md` | Cross-repo branch verification, raw URL validation, PR-body posting, and push/merge contract. |
+| 3 | `../vexdraft/.agents/skills/vex-rust-arch/SKILL.md` | Rust-specific architecture guidance when the task touches `src/**/*.rs`, `tests/**/*.rs`, or ADR-024 gaps. |
 
 Supplemental dependency files are loaded only when the task scope requires
 them:
 
 | Trigger | File | Purpose |
 | :--- | :--- | :--- |
-| ADR-024 parity or gap planning | `../vexdraft/agents/vexcoder/skills/vex-remote-contract/references/adr-024-gap-map.md` | Gap inventory and dependency notes for ADR-024 work. |
-| Rust coding task needs expanded language rules | `../vexdraft/agents/vexcoder/skills/vex-remote-contract/references/rust-rules.md` | Rust implementation constraints used by the dispatcher workflow. |
+| ADR-024 parity or gap planning | `../vexdraft/.agents/skills/vex-remote-contract/references/adr-024-gap-map.md` | Gap inventory and dependency notes for ADR-024 work. |
+| Rust coding task needs expanded language rules | `../vexdraft/.agents/skills/vex-remote-contract/references/rust-rules.md` | Rust implementation constraints used by the dispatcher workflow. |
 
 ## Local repo sources
 
@@ -100,7 +100,7 @@ Minimum local verification for repo changes:
 
 If the changed paths include `src/**/*.rs` or `tests/**/*.rs`, the dispatcher
 workflow in `../vexdraft` also expects the internal-repo review path described in
-`../vexdraft/agents/vexcoder/skills/vex-remote-contract/SKILL.md`.
+`../vexdraft/.agents/skills/vex-remote-contract/SKILL.md`.
 
 ## Dispatcher contract notes
 
