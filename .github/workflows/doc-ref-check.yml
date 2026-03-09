@@ -1,0 +1,37 @@
+name: doc-ref-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check-map-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          git init .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
+          git checkout --detach FETCH_HEAD
+
+      - name: Verify REPO-RAW-URL-MAP.md header count matches tracked files
+        run: |
+          set -euo pipefail
+          EXPECTED=$(git ls-files | wc -l | tr -d ' ')
+          HEADER=$(grep 'Total tracked files:' TASKS/completed/REPO-RAW-URL-MAP.md \
+                   | grep -oE '[0-9]+' | head -1)
+          echo "git ls-files: $EXPECTED  map header: $HEADER"
+          if [ "$EXPECTED" != "$HEADER" ]; then
+            echo "MISMATCH: map says $HEADER but git tracks $EXPECTED files."
+            echo "Regenerate TASKS/completed/REPO-RAW-URL-MAP.md before merging."
+            exit 1
+          fi
+          echo "Map coverage verified: $EXPECTED tracked files."
