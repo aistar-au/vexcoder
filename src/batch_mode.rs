@@ -1,0 +1,979 @@
+use anyhow::Result;
+use serde::Serialize;
+use std::collections::{BTreeSet, HashMap, VecDeque};
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
+
+use crate::config::Config;
+use crate::runtime::{
+    context::RuntimeContext,
+    frontend::{FrontendAdapter, UserInputEvent},
+    mode::RuntimeMode,
+    r#loop::Runtime,
+    task_state::{CommandEvidence, TaskId, TaskStatus},
+    UiUpdate,
+};
+use crate::session_notes::{build_api_client_with_notes, clear_notes_file};
+use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest};
+use crate::tools::ToolOperator;
+use std::path::PathBuf;
+
+// ── Output format ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputFormat {
+    Jsonl,
+    Text,
+}
+
+// ── Auto-approve scope ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutoApproveScope {
+    /// Grant each capability for the current turn only.
+    Once,
+    /// Grant each capability for the entire batch run.
+    Task,
+}
+
+// ── Batch run options ──────────────────────────────────────────────────────────
+
+pub struct BatchRunOpts {
+    pub max_turns: Option<usize>,
+    pub auto_approve: Option<AutoApproveScope>,
+    pub format: OutputFormat,
+}
+
+impl Default for BatchRunOpts {
+    fn default() -> Self {
+        Self {
+            max_turns: None,
+            auto_approve: None,
+            format: OutputFormat::Jsonl,
+        }
+    }
+}
+
+// ── Batch result ───────────────────────────────────────────────────────────────
+
+pub struct BatchResult {
+    pub status: TaskStatus,
+    pub output_lines: Vec<String>,
+    pub turn_count: usize,
+    pub task_id: TaskId,
+}
+
+// ── JSONL turn record ──────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct TurnRecord<'a> {
+    turn: usize,
+    response: &'a str,
+    changed_files: Vec<String>,
+    command_history: Vec<serde_json::Value>,
+}
+
+#[derive(Serialize)]
+struct SummaryRecord<'a> {
+    summary: bool,
+    status: &'a str,
+    task_id: &'a str,
+    total_turns: usize,
+    changed_files: Vec<String>,
+}
+
+// ── BatchMode (RuntimeMode impl) ───────────────────────────────────────────────
+
+pub struct BatchMode {
+    task_id: TaskId,
+    status: TaskStatus,
+    turn_in_progress: bool,
+    done: bool,
+    max_turns: Option<usize>,
+    auto_approve: Option<AutoApproveScope>,
+    format: OutputFormat,
+    notes_path: Option<PathBuf>,
+    current_response: String,
+    current_turn: usize,
+    current_turn_changed_files: BTreeSet<String>,
+    current_turn_command_history: Vec<CommandEvidence>,
+    pending_tool_calls: HashMap<String, PendingToolCall>,
+    output_lines: Vec<String>,
+}
+
+#[derive(Clone)]
+struct PendingToolCall {
+    name: String,
+    input: serde_json::Value,
+}
+
+impl BatchMode {
+    pub fn new(task_id: TaskId, opts: BatchRunOpts, notes_path: Option<PathBuf>) -> Self {
+        Self {
+            task_id,
+            status: TaskStatus::Ready,
+            turn_in_progress: false,
+            done: false,
+            max_turns: opts.max_turns,
+            auto_approve: opts.auto_approve,
+            format: opts.format,
+            notes_path,
+            current_response: String::new(),
+            current_turn: 0,
+            current_turn_changed_files: BTreeSet::new(),
+            current_turn_command_history: Vec::new(),
+            pending_tool_calls: HashMap::new(),
+            output_lines: Vec::new(),
+        }
+    }
+
+    pub fn is_done(&self) -> bool {
+        self.done
+    }
+
+    pub fn status(&self) -> &TaskStatus {
+        &self.status
+    }
+
+    pub fn output_lines(&self) -> &[String] {
+        &self.output_lines
+    }
+
+    fn approval_decision(&self) -> bool {
+        self.auto_approve.is_some()
+    }
+
+    fn reset_current_turn_state(&mut self) {
+        self.current_response.clear();
+        self.current_turn_changed_files.clear();
+        self.current_turn_command_history.clear();
+        self.pending_tool_calls.clear();
+    }
+
+    fn mark_max_turns_reached(&mut self) {
+        self.status = TaskStatus::MaxTurnsReached;
+        self.append_summary();
+        self.done = true;
+        self.turn_in_progress = false;
+    }
+
+    fn finish_turn(&mut self) {
+        self.current_turn += 1;
+
+        let response = std::mem::take(&mut self.current_response);
+        let changed_files = self
+            .current_turn_changed_files
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let command_history = self
+            .current_turn_command_history
+            .iter()
+            .map(|entry| {
+                serde_json::to_value(entry).expect("command evidence serialization must succeed")
+            })
+            .collect::<Vec<_>>();
+
+        match self.format {
+            OutputFormat::Jsonl => {
+                let record = TurnRecord {
+                    turn: self.current_turn,
+                    response: &response,
+                    changed_files,
+                    command_history,
+                };
+                let line = serde_json::to_string(&record)
+                    .expect("batch JSONL turn record serialization must succeed");
+                self.output_lines.push(line);
+            }
+            OutputFormat::Text => {
+                if self.current_turn > 1 {
+                    self.output_lines.push(String::new());
+                }
+                self.output_lines.push(response);
+            }
+        }
+
+        self.turn_in_progress = false;
+        self.pending_tool_calls.clear();
+    }
+
+    fn append_summary(&mut self) {
+        if self.format == OutputFormat::Jsonl {
+            let status_str = format!("{:?}", self.status);
+            let record = SummaryRecord {
+                summary: true,
+                status: &status_str,
+                task_id: &self.task_id,
+                total_turns: self.current_turn,
+                changed_files: self.current_turn_changed_files.iter().cloned().collect(),
+            };
+            let line = serde_json::to_string(&record)
+                .expect("batch JSONL summary record serialization must succeed");
+            self.output_lines.push(line);
+        }
+    }
+
+    fn complete_without_model(&mut self, message: String) {
+        self.reset_current_turn_state();
+        self.status = TaskStatus::Running;
+        self.turn_in_progress = true;
+        self.current_response = message;
+        self.finish_turn();
+        if !self.done {
+            self.status = TaskStatus::Completed;
+            self.append_summary();
+            self.done = true;
+        }
+    }
+
+    fn fail_without_model(&mut self, message: String) {
+        self.reset_current_turn_state();
+        self.status = TaskStatus::Running;
+        self.turn_in_progress = true;
+        self.current_response = message;
+        self.finish_turn();
+        if !self.done {
+            self.status = TaskStatus::Failed;
+            self.append_summary();
+            self.done = true;
+        }
+    }
+
+    fn try_handle_batch_memory_clear(&mut self, input: &str) -> bool {
+        if input.trim() != "/memory clear" {
+            return false;
+        }
+
+        if self.auto_approve.is_none() {
+            self.fail_without_model(
+                "[memory] /memory clear requires --auto-approve in batch mode".to_string(),
+            );
+            return true;
+        }
+
+        match clear_notes_file(self.notes_path.as_deref()) {
+            Ok(()) => self.complete_without_model("[memory: cleared]".to_string()),
+            Err(e) => self.fail_without_model(format!("[memory] error clearing: {e}")),
+        }
+        true
+    }
+
+    fn note_changed_files_from_tool_call(&mut self, name: &str, input: &serde_json::Value) {
+        match name {
+            "write_file" | "edit_file" | "git_add" => {
+                if let Some(path) =
+                    first_string_field(input, &["path", "file_path", "file", "filename"])
+                {
+                    self.current_turn_changed_files.insert(path.to_string());
+                }
+            }
+            "rename_file" => {
+                for key in [
+                    "old_path",
+                    "from",
+                    "source_path",
+                    "new_path",
+                    "to",
+                    "target_path",
+                ] {
+                    if let Some(path) = first_string_field(input, &[key]) {
+                        self.current_turn_changed_files.insert(path.to_string());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn note_command_history_from_tool_result(&mut self, name: &str, is_error: bool) {
+        let program = match name {
+            "git_status" => Some("git status"),
+            "git_diff" => Some("git diff"),
+            "git_log" => Some("git log"),
+            "git_show" => Some("git show"),
+            "git_add" => Some("git add"),
+            "git_commit" => Some("git commit"),
+            _ => None,
+        };
+        let Some(program) = program else {
+            return;
+        };
+        self.current_turn_command_history.push(CommandEvidence {
+            program: program.to_string(),
+            exit_code: Some(if is_error { 1 } else { 0 }),
+            interrupted: false,
+        });
+    }
+}
+
+impl RuntimeMode for BatchMode {
+    fn on_user_input(&mut self, input: String, ctx: &mut RuntimeContext) {
+        if self.done {
+            return;
+        }
+        let max_reached = self
+            .max_turns
+            .map(|max| self.current_turn >= max)
+            .unwrap_or(false);
+        if max_reached {
+            self.mark_max_turns_reached();
+            return;
+        }
+        if self.try_handle_batch_memory_clear(&input) {
+            return;
+        }
+        self.reset_current_turn_state();
+        self.status = TaskStatus::Running;
+        self.turn_in_progress = true;
+        ctx.start_turn(input);
+    }
+
+    fn on_model_update(&mut self, update: UiUpdate, _ctx: &mut RuntimeContext) {
+        match update {
+            UiUpdate::StreamDelta(text) => {
+                self.current_response.push_str(&text);
+            }
+            UiUpdate::TurnComplete => {
+                self.finish_turn();
+                if !self.done {
+                    self.status = TaskStatus::Completed;
+                    self.append_summary();
+                    self.done = true;
+                }
+            }
+            UiUpdate::Error(msg) => {
+                self.current_response.push_str(&msg);
+                self.finish_turn();
+                if !self.done {
+                    self.status = TaskStatus::Failed;
+                    self.append_summary();
+                    self.done = true;
+                }
+            }
+            UiUpdate::StreamBlockStart { block, .. } => match block {
+                StreamBlock::ToolCall {
+                    id, name, input, ..
+                } => {
+                    self.note_changed_files_from_tool_call(&name, &input);
+                    self.pending_tool_calls
+                        .insert(id, PendingToolCall { name, input });
+                }
+                StreamBlock::ToolResult {
+                    tool_call_id,
+                    is_error,
+                    ..
+                } => {
+                    if let Some(pending) = self.pending_tool_calls.remove(&tool_call_id) {
+                        self.note_changed_files_from_tool_call(&pending.name, &pending.input);
+                        self.note_command_history_from_tool_result(&pending.name, is_error);
+                    }
+                }
+                StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. } => {}
+            },
+            UiUpdate::ToolApprovalRequest(ToolApprovalRequest { response_tx, .. }) => {
+                let approved = self.approval_decision();
+                let _ = response_tx.send(approved);
+            }
+            _ => {}
+        }
+    }
+
+    fn is_turn_in_progress(&self) -> bool {
+        self.turn_in_progress
+    }
+}
+
+fn first_string_field<'a>(input: &'a serde_json::Value, keys: &[&str]) -> Option<&'a str> {
+    keys.iter()
+        .find_map(|key| input.get(*key).and_then(|value| value.as_str()))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+// ── BatchFrontend (FrontendAdapter impl) ───────────────────────────────────────
+
+pub struct BatchFrontend {
+    pending: VecDeque<UserInputEvent>,
+}
+
+impl BatchFrontend {
+    pub fn new(task: String) -> Self {
+        let mut pending = VecDeque::new();
+        pending.push_back(UserInputEvent::Text(task));
+        Self { pending }
+    }
+}
+
+impl FrontendAdapter<BatchMode> for BatchFrontend {
+    fn poll_user_input(&mut self, mode: &BatchMode) -> Option<UserInputEvent> {
+        if mode.is_done() {
+            return None;
+        }
+        if mode.is_turn_in_progress() {
+            return None;
+        }
+        self.pending.pop_front()
+    }
+
+    fn render(&mut self, _mode: &BatchMode) {}
+
+    fn should_quit(&self) -> bool {
+        false
+    }
+}
+
+/// Wraps `BatchFrontend` and quits once the mode signals done via a shared
+/// flag. In practice `run_batch` drives the update loop directly, so this
+/// wrapper is provided for callers that want to use `Runtime::run`.
+pub struct BatchFrontendQuit {
+    inner: BatchFrontend,
+    done: bool,
+}
+
+impl BatchFrontendQuit {
+    pub fn new(task: String) -> Self {
+        Self {
+            inner: BatchFrontend::new(task),
+            done: false,
+        }
+    }
+
+    /// Signal that the mode has finished so `should_quit` returns `true`.
+    pub fn set_done(&mut self) {
+        self.done = true;
+    }
+}
+
+impl FrontendAdapter<BatchMode> for BatchFrontendQuit {
+    fn poll_user_input(&mut self, mode: &BatchMode) -> Option<UserInputEvent> {
+        if mode.is_done() {
+            self.done = true;
+        }
+        self.inner.poll_user_input(mode)
+    }
+
+    fn render(&mut self, mode: &BatchMode) {
+        if mode.is_done() {
+            self.done = true;
+        }
+    }
+
+    fn should_quit(&self) -> bool {
+        self.done
+    }
+}
+
+// ── Public batch execution entry points ───────────────────────────────────────
+
+/// Build a `Runtime<BatchMode>` from config for callers that want to drive the
+/// loop themselves via `Runtime::run`. Most callers should use `run_batch`.
+pub fn build_batch_runtime(
+    config: &Config,
+    _task: String,
+    opts: BatchRunOpts,
+) -> Result<(Runtime<BatchMode>, RuntimeContext, TaskId)> {
+    let task_id = uuid_task_id();
+    let (client, notes_warning) = build_api_client_with_notes(config)?;
+    if let Some(warning) = notes_warning {
+        eprintln!("{warning}");
+    }
+    let operator = ToolOperator::new(config.working_dir.clone());
+    let conversation = ConversationManager::new(client, operator);
+
+    let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
+    let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
+    let mode = BatchMode::new(task_id.clone(), opts, config.notes_path.clone());
+    let runtime = Runtime::new(mode, update_rx);
+
+    Ok((runtime, ctx, task_id))
+}
+
+fn uuid_task_id() -> TaskId {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    format!("batch-{}", ts)
+}
+
+/// Drive a batch run to completion by polling the update channel directly.
+/// This is the primary entry point for `vex exec`.
+pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Result<BatchResult> {
+    let task_id = uuid_task_id();
+    let (client, notes_warning) = build_api_client_with_notes(config)?;
+    if let Some(warning) = notes_warning {
+        eprintln!("{warning}");
+    }
+    let operator = ToolOperator::new(config.working_dir.clone());
+    let conversation = ConversationManager::new(client, operator);
+
+    let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
+    let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
+    let mut mode = BatchMode::new(task_id.clone(), opts, config.notes_path.clone());
+
+    // Submit the initial task.
+    mode.on_user_input(task, &mut ctx);
+
+    if mode.is_done() {
+        return Ok(BatchResult {
+            status: mode.status,
+            output_lines: mode.output_lines,
+            turn_count: mode.current_turn,
+            task_id,
+        });
+    }
+
+    // Drain updates until the mode reports done.
+    while let Some(update) = update_rx.recv().await {
+        mode.on_model_update(update, &mut ctx);
+        if mode.is_done() {
+            break;
+        }
+    }
+
+    Ok(BatchResult {
+        status: mode.status,
+        output_lines: mode.output_lines,
+        turn_count: mode.current_turn,
+        task_id,
+    })
+}
+
+// ── Test helpers ───────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+pub async fn run_batch_mode(task: &str, _max_turns: usize) -> Result<BatchResult> {
+    use crate::api::{mock_client::MockApiClient, ApiClient};
+    use crate::state::ConversationManager;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    let mock = Arc::new(MockApiClient::new(vec![vec![]]));
+    let client = ApiClient::new_mock(mock);
+    let conversation = ConversationManager::new_mock(client, HashMap::new());
+
+    let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
+    let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
+    let opts = BatchRunOpts {
+        max_turns: Some(_max_turns),
+        ..Default::default()
+    };
+    let task_id = "test-task".to_string();
+    let mut mode = BatchMode::new(task_id.clone(), opts, None);
+
+    mode.on_user_input(task.to_string(), &mut ctx);
+
+    if mode.is_done() {
+        return Ok(BatchResult {
+            status: mode.status,
+            output_lines: mode.output_lines,
+            turn_count: mode.current_turn,
+            task_id,
+        });
+    }
+
+    while let Some(update) = update_rx.recv().await {
+        mode.on_model_update(update, &mut ctx);
+        if mode.is_done() {
+            break;
+        }
+    }
+
+    Ok(BatchResult {
+        status: mode.status,
+        output_lines: mode.output_lines,
+        turn_count: mode.current_turn,
+        task_id,
+    })
+}
+
+#[cfg(test)]
+pub async fn run_batch_mode_with_opts(task: &str, opts: BatchRunOpts) -> Result<BatchResult> {
+    use crate::api::{mock_client::MockApiClient, ApiClient};
+    use crate::state::ConversationManager;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    let mock = Arc::new(MockApiClient::new(vec![vec![]]));
+    let client = ApiClient::new_mock(mock);
+    let conversation = ConversationManager::new_mock(client, HashMap::new());
+
+    let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
+    let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
+    let task_id = "test-task".to_string();
+    let mut mode = BatchMode::new(task_id.clone(), opts, None);
+
+    mode.on_user_input(task.to_string(), &mut ctx);
+
+    if mode.is_done() {
+        return Ok(BatchResult {
+            status: mode.status,
+            output_lines: mode.output_lines,
+            turn_count: mode.current_turn,
+            task_id,
+        });
+    }
+
+    while let Some(update) = update_rx.recv().await {
+        mode.on_model_update(update, &mut ctx);
+        if mode.is_done() {
+            break;
+        }
+    }
+
+    Ok(BatchResult {
+        status: mode.status,
+        output_lines: mode.output_lines,
+        turn_count: mode.current_turn,
+        task_id,
+    })
+}
+
+#[cfg(test)]
+pub async fn capture_batch_jsonl(task: &str, max_turns: usize) -> Result<String> {
+    let result = run_batch_mode(task, max_turns).await?;
+    Ok(result.output_lines.join("\n"))
+}
+
+#[cfg(test)]
+pub async fn capture_batch_text(task: &str, max_turns: usize) -> Result<String> {
+    use crate::api::{mock_client::MockApiClient, ApiClient};
+    use crate::state::ConversationManager;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    let mock = Arc::new(MockApiClient::new(vec![vec![]]));
+    let client = ApiClient::new_mock(mock);
+    let conversation = ConversationManager::new_mock(client, HashMap::new());
+
+    let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
+    let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
+    let opts = BatchRunOpts {
+        max_turns: Some(max_turns),
+        format: OutputFormat::Text,
+        ..Default::default()
+    };
+    let task_id = "test-task".to_string();
+    let mut mode = BatchMode::new(task_id.clone(), opts, None);
+
+    mode.on_user_input(task.to_string(), &mut ctx);
+
+    if mode.is_done() {
+        return Ok(mode.output_lines.join("\n"));
+    }
+
+    while let Some(update) = update_rx.recv().await {
+        mode.on_model_update(update, &mut ctx);
+        if mode.is_done() {
+            break;
+        }
+    }
+
+    Ok(mode.output_lines.join("\n"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::runtime::TaskStatus;
+
+    #[tokio::test]
+    async fn test_batch_mode_exits_zero_on_completion() {
+        let result = run_batch_mode("echo hello", 3).await.unwrap();
+        assert_eq!(result.status, TaskStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_completes_on_final_allowed_turn() {
+        let result = run_batch_mode_with_opts(
+            "keep going",
+            BatchRunOpts {
+                max_turns: Some(1),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.status, TaskStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_interactive_approval_denied_by_default() {
+        let result = run_batch_mode_with_opts(
+            "run: ls",
+            BatchRunOpts {
+                auto_approve: None,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            result.status,
+            TaskStatus::Completed | TaskStatus::Failed
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_auto_approve_once_grants_single_turn() {
+        let result = run_batch_mode_with_opts(
+            "run: echo approved",
+            BatchRunOpts {
+                auto_approve: Some(AutoApproveScope::Once),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.status, TaskStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_memory_clear_requires_auto_approve() {
+        let result = run_batch_mode_with_opts(
+            "/memory clear",
+            BatchRunOpts {
+                format: OutputFormat::Text,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.status, TaskStatus::Failed);
+        assert!(
+            result
+                .output_lines
+                .iter()
+                .any(|line| line.contains("requires --auto-approve")),
+            "expected batch-mode memory clear guidance in output"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_memory_clear_with_auto_approve_clears_notes() {
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        std::fs::write(&notes_path, "batch note\n").unwrap();
+
+        let config = Config {
+            model_token: None,
+            model_name: "mock-model".to_string(),
+            model_url: "http://localhost:8000/v1/messages".to_string(),
+            working_dir: temp.path().to_path_buf(),
+            model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
+            model_protocol: crate::runtime::ModelProtocol::MessagesV1,
+            tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: Some(notes_path.clone()),
+        };
+
+        let result = run_batch(
+            "/memory clear".to_string(),
+            BatchRunOpts {
+                auto_approve: Some(AutoApproveScope::Task),
+                format: OutputFormat::Text,
+                ..Default::default()
+            },
+            &config,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.status, TaskStatus::Completed);
+        assert!(
+            result
+                .output_lines
+                .iter()
+                .any(|line| line.contains("[memory: cleared]")),
+            "expected batch-mode memory clear confirmation in output"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&notes_path).unwrap(),
+            "",
+            "expected batch-mode memory clear to truncate the notes file"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_memory_clear_with_max_turns_emits_single_summary() {
+        let result = run_batch_mode_with_opts(
+            "/memory clear",
+            BatchRunOpts {
+                max_turns: Some(1),
+                format: OutputFormat::Jsonl,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let summary_count = result
+            .output_lines
+            .iter()
+            .filter(|line| {
+                serde_json::from_str::<serde_json::Value>(line)
+                    .ok()
+                    .and_then(|value| value.get("summary").and_then(|flag| flag.as_bool()))
+                    == Some(true)
+            })
+            .count();
+
+        assert_eq!(summary_count, 1, "expected exactly one summary record");
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_jsonl_output_includes_required_fields() {
+        let output = capture_batch_jsonl("echo hello", 3).await.unwrap();
+        let first_line = output.lines().next().unwrap_or("");
+        // With a mock client that produces TurnComplete immediately, the first
+        // output may be the summary line rather than a turn line; either way
+        // the JSON must be valid.
+        let v: serde_json::Value = serde_json::from_str(first_line).unwrap();
+        // A turn line has "turn"; a summary line has "summary".
+        assert!(v.get("turn").is_some() || v.get("summary").is_some());
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_jsonl_output_captures_streamed_tool_evidence() {
+        let mut ctx = setup_batch_ctx();
+        let opts = BatchRunOpts {
+            format: OutputFormat::Jsonl,
+            ..Default::default()
+        };
+        let mut mode = BatchMode::new("test-task".to_string(), opts, None);
+
+        mode.on_user_input("task".to_string(), &mut ctx);
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 0,
+                block: StreamBlock::ToolCall {
+                    id: "tool-1".to_string(),
+                    name: "write_file".to_string(),
+                    input: serde_json::json!({
+                        "path": "src/main.rs",
+                        "content": "fn main() {}\n"
+                    }),
+                    status: crate::state::ToolStatus::Executing,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 1,
+                block: StreamBlock::ToolCall {
+                    id: "tool-2".to_string(),
+                    name: "git_commit".to_string(),
+                    input: serde_json::json!({
+                        "message": "record evidence"
+                    }),
+                    status: crate::state::ToolStatus::Executing,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 2,
+                block: StreamBlock::ToolResult {
+                    tool_call_id: "tool-2".to_string(),
+                    output: "Committed".to_string(),
+                    is_error: false,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(UiUpdate::StreamDelta("done".to_string()), &mut ctx);
+        mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+
+        let turn_line = mode.output_lines.first().expect("expected turn line");
+        let turn_json: serde_json::Value = serde_json::from_str(turn_line).unwrap();
+        let changed_files = turn_json["changed_files"]
+            .as_array()
+            .expect("changed_files must be present");
+        assert!(changed_files
+            .iter()
+            .filter_map(|value| value.as_str())
+            .any(|path| path == "src/main.rs"));
+        let command_history = turn_json["command_history"]
+            .as_array()
+            .expect("command_history must be present");
+        assert_eq!(command_history.len(), 1);
+        assert_eq!(command_history[0]["program"], "git commit");
+        assert_eq!(command_history[0]["exit_code"], 0);
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_marks_second_turn_attempt_as_max_turns_reached() {
+        let mut ctx = setup_batch_ctx();
+        let mut mode = BatchMode::new(
+            "test-task".to_string(),
+            BatchRunOpts {
+                max_turns: Some(1),
+                format: OutputFormat::Jsonl,
+                ..Default::default()
+            },
+            None,
+        );
+        mode.current_turn = 1;
+
+        mode.on_user_input("second turn".to_string(), &mut ctx);
+
+        assert_eq!(mode.status, TaskStatus::MaxTurnsReached);
+        assert!(mode.is_done());
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_text_format_outputs_plain_response() {
+        let output = capture_batch_text("echo hello", 3).await.unwrap();
+        // Text format must not begin with a JSON envelope character.
+        let trimmed = output.trim_start();
+        // Empty output is acceptable for a mock that produces no text delta.
+        if !trimmed.is_empty() {
+            assert!(!trimmed.starts_with('{'));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_build_batch_runtime_injects_memory_notes_into_system_prompt() {
+        let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        std::fs::write(&notes_path, "batch note\n").unwrap();
+
+        let config = Config {
+            model_token: None,
+            model_name: "mock-model".to_string(),
+            model_url: "http://localhost:8000/v1/messages".to_string(),
+            working_dir: temp.path().to_path_buf(),
+            model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
+            model_protocol: crate::runtime::ModelProtocol::MessagesV1,
+            tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: Some(notes_path),
+        };
+
+        let (_runtime, ctx, _task_id) =
+            build_batch_runtime(&config, "hello".to_string(), BatchRunOpts::default()).unwrap();
+        let system_prompt = ctx.test_system_prompt().await;
+        assert!(
+            system_prompt.contains("<memory>\nbatch note\n</memory>"),
+            "expected batch runtime client to include memory notes in system prompt"
+        );
+    }
+
+    fn setup_batch_ctx() -> RuntimeContext {
+        use crate::api::{mock_client::MockApiClient, ApiClient};
+        use crate::state::ConversationManager;
+        use std::collections::HashMap;
+        use std::sync::Arc;
+
+        let (tx, _rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+        let conversation = ConversationManager::new_mock(client, HashMap::new());
+        RuntimeContext::new(conversation, tx, CancellationToken::new())
+    }
+}

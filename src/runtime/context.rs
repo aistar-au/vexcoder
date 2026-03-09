@@ -97,6 +97,12 @@ impl RuntimeContext {
         self.cancel.is_cancelled()
     }
 
+    #[cfg(test)]
+    pub async fn test_system_prompt(&self) -> String {
+        let manager = self.conversation.lock().await;
+        manager.client().test_system_prompt()
+    }
+
     pub fn cancel_turn(&mut self) {
         self.cancel.cancel();
         self.cancel = CancellationToken::new();

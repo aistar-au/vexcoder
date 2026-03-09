@@ -3,9 +3,10 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifier
 use ratatui::widgets::Clear;
 use std::time::{Duration, Instant};
 use vexcoder::app::{build_runtime, TuiMode};
+use vexcoder::batch_mode::{run_batch, AutoApproveScope, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
 use vexcoder::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
-use vexcoder::terminal;
+use vexcoder::runtime::TaskStatus;
 use vexcoder::ui::editor::{InputAction, InputEditor};
 use vexcoder::ui::layout::split_three_pane_layout;
 use vexcoder::ui::render::{
@@ -65,7 +66,7 @@ fn looks_like_terminal_transcript(text: &str) -> bool {
 }
 
 struct ManagedTuiFrontend {
-    terminal: terminal::TerminalType,
+    terminal: vexcoder::terminal::TerminalType,
     quit: bool,
     editor: InputEditor,
     started_at: Instant,
@@ -73,7 +74,7 @@ struct ManagedTuiFrontend {
 
 impl ManagedTuiFrontend {
     fn new() -> Result<Self> {
-        let terminal = terminal::setup()?;
+        let terminal = vexcoder::terminal::setup()?;
         Self::drain_startup_events();
         Ok(Self {
             terminal,
@@ -214,7 +215,7 @@ impl ManagedTuiFrontend {
 
 impl Drop for ManagedTuiFrontend {
     fn drop(&mut self) {
-        let _ = terminal::restore();
+        let _ = vexcoder::terminal::restore();
     }
 }
 
@@ -313,6 +314,15 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                             auto_approve_enabled,
                         },
                     );
+                } else if mode.pending_memory_clear_overlay() {
+                    render_overlay_modal(
+                        frame,
+                        OverlayModal::ToolPermission {
+                            tool_name: "memory clear",
+                            input_preview: "clear all notes? type y to confirm, n to cancel",
+                            auto_approve_enabled: false,
+                        },
+                    );
                 }
             }
         });
@@ -323,8 +333,129 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
     }
 }
 
+// ── vex exec subcommand ────────────────────────────────────────────────────────
+
+struct ExecArgs {
+    task: String,
+    max_turns: Option<usize>,
+    auto_approve: Option<AutoApproveScope>,
+    output: Option<String>,
+    format: OutputFormat,
+}
+
+fn parse_exec_args(args: &[String]) -> Result<ExecArgs> {
+    let mut task: Option<String> = None;
+    let mut max_turns: Option<usize> = None;
+    let mut auto_approve: Option<AutoApproveScope> = None;
+    let mut output: Option<String> = None;
+    let mut format = OutputFormat::Jsonl;
+
+    let mut i = 0usize;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--task" => {
+                i += 1;
+                task = Some(
+                    args.get(i)
+                        .cloned()
+                        .ok_or_else(|| anyhow::anyhow!("--task requires a value"))?,
+                );
+            }
+            "--task-file" => {
+                i += 1;
+                let path = args
+                    .get(i)
+                    .ok_or_else(|| anyhow::anyhow!("--task-file requires a path"))?;
+                task = Some(std::fs::read_to_string(path)?);
+            }
+            "--max-turns" => {
+                i += 1;
+                let n: usize = args
+                    .get(i)
+                    .ok_or_else(|| anyhow::anyhow!("--max-turns requires a number"))?
+                    .parse()?;
+                max_turns = Some(n);
+            }
+            "--auto-approve" => {
+                i += 1;
+                auto_approve = Some(match args.get(i).map(|s| s.as_str()) {
+                    Some("once") => AutoApproveScope::Once,
+                    Some("task") => AutoApproveScope::Task,
+                    other => {
+                        anyhow::bail!("--auto-approve must be 'once' or 'task', got: {:?}", other)
+                    }
+                });
+            }
+            "--output" => {
+                i += 1;
+                output = Some(
+                    args.get(i)
+                        .cloned()
+                        .ok_or_else(|| anyhow::anyhow!("--output requires a path"))?,
+                );
+            }
+            "--format" => {
+                i += 1;
+                format = match args.get(i).map(|s| s.as_str()) {
+                    Some("jsonl") => OutputFormat::Jsonl,
+                    Some("text") => OutputFormat::Text,
+                    other => anyhow::bail!("--format must be 'jsonl' or 'text', got: {:?}", other),
+                };
+            }
+            flag => anyhow::bail!("unknown flag for vex exec: {}", flag),
+        }
+        i += 1;
+    }
+
+    let task = task
+        .ok_or_else(|| anyhow::anyhow!("vex exec requires --task <TEXT> or --task-file <PATH>"))?;
+
+    Ok(ExecArgs {
+        task,
+        max_turns,
+        auto_approve,
+        output,
+        format,
+    })
+}
+
+async fn run_exec(exec: ExecArgs, config: Config) -> Result<()> {
+    let opts = BatchRunOpts {
+        max_turns: exec.max_turns,
+        auto_approve: exec.auto_approve,
+        format: exec.format,
+    };
+
+    let result = run_batch(exec.task, opts, &config).await?;
+
+    let text = result.output_lines.join("\n");
+
+    if let Some(path) = exec.output {
+        std::fs::write(&path, &text)?;
+    } else {
+        print!("{}", text);
+    }
+
+    match result.status {
+        TaskStatus::Completed => std::process::exit(0),
+        _ => std::process::exit(1),
+    }
+}
+
+// ── main ───────────────────────────────────────────────────────────────────────
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+
+    // Dispatch to `vex exec` if first positional arg is "exec".
+    if args.get(1).map(|s| s.as_str()) == Some("exec") {
+        let exec_args = parse_exec_args(&args[2..])?;
+        let config = Config::load()?;
+        config.validate()?;
+        return run_exec(exec_args, config).await;
+    }
+
     let config = Config::load()?;
     config.validate()?;
 
