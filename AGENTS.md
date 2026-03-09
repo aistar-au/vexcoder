@@ -1,5 +1,11 @@
 # Agent Bootstrap
 
+> **Skills are NOT in this repo.**
+> All `SKILL.md` files live in `../vexdraft/.agents/skills/`.
+> Do not probe `.agents/` in `vexcoder` for skills.
+> This file is step zero. Loading skills from `vexdraft` is step one.
+> Bootstrap table is below; follow it before any other action.
+
 `vexcoder` is the public product repo. The dispatcher skills, PR-contract
 rules, commit-debug tooling, docs automation, and roadmap automation that drive
 agent workflows now live in the internal private repo `../vexdraft`.
