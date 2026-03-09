@@ -2,7 +2,7 @@
 
 > **Skills are NOT in this repo.**
 > All `SKILL.md` files live in `../vexdraft/.agents/skills/`.
-> Do not probe `.agents/` in `vexcoder` for skills.
+> There is no `.agents/` directory in this repo; do not probe or create one.
 > This file is step zero. Loading skills from `vexdraft` is step one.
 > Bootstrap table is below; follow it before any other action.
 
