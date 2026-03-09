@@ -129,18 +129,22 @@ fn test_tui_memory_does_not_call_start_turn() {
 
 ### [PJ-03] - User persistent notes (`/memory`)
 
-- Dispatcher: `<branch-name>`
-- Commit: `<sha>`
+- Dispatcher: `dispatcher/vexcoder-pj-03-memory-notes`
+- Commit: `3e0405f6697812f686da7a17c3f9ca7fc27a068f`
 - Files changed:
-  - `src/app.rs` (+`<n>` -`<n>`)
-  - `src/config.rs` (+`<n>` -`<n>`)
-  - `tests/integration_test.rs` (+`<n>` -`<n>`)
+  - `src/app.rs` (+`354` -`6`)
+  - `src/config.rs` (+`27` -`0`)
+  - `tests/integration_test.rs` (+`23` -`0`)
 - Validation:
   - `cargo test test_tui_memory_does_not_call_start_turn --all-targets` : pass
   - `cargo test test_memory_injection_within_budget --all-targets` : pass
+  - `make gate-fast` : pass
   - `cargo test --all-targets` : pass
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
   - Notes injection and /memory commands implemented per ADR-024 Gap 16.
   - Notes path remains user-config-layer only; repo-local override rejected.
+  - Scope note: implementation also touches `src/api/client.rs`,
+    `src/runtime/context.rs`, `src/session_notes.rs`, and PE-01/PE-02 files
+    (`src/batch_mode.rs`, `src/bin/vex.rs`, `TASKS/PE-01-batch-mode.md`).

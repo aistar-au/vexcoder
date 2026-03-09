@@ -9,6 +9,6 @@ For agent and automated contributor bootstrap, see [AGENTS.md](../../AGENTS.md).
 Before opening a pull request:
 
 - Run `make gate-fast` and confirm it is green (`cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`, `cargo test --all-targets`).
-- If you added files, update `REPO-RAW-URL-MAP.md` in the companion dispatcher repository.
+- If you added tracked files, update `TASKS/completed/REPO-RAW-URL-MAP.md` in this repository.
 - For changes to `src/` or `tests/`, run the pre-push debugger described in `AGENTS.md` before pushing.
 - Merge to `main` via merge commit only. No squash, no rebase.

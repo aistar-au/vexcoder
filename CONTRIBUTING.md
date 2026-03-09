@@ -6,7 +6,7 @@
 >
 > **Agent bootstrap:** repo-local product guidance stays here, but the active
 > dispatcher skills now live in the sibling private repo
-> `../vexdraft/agents/vexcoder/skills/`.
+> `../vexdraft/.agents/skills/`.
 > Read [`AGENTS.md`](AGENTS.md) first for the dependency map and required load
 > order before using the private skill tree against this repo.
 
