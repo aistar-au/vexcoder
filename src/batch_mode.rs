@@ -13,9 +13,10 @@ use crate::runtime::{
     task_state::{TaskId, TaskStatus},
     UiUpdate,
 };
-use crate::session_notes::build_api_client_with_notes;
+use crate::session_notes::{build_api_client_with_notes, clear_notes_file};
 use crate::state::{ConversationManager, ToolApprovalRequest};
 use crate::tools::ToolOperator;
+use std::path::PathBuf;
 
 // ── Output format ─────────────────────────────────────────────────────────────
 
@@ -91,13 +92,14 @@ pub struct BatchMode {
     max_turns: Option<usize>,
     auto_approve: Option<AutoApproveScope>,
     format: OutputFormat,
+    notes_path: Option<PathBuf>,
     current_response: String,
     current_turn: usize,
     output_lines: Vec<String>,
 }
 
 impl BatchMode {
-    pub fn new(task_id: TaskId, opts: BatchRunOpts) -> Self {
+    pub fn new(task_id: TaskId, opts: BatchRunOpts, notes_path: Option<PathBuf>) -> Self {
         Self {
             task_id,
             status: TaskStatus::Ready,
@@ -106,6 +108,7 @@ impl BatchMode {
             max_turns: opts.max_turns,
             auto_approve: opts.auto_approve,
             format: opts.format,
+            notes_path,
             current_response: String::new(),
             current_turn: 0,
             output_lines: Vec::new(),
@@ -141,9 +144,9 @@ impl BatchMode {
                     changed_files: vec![],
                     command_history: vec![],
                 };
-                if let Ok(line) = serde_json::to_string(&record) {
-                    self.output_lines.push(line);
-                }
+                let line = serde_json::to_string(&record)
+                    .expect("batch JSONL turn record serialization must succeed");
+                self.output_lines.push(line);
             }
             OutputFormat::Text => {
                 if self.current_turn > 1 {
@@ -177,16 +180,62 @@ impl BatchMode {
                 total_turns: self.current_turn,
                 changed_files: vec![],
             };
-            if let Ok(line) = serde_json::to_string(&record) {
-                self.output_lines.push(line);
-            }
+            let line = serde_json::to_string(&record)
+                .expect("batch JSONL summary record serialization must succeed");
+            self.output_lines.push(line);
         }
+    }
+
+    fn complete_without_model(&mut self, message: String) {
+        self.status = TaskStatus::Running;
+        self.turn_in_progress = true;
+        self.current_response = message;
+        self.finish_turn();
+        if !self.done {
+            self.status = TaskStatus::Completed;
+            self.append_summary();
+            self.done = true;
+        }
+    }
+
+    fn fail_without_model(&mut self, message: String) {
+        self.status = TaskStatus::Running;
+        self.turn_in_progress = true;
+        self.current_response = message;
+        self.finish_turn();
+        if !self.done {
+            self.status = TaskStatus::Failed;
+            self.append_summary();
+            self.done = true;
+        }
+    }
+
+    fn try_handle_batch_memory_clear(&mut self, input: &str) -> bool {
+        if input.trim() != "/memory clear" {
+            return false;
+        }
+
+        if self.auto_approve.is_none() {
+            self.fail_without_model(
+                "[memory] /memory clear requires --auto-approve in batch mode".to_string(),
+            );
+            return true;
+        }
+
+        match clear_notes_file(self.notes_path.as_deref()) {
+            Ok(()) => self.complete_without_model("[memory: cleared]".to_string()),
+            Err(e) => self.fail_without_model(format!("[memory] error clearing: {e}")),
+        }
+        true
     }
 }
 
 impl RuntimeMode for BatchMode {
     fn on_user_input(&mut self, input: String, ctx: &mut RuntimeContext) {
         if self.done {
+            return;
+        }
+        if self.try_handle_batch_memory_clear(&input) {
             return;
         }
         self.status = TaskStatus::Running;
@@ -319,7 +368,7 @@ pub fn build_batch_runtime(
 
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
-    let mode = BatchMode::new(task_id.clone(), opts);
+    let mode = BatchMode::new(task_id.clone(), opts, config.notes_path.clone());
     let runtime = Runtime::new(mode, update_rx);
 
     Ok((runtime, ctx, task_id))
@@ -347,10 +396,19 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
 
     let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
-    let mut mode = BatchMode::new(task_id.clone(), opts);
+    let mut mode = BatchMode::new(task_id.clone(), opts, config.notes_path.clone());
 
     // Submit the initial task.
     mode.on_user_input(task, &mut ctx);
+
+    if mode.is_done() {
+        return Ok(BatchResult {
+            status: mode.status,
+            output_lines: mode.output_lines,
+            turn_count: mode.current_turn,
+            task_id,
+        });
+    }
 
     // Drain updates until the mode reports done.
     while let Some(update) = update_rx.recv().await {
@@ -388,9 +446,18 @@ pub async fn run_batch_mode(task: &str, _max_turns: usize) -> Result<BatchResult
         ..Default::default()
     };
     let task_id = "test-task".to_string();
-    let mut mode = BatchMode::new(task_id.clone(), opts);
+    let mut mode = BatchMode::new(task_id.clone(), opts, None);
 
     mode.on_user_input(task.to_string(), &mut ctx);
+
+    if mode.is_done() {
+        return Ok(BatchResult {
+            status: mode.status,
+            output_lines: mode.output_lines,
+            turn_count: mode.current_turn,
+            task_id,
+        });
+    }
 
     while let Some(update) = update_rx.recv().await {
         mode.on_model_update(update, &mut ctx);
@@ -421,9 +488,18 @@ pub async fn run_batch_mode_with_opts(task: &str, opts: BatchRunOpts) -> Result<
     let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
     let task_id = "test-task".to_string();
-    let mut mode = BatchMode::new(task_id.clone(), opts);
+    let mut mode = BatchMode::new(task_id.clone(), opts, None);
 
     mode.on_user_input(task.to_string(), &mut ctx);
+
+    if mode.is_done() {
+        return Ok(BatchResult {
+            status: mode.status,
+            output_lines: mode.output_lines,
+            turn_count: mode.current_turn,
+            task_id,
+        });
+    }
 
     while let Some(update) = update_rx.recv().await {
         mode.on_model_update(update, &mut ctx);
@@ -465,9 +541,13 @@ pub async fn capture_batch_text(task: &str, max_turns: usize) -> Result<String> 
         ..Default::default()
     };
     let task_id = "test-task".to_string();
-    let mut mode = BatchMode::new(task_id.clone(), opts);
+    let mut mode = BatchMode::new(task_id.clone(), opts, None);
 
     mode.on_user_input(task.to_string(), &mut ctx);
+
+    if mode.is_done() {
+        return Ok(mode.output_lines.join("\n"));
+    }
 
     while let Some(update) = update_rx.recv().await {
         mode.on_model_update(update, &mut ctx);
@@ -537,6 +617,99 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(result.status, TaskStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_memory_clear_requires_auto_approve() {
+        let result = run_batch_mode_with_opts(
+            "/memory clear",
+            BatchRunOpts {
+                format: OutputFormat::Text,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.status, TaskStatus::Failed);
+        assert!(
+            result
+                .output_lines
+                .iter()
+                .any(|line| line.contains("requires --auto-approve")),
+            "expected batch-mode memory clear guidance in output"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_memory_clear_with_auto_approve_clears_notes() {
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        std::fs::write(&notes_path, "batch note\n").unwrap();
+
+        let config = Config {
+            model_token: None,
+            model_name: "mock-model".to_string(),
+            model_url: "http://localhost:8000/v1/messages".to_string(),
+            working_dir: temp.path().to_path_buf(),
+            model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
+            model_protocol: crate::runtime::ModelProtocol::MessagesV1,
+            tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: Some(notes_path.clone()),
+        };
+
+        let result = run_batch(
+            "/memory clear".to_string(),
+            BatchRunOpts {
+                auto_approve: Some(AutoApproveScope::Task),
+                format: OutputFormat::Text,
+                ..Default::default()
+            },
+            &config,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.status, TaskStatus::Completed);
+        assert!(
+            result
+                .output_lines
+                .iter()
+                .any(|line| line.contains("[memory: cleared]")),
+            "expected batch-mode memory clear confirmation in output"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&notes_path).unwrap(),
+            "",
+            "expected batch-mode memory clear to truncate the notes file"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_memory_clear_with_max_turns_emits_single_summary() {
+        let result = run_batch_mode_with_opts(
+            "/memory clear",
+            BatchRunOpts {
+                max_turns: Some(1),
+                format: OutputFormat::Jsonl,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let summary_count = result
+            .output_lines
+            .iter()
+            .filter(|line| {
+                serde_json::from_str::<serde_json::Value>(line)
+                    .ok()
+                    .and_then(|value| value.get("summary").and_then(|flag| flag.as_bool()))
+                    == Some(true)
+            })
+            .count();
+
+        assert_eq!(summary_count, 1, "expected exactly one summary record");
     }
 
     #[tokio::test]

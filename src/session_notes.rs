@@ -47,6 +47,34 @@ pub fn resolve_notes_path_for_read(explicit_path: Option<&Path>) -> Option<PathB
     fallback.exists().then_some(fallback)
 }
 
+pub fn resolve_notes_path_for_write(explicit_path: Option<&Path>) -> PathBuf {
+    if let Some(path) = explicit_path {
+        return path.to_path_buf();
+    }
+    if let Some(root) = std::env::var("XDG_CONFIG_HOME")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    {
+        return PathBuf::from(root).join("vex").join("memory.md");
+    }
+    if let Some(home) = std::env::var("HOME").ok().filter(|value| !value.is_empty()) {
+        return PathBuf::from(home)
+            .join(".config")
+            .join("vex")
+            .join("memory.md");
+    }
+    PathBuf::from(".vex-memory.md")
+}
+
+pub fn clear_notes_file(explicit_path: Option<&Path>) -> std::io::Result<()> {
+    let path = resolve_notes_path_for_read(explicit_path)
+        .unwrap_or_else(|| resolve_notes_path_for_write(explicit_path));
+    if path.exists() {
+        std::fs::write(path, "")?;
+    }
+    Ok(())
+}
+
 pub fn resolve_notes_for_injection(
     explicit_path: Option<&Path>,
 ) -> (Option<String>, Option<String>) {
