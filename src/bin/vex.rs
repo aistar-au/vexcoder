@@ -7,7 +7,6 @@ use vexcoder::batch_mode::{run_batch, AutoApproveScope, BatchRunOpts, OutputForm
 use vexcoder::config::Config;
 use vexcoder::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
 use vexcoder::runtime::TaskStatus;
-use vexcoder::terminal;
 use vexcoder::ui::editor::{InputAction, InputEditor};
 use vexcoder::ui::layout::split_three_pane_layout;
 use vexcoder::ui::render::{

@@ -370,7 +370,7 @@ pub async fn run_batch_mode(task: &str, _max_turns: usize) -> Result<BatchResult
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    let mock = Arc::new(MockApiClient::new(vec![]));
+    let mock = Arc::new(MockApiClient::new(vec![vec![]]));
     let client = ApiClient::new_mock(mock);
     let conversation = ConversationManager::new_mock(client, HashMap::new());
 
@@ -407,7 +407,7 @@ pub async fn run_batch_mode_with_opts(task: &str, opts: BatchRunOpts) -> Result<
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    let mock = Arc::new(MockApiClient::new(vec![]));
+    let mock = Arc::new(MockApiClient::new(vec![vec![]]));
     let client = ApiClient::new_mock(mock);
     let conversation = ConversationManager::new_mock(client, HashMap::new());
 
@@ -446,7 +446,7 @@ pub async fn capture_batch_text(task: &str, max_turns: usize) -> Result<String> 
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    let mock = Arc::new(MockApiClient::new(vec![]));
+    let mock = Arc::new(MockApiClient::new(vec![vec![]]));
     let client = ApiClient::new_mock(mock);
     let conversation = ConversationManager::new_mock(client, HashMap::new());
 
