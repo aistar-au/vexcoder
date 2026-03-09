@@ -73,12 +73,12 @@ within a token budget.
   and `src/runtime/context.rs` so session-start notes injection could be shared
   across TUI and batch runtime entry points. `src/state/` was not modified.
 - The dispatcher branch also carries PE-01/PE-02 work (`src/batch_mode.rs`,
-  `src/bin/vex.rs`, `TASKS/PE-01-batch-mode.md`). That combined scope is a
-  branch-traceability matter, not a notes-surface correctness issue.
+  `src/bin/vex.rs`, `src/runtime/task_state.rs`, and
+  `TASKS/PE-01-batch-mode.md`). That combined scope is a branch-traceability
+  matter, not a notes-surface correctness issue.
 - In batch mode, `/memory clear` is handled locally. Without `--auto-approve`
   it returns an error; with `--auto-approve` it clears the notes file without
   forwarding the command to the model.
-
 ---
 
 ## Definition of Done
@@ -159,6 +159,7 @@ fn test_tui_memory_does_not_call_start_turn() {
   - Notes path remains user-config-layer only; repo-local override rejected.
   - Scope note: implementation also touches `src/api/client.rs`,
     `src/runtime/context.rs`, `src/session_notes.rs`, and PE-01/PE-02 files
-    (`src/batch_mode.rs`, `src/bin/vex.rs`, `TASKS/PE-01-batch-mode.md`).
+    (`src/batch_mode.rs`, `src/bin/vex.rs`, `src/runtime/task_state.rs`,
+    `TASKS/PE-01-batch-mode.md`).
   - Batch mode now handles `/memory clear` locally: no `--auto-approve`
     returns an error; `--auto-approve` clears notes with no model turn.
