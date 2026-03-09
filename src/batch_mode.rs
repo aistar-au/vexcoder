@@ -13,6 +13,7 @@ use crate::runtime::{
     task_state::{TaskId, TaskStatus},
     UiUpdate,
 };
+use crate::session_notes::build_api_client_with_notes;
 use crate::state::{ConversationManager, ToolApprovalRequest};
 use crate::tools::ToolOperator;
 
@@ -309,7 +310,10 @@ pub fn build_batch_runtime(
     opts: BatchRunOpts,
 ) -> Result<(Runtime<BatchMode>, RuntimeContext, TaskId)> {
     let task_id = uuid_task_id();
-    let client = crate::api::ApiClient::new(config)?;
+    let (client, notes_warning) = build_api_client_with_notes(config)?;
+    if let Some(warning) = notes_warning {
+        eprintln!("{warning}");
+    }
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new(client, operator);
 
@@ -334,7 +338,10 @@ fn uuid_task_id() -> TaskId {
 /// This is the primary entry point for `vex exec`.
 pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Result<BatchResult> {
     let task_id = uuid_task_id();
-    let client = crate::api::ApiClient::new(config)?;
+    let (client, notes_warning) = build_api_client_with_notes(config)?;
+    if let Some(warning) = notes_warning {
+        eprintln!("{warning}");
+    }
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new(client, operator);
 
@@ -475,6 +482,7 @@ pub async fn capture_batch_text(task: &str, max_turns: usize) -> Result<String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Config;
     use crate::runtime::TaskStatus;
 
     #[tokio::test]
@@ -552,5 +560,33 @@ mod tests {
         if !trimmed.is_empty() {
             assert!(!trimmed.starts_with('{'));
         }
+    }
+
+    #[tokio::test]
+    async fn test_build_batch_runtime_injects_memory_notes_into_system_prompt() {
+        let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        std::fs::write(&notes_path, "batch note\n").unwrap();
+
+        let config = Config {
+            model_token: None,
+            model_name: "mock-model".to_string(),
+            model_url: "http://localhost:8000/v1/messages".to_string(),
+            working_dir: temp.path().to_path_buf(),
+            model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
+            model_protocol: crate::runtime::ModelProtocol::MessagesV1,
+            tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: Some(notes_path),
+        };
+
+        let (_runtime, ctx, _task_id) =
+            build_batch_runtime(&config, "hello".to_string(), BatchRunOpts::default()).unwrap();
+        let system_prompt = ctx.test_system_prompt().await;
+        assert!(
+            system_prompt.contains("<memory>\nbatch note\n</memory>"),
+            "expected batch runtime client to include memory notes in system prompt"
+        );
     }
 }

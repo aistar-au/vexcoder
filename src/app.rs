@@ -1,4 +1,3 @@
-use crate::api::ApiClient;
 use crate::config::Config;
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::frontend::{ScrollAction, ScrollTarget, UserInputEvent};
@@ -6,6 +5,9 @@ use crate::runtime::mode::RuntimeMode;
 use crate::runtime::policy::sanitize_assistant_text;
 use crate::runtime::r#loop::Runtime;
 use crate::runtime::{TaskState, UiUpdate};
+#[cfg(test)]
+use crate::session_notes::resolve_notes_for_injection;
+use crate::session_notes::{build_api_client_with_notes, resolve_notes_path_for_read};
 use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest};
 use crate::tools::ToolOperator;
 use crate::ui::render::history_visual_line_count;
@@ -526,72 +528,6 @@ fn notes_path_default() -> PathBuf {
     PathBuf::from(".vex-memory.md")
 }
 
-fn memory_token_budget() -> usize {
-    std::env::var("VEX_MAX_MEMORY_TOKENS")
-        .ok()
-        .and_then(|value| value.trim().parse::<usize>().ok())
-        .filter(|budget| *budget > 0)
-        .unwrap_or(2048)
-}
-
-fn resolve_notes_path_for_read(explicit_path: Option<&std::path::Path>) -> Option<PathBuf> {
-    if let Some(path) = explicit_path {
-        return Some(path.to_path_buf());
-    }
-    if let Some(root) = std::env::var("XDG_CONFIG_HOME")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-    {
-        let path = PathBuf::from(root).join("vex").join("memory.md");
-        if path.exists() {
-            return Some(path);
-        }
-    }
-    if let Some(home) = std::env::var("HOME").ok().filter(|value| !value.is_empty()) {
-        let xdg_path = PathBuf::from(&home)
-            .join(".config")
-            .join("vex")
-            .join("memory.md");
-        if xdg_path.exists() {
-            return Some(xdg_path);
-        }
-        let legacy_path = PathBuf::from(home).join(".vex").join("memory.md");
-        if legacy_path.exists() {
-            return Some(legacy_path);
-        }
-    }
-    let fallback = PathBuf::from(".vex-memory.md");
-    fallback.exists().then_some(fallback)
-}
-
-fn resolve_notes_for_injection(
-    explicit_path: Option<&std::path::Path>,
-) -> (Option<String>, Option<String>) {
-    let Some(path) = resolve_notes_path_for_read(explicit_path) else {
-        return (None, None);
-    };
-    let Ok(content) = std::fs::read_to_string(path) else {
-        return (None, None);
-    };
-    let trimmed = content.trim();
-    if trimmed.is_empty() {
-        return (None, None);
-    }
-
-    let token_budget = memory_token_budget();
-    let estimated_tokens = trimmed.len().saturating_add(3) / 4;
-    if estimated_tokens > token_budget {
-        return (
-            None,
-            Some(format!(
-                "[memory] notes exceed token budget ({estimated_tokens} > {token_budget}), skipped"
-            )),
-        );
-    }
-
-    (Some(trimmed.to_string()), None)
-}
-
 fn resolve_history_line_cap() -> usize {
     std::env::var(MAX_HISTORY_LINES_ENV)
         .ok()
@@ -955,8 +891,7 @@ fn render_pass_order(mode: &TuiMode) -> Vec<RenderPass> {
 }
 
 pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext)> {
-    let (notes_content, notes_warning) = resolve_notes_for_injection(config.notes_path.as_deref());
-    let client = ApiClient::new(&config)?.with_notes_content(notes_content);
+    let (client, notes_warning) = build_api_client_with_notes(&config)?;
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new(client, operator);
 

@@ -4,6 +4,7 @@ pub mod batch_mode;
 pub mod config;
 pub mod edit_diff;
 pub mod runtime;
+pub(crate) mod session_notes;
 pub mod state;
 pub mod terminal;
 pub mod tool_preview;

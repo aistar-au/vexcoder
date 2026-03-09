@@ -125,6 +125,11 @@ impl ApiClient {
     }
 
     #[cfg(test)]
+    pub fn test_system_prompt(&self) -> String {
+        self.system_prompt()
+    }
+
+    #[cfg(test)]
     pub fn with_structured_tool_protocol(mut self, enabled: bool) -> Self {
         self.tool_call_mode = if enabled {
             ToolCallMode::Structured
