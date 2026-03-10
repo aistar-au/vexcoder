@@ -1,10 +1,10 @@
 # Task PL-01: Pre/Post-Tool-Call Hooks
 
-**Target Files:** `src/config.rs`, `src/runtime/sandbox.rs`,
-`src/state/conversation/tools.rs`, `src/state/conversation/state.rs`,
-`src/state/conversation/core.rs`, `src/state/conversation/tests.rs`,
-`src/tools/operator.rs`, `src/api/client.rs`,
-`src/batch_mode.rs`, `tests/integration_test.rs`
+**Target Files:** `src/config.rs`, `src/app.rs`, `src/runtime.rs`,
+`src/runtime/sandbox.rs`, `src/state/conversation/tools.rs`,
+`src/state/conversation/state.rs`, `src/state/conversation/core.rs`,
+`src/state/conversation/tests.rs`, `src/tools/operator.rs`,
+`src/api/client.rs`, `src/batch_mode.rs`, `tests/integration_test.rs`
 
 **ADR:** ADR-024 Gap 26
 
@@ -149,6 +149,8 @@ fn test_hook_repo_local_config_rejected_at_load() {
 - Commit: `<sha>`
 - Files changed:
   - `src/config.rs` (+`<n>` -`<n>`)
+  - `src/app.rs` (+`<n>` -`<n>`)
+  - `src/runtime.rs` (+`<n>` -`<n>`)
   - `src/runtime/sandbox.rs` (+`<n>` -`<n>`)
   - `src/state/conversation/tools.rs` (+`<n>` -`<n>`)
   - `src/state/conversation/state.rs` (+`<n>` -`<n>`)
