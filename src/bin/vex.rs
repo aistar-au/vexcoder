@@ -1,4 +1,5 @@
 use anyhow::Result;
+use clap::{Parser, Subcommand};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::widgets::Clear;
 use std::time::{Duration, Instant};
@@ -15,6 +16,45 @@ use vexcoder::ui::render::{
 };
 
 const STARTUP_NOISE_GUARD: Duration = Duration::from_secs(15);
+
+#[derive(Parser)]
+#[command(name = "vex", about = "vexcoder -- zero-licensing-cost coding agent")]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Run a non-interactive batch task.
+    Exec {
+        #[arg(long, conflicts_with = "task_file")]
+        task: Option<String>,
+        #[arg(long = "task-file", conflicts_with = "task")]
+        task_file: Option<String>,
+        #[arg(long)]
+        max_turns: Option<usize>,
+        #[arg(long = "auto-approve", value_parser = ["once", "task"])]
+        auto_approve: Option<String>,
+        #[arg(long)]
+        output: Option<String>,
+        #[arg(long, default_value = "jsonl", value_parser = ["jsonl", "text"])]
+        format: String,
+    },
+    /// Configuration migration utilities.
+    Migrate {
+        #[command(subcommand)]
+        sub: MigrateCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum MigrateCommands {
+    /// Map pre-ADR-022 VEX_* env var values to current config.toml keys.
+    /// Reads from the environment and writes a fragment to stdout.
+    /// Non-destructive: never writes to any file.
+    Config,
+}
 
 fn has_numbered_transcript_prefix(line: &str) -> bool {
     let mut saw_digit = false;
@@ -343,72 +383,35 @@ struct ExecArgs {
     format: OutputFormat,
 }
 
-fn parse_exec_args(args: &[String]) -> Result<ExecArgs> {
-    let mut task: Option<String> = None;
-    let mut max_turns: Option<usize> = None;
-    let mut auto_approve: Option<AutoApproveScope> = None;
-    let mut output: Option<String> = None;
-    let mut format = OutputFormat::Jsonl;
-
-    let mut i = 0usize;
-    while i < args.len() {
-        match args[i].as_str() {
-            "--task" => {
-                i += 1;
-                task = Some(
-                    args.get(i)
-                        .cloned()
-                        .ok_or_else(|| anyhow::anyhow!("--task requires a value"))?,
-                );
-            }
-            "--task-file" => {
-                i += 1;
-                let path = args
-                    .get(i)
-                    .ok_or_else(|| anyhow::anyhow!("--task-file requires a path"))?;
-                task = Some(std::fs::read_to_string(path)?);
-            }
-            "--max-turns" => {
-                i += 1;
-                let n: usize = args
-                    .get(i)
-                    .ok_or_else(|| anyhow::anyhow!("--max-turns requires a number"))?
-                    .parse()?;
-                max_turns = Some(n);
-            }
-            "--auto-approve" => {
-                i += 1;
-                auto_approve = Some(match args.get(i).map(|s| s.as_str()) {
-                    Some("once") => AutoApproveScope::Once,
-                    Some("task") => AutoApproveScope::Task,
-                    other => {
-                        anyhow::bail!("--auto-approve must be 'once' or 'task', got: {:?}", other)
-                    }
-                });
-            }
-            "--output" => {
-                i += 1;
-                output = Some(
-                    args.get(i)
-                        .cloned()
-                        .ok_or_else(|| anyhow::anyhow!("--output requires a path"))?,
-                );
-            }
-            "--format" => {
-                i += 1;
-                format = match args.get(i).map(|s| s.as_str()) {
-                    Some("jsonl") => OutputFormat::Jsonl,
-                    Some("text") => OutputFormat::Text,
-                    other => anyhow::bail!("--format must be 'jsonl' or 'text', got: {:?}", other),
-                };
-            }
-            flag => anyhow::bail!("unknown flag for vex exec: {}", flag),
+fn parse_exec_command(
+    task: Option<String>,
+    task_file: Option<String>,
+    max_turns: Option<usize>,
+    auto_approve: Option<String>,
+    output: Option<String>,
+    format: String,
+) -> Result<ExecArgs> {
+    let task = match (task, task_file) {
+        (Some(task), None) => task,
+        (None, Some(path)) => std::fs::read_to_string(path)?,
+        (None, None) => {
+            anyhow::bail!("vex exec requires --task <TEXT> or --task-file <PATH>")
         }
-        i += 1;
-    }
+        (Some(_), Some(_)) => unreachable!("clap enforces task/task-file exclusivity"),
+    };
 
-    let task = task
-        .ok_or_else(|| anyhow::anyhow!("vex exec requires --task <TEXT> or --task-file <PATH>"))?;
+    let auto_approve = match auto_approve.as_deref() {
+        Some("once") => Some(AutoApproveScope::Once),
+        Some("task") => Some(AutoApproveScope::Task),
+        Some(other) => anyhow::bail!("--auto-approve must be 'once' or 'task', got: {other}"),
+        None => None,
+    };
+
+    let format = match format.as_str() {
+        "jsonl" => OutputFormat::Jsonl,
+        "text" => OutputFormat::Text,
+        other => anyhow::bail!("--format must be 'jsonl' or 'text', got: {other}"),
+    };
 
     Ok(ExecArgs {
         task,
@@ -446,14 +449,30 @@ async fn run_exec(exec: ExecArgs, config: Config) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args: Vec<String> = std::env::args().collect();
+    let cli = Cli::parse();
 
-    // Dispatch to `vex exec` if first positional arg is "exec".
-    if args.get(1).map(|s| s.as_str()) == Some("exec") {
-        let exec_args = parse_exec_args(&args[2..])?;
-        let config = Config::load()?;
-        config.validate()?;
-        return run_exec(exec_args, config).await;
+    match cli.command {
+        Some(Commands::Exec {
+            task,
+            task_file,
+            max_turns,
+            auto_approve,
+            output,
+            format,
+        }) => {
+            let exec_args =
+                parse_exec_command(task, task_file, max_turns, auto_approve, output, format)?;
+            let config = Config::load()?;
+            config.validate()?;
+            return run_exec(exec_args, config).await;
+        }
+        Some(Commands::Migrate { sub }) => match sub {
+            MigrateCommands::Config => {
+                print!("{}", vexcoder::config::migrate_config_from_env(&[]));
+                return Ok(());
+            }
+        },
+        None => {}
     }
 
     let config = Config::load()?;
@@ -468,6 +487,34 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::looks_like_terminal_transcript;
+
+    #[test]
+    fn test_migrate_config_maps_anthropic() {
+        let out = vexcoder::config::migrate_config_from_env(&[(
+            "VEX_API_PROTOCOL",
+            concat!("anth", "ropic"),
+        )]);
+        assert!(
+            out.contains("model_protocol = \"messages-v1\""),
+            "migrate output: {out}"
+        );
+    }
+
+    #[test]
+    fn test_migrate_config_maps_structured_tool_protocol_on() {
+        let out =
+            vexcoder::config::migrate_config_from_env(&[("VEX_STRUCTURED_TOOL_PROTOCOL", "on")]);
+        assert!(
+            out.contains("tool_call_mode = \"structured\""),
+            "migrate output: {out}"
+        );
+    }
+
+    #[test]
+    fn test_migrate_config_header_comment_present() {
+        let out = vexcoder::config::migrate_config_from_env(&[]);
+        assert!(out.starts_with("# generated by vex migrate config"));
+    }
 
     #[test]
     fn transcript_detection_matches_following_view_dump() {

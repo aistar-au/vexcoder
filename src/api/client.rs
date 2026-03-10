@@ -12,7 +12,10 @@ use serde_json::json;
 use serde_json::Value;
 #[cfg(test)]
 use std::sync::Arc;
-const SYSTEM_PROMPT: &str = "You are a coding assistant.\n\
+/// Base system prompt applied to every API call.
+/// Project instructions are appended at runtime via
+/// `ApiClient::with_project_instructions`.
+const BASE_SYSTEM_PROMPT: &str = "You are a coding assistant.\n\
 Use tools for all filesystem facts and changes.\n\
 When a user asks for repository facts, command output, file content, or code edits, call tools instead of guessing.\n\
 After each tool_result, reassess the task and either call the next needed tool or provide the final answer.\n\
@@ -49,6 +52,8 @@ pub struct ApiClient {
     model_protocol: ModelProtocol,
     tool_call_mode: ToolCallMode,
     model_headers: reqwest::header::HeaderMap,
+    /// Project instructions block appended to the base prompt when present.
+    project_instructions: Option<String>,
     notes_content: Option<String>,
     #[cfg(test)]
     mock_stream_producer: Option<Arc<dyn MockStreamProducer>>,
@@ -71,6 +76,7 @@ impl ApiClient {
             model_protocol: config.model_protocol,
             tool_call_mode: config.tool_call_mode,
             model_headers: config.model_headers.clone(),
+            project_instructions: None,
             notes_content: None,
             #[cfg(test)]
             mock_stream_producer: None,
@@ -90,6 +96,7 @@ impl ApiClient {
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
             model_headers: reqwest::header::HeaderMap::new(),
+            project_instructions: None,
             notes_content: None,
             mock_stream_producer: Some(mock_producer),
         }
@@ -97,6 +104,13 @@ impl ApiClient {
 
     pub fn with_notes_content(mut self, content: Option<String>) -> Self {
         self.notes_content = content;
+        self
+    }
+
+    /// Attach project-instructions text. Builder pattern; consumes and
+    /// returns self. Pass `None` to use the base prompt unmodified.
+    pub fn with_project_instructions(mut self, instructions: Option<String>) -> Self {
+        self.project_instructions = instructions;
         self
     }
 
@@ -115,13 +129,36 @@ impl ApiClient {
         }
     }
 
-    fn system_prompt(&self) -> String {
-        match self.notes_content.as_deref().map(str::trim) {
-            Some(notes) if !notes.is_empty() => {
-                format!("{SYSTEM_PROMPT}\n\n<memory>\n{notes}\n</memory>")
-            }
-            _ => SYSTEM_PROMPT.to_string(),
+    fn effective_system_prompt(&self) -> String {
+        let mut prompt = BASE_SYSTEM_PROMPT.to_string();
+
+        if let Some(instructions) = self
+            .project_instructions
+            .as_deref()
+            .map(str::trim)
+            .filter(|instructions| !instructions.is_empty())
+        {
+            prompt.push_str("\n\n---\n[project instructions: start]\n");
+            prompt.push_str(instructions);
+            prompt.push_str("\n[project instructions: end]\n---");
         }
+
+        if let Some(notes) = self
+            .notes_content
+            .as_deref()
+            .map(str::trim)
+            .filter(|notes| !notes.is_empty())
+        {
+            prompt.push_str("\n\n<memory>\n");
+            prompt.push_str(notes);
+            prompt.push_str("\n</memory>");
+        }
+
+        prompt
+    }
+
+    fn system_prompt(&self) -> String {
+        self.effective_system_prompt()
     }
 
     #[cfg(test)]
@@ -749,6 +786,7 @@ mod tests {
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::TaggedFallback,
+            max_project_instructions_tokens: 4096,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
         };
@@ -770,6 +808,7 @@ mod tests {
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::TaggedFallback,
+            max_project_instructions_tokens: 4096,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
         };
@@ -790,6 +829,7 @@ mod tests {
             model_backend: ModelBackendKind::ApiServer,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
+            max_project_instructions_tokens: 4096,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
         };
@@ -841,7 +881,7 @@ mod tests {
         )))
         .with_notes_content(Some("remember this".to_string()));
         let prompt = client.system_prompt();
-        assert!(prompt.starts_with(SYSTEM_PROMPT));
+        assert!(prompt.starts_with(BASE_SYSTEM_PROMPT));
         assert!(prompt.contains("<memory>\nremember this\n</memory>"));
     }
 
@@ -851,15 +891,36 @@ mod tests {
             vec![],
         )))
         .with_notes_content(Some("   \n".to_string()));
-        assert_eq!(client.system_prompt(), SYSTEM_PROMPT);
+        assert_eq!(client.system_prompt(), BASE_SYSTEM_PROMPT);
     }
 
     #[test]
     fn test_system_prompt_restricts_git_tool_capability_claims() {
-        assert!(SYSTEM_PROMPT.contains("only list built-in git tools"));
-        assert!(
-            SYSTEM_PROMPT.contains("git_status, git_diff, git_log, git_show, git_add, git_commit")
-        );
-        assert!(SYSTEM_PROMPT.contains("Do not claim unsupported git tools"));
+        assert!(BASE_SYSTEM_PROMPT.contains("only list built-in git tools"));
+        assert!(BASE_SYSTEM_PROMPT
+            .contains("git_status, git_diff, git_log, git_show, git_add, git_commit"));
+        assert!(BASE_SYSTEM_PROMPT.contains("Do not claim unsupported git tools"));
+    }
+
+    #[test]
+    fn test_with_project_instructions_none_uses_base_prompt() {
+        let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
+            vec![],
+        )))
+        .with_project_instructions(None);
+        assert_eq!(client.effective_system_prompt(), BASE_SYSTEM_PROMPT);
+    }
+
+    #[test]
+    fn test_with_project_instructions_some_wraps_in_delimiters() {
+        let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
+            vec![],
+        )))
+        .with_project_instructions(Some("# no unwrap".to_string()));
+        let prompt = client.effective_system_prompt();
+        assert!(prompt.starts_with(BASE_SYSTEM_PROMPT));
+        assert!(prompt.contains("[project instructions: start]"));
+        assert!(prompt.contains("# no unwrap"));
+        assert!(prompt.contains("[project instructions: end]"));
     }
 }

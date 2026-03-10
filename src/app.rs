@@ -3,6 +3,7 @@ use crate::runtime::context::RuntimeContext;
 use crate::runtime::frontend::{ScrollAction, ScrollTarget, UserInputEvent};
 use crate::runtime::mode::RuntimeMode;
 use crate::runtime::policy::sanitize_assistant_text;
+use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
 use crate::runtime::r#loop::Runtime;
 use crate::runtime::{TaskState, UiUpdate};
 #[cfg(test)]
@@ -96,6 +97,7 @@ pub struct TuiMode {
     overlay_state: OverlayState,
     history_line_cap: usize,
     repo_label: String,
+    instructions_path: Option<String>,
     history_content_width: Cell<usize>,
     active_stream_blocks: std::collections::HashMap<usize, StreamBlock>,
     pending_quit: bool,
@@ -116,6 +118,7 @@ impl TuiMode {
             overlay_state: OverlayState::default(),
             history_line_cap: resolve_history_line_cap(),
             repo_label: resolve_repo_label(),
+            instructions_path: None,
             history_content_width: Cell::new(HISTORY_CONTENT_WIDTH_FALLBACK),
             active_stream_blocks: std::collections::HashMap::new(),
             pending_quit: false,
@@ -154,11 +157,12 @@ impl TuiMode {
         let history_rows =
             history_visual_line_count(&self.history_state.lines, self.history_content_width.get());
         format!(
-            "mode:{} approval:{} history:{} repo:{}",
+            "mode:{} approval:{} history:{} repo:{} inst:{}",
             self.mode_status_label(),
             self.approval_status_label(),
             history_rows,
-            self.repo_label
+            self.repo_label,
+            self.instructions_path.as_deref().unwrap_or("none")
         )
     }
 
@@ -885,7 +889,31 @@ fn render_pass_order(mode: &TuiMode) -> Vec<RenderPass> {
 }
 
 pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext)> {
+    let (instructions_text, instructions_path) = match load_project_instructions(
+        &config.working_dir,
+        config.max_project_instructions_tokens,
+    ) {
+        LoadResult::Loaded(project_instructions) => {
+            let display = project_instructions.path.to_string_lossy().into_owned();
+            (Some(project_instructions.content), Some(display))
+        }
+        LoadResult::OverBudget {
+            path,
+            estimated_tokens,
+        } => {
+            eprintln!(
+                "[project instructions] {} skipped: estimated {} tokens exceeds budget of {}",
+                path.display(),
+                estimated_tokens,
+                config.max_project_instructions_tokens,
+            );
+            (None, None)
+        }
+        LoadResult::NotFound => (None, None),
+    };
+
     let (client, notes_warning) = build_api_client_with_notes(&config)?;
+    let client = client.with_project_instructions(instructions_text);
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new(client, operator);
 
@@ -893,6 +921,7 @@ pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
 
     let mut mode = TuiMode::new_with_notes(config.notes_path.clone());
+    mode.instructions_path = instructions_path;
     if let Some(warning) = notes_warning {
         mode.push_history_line(warning);
     }
@@ -2091,6 +2120,7 @@ mod tests {
             model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
             model_protocol: crate::runtime::ModelProtocol::MessagesV1,
             tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            max_project_instructions_tokens: 4096,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: Some(notes_path),
         };

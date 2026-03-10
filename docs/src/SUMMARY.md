@@ -13,6 +13,7 @@
   - [Windows](installation/windows.md)
 - [Configuration](configuration.md)
 - [TUI Commands](commands.md)
+- [Migration Guide](migration.md)
 
 # Reference
 
