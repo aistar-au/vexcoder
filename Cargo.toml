@@ -12,6 +12,7 @@ path = "src/bin/vex.rs"
 [dependencies]
 aho-corasick = "1"
 anyhow = "1"
+clap = { version = "4", features = ["derive"] }
 bytes = "1"
 crossterm = "0.28"
 futures = "0.3"

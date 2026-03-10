@@ -8,6 +8,7 @@ pub mod frontend;
 pub mod r#loop;
 pub mod mode;
 pub mod policy;
+pub mod project_instructions;
 pub mod task_state;
 pub mod text_util;
 pub mod update;

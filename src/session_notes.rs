@@ -4,17 +4,10 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 pub fn build_api_client_with_notes(config: &Config) -> Result<(ApiClient, Option<String>)> {
-    let (notes_content, notes_warning) = resolve_notes_for_injection(config.notes_path.as_deref());
+    let (notes_content, notes_warning) =
+        resolve_notes_for_injection(config.notes_path.as_deref(), config.max_memory_tokens);
     let client = ApiClient::new(config)?.with_notes_content(notes_content);
     Ok((client, notes_warning))
-}
-
-fn memory_token_budget() -> usize {
-    std::env::var("VEX_MAX_MEMORY_TOKENS")
-        .ok()
-        .and_then(|value| value.trim().parse::<usize>().ok())
-        .filter(|budget| *budget > 0)
-        .unwrap_or(2048)
 }
 
 pub fn resolve_notes_path_for_read(explicit_path: Option<&Path>) -> Option<PathBuf> {
@@ -78,6 +71,7 @@ pub fn clear_notes_file(explicit_path: Option<&Path>) -> std::io::Result<()> {
 
 pub fn resolve_notes_for_injection(
     explicit_path: Option<&Path>,
+    token_budget: usize,
 ) -> (Option<String>, Option<String>) {
     let Some(path) = resolve_notes_path_for_read(explicit_path) else {
         return (None, None);
@@ -90,7 +84,6 @@ pub fn resolve_notes_for_injection(
         return (None, None);
     }
 
-    let token_budget = memory_token_budget();
     let estimated_tokens = trimmed.len().saturating_add(3) / 4;
     if estimated_tokens > token_budget {
         return (
@@ -135,5 +128,19 @@ mod tests {
         }
 
         assert_eq!(resolved, None);
+    }
+
+    #[test]
+    fn test_resolve_notes_for_injection_uses_passed_budget() {
+        let temp = tempfile::tempdir().unwrap();
+        let notes_path = temp.path().join("memory.md");
+        std::fs::write(&notes_path, "12345").unwrap();
+
+        let (content, warning) = resolve_notes_for_injection(Some(notes_path.as_path()), 1);
+
+        assert!(content.is_none());
+        assert!(warning
+            .as_deref()
+            .is_some_and(|message| message.contains("notes exceed token budget")));
     }
 }
