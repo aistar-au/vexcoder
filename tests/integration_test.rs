@@ -19,6 +19,7 @@ fn test_config_validation_rejects_local_model_for_remote_endpoint() {
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,
         max_project_instructions_tokens: 4096,
+        max_memory_tokens: 2048,
         model_headers: HeaderMap::new(),
         notes_path: None,
     };
@@ -36,6 +37,7 @@ fn test_config_validation_allows_local_endpoint_without_token() {
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::TaggedFallback,
         max_project_instructions_tokens: 4096,
+        max_memory_tokens: 2048,
         model_headers: HeaderMap::new(),
         notes_path: None,
     };

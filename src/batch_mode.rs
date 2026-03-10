@@ -815,6 +815,7 @@ mod tests {
             model_protocol: crate::runtime::ModelProtocol::MessagesV1,
             tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
             max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: Some(notes_path.clone()),
         };
@@ -1003,6 +1004,7 @@ mod tests {
             model_protocol: crate::runtime::ModelProtocol::MessagesV1,
             tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
             max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: Some(notes_path),
         };
@@ -1031,6 +1033,7 @@ mod tests {
             model_protocol: crate::runtime::ModelProtocol::MessagesV1,
             tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
             max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
         };

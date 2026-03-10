@@ -787,6 +787,7 @@ mod tests {
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::TaggedFallback,
             max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
         };
@@ -809,6 +810,7 @@ mod tests {
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::TaggedFallback,
             max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
         };
@@ -830,6 +832,7 @@ mod tests {
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
             max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
         };

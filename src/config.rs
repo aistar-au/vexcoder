@@ -18,6 +18,9 @@ pub struct Config {
     /// Estimated token budget for project instructions injection (byte len / 4).
     /// Controlled by `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS`. Default: 4096.
     pub max_project_instructions_tokens: usize,
+    /// Estimated token budget for notes injection (byte len / 4).
+    /// Controlled by `VEX_MAX_MEMORY_TOKENS`. Default: 2048.
+    pub max_memory_tokens: usize,
     #[serde(skip)]
     pub model_headers: HeaderMap,
     pub notes_path: Option<PathBuf>,
@@ -35,6 +38,7 @@ struct ConfigLayer {
     model_protocol: Option<String>,
     tool_call_mode: Option<String>,
     max_project_instructions_tokens: Option<usize>,
+    max_memory_tokens: Option<usize>,
     notes_path: Option<PathBuf>,
 }
 
@@ -157,6 +161,7 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
         max_project_instructions_tokens: over
             .max_project_instructions_tokens
             .or(base.max_project_instructions_tokens),
+        max_memory_tokens: over.max_memory_tokens.or(base.max_memory_tokens),
         notes_path: over.notes_path.or(base.notes_path),
     }
 }
@@ -221,6 +226,10 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         .ok()
         .and_then(|value| value.trim().parse::<usize>().ok())
         .filter(|budget| *budget > 0);
+    let max_memory_tokens = std::env::var("VEX_MAX_MEMORY_TOKENS")
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|budget| *budget > 0);
 
     let layer = ConfigLayer {
         model_name: std::env::var("VEX_MODEL_NAME")
@@ -238,6 +247,7 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         model_protocol,
         tool_call_mode,
         max_project_instructions_tokens,
+        max_memory_tokens,
         notes_path: None,
     };
 
@@ -354,6 +364,7 @@ fn resolve_config(
             ToolCallMode::Structured
         });
     let max_project_instructions_tokens = merged.max_project_instructions_tokens.unwrap_or(4096);
+    let max_memory_tokens = merged.max_memory_tokens.unwrap_or(2048);
 
     Ok(Config {
         model_token: env_token,
@@ -364,6 +375,7 @@ fn resolve_config(
         model_protocol,
         tool_call_mode,
         max_project_instructions_tokens,
+        max_memory_tokens,
         model_headers: parse_model_headers_json()?,
         notes_path: merged.notes_path.map(expand_home),
     })
@@ -785,6 +797,44 @@ mod tests {
         let cfg = Config::load().expect("load failed");
         assert_eq!(cfg.max_project_instructions_tokens, 4096);
         std::env::remove_var("VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS");
+        std::env::remove_var("VEX_MODEL_URL");
+        std::env::remove_var("VEX_MODEL_NAME");
+    }
+
+    #[test]
+    fn test_max_memory_tokens_env_sets_field() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_MAX_MEMORY_TOKENS", "1024");
+        std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+        std::env::set_var("VEX_MODEL_NAME", "test-model");
+        let cfg = Config::load().expect("load failed");
+        assert_eq!(cfg.max_memory_tokens, 1024);
+        std::env::remove_var("VEX_MAX_MEMORY_TOKENS");
+        std::env::remove_var("VEX_MODEL_URL");
+        std::env::remove_var("VEX_MODEL_NAME");
+    }
+
+    #[test]
+    fn test_max_memory_tokens_defaults_to_2048() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::remove_var("VEX_MAX_MEMORY_TOKENS");
+        std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+        std::env::set_var("VEX_MODEL_NAME", "test-model");
+        let cfg = Config::load().expect("load failed");
+        assert_eq!(cfg.max_memory_tokens, 2048);
+        std::env::remove_var("VEX_MODEL_URL");
+        std::env::remove_var("VEX_MODEL_NAME");
+    }
+
+    #[test]
+    fn test_max_memory_tokens_zero_uses_default() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_MAX_MEMORY_TOKENS", "0");
+        std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+        std::env::set_var("VEX_MODEL_NAME", "test-model");
+        let cfg = Config::load().expect("load failed");
+        assert_eq!(cfg.max_memory_tokens, 2048);
+        std::env::remove_var("VEX_MAX_MEMORY_TOKENS");
         std::env::remove_var("VEX_MODEL_URL");
         std::env::remove_var("VEX_MODEL_NAME");
     }

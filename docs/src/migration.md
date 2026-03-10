@@ -65,7 +65,19 @@ vexcoder resolves configuration from five layers (highest priority wins):
 | 5 | Compiled defaults | Inline defaults |
 
 TOML key names mirror `VEX_*` variable names in snake_case. `VEX_MODEL_TOKEN`
-is never read from any config file. It remains environment-only.
+is never read from any config file. It remains environment-only. `notes_path`
+is the one documented TOML-only key in the current ADR-024 surface, and it is
+accepted in the user config layer only.
+
+---
+
+## Current config TOML key reference
+
+| Key | Layers | Purpose | Notes |
+| :--- | :--- | :--- | :--- |
+| `max_memory_tokens` | repo, user, system | Token budget for user notes injection | Mirrors `VEX_MAX_MEMORY_TOKENS`; default `2048` |
+| `max_project_instructions_tokens` | repo, user, system | Token budget for project instructions injection | Mirrors `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS`; default `4096` |
+| `notes_path` | user only | Explicit path to the notes file used for memory injection | Rejected in repo-local config |
 
 ---
 
@@ -82,6 +94,7 @@ is never read from any config file. It remains environment-only.
 | `VEX_MODEL_HEADERS_JSON` | Extra request headers as a JSON object | (none) |
 | `VEX_WORKDIR` | Working directory for tool execution | `$PWD` |
 | `VEX_MAX_HISTORY_LINES` | Maximum TUI history lines before eviction | `2000` |
+| `VEX_MAX_MEMORY_TOKENS` | Token budget for user notes injection | `2048` |
 | `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS` | Token budget for project instructions injection | `4096` |
 
 ---

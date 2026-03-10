@@ -2093,7 +2093,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let notes_path = temp.path().join("memory.md");
         std::fs::write(&notes_path, "my project note\n").unwrap();
-        let (content, warning) = resolve_notes_for_injection(Some(notes_path.as_path()));
+        let (content, warning) = resolve_notes_for_injection(Some(notes_path.as_path()), 2048);
         assert!(warning.is_none(), "notes within budget must not warn");
         let content = content.as_deref().unwrap_or("");
         assert!(
@@ -2104,13 +2104,10 @@ mod tests {
 
     #[test]
     fn test_memory_injection_over_budget_emits_startup_warning() {
-        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
         let temp = tempfile::tempdir().unwrap();
         let notes_path = temp.path().join("memory.md");
         let big_content = "x".repeat((2048 * 4) + 1);
         std::fs::write(&notes_path, &big_content).unwrap();
-        let old_budget = std::env::var("VEX_MAX_MEMORY_TOKENS").ok();
-        std::env::remove_var("VEX_MAX_MEMORY_TOKENS");
 
         let config = Config {
             model_token: None,
@@ -2121,6 +2118,7 @@ mod tests {
             model_protocol: crate::runtime::ModelProtocol::MessagesV1,
             tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
             max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: Some(notes_path),
         };
@@ -2131,10 +2129,6 @@ mod tests {
             .history_lines()
             .iter()
             .any(|l| l.contains("notes exceed token budget"));
-        match old_budget {
-            Some(value) => std::env::set_var("VEX_MAX_MEMORY_TOKENS", value),
-            None => std::env::remove_var("VEX_MAX_MEMORY_TOKENS"),
-        }
         assert!(has_warning, "expected startup budget warning in history");
     }
 }
