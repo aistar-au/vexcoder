@@ -22,6 +22,7 @@ fn test_config_validation_rejects_local_model_for_remote_endpoint() {
         max_memory_tokens: 2048,
         model_headers: HeaderMap::new(),
         notes_path: None,
+        hooks: Vec::new(),
     };
     assert!(config.validate().is_err());
 }
@@ -40,6 +41,7 @@ fn test_config_validation_allows_local_endpoint_without_token() {
         max_memory_tokens: 2048,
         model_headers: HeaderMap::new(),
         notes_path: None,
+        hooks: Vec::new(),
     };
     assert!(config.validate().is_ok());
 }
@@ -166,5 +168,26 @@ fn test_config_rejects_notes_path_in_repo_local_config() {
     assert!(
         msg.contains("notes_path"),
         "expected 'notes_path' in error: {msg}"
+    );
+}
+
+#[test]
+fn test_hook_repo_local_config_rejected_at_load() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let repo_root = temp.path().join("repo");
+    let cwd = repo_root.join("sub");
+    std::fs::create_dir_all(repo_root.join(".vex")).unwrap();
+    std::fs::create_dir_all(&cwd).unwrap();
+    std::fs::write(
+        repo_root.join(".vex/config.toml"),
+        "[[hooks]]\nevent = \"post_tool\"\ntool = \"write_file\"\ncommand = \"echo\"\nargs = []\non_fail = \"warn\"\n",
+    )
+    .unwrap();
+    let err = Config::load_for_tests(&cwd, None, None).unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("[[hooks]]") || msg.contains("hooks"),
+        "expected hooks diagnostic in error: {msg}"
     );
 }

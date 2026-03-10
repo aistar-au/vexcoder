@@ -1,10 +1,14 @@
 use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest};
+use crate::config::{HookEvent, HookOnFail};
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
+use crate::runtime::{
+    CommandRequest, CommandRunner, DefaultCommandRunner, PassthroughSandbox, SandboxDriver,
+};
 use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
 use crate::tools::{ToolOperator, WriteFileOutcome};
 use crate::types::ContentBlock;
 use crate::util::parse_bool_flag;
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 #[cfg(test)]
 use std::collections::HashMap;
 #[cfg(test)]
@@ -40,13 +44,28 @@ impl ConversationManager {
         response_rx.await.unwrap_or(false)
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(super) async fn execute_tool_with_timeout(
         &self,
         name: &str,
         input: &serde_json::Value,
         tool_timeout: Duration,
     ) -> Result<String> {
+        self.execute_tool_with_timeout_with_updates(name, input, tool_timeout, None)
+            .await
+    }
+
+    pub(super) async fn execute_tool_with_timeout_with_updates(
+        &self,
+        name: &str,
+        input: &serde_json::Value,
+        tool_timeout: Duration,
+        stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
+    ) -> Result<String> {
         let tool_name = name.to_string();
+        self.run_hooks(HookEvent::PreTool, &tool_name, input, stream_delta_tx)
+            .await?;
+
         let task_name = tool_name.clone();
         let task_input = input.clone();
         let task_executor = self.tool_operator.clone();
@@ -69,7 +88,7 @@ impl ConversationManager {
             }
         });
 
-        match tokio::time::timeout(tool_timeout, &mut task).await {
+        let tool_result = match tokio::time::timeout(tool_timeout, &mut task).await {
             Ok(join_result) => match join_result {
                 Ok(result) => result,
                 Err(join_error) => Err(anyhow::anyhow!(
@@ -83,7 +102,102 @@ impl ConversationManager {
                     tool_timeout.as_secs()
                 ))
             }
+        };
+
+        if tool_result.is_ok() {
+            self.run_hooks(HookEvent::PostTool, &tool_name, input, stream_delta_tx)
+                .await?;
         }
+
+        tool_result
+    }
+
+    async fn run_hooks(
+        &self,
+        event: HookEvent,
+        tool_name: &str,
+        input: &serde_json::Value,
+        stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
+    ) -> Result<()> {
+        if self.hooks.is_empty() {
+            return Ok(());
+        }
+
+        let primary_path = input
+            .get("path")
+            .or_else(|| input.get("file_path"))
+            .or_else(|| input.get("file"))
+            .or_else(|| input.get("filename"))
+            .or_else(|| input.get("old_path"))
+            .or_else(|| input.get("from"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        let runner = DefaultCommandRunner::new();
+        let sandbox = PassthroughSandbox;
+
+        for hook in &self.hooks {
+            if hook.event != event || hook.tool != tool_name {
+                continue;
+            }
+
+            let args = hook
+                .args
+                .iter()
+                .map(|arg| {
+                    arg.replace("{{tool}}", tool_name)
+                        .replace("{{path}}", primary_path)
+                })
+                .collect::<Vec<_>>();
+
+            let approval_input = serde_json::json!({
+                "command": hook.command,
+                "args": args,
+                "tool": tool_name,
+            });
+            let approved = if stream_delta_tx.is_some() {
+                self.request_tool_approval("run_command", &approval_input, stream_delta_tx)
+                    .await
+            } else {
+                false
+            };
+            if !approved {
+                eprintln!(
+                    "[hooks] warning: skipping hook '{}' for tool '{}' due to missing RunCommand approval",
+                    hook.command,
+                    tool_name
+                );
+                continue;
+            }
+
+            let wrapped_req = sandbox.wrap(CommandRequest {
+                program: hook.command.clone(),
+                args,
+            })?;
+            match runner.run_one_shot(wrapped_req).await {
+                Ok(result) if result.exit_code == 0 => {}
+                Ok(result) => {
+                    let msg = format!(
+                        "hook '{}' failed with exit code {}",
+                        hook.command, result.exit_code
+                    );
+                    match hook.on_fail {
+                        HookOnFail::Abort => bail!(msg),
+                        HookOnFail::Warn => eprintln!("[hooks] warning: {msg}"),
+                        HookOnFail::Ignore => {}
+                    }
+                }
+                Err(error) => {
+                    let msg = format!("hook '{}' failed to execute", hook.command);
+                    match hook.on_fail {
+                        HookOnFail::Abort => return Err(error).context(msg),
+                        HookOnFail::Warn => eprintln!("[hooks] warning: {msg}: {error}"),
+                        HookOnFail::Ignore => {}
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

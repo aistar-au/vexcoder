@@ -515,7 +515,7 @@ pub fn build_batch_runtime(
         eprintln!("{warning}");
     }
     let operator = ToolOperator::new(config.working_dir.clone());
-    let conversation = ConversationManager::new(client, operator);
+    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone());
 
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
@@ -550,7 +550,7 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
         eprintln!("{warning}");
     }
     let operator = ToolOperator::new(config.working_dir.clone());
-    let conversation = ConversationManager::new(client, operator);
+    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone());
 
     let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
@@ -818,6 +818,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: Some(notes_path.clone()),
+            hooks: Vec::new(),
         };
 
         let result = run_batch(
@@ -1007,6 +1008,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: Some(notes_path),
+            hooks: Vec::new(),
         };
 
         let (_runtime, ctx, _task_id) =
@@ -1036,6 +1038,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
+            hooks: Vec::new(),
         };
 
         let (_runtime, ctx, _task_id) =

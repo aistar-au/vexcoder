@@ -915,7 +915,7 @@ pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext
     let (client, notes_warning) = build_api_client_with_notes(&config)?;
     let client = client.with_project_instructions(instructions_text);
     let operator = ToolOperator::new(config.working_dir.clone());
-    let conversation = ConversationManager::new(client, operator);
+    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone());
 
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
@@ -2121,6 +2121,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: Some(notes_path),
+            hooks: Vec::new(),
         };
 
         let (runtime, _ctx) = build_runtime(config).expect("runtime should build");

@@ -1,5 +1,6 @@
 use super::*;
 use crate::api::ApiClient;
+use crate::config::{HookConfig, HookEvent, HookOnFail};
 use crate::state::{StreamBlock, ToolStatus};
 use crate::tools::ToolOperator;
 use crate::types::{ApiMessage, Content, ContentBlock};
@@ -1956,4 +1957,88 @@ fn test_prune_message_history_clears_if_only_tool_result_user_messages_remain() 
     manager.prune_message_history(2);
 
     assert!(manager.api_messages.is_empty());
+}
+
+#[cfg(not(windows))]
+#[tokio::test]
+async fn test_hook_post_write_file_runs_when_approved() -> Result<()> {
+    let temp = TempDir::new()?;
+    let hook_file = temp.path().join("hook.log");
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let executor = ToolOperator::new(temp.path().to_path_buf());
+    let hooks = vec![HookConfig {
+        event: HookEvent::PostTool,
+        tool: "write_file".to_string(),
+        command: "sh".to_string(),
+        args: vec![
+            "-c".to_string(),
+            format!("printf post > {}", hook_file.display()),
+        ],
+        on_fail: HookOnFail::Abort,
+    }];
+    let manager = ConversationManager::new_with_hooks(mock_api_client, executor, hooks);
+
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let approval_task = tokio::spawn(async move {
+        while let Some(update) = rx.recv().await {
+            if let ConversationStreamUpdate::ToolApprovalRequest(request) = update {
+                let _ = request.response_tx.send(true);
+                return;
+            }
+        }
+    });
+
+    let result = manager
+        .execute_tool_with_timeout_with_updates(
+            "write_file",
+            &json!({"path": "note.txt", "content": "hello\n"}),
+            Duration::from_secs(2),
+            Some(&tx),
+        )
+        .await?;
+    drop(tx);
+    approval_task.await?;
+
+    assert!(result.contains("Wrote note.txt"));
+    assert_eq!(std::fs::read_to_string(&hook_file)?, "post");
+    Ok(())
+}
+
+#[cfg(not(windows))]
+#[tokio::test]
+async fn test_hook_skipped_without_run_command_approval() -> Result<()> {
+    let temp = TempDir::new()?;
+    let hook_file = temp.path().join("hook.log");
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let executor = ToolOperator::new(temp.path().to_path_buf());
+    let hooks = vec![HookConfig {
+        event: HookEvent::PostTool,
+        tool: "write_file".to_string(),
+        command: "sh".to_string(),
+        args: vec![
+            "-c".to_string(),
+            format!("printf post > {}", hook_file.display()),
+        ],
+        on_fail: HookOnFail::Abort,
+    }];
+    let manager = ConversationManager::new_with_hooks(mock_api_client, executor, hooks);
+
+    let result = manager
+        .execute_tool_with_timeout(
+            "write_file",
+            &json!({"path": "note.txt", "content": "hello\n"}),
+            Duration::from_secs(2),
+        )
+        .await?;
+
+    assert!(result.contains("Wrote note.txt"));
+    assert!(
+        !hook_file.exists(),
+        "hook must not run when RunCommand approval is missing"
+    );
+    Ok(())
 }

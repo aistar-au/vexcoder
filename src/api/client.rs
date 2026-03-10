@@ -790,6 +790,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
+            hooks: Vec::new(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -813,6 +814,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
+            hooks: Vec::new(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -835,6 +837,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
+            hooks: Vec::new(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
