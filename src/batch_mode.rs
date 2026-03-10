@@ -9,6 +9,7 @@ use crate::runtime::{
     context::RuntimeContext,
     frontend::{FrontendAdapter, UserInputEvent},
     mode::RuntimeMode,
+    project_instructions::{load_project_instructions, LoadResult},
     r#loop::Runtime,
     task_state::{CommandEvidence, TaskId, TaskStatus},
     UiUpdate,
@@ -69,6 +70,7 @@ pub struct BatchResult {
 struct TurnRecord<'a> {
     turn: usize,
     response: &'a str,
+    instructions_path: Option<&'a str>,
     changed_files: Vec<String>,
     command_history: Vec<serde_json::Value>,
 }
@@ -79,6 +81,7 @@ struct SummaryRecord<'a> {
     status: &'a str,
     task_id: &'a str,
     total_turns: usize,
+    instructions_path: Option<&'a str>,
     changed_files: Vec<String>,
 }
 
@@ -93,6 +96,7 @@ pub struct BatchMode {
     auto_approve: Option<AutoApproveScope>,
     format: OutputFormat,
     notes_path: Option<PathBuf>,
+    instructions_path: Option<String>,
     current_response: String,
     current_turn: usize,
     current_turn_changed_files: BTreeSet<String>,
@@ -108,7 +112,12 @@ struct PendingToolCall {
 }
 
 impl BatchMode {
-    pub fn new(task_id: TaskId, opts: BatchRunOpts, notes_path: Option<PathBuf>) -> Self {
+    pub fn new(
+        task_id: TaskId,
+        opts: BatchRunOpts,
+        notes_path: Option<PathBuf>,
+        instructions_path: Option<String>,
+    ) -> Self {
         Self {
             task_id,
             status: TaskStatus::Ready,
@@ -118,6 +127,7 @@ impl BatchMode {
             auto_approve: opts.auto_approve,
             format: opts.format,
             notes_path,
+            instructions_path,
             current_response: String::new(),
             current_turn: 0,
             current_turn_changed_files: BTreeSet::new(),
@@ -179,6 +189,7 @@ impl BatchMode {
                 let record = TurnRecord {
                     turn: self.current_turn,
                     response: &response,
+                    instructions_path: self.instructions_path.as_deref(),
                     changed_files,
                     command_history,
                 };
@@ -206,6 +217,7 @@ impl BatchMode {
                 status: &status_str,
                 task_id: &self.task_id,
                 total_turns: self.current_turn,
+                instructions_path: self.instructions_path.as_deref(),
                 changed_files: self.current_turn_changed_files.iter().cloned().collect(),
             };
             let line = serde_json::to_string(&record)
@@ -304,6 +316,28 @@ impl BatchMode {
             exit_code: Some(if is_error { 1 } else { 0 }),
             interrupted: false,
         });
+    }
+}
+
+fn resolve_batch_project_instructions(config: &Config) -> (Option<String>, Option<String>) {
+    match load_project_instructions(&config.working_dir, config.max_project_instructions_tokens) {
+        LoadResult::Loaded(project_instructions) => {
+            let display = project_instructions.path.to_string_lossy().into_owned();
+            (Some(project_instructions.content), Some(display))
+        }
+        LoadResult::OverBudget {
+            path,
+            estimated_tokens,
+        } => {
+            eprintln!(
+                "[project instructions] {} skipped: estimated {} tokens exceeds budget of {}",
+                path.display(),
+                estimated_tokens,
+                config.max_project_instructions_tokens,
+            );
+            (None, None)
+        }
+        LoadResult::NotFound => (None, None),
     }
 }
 
@@ -474,7 +508,9 @@ pub fn build_batch_runtime(
     opts: BatchRunOpts,
 ) -> Result<(Runtime<BatchMode>, RuntimeContext, TaskId)> {
     let task_id = uuid_task_id();
+    let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
     let (client, notes_warning) = build_api_client_with_notes(config)?;
+    let client = client.with_project_instructions(instructions_text);
     if let Some(warning) = notes_warning {
         eprintln!("{warning}");
     }
@@ -483,7 +519,12 @@ pub fn build_batch_runtime(
 
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
-    let mode = BatchMode::new(task_id.clone(), opts, config.notes_path.clone());
+    let mode = BatchMode::new(
+        task_id.clone(),
+        opts,
+        config.notes_path.clone(),
+        instructions_path,
+    );
     let runtime = Runtime::new(mode, update_rx);
 
     Ok((runtime, ctx, task_id))
@@ -502,7 +543,9 @@ fn uuid_task_id() -> TaskId {
 /// This is the primary entry point for `vex exec`.
 pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Result<BatchResult> {
     let task_id = uuid_task_id();
+    let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
     let (client, notes_warning) = build_api_client_with_notes(config)?;
+    let client = client.with_project_instructions(instructions_text);
     if let Some(warning) = notes_warning {
         eprintln!("{warning}");
     }
@@ -511,7 +554,12 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
 
     let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
-    let mut mode = BatchMode::new(task_id.clone(), opts, config.notes_path.clone());
+    let mut mode = BatchMode::new(
+        task_id.clone(),
+        opts,
+        config.notes_path.clone(),
+        instructions_path,
+    );
 
     // Submit the initial task.
     mode.on_user_input(task, &mut ctx);
@@ -561,7 +609,7 @@ pub async fn run_batch_mode(task: &str, _max_turns: usize) -> Result<BatchResult
         ..Default::default()
     };
     let task_id = "test-task".to_string();
-    let mut mode = BatchMode::new(task_id.clone(), opts, None);
+    let mut mode = BatchMode::new(task_id.clone(), opts, None, None);
 
     mode.on_user_input(task.to_string(), &mut ctx);
 
@@ -603,7 +651,7 @@ pub async fn run_batch_mode_with_opts(task: &str, opts: BatchRunOpts) -> Result<
     let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
     let task_id = "test-task".to_string();
-    let mut mode = BatchMode::new(task_id.clone(), opts, None);
+    let mut mode = BatchMode::new(task_id.clone(), opts, None, None);
 
     mode.on_user_input(task.to_string(), &mut ctx);
 
@@ -656,7 +704,7 @@ pub async fn capture_batch_text(task: &str, max_turns: usize) -> Result<String> 
         ..Default::default()
     };
     let task_id = "test-task".to_string();
-    let mut mode = BatchMode::new(task_id.clone(), opts, None);
+    let mut mode = BatchMode::new(task_id.clone(), opts, None, None);
 
     mode.on_user_input(task.to_string(), &mut ctx);
 
@@ -844,7 +892,7 @@ mod tests {
             format: OutputFormat::Jsonl,
             ..Default::default()
         };
-        let mut mode = BatchMode::new("test-task".to_string(), opts, None);
+        let mut mode = BatchMode::new("test-task".to_string(), opts, None, None);
 
         mode.on_user_input("task".to_string(), &mut ctx);
         mode.on_model_update(
@@ -918,6 +966,7 @@ mod tests {
                 ..Default::default()
             },
             None,
+            None,
         );
         mode.current_turn = 1;
 
@@ -965,6 +1014,61 @@ mod tests {
             system_prompt.contains("<memory>\nbatch note\n</memory>"),
             "expected batch runtime client to include memory notes in system prompt"
         );
+    }
+
+    #[tokio::test]
+    async fn test_build_batch_runtime_injects_project_instructions_into_system_prompt() {
+        let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("AGENTS.md"), "# batch instructions\n").unwrap();
+
+        let config = Config {
+            model_token: None,
+            model_name: "mock-model".to_string(),
+            model_url: "http://localhost:8000/v1/messages".to_string(),
+            working_dir: temp.path().to_path_buf(),
+            model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
+            model_protocol: crate::runtime::ModelProtocol::MessagesV1,
+            tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            max_project_instructions_tokens: 4096,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
+        };
+
+        let (_runtime, ctx, _task_id) =
+            build_batch_runtime(&config, "hello".to_string(), BatchRunOpts::default()).unwrap();
+        let system_prompt = ctx.test_system_prompt().await;
+        assert!(system_prompt.contains("[project instructions: start]"));
+        assert!(system_prompt.contains("# batch instructions"));
+    }
+
+    #[test]
+    fn test_batch_mode_jsonl_output_includes_instructions_path() {
+        let opts = BatchRunOpts {
+            format: OutputFormat::Jsonl,
+            ..Default::default()
+        };
+        let mut mode = BatchMode::new(
+            "test-task".to_string(),
+            opts,
+            None,
+            Some("AGENTS.md".to_string()),
+        );
+
+        mode.status = TaskStatus::Running;
+        mode.turn_in_progress = true;
+        mode.current_response = "done".to_string();
+        mode.finish_turn();
+        mode.status = TaskStatus::Completed;
+        mode.append_summary();
+
+        let turn_json: serde_json::Value =
+            serde_json::from_str(mode.output_lines.first().expect("expected turn line")).unwrap();
+        assert_eq!(turn_json["instructions_path"], "AGENTS.md");
+
+        let summary_json: serde_json::Value =
+            serde_json::from_str(mode.output_lines.last().expect("expected summary line")).unwrap();
+        assert_eq!(summary_json["instructions_path"], "AGENTS.md");
     }
 
     fn setup_batch_ctx() -> RuntimeContext {

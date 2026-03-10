@@ -26,14 +26,16 @@ operator's responsibility.
 ## Using `vex migrate config`
 
 `vex migrate config` reads the legacy variables from the environment and
-writes a `.vex/config.toml` fragment to stdout. It is non-destructive.
+writes a `.vex/config.toml` fragment to stdout by default. `--output <path>`
+writes the fragment to a file instead. It is non-destructive unless an explicit
+output path is provided.
 
 ```sh
 # Preview
 vex migrate config
 
-# Write to file
-vex migrate config > .vex/config.toml
+# Write to file directly
+vex migrate config --output .vex/config.toml
 
 # Append to existing config
 vex migrate config >> .vex/config.toml
