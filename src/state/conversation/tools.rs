@@ -16,16 +16,16 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
-#[cfg(test)]
+#[cfg(all(test, not(windows)))]
 static HOOK_WARNINGS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
 fn emit_hook_warning(message: String) {
     eprintln!("{message}");
-    #[cfg(test)]
+    #[cfg(all(test, not(windows)))]
     HOOK_WARNINGS.lock().unwrap().push(message);
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(windows)))]
 pub(super) fn take_hook_warnings() -> Vec<String> {
     std::mem::take(&mut *HOOK_WARNINGS.lock().unwrap())
 }

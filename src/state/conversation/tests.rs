@@ -1,5 +1,6 @@
 use super::*;
 use crate::api::ApiClient;
+#[cfg(not(windows))]
 use crate::config::{HookConfig, HookEvent, HookOnFail};
 use crate::state::{StreamBlock, ToolStatus};
 use crate::tools::ToolOperator;
@@ -1960,6 +1961,7 @@ fn test_prune_message_history_clears_if_only_tool_result_user_messages_remain() 
     assert!(manager.api_messages.is_empty());
 }
 
+#[cfg(not(windows))]
 fn shell_hook(event: HookEvent, tool: &str, command: String, on_fail: HookOnFail) -> HookConfig {
     HookConfig {
         event,
