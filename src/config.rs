@@ -6,6 +6,36 @@ use std::path::{Path, PathBuf};
 use crate::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode};
 use crate::util::is_local_endpoint_url;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum HookEvent {
+    PreTool,
+    PostTool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum HookOnFail {
+    Warn,
+    Abort,
+    Ignore,
+}
+
+fn default_hook_on_fail() -> HookOnFail {
+    HookOnFail::Warn
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HookConfig {
+    pub event: HookEvent,
+    pub tool: String,
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default = "default_hook_on_fail")]
+    pub on_fail: HookOnFail,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub model_token: Option<String>,
@@ -24,6 +54,8 @@ pub struct Config {
     #[serde(skip)]
     pub model_headers: HeaderMap,
     pub notes_path: Option<PathBuf>,
+    #[serde(default)]
+    pub hooks: Vec<HookConfig>,
 }
 
 /// Intermediate per-layer config built from a TOML file.
@@ -40,6 +72,7 @@ struct ConfigLayer {
     max_project_instructions_tokens: Option<usize>,
     max_memory_tokens: Option<usize>,
     notes_path: Option<PathBuf>,
+    hooks: Option<Vec<HookConfig>>,
 }
 
 impl Config {
@@ -94,6 +127,17 @@ impl Config {
         {
             bail!(
                 "'notes_path' found in repo-local config '{}': notes path must be set in user config layer only",
+                repo_cfg.unwrap_or(Path::new("<unknown>")).display()
+            );
+        }
+
+        if repo_layer
+            .as_ref()
+            .map(|l| l.hooks.is_some())
+            .unwrap_or(false)
+        {
+            bail!(
+                "'[[hooks]]' found in repo-local config '{}': hooks must be set in user config layer only",
                 repo_cfg.unwrap_or(Path::new("<unknown>")).display()
             );
         }
@@ -163,6 +207,7 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
             .or(base.max_project_instructions_tokens),
         max_memory_tokens: over.max_memory_tokens.or(base.max_memory_tokens),
         notes_path: over.notes_path.or(base.notes_path),
+        hooks: over.hooks.or(base.hooks),
     }
 }
 
@@ -249,6 +294,7 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         max_project_instructions_tokens,
         max_memory_tokens,
         notes_path: None,
+        hooks: None,
     };
 
     Ok((layer, env_token))
@@ -378,6 +424,7 @@ fn resolve_config(
         max_memory_tokens,
         model_headers: parse_model_headers_json()?,
         notes_path: merged.notes_path.map(expand_home),
+        hooks: merged.hooks.unwrap_or_default(),
     })
 }
 

@@ -1,7 +1,10 @@
 # Task PL-01: Pre/Post-Tool-Call Hooks
 
-**Target Files:** `src/config.rs`, `src/runtime/command_runner.rs`,
-`src/tools/operator.rs`, `tests/integration_test.rs`
+**Target Files:** `src/config.rs`, `src/app.rs`, `src/runtime.rs`,
+`src/runtime/sandbox.rs`, `src/state/conversation/tools.rs`,
+`src/state/conversation/state.rs`, `src/state/conversation/core.rs`,
+`src/state/conversation/tests.rs`, `src/tools/operator.rs`,
+`src/api/client.rs`, `src/batch_mode.rs`, `tests/integration_test.rs`
 
 **ADR:** ADR-024 Gap 26
 
@@ -146,12 +149,25 @@ fn test_hook_repo_local_config_rejected_at_load() {
 - Commit: `<sha>`
 - Files changed:
   - `src/config.rs` (+`<n>` -`<n>`)
-  - `src/runtime/command_runner.rs` (+`<n>` -`<n>`)
+  - `src/app.rs` (+`<n>` -`<n>`)
+  - `src/runtime.rs` (+`<n>` -`<n>`)
+  - `src/runtime/sandbox.rs` (+`<n>` -`<n>`)
+  - `src/state/conversation/tools.rs` (+`<n>` -`<n>`)
+  - `src/state/conversation/state.rs` (+`<n>` -`<n>`)
+  - `src/state/conversation/core.rs` (+`<n>` -`<n>`)
+  - `src/state/conversation/tests.rs` (+`<n>` -`<n>`)
   - `src/tools/operator.rs` (+`<n>` -`<n>`)
+  - `src/api/client.rs` (+`<n>` -`<n>`)
+  - `src/batch_mode.rs` (+`<n>` -`<n>`)
   - `tests/integration_test.rs` (+`<n>` -`<n>`)
 - Validation:
   - `cargo test test_hook_repo_local_config_rejected_at_load --all-targets` : pass
   - `cargo test test_hook_post_apply_patch_runs_command --all-targets` : pass
+  - `cargo test test_hook_pre_tool_runs_before_dispatch --all-targets` : pass
+  - `cargo test test_hook_on_fail_abort_interrupts_turn --all-targets` : pass
+  - `cargo test test_hook_on_fail_warn_continues --all-targets` : pass
+  - `cargo test test_hook_requires_run_command_approval --all-targets` : pass
+  - `cargo test test_hook_skipped_without_approval_emits_warning --all-targets` : pass
   - `cargo test --all-targets` : pass
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass

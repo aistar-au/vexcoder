@@ -569,7 +569,12 @@ impl ConversationManager {
                     }
 
                     let result = self
-                        .execute_tool_with_timeout(&name, &input, tool_timeout)
+                        .execute_tool_with_timeout_with_updates(
+                            &name,
+                            &input,
+                            tool_timeout,
+                            stream_delta_tx,
+                        )
                         .await;
                     if use_structured_blocks {
                         let final_status = if result.is_err() {

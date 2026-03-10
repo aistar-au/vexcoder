@@ -9,6 +9,7 @@ pub mod r#loop;
 pub mod mode;
 pub mod policy;
 pub mod project_instructions;
+pub mod sandbox;
 pub mod task_state;
 pub mod text_util;
 pub mod update;
@@ -25,6 +26,7 @@ pub use command::{
 };
 pub use context_assembler::{AssembledContext, ContextAssembler, FileSnapshot};
 pub use edit_loop::{EditLoop, EditLoopOutcome};
+pub use sandbox::{PassthroughSandbox, SandboxDriver};
 pub use task_state::{
     CommandEvidence, ConversationCheckpoint, InterruptedCommand, TaskId, TaskState, TaskStatus,
 };

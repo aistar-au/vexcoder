@@ -1,5 +1,6 @@
 use super::super::stream_block::StreamBlock;
 use crate::api::ApiClient;
+use crate::config::HookConfig;
 use crate::tool_preview::ReadFileSnapshotCache;
 use crate::tools::ToolOperator;
 use crate::types::{ApiMessage, Content};
@@ -37,6 +38,7 @@ impl ToolApprovalRequest {
 pub struct ConversationManager {
     pub(super) client: Arc<ApiClient>,
     pub(super) tool_operator: ToolOperator,
+    pub(super) hooks: Vec<HookConfig>,
     pub(super) api_messages: Vec<ApiMessage>,
     pub(super) current_turn_blocks: Vec<StreamBlock>,
     pub(super) read_file_history_cache: ReadFileSnapshotCache,
@@ -46,9 +48,18 @@ pub struct ConversationManager {
 
 impl ConversationManager {
     pub fn new(client: ApiClient, operator: ToolOperator) -> Self {
+        Self::new_with_hooks(client, operator, Vec::new())
+    }
+
+    pub fn new_with_hooks(
+        client: ApiClient,
+        operator: ToolOperator,
+        hooks: Vec<HookConfig>,
+    ) -> Self {
         Self {
             client: Arc::new(client),
             tool_operator: operator,
+            hooks,
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
             read_file_history_cache: ReadFileSnapshotCache::default(),
@@ -62,6 +73,7 @@ impl ConversationManager {
         Self {
             client: Arc::new(client),
             tool_operator: ToolOperator::new(std::path::PathBuf::from("/tmp")), // Dummy operator
+            hooks: Vec::new(),
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
             read_file_history_cache: ReadFileSnapshotCache::default(),
