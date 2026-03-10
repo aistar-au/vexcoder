@@ -11,8 +11,10 @@ use crate::util::parse_bool_flag;
 use anyhow::{bail, Context, Result};
 #[cfg(test)]
 use std::collections::HashMap;
+#[cfg(all(test, not(windows)))]
+use std::sync::LazyLock;
 #[cfg(test)]
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
