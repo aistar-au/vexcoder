@@ -12,9 +12,23 @@ use anyhow::{bail, Context, Result};
 #[cfg(test)]
 use std::collections::HashMap;
 #[cfg(test)]
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
+
+#[cfg(test)]
+static HOOK_WARNINGS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+
+fn emit_hook_warning(message: String) {
+    eprintln!("{message}");
+    #[cfg(test)]
+    HOOK_WARNINGS.lock().unwrap().push(message);
+}
+
+#[cfg(test)]
+pub(super) fn take_hook_warnings() -> Vec<String> {
+    std::mem::take(&mut *HOOK_WARNINGS.lock().unwrap())
+}
 
 impl ConversationManager {
     pub(super) async fn request_tool_approval(
@@ -44,6 +58,8 @@ impl ConversationManager {
         response_rx.await.unwrap_or(false)
     }
 
+    // The streamless shim keeps direct unit tests on the hook path small while
+    // production call sites route through the update-aware variant below.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(super) async fn execute_tool_with_timeout(
         &self,
@@ -161,11 +177,11 @@ impl ConversationManager {
                 false
             };
             if !approved {
-                eprintln!(
+                emit_hook_warning(format!(
                     "[hooks] warning: skipping hook '{}' for tool '{}' due to missing RunCommand approval",
                     hook.command,
                     tool_name
-                );
+                ));
                 continue;
             }
 
@@ -182,7 +198,7 @@ impl ConversationManager {
                     );
                     match hook.on_fail {
                         HookOnFail::Abort => bail!(msg),
-                        HookOnFail::Warn => eprintln!("[hooks] warning: {msg}"),
+                        HookOnFail::Warn => emit_hook_warning(format!("[hooks] warning: {msg}")),
                         HookOnFail::Ignore => {}
                     }
                 }
@@ -190,7 +206,9 @@ impl ConversationManager {
                     let msg = format!("hook '{}' failed to execute", hook.command);
                     match hook.on_fail {
                         HookOnFail::Abort => return Err(error).context(msg),
-                        HookOnFail::Warn => eprintln!("[hooks] warning: {msg}: {error}"),
+                        HookOnFail::Warn => {
+                            emit_hook_warning(format!("[hooks] warning: {msg}: {error}"))
+                        }
                         HookOnFail::Ignore => {}
                     }
                 }
@@ -269,6 +287,23 @@ pub(super) fn execute_tool_dispatch(
                     Ok(format!("Pending patch for {path}.\n{}", pending.diff))
                 }
             }
+        }
+        "apply_patch" => {
+            let path =
+                required_tool_string_any(input, name, "path", &["path", "file_path", "file"])?;
+            let content = required_tool_string_any_preserve(
+                input,
+                name,
+                "content",
+                &["content", "text", "new_content"],
+            )?;
+            let old_content = tool_operator.read_file_if_exists(path)?.unwrap_or_default();
+            let pending = tool_operator.propose_patch(path, &old_content, content)?;
+            tool_operator.apply_patch(pending)?;
+            let (chars, lines) = text_stats(content);
+            Ok(format!(
+                "Applied patch to {path} ({chars} chars, {lines} lines)."
+            ))
         }
         "edit_file" => {
             let path = required_tool_string_any(
@@ -451,6 +486,13 @@ pub(super) fn missing_mutating_location_prompt(
         "write_file" => {
             if missing(&["path", "file_path", "file", "filename"]) {
                 Some("I need the target file path before creating a file. Please provide an explicit path like `src/calculator.rs`. No file changes were made.".to_string())
+            } else {
+                None
+            }
+        }
+        "apply_patch" => {
+            if missing(&["path", "file_path", "file", "filename"]) {
+                Some("I need the target file path before applying a patch. Please provide an explicit path like `src/calculator.rs`. No file changes were made.".to_string())
             } else {
                 None
             }
@@ -818,7 +860,7 @@ pub(super) fn is_mutating_tool_round(blocks: &[ContentBlock]) -> bool {
 pub(super) fn tool_requires_confirmation(name: &str) -> bool {
     matches!(
         name,
-        "write_file" | "edit_file" | "rename_file" | "git_add" | "git_commit"
+        "write_file" | "apply_patch" | "edit_file" | "rename_file" | "git_add" | "git_commit"
     )
 }
 

@@ -542,6 +542,18 @@ fn tool_definitions() -> serde_json::Value {
             }
         },
         {
+            "name": "apply_patch",
+            "description": "Apply the provided full-file content as a patch to an existing workspace path.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "content": { "type": "string" }
+                },
+                "required": ["path", "content"]
+            }
+        },
+        {
             "name": "edit_file",
             "description": "Edit existing file by replacing one exact, unique snippet (old_str -> new_str). Do not send entire-file replacements via this tool.",
             "input_schema": {
@@ -746,6 +758,7 @@ mod tests {
         let expected: BTreeSet<&str> = BTreeSet::from([
             "read_file",
             "write_file",
+            "apply_patch",
             "edit_file",
             "rename_file",
             "list_files",

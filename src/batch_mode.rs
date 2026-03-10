@@ -273,7 +273,7 @@ impl BatchMode {
 
     fn note_changed_files_from_tool_call(&mut self, name: &str, input: &serde_json::Value) {
         match name {
-            "write_file" | "edit_file" | "git_add" => {
+            "write_file" | "apply_patch" | "edit_file" | "git_add" => {
                 if let Some(path) =
                     first_string_field(input, &["path", "file_path", "file", "filename"])
                 {

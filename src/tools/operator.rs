@@ -120,6 +120,18 @@ impl ToolOperator {
         fs::read_to_string(resolved).context("Failed to read file")
     }
 
+    pub fn read_file_if_exists(&self, path: &str) -> Result<Option<String>> {
+        let resolved = self.resolve_path(path)?;
+        if resolved.is_dir() {
+            bail!("read_file expected a file path, got a directory: {path}");
+        }
+        match fs::read_to_string(resolved) {
+            Ok(content) => Ok(Some(content)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error).context("Failed to read file"),
+        }
+    }
+
     pub fn write_file(&self, path: &str, content: &str) -> Result<WriteFileOutcome> {
         let resolved = self.resolve_path(path)?;
         if resolved.is_dir() {
@@ -721,5 +733,15 @@ mod tests {
         assert!(!matches.is_empty());
         assert!(matches[0].line_text.contains("greet"));
         assert!(matches[0].file.starts_with(dir.path()));
+    }
+
+    #[test]
+    fn test_read_file_if_exists_returns_none_for_missing_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let op = ToolOperator::new(dir.path().to_path_buf());
+        let content = op
+            .read_file_if_exists("missing.rs")
+            .expect("missing file check should succeed");
+        assert!(content.is_none());
     }
 }
