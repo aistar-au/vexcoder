@@ -1,4 +1,5 @@
 use reqwest::header::HeaderMap;
+use vexcoder::batch_mode::{build_batch_runtime, AutoApproveScope, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
 use vexcoder::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode};
 
@@ -189,5 +190,67 @@ fn test_hook_repo_local_config_rejected_at_load() {
     assert!(
         msg.contains("[[hooks]]") || msg.contains("hooks"),
         "expected hooks diagnostic in error: {msg}"
+    );
+}
+
+// -- PE-01 / PE-02 public API contract -----------------------------------------
+//
+// The six async anchor tests that depend on MockApiClient live in
+// src/batch_mode.rs #[cfg(test)] (MockApiClient is not pub to integration tests).
+// These tests cover the integration-layer contract using only pub API.
+
+#[test]
+fn test_batch_run_opts_default_format_is_jsonl() {
+    let opts = BatchRunOpts::default();
+    assert!(
+        matches!(opts.format, OutputFormat::Jsonl),
+        "BatchRunOpts::default() must produce OutputFormat::Jsonl per ADR-024 PE-01"
+    );
+    assert!(
+        opts.max_turns.is_none(),
+        "default must impose no turn limit"
+    );
+    assert!(opts.auto_approve.is_none(), "default must not auto-approve");
+}
+
+#[test]
+fn test_batch_auto_approve_scope_once_and_task_are_distinct() {
+    assert_ne!(
+        format!("{:?}", AutoApproveScope::Once),
+        format!("{:?}", AutoApproveScope::Task),
+    );
+}
+
+#[test]
+fn test_batch_output_format_jsonl_and_text_are_distinct() {
+    assert_ne!(
+        format!("{:?}", OutputFormat::Jsonl),
+        format!("{:?}", OutputFormat::Text),
+    );
+}
+
+#[tokio::test]
+async fn test_build_batch_runtime_succeeds_with_local_config() {
+    let _lock = crate::test_support::ENV_LOCK.lock().await;
+    let temp = tempfile::tempdir().unwrap();
+    let config = vexcoder::config::Config {
+        model_token: None,
+        model_name: "local/test-model".to_string(),
+        model_url: "http://localhost:11434/v1/messages".to_string(),
+        working_dir: temp.path().to_path_buf(),
+        model_backend: vexcoder::runtime::ModelBackendKind::LocalRuntime,
+        model_protocol: vexcoder::runtime::ModelProtocol::MessagesV1,
+        tool_call_mode: vexcoder::runtime::ToolCallMode::TaggedFallback,
+        max_project_instructions_tokens: 4096,
+        max_memory_tokens: 2048,
+        model_headers: HeaderMap::new(),
+        notes_path: None,
+        hooks: Vec::new(),
+    };
+    let result = build_batch_runtime(&config, "test task".to_string(), BatchRunOpts::default());
+    assert!(
+        result.is_ok(),
+        "build_batch_runtime must succeed without a live server: {:?}",
+        result.err()
     );
 }

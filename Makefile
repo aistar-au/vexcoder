@@ -157,10 +157,12 @@ commit-debug-gate: gate-fast
 #   check-imports       scripts/check_forbidden_imports.sh — arch-contracts.yml
 # ------------------------------------------------------------------------------
 check-boundary:
-	@if grep -r -F "ratatui" src/runtime/ || grep -r -F "crossterm" src/runtime/; then \
+	@if grep -r -F "ratatui" src/runtime/ src/batch_mode.rs \
+	    || grep -r -F "crossterm" src/runtime/ src/batch_mode.rs; then \
 	  echo ""; \
-	  echo "FAIL check-boundary: terminal crates found in src/runtime/"; \
-	  echo "  See: ADR-006 (runtime mode contracts)"; \
+	  echo "FAIL check-boundary: terminal crates found in src/runtime/ or src/batch_mode.rs"; \
+	  echo "  src/runtime/  -- ADR-006 (runtime mode contracts)"; \
+	  echo "  src/batch_mode.rs -- ADR-024 PE-01 (BatchMode must not depend on TUI crates)"; \
 	  exit 1; \
 	fi
 	@echo "check-boundary: clean"
