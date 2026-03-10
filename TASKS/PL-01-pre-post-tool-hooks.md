@@ -141,25 +141,25 @@ fn test_hook_repo_local_config_rejected_at_load() {
 
 ---
 
-## Completion Verification (fill in when implementation lands)
+## Completion Verification
 
 ### [PL-01] - Pre/post-tool-call hooks
 
-- Dispatcher: `<branch-name>`
-- Commit: `<sha>`
+- Dispatcher: `dispatcher/vexcoder-adr-024-pl-01-hooks-full-surface`
+- Commit: `0e87859af38186f70fa2802c25d9dc83ac20550d`
 - Files changed:
-  - `src/config.rs` (+`<n>` -`<n>`)
-  - `src/app.rs` (+`<n>` -`<n>`)
-  - `src/runtime.rs` (+`<n>` -`<n>`)
-  - `src/runtime/sandbox.rs` (+`<n>` -`<n>`)
-  - `src/state/conversation/tools.rs` (+`<n>` -`<n>`)
-  - `src/state/conversation/state.rs` (+`<n>` -`<n>`)
-  - `src/state/conversation/core.rs` (+`<n>` -`<n>`)
-  - `src/state/conversation/tests.rs` (+`<n>` -`<n>`)
-  - `src/tools/operator.rs` (+`<n>` -`<n>`)
-  - `src/api/client.rs` (+`<n>` -`<n>`)
-  - `src/batch_mode.rs` (+`<n>` -`<n>`)
-  - `tests/integration_test.rs` (+`<n>` -`<n>`)
+  - `src/config.rs` (+47 -0)
+  - `src/app.rs` (+2 -1)
+  - `src/runtime.rs` (+2 -0)
+  - `src/runtime/sandbox.rs` (+33 -0)
+  - `src/state/conversation/tools.rs` (+161 -3)
+  - `src/state/conversation/state.rs` (+12 -0)
+  - `src/state/conversation/core.rs` (+6 -1)
+  - `src/state/conversation/tests.rs` (+319 -0)
+  - `src/tools/operator.rs` (+22 -0)
+  - `src/api/client.rs` (+16 -0)
+  - `src/batch_mode.rs` (+6 -3)
+  - `tests/integration_test.rs` (+23 -0)
 - Validation:
   - `cargo test test_hook_repo_local_config_rejected_at_load --all-targets` : pass
   - `cargo test test_hook_post_apply_patch_runs_command --all-targets` : pass
