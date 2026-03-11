@@ -5,7 +5,7 @@ use crate::runtime::mode::RuntimeMode;
 use crate::runtime::policy::sanitize_assistant_text;
 use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
 use crate::runtime::r#loop::Runtime;
-use crate::runtime::{TaskState, UiUpdate};
+use crate::runtime::{ApprovalScope, Capability, TaskState, UiUpdate};
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
 use crate::session_notes::{
@@ -117,6 +117,56 @@ pub struct TuiMode {
     current_task: crate::runtime::TaskState,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
+}
+
+/// All capabilities in stable kebab order (used for /permissions display and round-trip tests).
+pub const ALL_CAPABILITIES: &[Capability] = &[
+    Capability::ApplyPatch,
+    Capability::Browser,
+    Capability::Network,
+    Capability::ReadFile,
+    Capability::RunCommand,
+    Capability::WriteFile,
+];
+
+pub fn capability_to_kebab(cap: Capability) -> &'static str {
+    match cap {
+        Capability::ReadFile => "read-file",
+        Capability::WriteFile => "write-file",
+        Capability::ApplyPatch => "apply-patch",
+        Capability::RunCommand => "run-command",
+        Capability::Network => "network",
+        Capability::Browser => "browser",
+    }
+}
+
+pub fn kebab_to_capability(s: &str) -> Option<Capability> {
+    match s {
+        "read-file" => Some(Capability::ReadFile),
+        "write-file" => Some(Capability::WriteFile),
+        "apply-patch" => Some(Capability::ApplyPatch),
+        "run-command" => Some(Capability::RunCommand),
+        "network" => Some(Capability::Network),
+        "browser" => Some(Capability::Browser),
+        _ => None,
+    }
+}
+
+fn scope_to_label(scope: ApprovalScope) -> &'static str {
+    match scope {
+        ApprovalScope::Once => "once",
+        ApprovalScope::Task => "task",
+        ApprovalScope::Session => "session",
+    }
+}
+
+fn kebab_to_scope(s: &str) -> Option<ApprovalScope> {
+    match s {
+        "once" => Some(ApprovalScope::Once),
+        "task" => Some(ApprovalScope::Task),
+        "session" => Some(ApprovalScope::Session),
+        _ => None,
+    }
 }
 
 impl TuiMode {
@@ -550,7 +600,101 @@ impl TuiMode {
             self.handle_fork_command(label, ctx);
             return true;
         }
+        if trimmed == "/permissions" {
+            self.handle_permissions_command();
+            return true;
+        }
+        if let Some(rest) = trimmed.strip_prefix("/allow") {
+            self.handle_allow_command(rest.trim());
+            return true;
+        }
+        if let Some(rest) = trimmed.strip_prefix("/deny") {
+            self.handle_deny_command(rest.trim());
+            return true;
+        }
         false
+    }
+
+    fn handle_permissions_command(&mut self) {
+        let grants = &self.current_task.active_grants;
+        if grants.is_empty() {
+            self.push_history_line("[permissions] no active grants".to_string());
+            return;
+        }
+        // Sort by kebab name for stable output.
+        let mut rows: Vec<(String, &'static str)> = grants
+            .iter()
+            .map(|(cap, scope)| {
+                (
+                    capability_to_kebab(*cap).to_string(),
+                    scope_to_label(*scope),
+                )
+            })
+            .collect();
+        rows.sort_by(|a, b| a.0.cmp(&b.0));
+        self.push_history_line("[permissions] active grants:".to_string());
+        for (cap_name, scope_name) in rows {
+            self.push_history_line(format!("  {cap_name}  {scope_name}"));
+        }
+    }
+
+    fn handle_allow_command(&mut self, rest: &str) {
+        if rest.is_empty() {
+            self.push_history_line(
+                "[allow] usage: /allow <capability> [once|task|session]".to_string(),
+            );
+            return;
+        }
+        let mut parts = rest.splitn(2, ' ');
+        let cap_str = parts.next().unwrap_or("").trim();
+        let scope_str = parts.next().unwrap_or("").trim();
+
+        let Some(cap) = kebab_to_capability(cap_str) else {
+            self.push_history_line(format!(
+                "[allow] unknown capability '{cap_str}'; valid: apply-patch browser network read-file run-command write-file"
+            ));
+            return;
+        };
+
+        let scope = if scope_str.is_empty() {
+            ApprovalScope::Once
+        } else {
+            match kebab_to_scope(scope_str) {
+                Some(s) => s,
+                None => {
+                    self.push_history_line(format!(
+                        "[allow] unknown scope '{scope_str}'; valid: once task session"
+                    ));
+                    return;
+                }
+            }
+        };
+
+        let scope_label = scope_to_label(scope);
+        self.current_task.active_grants.insert(cap, scope);
+        self.push_history_line(format!(
+            "[allow] granted {cap_str} ({scope_label})"
+        ));
+    }
+
+    fn handle_deny_command(&mut self, rest: &str) {
+        if rest.is_empty() {
+            self.push_history_line("[deny] usage: /deny <capability>".to_string());
+            return;
+        }
+        let cap_str = rest.trim();
+        let Some(cap) = kebab_to_capability(cap_str) else {
+            self.push_history_line(format!(
+                "[deny] unknown capability '{cap_str}'; valid: apply-patch browser network read-file run-command write-file"
+            ));
+            return;
+        };
+
+        if self.current_task.active_grants.remove(&cap).is_some() {
+            self.push_history_line(format!("[deny] revoked {cap_str}"));
+        } else {
+            self.push_history_line(format!("[deny] {cap_str} has no active grant"));
+        }
     }
 
     fn handle_new_command(&mut self, ctx: &mut RuntimeContext) {
@@ -1198,6 +1342,22 @@ pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext
         mode.push_history_line(warning);
     }
     let runtime = Runtime::new(mode, update_rx);
+    Ok((runtime, ctx))
+}
+
+/// Build a runtime and immediately apply a pre-loaded resume state.
+/// Called from `src/bin/vex.rs` when `--resume` is passed at startup.
+pub fn build_runtime_with_resume(
+    config: Config,
+    resume_state: TaskState,
+) -> Result<(Runtime<TuiMode>, RuntimeContext)> {
+    let (mut runtime, ctx) = build_runtime(config)?;
+    let restored_id = resume_state.id.clone();
+    let status = format!("{:?}", resume_state.status);
+    runtime.mode.current_task = resume_state;
+    runtime
+        .mode
+        .push_history_line(format!("[resumed: {restored_id} status={status}]"));
     Ok((runtime, ctx))
 }
 
@@ -2020,15 +2180,15 @@ mod tests {
     #[test]
     fn test_input_editor_unicode_cursor_backspace_delete_safe() {
         let mut editor = InputEditor::new();
-        editor.insert_str("a😀b");
+        editor.insert_str("a\u{1F600}b");
         editor.input_state.cursor = editor.input_state.buffer.len();
         editor.backspace();
-        assert_eq!(editor.input_state.buffer, "a😀");
+        assert_eq!(editor.input_state.buffer, "a\u{1F600}");
         editor.backspace();
         assert_eq!(editor.input_state.buffer, "a");
 
-        editor.insert_str("😀b");
-        editor.input_state.cursor = 2; // intentionally non-boundary (inside 😀 codepoint)
+        editor.insert_str("\u{1F600}b");
+        editor.input_state.cursor = 2; // intentionally non-boundary (inside emoji codepoint)
         editor.delete();
         assert_eq!(editor.input_state.buffer, "ab");
     }
@@ -2838,5 +2998,201 @@ mod tests {
             .iter()
             .any(|l| l.contains("commit"));
         assert!(has_commit, "/about must render commit metadata");
+    }
+
+    // -- PI-01 / PI-02 / PI-03 -------------------------------------------------
+
+    #[test]
+    fn test_permissions_empty_grants() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/permissions".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[permissions] no active grants")),
+            "expected no-grants message"
+        );
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_permissions_lists_active_grants() {
+        let mut mode = TuiMode::new();
+        mode.current_task.active_grants.insert(Capability::RunCommand, ApprovalScope::Session);
+        mode.current_task.active_grants.insert(Capability::Network, ApprovalScope::Once);
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/permissions".to_string(), &mut ctx);
+        let lines = mode.history_lines().to_vec();
+        let has_header = lines.iter().any(|l| l.contains("[permissions] active grants:"));
+        let has_run_command = lines.iter().any(|l| l.contains("run-command") && l.contains("session"));
+        let has_network = lines.iter().any(|l| l.contains("network") && l.contains("once"));
+        assert!(has_header, "expected active grants header");
+        assert!(has_run_command, "expected run-command session entry");
+        assert!(has_network, "expected network once entry");
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_allow_inserts_grant() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/allow run-command session".to_string(), &mut ctx);
+        assert_eq!(
+            mode.current_task.active_grants.get(&Capability::RunCommand),
+            Some(&ApprovalScope::Session),
+            "allow must insert the grant with session scope"
+        );
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[allow] granted run-command (session)")),
+            "expected grant confirmation"
+        );
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_allow_defaults_to_once_scope() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/allow write-file".to_string(), &mut ctx);
+        assert_eq!(
+            mode.current_task.active_grants.get(&Capability::WriteFile),
+            Some(&ApprovalScope::Once),
+            "allow without scope must default to once"
+        );
+    }
+
+    #[test]
+    fn test_allow_unknown_capability_emits_error() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/allow bogus-cap".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[allow] unknown capability 'bogus-cap'")),
+            "expected unknown-capability error"
+        );
+        assert!(mode.current_task.active_grants.is_empty());
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_allow_unknown_scope_emits_error() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/allow network forever".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[allow] unknown scope 'forever'")),
+            "expected unknown-scope error"
+        );
+        assert!(mode.current_task.active_grants.is_empty());
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_deny_removes_grant() {
+        let mut mode = TuiMode::new();
+        mode.current_task.active_grants.insert(Capability::ApplyPatch, ApprovalScope::Task);
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/deny apply-patch".to_string(), &mut ctx);
+        assert!(
+            !mode.current_task.active_grants.contains_key(&Capability::ApplyPatch),
+            "deny must remove the grant"
+        );
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[deny] revoked apply-patch")),
+            "expected revoke confirmation"
+        );
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_deny_no_grant_emits_info() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/deny browser".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[deny] browser has no active grant")),
+            "expected no-active-grant info message"
+        );
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_deny_unknown_capability_emits_error() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/deny not-a-thing".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[deny] unknown capability 'not-a-thing'")),
+            "expected unknown-capability error"
+        );
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_capability_kebab_round_trip() {
+        for &cap in ALL_CAPABILITIES {
+            let kebab = capability_to_kebab(cap);
+            let round_tripped = kebab_to_capability(kebab);
+            assert_eq!(
+                round_tripped,
+                Some(cap),
+                "capability {kebab} failed round-trip through kebab_to_capability"
+            );
+        }
+    }
+
+    // -- PM-01 (app side): build_runtime_with_resume ---------------------------
+
+    #[test]
+    fn test_build_runtime_with_resume_restores_task() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut state = TaskState::new("task-startup-resume".to_string());
+        state.active_grants.insert(Capability::Network, ApprovalScope::Session);
+        state.status = crate::runtime::TaskStatus::Running;
+
+        let config = Config {
+            model_token: None,
+            model_name: "mock-model".to_string(),
+            model_url: "http://localhost:8000/v1/messages".to_string(),
+            working_dir: temp.path().to_path_buf(),
+            model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
+            model_protocol: crate::runtime::ModelProtocol::MessagesV1,
+            tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
+            hooks: Vec::new(),
+        };
+
+        let (runtime, _ctx) =
+            build_runtime_with_resume(config, state).expect("build_runtime_with_resume should succeed");
+
+        assert_eq!(runtime.mode.current_task.id, "task-startup-resume");
+        assert_eq!(
+            runtime.mode.current_task.active_grants.get(&Capability::Network),
+            Some(&ApprovalScope::Session)
+        );
+        assert!(
+            runtime
+                .mode
+                .history_lines()
+                .iter()
+                .any(|l| l.contains("[resumed: task-startup-resume status=Running]")),
+            "expected resume banner in history"
+        );
     }
 }
