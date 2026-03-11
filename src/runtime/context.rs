@@ -107,6 +107,23 @@ impl RuntimeContext {
         self.cancel.cancel();
         self.cancel = CancellationToken::new();
     }
+
+    pub fn clear_conversation(&self) {
+        if let Ok(mut conversation) = self.conversation.try_lock() {
+            conversation.clear_messages();
+            return;
+        }
+
+        if tokio::runtime::Handle::try_current().is_ok() {
+            let conversation = Arc::clone(&self.conversation);
+            tokio::spawn(async move {
+                conversation.lock().await.clear_messages();
+            });
+            return;
+        }
+
+        self.conversation.blocking_lock().clear_messages();
+    }
 }
 
 fn forward_conversation_update(

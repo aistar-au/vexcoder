@@ -1,5 +1,5 @@
 use super::*;
-use crate::api::ApiClient;
+use crate::api::{mock_client::MockApiClient, ApiClient};
 #[cfg(not(windows))]
 use crate::config::{HookConfig, HookEvent, HookOnFail};
 use crate::state::{StreamBlock, ToolStatus};
@@ -2275,4 +2275,38 @@ async fn test_hook_skipped_without_approval_emits_warning() -> Result<()> {
         "expected missing-approval warning, got: {warnings:?}"
     );
     Ok(())
+}
+
+#[test]
+fn test_clear_messages_resets_cached_conversation_state() {
+    let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+    let mut manager = ConversationManager::new_mock(client, HashMap::new());
+
+    manager.push_user_message("hello".to_string());
+    manager.current_turn_blocks.push(StreamBlock::FinalText {
+        content: "assistant".to_string(),
+    });
+    assert!(matches!(
+        manager
+            .read_file_history_cache
+            .summarize("src/app.rs", "v1"),
+        crate::tool_preview::ReadFileSnapshotSummary::FirstRead { .. }
+    ));
+    assert!(matches!(
+        manager
+            .read_file_history_cache
+            .summarize("src/app.rs", "v2"),
+        crate::tool_preview::ReadFileSnapshotSummary::Changed { .. }
+    ));
+
+    manager.clear_messages();
+
+    assert!(manager.messages_for_api().is_empty());
+    assert!(manager.current_turn_blocks.is_empty());
+    assert!(matches!(
+        manager
+            .read_file_history_cache
+            .summarize("src/app.rs", "v2"),
+        crate::tool_preview::ReadFileSnapshotSummary::FirstRead { .. }
+    ));
 }

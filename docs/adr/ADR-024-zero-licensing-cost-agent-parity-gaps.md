@@ -1450,8 +1450,8 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | :--- | :--- | :--- |
 | **PA-01** | Layered config resolution chain | [x] |
 | **PA-02** | Project instructions injection | [x] |
-| **PA-03** | `vex migrate config` sub-command | [ ] |
-| **PA-04** | `docs/src/migration.md` complete and accurate | [ ] |
+| **PA-03** | `vex migrate config` sub-command | [x] |
+| **PA-04** | `docs/src/migration.md` complete and accurate | [x] |
 | **PB-01** | `vex completions <shell>` | [ ] |
 | **PB-02** | `vex install-hooks` / `vex uninstall-hooks` | [ ] |
 | **PB-03** | `vex skills list\|install\|remove` + `registry.toml` | [ ] |
@@ -1472,16 +1472,16 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-01** | `/permissions` — renders active_grants table; no model turn | [ ] |
 | **PI-02** | `/allow <cap> [once\|session]` — grants capability; enum-derived names; no persist | [ ] |
 | **PI-03** | `/deny <cap>` — removes capability from active_grants | [ ] |
-| **PI-04** | `/new` — saves current TaskState, resets session, new TaskId | [ ] |
-| **PI-05** | `/resume [<task-id>]` — loads TaskState; grants restored; conversation not restored | [ ] |
+| **PI-04** | `/new` — saves current TaskState, resets session, new TaskId | [x] |
+| **PI-05** | `/resume [<task-id>]` — loads TaskState; grants restored; conversation not restored | [x] |
 | **PI-06** | `/mcp list` — renders loaded servers and tool counts from McpRegistry | [ ] |
 | **PI-07** | `/mcp show <server>` — renders full-namespace tool names for named server | [ ] |
 | **PI-08** | `/plan` and `/context` — see ADR-023 EL-11/EL-12 (tracked there; listed here for cross-ref) | [ ] |
-| **PJ-01** | `/clear` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [ ] |
-| **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [ ] |
+| **PJ-01** | `/clear` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [x] |
+| **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
 | **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [x] |
 | **PJ-04** | `vex init` — scaffolds `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [ ] |
-| **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [x] (save wiring deferred to PI-04) |
+| **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [x] (save wiring landed in the PI-04 batch) |
 | **PK-02** | `/about` — build metadata display; `build.rs` compile-time injection | [x] |
 | **PK-03** | `@<path>` inline injection — workspace-confined; truncation annotation; multi-token | [ ] |
 | **PK-04** | `!<command>` passthrough — SandboxDriver + ApprovalPolicy; no model turn | [ ] |
@@ -1721,6 +1721,65 @@ The amendment that authorises native packaging and editor-surface work is record
 - Notes:
   - Trait and default driver scaffolded during PL-01 hooks work.
   - PD-02 (`MacosSandboxExec`) and PD-03 (`DockerSandbox`) remain deferred.
+
+### [PA-03 / PA-04] - vex migrate config + migration doc
+- Dispatcher: reconciliation on `dispatcher/vexcoder-adr-024-pi-04-pi-05-pj-01-pj-02-session-lifecycle`; implementation landed earlier
+- Commit: `c14d695160e58209365e2728ff16ac14d0f9acce`
+- Files changed:
+  - `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — PA-03, PA-04 rows flipped to [x] on this branch
+- Prior implementation files at `c14d695160e58209365e2728ff16ac14d0f9acce`:
+  - `src/bin/vex.rs` — `vex migrate config` sub-command
+  - `docs/src/migration.md` — variable rename table, command alias reference, and usage guide
+- Validation:
+  - `cargo test test_migrate_config_maps_anthropic --all-targets` : pass
+  - `cargo test test_migrate_config_maps_structured_tool_protocol_on --all-targets` : pass
+  - `cargo test test_migrate_config_header_comment_present --all-targets` : pass
+  - `cargo test test_migrate_config_cli_parses_output_flag --all-targets` : pass
+  - `cargo test test_emit_migrate_config_output_writes_requested_file --all-targets` : pass
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - Implementation was delivered as part of an earlier batch but not reconciled in the ADR checklist.
+  - Maps only vexcoder's own pre-ADR-022 variable names; no third-party SDK mappings.
+  - docs/src/migration.md is the canonical source of truth; vex migrate config output matches it exactly.
+  - Phase A now complete; EL-08 (ModelProfile config integration, ADR-023) is unblocked.
+
+### [PI-04 / PI-05 / PJ-01 / PJ-02] - /new, /resume, /clear, /fork
+- Dispatcher: `dispatcher/vexcoder-adr-024-pi-04-pi-05-pj-01-pj-02-session-lifecycle`
+- Commit: `03b84ced0cc7f5952f8091c996d56cc2efae1d48`
+- Files changed:
+  - `src/app.rs` (+N -0): `current_task`-backed session lifecycle; monotonic `new_task_id()` helper; transcript reset helper; no-argument `/resume` selection flow; `/fork` label sanitization; task-layout now reads live `current_task` state
+  - `src/runtime/context.rs` (+N -0): synchronous `clear_conversation()` helper that works in both sync tests and a live Tokio runtime
+  - `src/state/conversation/state.rs` (+N -0): `clear_messages()` now resets `api_messages`, `current_turn_blocks`, and `read_file_history_cache`
+  - `src/app.rs` (+N -0): 13 ADR anchor tests for PI-04/PI-05/PJ-01/PJ-02
+  - `src/state/conversation/tests.rs` (+N -0): cache-reset coverage for `clear_messages()`
+- Validation:
+  - `cargo test test_tui_new_saves_current_state_before_reset --all-targets` : pass
+  - `cargo test test_tui_new_creates_fresh_task_id --all-targets` : pass
+  - `cargo test test_tui_new_clears_active_edit_loop --all-targets` : pass
+  - `cargo test test_tui_resume_restores_active_grants --all-targets` : pass
+  - `cargo test test_tui_resume_does_not_restore_conversation --all-targets` : pass
+  - `cargo test test_tui_resume_unknown_id_emits_error --all-targets` : pass
+  - `cargo test test_tui_clear_resets_conversation_history --all-targets` : pass
+  - `cargo test test_tui_clear_preserves_task_id_and_grants --all-targets` : pass
+  - `cargo test test_tui_clear_clears_active_edit_loop --all-targets` : pass
+  - `cargo test test_tui_fork_saves_parent_before_branching --all-targets` : pass
+  - `cargo test test_tui_fork_creates_new_task_id --all-targets` : pass
+  - `cargo test test_tui_fork_does_not_copy_conversation --all-targets` : pass
+  - `cargo test test_tui_fork_aborts_on_save_failure --all-targets` : pass
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - `/new`, `/resume`, `/clear`, and `/fork` all reset the live conversation window in both the TUI transcript and `RuntimeContext`.
+  - `/resume` without an explicit task id now lists the five most recent state files and routes numeric selection through the existing overlay input path.
+  - `new_task_id()` uses a monotonic UTC-millisecond generator so rapid `/new` or `/fork` sequences cannot collide on the same state filename.
+  - `/fork` sanitizes the optional label before embedding it into the task id, preventing path separator leakage into `VEX_STATE_DIR`.
+  - `TaskState::save`/`load`/`state_dir`/`new` signatures confirmed from source before wiring the command surface.
+  - `Capability` enum confirmed: no `McpTool` variant yet; PI-06/PI-07 remain gated on PF-01.
 
 ### [PK-01 / PK-02] - /quit, /exit, /about
 - Dispatcher: `dispatcher/vexcoder-adr-024-pk-01-pk-02-quit-about`
