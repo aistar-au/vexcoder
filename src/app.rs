@@ -119,8 +119,6 @@ pub struct TuiMode {
     model_name: String,
     /// Locked at session start; `/model` rejects changes that require a different backend.
     model_backend: crate::runtime::ModelBackendKind,
-    /// Locked at session start; `/model` rejects changes that require a different protocol.
-    model_protocol: crate::runtime::ModelProtocol,
     /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
     #[cfg(test)]
@@ -202,7 +200,6 @@ impl TuiMode {
             current_task: crate::runtime::TaskState::new(new_task_id()),
             model_name: config.model_name.clone(),
             model_backend: config.model_backend,
-            model_protocol: config.model_protocol,
             working_dir: config.working_dir.clone(),
             #[cfg(test)]
             last_turn_input: None,
@@ -633,7 +630,7 @@ impl TuiMode {
             return true;
         }
         if let Some(name) = trimmed.strip_prefix("/model ") {
-            self.handle_model_command(name.trim());
+            self.handle_model_command(name.trim(), ctx);
             return true;
         }
         if trimmed == "/diff" || trimmed.starts_with("/diff ") {
@@ -645,7 +642,7 @@ impl TuiMode {
     }
 
     /// PC-01: `/model <name>` — name-only switch within the same backend/protocol.
-    fn handle_model_command(&mut self, name: &str) {
+    fn handle_model_command(&mut self, name: &str, ctx: &RuntimeContext) {
         if name.is_empty() {
             self.push_history_line(format!("[model] {}", self.model_name));
             return;
@@ -654,8 +651,7 @@ impl TuiMode {
         // names are assumed compatible with the current backend.  Reject a
         // `local/` name when the session backend is ApiServer and vice-versa.
         let target_is_local = name.starts_with("local/");
-        let current_is_local =
-            self.model_backend == crate::runtime::ModelBackendKind::LocalRuntime;
+        let current_is_local = self.model_backend == crate::runtime::ModelBackendKind::LocalRuntime;
 
         if target_is_local && !current_is_local {
             self.push_history_line(format!(
@@ -665,10 +661,10 @@ impl TuiMode {
             ));
             return;
         }
-        if !target_is_local && current_is_local && self.model_name.starts_with("local/") {
-            // Switching from a local/ model to a non-local/ name on a
-            // local-runtime backend is allowed — the user may be pointing at
-            // an Ollama model that doesn't use the local/ prefix.
+
+        if let Err(error) = ctx.set_model_name(name.to_string()) {
+            self.push_history_line(format!("[model] error: {error}"));
+            return;
         }
 
         let old = std::mem::replace(&mut self.model_name, name.to_string());
@@ -678,7 +674,14 @@ impl TuiMode {
     /// PK-07: `/diff [--staged]` — show git diff output, truncated at 200 lines.
     fn handle_diff_command(&mut self, args: &str) {
         const MAX_DIFF_LINES: usize = 200;
-        let staged = args.contains("--staged") || args.contains("--cached");
+        let staged = match args.split_whitespace().collect::<Vec<_>>().as_slice() {
+            [] => false,
+            ["--staged"] | ["--cached"] => true,
+            _ => {
+                self.push_history_line("[diff] usage: /diff [--staged]".to_string());
+                return;
+            }
+        };
         let mut cmd = std::process::Command::new("git");
         cmd.arg("diff");
         if staged {
@@ -688,6 +691,16 @@ impl TuiMode {
 
         match cmd.output() {
             Ok(output) => {
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    let message = stderr
+                        .lines()
+                        .map(str::trim)
+                        .find(|line| !line.is_empty())
+                        .unwrap_or("git diff failed");
+                    self.push_history_line(format!("[diff] error: {message}"));
+                    return;
+                }
                 let text = String::from_utf8_lossy(&output.stdout);
                 if text.trim().is_empty() {
                     self.push_history_line("[diff] no changes".to_string());
@@ -3349,6 +3362,7 @@ mod tests {
         let old = mode.model_name.clone();
         mode.on_user_input("/model qwen3-8b".to_string(), &mut ctx);
         assert_eq!(mode.model_name, "qwen3-8b");
+        assert_eq!(ctx.test_model_name().await, "qwen3-8b");
         assert!(mode
             .history_lines()
             .iter()
@@ -3368,10 +3382,7 @@ mod tests {
             mode.model_name, "local/phi-3",
             "must reject local/ model on api-server backend"
         );
-        assert!(mode
-            .history_lines()
-            .iter()
-            .any(|l| l.contains("rejected")));
+        assert!(mode.history_lines().iter().any(|l| l.contains("rejected")));
     }
 
     // -- PK-07: /diff ---------------------------------------------------------
@@ -3431,5 +3442,20 @@ mod tests {
             .history_lines()
             .iter()
             .any(|l| l.contains("no changes")));
+    }
+
+    #[tokio::test]
+    async fn test_diff_reports_git_errors() {
+        let mut ctx = setup_ctx();
+        let temp = tempfile::tempdir().unwrap();
+
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        mode.on_user_input("/diff".to_string(), &mut ctx);
+
+        assert!(mode
+            .history_lines()
+            .iter()
+            .any(|l| l.starts_with("[diff] error:")));
     }
 }
