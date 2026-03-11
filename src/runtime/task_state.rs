@@ -106,15 +106,22 @@ impl TaskState {
     }
 
     pub fn state_dir() -> PathBuf {
-        std::env::var("VEX_STATE_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from(".vex/state"))
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        Self::state_dir_from(&working_dir)
+    }
+
+    pub fn state_dir_from(working_dir: &Path) -> PathBuf {
+        match std::env::var("VEX_STATE_DIR") {
+            Ok(path) => crate::workspace::resolve_relative_to_workspace(working_dir, path.into()),
+            Err(_) => crate::workspace::workspace_root(working_dir).join(".vex/state"),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::ENV_LOCK;
     use tempfile::TempDir;
 
     #[test]
@@ -174,5 +181,47 @@ mod tests {
         assert_ne!(TaskStatus::MaxTurnsReached, TaskStatus::Completed);
         assert_ne!(TaskStatus::MaxTurnsReached, TaskStatus::Cancelled);
         assert_ne!(TaskStatus::MaxTurnsReached, TaskStatus::Failed);
+    }
+
+    #[test]
+    fn test_state_dir_defaults_to_repo_root_for_subdirs() {
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let nested = temp.path().join("src/nested");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        assert_eq!(
+            TaskState::state_dir_from(&nested),
+            temp.path().join(".vex/state")
+        );
+    }
+
+    #[test]
+    fn test_state_dir_relative_env_is_anchored_to_repo_root() {
+        let _env_lock = ENV_LOCK.blocking_lock();
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let nested = temp.path().join("src/nested");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::env::set_var("VEX_STATE_DIR", "custom/state");
+
+        assert_eq!(
+            TaskState::state_dir_from(&nested),
+            temp.path().join("custom/state")
+        );
+
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_state_dir_absolute_env_is_preserved() {
+        let _env_lock = ENV_LOCK.blocking_lock();
+        let temp = TempDir::new().unwrap();
+        let absolute = temp.path().join("absolute-state");
+        std::env::set_var("VEX_STATE_DIR", absolute.as_os_str());
+
+        assert_eq!(TaskState::state_dir_from(temp.path()), absolute);
+
+        std::env::remove_var("VEX_STATE_DIR");
     }
 }
