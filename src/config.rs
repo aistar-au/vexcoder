@@ -161,6 +161,28 @@ impl Config {
         resolve_config(merged, env_token, cwd)
     }
 
+    /// Sensible defaults for interactive TUI startup — used when no config
+    /// file or environment variables are present.  Avoids the full five-layer
+    /// resolution chain so callers that already hold a `Config` (e.g. tests)
+    /// can build a `TuiMode` without side-effects.
+    pub fn default_for_tui() -> Self {
+        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        Self {
+            model_token: None,
+            model_name: "local/default".to_string(),
+            model_url: "http://localhost:11434/v1".to_string(),
+            working_dir: cwd,
+            model_backend: ModelBackendKind::LocalRuntime,
+            model_protocol: ModelProtocol::ChatCompat,
+            tool_call_mode: ToolCallMode::TaggedFallback,
+            max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
+            model_headers: HeaderMap::new(),
+            notes_path: None,
+            hooks: Vec::new(),
+        }
+    }
+
     pub fn validate(&self) -> Result<()> {
         if !self.model_url.starts_with("http://") && !self.model_url.starts_with("https://") {
             bail!(
@@ -871,6 +893,15 @@ mod tests {
         assert_eq!(cfg.max_memory_tokens, 2048);
         std::env::remove_var("VEX_MODEL_URL");
         std::env::remove_var("VEX_MODEL_NAME");
+    }
+
+    #[test]
+    fn test_default_for_tui_returns_local_defaults() {
+        let cfg = Config::default_for_tui();
+        assert_eq!(cfg.model_name, "local/default");
+        assert_eq!(cfg.model_backend, ModelBackendKind::LocalRuntime);
+        assert!(cfg.model_token.is_none());
+        assert!(cfg.hooks.is_empty());
     }
 
     #[test]

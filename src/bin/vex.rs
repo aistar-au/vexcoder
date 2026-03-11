@@ -76,6 +76,9 @@ enum Commands {
         #[command(subcommand)]
         sub: SkillsCommands,
     },
+    /// Scaffold a new vex workspace (`.vex/config.toml`, `AGENTS.md`,
+    /// `.vex/validate.toml`).  Non-destructive: skips files that already exist.
+    Init,
     /// Configuration migration utilities.
     Migrate {
         #[command(subcommand)]
@@ -567,6 +570,52 @@ async fn run_print(
     Ok(exit_code_for_status(result.status))
 }
 
+// ── PJ-04: vex init ────────────────────────────────────────────────────────────
+
+/// Non-destructive workspace scaffolding.  Creates `.vex/config.toml`,
+/// `AGENTS.md`, and `.vex/validate.toml` if they do not already exist.
+fn run_init(cwd: &Path) -> Result<()> {
+    let vex_dir = cwd.join(".vex");
+    std::fs::create_dir_all(&vex_dir)?;
+
+    let files: &[(&str, &str)] = &[
+        (
+            ".vex/config.toml",
+            "# vex workspace config — see docs/adr/ for schema reference\n\
+             # model_name = \"local/default\"\n\
+             # model_url  = \"http://localhost:11434/v1\"\n",
+        ),
+        (
+            "AGENTS.md",
+            "# Project Agents\n\n\
+             <!-- List project-level agent instructions here. -->\n",
+        ),
+        (
+            ".vex/validate.toml",
+            "# validation rules applied by `vex validate`\n\
+             # [[rules]]\n\
+             # name = \"example\"\n\
+             # command = \"cargo test\"\n",
+        ),
+    ];
+
+    for (rel_path, content) in files {
+        let full = cwd.join(rel_path);
+        if full.exists() {
+            eprintln!("[init] skip (exists): {rel_path}");
+        } else {
+            if let Some(parent) = full.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(&full, content)?;
+            eprintln!("[init] created: {rel_path}");
+        }
+    }
+
+    eprintln!("[init] done");
+    Ok(())
+}
+
 // ── main ───────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -617,6 +666,11 @@ async fn main() -> Result<ExitCode> {
                     registry.remove(&name)?;
                 }
             }
+            return Ok(ExitCode::SUCCESS);
+        }
+        Some(Commands::Init) => {
+            let cwd = std::env::current_dir()?;
+            run_init(&cwd)?;
             return Ok(ExitCode::SUCCESS);
         }
         Some(Commands::Migrate { sub }) => match sub {
@@ -1026,5 +1080,38 @@ mod tests {
             }
             _ => panic!("expected skills remove"),
         }
+    }
+
+    // -- PJ-04: vex init ------------------------------------------------------
+
+    #[test]
+    fn test_init_cli_parses() {
+        let cli = Cli::parse_from(["vex", "init"]);
+        assert!(matches!(cli.command, Some(Commands::Init)));
+    }
+
+    #[test]
+    fn test_init_creates_scaffold_files() {
+        let temp = tempfile::tempdir().unwrap();
+        super::run_init(temp.path()).unwrap();
+        assert!(temp.path().join(".vex/config.toml").exists());
+        assert!(temp.path().join("AGENTS.md").exists());
+        assert!(temp.path().join(".vex/validate.toml").exists());
+    }
+
+    #[test]
+    fn test_init_does_not_overwrite_existing() {
+        let temp = tempfile::tempdir().unwrap();
+        let config_path = temp.path().join(".vex/config.toml");
+        std::fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+        std::fs::write(&config_path, "existing\n").unwrap();
+
+        super::run_init(temp.path()).unwrap();
+        let content = std::fs::read_to_string(&config_path).unwrap();
+        assert_eq!(content, "existing\n", "must not overwrite existing file");
+        assert!(
+            temp.path().join("AGENTS.md").exists(),
+            "missing files must still be created"
+        );
     }
 }

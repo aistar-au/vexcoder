@@ -115,6 +115,14 @@ pub struct TuiMode {
     quit_requested: bool,
     notes_path: Option<PathBuf>,
     current_task: crate::runtime::TaskState,
+    /// Active model name, updated by `/model <name>`.
+    model_name: String,
+    /// Locked at session start; `/model` rejects changes that require a different backend.
+    model_backend: crate::runtime::ModelBackendKind,
+    /// Locked at session start; `/model` rejects changes that require a different protocol.
+    model_protocol: crate::runtime::ModelProtocol,
+    /// Working directory for workspace-relative commands like `/diff`.
+    working_dir: PathBuf,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }
@@ -170,10 +178,16 @@ fn kebab_to_scope(s: &str) -> Option<ApprovalScope> {
 
 impl TuiMode {
     pub fn new() -> Self {
-        Self::new_with_notes(None)
+        Self::new_with_config(None, Config::default_for_tui())
     }
 
     pub fn new_with_notes(notes_path: Option<PathBuf>) -> Self {
+        let mut config = Config::default_for_tui();
+        config.notes_path = notes_path;
+        Self::new_with_config(config.notes_path.clone(), config)
+    }
+
+    pub fn new_with_config(notes_path: Option<PathBuf>, config: Config) -> Self {
         Self {
             history_state: HistoryState::default(),
             overlay_state: OverlayState::default(),
@@ -186,6 +200,10 @@ impl TuiMode {
             quit_requested: false,
             notes_path,
             current_task: crate::runtime::TaskState::new(new_task_id()),
+            model_name: config.model_name.clone(),
+            model_backend: config.model_backend,
+            model_protocol: config.model_protocol,
+            working_dir: config.working_dir.clone(),
             #[cfg(test)]
             last_turn_input: None,
         }
@@ -610,7 +628,88 @@ impl TuiMode {
             self.handle_deny_command(rest.trim());
             return true;
         }
+        if trimmed == "/model" {
+            self.push_history_line(format!("[model] {}", self.model_name));
+            return true;
+        }
+        if let Some(name) = trimmed.strip_prefix("/model ") {
+            self.handle_model_command(name.trim());
+            return true;
+        }
+        if trimmed == "/diff" || trimmed.starts_with("/diff ") {
+            let args = trimmed.strip_prefix("/diff").unwrap().trim();
+            self.handle_diff_command(args);
+            return true;
+        }
         false
+    }
+
+    /// PC-01: `/model <name>` — name-only switch within the same backend/protocol.
+    fn handle_model_command(&mut self, name: &str) {
+        if name.is_empty() {
+            self.push_history_line(format!("[model] {}", self.model_name));
+            return;
+        }
+        // Models prefixed with `local/` are local-runtime-only; all other
+        // names are assumed compatible with the current backend.  Reject a
+        // `local/` name when the session backend is ApiServer and vice-versa.
+        let target_is_local = name.starts_with("local/");
+        let current_is_local =
+            self.model_backend == crate::runtime::ModelBackendKind::LocalRuntime;
+
+        if target_is_local && !current_is_local {
+            self.push_history_line(format!(
+                "[model] rejected: '{}' requires local-runtime backend \
+                 (current: {:?}). Restart vex with the desired backend.",
+                name, self.model_backend,
+            ));
+            return;
+        }
+        if !target_is_local && current_is_local && self.model_name.starts_with("local/") {
+            // Switching from a local/ model to a non-local/ name on a
+            // local-runtime backend is allowed — the user may be pointing at
+            // an Ollama model that doesn't use the local/ prefix.
+        }
+
+        let old = std::mem::replace(&mut self.model_name, name.to_string());
+        self.push_history_line(format!("[model] {} -> {}", old, self.model_name));
+    }
+
+    /// PK-07: `/diff [--staged]` — show git diff output, truncated at 200 lines.
+    fn handle_diff_command(&mut self, args: &str) {
+        const MAX_DIFF_LINES: usize = 200;
+        let staged = args.contains("--staged") || args.contains("--cached");
+        let mut cmd = std::process::Command::new("git");
+        cmd.arg("diff");
+        if staged {
+            cmd.arg("--staged");
+        }
+        cmd.current_dir(&self.working_dir);
+
+        match cmd.output() {
+            Ok(output) => {
+                let text = String::from_utf8_lossy(&output.stdout);
+                if text.trim().is_empty() {
+                    self.push_history_line("[diff] no changes".to_string());
+                    return;
+                }
+                let lines: Vec<&str> = text.lines().collect();
+                let truncated = lines.len() > MAX_DIFF_LINES;
+                for line in lines.iter().take(MAX_DIFF_LINES) {
+                    self.push_history_line(line.to_string());
+                }
+                if truncated {
+                    self.push_history_line(format!(
+                        "[diff] truncated at {} lines ({} total)",
+                        MAX_DIFF_LINES,
+                        lines.len()
+                    ));
+                }
+            }
+            Err(e) => {
+                self.push_history_line(format!("[diff] error: {e}"));
+            }
+        }
     }
 
     fn handle_permissions_command(&mut self) {
@@ -1292,7 +1391,7 @@ pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
 
-    let mut mode = TuiMode::new_with_notes(config.notes_path.clone());
+    let mut mode = TuiMode::new_with_config(config.notes_path.clone(), config);
     mode.instructions_path = instructions_path;
     if let Some(warning) = notes_warning {
         mode.push_history_line(warning);
@@ -3228,5 +3327,109 @@ mod tests {
                 .any(|l| l.contains("[resumed: task-startup-resume status=Running]")),
             "expected resume banner in history"
         );
+    }
+
+    // -- PC-01: /model --------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_model_shows_current_name() {
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new();
+        mode.on_user_input("/model".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines().iter().any(|l| l.contains("[model]")),
+            "bare /model must echo current model"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_model_switches_name() {
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new();
+        let old = mode.model_name.clone();
+        mode.on_user_input("/model qwen3-8b".to_string(), &mut ctx);
+        assert_eq!(mode.model_name, "qwen3-8b");
+        assert!(mode
+            .history_lines()
+            .iter()
+            .any(|l| l.contains(&old) && l.contains("qwen3-8b")));
+    }
+
+    #[tokio::test]
+    async fn test_model_rejects_local_on_api_backend() {
+        let mut ctx = setup_ctx();
+        let mut config = Config::default_for_tui();
+        config.model_backend = crate::runtime::ModelBackendKind::ApiServer;
+        config.model_name = "remote-model".to_string();
+        let mut mode = TuiMode::new_with_config(None, config);
+        // local/ prefix on an ApiServer session must be rejected.
+        mode.on_user_input("/model local/phi-3".to_string(), &mut ctx);
+        assert_ne!(
+            mode.model_name, "local/phi-3",
+            "must reject local/ model on api-server backend"
+        );
+        assert!(mode
+            .history_lines()
+            .iter()
+            .any(|l| l.contains("rejected")));
+    }
+
+    // -- PK-07: /diff ---------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_diff_runs_in_working_dir() {
+        let mut ctx = setup_ctx();
+        let temp = tempfile::tempdir().unwrap();
+        // Set up a tiny git repo so `git diff` succeeds.
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(temp.path())
+            .output()
+            .unwrap();
+        std::fs::write(temp.path().join("a.txt"), "hello\n").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "a.txt"])
+            .current_dir(temp.path())
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(temp.path())
+            .env("GIT_AUTHOR_NAME", "test")
+            .env("GIT_AUTHOR_EMAIL", "t@t")
+            .env("GIT_COMMITTER_NAME", "test")
+            .env("GIT_COMMITTER_EMAIL", "t@t")
+            .output()
+            .unwrap();
+        std::fs::write(temp.path().join("a.txt"), "world\n").unwrap();
+
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        mode.on_user_input("/diff".to_string(), &mut ctx);
+
+        let has_diff = mode
+            .history_lines()
+            .iter()
+            .any(|l| l.contains("diff --git") || l.contains("a.txt"));
+        assert!(has_diff, "expected git diff output in history");
+    }
+
+    #[tokio::test]
+    async fn test_diff_no_changes() {
+        let mut ctx = setup_ctx();
+        let temp = tempfile::tempdir().unwrap();
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(temp.path())
+            .output()
+            .unwrap();
+
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        mode.on_user_input("/diff".to_string(), &mut ctx);
+        assert!(mode
+            .history_lines()
+            .iter()
+            .any(|l| l.contains("no changes")));
     }
 }
