@@ -1,4 +1,4 @@
-# ADR-026: LocalApiServer transport binding — loopback API surface, SSE streaming, auth model, and schema endpoint for runtime JSON handoff
+# ADR-026: LocalApiServer transport binding — scoped HTTP/Unix-socket API surface, SSE streaming, TLS boundary, auth model, and schema endpoint for runtime JSON handoff
 
 **Date:** 2026-03-11
 **Status:** Proposed
@@ -43,13 +43,13 @@ Introduce `LocalApiServer` as a transport adapter over the canonical ADR-025 con
 
 `LocalApiServer` is the third `RuntimeMode + FrontendAdapter` implementation after `TuiMode` and `BatchMode`.
 
-It does not define new runtime semantics. It projects the existing runtime through a local API surface.
+It does not define new runtime semantics. It projects the existing runtime through a scoped API surface.
 
 Normative rule:
 
 - runtime logic remains in Rust core/runtime code;
 - transport parsing, auth checks, and stream framing live in the server adapter;
-- native clients, web views, editor panels, and local automation all consume the same canonical event model over a local transport.
+- native clients, web views, editor panels, and local automation all consume the same canonical event model over a scoped transport surface.
 
 ### 2. Canonical request and event payloads
 
@@ -64,27 +64,35 @@ This ADR forbids a server-specific event schema.
 
 Phase I supports exactly two transports:
 
-1. **HTTP loopback**
-   - bind address: `127.0.0.1`
+1. **HTTP**
+   - default bind address: `127.0.0.1`
    - default port: `6274`
+   - non-loopback TCP exposure is permitted only when TLS is enabled
 2. **Unix-domain socket**
    - default path: `${XDG_RUNTIME_DIR}/vexcoder.sock` when available
    - fallback path: `/tmp/vexcoder.sock`
 
-No external bind address is allowed by default.
+Loopback remains the default bind mode. Non-loopback TCP exposure requires explicit operator configuration and the TLS rules below.
 
-**Port rationale:** default port `6274` is chosen as a high, non-privileged local tooling port for loopback use. It avoids privileged-port requirements and remains overrideable through user config (`VEX_API_PORT` environment variable or `api.port` config key).
+**Port rationale:** default port `6274` is chosen as a high, non-privileged tooling port. It avoids privileged-port requirements and remains overrideable through user config (`VEX_API_PORT` environment variable or `api.port` config key).
 
 **Platform support:**
 
 - Unix-domain socket transport is supported on macOS and Linux only.
-- HTTP loopback transport is supported on macOS, Linux, and Windows.
+- HTTP transport is supported on macOS, Linux, and Windows.
 - Windows clients must use HTTP transport.
-- On Windows, operators should still rely on loopback-only binding and host firewall rules for local-process isolation.
+- On Windows, operators should rely on host firewall rules whenever non-loopback TCP exposure is enabled.
+
+### 3.1 TLS boundary (normative)
+
+- **Same machine, same user, private IPC:** prefer Unix-domain socket transport. Loopback HTTP may omit TLS when bearer auth is present.
+- **TCP beyond strict loopback:** TLS is the default and is required in Phase I. This includes LAN, VPN, container-bridge, SSH-tunneled shared-host, reverse-proxied, browser-accessible, and other meaningful network exposure.
+- **Sensitive payload rule:** if prompts, session state, repo contents, tool results, or authentication tokens cross any non-local network path, TLS is mandatory.
+- **Multi-user or enterprise serving:** TLS plus certificate validation, certificate rotation, and service authentication are conventional hardening requirements. Those broader serving semantics remain out of scope for this ADR unless a later ADR widens them explicitly.
 
 ### 4. HTTP API surface
 
-The initial API surface is minimal:
+The initial API surface is minimal. On loopback it may be served as plain HTTP; on any non-loopback TCP bind it must be served with TLS.
 
 #### `GET /v1/health`
 
@@ -258,7 +266,7 @@ Authentication is filesystem-based:
 
 No bearer token is used for Unix socket transport.
 
-#### HTTP loopback
+#### HTTP / HTTPS
 
 HTTP authentication is mandatory.
 
@@ -281,7 +289,9 @@ Token sources forbidden:
 
 If HTTP transport is enabled and no token is available, server startup fails.
 
-This avoids the contradiction of an HTTP API that claims authenticated sessions while allowing anonymous callers on loopback.
+Loopback HTTP may omit TLS. Any non-loopback TCP bind (`0.0.0.0`, a LAN address, a VPN address, or a container-bridge address) must enable TLS in addition to bearer auth. Plain HTTP on non-loopback TCP is forbidden in Phase I.
+
+This avoids the contradiction of an HTTP API that claims authenticated sessions while allowing anonymous or plaintext network callers.
 
 ### 8. Configuration keys
 
@@ -292,22 +302,26 @@ Add the following canonical config keys:
 
 [api]
 transport = "http"          # "http" | "unix" | "both"
-host      = "127.0.0.1"    # loopback only in Phase I; "0.0.0.0" and LAN addresses rejected
+host      = "127.0.0.1"    # default loopback; non-loopback TCP requires TLS in Phase I
 port      = 6274            # override via VEX_API_PORT
 socket    = ""              # empty = platform default; Unix only
 key       = "${VEX_API_KEY}"  # env-var reference; repo-local rejected
+tls_cert  = ""              # PEM certificate path; required for non-loopback TCP
+tls_key   = ""              # PEM private key path; required for non-loopback TCP
 ```
 
 **Transport mode auth rules:**
 
 - `transport = "http"` requires bearer auth; server startup fails without a valid `key`.
+- loopback HTTP may run without TLS.
+- non-loopback HTTP must enable TLS; startup fails unless both `tls_cert` and `tls_key` are valid.
 - `transport = "unix"` uses filesystem auth; `key` is ignored and `api.key` need not be configured.
-- `transport = "both"` enables both surfaces simultaneously. HTTP surface requires bearer auth; Unix surface uses filesystem auth. The presence of a valid `key` is still required at startup when the HTTP surface is active under `"both"`.
+- `transport = "both"` enables both surfaces simultaneously. HTTP surface requires bearer auth and follows the same TLS rules as `transport = "http"`; Unix surface uses filesystem auth. The presence of a valid `key` is still required at startup when the HTTP surface is active under `"both"`.
 
 **Forbidden values:**
 
 - repo-local `api.key` is rejected at config load time;
-- external hosts (`0.0.0.0`, LAN addresses, public addresses) are rejected in Phase I.
+- non-loopback TCP host values without valid TLS configuration are rejected in Phase I.
 
 **ADR-024 reconciliation (pre-merge requirement):** the `api.*` config-key block above must be applied to ADR-024's `Config TOML canonical keys` section before this ADR is merged. ADR-024 is currently `Proposed` status, so this is an in-place amendment consistent with the Proposed-status editing convention. A separate amendment ADR is not required unless ADR-024 is locked before this reconciliation PR lands. The reconciliation PR must also extend ADR-024's Phase I dispatcher checklist from PI-09 through PI-16.
 
@@ -324,7 +338,7 @@ Every inbound and outbound payload is validated against ADR-025 schemas.
 Validation order:
 
 ```text
-HTTP / socket request
+HTTP(S) / socket request
     ↓
 parse JSON
     ↓
@@ -381,7 +395,7 @@ They are complementary, not competing surfaces.
 This ADR does **not** authorize:
 
 - `vex remote-control` / remote environment serving (deferred indefinitely per ADR-024; requires a dedicated ADR separate from Phase I `LocalApiServer`)
-- external network exposure
+- plaintext non-loopback TCP exposure
 - OAuth flows
 - WebSocket support
 - multi-user or multi-tenant serving
@@ -443,8 +457,8 @@ data: {"version":1,"task_id":"task-1741700000000","turn":1,"seq":6,"event":{"typ
 | ADR-024 Gap 28 (Token counter) | Transports optional `TurnEnd.usage` without making PL-03 a prerequisite for transport work |
 | Phase I wire protocol | Defines HTTP and Unix-socket bindings over ADR-025 JSON |
 | Streaming response format | Defines SSE binding for HTTP and line-delimited JSON for Unix socket |
-| Authentication model | Defines mandatory HTTP bearer auth and Unix-socket filesystem auth |
-| Loopback-only default | Enforced by host restrictions and config validation |
+| Authentication model | Defines mandatory HTTP bearer auth, TLS on non-loopback TCP, and Unix-socket filesystem auth |
+| Default bind posture | Loopback remains the default; non-loopback TCP is gated by TLS config validation |
 
 ---
 
@@ -463,7 +477,7 @@ This reduces client complexity and avoids contradictions such as "fatal error" b
 
 ### Why make HTTP bearer auth mandatory?
 
-A local HTTP API is still an API. Loopback-only is helpful but not sufficient as the only guard because other local processes may connect.
+A CLI-owned HTTP API is still an API. Loopback is helpful but not sufficient as the only guard because other local processes may connect.
 
 Mandatory bearer auth for HTTP keeps the rule simple and auditable:
 
@@ -471,6 +485,14 @@ Mandatory bearer auth for HTTP keeps the rule simple and auditable:
 - Unix socket always uses filesystem permissions
 
 It also matches ADR-024's explicit concern about repo-local secret sourcing and supply-chain protection.
+
+### Why require TLS on non-loopback TCP?
+
+The architectural boundary is not "has an API"; it is "has meaningful network exposure."
+
+For same-machine, same-user private IPC, Unix sockets or loopback HTTP are sufficient. Once the transport crosses strict loopback, bearer auth alone no longer protects confidentiality or endpoint identity. At that point, TLS is the conventional default.
+
+This ADR therefore treats LAN, VPN, container-bridge, reverse-proxied, browser-accessible, and other non-local TCP paths as TLS-required in Phase I whenever they carry prompts, session state, repo contents, tool results, or tokens.
 
 ### Why keep Unix socket and HTTP both?
 
@@ -542,8 +564,9 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
 
 - no LocalApiServer code may invent a schema that is not ADR-025 `RuntimeRequest` / `RuntimeEnvelope`;
 - HTTP transport must require bearer auth in Phase I;
+- any non-loopback TCP exposure must require TLS in Phase I;
 - repo-local config may not provide `api.key`;
-- default host must remain loopback-only;
+- default host remains loopback-only, but explicit non-loopback TCP binds are allowed when TLS is configured;
 - `vex remote-control` remains prohibited under this ADR;
 - `transport = "both"` must enforce HTTP bearer auth on the HTTP surface; Unix surface uses filesystem auth independently.
 
@@ -555,8 +578,8 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
 |----|------|--------|
 | **PI-13** | Implement `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [ ] |
 | **PI-14** | Implement `GET /v1/schema` serving ADR-025 schema bundle; exempt from envelope validation | [ ] |
-| **PI-15** | Add Unix-socket transport, HTTP bearer auth, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
-| **PI-16** | Add integration tests for SSE stream order, SSE keepalive emission, auth failures (`401` for missing/invalid token), schema validation, mid-stream runtime error, `MaxTurnsReached` sequence, `POST /v1/interrupt` with unknown task id returns `404`, `POST /v1/approve` with unknown task id returns `404` and with no pending approval returns `409`, and reconnect/new-turn behavior | [ ] |
+| **PI-15** | Add Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
+| **PI-16** | Add integration tests for SSE stream order, SSE keepalive emission, auth failures (`401` for missing/invalid token), non-loopback-without-TLS rejection, schema validation, mid-stream runtime error, `MaxTurnsReached` sequence, `POST /v1/interrupt` with unknown task id returns `404`, `POST /v1/approve` with unknown task id returns `404` and with no pending approval returns `409`, and reconnect/new-turn behavior | [ ] |
 
 ---
 
@@ -597,7 +620,7 @@ When checking any PI-13…PI-16 box, append an evidence block:
 | Do not expose HTTP without bearer auth in Phase I | Mandatory startup/config guard |
 | Do not read `api.key` from repo-local config | Reject at load time |
 | `VEX_API_KEY` must not appear as a literal in committed files | Enforce via secret/config validation and CI repository checks |
-| Do not bind to non-loopback hosts in Phase I | Reject `0.0.0.0`, LAN, and public addresses |
+| Do not bind non-loopback TCP without TLS in Phase I | Reject `0.0.0.0`, LAN, VPN, container-bridge, and public addresses unless valid TLS is configured |
 | Do not use SSE event-name taxonomy as semantic state | Event name is always `runtime`; semantics live in JSON |
 | LocalApiServer clients must parse `event: runtime` only | Ignore semantic transport taxonomies such as `chunk`/`done` for this server |
 | Do not alter `vex exec --format jsonl` here | BatchMode remains unchanged |

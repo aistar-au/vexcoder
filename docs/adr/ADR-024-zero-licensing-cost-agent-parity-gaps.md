@@ -257,19 +257,19 @@ A native macOS application under `packaging/macos/` that:
 
 **Phase H boundary constraint:** the native macOS application in Phase H is a packaging and credential layer only. It must not contain agent logic, model calls, conversation state, or tool dispatch. All such logic remains exclusively in the Rust binary. Any PR to `packaging/macos/` that modifies any file under `src/` in the same changeset is out of scope for Phase H and must be rejected.
 
-This constraint applies to Phase H specifically. It does not prohibit a future native macOS client that communicates with a `LocalApiServer: RuntimeMode + FrontendAdapter` (see Phase I below). That path involves adding a new `RuntimeMode` implementation to `src/` — which is an intended use of the runtime trait architecture — and a native macOS client that connects to it over a local socket or loopback interface. The architectural relationship is the same as any API client to a local server; the network path is shorter than a cloud API but the interface contract is identical. Phase I requires a dedicated ADR and must not begin before milestone-1 correctness work is validated end-to-end.
+This constraint applies to Phase H specifically. It does not prohibit a future native macOS client that communicates with a `LocalApiServer: RuntimeMode + FrontendAdapter` (see Phase I below). That path involves adding a new `RuntimeMode` implementation to `src/` — which is an intended use of the runtime trait architecture — and a native macOS client that connects to it over a local socket or scoped TCP interface. The architectural relationship is the same as any API client to a local server; the network path may stay private IPC or extend across a LAN, but the interface contract is identical. Phase I requires a dedicated ADR and must not begin before milestone-1 correctness work is validated end-to-end.
 
 **OS-vendor API licensing note (Phase H):** `Security.framework` (keychain access) and `xcrun notarytool` (notarisation) are Apple proprietary APIs available under Apple's macOS SDK terms. Their use in the Phase H packaging layer imposes no additional licensing obligation on the Rust binary itself — the binary's MIT license is unaffected. Phase H is macOS-exclusive by design; the Apple SDK terms are accepted by operators at OS installation time, not imposed by `vexcoder`'s distribution.
 
 #### Phase I — Local API server surface (reserved)
 
-Formally reserved for a dedicated ADR. The `LocalApiServer` is the third `RuntimeMode + FrontendAdapter` implementation after `TuiMode` and `BatchMode`. It exposes the shared runtime core over a local HTTP or Unix domain socket, enabling rich bidirectional communication with native GUI clients (native macOS application, web frontend, IDE extension) without duplicating any Rust logic in those clients. The server binds to loopback only by default; no external network exposure without an explicit operator configuration and a dedicated ADR.
+Formally reserved for a dedicated ADR. The `LocalApiServer` is the third `RuntimeMode + FrontendAdapter` implementation after `TuiMode` and `BatchMode`. It exposes the shared runtime core over scoped HTTP or Unix domain socket transports, enabling rich bidirectional communication with native GUI clients (native macOS application, web frontend, IDE extension) without duplicating any Rust logic in those clients. Loopback remains the default bind mode; any non-loopback TCP exposure requires explicit operator configuration and TLS.
 
-The relationship to cloud API servers is direct: architecturally, `LocalApiServer` and a cloud-hosted API server are the same construct — a `RuntimeMode` implementation that accepts requests and streams responses. The network path differs (loopback vs internet); the interface contract does not. This means a future cloud-hosted or enterprise-licensed deployment follows the same expansion path: a `RuntimeMode` implementation that routes to a remote transport rather than a local socket.
+The relationship to cloud API servers is direct: architecturally, `LocalApiServer` and a cloud-hosted API server are the same construct — a `RuntimeMode` implementation that accepts requests and streams responses. The network path differs (private IPC, LAN, or internet); the interface contract does not. This means a future cloud-hosted or enterprise-licensed deployment follows the same expansion path: a `RuntimeMode` implementation that routes to a remote transport rather than a local socket.
 
 `LocalApiServer` must not begin implementation until `BatchMode` is validated end-to-end. That specification requirement is now satisfied by ADR-025 (canonical runtime JSON handoff contract) and ADR-026 (transport binding, auth model, and streaming rules). No dispatcher may begin Phase I code until milestone-1 correctness work is validated end-to-end.
 
-**`vex remote-control` is explicitly out of scope for Phase I.** A `remote-control` subcommand that serves the running local environment to remote callers is a distinct surface from `LocalApiServer`. It requires its own ADR covering network exposure model, authentication, and security boundary — it must not be conflated with the loopback-only `LocalApiServer` design.
+**`vex remote-control` is explicitly out of scope for Phase I.** A `remote-control` subcommand that serves the running local environment to remote callers is a distinct surface from `LocalApiServer`. It requires its own ADR covering network exposure model, authentication, and security boundary — it must not be conflated with the TLS-scoped `LocalApiServer` design.
 
 ---
 
@@ -1124,10 +1124,12 @@ max_project_instructions_tokens = 4096
 
 [api]
 transport = "http"          # "http" | "unix" | "both"
-host      = "127.0.0.1"     # loopback only in Phase I
+host      = "127.0.0.1"     # default loopback; non-loopback TCP requires TLS in Phase I
 port      = 6274            # override via VEX_API_PORT
 socket    = ""              # empty = platform default; Unix only
 key       = "${VEX_API_KEY}"  # user config only when HTTP is enabled; repo-local rejected
+tls_cert  = ""              # PEM certificate path; required for non-loopback TCP
+tls_key   = ""              # PEM private key path; required for non-loopback TCP
 
 # MCP servers — user config ONLY. Rejected in repo-local config.
 [[mcp_servers]]
@@ -1137,7 +1139,7 @@ command   = "npx"
 args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 ```
 
-`api.key` is user-config-only. Repo-local config must reject it at load time, and Phase I must reject non-loopback `api.host` values in this ADR's scope.
+`api.key` is user-config-only. Repo-local config must reject it at load time, and Phase I must reject non-loopback `api.host` values unless valid TLS is configured for the HTTP surface.
 
 ---
 
@@ -1492,7 +1494,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-12** | Serde round-trip, schema parity, grammar parity, and BatchMode-derivation tests for the canonical envelope stream | [ ] |
 | **PI-13** | `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [ ] |
 | **PI-14** | `GET /v1/schema` serving the ADR-025 schema bundle; exempt from envelope validation | [ ] |
-| **PI-15** | Unix-socket transport, HTTP bearer auth, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
+| **PI-15** | Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
 | **PI-16** | Integration tests for stream order, keepalive emission, auth failures, schema validation, mid-stream runtime error, max-turns terminal sequence, interrupt `404`, and reconnect/new-turn behavior | [ ] |
 | **PJ-01** | `/clear` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [x] |
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
