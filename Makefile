@@ -134,7 +134,7 @@ lint:
 # Commit-debug gate
 #
 # For src/ and tests/ changes, multi-provider review (commit-debug.py) is owned
-# by the dispatcher in the sibling devops repo at ../vexdraft relative to this
+# by the dispatcher in the internal devops repo at ../vexdraft relative to this
 # repo root. The dispatcher invokes it as part of the loop cycle before push.
 # This target runs gate-fast only — the local Rust gate. It is intentionally
 # self-contained so vexcoder's Makefile carries no cross-repo path assumptions.
