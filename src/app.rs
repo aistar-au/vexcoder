@@ -39,6 +39,16 @@ struct PendingPatchApproval {
     response_tx: Option<tokio::sync::oneshot::Sender<bool>>,
 }
 
+struct PendingResumeSelection {
+    entries: Vec<ResumeTaskEntry>,
+}
+
+#[derive(Clone)]
+struct ResumeTaskEntry {
+    id: String,
+    status: String,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ApprovalSelection {
     ApproveOnce,
@@ -78,6 +88,7 @@ impl Default for HistoryState {
 struct OverlayState {
     pending_approval: Option<PendingApproval>,
     pending_patch_approval: Option<PendingPatchApproval>,
+    pending_resume_selection: Option<PendingResumeSelection>,
     auto_approve_session: bool,
     pending_memory_clear: bool,
 }
@@ -103,6 +114,7 @@ pub struct TuiMode {
     pending_quit: bool,
     quit_requested: bool,
     notes_path: Option<PathBuf>,
+    current_task: crate::runtime::TaskState,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }
@@ -124,6 +136,7 @@ impl TuiMode {
             pending_quit: false,
             quit_requested: false,
             notes_path,
+            current_task: crate::runtime::TaskState::new(new_task_id()),
             #[cfg(test)]
             last_turn_input: None,
         }
@@ -166,9 +179,14 @@ impl TuiMode {
         )
     }
 
+    pub fn current_task_id(&self) -> String {
+        self.current_task.id.clone()
+    }
+
     pub fn overlay_active(&self) -> bool {
         self.overlay_state.pending_approval.is_some()
             || self.overlay_state.pending_patch_approval.is_some()
+            || self.overlay_state.pending_resume_selection.is_some()
             || self.overlay_state.pending_memory_clear
     }
 
@@ -224,6 +242,8 @@ impl TuiMode {
 
         let pending_approval = if self.overlay_state.pending_patch_approval.is_some() {
             Some("ApplyPatch".to_string())
+        } else if self.overlay_state.pending_resume_selection.is_some() {
+            Some("Resume saved task\n[type 1-5 or n to cancel]".to_string())
         } else {
             self.overlay_state.pending_approval.as_ref().map(|pending| {
                 summarize_tool_approval_context(&pending.tool_name, &pending.input_preview)
@@ -241,20 +261,18 @@ impl TuiMode {
             .into_iter()
             .rev()
             .collect();
-        let task_id = self
-            .history_state
-            .active_assistant_index
-            .map(|idx| format!("task-{idx:03}"))
-            .unwrap_or_else(|| "task-active".to_string());
-        let changed_files = load_changed_files_for_task(&task_id);
-
         Some(TaskLayoutState {
-            task_id,
+            task_id: self.current_task.id.clone(),
             status_line: self.status_line(),
             activity_rows,
             output_rows: self.history_state.lines.clone(),
             pending_approval,
-            changed_files,
+            changed_files: self
+                .current_task
+                .changed_files
+                .iter()
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect(),
         })
     }
 
@@ -264,7 +282,11 @@ impl TuiMode {
         }
     }
 
-    fn handle_approval_input(&mut self, input: &str) {
+    fn handle_approval_input(&mut self, input: &str, ctx: &mut RuntimeContext) {
+        if self.overlay_state.pending_resume_selection.is_some() {
+            self.handle_resume_selection_input(input, ctx);
+            return;
+        }
         let context = self
             .overlay_state
             .pending_approval
@@ -419,7 +441,69 @@ impl TuiMode {
         }
     }
 
-    fn try_handle_slash_command(&mut self, input: &str) -> bool {
+    fn reset_conversation_window(&mut self, ctx: &RuntimeContext) {
+        ctx.clear_conversation();
+        self.history_state.lines.clear();
+        self.history_state.turn_in_progress = false;
+        self.history_state.cancel_pending = false;
+        self.history_state.active_assistant_index = None;
+        self.history_state.scroll_offset = 0;
+        self.history_state.auto_follow = true;
+        self.active_stream_blocks.clear();
+    }
+
+    fn apply_resumed_task(&mut self, state: TaskState, ctx: &RuntimeContext) {
+        let restored_id = state.id.clone();
+        let status = format!("{:?}", state.status);
+        self.current_task = state;
+        self.reset_conversation_window(ctx);
+        self.push_history_line(format!("[resumed: {restored_id} status={status}]"));
+    }
+
+    fn prompt_resume_selection(&mut self, entries: Vec<ResumeTaskEntry>) {
+        self.push_history_line("[resume] choose a task to resume:".to_string());
+        for (index, entry) in entries.iter().enumerate() {
+            self.push_history_line(format!("  {}. {} ({})", index + 1, entry.id, entry.status));
+        }
+        self.push_history_line("[resume] type 1-5 to select or n to cancel".to_string());
+        self.overlay_state.pending_resume_selection = Some(PendingResumeSelection { entries });
+    }
+
+    fn handle_resume_selection_input(&mut self, input: &str, ctx: &mut RuntimeContext) {
+        let trimmed = input.trim();
+        if matches!(trimmed.to_ascii_lowercase().as_str(), "n" | "no" | "esc") {
+            self.overlay_state.pending_resume_selection = None;
+            self.push_history_line("[resume] cancelled".to_string());
+            return;
+        }
+
+        let Some(selection) = trimmed.parse::<usize>().ok() else {
+            self.push_history_line("[resume] invalid selection, expected 1-5 or n".to_string());
+            return;
+        };
+
+        let Some(entry) = self
+            .overlay_state
+            .pending_resume_selection
+            .as_ref()
+            .and_then(|pending| pending.entries.get(selection.saturating_sub(1)))
+            .cloned()
+        else {
+            self.push_history_line("[resume] invalid selection, expected 1-5 or n".to_string());
+            return;
+        };
+
+        self.overlay_state.pending_resume_selection = None;
+        let dir = TaskState::state_dir();
+        match TaskState::load(&dir, &entry.id) {
+            Ok(state) => self.apply_resumed_task(state, ctx),
+            Err(_) => {
+                self.push_history_line(format!("[resume: task '{}' not found]", entry.id));
+            }
+        }
+    }
+
+    fn try_handle_slash_command(&mut self, input: &str, ctx: &mut RuntimeContext) -> bool {
         let trimmed = input.trim();
         if trimmed == "/quit" || trimmed == "/exit" {
             self.handle_quit_command();
@@ -448,7 +532,87 @@ impl TuiMode {
             );
             return true;
         }
+        if trimmed == "/new" {
+            self.handle_new_command(ctx);
+            return true;
+        }
+        if let Some(rest) = trimmed.strip_prefix("/resume") {
+            let task_id = rest.trim();
+            self.handle_resume_command(task_id, ctx);
+            return true;
+        }
+        if trimmed == "/clear" {
+            self.handle_clear_command(ctx);
+            return true;
+        }
+        if let Some(rest) = trimmed.strip_prefix("/fork") {
+            let label = rest.trim();
+            self.handle_fork_command(label, ctx);
+            return true;
+        }
         false
+    }
+
+    fn handle_new_command(&mut self, ctx: &mut RuntimeContext) {
+        let dir = TaskState::state_dir();
+        if let Err(e) = self.current_task.save(&dir) {
+            self.push_history_line(format!("[new] save failed: {e} - session not reset"));
+            return;
+        }
+        let new_id = new_task_id();
+        self.current_task = TaskState::new(new_id.clone());
+        self.reset_conversation_window(ctx);
+        self.push_history_line(format!("[new session: {new_id}]"));
+    }
+
+    fn handle_resume_command(&mut self, task_id: &str, ctx: &mut RuntimeContext) {
+        if task_id.is_empty() {
+            let dir = TaskState::state_dir();
+            let entries = list_recent_task_entries(&dir, 5);
+            if entries.is_empty() {
+                self.push_history_line("[resume] no saved tasks found".to_string());
+                return;
+            }
+            self.prompt_resume_selection(entries);
+            return;
+        }
+        let dir = TaskState::state_dir();
+        match TaskState::load(&dir, task_id) {
+            Ok(state) => self.apply_resumed_task(state, ctx),
+            Err(_) => {
+                self.push_history_line(format!("[resume: task '{task_id}' not found]"));
+            }
+        }
+    }
+
+    fn handle_clear_command(&mut self, ctx: &mut RuntimeContext) {
+        let task_id = self.current_task.id.clone();
+        self.reset_conversation_window(ctx);
+        self.push_history_line(format!(
+            "[cleared: conversation history reset; task {task_id} continues]"
+        ));
+    }
+
+    fn handle_fork_command(&mut self, label: &str, ctx: &mut RuntimeContext) {
+        let dir = TaskState::state_dir();
+        if let Err(e) = self.current_task.save(&dir) {
+            self.push_history_line(format!("[fork] save failed: {e} - fork aborted"));
+            return;
+        }
+        let sanitized_label = sanitize_task_label(label);
+        let new_id = if sanitized_label.is_empty() {
+            format!("{}-fork", new_task_id())
+        } else {
+            format!("{}-{sanitized_label}", new_task_id())
+        };
+        let parent_id = self.current_task.id.clone();
+        let mut fork = TaskState::new(new_id.clone());
+        fork.active_grants = self.current_task.active_grants.clone();
+        fork.changed_files = self.current_task.changed_files.clone();
+        fork.status = self.current_task.status.clone();
+        self.current_task = fork;
+        self.reset_conversation_window(ctx);
+        self.push_history_line(format!("[fork: {new_id} branched from {parent_id}]"));
     }
 
     fn handle_quit_command(&mut self) {
@@ -552,6 +716,27 @@ impl TuiMode {
     }
 }
 
+fn new_task_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    static LAST_TASK_MS: AtomicU64 = AtomicU64::new(0);
+
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+
+    let ms = LAST_TASK_MS.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |previous| {
+        Some(now_ms.max(previous.saturating_add(1)))
+    });
+    let stable_ms = ms
+        .map(|previous| now_ms.max(previous.saturating_add(1)))
+        .unwrap_or(now_ms);
+
+    format!("task-{stable_ms}")
+}
+
 fn resolve_history_line_cap() -> usize {
     std::env::var(MAX_HISTORY_LINES_ENV)
         .ok()
@@ -577,16 +762,75 @@ fn resolve_repo_label() -> String {
         .unwrap_or_else(|| "workspace".to_string())
 }
 
-fn load_changed_files_for_task(task_id: &str) -> Vec<String> {
-    let state_dir = TaskState::state_dir();
-    let Ok(state) = TaskState::load(&state_dir, task_id) else {
+fn sanitize_task_label(label: &str) -> String {
+    let mut out = String::new();
+    let mut last_was_dash = false;
+
+    for ch in label.trim().chars() {
+        let normalized = if ch.is_ascii_alphanumeric() {
+            Some(ch.to_ascii_lowercase())
+        } else if matches!(ch, '-' | '_' | ' ') {
+            Some('-')
+        } else {
+            None
+        };
+
+        let Some(ch) = normalized else {
+            continue;
+        };
+        if ch == '-' {
+            if out.is_empty() || last_was_dash {
+                continue;
+            }
+            last_was_dash = true;
+        } else {
+            last_was_dash = false;
+        }
+        out.push(ch);
+    }
+
+    out.trim_matches('-').to_string()
+}
+
+fn list_recent_task_entries(dir: &std::path::Path, limit: usize) -> Vec<ResumeTaskEntry> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
 
-    state
-        .changed_files
+    let mut state_files = entries
+        .filter_map(|entry| entry.ok())
+        .filter_map(|entry| {
+            let path = entry.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                return None;
+            }
+            let task_id = path.file_stem()?.to_str()?.to_string();
+            let modified = entry
+                .metadata()
+                .ok()
+                .and_then(|meta| meta.modified().ok())
+                .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|duration| duration.as_millis())
+                .unwrap_or(0);
+            Some((modified, task_id))
+        })
+        .collect::<Vec<_>>();
+
+    state_files.sort_by(|left, right| right.0.cmp(&left.0));
+    state_files.truncate(limit);
+
+    state_files
         .into_iter()
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|(_, task_id)| match TaskState::load(dir, &task_id) {
+            Ok(state) => ResumeTaskEntry {
+                id: state.id,
+                status: format!("{:?}", state.status),
+            },
+            Err(_) => ResumeTaskEntry {
+                id: task_id,
+                status: "Unreadable".to_string(),
+            },
+        })
         .collect()
 }
 
@@ -668,7 +912,7 @@ impl RuntimeMode for TuiMode {
                 self.handle_patch_overlay_input(&input);
                 return;
             } else {
-                self.handle_approval_input(&input);
+                self.handle_approval_input(&input, ctx);
                 return;
             }
         }
@@ -690,7 +934,7 @@ impl RuntimeMode for TuiMode {
         self.push_history_line(format!("> {input}"));
         self.push_history_line(String::new());
 
-        if input.starts_with('/') && self.try_handle_slash_command(&input) {
+        if input.starts_with('/') && self.try_handle_slash_command(&input, ctx) {
             return;
         }
 
@@ -2157,6 +2401,376 @@ mod tests {
             .iter()
             .any(|l| l.contains("notes exceed token budget"));
         assert!(has_warning, "expected startup budget warning in history");
+    }
+
+    // -- PI-04 / PI-05 / PJ-01 / PJ-02 ---------------------------------------
+
+    #[test]
+    fn test_tui_new_saves_current_state_before_reset() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let mut mode = TuiMode::new();
+        mode.push_history_line("stale transcript".to_string());
+        let original_id = mode.current_task_id();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/new".to_string(), &mut ctx);
+
+        let state_file = temp.path().join(format!("{original_id}.json"));
+        assert!(state_file.exists(), "/new must save the prior task state");
+        assert_eq!(
+            mode.history_lines().len(),
+            1,
+            "/new must reset the transcript"
+        );
+        assert!(
+            mode.history_lines()[0].starts_with("[new session: task-"),
+            "expected new-session marker, got: {:?}",
+            mode.history_lines()
+        );
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_tui_new_creates_fresh_task_id() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let mut mode = TuiMode::new();
+        let original_id = mode.current_task_id();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/new".to_string(), &mut ctx);
+
+        assert_ne!(
+            mode.current_task_id(),
+            original_id,
+            "/new must assign a new task-id"
+        );
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/new must not leave a stale turn active"
+        );
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_tui_new_clears_active_edit_loop() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/new".to_string(), &mut ctx);
+
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/new must clear active edit-loop state"
+        );
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_tui_resume_restores_active_grants() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let mut saved = TaskState::new("task-resume-001".to_string());
+        saved.active_grants.insert(
+            crate::runtime::Capability::ApplyPatch,
+            crate::runtime::ApprovalScope::Session,
+        );
+        saved.changed_files.push(PathBuf::from("src/app.rs"));
+        saved.status = crate::runtime::TaskStatus::Completed;
+        saved.save(temp.path()).unwrap();
+
+        let mut mode = TuiMode::new();
+        mode.push_history_line("stale transcript".to_string());
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/resume task-resume-001".to_string(), &mut ctx);
+
+        assert_eq!(mode.current_task_id(), "task-resume-001");
+        assert!(mode
+            .current_task
+            .active_grants
+            .contains_key(&crate::runtime::Capability::ApplyPatch));
+        assert_eq!(
+            mode.current_task.changed_files,
+            vec![PathBuf::from("src/app.rs")]
+        );
+        assert_eq!(
+            mode.current_task.status,
+            crate::runtime::TaskStatus::Completed
+        );
+        assert_eq!(
+            mode.history_lines().len(),
+            1,
+            "/resume must reset the transcript"
+        );
+        assert!(
+            mode.history_lines()[0].contains("[resumed: task-resume-001 status=Completed]"),
+            "expected resume confirmation in history"
+        );
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_tui_resume_without_id_offers_recent_task_selection() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let older = TaskState::new("task-resume-older".to_string());
+        older.save(temp.path()).unwrap();
+        std::thread::sleep(Duration::from_millis(5));
+        let mut newer = TaskState::new("task-resume-newer".to_string());
+        newer.status = crate::runtime::TaskStatus::Running;
+        newer.save(temp.path()).unwrap();
+
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/resume".to_string(), &mut ctx);
+
+        assert!(
+            mode.overlay_active(),
+            "/resume without id must open a selection overlay"
+        );
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|line| line.contains("task-resume-newer (Running)")),
+            "expected recent-task list in history"
+        );
+
+        mode.on_user_input("1".to_string(), &mut ctx);
+
+        assert_eq!(mode.current_task_id(), "task-resume-newer");
+        assert_eq!(
+            mode.history_lines().len(),
+            1,
+            "resume selection must reset transcript"
+        );
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_tui_resume_does_not_restore_conversation() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let saved = TaskState::new("task-resume-002".to_string());
+        saved.save(temp.path()).unwrap();
+
+        let mut mode = TuiMode::new();
+        mode.push_history_line("stale transcript".to_string());
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/resume task-resume-002".to_string(), &mut ctx);
+
+        assert_eq!(
+            mode.history_lines().len(),
+            1,
+            "/resume must clear prior transcript state"
+        );
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/resume must not start a model turn"
+        );
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_tui_resume_unknown_id_emits_error() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/resume task-does-not-exist".to_string(), &mut ctx);
+
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[resume: task 'task-does-not-exist' not found]")),
+            "expected not-found message in history"
+        );
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_tui_clear_resets_conversation_history() {
+        let mut mode = TuiMode::new();
+        mode.push_history_line("stale transcript".to_string());
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/clear".to_string(), &mut ctx);
+
+        assert_eq!(
+            mode.history_lines().len(),
+            1,
+            "/clear must reset the transcript"
+        );
+        assert!(
+            mode.history_lines()[0].starts_with("[cleared: conversation history reset; task "),
+            "expected cleared confirmation"
+        );
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_tui_clear_preserves_task_id_and_grants() {
+        let mut mode = TuiMode::new();
+        let original_id = mode.current_task_id();
+        mode.current_task.active_grants.insert(
+            crate::runtime::Capability::RunCommand,
+            crate::runtime::ApprovalScope::Session,
+        );
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/clear".to_string(), &mut ctx);
+
+        assert_eq!(
+            mode.current_task_id(),
+            original_id,
+            "/clear must not change task-id"
+        );
+        assert!(
+            mode.current_task
+                .active_grants
+                .contains_key(&crate::runtime::Capability::RunCommand),
+            "/clear must preserve active grants"
+        );
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/clear must clear active edit-loop state"
+        );
+    }
+
+    #[test]
+    fn test_tui_clear_clears_active_edit_loop() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/clear".to_string(), &mut ctx);
+
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/clear must clear active edit-loop state"
+        );
+    }
+
+    #[test]
+    fn test_tui_fork_saves_parent_before_branching() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let mut mode = TuiMode::new();
+        let parent_id = mode.current_task_id();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/fork".to_string(), &mut ctx);
+
+        let parent_file = temp.path().join(format!("{parent_id}.json"));
+        assert!(parent_file.exists(), "/fork must save parent state file");
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_tui_fork_creates_new_task_id() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let mut mode = TuiMode::new();
+        let parent_id = mode.current_task_id();
+        mode.current_task.active_grants.insert(
+            crate::runtime::Capability::RunCommand,
+            crate::runtime::ApprovalScope::Session,
+        );
+        mode.current_task
+            .changed_files
+            .push(PathBuf::from("src/app.rs"));
+        mode.current_task.status = crate::runtime::TaskStatus::Running;
+        mode.push_history_line("stale transcript".to_string());
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/fork feature work".to_string(), &mut ctx);
+
+        assert_ne!(
+            mode.current_task_id(),
+            parent_id,
+            "/fork must assign a new task-id"
+        );
+        assert!(mode.current_task_id().ends_with("-feature-work"));
+        assert!(mode
+            .current_task
+            .active_grants
+            .contains_key(&crate::runtime::Capability::RunCommand));
+        assert_eq!(
+            mode.current_task.changed_files,
+            vec![PathBuf::from("src/app.rs")]
+        );
+        assert_eq!(
+            mode.current_task.status,
+            crate::runtime::TaskStatus::Running
+        );
+        assert_eq!(mode.history_lines().len(), 1, "/fork must reset transcript");
+        assert!(
+            mode.history_lines()[0].contains(&format!("branched from {parent_id}")),
+            "expected fork confirmation in history"
+        );
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_tui_fork_does_not_copy_conversation() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let mut mode = TuiMode::new();
+        mode.push_history_line("stale transcript".to_string());
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/fork".to_string(), &mut ctx);
+
+        assert_eq!(
+            mode.history_lines().len(),
+            1,
+            "/fork must clear prior transcript state"
+        );
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/fork must not start a model turn"
+        );
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_tui_fork_aborts_on_save_failure() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_STATE_DIR", "/dev/null/impossible");
+
+        let mut mode = TuiMode::new();
+        let original_id = mode.current_task_id();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/fork".to_string(), &mut ctx);
+
+        assert_eq!(
+            mode.current_task_id(),
+            original_id,
+            "/fork must not change task-id when parent save fails"
+        );
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[fork] save failed")),
+            "expected save failure message"
+        );
+        std::env::remove_var("VEX_STATE_DIR");
     }
 
     // -- PK-01: /quit and /exit ------------------------------------------------

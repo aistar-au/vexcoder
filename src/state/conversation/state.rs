@@ -92,6 +92,12 @@ impl ConversationManager {
         self.api_messages.clone()
     }
 
+    pub fn clear_messages(&mut self) {
+        self.api_messages.clear();
+        self.current_turn_blocks.clear();
+        self.read_file_history_cache = ReadFileSnapshotCache::default();
+    }
+
     pub fn client(&self) -> Arc<ApiClient> {
         Arc::clone(&self.client)
     }
