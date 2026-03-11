@@ -78,7 +78,10 @@ enum Commands {
     },
     /// Scaffold a new vex workspace (`.vex/config.toml`, `AGENTS.md`,
     /// `.vex/validate.toml`).  Non-destructive: skips files that already exist.
-    Init,
+    Init {
+        #[arg(long)]
+        dir: Option<PathBuf>,
+    },
     /// Configuration migration utilities.
     Migrate {
         #[command(subcommand)]
@@ -574,46 +577,176 @@ async fn run_print(
 
 /// Non-destructive workspace scaffolding.  Creates `.vex/config.toml`,
 /// `AGENTS.md`, and `.vex/validate.toml` if they do not already exist.
-fn run_init(cwd: &Path) -> Result<()> {
+const INIT_CONFIG_TEMPLATE: &str = "# vex workspace config — see docs/adr/ for schema reference\n\
+    # model_name = \"local/default\"\n\
+    # model_url = \"http://localhost:11434/v1\"\n\
+    # working_dir = \".\"\n\
+    # model_backend = \"local-runtime\"\n\
+    # model_protocol = \"chat-compat\"\n\
+    # tool_call_mode = \"tagged-fallback\"\n\
+    # max_project_instructions_tokens = 4096\n\
+    # max_memory_tokens = 2048\n\
+    # notes_path = \"~/.config/vex/memory.md\"\n\
+    # sandbox = \"passthrough\"\n\
+    # sandbox_profile = \"\"\n\
+    # sandbox_require = false\n\
+    # model_headers = '{\"X-Client-Id\":\"vexcoder\"}'\n\
+    \n\
+    # [api]\n\
+    # transport = \"http\"\n\
+    # host = \"127.0.0.1\"\n\
+    # port = 6274\n\
+    # socket = \"\"\n\
+    # key = \"${VEX_API_KEY}\"\n\
+    \n\
+    # user config only:\n\
+    # [[hooks]]\n\
+    # event = \"post_tool\"\n\
+    # tool = \"apply_patch\"\n\
+    # command = \"cargo\"\n\
+    # args = [\"fmt\"]\n\
+    # on_fail = \"warn\"\n\
+    \n\
+    # user config only:\n\
+    # [[mcp_servers]]\n\
+    # name = \"filesystem\"\n\
+    # transport = \"stdio\"\n\
+    # command = \"npx\"\n\
+    # args = [\"-y\", \"@modelcontextprotocol/server-filesystem\", \"/tmp\"]\n\
+    # url = \"http://localhost:3000/mcp\"\n\
+    \n\
+    # [mcp_servers.headers]\n\
+    # Authorization = \"${MCP_PRIVATE_SEARCH_TOKEN}\"\n";
+
+const INIT_AGENTS_TEMPLATE: &str = "# Project Agents\n\n\
+    Fill in project-specific guidance for coding agents working in this repository.\n";
+
+const INIT_VALIDATE_TEMPLATE: &str = "# validation commands applied by `vex validate`\n\
+    # [[commands]]\n\
+    # name = \"example\"\n\
+    # command = \"cargo test --all-targets\"\n";
+
+#[cfg(test)]
+const INIT_CONFIG_NORMATIVE_KEYS: &[&str] = &[
+    "model_name",
+    "model_url",
+    "working_dir",
+    "model_backend",
+    "model_protocol",
+    "tool_call_mode",
+    "max_project_instructions_tokens",
+    "max_memory_tokens",
+    "notes_path",
+    "sandbox",
+    "sandbox_profile",
+    "sandbox_require",
+    "model_headers",
+    "api",
+    "api.transport",
+    "api.host",
+    "api.port",
+    "api.socket",
+    "api.key",
+    "hooks",
+    "hooks.event",
+    "hooks.tool",
+    "hooks.command",
+    "hooks.args",
+    "hooks.on_fail",
+    "mcp_servers",
+    "mcp_servers.name",
+    "mcp_servers.transport",
+    "mcp_servers.command",
+    "mcp_servers.args",
+    "mcp_servers.url",
+    "mcp_servers.headers",
+    "mcp_servers.headers.Authorization",
+];
+
+fn run_init(cwd: &Path) -> Result<Vec<String>> {
     let vex_dir = cwd.join(".vex");
     std::fs::create_dir_all(&vex_dir)?;
 
     let files: &[(&str, &str)] = &[
-        (
-            ".vex/config.toml",
-            "# vex workspace config — see docs/adr/ for schema reference\n\
-             # model_name = \"local/default\"\n\
-             # model_url  = \"http://localhost:11434/v1\"\n",
-        ),
-        (
-            "AGENTS.md",
-            "# Project Agents\n\n\
-             <!-- List project-level agent instructions here. -->\n",
-        ),
-        (
-            ".vex/validate.toml",
-            "# validation rules applied by `vex validate`\n\
-             # [[rules]]\n\
-             # name = \"example\"\n\
-             # command = \"cargo test\"\n",
-        ),
+        (".vex/config.toml", INIT_CONFIG_TEMPLATE),
+        ("AGENTS.md", INIT_AGENTS_TEMPLATE),
+        (".vex/validate.toml", INIT_VALIDATE_TEMPLATE),
     ];
+    let mut summary = Vec::new();
 
     for (rel_path, content) in files {
         let full = cwd.join(rel_path);
         if full.exists() {
-            eprintln!("[init] skip (exists): {rel_path}");
+            summary.push(format!("[init] skip (exists): {rel_path}"));
         } else {
             if let Some(parent) = full.parent() {
                 std::fs::create_dir_all(parent)?;
             }
             std::fs::write(&full, content)?;
-            eprintln!("[init] created: {rel_path}");
+            summary.push(format!("[init] created: {rel_path}"));
         }
     }
 
-    eprintln!("[init] done");
-    Ok(())
+    summary.push("[init] done".to_string());
+    Ok(summary)
+}
+
+fn print_lines(lines: &[String]) {
+    for line in lines {
+        println!("{line}");
+    }
+}
+
+#[cfg(test)]
+fn extract_init_template_keys(content: &str) -> std::collections::BTreeSet<String> {
+    let mut section: Option<&str> = None;
+    let mut keys = std::collections::BTreeSet::new();
+
+    for raw_line in content.lines() {
+        let Some(line) = raw_line.trim().strip_prefix('#') else {
+            continue;
+        };
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        match line {
+            "[api]" => {
+                section = Some("api");
+                keys.insert("api".to_string());
+                continue;
+            }
+            "[[hooks]]" => {
+                section = Some("hooks");
+                keys.insert("hooks".to_string());
+                continue;
+            }
+            "[[mcp_servers]]" => {
+                section = Some("mcp_servers");
+                keys.insert("mcp_servers".to_string());
+                continue;
+            }
+            "[mcp_servers.headers]" => {
+                section = Some("mcp_servers.headers");
+                keys.insert("mcp_servers.headers".to_string());
+                continue;
+            }
+            _ => {}
+        }
+
+        let Some((key, _)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        let full_key = match section {
+            Some(prefix) => format!("{prefix}.{key}"),
+            None => key.to_string(),
+        };
+        keys.insert(full_key);
+    }
+
+    keys
 }
 
 // ── main ───────────────────────────────────────────────────────────────────────
@@ -668,9 +801,13 @@ async fn main() -> Result<ExitCode> {
             }
             return Ok(ExitCode::SUCCESS);
         }
-        Some(Commands::Init) => {
-            let cwd = std::env::current_dir()?;
-            run_init(&cwd)?;
+        Some(Commands::Init { dir }) => {
+            let cwd = match dir {
+                Some(path) => path,
+                None => std::env::current_dir()?,
+            };
+            let summary = run_init(&cwd)?;
+            print_lines(&summary);
             return Ok(ExitCode::SUCCESS);
         }
         Some(Commands::Migrate { sub }) => match sub {
@@ -726,8 +863,9 @@ fn exit_code_for_status(status: TaskStatus) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::{
-        emit_migrate_config_output, looks_like_terminal_transcript, resolve_resume_state, Cli,
-        Commands, MigrateCommands, SkillsCommands,
+        emit_migrate_config_output, extract_init_template_keys, looks_like_terminal_transcript,
+        resolve_resume_state, Cli, Commands, MigrateCommands, SkillsCommands,
+        INIT_CONFIG_NORMATIVE_KEYS,
     };
     use clap::Parser;
     use clap_complete::Shell;
@@ -1085,33 +1223,86 @@ mod tests {
     // -- PJ-04: vex init ------------------------------------------------------
 
     #[test]
-    fn test_init_cli_parses() {
-        let cli = Cli::parse_from(["vex", "init"]);
-        assert!(matches!(cli.command, Some(Commands::Init)));
+    fn test_init_cli_parses_dir_flag() {
+        let cli = Cli::parse_from(["vex", "init", "--dir", "/tmp/example"]);
+        match cli.command {
+            Some(Commands::Init { dir }) => {
+                assert_eq!(dir, Some(PathBuf::from("/tmp/example")));
+            }
+            _ => panic!("expected init command"),
+        }
     }
 
     #[test]
-    fn test_init_creates_scaffold_files() {
+    fn test_vex_init_creates_vex_dir() {
         let temp = tempfile::tempdir().unwrap();
         super::run_init(temp.path()).unwrap();
-        assert!(temp.path().join(".vex/config.toml").exists());
-        assert!(temp.path().join("AGENTS.md").exists());
-        assert!(temp.path().join(".vex/validate.toml").exists());
+        assert!(temp.path().join(".vex").is_dir());
     }
 
     #[test]
-    fn test_init_does_not_overwrite_existing() {
+    fn test_vex_init_writes_config_toml_skeleton() {
+        let temp = tempfile::tempdir().unwrap();
+        super::run_init(temp.path()).unwrap();
+        let content = std::fs::read_to_string(temp.path().join(".vex/config.toml")).unwrap();
+        assert!(temp.path().join(".vex/config.toml").exists());
+        assert!(content.contains("# model_backend = \"local-runtime\""));
+        assert!(content.contains("# [api]"));
+        assert!(content.contains("# [[hooks]]"));
+        assert!(content.contains("# [[mcp_servers]]"));
+    }
+
+    #[test]
+    fn test_vex_init_writes_agents_md_template() {
+        let temp = tempfile::tempdir().unwrap();
+        super::run_init(temp.path()).unwrap();
+        let content = std::fs::read_to_string(temp.path().join("AGENTS.md")).unwrap();
+        assert!(content.contains("Project Agents"));
+        assert!(content.contains("project-specific guidance"));
+    }
+
+    #[test]
+    fn test_vex_init_skips_existing_files() {
         let temp = tempfile::tempdir().unwrap();
         let config_path = temp.path().join(".vex/config.toml");
         std::fs::create_dir_all(config_path.parent().unwrap()).unwrap();
         std::fs::write(&config_path, "existing\n").unwrap();
 
-        super::run_init(temp.path()).unwrap();
+        let summary = super::run_init(temp.path()).unwrap();
         let content = std::fs::read_to_string(&config_path).unwrap();
         assert_eq!(content, "existing\n", "must not overwrite existing file");
         assert!(
             temp.path().join("AGENTS.md").exists(),
             "missing files must still be created"
         );
+        assert!(summary
+            .iter()
+            .any(|line| line == "[init] skip (exists): .vex/config.toml"));
+    }
+
+    #[test]
+    fn test_vex_init_config_keys_match_normative_list() {
+        let keys = extract_init_template_keys(super::INIT_CONFIG_TEMPLATE);
+        let expected = INIT_CONFIG_NORMATIVE_KEYS
+            .iter()
+            .map(|value| value.to_string())
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(keys, expected);
+    }
+
+    #[test]
+    fn test_vex_init_does_not_start_agent_loop() {
+        let temp = tempfile::tempdir().unwrap();
+        let summary = super::run_init(temp.path()).unwrap();
+        assert!(!temp.path().join(".vex/state").exists());
+        assert_eq!(summary.last().map(String::as_str), Some("[init] done"));
+    }
+
+    #[test]
+    fn test_vex_init_writes_validate_commands_stub() {
+        let temp = tempfile::tempdir().unwrap();
+        super::run_init(temp.path()).unwrap();
+        let content = std::fs::read_to_string(temp.path().join(".vex/validate.toml")).unwrap();
+        assert!(content.contains("# [[commands]]"));
     }
 }

@@ -1,5 +1,8 @@
 use crate::config::Config;
 use crate::runtime::context::RuntimeContext;
+use crate::runtime::context_assembler::{
+    block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout, ContextAssembler,
+};
 use crate::runtime::frontend::{ScrollAction, ScrollTarget, UserInputEvent};
 use crate::runtime::mode::RuntimeMode;
 use crate::runtime::policy::sanitize_assistant_text;
@@ -648,16 +651,21 @@ impl TuiMode {
             return;
         }
         // Models prefixed with `local/` are local-runtime-only; all other
-        // names are assumed compatible with the current backend.  Reject a
-        // `local/` name when the session backend is ApiServer and vice-versa.
+        // names are assumed compatible with the API backend. Reject any
+        // name that would require switching backends mid-session.
         let target_is_local = name.starts_with("local/");
         let current_is_local = self.model_backend == crate::runtime::ModelBackendKind::LocalRuntime;
 
-        if target_is_local && !current_is_local {
+        if target_is_local != current_is_local {
+            let required_backend = if target_is_local {
+                "local-runtime"
+            } else {
+                "api-server"
+            };
             self.push_history_line(format!(
-                "[model] rejected: '{}' requires local-runtime backend \
+                "[model] rejected: '{}' requires {} backend \
                  (current: {:?}). Restart vex with the desired backend.",
-                name, self.model_backend,
+                name, required_backend, self.model_backend,
             ));
             return;
         }
@@ -673,7 +681,9 @@ impl TuiMode {
 
     /// PK-07: `/diff [--staged]` — show git diff output, truncated at 200 lines.
     fn handle_diff_command(&mut self, args: &str) {
-        const MAX_DIFF_LINES: usize = 200;
+        let diff_defaults = ContextAssembler::default();
+        let max_diff_lines = diff_defaults.max_diff_lines;
+        let timeout_ms = resolve_git_timeout_ms(diff_defaults.git_timeout_ms);
         let staged = match args.split_whitespace().collect::<Vec<_>>().as_slice() {
             [] => false,
             ["--staged"] | ["--cached"] => true,
@@ -682,45 +692,50 @@ impl TuiMode {
                 return;
             }
         };
-        let mut cmd = std::process::Command::new("git");
-        cmd.arg("diff");
-        if staged {
-            cmd.arg("--staged");
-        }
-        cmd.current_dir(&self.working_dir);
 
-        match cmd.output() {
-            Ok(output) => {
-                if !output.status.success() {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    let message = stderr
-                        .lines()
-                        .map(str::trim)
-                        .find(|line| !line.is_empty())
-                        .unwrap_or("git diff failed");
-                    self.push_history_line(format!("[diff] error: {message}"));
+        let git_args = if staged {
+            vec!["diff".to_string(), "--cached".to_string()]
+        } else {
+            vec!["diff".to_string(), "HEAD".to_string()]
+        };
+
+        match block_on_context_task(run_git_command_with_timeout(
+            self.working_dir.clone(),
+            git_args,
+            timeout_ms,
+        )) {
+            Ok(result) => {
+                if result.non_git_repo {
+                    self.push_history_line("[diff] not a git repository".to_string());
                     return;
                 }
-                let text = String::from_utf8_lossy(&output.stdout);
+                if result.timed_out {
+                    self.push_history_line(format!(
+                        "[diff] error: git diff timed out after {timeout_ms}ms"
+                    ));
+                    return;
+                }
+                let Some(text) = result.output else {
+                    self.push_history_line("[diff] error: git diff failed".to_string());
+                    return;
+                };
                 if text.trim().is_empty() {
-                    self.push_history_line("[diff] no changes".to_string());
+                    self.push_history_line("[diff] working tree is clean".to_string());
                     return;
                 }
+
                 let lines: Vec<&str> = text.lines().collect();
-                let truncated = lines.len() > MAX_DIFF_LINES;
-                for line in lines.iter().take(MAX_DIFF_LINES) {
+                for line in lines.iter().take(max_diff_lines) {
                     self.push_history_line(line.to_string());
                 }
-                if truncated {
+                if lines.len() > max_diff_lines {
                     self.push_history_line(format!(
-                        "[diff] truncated at {} lines ({} total)",
-                        MAX_DIFF_LINES,
-                        lines.len()
+                        "[diff truncated — showing first {max_diff_lines} lines]"
                     ));
                 }
             }
-            Err(e) => {
-                self.push_history_line(format!("[diff] error: {e}"));
+            Err(error) => {
+                self.push_history_line(format!("[diff] error: {error}"));
             }
         }
     }
@@ -3360,13 +3375,13 @@ mod tests {
         let mut ctx = setup_ctx();
         let mut mode = TuiMode::new();
         let old = mode.model_name.clone();
-        mode.on_user_input("/model qwen3-8b".to_string(), &mut ctx);
-        assert_eq!(mode.model_name, "qwen3-8b");
-        assert_eq!(ctx.test_model_name().await, "qwen3-8b");
+        mode.on_user_input("/model local/qwen3-8b".to_string(), &mut ctx);
+        assert_eq!(mode.model_name, "local/qwen3-8b");
+        assert_eq!(ctx.test_model_name().await, "local/qwen3-8b");
         assert!(mode
             .history_lines()
             .iter()
-            .any(|l| l.contains(&old) && l.contains("qwen3-8b")));
+            .any(|l| l.contains(&old) && l.contains("local/qwen3-8b")));
     }
 
     #[tokio::test]
@@ -3383,35 +3398,47 @@ mod tests {
             "must reject local/ model on api-server backend"
         );
         assert!(mode.history_lines().iter().any(|l| l.contains("rejected")));
+        assert_eq!(ctx.test_model_name().await, "mock-model");
+    }
+
+    #[tokio::test]
+    async fn test_model_rejects_remote_on_local_backend() {
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new();
+        let original = mode.model_name.clone();
+        mode.on_user_input("/model remote-model".to_string(), &mut ctx);
+        assert_eq!(mode.model_name, original);
+        assert_eq!(ctx.test_model_name().await, "mock-model");
+        assert!(mode.history_lines().iter().any(|l| l.contains("rejected")));
+    }
+
+    #[tokio::test]
+    async fn test_model_does_not_start_turn() {
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new();
+        let initial_messages = ctx.test_message_count().await;
+
+        mode.on_user_input("/model".to_string(), &mut ctx);
+        assert!(!mode.is_turn_in_progress(), "/model must not start a turn");
+
+        mode.on_user_input("/model local/phi-3".to_string(), &mut ctx);
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/model <name> must not start a turn"
+        );
+        assert_eq!(ctx.test_message_count().await, initial_messages);
     }
 
     // -- PK-07: /diff ---------------------------------------------------------
 
     #[tokio::test]
-    async fn test_diff_runs_in_working_dir() {
+    async fn test_tui_diff_renders_working_tree_diff() {
         let mut ctx = setup_ctx();
         let temp = tempfile::tempdir().unwrap();
-        // Set up a tiny git repo so `git diff` succeeds.
-        std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(temp.path())
-            .output()
-            .unwrap();
+        init_git_repo(temp.path());
         std::fs::write(temp.path().join("a.txt"), "hello\n").unwrap();
-        std::process::Command::new("git")
-            .args(["add", "a.txt"])
-            .current_dir(temp.path())
-            .output()
-            .unwrap();
-        std::process::Command::new("git")
-            .args(["commit", "-m", "init"])
-            .current_dir(temp.path())
-            .env("GIT_AUTHOR_NAME", "test")
-            .env("GIT_AUTHOR_EMAIL", "t@t")
-            .env("GIT_COMMITTER_NAME", "test")
-            .env("GIT_COMMITTER_EMAIL", "t@t")
-            .output()
-            .unwrap();
+        git_success(temp.path(), &["add", "a.txt"]);
+        git_success(temp.path(), &["commit", "-m", "init"]);
         std::fs::write(temp.path().join("a.txt"), "world\n").unwrap();
 
         let mut mode = TuiMode::new();
@@ -3426,26 +3453,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_diff_no_changes() {
+    async fn test_tui_diff_staged_flag() {
         let mut ctx = setup_ctx();
         let temp = tempfile::tempdir().unwrap();
-        std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(temp.path())
-            .output()
-            .unwrap();
+        init_git_repo(temp.path());
+        std::fs::write(temp.path().join("tracked.txt"), "base\n").unwrap();
+        git_success(temp.path(), &["add", "tracked.txt"]);
+        git_success(temp.path(), &["commit", "-m", "init"]);
+
+        std::fs::write(temp.path().join("tracked.txt"), "staged\n").unwrap();
+        git_success(temp.path(), &["add", "tracked.txt"]);
+        std::fs::write(temp.path().join("tracked.txt"), "unstaged\n").unwrap();
 
         let mut mode = TuiMode::new();
         mode.working_dir = temp.path().to_path_buf();
-        mode.on_user_input("/diff".to_string(), &mut ctx);
-        assert!(mode
-            .history_lines()
-            .iter()
-            .any(|l| l.contains("no changes")));
+        mode.on_user_input("/diff --staged".to_string(), &mut ctx);
+
+        let history = mode.history_lines().join("\n");
+        assert!(history.contains("tracked.txt"));
+        assert!(history.contains("+staged"));
+        assert!(!history.contains("+unstaged"));
     }
 
     #[tokio::test]
-    async fn test_diff_reports_git_errors() {
+    async fn test_tui_diff_non_git_repo() {
         let mut ctx = setup_ctx();
         let temp = tempfile::tempdir().unwrap();
 
@@ -3456,6 +3487,94 @@ mod tests {
         assert!(mode
             .history_lines()
             .iter()
-            .any(|l| l.starts_with("[diff] error:")));
+            .any(|l| l == "[diff] not a git repository"));
+    }
+
+    #[tokio::test]
+    async fn test_tui_diff_clean_working_tree() {
+        let mut ctx = setup_ctx();
+        let temp = tempfile::tempdir().unwrap();
+        init_git_repo(temp.path());
+        std::fs::write(temp.path().join("clean.txt"), "clean\n").unwrap();
+        git_success(temp.path(), &["add", "clean.txt"]);
+        git_success(temp.path(), &["commit", "-m", "init"]);
+
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        mode.on_user_input("/diff".to_string(), &mut ctx);
+
+        assert!(mode
+            .history_lines()
+            .iter()
+            .any(|l| l == "[diff] working tree is clean"));
+    }
+
+    #[tokio::test]
+    async fn test_tui_diff_truncates_at_max_lines() {
+        let mut ctx = setup_ctx();
+        let temp = tempfile::tempdir().unwrap();
+        init_git_repo(temp.path());
+        let path = temp.path().join("large.txt");
+        std::fs::write(&path, "seed\n").unwrap();
+        git_success(temp.path(), &["add", "large.txt"]);
+        git_success(temp.path(), &["commit", "-m", "init"]);
+
+        let large_body = (0..260)
+            .map(|index| format!("line-{index}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        std::fs::write(&path, large_body).unwrap();
+
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        mode.on_user_input("/diff".to_string(), &mut ctx);
+
+        assert!(mode
+            .history_lines()
+            .iter()
+            .any(|line| line == "[diff truncated — showing first 200 lines]"));
+    }
+
+    #[tokio::test]
+    async fn test_tui_diff_does_not_start_model_turn() {
+        let mut ctx = setup_ctx();
+        let temp = tempfile::tempdir().unwrap();
+        init_git_repo(temp.path());
+        std::fs::write(temp.path().join("tracked.txt"), "clean\n").unwrap();
+        git_success(temp.path(), &["add", "tracked.txt"]);
+        git_success(temp.path(), &["commit", "-m", "init"]);
+
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        let initial_messages = ctx.test_message_count().await;
+        mode.on_user_input("/diff".to_string(), &mut ctx);
+
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/diff must not start a model turn"
+        );
+        assert_eq!(ctx.test_message_count().await, initial_messages);
+    }
+
+    fn init_git_repo(path: &std::path::Path) {
+        git_success(path, &["init"]);
+        git_success(path, &["config", "user.name", "test"]);
+        git_success(path, &["config", "user.email", "t@t"]);
+    }
+
+    fn git_success(path: &std::path::Path, args: &[&str]) {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(path)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {:?} failed: stdout={} stderr={}",
+            args,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 }
