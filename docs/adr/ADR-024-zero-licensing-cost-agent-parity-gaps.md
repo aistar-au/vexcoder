@@ -1449,14 +1449,14 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | ID | Task | Status |
 | :--- | :--- | :--- |
 | **PA-01** | Layered config resolution chain | [x] |
-| **PA-02** | Project instructions injection | [ ] |
+| **PA-02** | Project instructions injection | [x] |
 | **PA-03** | `vex migrate config` sub-command | [ ] |
 | **PA-04** | `docs/src/migration.md` complete and accurate | [ ] |
 | **PB-01** | `vex completions <shell>` | [ ] |
 | **PB-02** | `vex install-hooks` / `vex uninstall-hooks` | [ ] |
 | **PB-03** | `vex skills list\|install\|remove` + `registry.toml` | [ ] |
 | **PC-01** | `/model <name>` runtime model switching | [ ] |
-| **PD-01** | `SandboxDriver` trait + `PassthroughSandbox` | [ ] |
+| **PD-01** | `SandboxDriver` trait + `PassthroughSandbox` | [x] |
 | **PD-02** | `MacosSandboxExec` driver (best-effort + require flag) | [ ] |
 | **PD-03** | `DockerSandbox` driver | [ ] |
 | **PE-01** | `BatchMode: RuntimeMode + FrontendAdapter` | [x] |
@@ -1481,8 +1481,8 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [ ] |
 | **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [x] |
 | **PJ-04** | `vex init` — scaffolds `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [ ] |
-| **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [ ] |
-| **PK-02** | `/about` — build metadata display; `build.rs` compile-time injection | [ ] |
+| **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [x] (save wiring deferred to PI-04) |
+| **PK-02** | `/about` — build metadata display; `build.rs` compile-time injection | [x] |
 | **PK-03** | `@<path>` inline injection — workspace-confined; truncation annotation; multi-token | [ ] |
 | **PK-04** | `!<command>` passthrough — SandboxDriver + ApprovalPolicy; no model turn | [ ] |
 | **PK-05** | User-defined commands — TOML loader; project + user scopes; `/commands` integration | [ ] |
@@ -1688,3 +1688,60 @@ The amendment that authorises native packaging and editor-surface work is record
   - All hook commands route through `SandboxDriver::wrap` and `Capability::RunCommand` gate.
   - `on_fail = "abort"` surfaces error to transcript without terminating the process.
   - `SandboxKind` enum scaffolded in `sandbox.rs` for PD-01/PD-02 (not yet wired to config).
+
+### [PA-02] - Project instructions injection
+- Dispatcher: reconciliation (implemented as part of PA-01 batch)
+- Files:
+  - `src/runtime/project_instructions.rs` — PA-02 loading logic
+  - `src/app.rs` — TuiMode injection at startup
+  - `src/batch_mode.rs` — BatchMode injection
+  - `src/api/client.rs` — `with_project_instructions` system prompt wrapping
+  - `src/config.rs` — `max_project_instructions_tokens` config field
+- Validation:
+  - `cargo test test_within_budget_is_loaded --all-targets` : pass
+  - `cargo test test_over_budget_is_skipped --all-targets` : pass
+  - `cargo test test_vex_agents_md_takes_priority_over_root_agents_md --all-targets` : pass
+  - `cargo test test_with_project_instructions_some_wraps_in_delimiters --all-targets` : pass
+  - `cargo test --all-targets` : pass
+- Notes:
+  - Implementation was delivered alongside PA-01 but not previously reconciled
+    in the roadmap. Marking as complete to match the existing code.
+  - Search order: `.vex/AGENTS.md`, `AGENTS.md`, `.vex/PROJECT.md`.
+  - Over-budget files emit a warning and are skipped; never truncated.
+
+### [PD-01] - SandboxDriver trait + PassthroughSandbox
+- Dispatcher: reconciliation (implemented as part of PL-01 batch)
+- Files:
+  - `src/runtime/sandbox.rs` — `SandboxDriver` trait + `PassthroughSandbox`
+  - `src/runtime.rs` — re-export
+  - `src/state/conversation/tools.rs` — tool dispatch uses `PassthroughSandbox`
+- Validation:
+  - `cargo test passthrough_sandbox_is_identity --all-targets` : pass
+  - `cargo test --all-targets` : pass
+- Notes:
+  - Trait and default driver scaffolded during PL-01 hooks work.
+  - PD-02 (`MacosSandboxExec`) and PD-03 (`DockerSandbox`) remain deferred.
+
+### [PK-01 / PK-02] - /quit, /exit, /about
+- Dispatcher: `dispatcher/vexcoder-adr-024-pk-01-pk-02-quit-about`
+- Files changed:
+  - `build.rs` (new) — compile-time injection of `GIT_COMMIT_SHORT` and `BUILD_DATE`
+  - `src/app.rs` — `/quit`, `/exit`, `/about` slash commands
+  - `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — roadmap reconciliation
+- Validation:
+  - `cargo test test_tui_quit_command_requests_quit --all-targets` : pass
+  - `cargo test test_tui_exit_is_alias_for_quit --all-targets` : pass
+  - `cargo test test_tui_about_renders_without_model_turn --all-targets` : pass
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - `/quit` and `/exit` set `quit_requested` for immediate frontend exit.
+  - `TaskState::save` integration deferred to PI-04 when task state persistence
+    is wired into the TUI lifecycle. Current exit path is the same as the
+    existing Ctrl+C double-press.
+  - `/about` is a zero-turn command that renders version, build date, commit,
+    repo label, and instructions path.
+  - `BUILD_DATE` and `GIT_COMMIT_SHORT` are injected via `build.rs` using
+    `env!()` macros with `"unknown"` fallback.
