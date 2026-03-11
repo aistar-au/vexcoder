@@ -178,6 +178,7 @@ PI-10 is the canonical normalization layer. It must map provider-facing and curr
 | `RuntimeRequest::DenyCapability` processed | `ApprovalResolved { capability, scope, approved: false }` | emitted after the runtime processes an approval denial |
 | `UiUpdate::StreamBlockStart`, `StreamBlockDelta`, `StreamBlockComplete` | *(not projected)* | TUI render bookkeeping only; must not cross the machine-readable seam |
 | `BatchMode` / `LocalApiServer` max-turns limit reached | `MaxTurnsReached { max_turns }` then `TurnEnd { status: "failed", ... }` | emitted as the terminal sequence when the turn limit is exhausted |
+| Grammar `tool_call_array` (array of tool calls) | one `ToolCall` envelope per array element | when the grammar produces `[{...},{...}]`, PI-10 splits the array into individual `ToolCall` envelopes, each with its own runtime-generated `id` and its own `seq` number; single bare `{...}` objects are treated as a one-element array |
 
 **Current-path note:** the live `UiUpdate` surface does not yet contain a dedicated `AssistantMessage` variant. PI-10 therefore treats the `TurnComplete` path above as the normative source of `AssistantMessage` for current streaming backends: deltas are accumulated across the turn, a terminal `AssistantMessage` is emitted immediately before `TurnEnd`, and BatchMode derives `TurnRecord.response` from that assembled content when present. A future non-streaming backend may add a direct full-message update, but it must normalize to the same `AssistantMessage` envelope shape.
 
@@ -561,6 +562,9 @@ exp ::= ("e" | "E") ("+" | "-")? digits
 digits ::= digit+
 digit ::= "0" | onenine
 onenine ::= "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+# Lowercase-only hex is intentional for constrained decoding; see §5 note on json_safe_char.
+# Standard JSON allows uppercase A-F in \uXXXX escapes, but the grammar restricts to
+# lowercase to limit the local-model output surface. PI-10 normalization accepts both cases.
 hex ::= digit | "a" | "b" | "c" | "d" | "e" | "f"
 
 lower ::= "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z"

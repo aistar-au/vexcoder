@@ -184,6 +184,11 @@ Response:
 
 This endpoint allows external clients to respond to `ApprovalRequest` envelopes received on an active SSE stream. It is a control endpoint; it does not use SSE.
 
+Error responses:
+
+- `{"ok":false,"reason":"task_not_found"}` with HTTP `404` if the `task_id` does not correspond to an active turn.
+- `{"ok":false,"reason":"no_pending_approval"}` with HTTP `409` if the `task_id` is valid but no pending `ApprovalRequest` exists for the specified capability.
+
 #### `POST /v1/interrupt`
 
 Request body:
@@ -423,7 +428,10 @@ event: runtime
 data: {"version":1,"task_id":"task-1741700000000","turn":1,"seq":4,"event":{"type":"tool_result","tool_call_id":"call_1741700123456_9a2f","tool_name":"read_file","is_error":false,"output":"..."}}
 
 event: runtime
-data: {"version":1,"task_id":"task-1741700000000","turn":1,"seq":5,"event":{"type":"turn_end","status":"completed","usage":{"input":184,"output":67,"estimated":false},"changed_files":[]}}
+data: {"version":1,"task_id":"task-1741700000000","turn":1,"seq":5,"event":{"type":"assistant_message","content":"Analyzing runtime flow..."}}
+
+event: runtime
+data: {"version":1,"task_id":"task-1741700000000","turn":1,"seq":6,"event":{"type":"turn_end","status":"completed","usage":{"input":184,"output":67,"estimated":false},"changed_files":[]}}
 ```
 
 ---
@@ -551,7 +559,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
 | **PI-13** | Implement `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [ ] |
 | **PI-14** | Implement `GET /v1/schema` serving ADR-025 schema bundle; exempt from envelope validation | [ ] |
 | **PI-15** | Add Unix-socket transport, HTTP bearer auth, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
-| **PI-16** | Add integration tests for SSE stream order, SSE keepalive emission, auth failures (`401` for missing/invalid token), schema validation, mid-stream runtime error, `MaxTurnsReached` sequence, `POST /v1/interrupt` with unknown task id returns `404`, and reconnect/new-turn behavior | [ ] |
+| **PI-16** | Add integration tests for SSE stream order, SSE keepalive emission, auth failures (`401` for missing/invalid token), schema validation, mid-stream runtime error, `MaxTurnsReached` sequence, `POST /v1/interrupt` with unknown task id returns `404`, `POST /v1/approve` with unknown task id returns `404` and with no pending approval returns `409`, and reconnect/new-turn behavior | [ ] |
 
 ---
 
@@ -604,6 +612,7 @@ When checking any PI-13…PI-16 box, append an evidence block:
 | Unix-socket file must be removed on clean shutdown | Prevents stale socket accumulation |
 | `transport = "both"` must enforce HTTP bearer auth on the HTTP surface | The `"both"` mode does not relax HTTP auth |
 | `POST /v1/interrupt` must return `404` for unknown task ids | Idempotent no-op is prohibited; `{"ok":false,"reason":"task_not_found"}` required |
+| `POST /v1/approve` must return `404` for unknown task ids and `409` when no pending approval exists | Silent success on stale or unknown approval is prohibited |
 | SSE keepalive comment must be emitted at least every 15 seconds during active turns | Prevents proxy/browser timeout disconnects |
 | `/v1/schema` response is exempt from envelope validation | Pre-flight metadata, not a `RuntimeEnvelope` |
 | ADR-024 reconciliation PR must be merged before PI-13 begins | PI-09–12 closeout owns the reconciliation; PI-13 may not start until ADR-024's checklist includes PI-09–16 |
