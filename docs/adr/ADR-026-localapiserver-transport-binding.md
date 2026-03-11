@@ -103,22 +103,34 @@ Purpose: local readiness and client startup probe.
 
 #### `GET /v1/schema`
 
-Returns the versioned ADR-025 schema bundle:
+Returns the versioned ADR-025 schema bundle.
+
+Normative rule:
+
+- `request_schema` must contain the complete schema document from ADR-025 Appendix C (`schemas/runtime_request_v1.json`) verbatim.
+- `envelope_schema` must contain the complete schema document from ADR-025 Appendix B (`schemas/runtime_envelope_v1.json`) verbatim.
+
+The JSON below is an abbreviated extract showing the bundle shape only; it is not the complete schema payload.
 
 ```json
 {
   "version": 1,
   "request_schema": {
-    "$id": "runtime_request_v1.json",
+    "$id": "https://vexcoder.io/schemas/runtime_request_v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "RuntimeRequest",
-    "type": "object"
+    "title": "RuntimeRequest v1",
+    "oneOf": [
+      {
+        "type": "object"
+      }
+    ]
   },
   "envelope_schema": {
-    "$id": "runtime_envelope_v1.json",
+    "$id": "https://vexcoder.io/schemas/runtime_envelope_v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "RuntimeEnvelope",
-    "type": "object"
+    "title": "RuntimeEnvelope v1",
+    "type": "object",
+    "required": ["version", "task_id", "turn", "seq", "event"]
   }
 }
 ```

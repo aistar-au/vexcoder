@@ -20,7 +20,7 @@ Canonical raw URL index for every tracked file in the sibling vexcoder repositor
 | 9 | `AGENTS.md` | ~138 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/AGENTS.md> |
 | 10 | `CONTRIBUTING.md` | ~223 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
 | 11 | `Cargo.lock` | ~2464 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.lock> |
-| 12 | `Cargo.toml` | ~36 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.toml> |
+| 12 | `Cargo.toml` | ~35 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.toml> |
 | 13 | `LICENSE` | ~21 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/LICENSE> |
 | 14 | `Makefile` | ~277 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Makefile> |
 | 15 | `README.md` | ~28 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/README.md> |
@@ -30,7 +30,7 @@ Canonical raw URL index for every tracked file in the sibling vexcoder repositor
 | 19 | `TASKS/PJ-03-memory-notes.md` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes.md> |
 | 20 | `TASKS/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PL-01-pre-post-tool-hooks.md> |
 | 21 | `TASKS/TASKS-DISPATCH-MAP.md` | ~40 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
-| 22 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~134 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
+| 22 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~136 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 23 | `book.toml` | ~11 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/book.toml> |
 | 24 | `build.rs` | ~33 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/build.rs> |
 | 25 | `docs/adr/ADR-013-tui-completion-deployment-plan.md` | ~236 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-013-tui-completion-deployment-plan.md> |
@@ -40,8 +40,8 @@ Canonical raw URL index for every tracked file in the sibling vexcoder repositor
 | 29 | `docs/adr/ADR-022-free-open-coding-agent-roadmap.md` | ~443 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-022-free-open-coding-agent-roadmap.md> |
 | 30 | `docs/adr/ADR-023-deterministic-edit-loop.md` | ~732 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-023-deterministic-edit-loop.md> |
 | 31 | `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | ~1823 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md> |
-| 32 | `docs/adr/ADR-025-runtime-json-handoff-contract.md` | ~820 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-025-runtime-json-handoff-contract.md> |
-| 33 | `docs/adr/ADR-026-localapiserver-transport-binding.md` | ~606 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-026-localapiserver-transport-binding.md> |
+| 32 | `docs/adr/ADR-025-runtime-json-handoff-contract.md` | ~836 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-025-runtime-json-handoff-contract.md> |
+| 33 | `docs/adr/ADR-026-localapiserver-transport-binding.md` | ~618 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-026-localapiserver-transport-binding.md> |
 | 34 | `docs/adr/ADR-README.md` | ~53 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-README.md> |
 | 35 | `docs/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
 | 36 | `docs/adr/completed/ADR-002-lexical-path-normalization.md` | ~77 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/completed/ADR-002-lexical-path-normalization.md> |
@@ -87,10 +87,10 @@ Canonical raw URL index for every tracked file in the sibling vexcoder repositor
 | 76 | `src/api/stream.rs` | ~251 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
 | 77 | `src/app.rs` | ~3230 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
 | 78 | `src/batch_mode.rs` | ~1229 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode.rs> |
-| 79 | `src/bin/vex.rs` | ~1011 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/bin/vex.rs> |
+| 79 | `src/bin/vex.rs` | ~843 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/bin/vex.rs> |
 | 80 | `src/config.rs` | ~952 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
 | 81 | `src/edit_diff.rs` | ~232 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/edit_diff.rs> |
-| 82 | `src/lib.rs` | ~19 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/lib.rs> |
+| 82 | `src/lib.rs` | ~17 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/lib.rs> |
 | 83 | `src/runtime.rs` | ~92 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime.rs> |
 | 84 | `src/runtime/approval.rs` | ~267 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/approval.rs> |
 | 85 | `src/runtime/backend.rs` | ~38 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/backend.rs> |

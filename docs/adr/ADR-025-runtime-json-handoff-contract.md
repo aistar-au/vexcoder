@@ -171,13 +171,15 @@ PI-10 is the canonical normalization layer. It must map provider-facing and curr
 | `StreamBlock::ToolCall { id, name, input }` | `ToolCall { id, name, arguments }` | **Runtime discards any provider id and generates a new `call_<utc-ms>_<4-hex>` id**; `input` becomes `arguments` |
 | `StreamBlock::ToolResult { tool_call_id, output, is_error }` | `ToolResult { tool_call_id, tool_name, is_error, output }` | `tool_call_id` is re-keyed to the runtime-generated id for the matching call; `output` and `is_error` pass-through; `tool_name` resolved from the pending-call table when available |
 | `UiUpdate::StreamDelta(text)` | `AssistantDelta { text }` | direct pass-through |
-| `UiUpdate::TurnComplete` | `TurnEnd { status: "completed", ... }` | normalized terminal event |
+| `UiUpdate::TurnComplete` | `AssistantMessage { content }` then `TurnEnd { status: "completed", ... }` | the normalization layer accumulates all `AssistantDelta.text` emitted for the turn and, on `TurnComplete`, emits a single `AssistantMessage { content: accumulated_text }` immediately before the terminal `TurnEnd` |
 | `UiUpdate::Error(message)` | `Error { code, message, recoverable }` then `TurnEnd { status: "failed", ... }` when possible | normalized failure path |
 | `UiUpdate::ToolApprovalRequest(req)` | `ApprovalRequest { capability, scope, tool_name }` | extract fields from `ToolApprovalRequest`; `tool_name` resolved from pending-call table when available |
 | `RuntimeRequest::ApproveCapability` processed | `ApprovalResolved { capability, scope, approved: true }` | emitted after the runtime processes an approval grant; precedes the resumed `ToolCall` |
 | `RuntimeRequest::DenyCapability` processed | `ApprovalResolved { capability, scope, approved: false }` | emitted after the runtime processes an approval denial |
 | `UiUpdate::StreamBlockStart`, `StreamBlockDelta`, `StreamBlockComplete` | *(not projected)* | TUI render bookkeeping only; must not cross the machine-readable seam |
 | `BatchMode` / `LocalApiServer` max-turns limit reached | `MaxTurnsReached { max_turns }` then `TurnEnd { status: "failed", ... }` | emitted as the terminal sequence when the turn limit is exhausted |
+
+**Current-path note:** the live `UiUpdate` surface does not yet contain a dedicated `AssistantMessage` variant. PI-10 therefore treats the `TurnComplete` path above as the normative source of `AssistantMessage` for current streaming backends: deltas are accumulated across the turn, a terminal `AssistantMessage` is emitted immediately before `TurnEnd`, and BatchMode derives `TurnRecord.response` from that assembled content when present. A future non-streaming backend may add a direct full-message update, but it must normalize to the same `AssistantMessage` envelope shape.
 
 **Validation integration note:** `ValidationOutputEnvelope` is the API-facing projection of ADR-023 `ValidationSuite` output. Its `label` field corresponds to validation command names such as `cargo test`, `cargo clippy`, or `npm test`. This gives API clients structured validation data without coupling them to ADR-023's internal Rust types.
 
@@ -222,6 +224,7 @@ pub enum RuntimeRequest {
     ApproveCapability {
         task_id: String,
         capability: String,
+        /// Uses the same vocabulary as ApprovalRequest/ApprovalResolved: "once" | "session".
         scope: String,
     },
     /// Denies the named capability in the current session.
@@ -237,6 +240,8 @@ This makes the runtime seam bidirectional in JSON terms:
 
 - client/adapters send `RuntimeRequest`
 - runtime emits `RuntimeEnvelope`
+
+Approval scope vocabulary is fixed across the canonical seam: `ApprovalRequest.scope`, `ApprovalResolved.scope`, and `RuntimeRequest::ApproveCapability.scope` use the same `"once"` / `"session"` value set.
 
 ### 5. Tool-call grammar is part of the contract surface
 
@@ -259,7 +264,7 @@ The full grammar file is included in Appendix A of this ADR.
 
 **Clarification (ADR-024 Gap 11):** ADR-024 Gap 11's `tool_call_mode = "structured"` refers to provider API structured-output features on hosted backends. This ADR's GBNF grammar covers local-model constrained decoding for backends that do not expose provider-native structured tool calling. Both mechanisms target the same outcome — valid JSON tool-call payloads — but at different layers. PI-10 normalization must accept both paths and produce identical `RuntimeEnvelope` output regardless of backend type.
 
-**Note on GBNF `json_safe_char`:** The grammar in Appendix A defines a conservative `json_safe_char` set for local-model constrained decoding. This set intentionally excludes some characters valid in JSON strings (e.g. `(`, `)`, `;`, `$`) to limit the local-model output surface. Backends that do not use constrained decoding are not restricted by this grammar; PI-10 normalization and serde validation accept the full JSON string character set from those backends.
+**Note on GBNF `json_safe_char`:** The grammar in Appendix A defines a conservative `json_safe_char` set for local-model constrained decoding. This set intentionally excludes some characters valid in JSON strings (e.g. `(`, `)`, `;`, `$`) to limit the local-model output surface. This restriction applies to unescaped characters only; standard JSON escapes, including `\uXXXX`, remain valid through the `escape` rule. Backends that do not use constrained decoding are not restricted by this grammar; PI-10 normalization and serde validation accept the full JSON string character set from those backends.
 
 ### 6. BatchMode remains backward-compatible and derivable
 
@@ -545,6 +550,7 @@ json_char ::= json_safe_char | escape
 json_safe_char ::= lower | upper | digit | "_" | "-" | "." | "/" | ":" | " " | "[" | "]" | "{" | "}" | "," | "@" | "#" | "+" | "="
 
 escape ::= "\\\"" | "\\\\" | "\\/" | "\\b" | "\\f" | "\\n" | "\\r" | "\\t"
+         | "\\u" hex hex hex hex
 
 json_number ::= "-"? int frac? exp?
 int ::= "0" | onenine digits?
@@ -585,6 +591,10 @@ ws ::= (" " | "\n" | "\r" | "\t")*
     "tool_name": {
       "type": "string",
       "pattern": "^(read_file|write_file|apply_patch|run_command|mcp\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_]*)$"
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["once", "session"]
     },
     "token_usage": {
       "type": "object",
@@ -684,7 +694,7 @@ ws ::= (" " | "\n" | "\r" | "\t")*
       "properties": {
         "type": { "const": "approval_request" },
         "capability": { "type": "string", "minLength": 1 },
-        "scope": { "type": "string", "minLength": 1 },
+        "scope": { "$ref": "#/$defs/scope" },
         "tool_name": { "type": ["string", "null"] }
       }
     },
@@ -695,7 +705,7 @@ ws ::= (" " | "\n" | "\r" | "\t")*
       "properties": {
         "type": { "const": "approval_resolved" },
         "capability": { "type": "string", "minLength": 1 },
-        "scope": { "type": "string", "minLength": 1 },
+        "scope": { "$ref": "#/$defs/scope" },
         "approved": { "type": "boolean" }
       }
     },
@@ -764,6 +774,12 @@ ws ::= (" " | "\n" | "\r" | "\t")*
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vexcoder.io/schemas/runtime_request_v1.json",
   "title": "RuntimeRequest v1",
+  "$defs": {
+    "scope": {
+      "type": "string",
+      "enum": ["once", "session"]
+    }
+  },
   "oneOf": [
     {
       "type": "object",
@@ -792,7 +808,7 @@ ws ::= (" " | "\n" | "\r" | "\t")*
         "type": { "const": "approve_capability" },
         "task_id": { "type": "string", "minLength": 1 },
         "capability": { "type": "string", "minLength": 1 },
-        "scope": { "type": "string", "enum": ["once", "session"] }
+        "scope": { "$ref": "#/$defs/scope" }
       }
     },
     {
