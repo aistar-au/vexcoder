@@ -79,6 +79,15 @@ impl RuntimeContext {
         });
     }
 
+    pub fn set_model_name(&self, name: String) -> Result<(), &'static str> {
+        let conversation = self
+            .conversation
+            .try_lock()
+            .map_err(|_| "model switch unavailable while runtime state is busy")?;
+        conversation.set_model_name(name);
+        Ok(())
+    }
+
     #[cfg(test)]
     pub fn test_message_count_try_lock(&self) -> Option<usize> {
         self.conversation
@@ -101,6 +110,11 @@ impl RuntimeContext {
     pub async fn test_system_prompt(&self) -> String {
         let manager = self.conversation.lock().await;
         manager.client().test_system_prompt()
+    }
+
+    #[cfg(test)]
+    pub async fn test_model_name(&self) -> String {
+        self.conversation.lock().await.model_name()
     }
 
     pub fn cancel_turn(&mut self) {

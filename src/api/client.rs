@@ -10,8 +10,7 @@ use anyhow::Result;
 use futures::StreamExt;
 use serde_json::json;
 use serde_json::Value;
-#[cfg(test)]
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 /// Base system prompt applied to every API call.
 /// Project instructions are appended at runtime via
 /// `ApiClient::with_project_instructions`.
@@ -46,7 +45,7 @@ pub trait MockStreamProducer: Send + Sync {
 pub struct ApiClient {
     http: reqwest::Client,
     api_key: Option<String>,
-    model: String,
+    model: Arc<RwLock<String>>,
     api_url: String,
     model_backend: ModelBackendKind,
     model_protocol: ModelProtocol,
@@ -70,7 +69,7 @@ impl ApiClient {
         Ok(Self {
             http: reqwest::Client::new(),
             api_key: config.model_token.clone(),
-            model: config.model_name.clone(),
+            model: Arc::new(RwLock::new(config.model_name.clone())),
             api_url: config.model_url.clone(),
             model_backend: config.model_backend,
             model_protocol: config.model_protocol,
@@ -88,7 +87,7 @@ impl ApiClient {
         Self {
             http: reqwest::Client::new(),
             api_key: None,
-            model: "mock-model".to_string(),
+            model: Arc::new(RwLock::new("mock-model".to_string())),
             // Test-only override for mock endpoint URL; defaults to portless localhost.
             api_url: std::env::var("VEX_TEST_MODEL_URL")
                 .unwrap_or_else(|_| "http://localhost/v1/messages".to_string()),
@@ -120,6 +119,17 @@ impl ApiClient {
 
     pub fn is_local_endpoint(&self) -> bool {
         is_local_endpoint_url(&self.api_url)
+    }
+
+    pub fn model_name(&self) -> String {
+        self.model
+            .read()
+            .expect("api client model lock poisoned")
+            .clone()
+    }
+
+    pub fn set_model_name(&self, name: impl Into<String>) {
+        *self.model.write().expect("api client model lock poisoned") = name.into();
     }
 
     fn api_protocol(&self) -> ApiProtocol {
@@ -187,11 +197,12 @@ impl ApiClient {
         let request_url = self.request_url();
         let max_tokens = resolve_max_tokens(&self.api_url);
         let api_protocol = self.api_protocol();
+        let model = self.model_name();
         let system_prompt = self.system_prompt();
         let payload = match api_protocol {
             ApiProtocol::MessagesV1 => {
                 let mut payload = json!({
-                    "model": self.model,
+                    "model": model,
                     "max_tokens": max_tokens,
                     "stream": true,
                     "system": system_prompt.clone(),
@@ -208,7 +219,7 @@ impl ApiClient {
             }
             ApiProtocol::ChatCompat => {
                 let mut payload = json!({
-                    "model": self.model,
+                    "model": model,
                     "max_tokens": max_tokens,
                     "stream": true,
                     "messages": chat_compat_messages(messages, &system_prompt),

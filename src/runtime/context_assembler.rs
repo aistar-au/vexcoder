@@ -231,10 +231,10 @@ impl ContextAssembler {
 }
 
 #[derive(Default)]
-struct GitCommandResult {
-    output: Option<String>,
-    non_git_repo: bool,
-    timed_out: bool,
+pub(crate) struct GitCommandResult {
+    pub(crate) output: Option<String>,
+    pub(crate) non_git_repo: bool,
+    pub(crate) timed_out: bool,
 }
 
 /// Append `annotation` to `summary`, separated by a newline when a non-empty
@@ -247,7 +247,7 @@ fn append_annotation(summary: &mut Option<String>, annotation: String) {
     });
 }
 
-async fn run_git_command_with_timeout(
+pub(crate) async fn run_git_command_with_timeout(
     working_dir: PathBuf,
     args: Vec<String>,
     timeout_ms: u64,
@@ -347,7 +347,7 @@ fn run_git_command_blocking(
     }
 }
 
-fn block_on_context_task<F, T>(future: F) -> Result<T>
+pub(crate) fn block_on_context_task<F, T>(future: F) -> Result<T>
 where
     F: std::future::Future<Output = Result<T>> + Send + 'static,
     T: Send + 'static,
@@ -385,7 +385,7 @@ where
     .map_err(|_| anyhow!("failed to join ContextAssembler runtime thread"))?
 }
 
-fn resolve_git_timeout_ms(default_ms: u64) -> u64 {
+pub(crate) fn resolve_git_timeout_ms(default_ms: u64) -> u64 {
     match std::env::var("VEX_CONTEXT_GIT_TIMEOUT_MS") {
         Ok(value) => match value.trim().parse::<u64>() {
             Ok(parsed) => parsed,

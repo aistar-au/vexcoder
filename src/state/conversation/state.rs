@@ -98,6 +98,14 @@ impl ConversationManager {
         self.read_file_history_cache = ReadFileSnapshotCache::default();
     }
 
+    pub fn model_name(&self) -> String {
+        self.client.model_name()
+    }
+
+    pub fn set_model_name(&self, name: impl Into<String>) {
+        self.client.set_model_name(name);
+    }
+
     pub fn client(&self) -> Arc<ApiClient> {
         Arc::clone(&self.client)
     }
