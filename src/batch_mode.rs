@@ -69,6 +69,7 @@ pub struct BatchResult {
 #[derive(Serialize)]
 struct TurnRecord<'a> {
     turn: usize,
+    input: &'a str,
     response: &'a str,
     instructions_path: Option<&'a str>,
     changed_files: Vec<String>,
@@ -99,6 +100,7 @@ pub struct BatchMode {
     instructions_path: Option<String>,
     current_response: String,
     current_turn: usize,
+    current_turn_input: String,
     current_turn_changed_files: BTreeSet<String>,
     current_turn_command_history: Vec<CommandEvidence>,
     pending_tool_calls: HashMap<String, PendingToolCall>,
@@ -130,6 +132,7 @@ impl BatchMode {
             instructions_path,
             current_response: String::new(),
             current_turn: 0,
+            current_turn_input: String::new(),
             current_turn_changed_files: BTreeSet::new(),
             current_turn_command_history: Vec::new(),
             pending_tool_calls: HashMap::new(),
@@ -149,12 +152,16 @@ impl BatchMode {
         &self.output_lines
     }
 
+    // The approval response channel is currently binary. AutoApproveScope keeps
+    // the public API distinction between Once and Task, but scope-sensitive
+    // enforcement remains deferred until the handler consumes scoped grants.
     fn approval_decision(&self) -> bool {
         self.auto_approve.is_some()
     }
 
     fn reset_current_turn_state(&mut self) {
         self.current_response.clear();
+        self.current_turn_input.clear();
         self.current_turn_changed_files.clear();
         self.current_turn_command_history.clear();
         self.pending_tool_calls.clear();
@@ -171,6 +178,7 @@ impl BatchMode {
         self.current_turn += 1;
 
         let response = std::mem::take(&mut self.current_response);
+        let input_text = std::mem::take(&mut self.current_turn_input);
         let changed_files = self
             .current_turn_changed_files
             .iter()
@@ -183,11 +191,11 @@ impl BatchMode {
                 serde_json::to_value(entry).expect("command evidence serialization must succeed")
             })
             .collect::<Vec<_>>();
-
         match self.format {
             OutputFormat::Jsonl => {
                 let record = TurnRecord {
                     turn: self.current_turn,
+                    input: &input_text,
                     response: &response,
                     instructions_path: self.instructions_path.as_deref(),
                     changed_files,
@@ -226,10 +234,11 @@ impl BatchMode {
         }
     }
 
-    fn complete_without_model(&mut self, message: String) {
+    fn complete_without_model(&mut self, input: &str, message: String) {
         self.reset_current_turn_state();
         self.status = TaskStatus::Running;
         self.turn_in_progress = true;
+        self.current_turn_input = input.to_string();
         self.current_response = message;
         self.finish_turn();
         if !self.done {
@@ -239,10 +248,11 @@ impl BatchMode {
         }
     }
 
-    fn fail_without_model(&mut self, message: String) {
+    fn fail_without_model(&mut self, input: &str, message: String) {
         self.reset_current_turn_state();
         self.status = TaskStatus::Running;
         self.turn_in_progress = true;
+        self.current_turn_input = input.to_string();
         self.current_response = message;
         self.finish_turn();
         if !self.done {
@@ -259,14 +269,15 @@ impl BatchMode {
 
         if self.auto_approve.is_none() {
             self.fail_without_model(
+                input,
                 "[memory] /memory clear requires --auto-approve in batch mode".to_string(),
             );
             return true;
         }
 
         match clear_notes_file(self.notes_path.as_deref()) {
-            Ok(()) => self.complete_without_model("[memory: cleared]".to_string()),
-            Err(e) => self.fail_without_model(format!("[memory] error clearing: {e}")),
+            Ok(()) => self.complete_without_model(input, "[memory: cleared]".to_string()),
+            Err(e) => self.fail_without_model(input, format!("[memory] error clearing: {e}")),
         }
         true
     }
@@ -360,6 +371,7 @@ impl RuntimeMode for BatchMode {
         self.reset_current_turn_state();
         self.status = TaskStatus::Running;
         self.turn_in_progress = true;
+        self.current_turn_input = input.clone();
         ctx.start_turn(input);
     }
 
@@ -878,13 +890,30 @@ mod tests {
     #[tokio::test]
     async fn test_batch_mode_jsonl_output_includes_required_fields() {
         let output = capture_batch_jsonl("echo hello", 3).await.unwrap();
-        let first_line = output.lines().next().unwrap_or("");
-        // With a mock client that produces TurnComplete immediately, the first
-        // output may be the summary line rather than a turn line; either way
-        // the JSON must be valid.
-        let v: serde_json::Value = serde_json::from_str(first_line).unwrap();
-        // A turn line has "turn"; a summary line has "summary".
-        assert!(v.get("turn").is_some() || v.get("summary").is_some());
+        let records = output
+            .lines()
+            .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
+            .collect::<Vec<_>>();
+        let first_turn = records
+            .iter()
+            .find(|value| {
+                !value
+                    .get("summary")
+                    .and_then(|flag| flag.as_bool())
+                    .unwrap_or(false)
+            })
+            .expect("expected a turn record before the final summary");
+        assert_eq!(first_turn["turn"], 1);
+        assert_eq!(first_turn["input"], "echo hello");
+        assert!(first_turn.get("response").is_some());
+        assert!(first_turn["changed_files"].is_array());
+        assert!(first_turn["command_history"].is_array());
+
+        let summary = records
+            .iter()
+            .find(|value| value.get("summary").and_then(|flag| flag.as_bool()) == Some(true))
+            .expect("expected a final summary record");
+        assert_eq!(summary["status"], "Completed");
     }
 
     #[tokio::test]
@@ -1087,5 +1116,72 @@ mod tests {
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
         let conversation = ConversationManager::new_mock(client, HashMap::new());
         RuntimeContext::new(conversation, tx, CancellationToken::new())
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_zero_max_turns_stops_before_first_turn() {
+        // max_turns = Some(0): current_turn (0) >= max (0) fires immediately
+        // on the first on_user_input call, before start_turn is reached.
+        let result = run_batch_mode_with_opts(
+            "keep going",
+            BatchRunOpts {
+                max_turns: Some(0),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            result.status,
+            TaskStatus::MaxTurnsReached,
+            "max_turns=0 must produce MaxTurnsReached, not Completed"
+        );
+    }
+
+    #[test]
+    fn test_batch_mode_jsonl_output_includes_input_field() {
+        let opts = BatchRunOpts {
+            format: OutputFormat::Jsonl,
+            ..Default::default()
+        };
+        let mut mode = BatchMode::new("test-task".to_string(), opts, None, None);
+        mode.status = TaskStatus::Running;
+        mode.turn_in_progress = true;
+        mode.current_turn_input = "what is the answer".to_string();
+        mode.current_response = "forty-two".to_string();
+        mode.finish_turn();
+
+        let turn_json: serde_json::Value =
+            serde_json::from_str(mode.output_lines.first().expect("expected turn line")).unwrap();
+        assert_eq!(
+            turn_json
+                .get("input")
+                .expect("input field must be present in JSONL"),
+            "what is the answer",
+            "input field must record the prompt text submitted for this turn"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_memory_clear_jsonl_records_input() {
+        let result = run_batch_mode_with_opts(
+            "/memory clear",
+            BatchRunOpts {
+                format: OutputFormat::Jsonl,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let turn_json: serde_json::Value =
+            serde_json::from_str(result.output_lines.first().expect("expected turn line")).unwrap();
+        assert_eq!(
+            turn_json
+                .get("input")
+                .expect("input field must be present in JSONL"),
+            "/memory clear",
+            "batch-mode local turns must preserve the submitted input text"
+        );
     }
 }

@@ -1448,7 +1448,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 
 | ID | Task | Status |
 | :--- | :--- | :--- |
-| **PA-01** | Layered config resolution chain | [ ] |
+| **PA-01** | Layered config resolution chain | [x] |
 | **PA-02** | Project instructions injection | [ ] |
 | **PA-03** | `vex migrate config` sub-command | [ ] |
 | **PA-04** | `docs/src/migration.md` complete and accurate | [ ] |
@@ -1459,8 +1459,8 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PD-01** | `SandboxDriver` trait + `PassthroughSandbox` | [ ] |
 | **PD-02** | `MacosSandboxExec` driver (best-effort + require flag) | [ ] |
 | **PD-03** | `DockerSandbox` driver | [ ] |
-| **PE-01** | `BatchMode: RuntimeMode + FrontendAdapter` | [ ] |
-| **PE-02** | `vex exec` sub-command with JSONL/text output | [ ] |
+| **PE-01** | `BatchMode: RuntimeMode + FrontendAdapter` | [x] |
+| **PE-02** | `vex exec` sub-command with JSONL/text output | [x] |
 | **PF-01** | `McpRegistry` with STDIO and HTTP transports | [ ] |
 | **PF-02** | `Capability::McpTool` and approval wiring | [ ] |
 | **PG-01** | GitHub Releases workflow — Linux and macOS targets | [ ] |
@@ -1479,7 +1479,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-08** | `/plan` and `/context` — see ADR-023 EL-11/EL-12 (tracked there; listed here for cross-ref) | [ ] |
 | **PJ-01** | `/clear` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [ ] |
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [ ] |
-| **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [ ] |
+| **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [x] |
 | **PJ-04** | `vex init` — scaffolds `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [ ] |
 | **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [ ] |
 | **PK-02** | `/about` — build metadata display; `build.rs` compile-time injection | [ ] |
@@ -1490,7 +1490,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PK-07** | `/diff [--staged]` — spawn_blocking git diff; truncation; no model turn | [ ] |
 | **PK-08** | `vex branch` and `vex pr-summary` — thin git wrappers; stdout output; no platform API | [ ] |
 | **PK-09** | `/generate-tests` — generate_tests_template.txt; non-test patch filter; framework flag | [ ] |
-| **PL-01** | Pre/post-tool-call hooks — `[[hooks]]` config; `Capability`-triggered; `SandboxDriver`-wrapped; user-layer only | [ ] |
+| **PL-01** | Pre/post-tool-call hooks — `[[hooks]]` config; `Capability`-triggered; `SandboxDriver`-wrapped; user-layer only | [x] |
 | **PL-02** | `vex doctor` — config probe, endpoint reachability, sandbox probe, MCP connectivity, `--json` output | [ ] |
 | **PL-03** | Session token counter — turn accumulator; `/usage` command; `BatchMode` JSONL `tokens` field | [ ] |
 | **PL-04** | `vex export <task-id>` — JSONL and Markdown formats; read-only; `--output`/`--force` flags | [ ] |
@@ -1585,3 +1585,106 @@ The amendment that authorises native packaging and editor-surface work is record
 - `docs/adr/completed/ADR-006-runtime-mode-contracts.md` — runtime mode contracts
 - `docs/adr/ADR-022-amendment-2026-03-03.md` — canonical migration guide and variable rename table
 - `.agents/skills/registry.toml` — skills registry manifest
+
+### [PA-01] - Layered config resolution chain
+- Dispatcher: `dispatcher/adr-024-pa01-layered-config`
+- Commit: `39d7ab385f5e8c53eac5b1e15a651eeb61c36dcc`
+- Files changed:
+  - `src/config.rs` (+323 -72)
+  - `tests/integration_test.rs` (+110 -0)
+- Validation:
+  - `cargo test test_config_prefers_env_over_repo_user_system_and_defaults --all-targets` : pass
+  - `cargo test --all-targets` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - Layered config resolution implemented per ADR-024 Gap 3.
+  - `model_token` remains environment-only.
+  - The commit-debug gate reached quorum with no blocking findings after a clean rerun.
+
+### [PJ-03] - User persistent notes (`/memory`)
+- Dispatcher: `dispatcher/vexcoder-pj-03-memory-notes`
+- Commit: `3e0405f6697812f686da7a17c3f9ca7fc27a068f`
+- Files changed:
+  - `src/app.rs` (+354 -6)
+  - `src/config.rs` (+27 -0)
+  - `tests/integration_test.rs` (+23 -0)
+- Validation:
+  - `cargo test test_tui_memory_does_not_call_start_turn --all-targets` : pass
+  - `cargo test test_memory_injection_within_budget --all-targets` : pass
+  - `make gate-fast` : pass
+  - `cargo test --all-targets` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - Notes injection and `/memory` commands implemented per ADR-024 Gap 16.
+  - Notes path remains user-config-layer only; repo-local override rejected.
+  - The same merge path also carried the base `PE-01`/`PE-02` implementation that was closed out later on `dispatcher/vexcoder-adr-024-pe-01-batch-mode`.
+
+### [PE-01 / PE-02] - BatchMode + vex exec
+- Dispatcher: `dispatcher/vexcoder-adr-024-pe-01-batch-mode`
+- Commit: `d6e508b0e54d2d1c2411825e651e44611b389244`
+- Files changed:
+  - `Makefile` (+5 -3): extend `check-boundary` to cover `src/batch_mode.rs`
+  - `src/batch_mode.rs` (+81 -5): record submitted input in JSONL turn evidence,
+    preserve it across locally handled batch-mode turns, and tighten the max-turn
+    contract coverage
+  - `tests/integration_test.rs` (+63 -0): public API contract tests and
+    `test_build_batch_runtime_succeeds_with_local_config`
+- Validation:
+  - `cargo test test_batch_mode_jsonl_output_includes_required_fields --all-targets` : pass
+  - `cargo test test_batch_mode_jsonl_output_includes_input_field --all-targets` : pass
+  - `cargo test test_batch_mode_memory_clear_jsonl_records_input --all-targets` : pass
+  - `cargo test test_build_batch_runtime_succeeds_with_local_config --all-targets` : pass
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - PR `#54` delivered the base `BatchMode` and `vex exec` surface.
+  - This closeout commit records submitted input in JSONL turn evidence,
+    including locally handled batch-mode turns such as `/memory clear`.
+  - `check-boundary` now covers `src/batch_mode.rs`, so the no-TUI dependency
+    rule is enforced by the repo gate.
+  - `test_batch_mode_jsonl_output_includes_required_fields` now requires an
+    actual turn record and asserts the manifest fields `turn`, `input`,
+    `response`, `changed_files`, and `command_history`, plus the final summary.
+  - `AutoApproveScope::Once` and `Task` remain distinct CLI/API variants, but
+    the current `ToolApprovalRequest` response path is still boolean. Scope-
+    specific once-vs-task enforcement remains a tracked follow-up rather than a
+    closed `PE-01` behavior claim.
+  - `tokens` remain deferred to `PL-03` per ADR-024 Gap 28.
+
+### [PL-01] - Pre/post-tool-call hooks
+- Dispatcher: `dispatcher/vexcoder-adr-024-pl-01-hooks-full-surface`
+- Commit: `0e87859af38186f70fa2802c25d9dc83ac20550d`
+- Files changed:
+  - `src/config.rs` (+47 -0)
+  - `src/app.rs` (+2 -1)
+  - `src/runtime.rs` (+2 -0)
+  - `src/runtime/sandbox.rs` (+33 -0)
+  - `src/state/conversation/tools.rs` (+161 -3)
+  - `src/state/conversation/state.rs` (+12 -0)
+  - `src/state/conversation/core.rs` (+6 -1)
+  - `src/state/conversation/tests.rs` (+319 -0)
+  - `src/tools/operator.rs` (+22 -0)
+  - `src/api/client.rs` (+16 -0)
+  - `src/batch_mode.rs` (+6 -3)
+  - `tests/integration_test.rs` (+23 -0)
+- Validation:
+  - `cargo test test_hook_repo_local_config_rejected_at_load --all-targets` : pass
+  - `cargo test test_hook_post_apply_patch_runs_command --all-targets` : pass
+  - `cargo test test_hook_pre_tool_runs_before_dispatch --all-targets` : pass
+  - `cargo test test_hook_on_fail_abort_interrupts_turn --all-targets` : pass
+  - `cargo test test_hook_on_fail_warn_continues --all-targets` : pass
+  - `cargo test test_hook_requires_run_command_approval --all-targets` : pass
+  - `cargo test test_hook_skipped_without_approval_emits_warning --all-targets` : pass
+  - `cargo test --all-targets` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - Hooks system implemented per ADR-024 Gap 26.
+  - `[[hooks]]` in repo-local `.vex/config.toml` rejected at config load time.
+  - All hook commands route through `SandboxDriver::wrap` and `Capability::RunCommand` gate.
+  - `on_fail = "abort"` surfaces error to transcript without terminating the process.
+  - `SandboxKind` enum scaffolded in `sandbox.rs` for PD-01/PD-02 (not yet wired to config).
