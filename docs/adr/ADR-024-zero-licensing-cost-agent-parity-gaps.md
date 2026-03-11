@@ -1625,13 +1625,14 @@ The amendment that authorises native packaging and editor-surface work is record
 - Dispatcher: `dispatcher/vexcoder-adr-024-pe-01-batch-mode`
 - Commit: `d6e508b0e54d2d1c2411825e651e44611b389244`
 - Files changed:
-  - `Makefile` (+8 -2): extend `check-boundary` to cover `src/batch_mode.rs`
-  - `src/batch_mode.rs` (+86 -8): record submitted input in JSONL turn evidence,
+  - `Makefile` (+5 -3): extend `check-boundary` to cover `src/batch_mode.rs`
+  - `src/batch_mode.rs` (+81 -5): record submitted input in JSONL turn evidence,
     preserve it across locally handled batch-mode turns, and tighten the max-turn
     contract coverage
   - `tests/integration_test.rs` (+63 -0): public API contract tests and
     `test_build_batch_runtime_succeeds_with_local_config`
 - Validation:
+  - `cargo test test_batch_mode_jsonl_output_includes_required_fields --all-targets` : pass
   - `cargo test test_batch_mode_jsonl_output_includes_input_field --all-targets` : pass
   - `cargo test test_batch_mode_memory_clear_jsonl_records_input --all-targets` : pass
   - `cargo test test_build_batch_runtime_succeeds_with_local_config --all-targets` : pass
@@ -1645,6 +1646,13 @@ The amendment that authorises native packaging and editor-surface work is record
     including locally handled batch-mode turns such as `/memory clear`.
   - `check-boundary` now covers `src/batch_mode.rs`, so the no-TUI dependency
     rule is enforced by the repo gate.
+  - `test_batch_mode_jsonl_output_includes_required_fields` now requires an
+    actual turn record and asserts the manifest fields `turn`, `input`,
+    `response`, `changed_files`, and `command_history`, plus the final summary.
+  - `AutoApproveScope::Once` and `Task` remain distinct CLI/API variants, but
+    the current `ToolApprovalRequest` response path is still boolean. Scope-
+    specific once-vs-task enforcement remains a tracked follow-up rather than a
+    closed `PE-01` behavior claim.
   - `tokens` remain deferred to `PL-03` per ADR-024 Gap 28.
 
 ### [PL-01] - Pre/post-tool-call hooks

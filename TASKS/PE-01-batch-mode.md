@@ -210,10 +210,11 @@ async fn test_batch_mode_text_format_outputs_plain_response() {
 - Dispatcher: `dispatcher/vexcoder-adr-024-pe-01-batch-mode`
 - Commit: `d6e508b0e54d2d1c2411825e651e44611b389244`
 - Files changed:
-  - `Makefile` (+8 -2)
-  - `src/batch_mode.rs` (+86 -8)
+  - `Makefile` (+5 -3)
+  - `src/batch_mode.rs` (+81 -5)
   - `tests/integration_test.rs` (+63 -0)
 - Validation:
+  - `cargo test test_batch_mode_jsonl_output_includes_required_fields --all-targets` : pass
   - `cargo test test_batch_mode_jsonl_output_includes_input_field --all-targets` : pass
   - `cargo test test_batch_mode_memory_clear_jsonl_records_input --all-targets` : pass
   - `cargo test --all-targets` : pass
@@ -226,4 +227,11 @@ async fn test_batch_mode_text_format_outputs_plain_response() {
     including locally handled batch-mode turns such as `/memory clear`.
   - `check-boundary` now covers `src/batch_mode.rs`, so the no-TUI dependency
     rule is enforced by the repo gate.
+  - `test_batch_mode_jsonl_output_includes_required_fields` now requires an
+    actual turn record and asserts the manifest fields `turn`, `input`,
+    `response`, `changed_files`, and `command_history`, plus the final summary.
+  - `AutoApproveScope::Once` and `Task` remain distinct CLI/API variants, but
+    the current `ToolApprovalRequest` response path is still boolean. Scope-
+    specific once-vs-task enforcement remains a tracked follow-up rather than a
+    closed `PE-01` behavior claim.
   - `tokens` remain deferred to `PL-03` per ADR-024 Gap 28.

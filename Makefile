@@ -48,7 +48,7 @@ help:
 	  "  fmt-check          cargo fmt --check + taplo fmt --check + taplo lint" \
 	  "  lint               cargo clippy --all-targets -- -D warnings" \
 	  "  commit-debug-gate  self-contained pre-push check for src/tests edits (runs gate-fast)" \
-	  "  check-boundary     assert no ratatui/crossterm in src/runtime/ (ADR-006)" \
+	  "  check-boundary     assert no ratatui/crossterm in src/runtime/ or src/batch_mode.rs (ADR-006, ADR-024 PE-01)" \
 	  "  check-routing      assert no alternate routing patterns (ADR-007, ADR-014)" \
 	  "  check-imports      assert no forbidden cross-layer imports (ADR-007)" \
 	  "  check-names        assert no proprietary vendor brand names (ADR-023)" \
@@ -150,7 +150,7 @@ commit-debug-gate: gate-fast
 # Architecture boundary checks
 #
 # Source mapping:
-#   check-boundary      inline grep — ci.yml "No UI crates in src/runtime"
+#   check-boundary      inline grep — ci.yml "No UI crates in src/runtime or src/batch_mode.rs"
 #   check-module-names  inline find — ci.yml "Enforce Rust 2018 module entry naming"
 #   check-names         scripts/check_forbidden_names.sh — ci.yml (uses rg)
 #   check-routing       scripts/check_no_alternate_routing.sh — arch-contracts.yml

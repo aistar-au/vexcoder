@@ -152,6 +152,9 @@ impl BatchMode {
         &self.output_lines
     }
 
+    // The approval response channel is currently binary. AutoApproveScope keeps
+    // the public API distinction between Once and Task, but scope-sensitive
+    // enforcement remains deferred until the handler consumes scoped grants.
     fn approval_decision(&self) -> bool {
         self.auto_approve.is_some()
     }
@@ -887,13 +890,30 @@ mod tests {
     #[tokio::test]
     async fn test_batch_mode_jsonl_output_includes_required_fields() {
         let output = capture_batch_jsonl("echo hello", 3).await.unwrap();
-        let first_line = output.lines().next().unwrap_or("");
-        // With a mock client that produces TurnComplete immediately, the first
-        // output may be the summary line rather than a turn line; either way
-        // the JSON must be valid.
-        let v: serde_json::Value = serde_json::from_str(first_line).unwrap();
-        // A turn line has "turn"; a summary line has "summary".
-        assert!(v.get("turn").is_some() || v.get("summary").is_some());
+        let records = output
+            .lines()
+            .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
+            .collect::<Vec<_>>();
+        let first_turn = records
+            .iter()
+            .find(|value| {
+                !value
+                    .get("summary")
+                    .and_then(|flag| flag.as_bool())
+                    .unwrap_or(false)
+            })
+            .expect("expected a turn record before the final summary");
+        assert_eq!(first_turn["turn"], 1);
+        assert_eq!(first_turn["input"], "echo hello");
+        assert!(first_turn.get("response").is_some());
+        assert!(first_turn["changed_files"].is_array());
+        assert!(first_turn["command_history"].is_array());
+
+        let summary = records
+            .iter()
+            .find(|value| value.get("summary").and_then(|flag| flag.as_bool()) == Some(true))
+            .expect("expected a final summary record");
+        assert_eq!(summary["status"], "Completed");
     }
 
     #[tokio::test]
