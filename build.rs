@@ -12,6 +12,9 @@ fn main() {
         .unwrap_or_else(|| "unknown".to_string());
 
     // BUILD_DATE: UTC date in YYYY-MM-DD format.
+    // Uses the POSIX `date` utility rather than a platform-specific API.
+    // Windows builders may not provide this command in the default environment.
+    // When unavailable, BUILD_DATE falls back to "unknown".
     let date = Command::new("date")
         .args(["-u", "+%Y-%m-%d"])
         .output()
