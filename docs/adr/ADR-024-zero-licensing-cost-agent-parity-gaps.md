@@ -1461,9 +1461,9 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PA-02** | Project instructions injection | [x] |
 | **PA-03** | `vex migrate config` sub-command | [x] |
 | **PA-04** | `docs/src/migration.md` complete and accurate | [x] |
-| **PB-01** | `vex completions <shell>` | [ ] |
-| **PB-02** | `vex install-hooks` / `vex uninstall-hooks` | [ ] |
-| **PB-03** | `vex skills list\|install\|remove` + `registry.toml` | [ ] |
+| **PB-01** | `vex completions <shell>` | [x] |
+| **PB-02** | `vex install-hooks` / `vex uninstall-hooks` | [x] |
+| **PB-03** | `vex skills list\|install\|remove` + `registry.toml` | [x] |
 | **PC-01** | `/model <name>` runtime model switching | [ ] |
 | **PD-01** | `SandboxDriver` trait + `PassthroughSandbox` | [x] |
 | **PD-02** | `MacosSandboxExec` driver (best-effort + require flag) | [ ] |
@@ -1602,6 +1602,29 @@ The amendment that authorises native packaging and editor-surface work is record
 - `docs/adr/completed/ADR-006-runtime-mode-contracts.md` — runtime mode contracts
 - `docs/adr/ADR-022-amendment-2026-03-03.md` — canonical migration guide and variable rename table
 - `.agents/skills/registry.toml` — skills registry manifest
+
+### [PB-01 / PB-02 / PB-03] - completions, hooks, and skills CLI surface
+- Dispatcher: `dispatcher/vexcoder-adr-024-pb-01-pb-02-pb-03-completions-hooks-skills`
+- Commit: `1aaea9211c5387b3283a20e77b3a123939380477`
+- Files changed:
+  - `CONTRIBUTING.md` (+3 -0)
+  - `Cargo.lock` (+10 -0)
+  - `Cargo.toml` (+2 -1)
+  - `src/bin/vex.rs` (+167 -2)
+  - `src/git_hooks.rs` (+277 -0)
+  - `src/lib.rs` (+3 -0)
+  - `src/runtime/task_state.rs` (+52 -3)
+  - `src/skills.rs` (+442 -0)
+  - `src/workspace.rs` (+44 -0)
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - `vex completions`, `vex install-hooks` / `vex uninstall-hooks`, and `vex skills` landed on this dispatcher branch and now match the ADR-024 surface contract.
+  - Follow-up commit `7f7cdbed65633c787d137ed3937cf782495b9f24` preserves resume compatibility for legacy subdirectory task-state paths, adds fish and powershell completion parsing coverage, and changes the installed-skill version sentinel from `0.0.0` to `unknown`.
+  - Hook installation remains worktree-aware and repo-root anchoring stays in place for `.vex/state` and `.agents/skills/registry.toml`.
 
 ### [PA-01] - Layered config resolution chain
 - Dispatcher: `dispatcher/adr-024-pa01-layered-config`

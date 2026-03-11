@@ -1,5 +1,6 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::Shell;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::widgets::Clear;
 use std::io::IsTerminal;
@@ -60,10 +61,44 @@ enum Commands {
         #[arg(long, default_value = "jsonl", value_parser = ["jsonl", "text"])]
         format: String,
     },
+    /// Generate shell completion scripts and write them to stdout.
+    Completions {
+        /// Shell to generate completions for.
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+    /// Install the vexcoder `prepare-commit-msg` hook.
+    InstallHooks,
+    /// Remove the vexcoder `prepare-commit-msg` hook.
+    UninstallHooks,
+    /// Manage the local skills registry.
+    Skills {
+        #[command(subcommand)]
+        sub: SkillsCommands,
+    },
     /// Configuration migration utilities.
     Migrate {
         #[command(subcommand)]
         sub: MigrateCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum SkillsCommands {
+    /// List installed skills.
+    List,
+    /// Install a skill from a git repository URL or tarball URL.
+    Install {
+        /// Git repository URL or tarball URL.
+        source: String,
+        /// Select a subdirectory within the fetched source as the skill root.
+        #[arg(long)]
+        subdir: Option<String>,
+    },
+    /// Remove an installed skill by name.
+    Remove {
+        /// Name of the skill to remove.
+        name: String,
     },
 }
 
@@ -481,37 +516,13 @@ fn emit_migrate_config_output(output_path: Option<&Path>) -> Result<()> {
 /// recent saved task"; a non-empty `task_id` loads that specific task.
 /// Returns `None` only when no tasks exist yet (empty-id path).
 fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
-    let dir = TaskState::state_dir();
     if task_id.is_empty() {
-        // Find the most recently modified JSON file in the state dir.
-        let most_recent = std::fs::read_dir(&dir)
-            .ok()
-            .into_iter()
-            .flatten()
-            .filter_map(|e| e.ok())
-            .filter_map(|e| {
-                let path = e.path();
-                if path.extension().and_then(|x| x.to_str()) != Some("json") {
-                    return None;
-                }
-                let stem = path.file_stem()?.to_str()?.to_string();
-                let modified = e
-                    .metadata()
-                    .ok()
-                    .and_then(|m| m.modified().ok())
-                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                    .map(|d| d.as_millis())
-                    .unwrap_or(0);
-                Some((modified, stem))
-            })
-            .max_by_key(|(ts, _)| *ts);
-
-        match most_recent {
-            Some((_, id)) => Ok(Some(TaskState::load(&dir, &id)?)),
+        match TaskState::state_files().into_iter().next() {
+            Some(file) => Ok(Some(TaskState::load(&file.dir, &file.id)?)),
             None => Ok(None),
         }
     } else {
-        Ok(Some(TaskState::load(&dir, task_id)?))
+        Ok(Some(TaskState::load_from_search_dirs(task_id)?))
     }
 }
 
@@ -578,6 +589,36 @@ async fn main() -> Result<ExitCode> {
             config.validate()?;
             return run_exec(exec_args, config).await;
         }
+        Some(Commands::Completions { shell }) => {
+            let mut cmd = Cli::command();
+            let bin_name = cmd.get_name().to_string();
+            clap_complete::generate(shell, &mut cmd, bin_name, &mut std::io::stdout());
+            return Ok(ExitCode::SUCCESS);
+        }
+        Some(Commands::InstallHooks) => {
+            let cwd = std::env::current_dir()?;
+            vexcoder::git_hooks::install_hooks(&cwd)?;
+            return Ok(ExitCode::SUCCESS);
+        }
+        Some(Commands::UninstallHooks) => {
+            let cwd = std::env::current_dir()?;
+            vexcoder::git_hooks::uninstall_hooks(&cwd)?;
+            return Ok(ExitCode::SUCCESS);
+        }
+        Some(Commands::Skills { sub }) => {
+            let cwd = std::env::current_dir()?;
+            let mut registry = vexcoder::skills::SkillsRegistry::load(&cwd)?;
+            match sub {
+                SkillsCommands::List => registry.list(),
+                SkillsCommands::Install { source, subdir } => {
+                    registry.install(&source, subdir.as_deref())?;
+                }
+                SkillsCommands::Remove { name } => {
+                    registry.remove(&name)?;
+                }
+            }
+            return Ok(ExitCode::SUCCESS);
+        }
         Some(Commands::Migrate { sub }) => match sub {
             MigrateCommands::Config { output } => {
                 emit_migrate_config_output(output.as_deref())?;
@@ -632,9 +673,10 @@ fn exit_code_for_status(status: TaskStatus) -> ExitCode {
 mod tests {
     use super::{
         emit_migrate_config_output, looks_like_terminal_transcript, resolve_resume_state, Cli,
-        Commands, MigrateCommands,
+        Commands, MigrateCommands, SkillsCommands,
     };
     use clap::Parser;
+    use clap_complete::Shell;
     use std::path::PathBuf;
 
     mod test_support {
@@ -819,6 +861,32 @@ mod tests {
         std::env::remove_var("VEX_STATE_DIR");
     }
 
+    #[test]
+    fn test_resolve_resume_state_explicit_id_falls_back_to_legacy_subdir() {
+        use vexcoder::runtime::TaskState;
+
+        let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
+        let old_cwd = std::env::current_dir().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let nested = temp.path().join("src/nested");
+        let legacy_state_dir = nested.join(".vex/state");
+        std::fs::create_dir_all(&legacy_state_dir).unwrap();
+
+        let state = TaskState::new("task-legacy".to_string());
+        state.save(&legacy_state_dir).unwrap();
+
+        std::env::remove_var("VEX_STATE_DIR");
+        std::env::set_current_dir(&nested).unwrap();
+
+        let loaded = resolve_resume_state("task-legacy")
+            .expect("must succeed")
+            .expect("must find the legacy task");
+        assert_eq!(loaded.id, "task-legacy");
+
+        std::env::set_current_dir(old_cwd).unwrap();
+    }
+
     // -- PM-03 ----------------------------------------------------------------
 
     #[test]
@@ -839,5 +907,124 @@ mod tests {
         let cli = Cli::parse_from(["vex", "-p", "hello", "--resume"]);
         assert_eq!(cli.print_prompt, Some("hello".to_string()));
         assert_eq!(cli.resume, Some(String::new()));
+    }
+
+    // -- PB-01 ----------------------------------------------------------------
+
+    #[test]
+    fn test_completions_cli_parses_zsh() {
+        let cli = Cli::parse_from(["vex", "completions", "zsh"]);
+        assert!(matches!(
+            cli.command,
+            Some(Commands::Completions { shell: Shell::Zsh })
+        ));
+    }
+
+    #[test]
+    fn test_completions_cli_parses_bash() {
+        let cli = Cli::parse_from(["vex", "completions", "bash"]);
+        assert!(matches!(
+            cli.command,
+            Some(Commands::Completions { shell: Shell::Bash })
+        ));
+    }
+
+    #[test]
+    fn test_completions_cli_parses_fish() {
+        let cli = Cli::parse_from(["vex", "completions", "fish"]);
+        assert!(matches!(
+            cli.command,
+            Some(Commands::Completions { shell: Shell::Fish })
+        ));
+    }
+
+    #[test]
+    fn test_completions_cli_parses_powershell() {
+        let cli = Cli::parse_from(["vex", "completions", "powershell"]);
+        assert!(matches!(
+            cli.command,
+            Some(Commands::Completions {
+                shell: Shell::PowerShell
+            })
+        ));
+    }
+
+    // -- PB-02 ----------------------------------------------------------------
+
+    #[test]
+    fn test_install_hooks_cli_parses() {
+        let cli = Cli::parse_from(["vex", "install-hooks"]);
+        assert!(matches!(cli.command, Some(Commands::InstallHooks)));
+    }
+
+    #[test]
+    fn test_uninstall_hooks_cli_parses() {
+        let cli = Cli::parse_from(["vex", "uninstall-hooks"]);
+        assert!(matches!(cli.command, Some(Commands::UninstallHooks)));
+    }
+
+    // -- PB-03 ----------------------------------------------------------------
+
+    #[test]
+    fn test_skills_list_cli_parses() {
+        let cli = Cli::parse_from(["vex", "skills", "list"]);
+        assert!(matches!(
+            cli.command,
+            Some(Commands::Skills {
+                sub: SkillsCommands::List
+            })
+        ));
+    }
+
+    #[test]
+    fn test_skills_install_cli_parses() {
+        let cli = Cli::parse_from([
+            "vex",
+            "skills",
+            "install",
+            "https://github.com/example/skills.git",
+        ]);
+        match cli.command {
+            Some(Commands::Skills {
+                sub: SkillsCommands::Install { source, subdir },
+            }) => {
+                assert_eq!(source, "https://github.com/example/skills.git");
+                assert!(subdir.is_none());
+            }
+            _ => panic!("expected skills install"),
+        }
+    }
+
+    #[test]
+    fn test_skills_install_cli_parses_subdir() {
+        let cli = Cli::parse_from([
+            "vex",
+            "skills",
+            "install",
+            "https://github.com/example/skills.git",
+            "--subdir",
+            "skills/edit-loop",
+        ]);
+        match cli.command {
+            Some(Commands::Skills {
+                sub: SkillsCommands::Install { subdir, .. },
+            }) => {
+                assert_eq!(subdir, Some("skills/edit-loop".to_string()));
+            }
+            _ => panic!("expected skills install with subdir"),
+        }
+    }
+
+    #[test]
+    fn test_skills_remove_cli_parses() {
+        let cli = Cli::parse_from(["vex", "skills", "remove", "edit-loop"]);
+        match cli.command {
+            Some(Commands::Skills {
+                sub: SkillsCommands::Remove { name },
+            }) => {
+                assert_eq!(name, "edit-loop");
+            }
+            _ => panic!("expected skills remove"),
+        }
     }
 }

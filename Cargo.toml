@@ -13,6 +13,7 @@ path = "src/bin/vex.rs"
 aho-corasick = "1"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+clap_complete = { version = "4" }
 bytes = "1"
 crossterm = "0.28"
 futures = "0.3"
@@ -29,7 +30,7 @@ tokio-util = "0.7"
 toml = "0.8"
 unicode-width = "0.2"
 portable-pty = "0.9"
+tempfile = "3"
 
 [dev-dependencies]
 filetime = "0.2"
-tempfile = "3"

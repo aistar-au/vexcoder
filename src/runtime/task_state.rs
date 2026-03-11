@@ -1,6 +1,6 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -50,6 +50,13 @@ pub struct TaskState {
     pub command_history: Vec<CommandEvidence>,
     pub conversation_snapshot: ConversationCheckpoint,
     pub interrupted_sessions: Vec<InterruptedCommand>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskStateFile {
+    pub dir: PathBuf,
+    pub id: TaskId,
+    pub modified_millis: u128,
 }
 
 impl TaskState {
@@ -106,15 +113,106 @@ impl TaskState {
     }
 
     pub fn state_dir() -> PathBuf {
-        std::env::var("VEX_STATE_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from(".vex/state"))
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        Self::state_dir_from(&working_dir)
+    }
+
+    pub fn state_dir_from(working_dir: &Path) -> PathBuf {
+        match std::env::var("VEX_STATE_DIR") {
+            Ok(path) => crate::workspace::resolve_relative_to_workspace(working_dir, path.into()),
+            Err(_) => crate::workspace::workspace_root(working_dir).join(".vex/state"),
+        }
+    }
+
+    pub fn state_search_dirs() -> Vec<PathBuf> {
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        Self::state_search_dirs_from(&working_dir)
+    }
+
+    pub fn state_search_dirs_from(working_dir: &Path) -> Vec<PathBuf> {
+        let mut dirs = vec![Self::state_dir_from(working_dir)];
+        let legacy = match std::env::var("VEX_STATE_DIR") {
+            Ok(path) => {
+                let path = PathBuf::from(path);
+                (!path.is_absolute()).then(|| working_dir.join(path))
+            }
+            Err(_) => Some(working_dir.join(".vex/state")),
+        };
+
+        if let Some(legacy) = legacy {
+            if !dirs.iter().any(|dir| dir == &legacy) {
+                dirs.push(legacy);
+            }
+        }
+
+        dirs
+    }
+
+    pub fn state_files() -> Vec<TaskStateFile> {
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        Self::state_files_from(&working_dir)
+    }
+
+    pub fn state_files_from(working_dir: &Path) -> Vec<TaskStateFile> {
+        let mut files = Self::state_search_dirs_from(working_dir)
+            .into_iter()
+            .flat_map(|dir| {
+                let Ok(entries) = std::fs::read_dir(&dir) else {
+                    return Vec::new();
+                };
+
+                entries
+                    .filter_map(|entry| entry.ok())
+                    .filter_map(|entry| {
+                        let path = entry.path();
+                        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                            return None;
+                        }
+                        let id = path.file_stem()?.to_str()?.to_string();
+                        let modified_millis = entry
+                            .metadata()
+                            .ok()
+                            .and_then(|meta| meta.modified().ok())
+                            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                            .map(|duration| duration.as_millis())
+                            .unwrap_or(0);
+                        Some(TaskStateFile {
+                            dir: dir.clone(),
+                            id,
+                            modified_millis,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        files.sort_by(|left, right| right.modified_millis.cmp(&left.modified_millis));
+        let mut seen = HashSet::new();
+        files.retain(|file| seen.insert(file.id.clone()));
+        files
+    }
+
+    pub fn load_from_search_dirs(id: &str) -> Result<Self> {
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        Self::load_from_search_dirs_from(&working_dir, id)
+    }
+
+    pub fn load_from_search_dirs_from(working_dir: &Path, id: &str) -> Result<Self> {
+        if let Some(file) = Self::state_files_from(working_dir)
+            .into_iter()
+            .find(|file| file.id == id)
+        {
+            return Self::load(&file.dir, id);
+        }
+
+        Err(anyhow!("task state '{id}' not found"))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::ENV_LOCK;
     use tempfile::TempDir;
 
     #[test]
@@ -174,5 +272,117 @@ mod tests {
         assert_ne!(TaskStatus::MaxTurnsReached, TaskStatus::Completed);
         assert_ne!(TaskStatus::MaxTurnsReached, TaskStatus::Cancelled);
         assert_ne!(TaskStatus::MaxTurnsReached, TaskStatus::Failed);
+    }
+
+    #[test]
+    fn test_state_dir_defaults_to_repo_root_for_subdirs() {
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let nested = temp.path().join("src/nested");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        assert_eq!(
+            TaskState::state_dir_from(&nested),
+            temp.path().join(".vex/state")
+        );
+    }
+
+    #[test]
+    fn test_state_dir_relative_env_is_anchored_to_repo_root() {
+        let _env_lock = ENV_LOCK.blocking_lock();
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let nested = temp.path().join("src/nested");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::env::set_var("VEX_STATE_DIR", "custom/state");
+
+        assert_eq!(
+            TaskState::state_dir_from(&nested),
+            temp.path().join("custom/state")
+        );
+
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_state_dir_absolute_env_is_preserved() {
+        let _env_lock = ENV_LOCK.blocking_lock();
+        let temp = TempDir::new().unwrap();
+        let absolute = temp.path().join("absolute-state");
+        std::env::set_var("VEX_STATE_DIR", absolute.as_os_str());
+
+        assert_eq!(TaskState::state_dir_from(temp.path()), absolute);
+
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_state_search_dirs_include_legacy_subdir_path() {
+        let _env_lock = ENV_LOCK.blocking_lock();
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let nested = temp.path().join("src/nested");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        assert_eq!(
+            TaskState::state_search_dirs_from(&nested),
+            vec![temp.path().join(".vex/state"), nested.join(".vex/state")]
+        );
+    }
+
+    #[test]
+    fn test_state_search_dirs_include_legacy_relative_env_path() {
+        let _env_lock = ENV_LOCK.blocking_lock();
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let nested = temp.path().join("src/nested");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::env::set_var("VEX_STATE_DIR", "custom/state");
+
+        assert_eq!(
+            TaskState::state_search_dirs_from(&nested),
+            vec![
+                temp.path().join("custom/state"),
+                nested.join("custom/state")
+            ]
+        );
+
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_state_files_prefer_newest_copy_of_duplicate_task_ids() {
+        use filetime::{set_file_mtime, FileTime};
+
+        let _env_lock = ENV_LOCK.blocking_lock();
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let nested = temp.path().join("src/nested");
+        let repo_state_dir = temp.path().join(".vex/state");
+        let legacy_state_dir = nested.join(".vex/state");
+        std::fs::create_dir_all(&legacy_state_dir).unwrap();
+
+        let mut legacy = TaskState::new("task-dup".to_string());
+        legacy.status = TaskStatus::Running;
+        legacy.save(&legacy_state_dir).unwrap();
+        set_file_mtime(
+            legacy_state_dir.join("task-dup.json"),
+            FileTime::from_unix_time(1_700_000_002, 0),
+        )
+        .unwrap();
+
+        std::fs::create_dir_all(&repo_state_dir).unwrap();
+        TaskState::new("task-dup".to_string())
+            .save(&repo_state_dir)
+            .unwrap();
+        set_file_mtime(
+            repo_state_dir.join("task-dup.json"),
+            FileTime::from_unix_time(1_700_000_001, 0),
+        )
+        .unwrap();
+
+        let files = TaskState::state_files_from(&nested);
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].dir, legacy_state_dir);
     }
 }
