@@ -267,7 +267,7 @@ Formally reserved for a post-Phase-H ADR. The `LocalApiServer` is the third `Run
 
 The relationship to cloud API servers is direct: architecturally, `LocalApiServer` and a cloud-hosted API server are the same construct — a `RuntimeMode` implementation that accepts requests and streams responses. The network path differs (loopback vs internet); the interface contract does not. This means a future cloud-hosted or enterprise-licensed deployment follows the same expansion path: a `RuntimeMode` implementation that routes to a remote transport rather than a local socket.
 
-`LocalApiServer` must not begin implementation until `BatchMode` is validated end-to-end and Phase H is complete. The ADR for Phase I must specify the wire protocol, authentication model for the local socket, and the streaming response format before any dispatcher begins work.
+`LocalApiServer` must not begin implementation until `BatchMode` is validated end-to-end and Phase H is complete. That specification requirement is now satisfied by ADR-025 (canonical runtime JSON handoff contract) and ADR-026 (transport binding, auth model, and streaming rules). The implementation gate remains unchanged: no dispatcher may begin Phase I code until those milestone gates are green.
 
 **`vex remote-control` is explicitly out of scope for Phase I.** A `remote-control` subcommand that serves the running local environment to remote callers is a distinct surface from `LocalApiServer`. It requires its own ADR covering network exposure model, authentication, and security boundary — it must not be conflated with the loopback-only `LocalApiServer` design.
 
@@ -1122,6 +1122,13 @@ sandbox_require  = false           # abort rather than fall back if sandbox unav
 
 max_project_instructions_tokens = 4096
 
+[api]
+transport = "http"          # "http" | "unix" | "both"
+host      = "127.0.0.1"     # loopback only in Phase I
+port      = 6274            # override via VEX_API_PORT
+socket    = ""              # empty = platform default; Unix only
+key       = "${VEX_API_KEY}"  # user config only when HTTP is enabled; repo-local rejected
+
 # MCP servers — user config ONLY. Rejected in repo-local config.
 [[mcp_servers]]
 name      = "filesystem"
@@ -1129,6 +1136,8 @@ transport = "stdio"
 command   = "npx"
 args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 ```
+
+`api.key` is user-config-only. Repo-local config must reject it at load time, and Phase I must reject non-loopback `api.host` values in this ADR's scope.
 
 ---
 
@@ -1477,6 +1486,14 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-06** | `/mcp list` — renders loaded servers and tool counts from McpRegistry | [ ] |
 | **PI-07** | `/mcp show <server>` — renders full-namespace tool names for named server | [ ] |
 | **PI-08** | `/plan` and `/context` — see ADR-023 EL-11/EL-12 (tracked there; listed here for cross-ref) | [ ] |
+| **PI-09** | Canonical runtime JSON handoff types in `src/runtime/json_handoff.rs`, including `RuntimeRequest`, `RuntimeEnvelope`, `RuntimeEvent`, `TokenUsageEnvelope`, `ValidationOutputEnvelope`, and `grammars/tool_call.gbnf` | [ ] |
+| **PI-10** | Normalization layer from provider/native stream updates into canonical runtime envelopes; runtime owns `ToolCall.id`; provider ids do not cross the canonical boundary | [ ] |
+| **PI-11** | `schemas/runtime_envelope_v1.json` and `schemas/runtime_request_v1.json`, including MCP tool-name namespace validation and approval request variants | [ ] |
+| **PI-12** | Serde round-trip, schema parity, grammar parity, and BatchMode-derivation tests for the canonical envelope stream | [ ] |
+| **PI-13** | `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [ ] |
+| **PI-14** | `GET /v1/schema` serving the ADR-025 schema bundle; exempt from envelope validation | [ ] |
+| **PI-15** | Unix-socket transport, HTTP bearer auth, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
+| **PI-16** | Integration tests for stream order, keepalive emission, auth failures, schema validation, mid-stream runtime error, max-turns terminal sequence, interrupt `404`, and reconnect/new-turn behavior | [ ] |
 | **PJ-01** | `/clear` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [x] |
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
 | **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [x] |
