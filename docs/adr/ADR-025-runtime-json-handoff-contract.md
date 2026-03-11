@@ -349,7 +349,8 @@ Those belong to ADR-026, the transport-binding ADR that follows this one.
 {"version":1,"task_id":"task-1741700000000","turn":1,"seq":2,"event":{"type":"assistant_delta","text":"Analyzing current runtime flow..."}}
 {"version":1,"task_id":"task-1741700000000","turn":1,"seq":3,"event":{"type":"tool_call","id":"call_1741700123456_9a2f","name":"read_file","arguments":{"path":"src/app.rs"}}}
 {"version":1,"task_id":"task-1741700000000","turn":1,"seq":4,"event":{"type":"tool_result","tool_call_id":"call_1741700123456_9a2f","tool_name":"read_file","is_error":false,"output":"..."}}
-{"version":1,"task_id":"task-1741700000000","turn":1,"seq":5,"event":{"type":"turn_end","status":"completed","usage":{"input":184,"output":67,"estimated":false},"changed_files":[]}}
+{"version":1,"task_id":"task-1741700000000","turn":1,"seq":5,"event":{"type":"assistant_message","content":"Analyzing current runtime flow..."}}
+{"version":1,"task_id":"task-1741700000000","turn":1,"seq":6,"event":{"type":"turn_end","status":"completed","usage":{"input":184,"output":67,"estimated":false},"changed_files":[]}}
 ```
 
 ---

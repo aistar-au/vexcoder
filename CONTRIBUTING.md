@@ -5,7 +5,7 @@
 > The ADRs explain *why* the project is structured this way. Read them before opening a PR.
 >
 > **Agent bootstrap:** repo-local product guidance stays here, but the active
-> dispatcher skills now live in the sibling private repo
+> dispatcher skills now live in the internal private repo
 > `../vexdraft/.agents/skills/`.
 > Read [`AGENTS.md`](AGENTS.md) first for the dependency map and required load
 > order before using the private skill tree against this repo.
@@ -155,7 +155,7 @@ Do not merge packaging work directly from a local debug session; keep the review
 ```
 
 `vexdraft` must exist at `../vexdraft` relative to this repo for the dispatcher
-loop and pre-push review to function. The sibling layout is the assumed path contract.
+loop and pre-push review to function. The internal layout is the assumed path contract.
 
 ```
 vexcoder/ (standalone view)

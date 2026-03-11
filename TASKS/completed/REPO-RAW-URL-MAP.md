@@ -1,6 +1,6 @@
 # Repository Raw URL Map
 
-Canonical raw URL index for every tracked file in the sibling vexcoder repository.
+Canonical raw URL index for every tracked file in the internal vexcoder repository.
 
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
@@ -40,7 +40,7 @@ Canonical raw URL index for every tracked file in the sibling vexcoder repositor
 | 29 | `docs/adr/ADR-022-free-open-coding-agent-roadmap.md` | ~443 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-022-free-open-coding-agent-roadmap.md> |
 | 30 | `docs/adr/ADR-023-deterministic-edit-loop.md` | ~732 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-023-deterministic-edit-loop.md> |
 | 31 | `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | ~1823 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md> |
-| 32 | `docs/adr/ADR-025-runtime-json-handoff-contract.md` | ~836 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-025-runtime-json-handoff-contract.md> |
+| 32 | `docs/adr/ADR-025-runtime-json-handoff-contract.md` | ~837 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-025-runtime-json-handoff-contract.md> |
 | 33 | `docs/adr/ADR-026-localapiserver-transport-binding.md` | ~618 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-026-localapiserver-transport-binding.md> |
 | 34 | `docs/adr/ADR-README.md` | ~53 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/ADR-README.md> |
 | 35 | `docs/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
