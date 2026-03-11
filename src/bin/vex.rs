@@ -4,11 +4,11 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifier
 use ratatui::widgets::Clear;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use vexcoder::app::{build_runtime, TuiMode};
+use vexcoder::app::{build_runtime, build_runtime_with_resume, TuiMode};
 use vexcoder::batch_mode::{run_batch, AutoApproveScope, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
 use vexcoder::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
-use vexcoder::runtime::TaskStatus;
+use vexcoder::runtime::{TaskState, TaskStatus};
 use vexcoder::ui::editor::{InputAction, InputEditor};
 use vexcoder::ui::layout::split_three_pane_layout;
 use vexcoder::ui::render::{
@@ -23,6 +23,23 @@ const STARTUP_NOISE_GUARD: Duration = Duration::from_secs(15);
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
+
+    /// Resume a saved task by ID, or omit the value for an interactive
+    /// selection of the most-recent saved task.
+    /// Example: `vex --resume task-1234` or just `vex --resume`.
+    #[arg(
+        long,
+        num_args(0..=1),
+        default_missing_value = "",
+        conflicts_with = "print_prompt"
+    )]
+    resume: Option<String>,
+
+    /// Run a single prompt turn non-interactively and print the result to
+    /// stdout.  Reads additional content from stdin when stdin is not a TTY.
+    /// Example: `vex -p "summarise this file" < README.md`
+    #[arg(short = 'p', long = "print", conflicts_with = "resume")]
+    print_prompt: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -459,12 +476,92 @@ fn emit_migrate_config_output(output_path: Option<&Path>) -> Result<()> {
     Ok(())
 }
 
+// ── PM-01: resolve task state for --resume ────────────────────────────────────
+
+/// Load a `TaskState` for `--resume`.  An empty `task_id` means "pick the most
+/// recent saved task"; a non-empty `task_id` loads that specific task.
+/// Returns `None` only when no tasks exist yet (empty-id path).
+fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
+    let dir = TaskState::state_dir();
+    if task_id.is_empty() {
+        // Find the most recently modified JSON file in the state dir.
+        let most_recent = std::fs::read_dir(&dir)
+            .ok()
+            .into_iter()
+            .flatten()
+            .filter_map(|e| e.ok())
+            .filter_map(|e| {
+                let path = e.path();
+                if path.extension().and_then(|x| x.to_str()) != Some("json") {
+                    return None;
+                }
+                let stem = path.file_stem()?.to_str()?.to_string();
+                let modified = e
+                    .metadata()
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0);
+                Some((modified, stem))
+            })
+            .max_by_key(|(ts, _)| *ts);
+
+        match most_recent {
+            Some((_, id)) => Ok(Some(TaskState::load(&dir, &id)?)),
+            None => Ok(None),
+        }
+    } else {
+        Ok(Some(TaskState::load(&dir, task_id)?))
+    }
+}
+
+// ── PM-03: --print one-shot mode ──────────────────────────────────────────────
+
+/// Collect stdin when it is not a TTY (pipe / redirect) and prepend it to the
+/// prompt so that `vex -p "summarise" < file.txt` works naturally.
+fn read_stdin_if_piped() -> Option<String> {
+    use std::io::Read;
+    if atty::is(atty::Stream::Stdin) {
+        return None;
+    }
+    let mut buf = String::new();
+    std::io::stdin().read_to_string(&mut buf).ok()?;
+    if buf.trim().is_empty() {
+        None
+    } else {
+        Some(buf)
+    }
+}
+
+async fn run_print(prompt: String, config: Config) -> Result<()> {
+    let full_prompt = match read_stdin_if_piped() {
+        Some(stdin_content) => format!("{stdin_content}\n{prompt}"),
+        None => prompt,
+    };
+
+    let opts = BatchRunOpts {
+        max_turns: Some(1),
+        auto_approve: None,
+        format: OutputFormat::Text,
+    };
+
+    let result = run_batch(full_prompt, opts, &config).await?;
+    print!("{}", result.output_lines.join("\n"));
+
+    match result.status {
+        TaskStatus::Completed => std::process::exit(0),
+        _ => std::process::exit(1),
+    }
+}
+
 // ── main ───────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    // Subcommands take unconditional priority.
     match cli.command {
         Some(Commands::Exec {
             task,
@@ -492,6 +589,28 @@ async fn main() -> Result<()> {
     let config = Config::load()?;
     config.validate()?;
 
+    // PM-03: -p/--print one-shot mode.
+    if let Some(prompt) = cli.print_prompt {
+        return run_print(prompt, config).await;
+    }
+
+    // PM-01: --resume startup flag.
+    if let Some(task_id) = cli.resume {
+        match resolve_resume_state(&task_id)? {
+            Some(state) => {
+                let (mut runtime, mut ctx) = build_runtime_with_resume(config, state)?;
+                let mut frontend = ManagedTuiFrontend::new()?;
+                runtime.run(&mut frontend, &mut ctx).await;
+                return Ok(());
+            }
+            None => {
+                eprintln!("[resume] no saved tasks found");
+                std::process::exit(1);
+            }
+        }
+    }
+
+    // Default: interactive TUI.
     let (mut runtime, mut ctx) = build_runtime(config)?;
     let mut frontend = ManagedTuiFrontend::new()?;
     runtime.run(&mut frontend, &mut ctx).await;
@@ -501,7 +620,8 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        emit_migrate_config_output, looks_like_terminal_transcript, Cli, Commands, MigrateCommands,
+        emit_migrate_config_output, looks_like_terminal_transcript, resolve_resume_state, Cli,
+        Commands, MigrateCommands,
     };
     use clap::Parser;
     use std::path::PathBuf;
@@ -577,5 +697,115 @@ mod tests {
     fn transcript_detection_keeps_normal_prompt() {
         let input = "list files in this directory and summarize in one sentence";
         assert!(!looks_like_terminal_transcript(input));
+    }
+
+    // -- PM-01 ----------------------------------------------------------------
+
+    #[test]
+    fn test_resume_flag_cli_parses_with_id() {
+        let cli = Cli::parse_from(["vex", "--resume", "task-1234"]);
+        assert_eq!(cli.resume, Some("task-1234".to_string()));
+        assert!(cli.print_prompt.is_none());
+    }
+
+    #[test]
+    fn test_resume_flag_cli_parses_without_id() {
+        // --resume with no argument should default to empty string (most-recent path).
+        let cli = Cli::parse_from(["vex", "--resume"]);
+        assert_eq!(cli.resume, Some(String::new()));
+    }
+
+    #[test]
+    fn test_resume_flag_absent_is_none() {
+        let cli = Cli::parse_from(["vex"]);
+        assert!(cli.resume.is_none());
+    }
+
+    #[test]
+    fn test_resume_flag_conflicts_with_print() {
+        let result = Cli::try_parse_from(["vex", "--resume", "task-1", "-p", "hello"]);
+        assert!(result.is_err(), "--resume and -p must conflict");
+    }
+
+    #[test]
+    fn test_resolve_resume_state_unknown_id_errors() {
+        let _env_lock = vexcoder::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let result = resolve_resume_state("does-not-exist");
+        assert!(result.is_err(), "unknown task id must produce an error");
+
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_resolve_resume_state_empty_dir_returns_none() {
+        let _env_lock = vexcoder::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let result = resolve_resume_state("").expect("empty-dir must not error");
+        assert!(result.is_none(), "empty state dir must return None");
+
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_resolve_resume_state_most_recent() {
+        use vexcoder::runtime::TaskState;
+        let _env_lock = vexcoder::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let older = TaskState::new("task-older".to_string());
+        older.save(temp.path()).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let newer = TaskState::new("task-newer".to_string());
+        newer.save(temp.path()).unwrap();
+
+        let state = resolve_resume_state("").expect("must succeed").expect("must find a task");
+        assert_eq!(state.id, "task-newer", "must pick the most recently modified task");
+
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_resolve_resume_state_explicit_id() {
+        use vexcoder::runtime::TaskState;
+        let _env_lock = vexcoder::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let state = TaskState::new("task-explicit".to_string());
+        state.save(temp.path()).unwrap();
+
+        let loaded = resolve_resume_state("task-explicit")
+            .expect("must succeed")
+            .expect("must find the task");
+        assert_eq!(loaded.id, "task-explicit");
+
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    // -- PM-03 ----------------------------------------------------------------
+
+    #[test]
+    fn test_print_flag_cli_parses() {
+        let cli = Cli::parse_from(["vex", "-p", "hello world"]);
+        assert_eq!(cli.print_prompt, Some("hello world".to_string()));
+        assert!(cli.resume.is_none());
+    }
+
+    #[test]
+    fn test_print_long_form_parses() {
+        let cli = Cli::parse_from(["vex", "--print", "hello world"]);
+        assert_eq!(cli.print_prompt, Some("hello world".to_string()));
+    }
+
+    #[test]
+    fn test_print_flag_conflicts_with_resume() {
+        let result = Cli::try_parse_from(["vex", "-p", "hello", "--resume"]);
+        assert!(result.is_err(), "-p and --resume must conflict");
     }
 }
