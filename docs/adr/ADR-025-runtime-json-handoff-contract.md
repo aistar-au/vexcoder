@@ -37,12 +37,9 @@ The missing decision is therefore not "SSE first" or "JSONL first." The missing 
 
 ## Sequencing guard
 
-This ADR satisfies ADR-024's Phase I specification requirement, but implementation must not begin until:
+This ADR satisfies ADR-024's Phase I specification requirement, but implementation must not begin until milestone-1 correctness work (ADR-022 phases 1–8 plus ADR-023 deterministic edit loop) is validated end-to-end.
 
-1. Phase H (macOS packaging and distribution) is complete, and
-2. milestone-1 correctness work (ADR-022 phases 1–8 plus ADR-023 deterministic edit loop) is validated end-to-end.
-
-No dispatcher may begin LocalApiServer or canonical JSON handoff implementation before those gates are green.
+No dispatcher may begin canonical JSON handoff implementation before that gate is green.
 
 ---
 

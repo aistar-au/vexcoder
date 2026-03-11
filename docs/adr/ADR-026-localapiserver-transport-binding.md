@@ -11,7 +11,7 @@
 
 ## Context
 
-ADR-024 reserves `LocalApiServer` as the post-Phase-H, post-milestone-1 path for exposing the shared runtime core to rich local clients. It requires a dedicated ADR specifying:
+ADR-024 reserves `LocalApiServer` as the post-milestone-1 path for exposing the shared runtime core to rich local clients. It requires a dedicated ADR specifying:
 
 - the wire protocol,
 - the local authentication model,
@@ -29,12 +29,9 @@ This ADR therefore does **not** need to invent a new event schema. Its job is na
 
 ## Sequencing guard
 
-This ADR satisfies ADR-024's Phase I specification requirement, but implementation must not begin until:
+This ADR satisfies ADR-024's Phase I specification requirement, but implementation must not begin until milestone-1 correctness work (ADR-022 phases 1–8 plus ADR-023 deterministic edit loop) is validated end-to-end.
 
-1. Phase H (macOS packaging and distribution) is complete, and
-2. milestone-1 correctness work (ADR-022 phases 1–8 plus ADR-023 deterministic edit loop) is validated end-to-end.
-
-No dispatcher may begin LocalApiServer implementation before those gates are green.
+No dispatcher may begin LocalApiServer implementation before that gate is green.
 
 ---
 
