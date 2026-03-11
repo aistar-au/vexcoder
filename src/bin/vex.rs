@@ -448,6 +448,7 @@ async fn run_exec(exec: ExecArgs, config: Config) -> Result<()> {
         max_turns: exec.max_turns,
         auto_approve: exec.auto_approve,
         format: exec.format,
+        resume_state: None,
     };
 
     let result = run_batch(exec.task, opts, &config).await?;
@@ -534,7 +535,7 @@ fn read_stdin_if_piped() -> Option<String> {
     }
 }
 
-async fn run_print(prompt: String, config: Config) -> Result<()> {
+async fn run_print(prompt: String, config: Config, resume_state: Option<TaskState>) -> Result<()> {
     let full_prompt = match read_stdin_if_piped() {
         Some(stdin_content) => format!("{stdin_content}\n{prompt}"),
         None => prompt,
@@ -544,6 +545,7 @@ async fn run_print(prompt: String, config: Config) -> Result<()> {
         max_turns: Some(1),
         auto_approve: None,
         format: OutputFormat::Text,
+        resume_state,
     };
 
     let result = run_batch(full_prompt, opts, &config).await?;
@@ -602,7 +604,7 @@ async fn main() -> Result<()> {
 
     // PM-03: -p/--print one-shot mode.
     if let Some(prompt) = cli.print_prompt {
-        return run_print(prompt, config).await;
+        return run_print(prompt, config, resume_state).await;
     }
 
     // PM-01: --resume startup flag.

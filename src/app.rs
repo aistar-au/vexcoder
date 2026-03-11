@@ -163,7 +163,6 @@ fn scope_to_label(scope: ApprovalScope) -> &'static str {
 fn kebab_to_scope(s: &str) -> Option<ApprovalScope> {
     match s {
         "once" => Some(ApprovalScope::Once),
-        "task" => Some(ApprovalScope::Task),
         "session" => Some(ApprovalScope::Session),
         _ => None,
     }
@@ -616,32 +615,23 @@ impl TuiMode {
     }
 
     fn handle_permissions_command(&mut self) {
-        let grants = &self.current_task.active_grants;
-        if grants.is_empty() {
-            self.push_history_line("[permissions] no active grants".to_string());
-            return;
-        }
-        // Sort by kebab name for stable output.
-        let mut rows: Vec<(String, &'static str)> = grants
-            .iter()
-            .map(|(cap, scope)| {
-                (
-                    capability_to_kebab(*cap).to_string(),
-                    scope_to_label(*scope),
-                )
-            })
-            .collect();
-        rows.sort_by(|a, b| a.0.cmp(&b.0));
-        self.push_history_line("[permissions] active grants:".to_string());
-        for (cap_name, scope_name) in rows {
-            self.push_history_line(format!("  {cap_name}  {scope_name}"));
+        self.push_history_line("[permissions]".to_string());
+        for &cap in ALL_CAPABILITIES {
+            let cap_name = capability_to_kebab(cap);
+            let scope_label = self
+                .current_task
+                .active_grants
+                .get(&cap)
+                .map(|scope| scope_to_label(*scope))
+                .unwrap_or("(none)");
+            self.push_history_line(format!("  {cap_name}  {scope_label}"));
         }
     }
 
     fn handle_allow_command(&mut self, rest: &str) {
         if rest.is_empty() {
             self.push_history_line(
-                "[allow] usage: /allow <capability> [once|task|session]".to_string(),
+                "[allow: usage: /allow <capability> [once|session]]".to_string(),
             );
             return;
         }
@@ -650,9 +640,7 @@ impl TuiMode {
         let scope_str = parts.next().unwrap_or("").trim();
 
         let Some(cap) = kebab_to_capability(cap_str) else {
-            self.push_history_line(format!(
-                "[allow] unknown capability '{cap_str}'; valid: apply-patch browser network read-file run-command write-file"
-            ));
+            self.push_history_line(format!("[allow: unknown capability '{cap_str}']"));
             return;
         };
 
@@ -663,7 +651,7 @@ impl TuiMode {
                 Some(s) => s,
                 None => {
                     self.push_history_line(format!(
-                        "[allow] unknown scope '{scope_str}'; valid: once task session"
+                        "[allow: unknown scope '{scope_str}'; valid: once | session]"
                     ));
                     return;
                 }
@@ -672,26 +660,24 @@ impl TuiMode {
 
         let scope_label = scope_to_label(scope);
         self.current_task.active_grants.insert(cap, scope);
-        self.push_history_line(format!("[allow] granted {cap_str} ({scope_label})"));
+        self.push_history_line(format!("[allow: {cap_str} granted for {scope_label}]"));
     }
 
     fn handle_deny_command(&mut self, rest: &str) {
         if rest.is_empty() {
-            self.push_history_line("[deny] usage: /deny <capability>".to_string());
+            self.push_history_line("[deny: usage: /deny <capability>]".to_string());
             return;
         }
         let cap_str = rest.trim();
         let Some(cap) = kebab_to_capability(cap_str) else {
-            self.push_history_line(format!(
-                "[deny] unknown capability '{cap_str}'; valid: apply-patch browser network read-file run-command write-file"
-            ));
+            self.push_history_line(format!("[deny: unknown capability '{cap_str}']"));
             return;
         };
 
         if self.current_task.active_grants.remove(&cap).is_some() {
-            self.push_history_line(format!("[deny] revoked {cap_str}"));
+            self.push_history_line(format!("[deny: {cap_str} removed]"));
         } else {
-            self.push_history_line(format!("[deny] {cap_str} has no active grant"));
+            self.push_history_line(format!("[deny: {cap_str} not in active grants]"));
         }
     }
 
@@ -3006,11 +2992,18 @@ mod tests {
         let mut ctx = setup_ctx();
         mode.on_user_input("/permissions".to_string(), &mut ctx);
         assert!(
-            mode.history_lines()
-                .iter()
-                .any(|l| l.contains("[permissions] no active grants")),
-            "expected no-grants message"
+            mode.history_lines().iter().any(|l| l == "[permissions]"),
+            "expected permissions header"
         );
+        for &cap in ALL_CAPABILITIES {
+            let cap_name = capability_to_kebab(cap);
+            assert!(
+                mode.history_lines()
+                    .iter()
+                    .any(|l| l.contains(cap_name) && l.contains("(none)")),
+                "expected {cap_name} with (none) in empty-grants permissions output"
+            );
+        }
         assert!(!mode.is_turn_in_progress());
     }
 
@@ -3026,18 +3019,23 @@ mod tests {
         let mut ctx = setup_ctx();
         mode.on_user_input("/permissions".to_string(), &mut ctx);
         let lines = mode.history_lines().to_vec();
-        let has_header = lines
-            .iter()
-            .any(|l| l.contains("[permissions] active grants:"));
+        let has_header = lines.iter().any(|l| l == "[permissions]");
         let has_run_command = lines
             .iter()
             .any(|l| l.contains("run-command") && l.contains("session"));
         let has_network = lines
             .iter()
             .any(|l| l.contains("network") && l.contains("once"));
+        let has_apply_patch_none = lines
+            .iter()
+            .any(|l| l.contains("apply-patch") && l.contains("(none)"));
         assert!(has_header, "expected active grants header");
         assert!(has_run_command, "expected run-command session entry");
         assert!(has_network, "expected network once entry");
+        assert!(
+            has_apply_patch_none,
+            "expected apply-patch (none) for absent grant"
+        );
         assert!(!mode.is_turn_in_progress());
     }
 
@@ -3054,7 +3052,7 @@ mod tests {
         assert!(
             mode.history_lines()
                 .iter()
-                .any(|l| l.contains("[allow] granted run-command (session)")),
+                .any(|l| l.contains("[allow: run-command granted for session]")),
             "expected grant confirmation"
         );
         assert!(!mode.is_turn_in_progress());
@@ -3080,8 +3078,23 @@ mod tests {
         assert!(
             mode.history_lines()
                 .iter()
-                .any(|l| l.contains("[allow] unknown capability 'bogus-cap'")),
+                .any(|l| l.contains("[allow: unknown capability 'bogus-cap']")),
             "expected unknown-capability error"
+        );
+        assert!(mode.current_task.active_grants.is_empty());
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_allow_task_scope_emits_error() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/allow network task".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[allow: unknown scope 'task'; valid: once | session]")),
+            "expected task scope rejection"
         );
         assert!(mode.current_task.active_grants.is_empty());
         assert!(!mode.is_turn_in_progress());
@@ -3095,7 +3108,7 @@ mod tests {
         assert!(
             mode.history_lines()
                 .iter()
-                .any(|l| l.contains("[allow] unknown scope 'forever'")),
+                .any(|l| l.contains("[allow: unknown scope 'forever'; valid: once | session]")),
             "expected unknown-scope error"
         );
         assert!(mode.current_task.active_grants.is_empty());
@@ -3120,7 +3133,7 @@ mod tests {
         assert!(
             mode.history_lines()
                 .iter()
-                .any(|l| l.contains("[deny] revoked apply-patch")),
+                .any(|l| l.contains("[deny: apply-patch removed]")),
             "expected revoke confirmation"
         );
         assert!(!mode.is_turn_in_progress());
@@ -3134,7 +3147,7 @@ mod tests {
         assert!(
             mode.history_lines()
                 .iter()
-                .any(|l| l.contains("[deny] browser has no active grant")),
+                .any(|l| l.contains("[deny: browser not in active grants]")),
             "expected no-active-grant info message"
         );
         assert!(!mode.is_turn_in_progress());
@@ -3148,7 +3161,7 @@ mod tests {
         assert!(
             mode.history_lines()
                 .iter()
-                .any(|l| l.contains("[deny] unknown capability 'not-a-thing'")),
+                .any(|l| l.contains("[deny: unknown capability 'not-a-thing']")),
             "expected unknown-capability error"
         );
         assert!(!mode.is_turn_in_progress());

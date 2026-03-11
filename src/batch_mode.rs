@@ -12,7 +12,7 @@ use crate::runtime::{
     project_instructions::{load_project_instructions, LoadResult},
     r#loop::Runtime,
     task_state::{CommandEvidence, TaskId, TaskStatus},
-    UiUpdate,
+    TaskState, UiUpdate,
 };
 use crate::session_notes::{build_api_client_with_notes, clear_notes_file};
 use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest};
@@ -43,6 +43,7 @@ pub struct BatchRunOpts {
     pub max_turns: Option<usize>,
     pub auto_approve: Option<AutoApproveScope>,
     pub format: OutputFormat,
+    pub resume_state: Option<TaskState>,
 }
 
 impl Default for BatchRunOpts {
@@ -51,6 +52,7 @@ impl Default for BatchRunOpts {
             max_turns: None,
             auto_approve: None,
             format: OutputFormat::Jsonl,
+            resume_state: None,
         }
     }
 }
@@ -519,7 +521,11 @@ pub fn build_batch_runtime(
     _task: String,
     opts: BatchRunOpts,
 ) -> Result<(Runtime<BatchMode>, RuntimeContext, TaskId)> {
-    let task_id = uuid_task_id();
+    let task_id = opts
+        .resume_state
+        .as_ref()
+        .map(|state| state.id.clone())
+        .unwrap_or_else(uuid_task_id);
     let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
     let (client, notes_warning) = build_api_client_with_notes(config)?;
     let client = client.with_project_instructions(instructions_text);
@@ -554,7 +560,11 @@ fn uuid_task_id() -> TaskId {
 /// Drive a batch run to completion by polling the update channel directly.
 /// This is the primary entry point for `vex exec`.
 pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Result<BatchResult> {
-    let task_id = uuid_task_id();
+    let task_id = opts
+        .resume_state
+        .as_ref()
+        .map(|state| state.id.clone())
+        .unwrap_or_else(uuid_task_id);
     let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
     let (client, notes_warning) = build_api_client_with_notes(config)?;
     let client = client.with_project_instructions(instructions_text);
@@ -1075,6 +1085,38 @@ mod tests {
         let system_prompt = ctx.test_system_prompt().await;
         assert!(system_prompt.contains("[project instructions: start]"));
         assert!(system_prompt.contains("# batch instructions"));
+    }
+
+    #[test]
+    fn test_build_batch_runtime_uses_resumed_task_id() {
+        let temp = tempfile::tempdir().unwrap();
+        let config = Config {
+            model_token: None,
+            model_name: "mock-model".to_string(),
+            model_url: "http://localhost:8000/v1/messages".to_string(),
+            working_dir: temp.path().to_path_buf(),
+            model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
+            model_protocol: crate::runtime::ModelProtocol::MessagesV1,
+            tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
+            hooks: Vec::new(),
+        };
+        let resume_state = TaskState::new("task-batch-resume".to_string());
+
+        let (_runtime, _ctx, task_id) = build_batch_runtime(
+            &config,
+            "hello".to_string(),
+            BatchRunOpts {
+                resume_state: Some(resume_state),
+                ..Default::default()
+            },
+        )
+        .expect("build_batch_runtime should succeed");
+
+        assert_eq!(task_id, "task-batch-resume");
     }
 
     #[test]
