@@ -421,6 +421,14 @@ impl TuiMode {
 
     fn try_handle_slash_command(&mut self, input: &str) -> bool {
         let trimmed = input.trim();
+        if trimmed == "/quit" || trimmed == "/exit" {
+            self.handle_quit_command();
+            return true;
+        }
+        if trimmed == "/about" {
+            self.handle_about_command();
+            return true;
+        }
         if trimmed == "/memory" {
             self.handle_memory_display();
             return true;
@@ -441,6 +449,24 @@ impl TuiMode {
             return true;
         }
         false
+    }
+
+    fn handle_quit_command(&mut self) {
+        self.quit_requested = true;
+    }
+
+    fn handle_about_command(&mut self) {
+        let version = env!("CARGO_PKG_VERSION");
+        let commit = env!("GIT_COMMIT_SHORT");
+        let build_date = env!("BUILD_DATE");
+        self.push_history_line(format!("vex {version}"));
+        self.push_history_line(format!("  build     : {build_date}"));
+        self.push_history_line(format!("  commit    : {commit}"));
+        self.push_history_line(format!("  repo      : {}", self.repo_label));
+        self.push_history_line(format!(
+            "  inst      : {}",
+            self.instructions_path.as_deref().unwrap_or("none")
+        ));
     }
 
     fn resolved_notes_path(&self) -> Option<PathBuf> {
@@ -2131,5 +2157,67 @@ mod tests {
             .iter()
             .any(|l| l.contains("notes exceed token budget"));
         assert!(has_warning, "expected startup budget warning in history");
+    }
+
+    // -- PK-01: /quit and /exit ------------------------------------------------
+
+    #[test]
+    fn test_tui_quit_command_requests_quit() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/quit".to_string(), &mut ctx);
+        assert!(
+            mode.quit_requested(),
+            "/quit must set quit_requested immediately"
+        );
+        assert!(
+            !mode.history_state.turn_in_progress,
+            "/quit must not start a model turn"
+        );
+    }
+
+    #[test]
+    fn test_tui_exit_is_alias_for_quit() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/exit".to_string(), &mut ctx);
+        assert!(
+            mode.quit_requested(),
+            "/exit must behave identically to /quit"
+        );
+        assert!(
+            !mode.history_state.turn_in_progress,
+            "/exit must not start a model turn"
+        );
+    }
+
+    // -- PK-02: /about ---------------------------------------------------------
+
+    #[test]
+    fn test_tui_about_renders_without_model_turn() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/about".to_string(), &mut ctx);
+        assert!(
+            !mode.history_state.turn_in_progress,
+            "/about must not start a model turn"
+        );
+        let has_version = mode
+            .history_state
+            .lines
+            .iter()
+            .any(|l| l.starts_with("vex "));
+        assert!(has_version, "/about must render version line");
+        let has_build = mode.history_state.lines.iter().any(|l| l.contains("build"));
+        assert!(has_build, "/about must render build metadata");
+        let has_commit = mode
+            .history_state
+            .lines
+            .iter()
+            .any(|l| l.contains("commit"));
+        assert!(has_commit, "/about must render commit metadata");
     }
 }
