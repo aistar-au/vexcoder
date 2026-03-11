@@ -1481,7 +1481,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
 | **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [x] |
 | **PJ-04** | `vex init` — scaffolds `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [ ] |
-| **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [x] (save wiring deferred to PI-04) |
+| **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [x] (save wiring landed in the PI-04 batch) |
 | **PK-02** | `/about` — build metadata display; `build.rs` compile-time injection | [x] |
 | **PK-03** | `@<path>` inline injection — workspace-confined; truncation annotation; multi-token | [ ] |
 | **PK-04** | `!<command>` passthrough — SandboxDriver + ApprovalPolicy; no model turn | [ ] |
@@ -1723,12 +1723,13 @@ The amendment that authorises native packaging and editor-surface work is record
   - PD-02 (`MacosSandboxExec`) and PD-03 (`DockerSandbox`) remain deferred.
 
 ### [PA-03 / PA-04] - vex migrate config + migration doc
-- Dispatcher: `dispatcher/vexcoder-adr-024-pi-04-pi-05-pj-01-pj-02-session-lifecycle`
-- Commit: <sha>
+- Dispatcher: reconciliation on `dispatcher/vexcoder-adr-024-pi-04-pi-05-pj-01-pj-02-session-lifecycle`; implementation landed earlier
+- Commit: `c14d695160e58209365e2728ff16ac14d0f9acce`
 - Files changed:
-  - `src/bin/vex.rs` — `vex migrate config` sub-command already present; reconciliation only
-  - `docs/src/migration.md` — complete variable rename table, command alias reference, usage guide already present; reconciliation only
-  - `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — PA-03, PA-04 rows flipped to [x]
+  - `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — PA-03, PA-04 rows flipped to [x] on this branch
+- Prior implementation files at `c14d695160e58209365e2728ff16ac14d0f9acce`:
+  - `src/bin/vex.rs` — `vex migrate config` sub-command
+  - `docs/src/migration.md` — variable rename table, command alias reference, and usage guide
 - Validation:
   - `cargo test test_migrate_config_maps_anthropic --all-targets` : pass
   - `cargo test test_migrate_config_maps_structured_tool_protocol_on --all-targets` : pass
@@ -1747,7 +1748,7 @@ The amendment that authorises native packaging and editor-surface work is record
 
 ### [PI-04 / PI-05 / PJ-01 / PJ-02] - /new, /resume, /clear, /fork
 - Dispatcher: `dispatcher/vexcoder-adr-024-pi-04-pi-05-pj-01-pj-02-session-lifecycle`
-- Commit: <sha>
+- Commit: `03b84ced0cc7f5952f8091c996d56cc2efae1d48`
 - Files changed:
   - `src/app.rs` (+N -0): `current_task`-backed session lifecycle; monotonic `new_task_id()` helper; transcript reset helper; no-argument `/resume` selection flow; `/fork` label sanitization; task-layout now reads live `current_task` state
   - `src/runtime/context.rs` (+N -0): synchronous `clear_conversation()` helper that works in both sync tests and a live Tokio runtime

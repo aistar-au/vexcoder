@@ -730,6 +730,8 @@ fn new_task_id() -> String {
     let ms = LAST_TASK_MS.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |previous| {
         Some(now_ms.max(previous.saturating_add(1)))
     });
+    // `fetch_update` returns the previous value, so recompute the stored
+    // monotonic millisecond from that prior state before formatting the id.
     let stable_ms = ms
         .map(|previous| now_ms.max(previous.saturating_add(1)))
         .unwrap_or(now_ms);
@@ -2752,7 +2754,10 @@ mod tests {
     #[test]
     fn test_tui_fork_aborts_on_save_failure() {
         let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-        std::env::set_var("VEX_STATE_DIR", "/dev/null/impossible");
+        let temp = tempfile::tempdir().unwrap();
+        let blocking_path = temp.path().join("state-file");
+        std::fs::write(&blocking_path, "occupied").unwrap();
+        std::env::set_var("VEX_STATE_DIR", blocking_path.as_os_str());
 
         let mut mode = TuiMode::new();
         let original_id = mode.current_task_id();
