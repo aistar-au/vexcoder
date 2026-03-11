@@ -577,54 +577,61 @@ async fn run_print(
 
 /// Non-destructive workspace scaffolding.  Creates `.vex/config.toml`,
 /// `AGENTS.md`, and `.vex/validate.toml` if they do not already exist.
-const INIT_CONFIG_TEMPLATE: &str = "# vex workspace config — see docs/adr/ for schema reference\n\
-    # model_name = \"local/default\"\n\
-    # model_url = \"http://localhost:11434/v1\"\n\
-    # working_dir = \".\"\n\
-    # model_backend = \"local-runtime\"\n\
-    # model_protocol = \"chat-compat\"\n\
-    # tool_call_mode = \"tagged-fallback\"\n\
-    # max_project_instructions_tokens = 4096\n\
-    # max_memory_tokens = 2048\n\
-    # notes_path = \"~/.config/vex/memory.md\"\n\
-    # sandbox = \"passthrough\"\n\
-    # sandbox_profile = \"\"\n\
-    # sandbox_require = false\n\
-    # model_headers = '{\"X-Client-Id\":\"vexcoder\"}'\n\
-    \n\
-    # [api]\n\
-    # transport = \"http\"\n\
-    # host = \"127.0.0.1\"\n\
-    # port = 6274\n\
-    # socket = \"\"\n\
-    # key = \"${VEX_API_KEY}\"\n\
-    \n\
-    # user config only:\n\
-    # [[hooks]]\n\
-    # event = \"post_tool\"\n\
-    # tool = \"apply_patch\"\n\
-    # command = \"cargo\"\n\
-    # args = [\"fmt\"]\n\
-    # on_fail = \"warn\"\n\
-    \n\
-    # user config only:\n\
-    # [[mcp_servers]]\n\
-    # name = \"filesystem\"\n\
-    # transport = \"stdio\"\n\
-    # command = \"npx\"\n\
-    # args = [\"-y\", \"@modelcontextprotocol/server-filesystem\", \"/tmp\"]\n\
-    # url = \"http://localhost:3000/mcp\"\n\
-    \n\
-    # [mcp_servers.headers]\n\
-    # Authorization = \"${MCP_PRIVATE_SEARCH_TOKEN}\"\n";
+const INIT_CONFIG_TEMPLATE: &str = concat!(
+    "# vex workspace config — see docs/adr/ for schema reference\n",
+    "# model_name = \"local/default\"\n",
+    "# model_url = \"http://localhost:11434/v1\"\n",
+    "# working_dir = \".\"\n",
+    "# model_backend = \"local-runtime\"\n",
+    "# model_protocol = \"chat-compat\"\n",
+    "# tool_call_mode = \"tagged-fallback\"\n",
+    "# max_project_instructions_tokens = 4096\n",
+    "# max_memory_tokens = 2048\n",
+    "# notes_path = \"~/.config/vex/memory.md\"\n",
+    "# sandbox = \"passthrough\"\n",
+    "# sandbox_profile = \"\"\n",
+    "# sandbox_require = false\n",
+    "# model_headers = '{\"X-Client-Id\":\"vexcoder\"}'\n",
+    "\n",
+    "# [api]\n",
+    "# transport = \"http\"\n",
+    "# host = \"127.0.0.1\"\n",
+    "# port = 6274\n",
+    "# socket = \"\"\n",
+    "# key = \"${VEX_API_KEY}\"\n",
+    "\n",
+    "# user config only:\n",
+    "# [[hooks]]\n",
+    "# event = \"post_tool\"\n",
+    "# tool = \"apply_patch\"\n",
+    "# command = \"cargo\"\n",
+    "# args = [\"fmt\"]\n",
+    "# on_fail = \"warn\"\n",
+    "\n",
+    "# user config only:\n",
+    "# [[mcp_servers]]\n",
+    "# name = \"filesystem\"\n",
+    "# transport = \"stdio\"\n",
+    "# command = \"npx\"\n",
+    "# args = [\"-y\", \"@modelcontextprotocol/server-filesystem\", \"/tmp\"]\n",
+    "# url = \"http://localhost:3000/mcp\"\n",
+    "\n",
+    "# [mcp_servers.headers]\n",
+    "# Authorization = \"${MCP_PRIVATE_SEARCH_TOKEN}\"\n",
+);
 
-const INIT_AGENTS_TEMPLATE: &str = "# Project Agents\n\n\
-    Fill in project-specific guidance for coding agents working in this repository.\n";
+const INIT_AGENTS_TEMPLATE: &str = concat!(
+    "# Project Agents\n",
+    "\n",
+    "Fill in project-specific guidance for coding agents working in this repository.\n",
+);
 
-const INIT_VALIDATE_TEMPLATE: &str = "# validation commands applied by `vex validate`\n\
-    # [[commands]]\n\
-    # name = \"example\"\n\
-    # command = \"cargo test --all-targets\"\n";
+const INIT_VALIDATE_TEMPLATE: &str = concat!(
+    "# validation commands applied by `vex validate`\n",
+    "# [[commands]]\n",
+    "# name = \"example\"\n",
+    "# command = \"cargo test --all-targets\"\n",
+);
 
 #[cfg(test)]
 const INIT_CONFIG_NORMATIVE_KEYS: &[&str] = &[
@@ -1250,6 +1257,10 @@ mod tests {
         assert!(content.contains("# [api]"));
         assert!(content.contains("# [[hooks]]"));
         assert!(content.contains("# [[mcp_servers]]"));
+        assert!(
+            !content.lines().any(|line| line.starts_with("    ")),
+            "config template must not contain leading indentation"
+        );
     }
 
     #[test]
@@ -1259,6 +1270,10 @@ mod tests {
         let content = std::fs::read_to_string(temp.path().join("AGENTS.md")).unwrap();
         assert!(content.contains("Project Agents"));
         assert!(content.contains("project-specific guidance"));
+        assert!(
+            !content.lines().any(|line| line.starts_with("    ")),
+            "agents template must not contain leading indentation"
+        );
     }
 
     #[test]
@@ -1304,5 +1319,9 @@ mod tests {
         super::run_init(temp.path()).unwrap();
         let content = std::fs::read_to_string(temp.path().join(".vex/validate.toml")).unwrap();
         assert!(content.contains("# [[commands]]"));
+        assert!(
+            !content.lines().any(|line| line.starts_with("    ")),
+            "validate template must not contain leading indentation"
+        );
     }
 }
