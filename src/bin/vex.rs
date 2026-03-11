@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::widgets::Clear;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use vexcoder::app::{build_runtime, build_runtime_with_resume, TuiMode};
@@ -30,15 +31,14 @@ struct Cli {
     #[arg(
         long,
         num_args(0..=1),
-        default_missing_value = "",
-        conflicts_with = "print_prompt"
+        default_missing_value = ""
     )]
     resume: Option<String>,
 
     /// Run a single prompt turn non-interactively and print the result to
     /// stdout.  Reads additional content from stdin when stdin is not a TTY.
     /// Example: `vex -p "summarise this file" < README.md`
-    #[arg(short = 'p', long = "print", conflicts_with = "resume")]
+    #[arg(short = 'p', long = "print")]
     print_prompt: Option<String>,
 }
 
@@ -522,7 +522,7 @@ fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
 /// prompt so that `vex -p "summarise" < file.txt` works naturally.
 fn read_stdin_if_piped() -> Option<String> {
     use std::io::Read;
-    if atty::is(atty::Stream::Stdin) {
+    if std::io::stdin().is_terminal() {
         return None;
     }
     let mut buf = String::new();
@@ -589,25 +589,28 @@ async fn main() -> Result<()> {
     let config = Config::load()?;
     config.validate()?;
 
+    let resume_state = match cli.resume.as_deref() {
+        Some(task_id) => match resolve_resume_state(task_id)? {
+            Some(state) => Some(state),
+            None => {
+                eprintln!("[resume] no saved tasks found");
+                std::process::exit(1);
+            }
+        },
+        None => None,
+    };
+
     // PM-03: -p/--print one-shot mode.
     if let Some(prompt) = cli.print_prompt {
         return run_print(prompt, config).await;
     }
 
     // PM-01: --resume startup flag.
-    if let Some(task_id) = cli.resume {
-        match resolve_resume_state(&task_id)? {
-            Some(state) => {
-                let (mut runtime, mut ctx) = build_runtime_with_resume(config, state)?;
-                let mut frontend = ManagedTuiFrontend::new()?;
-                runtime.run(&mut frontend, &mut ctx).await;
-                return Ok(());
-            }
-            None => {
-                eprintln!("[resume] no saved tasks found");
-                std::process::exit(1);
-            }
-        }
+    if let Some(state) = resume_state {
+        let (mut runtime, mut ctx) = build_runtime_with_resume(config, state)?;
+        let mut frontend = ManagedTuiFrontend::new()?;
+        runtime.run(&mut frontend, &mut ctx).await;
+        return Ok(());
     }
 
     // Default: interactive TUI.
@@ -625,6 +628,10 @@ mod tests {
     };
     use clap::Parser;
     use std::path::PathBuf;
+
+    mod test_support {
+        pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    }
 
     #[test]
     fn test_migrate_config_maps_anthropic() {
@@ -722,14 +729,15 @@ mod tests {
     }
 
     #[test]
-    fn test_resume_flag_conflicts_with_print() {
-        let result = Cli::try_parse_from(["vex", "--resume", "task-1", "-p", "hello"]);
-        assert!(result.is_err(), "--resume and -p must conflict");
+    fn test_resume_flag_can_be_combined_with_print() {
+        let cli = Cli::parse_from(["vex", "--resume", "task-1", "-p", "hello"]);
+        assert_eq!(cli.resume, Some("task-1".to_string()));
+        assert_eq!(cli.print_prompt, Some("hello".to_string()));
     }
 
     #[test]
     fn test_resolve_resume_state_unknown_id_errors() {
-        let _env_lock = vexcoder::test_support::ENV_LOCK.blocking_lock();
+        let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
         let temp = tempfile::tempdir().unwrap();
         std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
 
@@ -741,7 +749,7 @@ mod tests {
 
     #[test]
     fn test_resolve_resume_state_empty_dir_returns_none() {
-        let _env_lock = vexcoder::test_support::ENV_LOCK.blocking_lock();
+        let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
         let temp = tempfile::tempdir().unwrap();
         std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
 
@@ -754,7 +762,7 @@ mod tests {
     #[test]
     fn test_resolve_resume_state_most_recent() {
         use vexcoder::runtime::TaskState;
-        let _env_lock = vexcoder::test_support::ENV_LOCK.blocking_lock();
+        let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
         let temp = tempfile::tempdir().unwrap();
         std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
 
@@ -764,8 +772,13 @@ mod tests {
         let newer = TaskState::new("task-newer".to_string());
         newer.save(temp.path()).unwrap();
 
-        let state = resolve_resume_state("").expect("must succeed").expect("must find a task");
-        assert_eq!(state.id, "task-newer", "must pick the most recently modified task");
+        let state = resolve_resume_state("")
+            .expect("must succeed")
+            .expect("must find a task");
+        assert_eq!(
+            state.id, "task-newer",
+            "must pick the most recently modified task"
+        );
 
         std::env::remove_var("VEX_STATE_DIR");
     }
@@ -773,7 +786,7 @@ mod tests {
     #[test]
     fn test_resolve_resume_state_explicit_id() {
         use vexcoder::runtime::TaskState;
-        let _env_lock = vexcoder::test_support::ENV_LOCK.blocking_lock();
+        let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
         let temp = tempfile::tempdir().unwrap();
         std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
 
@@ -804,8 +817,9 @@ mod tests {
     }
 
     #[test]
-    fn test_print_flag_conflicts_with_resume() {
-        let result = Cli::try_parse_from(["vex", "-p", "hello", "--resume"]);
-        assert!(result.is_err(), "-p and --resume must conflict");
+    fn test_print_flag_can_be_combined_with_resume() {
+        let cli = Cli::parse_from(["vex", "-p", "hello", "--resume"]);
+        assert_eq!(cli.print_prompt, Some("hello".to_string()));
+        assert_eq!(cli.resume, Some(String::new()));
     }
 }

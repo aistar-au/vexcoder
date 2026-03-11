@@ -672,9 +672,7 @@ impl TuiMode {
 
         let scope_label = scope_to_label(scope);
         self.current_task.active_grants.insert(cap, scope);
-        self.push_history_line(format!(
-            "[allow] granted {cap_str} ({scope_label})"
-        ));
+        self.push_history_line(format!("[allow] granted {cap_str} ({scope_label})"));
     }
 
     fn handle_deny_command(&mut self, rest: &str) {
@@ -3019,14 +3017,24 @@ mod tests {
     #[test]
     fn test_permissions_lists_active_grants() {
         let mut mode = TuiMode::new();
-        mode.current_task.active_grants.insert(Capability::RunCommand, ApprovalScope::Session);
-        mode.current_task.active_grants.insert(Capability::Network, ApprovalScope::Once);
+        mode.current_task
+            .active_grants
+            .insert(Capability::RunCommand, ApprovalScope::Session);
+        mode.current_task
+            .active_grants
+            .insert(Capability::Network, ApprovalScope::Once);
         let mut ctx = setup_ctx();
         mode.on_user_input("/permissions".to_string(), &mut ctx);
         let lines = mode.history_lines().to_vec();
-        let has_header = lines.iter().any(|l| l.contains("[permissions] active grants:"));
-        let has_run_command = lines.iter().any(|l| l.contains("run-command") && l.contains("session"));
-        let has_network = lines.iter().any(|l| l.contains("network") && l.contains("once"));
+        let has_header = lines
+            .iter()
+            .any(|l| l.contains("[permissions] active grants:"));
+        let has_run_command = lines
+            .iter()
+            .any(|l| l.contains("run-command") && l.contains("session"));
+        let has_network = lines
+            .iter()
+            .any(|l| l.contains("network") && l.contains("once"));
         assert!(has_header, "expected active grants header");
         assert!(has_run_command, "expected run-command session entry");
         assert!(has_network, "expected network once entry");
@@ -3097,11 +3105,16 @@ mod tests {
     #[test]
     fn test_deny_removes_grant() {
         let mut mode = TuiMode::new();
-        mode.current_task.active_grants.insert(Capability::ApplyPatch, ApprovalScope::Task);
+        mode.current_task
+            .active_grants
+            .insert(Capability::ApplyPatch, ApprovalScope::Task);
         let mut ctx = setup_ctx();
         mode.on_user_input("/deny apply-patch".to_string(), &mut ctx);
         assert!(
-            !mode.current_task.active_grants.contains_key(&Capability::ApplyPatch),
+            !mode
+                .current_task
+                .active_grants
+                .contains_key(&Capability::ApplyPatch),
             "deny must remove the grant"
         );
         assert!(
@@ -3160,7 +3173,9 @@ mod tests {
     fn test_build_runtime_with_resume_restores_task() {
         let temp = tempfile::tempdir().unwrap();
         let mut state = TaskState::new("task-startup-resume".to_string());
-        state.active_grants.insert(Capability::Network, ApprovalScope::Session);
+        state
+            .active_grants
+            .insert(Capability::Network, ApprovalScope::Session);
         state.status = crate::runtime::TaskStatus::Running;
 
         let config = Config {
@@ -3178,12 +3193,16 @@ mod tests {
             hooks: Vec::new(),
         };
 
-        let (runtime, _ctx) =
-            build_runtime_with_resume(config, state).expect("build_runtime_with_resume should succeed");
+        let (runtime, _ctx) = build_runtime_with_resume(config, state)
+            .expect("build_runtime_with_resume should succeed");
 
         assert_eq!(runtime.mode.current_task.id, "task-startup-resume");
         assert_eq!(
-            runtime.mode.current_task.active_grants.get(&Capability::Network),
+            runtime
+                .mode
+                .current_task
+                .active_grants
+                .get(&Capability::Network),
             Some(&ApprovalScope::Session)
         );
         assert!(
