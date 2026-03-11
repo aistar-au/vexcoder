@@ -4,6 +4,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifier
 use ratatui::widgets::Clear;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 use std::time::{Duration, Instant};
 use vexcoder::app::{build_runtime, build_runtime_with_resume, TuiMode};
 use vexcoder::batch_mode::{run_batch, AutoApproveScope, BatchRunOpts, OutputFormat};
@@ -443,7 +444,7 @@ fn parse_exec_command(
     })
 }
 
-async fn run_exec(exec: ExecArgs, config: Config) -> Result<()> {
+async fn run_exec(exec: ExecArgs, config: Config) -> Result<ExitCode> {
     let opts = BatchRunOpts {
         max_turns: exec.max_turns,
         auto_approve: exec.auto_approve,
@@ -461,10 +462,7 @@ async fn run_exec(exec: ExecArgs, config: Config) -> Result<()> {
         print!("{}", text);
     }
 
-    match result.status {
-        TaskStatus::Completed => std::process::exit(0),
-        _ => std::process::exit(1),
-    }
+    Ok(exit_code_for_status(result.status))
 }
 
 fn emit_migrate_config_output(output_path: Option<&Path>) -> Result<()> {
@@ -535,7 +533,11 @@ fn read_stdin_if_piped() -> Option<String> {
     }
 }
 
-async fn run_print(prompt: String, config: Config, resume_state: Option<TaskState>) -> Result<()> {
+async fn run_print(
+    prompt: String,
+    config: Config,
+    resume_state: Option<TaskState>,
+) -> Result<ExitCode> {
     let full_prompt = match read_stdin_if_piped() {
         Some(stdin_content) => format!("{stdin_content}\n{prompt}"),
         None => prompt,
@@ -551,16 +553,13 @@ async fn run_print(prompt: String, config: Config, resume_state: Option<TaskStat
     let result = run_batch(full_prompt, opts, &config).await?;
     print!("{}", result.output_lines.join("\n"));
 
-    match result.status {
-        TaskStatus::Completed => std::process::exit(0),
-        _ => std::process::exit(1),
-    }
+    Ok(exit_code_for_status(result.status))
 }
 
 // ── main ───────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<ExitCode> {
     let cli = Cli::parse();
 
     // Subcommands take unconditional priority.
@@ -582,7 +581,7 @@ async fn main() -> Result<()> {
         Some(Commands::Migrate { sub }) => match sub {
             MigrateCommands::Config { output } => {
                 emit_migrate_config_output(output.as_deref())?;
-                return Ok(());
+                return Ok(ExitCode::SUCCESS);
             }
         },
         None => {}
@@ -596,7 +595,7 @@ async fn main() -> Result<()> {
             Some(state) => Some(state),
             None => {
                 eprintln!("[resume] no saved tasks found");
-                std::process::exit(1);
+                return Ok(ExitCode::FAILURE);
             }
         },
         None => None,
@@ -612,14 +611,21 @@ async fn main() -> Result<()> {
         let (mut runtime, mut ctx) = build_runtime_with_resume(config, state)?;
         let mut frontend = ManagedTuiFrontend::new()?;
         runtime.run(&mut frontend, &mut ctx).await;
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
 
     // Default: interactive TUI.
     let (mut runtime, mut ctx) = build_runtime(config)?;
     let mut frontend = ManagedTuiFrontend::new()?;
     runtime.run(&mut frontend, &mut ctx).await;
-    Ok(())
+    Ok(ExitCode::SUCCESS)
+}
+
+fn exit_code_for_status(status: TaskStatus) -> ExitCode {
+    match status {
+        TaskStatus::Completed => ExitCode::SUCCESS,
+        _ => ExitCode::FAILURE,
+    }
 }
 
 #[cfg(test)]
@@ -763,6 +769,7 @@ mod tests {
 
     #[test]
     fn test_resolve_resume_state_most_recent() {
+        use filetime::{set_file_mtime, FileTime};
         use vexcoder::runtime::TaskState;
         let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
         let temp = tempfile::tempdir().unwrap();
@@ -770,9 +777,18 @@ mod tests {
 
         let older = TaskState::new("task-older".to_string());
         older.save(temp.path()).unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(5));
         let newer = TaskState::new("task-newer".to_string());
         newer.save(temp.path()).unwrap();
+        set_file_mtime(
+            temp.path().join("task-older.json"),
+            FileTime::from_unix_time(1_700_000_000, 0),
+        )
+        .unwrap();
+        set_file_mtime(
+            temp.path().join("task-newer.json"),
+            FileTime::from_unix_time(1_700_000_001, 0),
+        )
+        .unwrap();
 
         let state = resolve_resume_state("")
             .expect("must succeed")
