@@ -543,8 +543,7 @@ impl TuiMode {
         };
 
         self.overlay_state.pending_resume_selection = None;
-        let dir = TaskState::state_dir();
-        match TaskState::load(&dir, &entry.id) {
+        match TaskState::load_from_search_dirs(&entry.id) {
             Ok(state) => self.apply_resumed_task(state, ctx),
             Err(_) => {
                 self.push_history_line(format!("[resume: task '{}' not found]", entry.id));
@@ -695,8 +694,7 @@ impl TuiMode {
 
     fn handle_resume_command(&mut self, task_id: &str, ctx: &mut RuntimeContext) {
         if task_id.is_empty() {
-            let dir = TaskState::state_dir();
-            let entries = list_recent_task_entries(&dir, 5);
+            let entries = list_recent_task_entries(5);
             if entries.is_empty() {
                 self.push_history_line("[resume] no saved tasks found".to_string());
                 return;
@@ -704,8 +702,7 @@ impl TuiMode {
             self.prompt_resume_selection(entries);
             return;
         }
-        let dir = TaskState::state_dir();
-        match TaskState::load(&dir, task_id) {
+        match TaskState::load_from_search_dirs(task_id) {
             Ok(state) => self.apply_resumed_task(state, ctx),
             Err(_) => {
                 self.push_history_line(format!("[resume: task '{task_id}' not found]"));
@@ -922,42 +919,17 @@ fn sanitize_task_label(label: &str) -> String {
     out.trim_matches('-').to_string()
 }
 
-fn list_recent_task_entries(dir: &std::path::Path, limit: usize) -> Vec<ResumeTaskEntry> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
-
-    let mut state_files = entries
-        .filter_map(|entry| entry.ok())
-        .filter_map(|entry| {
-            let path = entry.path();
-            if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
-                return None;
-            }
-            let task_id = path.file_stem()?.to_str()?.to_string();
-            let modified = entry
-                .metadata()
-                .ok()
-                .and_then(|meta| meta.modified().ok())
-                .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|duration| duration.as_millis())
-                .unwrap_or(0);
-            Some((modified, task_id))
-        })
-        .collect::<Vec<_>>();
-
-    state_files.sort_by(|left, right| right.0.cmp(&left.0));
-    state_files.truncate(limit);
-
-    state_files
+fn list_recent_task_entries(limit: usize) -> Vec<ResumeTaskEntry> {
+    TaskState::state_files()
         .into_iter()
-        .map(|(_, task_id)| match TaskState::load(dir, &task_id) {
+        .take(limit)
+        .map(|file| match TaskState::load(&file.dir, &file.id) {
             Ok(state) => ResumeTaskEntry {
                 id: state.id,
                 status: format!("{:?}", state.status),
             },
             Err(_) => ResumeTaskEntry {
-                id: task_id,
+                id: file.id,
                 status: "Unreadable".to_string(),
             },
         })
@@ -2746,6 +2718,36 @@ mod tests {
             "expected not-found message in history"
         );
         std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_tui_resume_restores_legacy_subdir_state() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let old_cwd = std::env::current_dir().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let nested = temp.path().join("src/nested");
+        let legacy_state_dir = nested.join(".vex/state");
+        std::fs::create_dir_all(&legacy_state_dir).unwrap();
+
+        let mut saved = TaskState::new("task-legacy-ui".to_string());
+        saved.status = crate::runtime::TaskStatus::Completed;
+        saved.save(&legacy_state_dir).unwrap();
+
+        std::env::remove_var("VEX_STATE_DIR");
+        std::env::set_current_dir(&nested).unwrap();
+
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/resume task-legacy-ui".to_string(), &mut ctx);
+
+        std::env::set_current_dir(old_cwd).unwrap();
+
+        assert_eq!(mode.current_task_id(), "task-legacy-ui");
+        assert!(
+            mode.history_lines()[0].contains("[resumed: task-legacy-ui status=Completed]"),
+            "expected resume confirmation in history"
+        );
     }
 
     #[test]

@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const REGISTRY_REL_PATH: &str = ".agents/skills/registry.toml";
+const UNKNOWN_SKILL_VERSION: &str = "unknown";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum InstallSourceKind {
@@ -125,7 +126,7 @@ impl SkillsRegistry {
 
         let entry = SkillEntry {
             name: name.clone(),
-            version: "0.0.0".to_string(),
+            version: UNKNOWN_SKILL_VERSION.to_string(),
             source: source.to_string(),
             path: format!(".agents/skills/{name}"),
         };

@@ -516,37 +516,13 @@ fn emit_migrate_config_output(output_path: Option<&Path>) -> Result<()> {
 /// recent saved task"; a non-empty `task_id` loads that specific task.
 /// Returns `None` only when no tasks exist yet (empty-id path).
 fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
-    let dir = TaskState::state_dir();
     if task_id.is_empty() {
-        // Find the most recently modified JSON file in the state dir.
-        let most_recent = std::fs::read_dir(&dir)
-            .ok()
-            .into_iter()
-            .flatten()
-            .filter_map(|e| e.ok())
-            .filter_map(|e| {
-                let path = e.path();
-                if path.extension().and_then(|x| x.to_str()) != Some("json") {
-                    return None;
-                }
-                let stem = path.file_stem()?.to_str()?.to_string();
-                let modified = e
-                    .metadata()
-                    .ok()
-                    .and_then(|m| m.modified().ok())
-                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                    .map(|d| d.as_millis())
-                    .unwrap_or(0);
-                Some((modified, stem))
-            })
-            .max_by_key(|(ts, _)| *ts);
-
-        match most_recent {
-            Some((_, id)) => Ok(Some(TaskState::load(&dir, &id)?)),
+        match TaskState::state_files().into_iter().next() {
+            Some(file) => Ok(Some(TaskState::load(&file.dir, &file.id)?)),
             None => Ok(None),
         }
     } else {
-        Ok(Some(TaskState::load(&dir, task_id)?))
+        Ok(Some(TaskState::load_from_search_dirs(task_id)?))
     }
 }
 
@@ -885,6 +861,32 @@ mod tests {
         std::env::remove_var("VEX_STATE_DIR");
     }
 
+    #[test]
+    fn test_resolve_resume_state_explicit_id_falls_back_to_legacy_subdir() {
+        use vexcoder::runtime::TaskState;
+
+        let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
+        let old_cwd = std::env::current_dir().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let nested = temp.path().join("src/nested");
+        let legacy_state_dir = nested.join(".vex/state");
+        std::fs::create_dir_all(&legacy_state_dir).unwrap();
+
+        let state = TaskState::new("task-legacy".to_string());
+        state.save(&legacy_state_dir).unwrap();
+
+        std::env::remove_var("VEX_STATE_DIR");
+        std::env::set_current_dir(&nested).unwrap();
+
+        let loaded = resolve_resume_state("task-legacy")
+            .expect("must succeed")
+            .expect("must find the legacy task");
+        assert_eq!(loaded.id, "task-legacy");
+
+        std::env::set_current_dir(old_cwd).unwrap();
+    }
+
     // -- PM-03 ----------------------------------------------------------------
 
     #[test]
@@ -924,6 +926,26 @@ mod tests {
         assert!(matches!(
             cli.command,
             Some(Commands::Completions { shell: Shell::Bash })
+        ));
+    }
+
+    #[test]
+    fn test_completions_cli_parses_fish() {
+        let cli = Cli::parse_from(["vex", "completions", "fish"]);
+        assert!(matches!(
+            cli.command,
+            Some(Commands::Completions { shell: Shell::Fish })
+        ));
+    }
+
+    #[test]
+    fn test_completions_cli_parses_powershell() {
+        let cli = Cli::parse_from(["vex", "completions", "powershell"]);
+        assert!(matches!(
+            cli.command,
+            Some(Commands::Completions {
+                shell: Shell::PowerShell
+            })
         ));
     }
 
