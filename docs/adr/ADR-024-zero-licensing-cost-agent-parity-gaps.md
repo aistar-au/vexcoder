@@ -170,6 +170,17 @@ TOML key names mirror `VEX_*` variable names in snake_case (e.g. `model_url`, `m
 
 Resolution errors (malformed TOML, unknown keys) are hard failures at startup with a diagnostic pointing to the offending file and key. A missing config file at any layer is not an error.
 
+**`model_url` non-loopback TLS rule (normative):** the sensitive-payload rule in ADR-026 §3.1 applies symmetrically to the outbound model connection. Prompts, repo contents, session state, and model responses crossing any non-local network path are sensitive payloads. When `model_url` resolves to a non-loopback host, the URL must use `https://`. A non-loopback `http://` `model_url` must be rejected at config load time with a diagnostic identifying the offending URL and explaining that TLS is required for non-loopback model endpoints.
+
+**Allowed exceptions:**
+
+- `model_url` resolving to `127.0.0.1`, `::1`, or `localhost` may use `http://`.
+- `model_url_skip_tls_check = true` / `VEX_MODEL_URL_SKIP_TLS_CHECK=true` is a development-only escape hatch for self-signed or otherwise non-system-trusted HTTPS model endpoints. It must emit a startup warning on every launch and must not be allowed in repo-local config.
+
+**Reserved VPN carve-out:** a future VPN-specific relaxation for outbound model connections requires the same dedicated ADR as `api.vpn_trust`. Until that ADR exists, VPN virtual IP model endpoints still require `https://`.
+
+**Anchor tests:** `test_config_rejects_non_loopback_http_model_url`; `test_config_allows_loopback_http_model_url`; `test_model_url_skip_tls_check_warns`.
+
 ---
 
 ### Gap 4 — Project Instructions File
@@ -1083,6 +1094,7 @@ A `src/index/` module providing structured code search, symbol lookup, or semant
 | `VEX_MAX_MEMORY_TOKENS` | Token budget for user notes injection | `2048` |
 | `VEX_AT_INJECT_MAX_BYTES` | Max bytes per `@<path>` inline file injection | `32768` (shared with `ContextAssembler::max_file_bytes`) |
 | `VEX_DISABLE_LARGE_CONTEXT` | When `true`, restricts context window requests to the model's standard context limit. Equivalent to `CLAUDE_CODE_DISABLE_1M_CONTEXT` in reference implementations. Not yet wired to runtime behaviour — reserved for when a large-context model backend is supported. | `false` |
+| `VEX_MODEL_URL_SKIP_TLS_CHECK` | Bypass certificate verification for an HTTPS `model_url` in development only; emits a startup warning and is not permitted in repo-local config | `false` |
 
 ### New prompt templates (additions to ADR-023 `src/prompts/`)
 
@@ -1123,16 +1135,24 @@ sandbox_profile  = ""              # path or image name; empty = built-in defaul
 sandbox_require  = false           # abort rather than fall back if sandbox unavailable
 
 max_project_instructions_tokens = 4096
+model_url_skip_tls_check = false   # development only; warns on startup; repo-local rejected
 
 [api]
 transport = "http"          # "http" | "unix" | "both"
 host      = "127.0.0.1"     # default loopback; non-loopback TCP requires TLS in Phase I
-                             # examples: "192.168.1.20" (LAN), "10.0.0.5"/"100.x.y.z" (VPN), "0.0.0.0" (all interfaces)
+                             # examples of non-loopback binds (all require tls_cert + tls_key):
+                             #   host = "0.0.0.0"          # all interfaces
+                             #   host = "192.168.x.x"      # specific LAN interface
+                             #   host = "100.x.y.z"        # VPN virtual IP; still requires TLS in Phase I
+                             # tunnel-proxy operators leave this as 127.0.0.1
 port      = 6274            # override via VEX_API_PORT
 socket    = ""              # empty = platform default; Unix only
 key       = "${VEX_API_KEY}"  # user config only when HTTP is enabled; repo-local rejected
 tls_cert  = ""              # PEM certificate path; may be self-signed, internal-CA-issued, or public-CA-issued
 tls_key   = ""              # PEM private key path; required for non-loopback TCP
+tls_ca_cert = ""            # PEM CA bundle path for LocalApiServer clients when the server cert chains to a self-signed or internal CA
+tls_skip_verify = false     # RESERVED false only; certificate-verification bypass is rejected in Phase I
+vpn_trust = false           # RESERVED false only; VPN carve-out requires a dedicated ADR; TLS still required in Phase I
 
 # MCP servers — user config ONLY. Rejected in repo-local config.
 [[mcp_servers]]
@@ -1142,7 +1162,7 @@ command   = "npx"
 args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 ```
 
-`api.key` is user-config-only. Repo-local config must reject it at load time, and Phase I must reject non-loopback `api.host` values unless valid TLS is configured for the HTTP surface. For private LAN or VPN use, `tls_cert` may point to a self-signed or internal-CA-issued certificate; a public CA certificate is only required when operators want public-browser trust later.
+`api.key` is user-config-only. Repo-local config must reject it at load time, and Phase I must reject non-loopback `api.host` values unless valid TLS is configured for the HTTP surface. For private LAN or VPN use, `tls_cert` may point to a self-signed or internal-CA-issued certificate; a public CA certificate is only required when operators want public-browser trust later. When future LocalApiServer clients need trust material for a self-signed or internal-CA `api.tls_cert`, `api.tls_ca_cert` provides the CA bundle path. `api.tls_skip_verify` is explicitly rejected in Phase I.
 
 ---
 
@@ -1497,7 +1517,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-12** | Serde round-trip, schema parity, grammar parity, and BatchMode-derivation tests for the canonical envelope stream | [ ] |
 | **PI-13** | `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [ ] |
 | **PI-14** | `GET /v1/schema` serving the ADR-025 schema bundle; exempt from envelope validation | [ ] |
-| **PI-15** | Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, private-network certificate support (self-signed/internal-CA/public-CA), stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
+| **PI-15** | Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, private-network certificate support (self-signed/internal-CA/public-CA), `tls_ca_cert` CA-bundle support, explicit `tls_skip_verify` rejection, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
 | **PI-16** | Integration tests for stream order, keepalive emission, auth failures, schema validation, mid-stream runtime error, max-turns terminal sequence, interrupt `404`, and reconnect/new-turn behavior | [ ] |
 | **PJ-01** | `/clear` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [x] |
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
@@ -1555,6 +1575,8 @@ When checking a box above, append an evidence block under this section:
 | Do not auto-install git hooks | `vex install-hooks` must be an explicit operator action |
 | Do not add agent logic, model calls, or conversation state to `packaging/macos/` | Phase H constraint: packaging and credential layer only. A future `LocalApiServer: RuntimeMode + FrontendAdapter` in `src/` is the correct expansion path for a full native client — it is not a violation of this rule |
 | Do not infer browser-specific origin policy or in-tree web-UI behavior from `LocalApiServer` | Phase I defines a JSON transport seam for the runtime core; browser behavior requires a dedicated later ADR |
+| `model_url` must use `https://` when the host is non-loopback | Reject non-loopback `http://` URLs at config load time; applies the same sensitive-payload rule as ADR-026 §3.1 to the outbound model connection |
+| `VEX_MODEL_URL_SKIP_TLS_CHECK = true` must emit a startup warning on every launch | Development escape hatch only; never silently bypassed; must not appear in repo-local config |
 | Do not implement `src/index/` without a dedicated ADR | Gap 12 is a formal deferral gate |
 | Do not use `std::process::Command` in `src/tools/workspace_explore.rs` | `search_files` must use `str::contains` from the Rust standard library; no subprocess permitted; no `regex` crate or external pattern-matching dependency |
 | `search_files`, `list_dir`, and `glob_files` must skip `.gitignore`-excluded paths | Apply at minimum `.gitignore` rules before returning results; extend to any workspace ignore mechanism once available |

@@ -521,6 +521,9 @@ tool_name ::= "\"read_file\""
             | "\"write_file\""
             | "\"apply_patch\""
             | "\"run_command\""
+            | "\"search_files\""
+            | "\"list_dir\""
+            | "\"glob_files\""
             | mcp_tool
 
 mcp_tool ::= "\"mcp." server_name "." tool_segment "\""
@@ -596,7 +599,7 @@ ws ::= (" " | "\n" | "\r" | "\t")*
   "$defs": {
     "tool_name": {
       "type": "string",
-      "pattern": "^(read_file|write_file|apply_patch|run_command|mcp\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_]*)$"
+      "pattern": "^(read_file|write_file|apply_patch|run_command|search_files|list_dir|glob_files|mcp\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_]*)$"
     },
     "scope": {
       "type": "string",
