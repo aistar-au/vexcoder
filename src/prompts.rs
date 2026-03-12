@@ -9,10 +9,27 @@ const GENERATE_TESTS_TEMPLATE: &str = include_str!("prompts/generate_tests_templ
 const PR_SUMMARY_TEMPLATE: &str = include_str!("prompts/pr_summary_template.txt");
 
 fn render_template(template: &str, replacements: &[(&str, &str)]) -> String {
-    let mut rendered = template.to_string();
-    for (placeholder, value) in replacements {
-        rendered = rendered.replace(placeholder, value);
+    let mut rendered = String::with_capacity(template.len());
+    let mut cursor = 0;
+
+    while cursor < template.len() {
+        if let Some((placeholder, value)) = replacements
+            .iter()
+            .find(|(placeholder, _)| template[cursor..].starts_with(*placeholder))
+        {
+            rendered.push_str(value);
+            cursor += placeholder.len();
+            continue;
+        }
+
+        let next_char = template[cursor..]
+            .chars()
+            .next()
+            .expect("cursor must remain on a char boundary");
+        rendered.push(next_char);
+        cursor += next_char.len_utf8();
     }
+
     rendered
 }
 
@@ -94,6 +111,19 @@ mod tests {
         assert!(plan.contains("ctx"));
         assert!(plan.contains("src/app.rs"));
         assert!(!plan.contains("{{scope}}"));
+    }
+
+    #[test]
+    fn test_prompt_templates_preserve_literal_placeholder_text_in_values() {
+        let instruction = "plan around literal {{context}} text";
+        let context = "context keeps {{scope}} and {{instruction}} unchanged";
+        let scope = "scope keeps {{context}} unchanged";
+
+        let rendered = render_plan_prompt(instruction, context, scope);
+
+        assert!(rendered.contains(instruction));
+        assert!(rendered.contains(context));
+        assert!(rendered.contains(scope));
     }
 
     #[test]
