@@ -1,4 +1,4 @@
-use crate::runtime::UiUpdate;
+use crate::runtime::{EditLoop, UiUpdate};
 use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
@@ -84,6 +84,36 @@ impl RuntimeContext {
                     } else {
                         let _ = tx.send(UiUpdate::Error(e.to_string()));
                     }
+                }
+            }
+        });
+    }
+
+    pub fn start_edit_loop(&mut self, mut edit_loop: EditLoop, instruction: String) {
+        if tokio::runtime::Handle::try_current().is_err() {
+            let _ = self.update_tx.send(UiUpdate::Error(
+                "runtime error: start_edit_loop requires active Tokio runtime".to_string(),
+            ));
+            return;
+        }
+
+        let loop_cancel = self.cancel.child_token();
+        let tx = self.update_tx.clone();
+        let mut loop_ctx = self.clone();
+
+        tokio::spawn(async move {
+            match edit_loop
+                .run(instruction, &mut loop_ctx, &loop_cancel)
+                .await
+            {
+                Ok(outcome) => {
+                    let _ = tx.send(UiUpdate::EditLoopComplete {
+                        outcome,
+                        last_validation_result: edit_loop.last_validation_result().cloned(),
+                    });
+                }
+                Err(err) => {
+                    let _ = tx.send(UiUpdate::Error(err.to_string()));
                 }
             }
         });
@@ -199,7 +229,7 @@ fn forward_conversation_update(
 mod tests {
     use super::{forward_conversation_update, RuntimeContext};
     use crate::api::{mock_client::MockApiClient, ApiClient};
-    use crate::runtime::UiUpdate;
+    use crate::runtime::{EditLoop, EditLoopOutcome, UiUpdate};
     use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock};
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -265,6 +295,32 @@ mod tests {
             Some(0),
             "history must stay clean when guard fires"
         );
+    }
+
+    #[tokio::test]
+    async fn test_start_edit_loop_dispatches_loop_completion() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+        let conversation = ConversationManager::new_mock(client, HashMap::new());
+        let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
+
+        ctx.start_edit_loop(
+            EditLoop::new("task-edit-loop".to_string()).with_max_turns(1),
+            "fix the parser".to_string(),
+        );
+
+        loop {
+            match tokio::time::timeout(Duration::from_millis(500), rx.recv()).await {
+                Ok(Some(UiUpdate::TranscriptLine(_))) => {}
+                Ok(Some(UiUpdate::EditLoopComplete { outcome, .. })) => {
+                    assert!(matches!(outcome, EditLoopOutcome::MaxTurnsReached { .. }));
+                    return;
+                }
+                Ok(Some(UiUpdate::Error(e))) => panic!("unexpected error: {e}"),
+                Ok(None) | Err(_) => panic!("expected EditLoopComplete"),
+                _ => {}
+            }
+        }
     }
 
     #[tokio::test]

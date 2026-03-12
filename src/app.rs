@@ -9,7 +9,7 @@ use crate::runtime::mode::RuntimeMode;
 use crate::runtime::policy::sanitize_assistant_text;
 use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
 use crate::runtime::r#loop::Runtime;
-use crate::runtime::{ApprovalScope, Capability, TaskState, UiUpdate};
+use crate::runtime::{ApprovalScope, Capability, EditLoopOutcome, TaskState, UiUpdate};
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
 use crate::session_notes::{
@@ -670,14 +670,15 @@ impl TuiMode {
             return;
         }
         let task_id = self.current_task.id.clone();
-        self.active_edit_loop = Some(EditLoop::new(task_id));
+        let edit_loop = EditLoop::new(task_id);
+        self.active_edit_loop = Some(edit_loop.clone());
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
         #[cfg(test)]
         {
             self.last_turn_input = Some(instruction.to_string());
         }
-        ctx.start_turn(instruction.to_string());
+        ctx.start_edit_loop(edit_loop, instruction.to_string());
     }
 
     fn handle_fix_command(&mut self, ctx: &mut RuntimeContext) {
@@ -707,14 +708,15 @@ impl TuiMode {
             .map(|o| format!("fix the {} failure", o.label))
             .unwrap_or_else(|| "fix the validation failure".to_string());
         let task_id = self.current_task.id.clone();
-        self.active_edit_loop = Some(EditLoop::new(task_id));
+        let edit_loop = EditLoop::new(task_id);
+        self.active_edit_loop = Some(edit_loop.clone());
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
         #[cfg(test)]
         {
             self.last_turn_input = Some(instruction.clone());
         }
-        ctx.start_turn(instruction);
+        ctx.start_edit_loop(edit_loop, instruction);
     }
 
     /// PC-01: `/model <n>` — name-only switch within the same backend/protocol.
@@ -1335,6 +1337,54 @@ impl RuntimeMode for TuiMode {
                     input_preview,
                     response_tx,
                 });
+            }
+            UiUpdate::EditLoopComplete {
+                outcome,
+                last_validation_result,
+            } => {
+                if let Some(result) = last_validation_result {
+                    if let Some(edit_loop) = self.active_edit_loop.as_mut() {
+                        edit_loop.set_last_validation_result(result);
+                    }
+                }
+                self.resolve_pending_approval(false);
+                self.resolve_pending_patch_approval(false);
+                self.active_stream_blocks.clear();
+                self.history_state.cancel_pending = false;
+                self.history_state.turn_in_progress = false;
+                self.history_state.active_assistant_index = None;
+                match outcome {
+                    EditLoopOutcome::Success {
+                        patch_applied,
+                        validate_passed,
+                    } => {
+                        let summary = format!(
+                            "[edit loop complete: patch_applied={} validate_passed={}]",
+                            patch_applied, validate_passed
+                        );
+                        self.push_history_line(summary);
+                    }
+                    EditLoopOutcome::MaxTurnsReached { last_error } => {
+                        let summary = match last_error {
+                            Some(err) => {
+                                format!("[edit loop reached max turns — last error: {err}]")
+                            }
+                            None => "[edit loop reached max turns]".to_string(),
+                        };
+                        self.push_history_line(summary);
+                    }
+                    EditLoopOutcome::ApprovalDenied => {
+                        self.push_history_line("[edit loop aborted: approval denied]".to_string());
+                    }
+                    EditLoopOutcome::Cancelled => {
+                        self.push_history_line("[edit loop cancelled]".to_string());
+                    }
+                }
+                if self.history_state.auto_follow {
+                    self.set_scroll_to_bottom();
+                } else {
+                    self.clamp_scroll_offset();
+                }
             }
             UiUpdate::TurnComplete => {
                 self.resolve_pending_approval(false);
@@ -3684,6 +3734,27 @@ mod tests {
     }
 
     #[test]
+    fn test_tui_edit_command_preserves_prior_history_line() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.history_state
+            .lines
+            .push("prior assistant line".to_string());
+
+        mode.on_user_input("/edit fix the parser bug".to_string(), &mut ctx);
+        mode.on_model_update(UiUpdate::StreamDelta("new output".to_string()), &mut ctx);
+
+        assert_eq!(mode.history_state.lines[0], "prior assistant line");
+        assert!(
+            mode.history_state
+                .lines
+                .iter()
+                .any(|line| line.contains("new output")),
+            "stream output must target the fresh placeholder line"
+        );
+    }
+
+    #[test]
     fn test_tui_fix_without_prior_loop_emits_guidance() {
         let mut mode = TuiMode::new();
         let mut ctx = setup_ctx();
@@ -3763,6 +3834,30 @@ mod tests {
         );
         assert!(!mode.is_turn_in_progress());
         assert!(mode.active_edit_loop.is_none());
+    }
+
+    #[test]
+    fn test_tui_edit_loop_completion_clears_busy_state() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/edit refactor the parser".to_string(), &mut ctx);
+
+        mode.on_model_update(
+            UiUpdate::EditLoopComplete {
+                outcome: EditLoopOutcome::MaxTurnsReached { last_error: None },
+                last_validation_result: None,
+            },
+            &mut ctx,
+        );
+
+        assert!(!mode.is_turn_in_progress());
+        assert!(mode.history_state.active_assistant_index.is_none());
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|line| line.contains("[edit loop reached max turns]")),
+            "expected loop completion summary"
+        );
     }
 
     #[test]
