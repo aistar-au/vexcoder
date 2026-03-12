@@ -190,6 +190,7 @@ impl ConversationManager {
             let wrapped_req = sandbox.wrap(CommandRequest {
                 program: hook.command.clone(),
                 args,
+                working_dir: None,
             })?;
             match runner.run_one_shot(wrapped_req).await {
                 Ok(result) if result.exit_code == 0 => {}

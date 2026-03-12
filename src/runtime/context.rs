@@ -1,5 +1,6 @@
 use crate::runtime::{EditLoop, UiUpdate};
 use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock};
+use crate::types::{Content, ContentBlock};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
@@ -182,6 +183,44 @@ impl RuntimeContext {
     pub fn emit_transcript_line(&self, line: String) {
         let _ = self.update_tx.send(UiUpdate::TranscriptLine(line));
     }
+
+    pub fn estimated_conversation_tokens(&self) -> usize {
+        self.conversation
+            .try_lock()
+            .ok()
+            .map(|conversation| estimate_token_count(&conversation.messages_for_api()))
+            .unwrap_or(0)
+    }
+}
+
+fn estimate_token_count(messages: &[crate::types::ApiMessage]) -> usize {
+    estimate_char_count(messages) / 4
+}
+
+fn estimate_char_count(messages: &[crate::types::ApiMessage]) -> usize {
+    messages
+        .iter()
+        .map(|message| match &message.content {
+            Content::Text(text) => message.role.len() + text.len(),
+            Content::Blocks(blocks) => {
+                message.role.len()
+                    + blocks
+                        .iter()
+                        .map(|block| match block {
+                            ContentBlock::Text { text } => text.len(),
+                            ContentBlock::ToolUse { id, name, input } => {
+                                id.len() + name.len() + input.to_string().len()
+                            }
+                            ContentBlock::ToolResult {
+                                tool_use_id,
+                                content,
+                                ..
+                            } => tool_use_id.len() + content.len(),
+                        })
+                        .sum::<usize>()
+            }
+        })
+        .sum()
 }
 
 fn forward_conversation_update(
@@ -227,10 +266,11 @@ fn forward_conversation_update(
 
 #[cfg(test)]
 mod tests {
-    use super::{forward_conversation_update, RuntimeContext};
+    use super::{estimate_token_count, forward_conversation_update, RuntimeContext};
     use crate::api::{mock_client::MockApiClient, ApiClient};
     use crate::runtime::{EditLoop, EditLoopOutcome, UiUpdate};
     use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock};
+    use crate::types::{ApiMessage, Content, ContentBlock};
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;
@@ -321,6 +361,31 @@ mod tests {
                 _ => {}
             }
         }
+    }
+
+    #[test]
+    fn test_estimated_token_count_uses_chars_div_4() {
+        let messages = vec![
+            ApiMessage {
+                role: "user".to_string(),
+                content: Content::Text("abcd".to_string()),
+            },
+            ApiMessage {
+                role: "assistant".to_string(),
+                content: Content::Blocks(vec![
+                    ContentBlock::Text {
+                        text: "efgh".to_string(),
+                    },
+                    ContentBlock::ToolResult {
+                        tool_use_id: "tool-1".to_string(),
+                        content: "ijkl".to_string(),
+                        is_error: false,
+                    },
+                ]),
+            },
+        ];
+
+        assert_eq!(estimate_token_count(&messages), 7);
     }
 
     #[tokio::test]

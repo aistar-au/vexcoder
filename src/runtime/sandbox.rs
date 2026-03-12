@@ -25,6 +25,7 @@ mod tests {
         let req = CommandRequest {
             program: "echo".into(),
             args: vec!["hello".into()],
+            working_dir: None,
         };
         let wrapped = PassthroughSandbox.wrap(req).expect("wrap request");
         assert_eq!(wrapped.program, "echo");
