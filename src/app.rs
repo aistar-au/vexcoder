@@ -439,6 +439,7 @@ pub struct TuiMode {
     /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
     last_assembled_context: Option<AssembledContext>,
+    read_only_turn_active: bool,
     active_edit_loop: Option<EditLoop>,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
@@ -534,6 +535,7 @@ impl TuiMode {
             model_backend: config.model_backend,
             working_dir: config.working_dir.clone(),
             last_assembled_context: None,
+            read_only_turn_active: false,
             active_edit_loop: None,
             #[cfg(test)]
             last_turn_input: None,
@@ -849,6 +851,7 @@ impl TuiMode {
         self.history_state.auto_follow = true;
         self.active_stream_blocks.clear();
         self.last_assembled_context = None;
+        self.read_only_turn_active = false;
     }
 
     fn apply_resumed_task(&mut self, state: TaskState, ctx: &RuntimeContext) {
@@ -1021,9 +1024,10 @@ impl TuiMode {
         ctx.start_edit_loop(edit_loop, instruction);
     }
 
-    fn start_single_turn(&mut self, rendered: String, ctx: &mut RuntimeContext) {
+    fn start_single_turn(&mut self, rendered: String, ctx: &mut RuntimeContext, read_only: bool) {
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
+        self.read_only_turn_active = read_only;
         #[cfg(test)]
         {
             self.last_turn_input = Some(rendered.clone());
@@ -1060,7 +1064,7 @@ impl TuiMode {
         let prompt = format!(
             "Explain the relevant code for {target}. Do not propose patches or tool calls.\n\n{rendered_context}"
         );
-        self.start_single_turn(prompt, ctx);
+        self.start_single_turn(prompt, ctx, true);
     }
 
     fn handle_run_command(&mut self, command_str: &str) {
@@ -1827,6 +1831,11 @@ impl RuntimeMode for TuiMode {
                 self.resolve_pending_approval(false);
                 self.resolve_pending_patch_approval(false);
 
+                if self.read_only_turn_active {
+                    let _ = response_tx.send(false);
+                    return;
+                }
+
                 if self.overlay_state.auto_approve_session {
                     let _ = response_tx.send(true);
                     self.push_history_line(format!("[auto-approved tool: {tool_name} session]"));
@@ -1916,6 +1925,7 @@ impl RuntimeMode for TuiMode {
                 self.history_state.cancel_pending = false;
                 self.history_state.turn_in_progress = false;
                 self.history_state.active_assistant_index = None;
+                self.read_only_turn_active = false;
                 if self.history_state.auto_follow {
                     self.set_scroll_to_bottom();
                 } else {
@@ -1930,6 +1940,7 @@ impl RuntimeMode for TuiMode {
                 self.push_history_line(format!("[error] {msg}"));
                 self.history_state.turn_in_progress = false;
                 self.history_state.active_assistant_index = None;
+                self.read_only_turn_active = false;
             }
         }
     }
@@ -4579,6 +4590,77 @@ mod tests {
         assert!(
             mode.active_edit_loop.is_none(),
             "/explain must not invoke EditLoop"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_tui_explain_silently_denies_tool_approval_requests() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/explain src/app.rs".to_string(), &mut ctx);
+
+        let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();
+        mode.on_model_update(
+            UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
+                tool_name: "apply_patch".to_string(),
+                input_preview: "{\"path\":\"src/app.rs\"}".to_string(),
+                response_tx,
+            }),
+            &mut ctx,
+        );
+
+        assert!(
+            !response_rx.await.expect("response should resolve"),
+            "/explain must silently deny approval-requiring tool calls"
+        );
+        assert!(
+            mode.overlay_state.pending_approval.is_none(),
+            "/explain must not surface the approval overlay"
+        );
+        assert!(
+            mode.history_lines()
+                .iter()
+                .all(|line| !line.contains("[tool approval requested:")),
+            "/explain denial should stay silent in transcript output"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_read_only_turn_flag_clears_after_turn_completion() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/explain src/app.rs".to_string(), &mut ctx);
+        assert!(
+            mode.read_only_turn_active,
+            "/explain must mark the active turn as read-only"
+        );
+
+        mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+        assert!(
+            !mode.read_only_turn_active,
+            "turn completion must clear the read-only turn flag"
+        );
+
+        let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();
+        mode.on_model_update(
+            UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
+                tool_name: "apply_patch".to_string(),
+                input_preview: "{\"path\":\"src/app.rs\"}".to_string(),
+                response_tx,
+            }),
+            &mut ctx,
+        );
+
+        let mut response_rx = Box::pin(response_rx);
+        assert!(
+            response_rx.as_mut().now_or_never().is_none(),
+            "normal turns must keep approval unresolved until operator input"
+        );
+        assert!(
+            mode.overlay_state.pending_approval.is_some(),
+            "normal turns must restore the approval overlay"
         );
     }
 
