@@ -46,6 +46,7 @@ pub struct ApiClient {
     http: reqwest::Client,
     api_key: Option<String>,
     model: Arc<RwLock<String>>,
+    supplementary_system_prompt: Arc<RwLock<Option<String>>>,
     api_url: String,
     model_backend: ModelBackendKind,
     model_protocol: ModelProtocol,
@@ -70,6 +71,7 @@ impl ApiClient {
             http: reqwest::Client::new(),
             api_key: config.model_token.clone(),
             model: Arc::new(RwLock::new(config.model_name.clone())),
+            supplementary_system_prompt: Arc::new(RwLock::new(None)),
             api_url: config.model_url.clone(),
             model_backend: config.model_backend,
             model_protocol: config.model_protocol,
@@ -88,6 +90,7 @@ impl ApiClient {
             http: reqwest::Client::new(),
             api_key: None,
             model: Arc::new(RwLock::new("mock-model".to_string())),
+            supplementary_system_prompt: Arc::new(RwLock::new(None)),
             // Test-only override for mock endpoint URL; defaults to portless localhost.
             api_url: std::env::var("VEX_TEST_MODEL_URL")
                 .unwrap_or_else(|_| "http://localhost/v1/messages".to_string()),
@@ -132,6 +135,15 @@ impl ApiClient {
         *self.model.write().expect("api client model lock poisoned") = name.into();
     }
 
+    pub fn set_supplementary_system_prompt(&self, prompt: Option<String>) {
+        *self
+            .supplementary_system_prompt
+            .write()
+            .expect("api client supplementary prompt lock poisoned") = prompt
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+    }
+
     fn api_protocol(&self) -> ApiProtocol {
         match self.model_protocol {
             ModelProtocol::MessagesV1 => ApiProtocol::MessagesV1,
@@ -141,6 +153,19 @@ impl ApiClient {
 
     fn effective_system_prompt(&self) -> String {
         let mut prompt = BASE_SYSTEM_PROMPT.to_string();
+
+        if let Some(supplementary) = self
+            .supplementary_system_prompt
+            .read()
+            .expect("api client supplementary prompt lock poisoned")
+            .as_deref()
+            .map(str::trim)
+            .filter(|supplementary| !supplementary.is_empty())
+        {
+            prompt.push_str("\n\n---\n[coding prompt: start]\n");
+            prompt.push_str(supplementary);
+            prompt.push_str("\n[coding prompt: end]\n---");
+        }
 
         if let Some(instructions) = self
             .project_instructions
@@ -952,5 +977,30 @@ mod tests {
         assert!(prompt.contains("[project instructions: start]"));
         assert!(prompt.contains("# no unwrap"));
         assert!(prompt.contains("[project instructions: end]"));
+    }
+
+    #[test]
+    fn test_system_prompt_includes_supplementary_prompt_when_set() {
+        let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
+            vec![],
+        )));
+        client.set_supplementary_system_prompt(Some("coding mode active".to_string()));
+
+        let prompt = client.system_prompt();
+
+        assert!(prompt.contains("[coding prompt: start]"));
+        assert!(prompt.contains("coding mode active"));
+        assert!(prompt.contains("[coding prompt: end]"));
+    }
+
+    #[test]
+    fn test_system_prompt_clears_supplementary_prompt() {
+        let client = ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(
+            vec![],
+        )));
+        client.set_supplementary_system_prompt(Some("coding mode active".to_string()));
+        client.set_supplementary_system_prompt(None);
+
+        assert_eq!(client.system_prompt(), BASE_SYSTEM_PROMPT);
     }
 }

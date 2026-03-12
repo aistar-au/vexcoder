@@ -1,0 +1,11 @@
+Summarize the branch changes below as a concise title and body draft.
+Use the provided diff context and do not invent files or behavior.
+
+Request:
+{{instruction}}
+
+Context:
+{{context}}
+
+Diff context:
+{{diff_context}}

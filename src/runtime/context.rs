@@ -1,3 +1,4 @@
+use crate::prompts::CODER_SYSTEM_PROMPT;
 use crate::runtime::{EditLoop, UiUpdate};
 use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock};
 use crate::types::{Content, ContentBlock};
@@ -35,6 +36,14 @@ impl RuntimeContext {
     }
 
     pub fn start_turn(&mut self, input: String) {
+        self.start_turn_with_system_prompt(input, None);
+    }
+
+    pub fn start_turn_with_system_prompt(
+        &mut self,
+        input: String,
+        supplementary_system_prompt: Option<String>,
+    ) {
         if tokio::runtime::Handle::try_current().is_err() {
             let _ = self.update_tx.send(UiUpdate::Error(
                 "runtime error: start_turn requires active Tokio runtime".to_string(),
@@ -47,21 +56,24 @@ impl RuntimeContext {
         let conversation = Arc::clone(&self.conversation);
 
         tokio::spawn(async move {
+            set_runtime_prompt(&conversation, supplementary_system_prompt).await;
             let (delta_tx, mut delta_rx) = mpsc::unbounded_channel::<ConversationStreamUpdate>();
+            let conversation_for_send = Arc::clone(&conversation);
 
             let send_handle = tokio::spawn(async move {
-                let mut mgr = conversation.lock().await;
+                let mut mgr = conversation_for_send.lock().await;
                 mgr.send_message(input, Some(&delta_tx)).await
             });
 
             let mut textual_block_by_index = std::collections::HashMap::<usize, bool>::new();
+            let mut cancelled = false;
 
             loop {
                 tokio::select! {
                     _ = turn_cancel.cancelled() => {
                         send_handle.abort();
-                        let _ = tx.send(UiUpdate::TurnComplete);
-                        return;
+                        cancelled = true;
+                        break;
                     }
                     update = delta_rx.recv() => {
                         match update {
@@ -72,7 +84,20 @@ impl RuntimeContext {
                 }
             }
 
-            match send_handle.await {
+            let send_result = if cancelled {
+                None
+            } else {
+                Some(send_handle.await)
+            };
+
+            set_runtime_prompt(&conversation, None).await;
+
+            if cancelled {
+                let _ = tx.send(UiUpdate::TurnComplete);
+                return;
+            }
+
+            match send_result.expect("non-cancelled turn must await send_handle") {
                 Ok(Ok(_)) => {
                     let _ = tx.send(UiUpdate::TurnComplete);
                 }
@@ -103,10 +128,19 @@ impl RuntimeContext {
         let mut loop_ctx = self.clone();
 
         tokio::spawn(async move {
-            match edit_loop
+            set_runtime_prompt(
+                &loop_ctx.conversation,
+                Some(CODER_SYSTEM_PROMPT.to_string()),
+            )
+            .await;
+
+            let result = edit_loop
                 .run(instruction, &mut loop_ctx, &loop_cancel)
-                .await
-            {
+                .await;
+
+            set_runtime_prompt(&loop_ctx.conversation, None).await;
+
+            match result {
                 Ok(outcome) => {
                     let _ = tx.send(UiUpdate::EditLoopComplete {
                         outcome,
@@ -193,6 +227,17 @@ impl RuntimeContext {
     }
 }
 
+async fn set_runtime_prompt(
+    conversation: &Arc<Mutex<ConversationManager>>,
+    supplementary_system_prompt: Option<String>,
+) {
+    let client = {
+        let manager = conversation.lock().await;
+        manager.client()
+    };
+    client.set_supplementary_system_prompt(supplementary_system_prompt);
+}
+
 fn estimate_token_count(messages: &[crate::types::ApiMessage]) -> usize {
     estimate_char_count(messages) / 4
 }
@@ -268,6 +313,7 @@ fn forward_conversation_update(
 mod tests {
     use super::{estimate_token_count, forward_conversation_update, RuntimeContext};
     use crate::api::{mock_client::MockApiClient, ApiClient};
+    use crate::prompts::CODER_SYSTEM_PROMPT;
     use crate::runtime::{EditLoop, EditLoopOutcome, UiUpdate};
     use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock};
     use crate::types::{ApiMessage, Content, ContentBlock};
@@ -361,6 +407,58 @@ mod tests {
                 _ => {}
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_coding_prompt_injected_during_edit_loop_only() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+        let conversation = ConversationManager::new_mock(client, HashMap::new());
+        let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
+
+        assert!(
+            !ctx.test_system_prompt()
+                .await
+                .contains(CODER_SYSTEM_PROMPT.trim()),
+            "base prompt must not include the coding prompt before edit loop activation"
+        );
+
+        ctx.start_edit_loop(
+            EditLoop::new("task-edit-loop-prompt".to_string()).with_max_turns(128),
+            "fix the parser".to_string(),
+        );
+
+        tokio::time::timeout(Duration::from_millis(500), async {
+            loop {
+                if ctx
+                    .test_system_prompt()
+                    .await
+                    .contains(CODER_SYSTEM_PROMPT.trim())
+                {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("coding prompt must be injected while the edit loop is active");
+
+        loop {
+            match tokio::time::timeout(Duration::from_millis(500), rx.recv()).await {
+                Ok(Some(UiUpdate::EditLoopComplete { .. })) => break,
+                Ok(Some(UiUpdate::TranscriptLine(_))) => {}
+                Ok(Some(UiUpdate::Error(e))) => panic!("unexpected error: {e}"),
+                Ok(Some(_)) => {}
+                Ok(None) | Err(_) => panic!("expected EditLoopComplete"),
+            }
+        }
+
+        assert!(
+            !ctx.test_system_prompt()
+                .await
+                .contains(CODER_SYSTEM_PROMPT.trim()),
+            "coding prompt must clear after the edit loop completes"
+        );
     }
 
     #[test]

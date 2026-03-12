@@ -1,0 +1,8 @@
+Explain the relevant code for the request below.
+Do not propose patches or tool calls unless the request explicitly asks for them.
+
+Request:
+{{instruction}}
+
+Context:
+{{context}}
