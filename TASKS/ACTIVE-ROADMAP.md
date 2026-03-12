@@ -1,10 +1,11 @@
 # Active Roadmap
 
-Descriptive index for the ADRs and task manifests that are currently active in this repository.
+Descriptive index for the ADRs and task manifests that are currently active in
+this repository.
 
-## Cross-Repo Active ADR Set
+## Dispatch-Facing Active ADR Set
 
-Current cross-repo dependency state from `AGENTS.md`:
+Current task-dispatch dependency state:
 
 | ADR | Status | Dependency note |
 | :--- | :--- | :--- |
@@ -13,10 +14,16 @@ Current cross-repo dependency state from `AGENTS.md`:
 | `ADR-022` | Proposed | Free/open roadmap target and config/interface decision surface. |
 | `ADR-023` | Locked | `EL-03` must be green before `EL-04`, and `EL-05` depends on `EL-04`. |
 | `ADR-024` | Proposed | Parity-gap inventory, command surface, and deferred work. |
+| `ADR-025` | Proposed | First post-gate Phase I dispatch target (`PI-09` through `PI-12`); implementation remains gated on milestone-1 validation. |
+| `ADR-026` | Proposed | Follows `ADR-025` closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation remains gated on milestone-1 validation. |
+
+ADR-025 and ADR-026 are queued immediately after the milestone-1 correctness
+gate. This roadmap note is descriptive only and does not relax that gate.
 
 ## Other Open ADRs Tracked In This Repo
 
-`docs/adr/ADR-README.md` also lists these open ADRs outside the current cross-repo active set:
+`adr/ADR-README.md` also lists these open ADRs outside the current
+dispatch-facing active set:
 
 | ADR | Status | Note |
 | :--- | :--- | :--- |
