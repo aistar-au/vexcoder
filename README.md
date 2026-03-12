@@ -1,15 +1,36 @@
 # VexCoder
 
-Agentic coding assistant CLI app, implemented as a Rust + Ratatui application.
+Terminal-first coding assistant — Rust · Ratatui · streaming tool execution.
+
+## Build from source
+
+```bash
+git clone https://github.com/aistar-au/vexcoder.git
+cd vexcoder
+cargo build --release
+VEX_MODEL_URL=http://localhost:8000/v1/messages ./target/release/vex
+```
+
+Or install directly:
+
+```bash
+cargo install --path .
+VEX_MODEL_URL=http://localhost:8000/v1/messages vex
+```
+
+Requires the Rust stable toolchain (≥ 1.75) via [rustup](https://rustup.rs) and a running inference endpoint.
 
 ## Documentation
 
-Full documentation is in [`docs/src/`](docs/src/SUMMARY.md). To read it locally:
+Full documentation — including platform-specific installation, configuration reference, and TUI commands — is published on **[GitHub Pages](https://aistar-au.github.io/vexcoder/)** and lives in [`docs/src/`](docs/src/SUMMARY.md).
+
+To read locally:
 
 ```bash
-cargo install mdbook
 mdbook serve docs
 ```
+
+Sections:
 
 - [Introduction](docs/src/introduction.md)
 - [Quick Start](docs/src/quick-start.md)
