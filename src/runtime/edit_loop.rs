@@ -65,6 +65,7 @@ impl EditLoop {
             if cancel.is_cancelled() {
                 return Ok(EditLoopOutcome::Cancelled);
             }
+            tokio::task::yield_now().await;
         }
 
         Ok(EditLoopOutcome::MaxTurnsReached {
@@ -216,6 +217,60 @@ mod tests {
             "git {:?} failed: {}",
             args,
             String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn test_edit_loop_emits_dirty_workspace_warning() {
+        let workspace = tempfile::tempdir().expect("tempdir");
+        fs::write(workspace.path().join("target.rs"), "fn main() {}\n").expect("seed file");
+        run_git(workspace.path(), &["init"]);
+        run_git(workspace.path(), &["add", "target.rs"]);
+        run_git(
+            workspace.path(),
+            &[
+                "-c",
+                "user.name=codex",
+                "-c",
+                "user.email=codex@example.com",
+                "commit",
+                "-m",
+                "init",
+            ],
+        );
+
+        let clean =
+            EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("target.rs")])
+                .expect("clean check");
+        assert!(!clean, "workspace should report clean immediately after commit");
+
+        fs::write(workspace.path().join("target.rs"), "fn main() { /* dirty */ }\n")
+            .expect("mutate");
+        let dirty =
+            EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("target.rs")])
+                .expect("dirty check");
+        assert!(dirty, "workspace should report dirty after tracked file change");
+    }
+
+    #[tokio::test]
+    async fn test_edit_loop_cancel_mid_validation() {
+        let cancel = CancellationToken::new();
+        let cancel_clone = cancel.clone();
+        tokio::spawn(async move {
+            tokio::task::yield_now().await;
+            cancel_clone.cancel();
+        });
+
+        let mut edit_loop = EditLoop::new("task-cancel-mid".to_string()).with_max_turns(4);
+        let mut ctx = make_runtime_context();
+        let outcome = edit_loop
+            .run("edit src/lib.rs".to_string(), &mut ctx, &cancel)
+            .await
+            .expect("run should not error");
+
+        assert!(
+            matches!(outcome, EditLoopOutcome::Cancelled),
+            "loop must return Cancelled when token fires mid-run"
         );
     }
 }
