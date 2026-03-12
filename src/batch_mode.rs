@@ -379,6 +379,7 @@ impl RuntimeMode for BatchMode {
 
     fn on_model_update(&mut self, update: UiUpdate, _ctx: &mut RuntimeContext) {
         match update {
+            UiUpdate::TranscriptLine(_) => {}
             UiUpdate::StreamDelta(text) => {
                 self.current_response.push_str(&text);
             }
@@ -419,11 +420,12 @@ impl RuntimeMode for BatchMode {
                 }
                 StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. } => {}
             },
+            UiUpdate::StreamBlockDelta { .. } | UiUpdate::StreamBlockComplete { .. } => {}
             UiUpdate::ToolApprovalRequest(ToolApprovalRequest { response_tx, .. }) => {
                 let approved = self.approval_decision();
                 let _ = response_tx.send(approved);
             }
-            _ => {}
+            UiUpdate::EditLoopComplete { .. } => {}
         }
     }
 
@@ -748,12 +750,42 @@ pub async fn capture_batch_text(task: &str, max_turns: usize) -> Result<String> 
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::runtime::TaskStatus;
+    use crate::runtime::{EditLoopOutcome, TaskStatus};
 
     #[tokio::test]
     async fn test_batch_mode_exits_zero_on_completion() {
         let result = run_batch_mode("echo hello", 3).await.unwrap();
         assert_eq!(result.status, TaskStatus::Completed);
+    }
+
+    #[test]
+    fn test_batch_mode_ignores_transcript_and_edit_loop_updates() {
+        let opts = BatchRunOpts::default();
+        let mut mode = BatchMode::new("task-batch".to_string(), opts, None, None);
+        let client = crate::api::ApiClient::new_mock(std::sync::Arc::new(
+            crate::api::mock_client::MockApiClient::new(vec![]),
+        ));
+        let conversation =
+            crate::state::ConversationManager::new_mock(client, std::collections::HashMap::new());
+        let (update_tx, _update_rx) = tokio::sync::mpsc::unbounded_channel::<UiUpdate>();
+        let mut ctx = RuntimeContext::new(
+            conversation,
+            update_tx,
+            tokio_util::sync::CancellationToken::new(),
+        );
+
+        mode.on_model_update(UiUpdate::TranscriptLine("warning".to_string()), &mut ctx);
+        mode.on_model_update(
+            UiUpdate::EditLoopComplete {
+                outcome: EditLoopOutcome::Cancelled,
+                last_validation_result: None,
+            },
+            &mut ctx,
+        );
+
+        assert!(mode.current_response.is_empty());
+        assert!(mode.output_lines.is_empty());
+        assert_eq!(mode.status, TaskStatus::Ready);
     }
 
     #[tokio::test]

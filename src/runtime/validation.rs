@@ -92,7 +92,7 @@ impl ValidationSuite {
 
             if !output.stdout_tail.is_empty() {
                 if output.stdout_truncated {
-                    out.push_str("[stdout truncated — showing last 8192 bytes]\n");
+                    out.push_str("[stdout truncated \u{2014} showing last 8192 bytes]\n");
                 }
                 out.push_str("stdout:\n```text\n");
                 out.push_str(&output.stdout_tail);
@@ -104,7 +104,7 @@ impl ValidationSuite {
 
             if !output.stderr_tail.is_empty() {
                 if output.stderr_truncated {
-                    out.push_str("[stderr truncated — showing last 8192 bytes]\n");
+                    out.push_str("[stderr truncated \u{2014} showing last 8192 bytes]\n");
                 }
                 out.push_str("stderr:\n```text\n");
                 out.push_str(&output.stderr_tail);
@@ -419,6 +419,27 @@ mod tests {
         assert!(
             makefile_has_test_target(workspace.path()),
             "column-zero test: must be detected"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_validation_suite_empty_suite_exits_on_clean_patch() {
+        use crate::runtime::command::DefaultCommandRunner;
+
+        let suite = ValidationSuite::default();
+        let runner = DefaultCommandRunner::new();
+        let result = suite
+            .run(&runner)
+            .await
+            .expect("empty suite must not error");
+
+        assert!(
+            result.passed,
+            "empty validation suite must report passed=true"
+        );
+        assert!(
+            result.outputs.is_empty(),
+            "empty validation suite must produce no outputs"
         );
     }
 }

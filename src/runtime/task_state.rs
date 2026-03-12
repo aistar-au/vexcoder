@@ -276,10 +276,12 @@ mod tests {
 
     #[test]
     fn test_state_dir_defaults_to_repo_root_for_subdirs() {
+        let _env_lock = ENV_LOCK.blocking_lock();
         let temp = TempDir::new().unwrap();
         std::fs::create_dir_all(temp.path().join(".git")).unwrap();
         let nested = temp.path().join("src/nested");
         std::fs::create_dir_all(&nested).unwrap();
+        std::env::remove_var("VEX_STATE_DIR");
 
         assert_eq!(
             TaskState::state_dir_from(&nested),

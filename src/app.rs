@@ -3,12 +3,13 @@ use crate::runtime::context::RuntimeContext;
 use crate::runtime::context_assembler::{
     block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout, ContextAssembler,
 };
+use crate::runtime::edit_loop::EditLoop;
 use crate::runtime::frontend::{ScrollAction, ScrollTarget, UserInputEvent};
 use crate::runtime::mode::RuntimeMode;
 use crate::runtime::policy::sanitize_assistant_text;
 use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
 use crate::runtime::r#loop::Runtime;
-use crate::runtime::{ApprovalScope, Capability, TaskState, UiUpdate};
+use crate::runtime::{ApprovalScope, Capability, EditLoopOutcome, TaskState, UiUpdate};
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
 use crate::session_notes::{
@@ -118,12 +119,13 @@ pub struct TuiMode {
     quit_requested: bool,
     notes_path: Option<PathBuf>,
     current_task: crate::runtime::TaskState,
-    /// Active model name, updated by `/model <name>`.
+    /// Active model name, updated by `/model <n>`.
     model_name: String,
     /// Locked at session start; `/model` rejects changes that require a different backend.
     model_backend: crate::runtime::ModelBackendKind,
     /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
+    active_edit_loop: Option<EditLoop>,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }
@@ -204,6 +206,7 @@ impl TuiMode {
             model_name: config.model_name.clone(),
             model_backend: config.model_backend,
             working_dir: config.working_dir.clone(),
+            active_edit_loop: None,
             #[cfg(test)]
             last_turn_input: None,
         }
@@ -523,6 +526,7 @@ impl TuiMode {
         let restored_id = state.id.clone();
         let status = format!("{:?}", state.status);
         self.current_task = state;
+        self.active_edit_loop = None;
         self.reset_conversation_window(ctx);
         self.push_history_line(format!("[resumed: {restored_id} status={status}]"));
     }
@@ -641,10 +645,81 @@ impl TuiMode {
             self.handle_diff_command(args);
             return true;
         }
+        if let Some(rest) = trimmed.strip_prefix("/edit") {
+            let instruction = rest.trim();
+            self.handle_edit_command(instruction, ctx);
+            return true;
+        }
+        if trimmed == "/fix" || trimmed.starts_with("/fix ") {
+            self.handle_fix_command(ctx);
+            return true;
+        }
         false
     }
 
-    /// PC-01: `/model <name>` — name-only switch within the same backend/protocol.
+    fn handle_edit_command(&mut self, instruction: &str, ctx: &mut RuntimeContext) {
+        if self.active_edit_loop.is_some() && self.history_state.turn_in_progress {
+            self.push_history_line(
+                "[edit loop already active \u{2014} cancel with Ctrl+C before starting a new task]"
+                    .to_string(),
+            );
+            return;
+        }
+        if instruction.is_empty() {
+            self.push_history_line("[edit] usage: /edit <instruction>".to_string());
+            return;
+        }
+        let task_id = self.current_task.id.clone();
+        let edit_loop = EditLoop::new(task_id);
+        self.active_edit_loop = Some(edit_loop.clone());
+        self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
+        self.history_state.turn_in_progress = true;
+        #[cfg(test)]
+        {
+            self.last_turn_input = Some(instruction.to_string());
+        }
+        ctx.start_edit_loop(edit_loop, instruction.to_string());
+    }
+
+    fn handle_fix_command(&mut self, ctx: &mut RuntimeContext) {
+        if self.active_edit_loop.is_some() && self.history_state.turn_in_progress {
+            self.push_history_line(
+                "[edit loop already active \u{2014} cancel with Ctrl+C before starting a new task]"
+                    .to_string(),
+            );
+            return;
+        }
+        let last_result = self
+            .active_edit_loop
+            .as_ref()
+            .and_then(|l| l.last_validation_result())
+            .cloned();
+        let Some(result) = last_result else {
+            self.push_history_line(
+                "[no recent validation failure in this session \u{2014} run /edit or /test first]"
+                    .to_string(),
+            );
+            return;
+        };
+        let instruction = result
+            .outputs
+            .iter()
+            .find(|o| o.exit_code != 0)
+            .map(|o| format!("fix the {} failure", o.label))
+            .unwrap_or_else(|| "fix the validation failure".to_string());
+        let task_id = self.current_task.id.clone();
+        let edit_loop = EditLoop::new(task_id);
+        self.active_edit_loop = Some(edit_loop.clone());
+        self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
+        self.history_state.turn_in_progress = true;
+        #[cfg(test)]
+        {
+            self.last_turn_input = Some(instruction.clone());
+        }
+        ctx.start_edit_loop(edit_loop, instruction);
+    }
+
+    /// PC-01: `/model <n>` — name-only switch within the same backend/protocol.
     fn handle_model_command(&mut self, name: &str, ctx: &RuntimeContext) {
         if name.is_empty() {
             self.push_history_line(format!("[model] {}", self.model_name));
@@ -730,7 +805,7 @@ impl TuiMode {
                 }
                 if lines.len() > max_diff_lines {
                     self.push_history_line(format!(
-                        "[diff truncated — showing first {max_diff_lines} lines]"
+                        "[diff truncated \u{2014} showing first {max_diff_lines} lines]"
                     ));
                 }
             }
@@ -815,6 +890,7 @@ impl TuiMode {
         }
         let new_id = new_task_id();
         self.current_task = TaskState::new(new_id.clone());
+        self.active_edit_loop = None;
         self.reset_conversation_window(ctx);
         self.push_history_line(format!("[new session: {new_id}]"));
     }
@@ -839,6 +915,7 @@ impl TuiMode {
 
     fn handle_clear_command(&mut self, ctx: &mut RuntimeContext) {
         let task_id = self.current_task.id.clone();
+        self.active_edit_loop = None;
         self.reset_conversation_window(ctx);
         self.push_history_line(format!(
             "[cleared: conversation history reset; task {task_id} continues]"
@@ -1147,6 +1224,18 @@ impl RuntimeMode for TuiMode {
         }
 
         if self.history_state.turn_in_progress {
+            let trimmed = input.trim();
+            let reentrant_edit_command = self.active_edit_loop.is_some()
+                && (trimmed == "/edit"
+                    || trimmed.starts_with("/edit ")
+                    || trimmed == "/fix"
+                    || trimmed.starts_with("/fix "));
+            if reentrant_edit_command {
+                self.push_history_line(format!("> {input}"));
+                self.push_history_line(String::new());
+                let _ = self.try_handle_slash_command(&input, ctx);
+                return;
+            }
             if self.history_state.cancel_pending {
                 self.push_history_line(
                     "[busy - cancelling current turn, input discarded]".to_string(),
@@ -1182,6 +1271,9 @@ impl RuntimeMode for TuiMode {
 
     fn on_model_update(&mut self, update: UiUpdate, _ctx: &mut RuntimeContext) {
         match update {
+            UiUpdate::TranscriptLine(line) => {
+                self.push_history_line(line);
+            }
             UiUpdate::StreamDelta(text) => {
                 if self.history_state.cancel_pending {
                     return;
@@ -1245,6 +1337,54 @@ impl RuntimeMode for TuiMode {
                     input_preview,
                     response_tx,
                 });
+            }
+            UiUpdate::EditLoopComplete {
+                outcome,
+                last_validation_result,
+            } => {
+                if let Some(result) = last_validation_result {
+                    if let Some(edit_loop) = self.active_edit_loop.as_mut() {
+                        edit_loop.set_last_validation_result(result);
+                    }
+                }
+                self.resolve_pending_approval(false);
+                self.resolve_pending_patch_approval(false);
+                self.active_stream_blocks.clear();
+                self.history_state.cancel_pending = false;
+                self.history_state.turn_in_progress = false;
+                self.history_state.active_assistant_index = None;
+                match outcome {
+                    EditLoopOutcome::Success {
+                        patch_applied,
+                        validate_passed,
+                    } => {
+                        let summary = format!(
+                            "[edit loop complete: patch_applied={} validate_passed={}]",
+                            patch_applied, validate_passed
+                        );
+                        self.push_history_line(summary);
+                    }
+                    EditLoopOutcome::MaxTurnsReached { last_error } => {
+                        let summary = match last_error {
+                            Some(err) => {
+                                format!("[edit loop reached max turns — last error: {err}]")
+                            }
+                            None => "[edit loop reached max turns]".to_string(),
+                        };
+                        self.push_history_line(summary);
+                    }
+                    EditLoopOutcome::ApprovalDenied => {
+                        self.push_history_line("[edit loop aborted: approval denied]".to_string());
+                    }
+                    EditLoopOutcome::Cancelled => {
+                        self.push_history_line("[edit loop cancelled]".to_string());
+                    }
+                }
+                if self.history_state.auto_follow {
+                    self.set_scroll_to_bottom();
+                } else {
+                    self.clamp_scroll_offset();
+                }
             }
             UiUpdate::TurnComplete => {
                 self.resolve_pending_approval(false);
@@ -3424,7 +3564,7 @@ mod tests {
         mode.on_user_input("/model local/phi-3".to_string(), &mut ctx);
         assert!(
             !mode.is_turn_in_progress(),
-            "/model <name> must not start a turn"
+            "/model <n> must not start a turn"
         );
         assert_eq!(ctx.test_message_count().await, initial_messages);
     }
@@ -3533,7 +3673,7 @@ mod tests {
         assert!(mode
             .history_lines()
             .iter()
-            .any(|line| line == "[diff truncated — showing first 200 lines]"));
+            .any(|line| line == "[diff truncated \u{2014} showing first 200 lines]"));
     }
 
     #[tokio::test]
@@ -3575,6 +3715,179 @@ mod tests {
             args,
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn test_tui_edit_command_starts_edit_loop() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/edit fix the parser bug".to_string(), &mut ctx);
+        assert!(
+            mode.active_edit_loop.is_some(),
+            "/edit must set active_edit_loop"
+        );
+        assert!(
+            mode.is_turn_in_progress(),
+            "/edit must mark turn_in_progress"
+        );
+    }
+
+    #[test]
+    fn test_tui_edit_command_preserves_prior_history_line() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.history_state
+            .lines
+            .push("prior assistant line".to_string());
+
+        mode.on_user_input("/edit fix the parser bug".to_string(), &mut ctx);
+        mode.on_model_update(UiUpdate::StreamDelta("new output".to_string()), &mut ctx);
+
+        assert_eq!(mode.history_state.lines[0], "prior assistant line");
+        assert!(
+            mode.history_state
+                .lines
+                .iter()
+                .any(|line| line.contains("new output")),
+            "stream output must target the fresh placeholder line"
+        );
+    }
+
+    #[test]
+    fn test_tui_fix_without_prior_loop_emits_guidance() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/fix".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[no recent validation failure in this session")),
+            "expected guidance message when no prior loop exists"
+        );
+        assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_tui_fix_during_active_edit_emits_reentrancy_guard() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.active_edit_loop = Some(EditLoop::new("task-existing".to_string()));
+        mode.history_state.turn_in_progress = true;
+        mode.on_user_input("/fix".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[edit loop already active")),
+            "expected reentrancy guard message"
+        );
+    }
+
+    #[test]
+    fn test_tui_second_edit_command_blocked_while_loop_active() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.active_edit_loop = Some(EditLoop::new("task-existing".to_string()));
+        mode.history_state.turn_in_progress = true;
+        mode.on_user_input("/edit add more tests".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[edit loop already active")),
+            "second /edit while loop active must emit reentrancy guard"
+        );
+    }
+
+    #[test]
+    fn test_slash_command_returns_none_for_non_slash_input() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("hello world".to_string(), &mut ctx);
+        assert!(
+            mode.is_turn_in_progress(),
+            "non-slash input must dispatch a model turn"
+        );
+    }
+
+    #[test]
+    fn test_slash_command_does_not_call_start_turn_directly() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/edit refactor the parser".to_string(), &mut ctx);
+        assert_eq!(
+            mode.last_turn_input.as_deref(),
+            Some("refactor the parser"),
+            "/edit must pass bare instruction (not the full slash command) to start_turn"
+        );
+    }
+
+    #[test]
+    fn test_tui_edit_empty_instruction_emits_usage() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/edit".to_string(), &mut ctx);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|l| l.contains("[edit] usage: /edit <instruction>")),
+            "expected usage hint when /edit called without instruction"
+        );
+        assert!(!mode.is_turn_in_progress());
+        assert!(mode.active_edit_loop.is_none());
+    }
+
+    #[test]
+    fn test_tui_edit_loop_completion_clears_busy_state() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/edit refactor the parser".to_string(), &mut ctx);
+
+        mode.on_model_update(
+            UiUpdate::EditLoopComplete {
+                outcome: EditLoopOutcome::MaxTurnsReached { last_error: None },
+                last_validation_result: None,
+            },
+            &mut ctx,
+        );
+
+        assert!(!mode.is_turn_in_progress());
+        assert!(mode.history_state.active_assistant_index.is_none());
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|line| line.contains("[edit loop reached max turns]")),
+            "expected loop completion summary"
+        );
+    }
+
+    #[test]
+    fn test_tui_new_clears_active_edit_loop_field() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+        let mut mode = TuiMode::new();
+        mode.active_edit_loop = Some(EditLoop::new("task-before-new".to_string()));
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/new".to_string(), &mut ctx);
+
+        assert!(
+            mode.active_edit_loop.is_none(),
+            "/new must clear active_edit_loop field"
+        );
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[test]
+    fn test_tui_clear_clears_active_edit_loop_field() {
+        let mut mode = TuiMode::new();
+        mode.active_edit_loop = Some(EditLoop::new("task-before-clear".to_string()));
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/clear".to_string(), &mut ctx);
+
+        assert!(
+            mode.active_edit_loop.is_none(),
+            "/clear must clear active_edit_loop field"
         );
     }
 }
