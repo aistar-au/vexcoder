@@ -1,7 +1,9 @@
 use crate::config::Config;
+use crate::runtime::command::PtySession;
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::context_assembler::{
-    block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout, ContextAssembler,
+    block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout, AssembledContext,
+    ContextAssembler,
 };
 use crate::runtime::edit_loop::EditLoop;
 use crate::runtime::frontend::{ScrollAction, ScrollTarget, UserInputEvent};
@@ -9,7 +11,11 @@ use crate::runtime::mode::RuntimeMode;
 use crate::runtime::policy::sanitize_assistant_text;
 use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
 use crate::runtime::r#loop::Runtime;
-use crate::runtime::{ApprovalScope, Capability, EditLoopOutcome, TaskState, UiUpdate};
+use crate::runtime::validation::ValidationSuite;
+use crate::runtime::{
+    ApprovalScope, Capability, CommandHandle, CommandRequest, CommandResult, CommandRunner,
+    DefaultCommandRunner, EditLoopOutcome, TaskState, UiUpdate,
+};
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
 use crate::session_notes::{
@@ -65,6 +71,313 @@ const MAX_HISTORY_LINES_ENV: &str = "VEX_MAX_HISTORY_LINES";
 const HISTORY_CONTENT_WIDTH_FALLBACK: usize = usize::MAX;
 #[cfg(test)]
 const MAX_INPUT_PANE_ROWS: usize = 6;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SlashCommandId {
+    Quit,
+    Exit,
+    About,
+    MemoryShow,
+    MemoryAdd,
+    MemoryClear,
+    New,
+    Resume,
+    Clear,
+    Fork,
+    Permissions,
+    Allow,
+    Deny,
+    Model,
+    Diff,
+    Edit,
+    Fix,
+    Explain,
+    Run,
+    Test,
+    Context,
+    Commands,
+    Help,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum SlashCommandPattern {
+    Exact(&'static str),
+    ExactOrPrefix {
+        exact: &'static str,
+        prefix: &'static str,
+    },
+}
+
+impl SlashCommandPattern {
+    fn parse<'a>(&self, input: &'a str) -> Option<&'a str> {
+        match self {
+            SlashCommandPattern::Exact(command) => (input == *command).then_some(""),
+            SlashCommandPattern::ExactOrPrefix { exact, prefix } => {
+                if input == *exact {
+                    Some("")
+                } else {
+                    input.strip_prefix(prefix).map(str::trim)
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SlashCommandSpec {
+    id: SlashCommandId,
+    pattern: SlashCommandPattern,
+    display: &'static str,
+    description: &'static str,
+}
+
+impl SlashCommandSpec {
+    const fn new(
+        id: SlashCommandId,
+        pattern: SlashCommandPattern,
+        display: &'static str,
+        description: &'static str,
+    ) -> Self {
+        assert!(
+            !display.is_empty(),
+            "slash command display must not be empty"
+        );
+        assert!(
+            !description.is_empty(),
+            "slash command description must not be empty"
+        );
+        Self {
+            id,
+            pattern,
+            display,
+            description,
+        }
+    }
+}
+
+const SLASH_COMMANDS: &[SlashCommandSpec] = &[
+    SlashCommandSpec::new(
+        SlashCommandId::Edit,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/edit",
+            prefix: "/edit ",
+        },
+        "/edit <instruction>",
+        "start an edit loop",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Fix,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/fix",
+            prefix: "/fix ",
+        },
+        "/fix",
+        "re-run edit loop from last error",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Explain,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/explain",
+            prefix: "/explain ",
+        },
+        "/explain [path]",
+        "explain a file or region; no patch",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Run,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/run",
+            prefix: "/run ",
+        },
+        "/run [command]",
+        "run a command; no model turn",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Test,
+        SlashCommandPattern::Exact("/test"),
+        "/test",
+        "run full validation suite; no model turn",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Context,
+        SlashCommandPattern::Exact("/context"),
+        "/context",
+        "show session context summary; no model turn",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Model,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/model",
+            prefix: "/model ",
+        },
+        "/model [<n>]",
+        "show or switch active model name",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Permissions,
+        SlashCommandPattern::Exact("/permissions"),
+        "/permissions",
+        "show active capability grants",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Allow,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/allow",
+            prefix: "/allow ",
+        },
+        "/allow <cap> [once|session]",
+        "grant a capability",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Deny,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/deny",
+            prefix: "/deny ",
+        },
+        "/deny <cap>",
+        "revoke a capability",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::New,
+        SlashCommandPattern::Exact("/new"),
+        "/new",
+        "save and reset session",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Resume,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/resume",
+            prefix: "/resume ",
+        },
+        "/resume [<task-id>]",
+        "resume a saved session",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Clear,
+        SlashCommandPattern::Exact("/clear"),
+        "/clear",
+        "clear conversation history (keep task)",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Fork,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/fork",
+            prefix: "/fork ",
+        },
+        "/fork [<label>]",
+        "fork current session to new task-id",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::MemoryShow,
+        SlashCommandPattern::Exact("/memory"),
+        "/memory [add <note>|clear]",
+        "view or edit persistent user notes",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::MemoryAdd,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/memory add",
+            prefix: "/memory add ",
+        },
+        "/memory [add <note>|clear]",
+        "view or edit persistent user notes",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::MemoryClear,
+        SlashCommandPattern::Exact("/memory clear"),
+        "/memory [add <note>|clear]",
+        "view or edit persistent user notes",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Commands,
+        SlashCommandPattern::Exact("/commands"),
+        "/commands",
+        "show this list",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Help,
+        SlashCommandPattern::Exact("/help"),
+        "/help",
+        "alias for /commands",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Quit,
+        SlashCommandPattern::Exact("/quit"),
+        "/quit",
+        "save and exit",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Exit,
+        SlashCommandPattern::Exact("/exit"),
+        "/exit",
+        "alias for /quit",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::About,
+        SlashCommandPattern::Exact("/about"),
+        "/about",
+        "show version and build info",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Diff,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/diff",
+            prefix: "/diff ",
+        },
+        "/diff [--staged]",
+        "show working-tree diff; no model turn",
+    ),
+];
+
+struct WorkingDirCommandRunner {
+    working_dir: PathBuf,
+    fallback: DefaultCommandRunner,
+}
+
+impl WorkingDirCommandRunner {
+    fn new(working_dir: PathBuf) -> Self {
+        Self {
+            working_dir,
+            fallback: DefaultCommandRunner::new(),
+        }
+    }
+}
+
+impl CommandRunner for WorkingDirCommandRunner {
+    async fn run_one_shot(&self, req: CommandRequest) -> Result<CommandResult> {
+        let output = tokio::process::Command::new(&req.program)
+            .args(&req.args)
+            .current_dir(&self.working_dir)
+            .output()
+            .await
+            .map_err(anyhow::Error::from)
+            .map_err(|error| {
+                anyhow::anyhow!("failed to execute command '{}': {error}", req.program)
+            })?;
+
+        Ok(CommandResult {
+            exit_code: output.status.code().unwrap_or(-1),
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        })
+    }
+
+    async fn run_streaming(
+        &self,
+        req: CommandRequest,
+        tx: tokio::sync::mpsc::Sender<crate::runtime::OutputChunk>,
+    ) -> Result<CommandHandle> {
+        self.fallback.run_streaming(req, tx).await
+    }
+
+    async fn cancel(&self, handle: CommandHandle) -> Result<()> {
+        self.fallback.cancel(handle).await
+    }
+
+    fn attach_pty(&self, req: CommandRequest) -> Result<PtySession> {
+        self.fallback.attach_pty(req)
+    }
+}
 
 struct HistoryState {
     lines: Vec<String>,
@@ -125,6 +438,7 @@ pub struct TuiMode {
     model_backend: crate::runtime::ModelBackendKind,
     /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
+    last_assembled_context: Option<AssembledContext>,
     active_edit_loop: Option<EditLoop>,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
@@ -206,6 +520,7 @@ impl TuiMode {
             model_name: config.model_name.clone(),
             model_backend: config.model_backend,
             working_dir: config.working_dir.clone(),
+            last_assembled_context: None,
             active_edit_loop: None,
             #[cfg(test)]
             last_turn_input: None,
@@ -520,6 +835,7 @@ impl TuiMode {
         self.history_state.scroll_offset = 0;
         self.history_state.auto_follow = true;
         self.active_stream_blocks.clear();
+        self.last_assembled_context = None;
     }
 
     fn apply_resumed_task(&mut self, state: TaskState, ctx: &RuntimeContext) {
@@ -573,88 +889,60 @@ impl TuiMode {
         }
     }
 
-    fn try_handle_slash_command(&mut self, input: &str, ctx: &mut RuntimeContext) -> bool {
+    fn registered_slash_command(input: &str) -> Option<(&'static SlashCommandSpec, &str)> {
         let trimmed = input.trim();
-        if trimmed == "/quit" || trimmed == "/exit" {
-            self.handle_quit_command();
-            return true;
+        SLASH_COMMANDS
+            .iter()
+            .find_map(|spec| spec.pattern.parse(trimmed).map(|args| (spec, args)))
+    }
+
+    fn is_reentrant_edit_command(input: &str) -> bool {
+        Self::registered_slash_command(input)
+            .map(|(spec, _)| matches!(spec.id, SlashCommandId::Edit | SlashCommandId::Fix))
+            .unwrap_or(false)
+    }
+
+    fn try_handle_slash_command(&mut self, input: &str, ctx: &mut RuntimeContext) -> bool {
+        let Some((spec, args)) = Self::registered_slash_command(input) else {
+            return false;
+        };
+
+        match spec.id {
+            SlashCommandId::Quit | SlashCommandId::Exit => self.handle_quit_command(),
+            SlashCommandId::About => self.handle_about_command(),
+            SlashCommandId::MemoryShow => self.handle_memory_display(),
+            SlashCommandId::MemoryAdd => {
+                if args.is_empty() {
+                    self.push_history_line("[memory] usage: /memory add <note>".to_string());
+                } else {
+                    self.handle_memory_add(args.to_string());
+                }
+            }
+            SlashCommandId::MemoryClear => {
+                self.overlay_state.pending_memory_clear = true;
+                self.push_history_line(
+                    "[memory] clear all notes? type y to confirm or n to cancel".to_string(),
+                );
+            }
+            SlashCommandId::New => self.handle_new_command(ctx),
+            SlashCommandId::Resume => self.handle_resume_command(args, ctx),
+            SlashCommandId::Clear => self.handle_clear_command(ctx),
+            SlashCommandId::Fork => self.handle_fork_command(args, ctx),
+            SlashCommandId::Permissions => self.handle_permissions_command(),
+            SlashCommandId::Allow => self.handle_allow_command(args),
+            SlashCommandId::Deny => self.handle_deny_command(args),
+            SlashCommandId::Model => self.handle_model_command(args, ctx),
+            SlashCommandId::Diff => self.handle_diff_command(args),
+            SlashCommandId::Edit => self.handle_edit_command(args, ctx),
+            SlashCommandId::Fix => self.handle_fix_command(ctx),
+            SlashCommandId::Explain => self.handle_explain_command(args, ctx),
+            SlashCommandId::Run => self.handle_run_command(args),
+            SlashCommandId::Test => self.handle_test_command(),
+            SlashCommandId::Context => self.handle_context_command(ctx),
+            SlashCommandId::Commands | SlashCommandId::Help => self.handle_commands_command(),
         }
-        if trimmed == "/about" {
-            self.handle_about_command();
-            return true;
-        }
-        if trimmed == "/memory" {
-            self.handle_memory_display();
-            return true;
-        }
-        if let Some(note) = trimmed.strip_prefix("/memory add ") {
-            self.handle_memory_add(note.trim().to_string());
-            return true;
-        }
-        if trimmed == "/memory add" {
-            self.push_history_line("[memory] usage: /memory add <note>".to_string());
-            return true;
-        }
-        if trimmed == "/memory clear" {
-            self.overlay_state.pending_memory_clear = true;
-            self.push_history_line(
-                "[memory] clear all notes? type y to confirm or n to cancel".to_string(),
-            );
-            return true;
-        }
-        if trimmed == "/new" {
-            self.handle_new_command(ctx);
-            return true;
-        }
-        if let Some(rest) = trimmed.strip_prefix("/resume") {
-            let task_id = rest.trim();
-            self.handle_resume_command(task_id, ctx);
-            return true;
-        }
-        if trimmed == "/clear" {
-            self.handle_clear_command(ctx);
-            return true;
-        }
-        if let Some(rest) = trimmed.strip_prefix("/fork") {
-            let label = rest.trim();
-            self.handle_fork_command(label, ctx);
-            return true;
-        }
-        if trimmed == "/permissions" {
-            self.handle_permissions_command();
-            return true;
-        }
-        if let Some(rest) = trimmed.strip_prefix("/allow") {
-            self.handle_allow_command(rest.trim());
-            return true;
-        }
-        if let Some(rest) = trimmed.strip_prefix("/deny") {
-            self.handle_deny_command(rest.trim());
-            return true;
-        }
-        if trimmed == "/model" {
-            self.push_history_line(format!("[model] {}", self.model_name));
-            return true;
-        }
-        if let Some(name) = trimmed.strip_prefix("/model ") {
-            self.handle_model_command(name.trim(), ctx);
-            return true;
-        }
-        if trimmed == "/diff" || trimmed.starts_with("/diff ") {
-            let args = trimmed.strip_prefix("/diff").unwrap().trim();
-            self.handle_diff_command(args);
-            return true;
-        }
-        if let Some(rest) = trimmed.strip_prefix("/edit") {
-            let instruction = rest.trim();
-            self.handle_edit_command(instruction, ctx);
-            return true;
-        }
-        if trimmed == "/fix" || trimmed.starts_with("/fix ") {
-            self.handle_fix_command(ctx);
-            return true;
-        }
-        false
+
+        true
     }
 
     fn handle_edit_command(&mut self, instruction: &str, ctx: &mut RuntimeContext) {
@@ -693,6 +981,7 @@ impl TuiMode {
             .active_edit_loop
             .as_ref()
             .and_then(|l| l.last_validation_result())
+            .filter(|result| !result.passed)
             .cloned();
         let Some(result) = last_result else {
             self.push_history_line(
@@ -717,6 +1006,208 @@ impl TuiMode {
             self.last_turn_input = Some(instruction.clone());
         }
         ctx.start_edit_loop(edit_loop, instruction);
+    }
+
+    fn start_single_turn(&mut self, rendered: String, ctx: &mut RuntimeContext) {
+        self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
+        self.history_state.turn_in_progress = true;
+        #[cfg(test)]
+        {
+            self.last_turn_input = Some(rendered.clone());
+        }
+        ctx.start_turn(rendered);
+    }
+
+    fn handle_explain_command(&mut self, path_hint: &str, ctx: &mut RuntimeContext) {
+        let requested_path = if !path_hint.is_empty() {
+            Some(path_hint.to_string())
+        } else {
+            self.current_task
+                .changed_files
+                .last()
+                .map(|path| path.to_string_lossy().into_owned())
+        };
+        let scope_instruction = requested_path
+            .as_deref()
+            .map(|path| format!("explain {path}"))
+            .unwrap_or_else(|| "explain the current workspace state".to_string());
+
+        let assembler = ContextAssembler::default();
+        let operator = ToolOperator::new(self.working_dir.clone());
+        let assembled = assembler.assemble(&scope_instruction, &operator).ok();
+        if let Some(context) = assembled.clone() {
+            self.last_assembled_context = Some(context);
+        }
+        let rendered_context = assembled
+            .as_ref()
+            .map(|context| assembler.render(context))
+            .unwrap_or_else(|| "## Context\n[context: unavailable]\n".to_string());
+
+        let target = requested_path.unwrap_or_else(|| "the current workspace".to_string());
+        let prompt = format!(
+            "Explain the relevant code for {target}. Do not propose patches or tool calls.\n\n{rendered_context}"
+        );
+        self.start_single_turn(prompt, ctx);
+    }
+
+    fn handle_run_command(&mut self, command_str: &str) {
+        let suite = if command_str.is_empty() {
+            let mut inferred = ValidationSuite::load_or_infer(&self.working_dir);
+            inferred.commands.truncate(1);
+            inferred
+        } else {
+            let mut parts = command_str.split_whitespace();
+            let Some(program) = parts.next() else {
+                self.push_history_line("[run] usage: /run [command]".to_string());
+                return;
+            };
+            ValidationSuite {
+                commands: vec![crate::runtime::ValidationCommand {
+                    label: command_str.to_string(),
+                    program: program.to_string(),
+                    args: parts.map(ToString::to_string).collect(),
+                    timeout_secs: 60,
+                }],
+            }
+        };
+
+        self.run_validation_suite_to_transcript(suite, "run", false);
+    }
+
+    fn handle_test_command(&mut self) {
+        let suite = ValidationSuite::load_or_infer(&self.working_dir);
+        self.run_validation_suite_to_transcript(suite, "test", true);
+    }
+
+    fn run_validation_suite_to_transcript(
+        &mut self,
+        suite: ValidationSuite,
+        label: &str,
+        remember_for_fix: bool,
+    ) {
+        if suite.commands.is_empty() {
+            self.push_history_line(format!("[{label}] no commands configured"));
+            return;
+        }
+
+        let runner = WorkingDirCommandRunner::new(self.working_dir.clone());
+        match block_on_context_task(async move { suite.run(&runner).await }) {
+            Ok(result) => {
+                if remember_for_fix {
+                    let mut edit_loop = self
+                        .active_edit_loop
+                        .clone()
+                        .unwrap_or_else(|| EditLoop::new(self.current_task.id.clone()));
+                    edit_loop.set_last_validation_result(result.clone());
+                    self.active_edit_loop = Some(edit_loop);
+                }
+                self.push_validation_result_lines(label, &result);
+            }
+            Err(error) => {
+                self.push_history_line(format!("[{label}] error: {error}"));
+            }
+        }
+    }
+
+    fn push_validation_result_lines(
+        &mut self,
+        label: &str,
+        result: &crate::runtime::ValidationResult,
+    ) {
+        for output in &result.outputs {
+            let status = if output.exit_code == 0 {
+                "ok".to_string()
+            } else {
+                format!("exit {}", output.exit_code)
+            };
+            self.push_history_line(format!("[{label}] {} [{status}]", output.label));
+            if !output.stdout_tail.trim().is_empty() {
+                for line in output.stdout_tail.lines() {
+                    self.push_history_line(format!("  stdout: {line}"));
+                }
+            }
+            if !output.stderr_tail.trim().is_empty() {
+                for line in output.stderr_tail.lines() {
+                    self.push_history_line(format!("  stderr: {line}"));
+                }
+            }
+        }
+
+        let summary = if result.passed {
+            "all commands passed"
+        } else {
+            "one or more commands failed"
+        };
+        self.push_history_line(format!("[{label}] {summary}"));
+    }
+
+    fn handle_context_command(&mut self, ctx: &RuntimeContext) {
+        let turns = if self.active_edit_loop.is_some() && self.history_state.turn_in_progress {
+            "1".to_string()
+        } else {
+            "\u{2014}".to_string()
+        };
+        let files = self
+            .last_assembled_context
+            .as_ref()
+            .map(|context| context.file_snapshots.len())
+            .unwrap_or(0);
+        let git_summary = self.resolve_context_git_summary();
+
+        self.push_history_line("[context]".to_string());
+        self.push_history_line(format!("  model     : {}", self.model_name));
+        self.push_history_line(format!("  backend   : {:?}", self.model_backend));
+        self.push_history_line("  profile   : default".to_string());
+        self.push_history_line(format!("  task      : {}", self.current_task.id));
+        self.push_history_line(format!("  status    : {:?}", self.current_task.status));
+        self.push_history_line(format!("  turns     : {turns}"));
+        self.push_history_line(format!("  files     : {files}"));
+        self.push_history_line(format!("  git       : {git_summary}"));
+        self.push_history_line(format!(
+            "  approvals : {} active grant(s)",
+            self.current_task.active_grants.len()
+        ));
+        self.push_history_line(format!(
+            "  tokens    : ~{}",
+            ctx.estimated_conversation_tokens()
+        ));
+    }
+
+    fn resolve_context_git_summary(&self) -> String {
+        let defaults = ContextAssembler::default();
+        let timeout_ms = resolve_git_timeout_ms(defaults.git_timeout_ms);
+        match block_on_context_task(run_git_command_with_timeout(
+            self.working_dir.clone(),
+            vec!["status".to_string(), "--short".to_string()],
+            timeout_ms,
+        )) {
+            Ok(result) => {
+                if result.non_git_repo {
+                    "no git".to_string()
+                } else if result.timed_out {
+                    "timed out".to_string()
+                } else {
+                    result
+                        .output
+                        .and_then(|text| {
+                            let first = text.lines().next().unwrap_or("clean").trim().to_string();
+                            (!first.is_empty()).then_some(first)
+                        })
+                        .unwrap_or_else(|| "clean".to_string())
+                }
+            }
+            Err(_) => "no git".to_string(),
+        }
+    }
+
+    fn handle_commands_command(&mut self) {
+        let mut seen = std::collections::HashSet::new();
+        self.push_history_line("[commands]".to_string());
+        for spec in SLASH_COMMANDS {
+            if seen.insert(spec.display) {
+                self.push_history_line(format!("  {:32} — {}", spec.display, spec.description));
+            }
+        }
     }
 
     /// PC-01: `/model <n>` — name-only switch within the same backend/protocol.
@@ -1225,11 +1716,8 @@ impl RuntimeMode for TuiMode {
 
         if self.history_state.turn_in_progress {
             let trimmed = input.trim();
-            let reentrant_edit_command = self.active_edit_loop.is_some()
-                && (trimmed == "/edit"
-                    || trimmed.starts_with("/edit ")
-                    || trimmed == "/fix"
-                    || trimmed.starts_with("/fix "));
+            let reentrant_edit_command =
+                self.active_edit_loop.is_some() && Self::is_reentrant_edit_command(trimmed);
             if reentrant_edit_command {
                 self.push_history_line(format!("> {input}"));
                 self.push_history_line(String::new());
@@ -1599,6 +2087,21 @@ mod tests {
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
         let conversation = ConversationManager::new_mock(client, HashMap::new());
         RuntimeContext::new(conversation, tx, CancellationToken::new())
+    }
+
+    fn setup_ctx_with_responses(responses: Vec<Vec<String>>) -> RuntimeContext {
+        let (tx, _rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(responses)));
+        let conversation = ConversationManager::new_mock(client, HashMap::new());
+        RuntimeContext::new(conversation, tx, CancellationToken::new())
+    }
+
+    fn successful_run_input() -> String {
+        if cfg!(windows) {
+            "/run cmd /C exit 0".to_string()
+        } else {
+            "/run sh -c true".to_string()
+        }
     }
 
     #[tokio::test]
@@ -3889,5 +4392,188 @@ mod tests {
             mode.active_edit_loop.is_none(),
             "/clear must clear active_edit_loop field"
         );
+    }
+
+    #[tokio::test]
+    async fn test_tui_explain_does_not_invoke_edit_loop() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx_with_responses(vec![vec![
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Explained\"},\"finish_reason\":\"stop\"}]}".to_string(),
+        ]]);
+
+        mode.on_user_input("/explain src/app.rs".to_string(), &mut ctx);
+
+        tokio::time::timeout(Duration::from_millis(500), async {
+            loop {
+                if ctx.test_message_count().await > 0 {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("/explain must start a single model turn");
+
+        assert!(
+            mode.active_edit_loop.is_none(),
+            "/explain must not invoke EditLoop"
+        );
+    }
+
+    #[test]
+    fn test_tui_run_command_invokes_validation_suite_only() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input(successful_run_input(), &mut ctx);
+
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/run must not start a model turn"
+        );
+        assert!(
+            mode.active_edit_loop.is_none(),
+            "/run must not seed or invoke EditLoop"
+        );
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|line| line.contains("[run]")),
+            "expected /run transcript output"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_tui_context_renders_without_model_turn() {
+        let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        let initial_messages = ctx.test_message_count().await;
+
+        mode.on_user_input("/context".to_string(), &mut ctx);
+
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/context must not start a model turn"
+        );
+        assert_eq!(
+            ctx.test_message_count().await,
+            initial_messages,
+            "/context must not call ctx.start_turn"
+        );
+        assert!(
+            mode.history_lines().iter().any(|line| line == "[context]"),
+            "expected context header"
+        );
+    }
+
+    #[test]
+    fn test_tui_context_shows_tilde_token_estimate() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/context".to_string(), &mut ctx);
+
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|line| line.trim_start().starts_with("tokens") && line.contains('~')),
+            "token estimate line must include '~'"
+        );
+    }
+
+    #[test]
+    fn test_tui_context_shows_active_grants_count() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        mode.current_task
+            .active_grants
+            .insert(Capability::RunCommand, ApprovalScope::Session);
+
+        mode.on_user_input("/context".to_string(), &mut ctx);
+
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|line| line.contains("1 active grant(s)")),
+            "expected active grants count in /context output"
+        );
+    }
+
+    #[test]
+    fn test_tui_commands_renders_all_registered_commands() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/commands".to_string(), &mut ctx);
+
+        assert!(
+            mode.history_lines().iter().any(|line| line == "[commands]"),
+            "expected commands header"
+        );
+        for spec in SLASH_COMMANDS {
+            assert!(
+                mode.history_lines()
+                    .iter()
+                    .any(|line| line.contains(spec.display) && line.contains(spec.description)),
+                "expected '{}' to appear in /commands output",
+                spec.display
+            );
+        }
+    }
+
+    #[test]
+    fn test_tui_help_is_alias_for_commands() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let mut commands_mode = TuiMode::new();
+        let mut help_mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        commands_mode.on_user_input("/commands".to_string(), &mut ctx);
+        help_mode.on_user_input("/help".to_string(), &mut ctx);
+
+        assert_eq!(
+            &commands_mode.history_lines()[2..],
+            &help_mode.history_lines()[2..],
+            "/help must render the same command directory as /commands"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_commands_output_does_not_call_start_turn() {
+        let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        let initial_messages = ctx.test_message_count().await;
+
+        mode.on_user_input("/commands".to_string(), &mut ctx);
+
+        assert!(
+            !mode.is_turn_in_progress(),
+            "/commands must not start a model turn"
+        );
+        assert_eq!(
+            ctx.test_message_count().await,
+            initial_messages,
+            "/commands must not call ctx.start_turn"
+        );
+    }
+
+    #[test]
+    fn test_missing_command_description_is_compile_error() {
+        assert!(
+            !SLASH_COMMANDS.is_empty(),
+            "slash command registry must not be empty"
+        );
+        for spec in SLASH_COMMANDS {
+            assert!(
+                !spec.description.is_empty(),
+                "command '{}' must have a description",
+                spec.display
+            );
+        }
     }
 }
