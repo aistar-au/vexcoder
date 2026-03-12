@@ -218,6 +218,7 @@ where
     let req = CommandRequest {
         program: command.program.clone(),
         args: command.args.clone(),
+        working_dir: None,
     };
 
     let result = timeout(Duration::from_secs(timeout_secs), runner.run_one_shot(req)).await;

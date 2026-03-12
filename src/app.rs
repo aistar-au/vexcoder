@@ -14,7 +14,7 @@ use crate::runtime::r#loop::Runtime;
 use crate::runtime::validation::ValidationSuite;
 use crate::runtime::{
     ApprovalScope, Capability, CommandHandle, CommandRequest, CommandResult, CommandRunner,
-    DefaultCommandRunner, EditLoopOutcome, TaskState, UiUpdate,
+    DefaultCommandRunner, EditLoopOutcome, PassthroughSandbox, SandboxDriver, TaskState, UiUpdate,
 };
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
@@ -332,6 +332,7 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
 struct WorkingDirCommandRunner {
     working_dir: PathBuf,
     fallback: DefaultCommandRunner,
+    sandbox: PassthroughSandbox,
 }
 
 impl WorkingDirCommandRunner {
@@ -339,27 +340,24 @@ impl WorkingDirCommandRunner {
         Self {
             working_dir,
             fallback: DefaultCommandRunner::new(),
+            sandbox: PassthroughSandbox,
         }
     }
 }
 
 impl CommandRunner for WorkingDirCommandRunner {
     async fn run_one_shot(&self, req: CommandRequest) -> Result<CommandResult> {
-        let output = tokio::process::Command::new(&req.program)
-            .args(&req.args)
-            .current_dir(&self.working_dir)
-            .output()
-            .await
-            .map_err(anyhow::Error::from)
-            .map_err(|error| {
-                anyhow::anyhow!("failed to execute command '{}': {error}", req.program)
-            })?;
-
-        Ok(CommandResult {
-            exit_code: output.status.code().unwrap_or(-1),
-            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-        })
+        let CommandRequest {
+            program,
+            args,
+            working_dir,
+        } = req;
+        let wrapped_req = self.sandbox.wrap(CommandRequest {
+            program,
+            args,
+            working_dir: working_dir.or_else(|| Some(self.working_dir.clone())),
+        })?;
+        self.fallback.run_one_shot(wrapped_req).await
     }
 
     async fn run_streaming(
@@ -367,7 +365,17 @@ impl CommandRunner for WorkingDirCommandRunner {
         req: CommandRequest,
         tx: tokio::sync::mpsc::Sender<crate::runtime::OutputChunk>,
     ) -> Result<CommandHandle> {
-        self.fallback.run_streaming(req, tx).await
+        let CommandRequest {
+            program,
+            args,
+            working_dir,
+        } = req;
+        let wrapped_req = self.sandbox.wrap(CommandRequest {
+            program,
+            args,
+            working_dir: working_dir.or_else(|| Some(self.working_dir.clone())),
+        })?;
+        self.fallback.run_streaming(wrapped_req, tx).await
     }
 
     async fn cancel(&self, handle: CommandHandle) -> Result<()> {
@@ -375,7 +383,17 @@ impl CommandRunner for WorkingDirCommandRunner {
     }
 
     fn attach_pty(&self, req: CommandRequest) -> Result<PtySession> {
-        self.fallback.attach_pty(req)
+        let CommandRequest {
+            program,
+            args,
+            working_dir,
+        } = req;
+        let wrapped_req = self.sandbox.wrap(CommandRequest {
+            program,
+            args,
+            working_dir: working_dir.or_else(|| Some(self.working_dir.clone())),
+        })?;
+        self.fallback.attach_pty(wrapped_req)
     }
 }
 
@@ -1050,14 +1068,23 @@ impl TuiMode {
             .unwrap_or_else(|| "explain the current workspace state".to_string());
 
         let assembler = ContextAssembler::default();
+        let render_assembler = assembler.clone();
         let operator = ToolOperator::new(self.working_dir.clone());
-        let assembled = assembler.assemble(&scope_instruction, &operator).ok();
+        let scope_instruction_for_task = scope_instruction.clone();
+        let assembled = block_on_context_task(async move {
+            tokio::task::spawn_blocking(move || {
+                assembler.assemble(&scope_instruction_for_task, &operator)
+            })
+            .await
+            .map_err(|error| anyhow::anyhow!("failed to join context assembly task: {error}"))?
+        })
+        .ok();
         if let Some(context) = assembled.clone() {
             self.last_assembled_context = Some(context);
         }
         let rendered_context = assembled
             .as_ref()
-            .map(|context| assembler.render(context))
+            .map(|context| render_assembler.render(context))
             .unwrap_or_else(|| "## Context\n[context: unavailable]\n".to_string());
 
         let target = requested_path.unwrap_or_else(|| "the current workspace".to_string());

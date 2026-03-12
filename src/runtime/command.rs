@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::io::Read;
+use std::path::PathBuf;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::oneshot;
@@ -8,6 +9,7 @@ use tokio::sync::oneshot;
 pub struct CommandRequest {
     pub program: String,
     pub args: Vec<String>,
+    pub working_dir: Option<PathBuf>,
 }
 
 pub struct CommandResult {
@@ -75,8 +77,12 @@ impl Default for DefaultCommandRunner {
 
 impl CommandRunner for DefaultCommandRunner {
     async fn run_one_shot(&self, req: CommandRequest) -> Result<CommandResult> {
-        let output = Command::new(&req.program)
-            .args(&req.args)
+        let mut command = Command::new(&req.program);
+        command.args(&req.args);
+        if let Some(working_dir) = &req.working_dir {
+            command.current_dir(working_dir);
+        }
+        let output = command
             .output()
             .await
             .with_context(|| format!("Failed to execute command: {}", req.program))?;
@@ -99,8 +105,13 @@ impl CommandRunner for DefaultCommandRunner {
     ) -> Result<CommandHandle> {
         let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
 
-        let mut process = Command::new(&req.program)
-            .args(&req.args)
+        let mut command = Command::new(&req.program);
+        command.args(&req.args);
+        if let Some(working_dir) = &req.working_dir {
+            command.current_dir(working_dir);
+        }
+
+        let mut process = command
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true)
@@ -182,6 +193,9 @@ impl CommandRunner for DefaultCommandRunner {
         for arg in &req.args {
             cmd.arg(arg);
         }
+        if let Some(working_dir) = &req.working_dir {
+            cmd.cwd(working_dir);
+        }
         let pty_process = pair
             .slave
             .spawn_command(cmd)
@@ -214,11 +228,13 @@ mod tests {
             CommandRequest {
                 program: "cmd".into(),
                 args: vec!["/C".into(), "echo".into(), "hello".into()],
+                working_dir: None,
             }
         } else {
             CommandRequest {
                 program: "echo".into(),
                 args: vec!["hello".into()],
+                working_dir: None,
             }
         }
     }
@@ -234,11 +250,13 @@ mod tests {
                     "30".into(),
                     "127.0.0.1".into(),
                 ],
+                working_dir: None,
             }
         } else {
             CommandRequest {
                 program: "sleep".into(),
                 args: vec!["30".into()],
+                working_dir: None,
             }
         }
     }
