@@ -578,7 +578,8 @@ async fn run_print(
 /// Non-destructive workspace scaffolding.  Creates `.vex/config.toml`,
 /// `AGENTS.md`, and `.vex/validate.toml` if they do not already exist.
 const INIT_CONFIG_TEMPLATE: &str = concat!(
-    "# vex workspace config — see docs/adr/ for schema reference\n",
+    "# vex workspace config\n",
+    "# uncomment only the keys you need for this workspace\n",
     "# model_name = \"local/default\"\n",
     "# model_url = \"http://localhost:11434/v1\"\n",
     "# working_dir = \".\"\n",

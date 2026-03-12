@@ -89,9 +89,9 @@ CORE-11 require CORE-08. FEAT-10 through FEAT-14 require CORE-10 and CORE-11.
 
 ### Phase 2 — Runtime correctness and lifecycle
 
-New task manifests at `docs/adr/completed/CORE-12-*.md`, `docs/adr/completed/CORE-13-*.md`,
-`docs/adr/completed/FEAT-15-*.md`, and `docs/adr/completed/FEAT-16-*.md`, with CORE-14 archived at
-`docs/adr/completed/CORE-14-panic-hook-terminal-restore.md`.
+New task manifests at `adr/completed/CORE-12-*.md`, `adr/completed/CORE-13-*.md`,
+`adr/completed/FEAT-15-*.md`, and `adr/completed/FEAT-16-*.md`, with CORE-14 archived at
+`adr/completed/CORE-14-panic-hook-terminal-restore.md`.
 
 | Task | Target files | ADR-012 gate | Anchor test |
 | :--- | :--- | :--- | :--- |

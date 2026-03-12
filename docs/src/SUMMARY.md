@@ -12,11 +12,5 @@
   - [Linux](installation/linux.md)
   - [Windows](installation/windows.md)
 - [Configuration](configuration.md)
-- [TUI Commands](commands.md)
+- [CLI and TUI Commands](commands.md)
 - [Migration Guide](migration.md)
-
-# Reference
-
-- [Architecture Overview](architecture.md)
-- [Contributing](contributing.md)
-- [Architecture Decision Records](adr/index.md)

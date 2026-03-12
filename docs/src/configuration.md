@@ -1,60 +1,121 @@
 # Configuration
 
-VexCoder is configured entirely through environment variables. There are no configuration files. The only required variable is `VEX_MODEL_URL`.
+VexCoder reads configuration from layered TOML files plus environment
+variables. The normal starting point is:
 
-## Required
+```bash
+vex init
+```
+
+## Resolution order
+
+Highest priority wins:
+
+1. Environment variables
+2. Repo-local `.vex/config.toml`
+3. User config: `~/.config/vex/config.toml` or `~/.vex/config.toml`
+4. System config: `/etc/vex/config.toml`
+5. Built-in defaults
+
+`VEX_MODEL_TOKEN` is environment-only. It is never read from config files.
+
+## Active config keys
+
+These keys are read by the current runtime from config files:
+
+| Key | Purpose | Default |
+| :--- | :--- | :--- |
+| `model_url` | Model endpoint URL | `http://localhost:11434/v1` |
+| `model_name` | Model identifier | `local/default` |
+| `working_dir` | Workspace root for tool execution | current directory |
+| `model_backend` | `local-runtime` or `api-server` | inferred |
+| `model_protocol` | `messages-v1` or `chat-compat` | inferred |
+| `tool_call_mode` | `structured` or `tagged-fallback` | inferred |
+| `max_project_instructions_tokens` | Project instructions token budget | `4096` |
+| `max_memory_tokens` | Notes token budget | `2048` |
+| `notes_path` | Notes file used by `/memory` | unset |
+
+`notes_path` is user-config only.
+
+## Environment variables
 
 ### `VEX_MODEL_URL`
 
-The full URL of the inference API endpoint. VexCoder infers the protocol from this value.
+The full model endpoint URL.
 
-- A path containing `/chat/completions` or ending in `/v1` defaults to `chat-compat` (OpenAI-compatible).
-- All other paths default to `messages-v1`.
-
-Local example:
-
-```bash
-VEX_MODEL_URL=http://localhost:8000/v1/messages
-```
-
-Remote example:
-
-```bash
-VEX_MODEL_URL=https://your-inference-server/v1/messages
-```
-
-## Authentication
+- URLs containing `/chat/completions` or ending in `/v1` default to `chat-compat`.
+- Other URLs default to `messages-v1`.
 
 ### `VEX_MODEL_TOKEN`
 
-Bearer token sent in the `Authorization` header. Required for remote endpoints that enforce authentication. Not needed for unauthenticated local endpoints.
-
-## Model selection
+Bearer token for authenticated endpoints.
 
 ### `VEX_MODEL_NAME`
 
-The model identifier passed to the API. Defaults to `local/default` when not set. For remote endpoints this typically needs to match the model name the server recognises.
-
-## Protocol and transport
+Model identifier sent to the API.
 
 ### `VEX_MODEL_PROTOCOL`
 
-Overrides the protocol inferred from the URL. Accepted values: `messages-v1`, `chat-compat`. Useful when your endpoint path does not follow the inference convention.
+Overrides protocol inference. Accepted values: `messages-v1`, `chat-compat`.
 
 ### `VEX_MODEL_BACKEND`
 
-Overrides the backend mode inferred from the URL. Accepted values: `api-server`, `local-runtime`. VexCoder infers this from the URL; set it only if the inference is wrong for your setup.
+Overrides backend inference. Accepted values: `local-runtime`, `api-server`.
 
 ### `VEX_TOOL_CALL_MODE`
 
-Controls how tool calls are encoded in requests. Accepted values: `structured` (default for remote endpoints), `tagged-fallback` (default for local endpoints). The `tagged-fallback` mode embeds tool use in the message text for models that do not support structured tool call APIs.
-
-## Working directory
+Overrides tool-call encoding. Accepted values: `structured`,
+`tagged-fallback`.
 
 ### `VEX_WORKDIR`
 
-Overrides the working directory used for tool execution. Defaults to the current directory at launch. VexCoder confines all file access to this root.
+Overrides the working directory used for tool execution.
 
-## Migration note
+### `VEX_MODEL_HEADERS_JSON`
 
-If you are migrating from a deployment predating the current protocol architecture, see [ADR-022](../adr/ADR-022-free-open-coding-agent-roadmap.md) and its [amendment](../adr/ADR-022-amendment-2026-03-03.md) for the changes to endpoint inference and protocol selection.
+Adds extra request headers as a JSON object.
+
+Example:
+
+```bash
+export VEX_MODEL_HEADERS_JSON='{"X-Client-Id":"vexcoder"}'
+```
+
+### `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS`
+
+Overrides the project instructions token budget.
+
+### `VEX_MAX_MEMORY_TOKENS`
+
+Overrides the notes token budget.
+
+## `vex init` scaffold
+
+`vex init` writes a commented config skeleton. It includes some reserved
+sections for future expansion.
+
+- The active runtime keys are the top-level keys listed above.
+- `[[hooks]]` is active today.
+- Commented `[api]` and `[[mcp_servers]]` blocks are scaffold placeholders.
+
+## Minimal examples
+
+Local endpoint:
+
+```toml
+model_url = "http://localhost:11434/v1"
+model_name = "local/default"
+```
+
+Remote endpoint:
+
+```toml
+model_url = "https://api.example.internal/v1/messages"
+model_name = "repo-assistant"
+```
+
+Token for authenticated endpoints:
+
+```bash
+export VEX_MODEL_TOKEN="your-token"
+```

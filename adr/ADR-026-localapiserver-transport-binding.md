@@ -3,7 +3,7 @@
 **Date:** 2026-03-11
 **Status:** Proposed
 **Deciders:** Core maintainer
-**Location:** `docs/adr/ADR-026-localapiserver-transport-binding.md`
+**Location:** `adr/ADR-026-localapiserver-transport-binding.md`
 **ADR chain:** ADR-025 (runtime JSON handoff contract), ADR-024 (Phase I reservation), ADR-006 (runtime mode contracts)
 **Related:** ADR-023 (deterministic edit loop), ADR-022 (roadmap)
 
@@ -92,18 +92,23 @@ Loopback remains the default bind mode. Non-loopback TCP exposure requires expli
 ### 3.1 TLS boundary (normative)
 
 - **Same machine, same user, private IPC:** prefer Unix-domain socket transport. Loopback HTTP may omit TLS when bearer auth is present.
+- **Loopback detection rule:** for TLS gating, a host is loopback only when it is an IPv4 address in `127.0.0.0/8`, the IPv6 loopback `::1`, or the hostname `localhost` resolving exclusively to those loopback addresses. Any other literal address, hostname, or mixed-resolution result is treated as non-loopback.
 - **TCP beyond strict loopback:** TLS is the default and is required in Phase I. This includes LAN, VPN, container-bridge, SSH-tunneled shared-host, reverse-proxied, browser-accessible, and other meaningful network exposure.
+- **Minimum TLS version:** TLS 1.2 is the minimum supported version for non-loopback TCP exposure. TLS 1.3 is preferred. TLS 1.0 and 1.1 are forbidden in Phase I.
 - **Private-network certificate source:** for local, LAN, and VPN deployments, the certificate may be self-signed, issued by an internal/private CA, or issued by a public CA. This ADR requires encrypted transport on non-loopback TCP; it does not require public-WebPKI issuance for private-network use.
 - **Trust distribution note:** clients that rely on self-signed or internal-CA certificates must install or reference the appropriate trust material. That trust-distribution mechanism is adapter-specific and remains outside this ADR.
 - **Sensitive payload rule:** if prompts, session state, repo contents, tool results, or authentication tokens cross any non-local network path, TLS is mandatory.
 - **Reserved VPN carve-out:** a future ADR may allow authenticated, encrypted overlay networks such as Tailscale or WireGuard to satisfy the transport-encryption requirement when binding directly to a VPN virtual IP. That carve-out is not defined here. Until such an ADR exists, VPN addresses follow the ordinary non-loopback TLS rule. `api.vpn_trust` is a reserved config key only and must remain `false` in Phase I.
-- **Symmetric outbound rule:** ADR-024 applies the same sensitive-payload reasoning to outbound `model_url` connections. Non-loopback model endpoints must not silently fall back to plaintext transport.
+- **`transport = "both"` split:** the HTTP surface follows the same TLS rules as `transport = "http"`. The Unix-socket surface is unaffected by TLS configuration and continues to use filesystem-based auth.
+- **Informational outbound note:** ADR-024 applies the same sensitive-payload reasoning to outbound `model_url` connections. That outbound rule is not enforced by PI-15 in this ADR; it remains an ADR-024 / ADR-022 concern.
 - **Internet-facing advisory:** public-internet exposure is a stronger threat model than ordinary LAN use. TLS plus bearer auth is necessary but not sufficient. Until a later ADR defines built-in rate limiting and stronger client-auth options, operators should treat loopback plus tunnel proxy or loopback plus a hardening reverse proxy as the recommended internet path rather than a direct public bind.
 - **Multi-user or enterprise serving:** TLS plus certificate validation, certificate rotation, and service authentication are conventional hardening requirements. Those broader serving semantics remain out of scope for this ADR unless a later ADR widens them explicitly.
 
 ### 4. HTTP API surface
 
 The initial API surface is minimal. On loopback it may be served as plain HTTP; on any non-loopback TCP bind it must be served with TLS.
+
+When HTTPS is enabled, responses should emit a `Strict-Transport-Security` header. Plain loopback HTTP must not emit HSTS.
 
 #### `GET /v1/health`
 
@@ -324,7 +329,7 @@ socket    = ""              # empty = platform default; Unix only
 key       = "${VEX_API_KEY}"  # env-var reference; repo-local rejected
 tls_cert  = ""              # PEM certificate path; may be self-signed, internal-CA-issued, or public-CA-issued
 tls_key   = ""              # PEM private key path; required for non-loopback TCP
-tls_ca_cert = ""            # PEM CA bundle path for LocalApiServer clients when the server cert chains to a self-signed or internal CA
+tls_ca_cert = ""            # operator reference: PEM CA bundle path distributed to clients when tls_cert chains to a self-signed or internal CA; validated when non-empty, but not consumed by the server's inbound TLS stack
 tls_skip_verify = false     # RESERVED false only; certificate-verification bypass is rejected in Phase I
 vpn_trust = false           # RESERVED false only; VPN carve-out requires a dedicated ADR; TLS still required in Phase I
 ```
@@ -332,12 +337,13 @@ vpn_trust = false           # RESERVED false only; VPN carve-out requires a dedi
 **Transport mode auth rules:**
 
 - `transport = "http"` requires bearer auth; server startup fails without a valid `key`.
+- loopback detection for TLS gating uses `127.0.0.0/8`, `::1`, and `localhost` only when `localhost` resolves exclusively to those loopback addresses.
 - loopback HTTP may run without TLS.
-- non-loopback HTTP must enable TLS; startup fails unless both `tls_cert` and `tls_key` are valid.
-- `tls_ca_cert` may be provided when clients need a non-system trust bundle for a self-signed or internal-CA `LocalApiServer` certificate.
+- non-loopback HTTP must enable TLS; startup fails unless both `tls_cert` and `tls_key` are readable, valid PEM, form a matching certificate/private-key pair, and negotiate TLS 1.2 or newer. Expired or not-yet-valid certificates emit a startup warning.
+- `tls_ca_cert` may be provided when clients need a non-system trust bundle for a self-signed or internal-CA `LocalApiServer` certificate. The server validates the bundle when non-empty, but does not consume it for inbound TLS termination.
 - `tls_skip_verify` must remain `false` in Phase I.
 - `transport = "unix"` uses filesystem auth; `key` is ignored and `api.key` need not be configured.
-- `transport = "both"` enables both surfaces simultaneously. HTTP surface requires bearer auth and follows the same TLS rules as `transport = "http"`; Unix surface uses filesystem auth. The presence of a valid `key` is still required at startup when the HTTP surface is active under `"both"`.
+- `transport = "both"` enables both surfaces simultaneously. HTTP surface requires bearer auth and follows the same TLS rules as `transport = "http"`; Unix surface uses filesystem auth and ignores TLS configuration. The presence of a valid `key` is still required at startup when the HTTP surface is active under `"both"`.
 
 **Forbidden values:**
 
@@ -345,6 +351,8 @@ vpn_trust = false           # RESERVED false only; VPN carve-out requires a dedi
 - non-loopback TCP host values without valid TLS configuration are rejected in Phase I;
 - `tls_skip_verify = true` is rejected in Phase I;
 - `vpn_trust = true` is rejected until a dedicated ADR defines the VPN carve-out.
+
+**Certificate lifecycle note:** certificate hot-reload is deferred in Phase I. `tls_cert`, `tls_key`, and `tls_ca_cert` are loaded and validated at startup only; rotating them requires a server restart.
 
 **ADR-024 reconciliation (pre-merge requirement):** the `api.*` config-key block above must be applied to ADR-024's `Config TOML canonical keys` section before this ADR is merged. ADR-024 is currently `Proposed` status, so this is an in-place amendment consistent with the Proposed-status editing convention. A separate amendment ADR is not required unless ADR-024 is locked before this reconciliation PR lands. The reconciliation PR must also extend ADR-024's Phase I dispatcher checklist from PI-09 through PI-16.
 
@@ -606,8 +614,8 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
 |----|------|--------|
 | **PI-13** | Implement `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [ ] |
 | **PI-14** | Implement `GET /v1/schema` serving ADR-025 schema bundle; exempt from envelope validation | [ ] |
-| **PI-15** | Add Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, private-network certificate support (self-signed/internal-CA/public-CA), `tls_ca_cert` CA-bundle support, explicit `tls_skip_verify` rejection, reserved `vpn_trust` config guard, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
-| **PI-16** | Add integration tests for SSE stream order, SSE keepalive emission, auth failures (`401` for missing/invalid token), non-loopback-without-TLS rejection, `tls_skip_verify=true` rejection, `vpn_trust=true` rejection until a dedicated ADR exists, schema validation, mid-stream runtime error, `MaxTurnsReached` sequence, `POST /v1/interrupt` with unknown task id returns `404`, `POST /v1/approve` with unknown task id returns `404` and with no pending approval returns `409`, and reconnect/new-turn behavior | [ ] |
+| **PI-15** | Add Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, explicit loopback detection (`127.0.0.0/8`, `::1`, `localhost` resolving only to loopback), minimum TLS version 1.2 with 1.3 preferred, private-network certificate support (self-signed/internal-CA/public-CA), `tls_cert`/`tls_key` PEM and key-match validation, `tls_ca_cert` operator trust-bundle support, explicit `tls_skip_verify` rejection, reserved `vpn_trust` config guard, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` HTTP-vs-Unix split, config guards, and repo-local secret rejection | [ ] |
+| **PI-16** | Add integration tests for SSE stream order, SSE keepalive emission, auth failures (`401` for missing/invalid token), loopback classification (`127.0.0.1`, other `127/8`, `::1`, and `localhost`), non-loopback-without-TLS rejection, TLS 1.2 minimum enforcement, `tls_cert`/`tls_key` mismatch rejection, `tls_skip_verify=true` rejection, `vpn_trust=true` rejection until a dedicated ADR exists, schema validation, mid-stream runtime error, `MaxTurnsReached` sequence, `POST /v1/interrupt` with unknown task id returns `404`, `POST /v1/approve` with unknown task id returns `404` and with no pending approval returns `409`, and reconnect/new-turn behavior | [ ] |
 
 ---
 
@@ -648,12 +656,16 @@ When checking any PI-13…PI-16 box, append an evidence block:
 | Do not expose HTTP without bearer auth in Phase I | Mandatory startup/config guard |
 | Do not read `api.key` from repo-local config | Reject at load time |
 | `VEX_API_KEY` must not appear as a literal in committed files | Enforce via secret/config validation and CI repository checks |
-| Do not bind non-loopback TCP without TLS in Phase I | Reject `0.0.0.0`, LAN, VPN, container-bridge, and public addresses unless valid TLS is configured |
-| `tls_ca_cert` must be a valid readable PEM bundle when non-empty | Reject startup if the file is absent or unreadable; do not silently fall back to the system trust store |
+| Loopback detection for TLS gating uses `127.0.0.0/8`, `::1`, and `localhost` resolved only to loopback addresses | Any other literal or resolved address is non-loopback |
+| Do not bind non-loopback TCP without TLS in Phase I | Reject LAN, VPN, container-bridge, public, and other non-loopback addresses unless valid TLS is configured |
+| Minimum TLS version is 1.2; TLS 1.3 is preferred | Reject TLS negotiation below 1.2 on the non-loopback HTTP surface |
+| `tls_cert` and `tls_key` must be readable valid PEM and represent a matching pair | Reject startup on parse or match failure; expired or not-yet-valid certs emit a startup warning |
+| `tls_ca_cert` is operator trust-distribution metadata, not server-side trust bypass | Validate readability when non-empty; the server does not consume it for inbound TLS termination |
 | Do not implement `tls_skip_verify` in Phase I | Certificate-verification bypass defeats the confidentiality and endpoint-identity guarantees that motivate TLS |
 | Do not implement `api.vpn_trust` without a dedicated ADR | A VPN-specific carve-out requires an explicit rule set; until then VPN addresses follow the ordinary non-loopback TLS requirement |
 | Tunnel-proxy internet exposure keeps `LocalApiServer` in loopback mode | Cloudflare Tunnel and equivalent proxies target `127.0.0.1:6274` by default; if `api.port` changes, operator docs must update the tunnel target |
 | Direct internet exposure must not be presented as the default Phase I path | Operator docs must warn that public binds need upstream rate limiting and hardening beyond TLS plus bearer auth |
+| `transport = "both"` applies TLS rules only to the HTTP surface | Unix-socket transport remains filesystem-auth only and is unaffected by TLS config |
 | Do not use SSE event-name taxonomy as semantic state | Event name is always `runtime`; semantics live in JSON |
 | LocalApiServer clients must parse `event: runtime` only | Ignore semantic transport taxonomies such as `chunk`/`done` for this server |
 | Do not alter `vex exec --format jsonl` here | BatchMode remains unchanged |
@@ -663,6 +675,8 @@ When checking any PI-13…PI-16 box, append an evidence block:
 | Unix-socket permissions must be `0600` | Server must create the socket with `0600` and fail startup if broader or unfixable |
 | Stale socket file must be removed at startup before binding | Prevents `EADDRINUSE` on restart after crash |
 | Unix-socket file must be removed on clean shutdown | Prevents stale socket accumulation |
+| TLS certificate hot-reload is deferred in Phase I | Certificate rotation requires a process restart |
+| ADR-024 outbound model TLS note remains informational here | PI-15 does not enforce outbound `model_url` transport policy |
 | `transport = "both"` must enforce HTTP bearer auth on the HTTP surface | The `"both"` mode does not relax HTTP auth |
 | `POST /v1/interrupt` must return `404` for unknown task ids | Idempotent no-op is prohibited; `{"ok":false,"reason":"task_not_found"}` required |
 | `POST /v1/approve` must return `404` for unknown task ids and `409` when no pending approval exists | Silent success on stale or unknown approval is prohibited |
@@ -674,7 +688,7 @@ When checking any PI-13…PI-16 box, append an evidence block:
 
 ## References
 
-- `docs/adr/ADR-025-runtime-json-handoff-contract.md` — canonical runtime JSON contract
-- `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — Phase I reservation and sequencing gate
-- `docs/adr/ADR-023-deterministic-edit-loop.md` — edit-loop and validation behaviors
-- `docs/adr/completed/ADR-006-runtime-mode-contracts.md` — runtime seam contracts
+- `adr/ADR-025-runtime-json-handoff-contract.md` — canonical runtime JSON contract
+- `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — Phase I reservation and sequencing gate
+- `adr/ADR-023-deterministic-edit-loop.md` — edit-loop and validation behaviors
+- `adr/completed/ADR-006-runtime-mode-contracts.md` — runtime seam contracts

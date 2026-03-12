@@ -3,7 +3,6 @@ title = "VexCoder"
 description = "Terminal-first coding assistant with streaming responses, tool execution, and a terminal UI."
 authors = ["aistar-au"]
 language = "en"
-multilingual = false
 src = "docs/src"
 
 [output.html]
