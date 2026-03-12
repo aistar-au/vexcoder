@@ -20,6 +20,9 @@ PATTERN='\b(claude|anthropic|openai|gpt|copilot|gemini|codewhisperer)\b|cursor\.
 BRAND_PATTERN='\b(claude|anthropic|openai|gpt|copilot|gemini|codewhisperer)\b|cursor\.com|\bcursor ai\b|\bVS Code\b'
 
 TARGETS=(src .github Makefile)
+if [[ -d models ]]; then
+  TARGETS+=(models)
+fi
 
 failed=0
 

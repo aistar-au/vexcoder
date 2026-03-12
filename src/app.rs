@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::prompts::{render_explain_prompt, CODER_SYSTEM_PROMPT};
 use crate::runtime::command::PtySession;
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::context_assembler::{
@@ -1042,7 +1043,13 @@ impl TuiMode {
         ctx.start_edit_loop(edit_loop, instruction);
     }
 
-    fn start_single_turn(&mut self, rendered: String, ctx: &mut RuntimeContext, read_only: bool) {
+    fn start_single_turn(
+        &mut self,
+        rendered: String,
+        ctx: &mut RuntimeContext,
+        read_only: bool,
+        supplementary_system_prompt: Option<&str>,
+    ) {
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
         self.read_only_turn_active = read_only;
@@ -1050,7 +1057,10 @@ impl TuiMode {
         {
             self.last_turn_input = Some(rendered.clone());
         }
-        ctx.start_turn(rendered);
+        ctx.start_turn_with_system_prompt(
+            rendered,
+            supplementary_system_prompt.map(ToString::to_string),
+        );
     }
 
     fn handle_explain_command(&mut self, path_hint: &str, ctx: &mut RuntimeContext) {
@@ -1087,11 +1097,8 @@ impl TuiMode {
             .map(|context| render_assembler.render(context))
             .unwrap_or_else(|| "## Context\n[context: unavailable]\n".to_string());
 
-        let target = requested_path.unwrap_or_else(|| "the current workspace".to_string());
-        let prompt = format!(
-            "Explain the relevant code for {target}. Do not propose patches or tool calls.\n\n{rendered_context}"
-        );
-        self.start_single_turn(prompt, ctx, true);
+        let prompt = render_explain_prompt(&scope_instruction, &rendered_context);
+        self.start_single_turn(prompt, ctx, true, Some(CODER_SYSTEM_PROMPT));
     }
 
     fn handle_run_command(&mut self, command_str: &str) {
@@ -4617,6 +4624,13 @@ mod tests {
         assert!(
             mode.active_edit_loop.is_none(),
             "/explain must not invoke EditLoop"
+        );
+        assert!(
+            mode.last_turn_input.as_deref().is_some_and(|prompt| {
+                prompt.contains("Explain the relevant code for the request below.")
+                    && prompt.contains("Request:\nexplain src/app.rs")
+            }),
+            "/explain must render the explain template prompt"
         );
     }
 

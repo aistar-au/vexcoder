@@ -97,6 +97,18 @@ Commands entered inside the interactive UI start with `/`.
 - `/edit <instruction>`
 - `/fix`
 
+### Read-only semantic turns
+
+- `/explain [path]`
+- `/context`
+- `/commands`
+- `/help`
+
+### Validation helpers
+
+- `/run [command]`
+- `/test`
+
 ## Keyboard notes
 
 - `Ctrl+C` requests cancellation for the active turn.

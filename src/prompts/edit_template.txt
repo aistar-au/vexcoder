@@ -1,0 +1,8 @@
+Complete the coding task below using the provided workspace context.
+Return the next coding turn only.
+
+Task:
+{{instruction}}
+
+Context:
+{{context}}

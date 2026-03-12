@@ -1,0 +1,11 @@
+Create a concise implementation plan for the request below.
+Do not propose patches or tool calls in the response.
+
+Request:
+{{instruction}}
+
+Scope:
+{{scope}}
+
+Context:
+{{context}}

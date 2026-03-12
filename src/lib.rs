@@ -4,6 +4,7 @@ pub mod batch_mode;
 pub mod config;
 pub mod edit_diff;
 pub mod git_hooks;
+pub mod prompts;
 pub mod runtime;
 pub(crate) mod session_notes;
 pub mod skills;
