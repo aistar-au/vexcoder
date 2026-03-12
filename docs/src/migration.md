@@ -1,9 +1,8 @@
 # Migration Guide
 
-This document covers migration from pre-ADR-022 vexcoder deployments to the
-current ADR-022/ADR-024 configuration model. It is the canonical source of
-truth for the variable rename table; `vex migrate config` is a convenience
-generator that must match this document exactly.
+This document covers migration from older environment-variable-only vexcoder
+setups to the current config-file-plus-environment model. `vex migrate config`
+is a convenience generator for the mappings listed here.
 
 ---
 
@@ -17,9 +16,8 @@ generator that must match this document exactly.
 | `VEX_STRUCTURED_TOOL_PROTOCOL` | `off` | `tool_call_mode = "tagged-fallback"` | |
 | `VEX_MODEL_URL` | full endpoint path | `model_url` | Strip `/v1/messages` or `/v1/chat/completions` suffix |
 
-These are vexcoder's own pre-ADR-022 variable names. No third-party SDK
-variable names are mapped. Migration from third-party tooling is the
-operator's responsibility.
+These are vexcoder's own legacy variable names. No third-party tool migration
+is performed automatically.
 
 ---
 
@@ -54,20 +52,19 @@ tool_call_mode = "structured"
 
 ## Configuration file locations
 
-vexcoder resolves configuration from five layers (highest priority wins):
+VexCoder resolves configuration from five layers, highest priority first:
 
 | Priority | Source | Path |
 | :--- | :--- | :--- |
-| 1 | Environment variables | `VEX_*` as defined in ADR-022 |
+| 1 | Environment variables | supported `VEX_*` variables |
 | 2 | Repo-local config | `.vex/config.toml` (nearest ancestor `.vex/`) |
 | 3 | User config | `~/.config/vex/config.toml` (XDG) or `~/.vex/config.toml` |
 | 4 | System config | `/etc/vex/config.toml` |
 | 5 | Compiled defaults | Inline defaults |
 
-TOML key names mirror `VEX_*` variable names in snake_case. `VEX_MODEL_TOKEN`
+TOML key names mirror the active runtime keys in snake_case. `VEX_MODEL_TOKEN`
 is never read from any config file. It remains environment-only. `notes_path`
-is the one documented TOML-only key in the current ADR-024 surface, and it is
-accepted in the user config layer only.
+is user-config only.
 
 ---
 
@@ -93,17 +90,8 @@ accepted in the user config layer only.
 | `VEX_TOOL_CALL_MODE` | `structured` or `tagged-fallback` | inferred from endpoint |
 | `VEX_MODEL_HEADERS_JSON` | Extra request headers as a JSON object | (none) |
 | `VEX_WORKDIR` | Working directory for tool execution | `$PWD` |
-| `VEX_MAX_HISTORY_LINES` | Maximum TUI history lines before eviction | `2000` |
 | `VEX_MAX_MEMORY_TOKENS` | Token budget for user notes injection | `2048` |
 | `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS` | Token budget for project instructions injection | `4096` |
-
----
-
-## Command alias reference
-
-| Old command | Current command |
-| :--- | :--- |
-| `/help` | `/commands` |
 
 ---
 

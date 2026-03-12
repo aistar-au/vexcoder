@@ -3,7 +3,7 @@
 **Date:** 2026-03-11
 **Status:** Proposed
 **Deciders:** Core maintainer
-**Location:** `docs/adr/ADR-025-runtime-json-handoff-contract.md`
+**Location:** `adr/ADR-025-runtime-json-handoff-contract.md`
 **ADR chain:** ADR-024 (Phase I reservation), ADR-023 (deterministic edit loop), ADR-006 (runtime mode contracts)
 **Related:** `src/types/api_types.rs`, `src/batch_mode.rs`
 
@@ -838,8 +838,8 @@ ws ::= (" " | "\n" | "\r" | "\t")*
 
 ## References
 
-- `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — Phase I reservation and BatchMode compatibility surface
-- `docs/adr/ADR-023-deterministic-edit-loop.md` — validation and edit-loop event sources
-- `docs/adr/completed/ADR-006-runtime-mode-contracts.md` — runtime seam types and responsibilities
+- `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — Phase I reservation and BatchMode compatibility surface
+- `adr/ADR-023-deterministic-edit-loop.md` — validation and edit-loop event sources
+- `adr/completed/ADR-006-runtime-mode-contracts.md` — runtime seam types and responsibilities
 - `src/types/api_types.rs` — existing provider-facing message and tool-result shapes
 - `src/batch_mode.rs` — existing monolithic `TurnRecord` / `SummaryRecord` JSONL output

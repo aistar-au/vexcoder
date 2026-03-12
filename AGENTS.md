@@ -75,17 +75,17 @@ the product-side constraints:
 | File | Role |
 | :--- | :--- |
 | `CONTRIBUTING.md` | Contributor and workflow reference for this repo. |
-| `docs/adr/ADR-README.md` | Index of all open and completed ADRs. |
-| `docs/adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md` | Audit cleanup and follow-up maintenance context. |
-| `docs/adr/ADR-022-free-open-coding-agent-roadmap.md` | Free/open roadmap target and config/interface decisions. |
-| `docs/adr/ADR-023-deterministic-edit-loop.md` | Locked edit-loop behavior and EL batch sequencing. |
-| `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Parity-gap inventory, command surface, and deferred work. |
+| `adr/ADR-README.md` | Index of all open and completed ADRs. |
+| `adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md` | Audit cleanup and follow-up maintenance context. |
+| `adr/ADR-022-free-open-coding-agent-roadmap.md` | Free/open roadmap target and config/interface decisions. |
+| `adr/ADR-023-deterministic-edit-loop.md` | Locked edit-loop behavior and EL batch sequencing. |
+| `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Parity-gap inventory, command surface, and deferred work. |
 | `Makefile` | Local verification entry points and architecture gate wrappers. |
 
 ## Current cross-repo dependency state
 
 For dispatcher-owned workflow and skill routing, the current active ADR set is
-ADR-021 through ADR-024. `docs/adr/ADR-README.md` remains the full source of
+ADR-021 through ADR-024. `adr/ADR-README.md` remains the full source of
 truth for the broader open-ADR list.
 
 | ADR | Current state | Dependency note |

@@ -3,9 +3,9 @@
 **Date:** 2026-03-03  
 **Status:** Proposed  
 **Deciders:** Core maintainer  
-**Location:** `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md`
+**Location:** `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md`
 **ADR chain:** ADR-022 (as amended 2026-03-03 — amendment status: Proposed, must be locked before Phases G–H begin), ADR-023 (deterministic edit loop), ADR-014, ADR-006
-**Related:** `docs/adr/ADR-022-free-open-coding-agent-roadmap.md` (zero-licensing-cost roadmap), `docs/adr/ADR-023-deterministic-edit-loop.md`
+**Related:** `adr/ADR-022-free-open-coding-agent-roadmap.md` (zero-licensing-cost roadmap), `adr/ADR-023-deterministic-edit-loop.md`
 
 ---
 
@@ -1150,7 +1150,7 @@ socket    = ""              # empty = platform default; Unix only
 key       = "${VEX_API_KEY}"  # user config only when HTTP is enabled; repo-local rejected
 tls_cert  = ""              # PEM certificate path; may be self-signed, internal-CA-issued, or public-CA-issued
 tls_key   = ""              # PEM private key path; required for non-loopback TCP
-tls_ca_cert = ""            # PEM CA bundle path for LocalApiServer clients when the server cert chains to a self-signed or internal CA
+tls_ca_cert = ""            # operator reference: PEM CA bundle path distributed to clients when tls_cert chains to a self-signed or internal CA; validated when non-empty, but not consumed by the server's inbound TLS stack
 tls_skip_verify = false     # RESERVED false only; certificate-verification bypass is rejected in Phase I
 vpn_trust = false           # RESERVED false only; VPN carve-out requires a dedicated ADR; TLS still required in Phase I
 
@@ -1162,7 +1162,7 @@ command   = "npx"
 args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 ```
 
-`api.key` is user-config-only. Repo-local config must reject it at load time, and Phase I must reject non-loopback `api.host` values unless valid TLS is configured for the HTTP surface. For private LAN or VPN use, `tls_cert` may point to a self-signed or internal-CA-issued certificate; a public CA certificate is only required when operators want public-browser trust later. When future LocalApiServer clients need trust material for a self-signed or internal-CA `api.tls_cert`, `api.tls_ca_cert` provides the CA bundle path. `api.tls_skip_verify` is explicitly rejected in Phase I.
+`api.key` is user-config-only. Repo-local config must reject it at load time, and Phase I must reject non-loopback `api.host` values unless valid TLS is configured for the HTTP surface. Loopback detection for this gate covers IPv4 `127.0.0.0/8`, IPv6 `::1`, and `localhost` only when `localhost` resolves exclusively to those loopback addresses. Any other literal or resolved address is non-loopback. For private LAN or VPN use, `tls_cert` may point to a self-signed or internal-CA-issued certificate; a public CA certificate is only required when operators want public-browser trust later. Minimum TLS version is 1.2; TLS 1.3 is preferred. `tls_cert` and `tls_key` must be readable valid PEM and form a matching certificate/private-key pair; expired or not-yet-valid certificates emit a startup warning. When future LocalApiServer clients need trust material for a self-signed or internal-CA `api.tls_cert`, `api.tls_ca_cert` records the CA bundle path distributed to those clients. The server validates that bundle when non-empty but does not consume it for inbound TLS termination. Under `transport = "both"`, these TLS rules apply only to the HTTP surface; the Unix-socket surface continues to use filesystem auth. `api.tls_skip_verify` is explicitly rejected in Phase I, and `api.vpn_trust` remains reserved until a dedicated ADR defines a VPN carve-out. Certificate hot-reload is deferred; rotating TLS material requires a restart.
 
 ---
 
@@ -1480,6 +1480,8 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 
 ## Dispatcher checklist
 
+**Phase I dispatch ordering (post-gate):** once milestone-1 correctness work is validated end-to-end, PI-09 and PI-11 may dispatch in parallel. PI-10 depends on PI-09. PI-12 depends on PI-09 through PI-11. PI-13 and PI-14 may dispatch in parallel only after PI-12 and the ADR-024 reconciliation edits are merged. PI-15 follows PI-13 and PI-14. PI-16 is last. This ordering prioritizes ADR-025 / ADR-026 work immediately after the milestone-1 gate; it does not relax that gate.
+
 | ID | Task | Status |
 | :--- | :--- | :--- |
 | **PA-01** | Layered config resolution chain | [x] |
@@ -1517,8 +1519,8 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-12** | Serde round-trip, schema parity, grammar parity, and BatchMode-derivation tests for the canonical envelope stream | [ ] |
 | **PI-13** | `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [ ] |
 | **PI-14** | `GET /v1/schema` serving the ADR-025 schema bundle; exempt from envelope validation | [ ] |
-| **PI-15** | Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, private-network certificate support (self-signed/internal-CA/public-CA), `tls_ca_cert` CA-bundle support, explicit `tls_skip_verify` rejection, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
-| **PI-16** | Integration tests for stream order, keepalive emission, auth failures, schema validation, mid-stream runtime error, max-turns terminal sequence, interrupt `404`, and reconnect/new-turn behavior | [ ] |
+| **PI-15** | Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, explicit loopback detection (`127.0.0.0/8`, `::1`, `localhost` resolving only to loopback), minimum TLS version 1.2 with 1.3 preferred, private-network certificate support (self-signed/internal-CA/public-CA), `tls_cert`/`tls_key` PEM and key-match validation, `tls_ca_cert` operator trust-bundle support, explicit `tls_skip_verify` rejection, reserved `vpn_trust` config guard, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` HTTP-vs-Unix split, config guards, and repo-local secret rejection | [ ] |
+| **PI-16** | Integration tests for stream order, keepalive emission, auth failures, loopback classification (`127.0.0.1`, other `127/8`, `::1`, and `localhost`), schema validation, mid-stream runtime error, max-turns terminal sequence, interrupt `404`, reconnect/new-turn behavior, non-loopback-without-TLS rejection, TLS 1.2 minimum enforcement, `tls_cert`/`tls_key` mismatch rejection, `tls_skip_verify=true` rejection, and `vpn_trust=true` rejection until a dedicated ADR exists | [ ] |
 | **PJ-01** | `/clear` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [x] |
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
 | **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [x] |
@@ -1617,18 +1619,18 @@ When checking a box above, append an evidence block under this section:
 
 ## Appendix — ADR-022 Amendment (2026-03-03)
 
-The amendment that authorises native packaging and editor-surface work is recorded in `docs/adr/ADR-022-amendment-2026-03-03.md` and must be applied to `docs/adr/ADR-022-free-open-coding-agent-roadmap.md` before Phases G–H work begins. See that file for exact application instructions.
+The amendment that authorises native packaging and editor-surface work is recorded in `adr/ADR-022-amendment-2026-03-03.md` and must be applied to `adr/ADR-022-free-open-coding-agent-roadmap.md` before Phases G–H work begins. See that file for exact application instructions.
 
 ---
 
 ## References
 
-- `docs/adr/ADR-022-free-open-coding-agent-roadmap.md` — zero-licensing-cost coding agent roadmap (permissive-dependency constraint, self-hostable posture)
-- `docs/adr/ADR-022-amendment-2026-03-03.md` — terminal-first constraint scoped to milestone 1
-- `docs/adr/ADR-023-deterministic-edit-loop.md` — edit loop, context assembly, model profiles, semantic commands
-- `docs/adr/completed/ADR-014-runtime-core-policy-dedup-and-enforcement.md` — policy separation
-- `docs/adr/completed/ADR-006-runtime-mode-contracts.md` — runtime mode contracts
-- `docs/adr/ADR-022-amendment-2026-03-03.md` — canonical migration guide and variable rename table
+- `adr/ADR-022-free-open-coding-agent-roadmap.md` — zero-licensing-cost coding agent roadmap (permissive-dependency constraint, self-hostable posture)
+- `adr/ADR-022-amendment-2026-03-03.md` — terminal-first constraint scoped to milestone 1
+- `adr/ADR-023-deterministic-edit-loop.md` — edit loop, context assembly, model profiles, semantic commands
+- `adr/completed/ADR-014-runtime-core-policy-dedup-and-enforcement.md` — policy separation
+- `adr/completed/ADR-006-runtime-mode-contracts.md` — runtime mode contracts
+- `adr/ADR-022-amendment-2026-03-03.md` — canonical migration guide and variable rename table
 - `.agents/skills/registry.toml` — skills registry manifest
 
 ### [PB-01 / PB-02 / PB-03] - completions, hooks, and skills CLI surface
@@ -1794,7 +1796,7 @@ The amendment that authorises native packaging and editor-surface work is record
 - Dispatcher: reconciliation on `dispatcher/vexcoder-adr-024-pi-04-pi-05-pj-01-pj-02-session-lifecycle`; implementation landed earlier
 - Commit: `c14d695160e58209365e2728ff16ac14d0f9acce`
 - Files changed:
-  - `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — PA-03, PA-04 rows flipped to [x] on this branch
+  - `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — PA-03, PA-04 rows flipped to [x] on this branch
 - Prior implementation files at `c14d695160e58209365e2728ff16ac14d0f9acce`:
   - `src/bin/vex.rs` — `vex migrate config` sub-command
   - `docs/src/migration.md` — variable rename table, command alias reference, and usage guide
@@ -1854,7 +1856,7 @@ The amendment that authorises native packaging and editor-surface work is record
 - Files changed:
   - `build.rs` (new) — compile-time injection of `GIT_COMMIT_SHORT` and `BUILD_DATE`
   - `src/app.rs` — `/quit`, `/exit`, `/about` slash commands
-  - `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — roadmap reconciliation
+  - `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — roadmap reconciliation
 - Validation:
   - `cargo test test_tui_quit_command_requests_quit --all-targets` : pass
   - `cargo test test_tui_exit_is_alias_for_quit --all-targets` : pass

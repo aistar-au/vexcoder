@@ -1,9 +1,9 @@
 # Architecture Decision Records
 
-All ADR files live under `docs/adr/`.
+All ADR files live under `adr/`.
 
-- Open ADRs: `docs/adr/ADR-XXX-*.md`
-- Accepted/superseded ADR records: `docs/adr/completed/ADR-XXX-*.md`
+- Open ADRs: `adr/ADR-XXX-*.md`
+- Accepted/superseded ADR records: `adr/completed/ADR-XXX-*.md`
 
 ## Status vocabulary
 

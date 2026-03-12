@@ -1,33 +1,103 @@
-# TUI Commands
+# CLI and TUI Commands
 
-Commands are entered at the VexCoder prompt inside the terminal UI. All commands begin with `/`.
+This page documents the commands and flags implemented in the current binary.
 
-## Reference
+## CLI
 
-### `/commands` or `/help`
+### `vex`
 
-Prints the list of available commands.
+Starts the interactive terminal UI.
 
-### `/clear`
+### `vex --resume [task-id]`
 
-Clears the current conversation and resets the context window. Any active edit loop is cancelled before the conversation is cleared.
+Resumes a saved task. With no task id, VexCoder offers recent tasks for
+selection.
 
-### `/history`
+### `vex -p "PROMPT"` or `vex --print "PROMPT"`
 
-Displays the conversation history for the current session.
+Runs one prompt turn and prints the result to stdout. If stdin is piped, the
+stdin content is prepended to the prompt.
 
-### `/repo`
+### `vex exec --task "TEXT"`
 
-Prints the current working directory root that VexCoder is treating as the repository root. This is the boundary enforced for all tool file operations.
+Runs a non-interactive batch task.
 
-### `/ps`
+Useful flags:
 
-Prints the status of any currently running background processes or pending tool operations.
+- `--task-file PATH`
+- `--max-turns N`
+- `--auto-approve once|task`
+- `--format jsonl|text`
+- `--output PATH`
 
-### `/quit`
+### `vex init [--dir PATH]`
 
-Exits VexCoder cleanly. Pending tool operations are cancelled before exit.
+Creates `.vex/config.toml`, `.vex/validate.toml`, and `AGENTS.md` without
+overwriting existing files.
 
-## Keyboard shortcuts
+### `vex migrate config [--output PATH]`
 
-Inside the editor, standard readline-compatible shortcuts apply. The editor is a single-line input; multi-line content is pasted as a block.
+Writes a TOML fragment based on legacy environment variables.
+
+### `vex completions <bash|zsh|fish|powershell>`
+
+Writes shell completion scripts to stdout.
+
+### `vex install-hooks` and `vex uninstall-hooks`
+
+Installs or removes the repository `prepare-commit-msg` hook.
+
+### `vex skills list`
+
+Lists installed skills.
+
+### `vex skills install SOURCE [--subdir PATH]`
+
+Installs a skill from a git URL or tarball URL.
+
+### `vex skills remove NAME`
+
+Removes an installed skill by name.
+
+## TUI slash commands
+
+Commands entered inside the interactive UI start with `/`.
+
+### Session and task state
+
+- `/new`
+- `/resume [task-id]`
+- `/clear`
+- `/fork [label]`
+- `/quit`
+- `/exit`
+- `/about`
+
+### Memory
+
+- `/memory`
+- `/memory add <note>`
+- `/memory clear`
+
+### Permissions
+
+- `/permissions`
+- `/allow <capability> [once|session]`
+- `/deny <capability>`
+
+### Model and diff helpers
+
+- `/model`
+- `/model <name>`
+- `/diff`
+- `/diff --staged`
+
+### Edit loop
+
+- `/edit <instruction>`
+- `/fix`
+
+## Keyboard notes
+
+- `Ctrl+C` requests cancellation for the active turn.
+- Pasted text is inserted into the input box during normal editing.

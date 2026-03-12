@@ -1,7 +1,7 @@
 # Contributing to vexcoder
 
 > **Version:** This workflow applies from `v0.1.0-alpha.1` onward.
-> **Architecture decisions** live in [`docs/adr/`](docs/adr/ADR-README.md).
+> **Architecture decisions** live in [`adr/`](adr/ADR-README.md).
 > The ADRs explain *why* the project is structured this way. Read them before opening a PR.
 >
 > **Agent bootstrap:** repo-local product guidance stays here, but the active
@@ -14,9 +14,9 @@
 
 ## The Agentic Workflow (Test-Driven Manifest)
 
-`vexcoder` uses the **Test-Driven Manifest (TDM)** strategy for all bug fixes, features, and refactors. The full rationale is in [ADR-001](docs/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md). The short version:
+`vexcoder` uses the **Test-Driven Manifest (TDM)** strategy for all bug fixes, features, and refactors. The full rationale is in [ADR-001](adr/completed/ADR-001-tdm-agentic-manifest-strategy.md). The short version:
 
-1. **Identify task** — Check `docs/adr/` for open architecture decisions.
+1. **Identify task** — Check `adr/` for open architecture decisions.
 2. **Anchor test** — Every task has exactly one failing Rust test before work begins. No anchor, no dispatch.
 3. **Module isolation** — Work is confined to the `Target File` named in the task manifest (± one helper file).
 4. **Verification** — Success is `cargo test <anchor_name>` passing, plus `cargo test --all-targets` showing no regressions.
@@ -90,7 +90,7 @@ source "$HOME/.cargo/env"
 # 2. Verify the environment
 cargo test --all-targets
 
-# 3. Read the relevant ADR in docs/adr/, identify the anchor test
+# 3. Read the relevant ADR in adr/, identify the anchor test
 
 # 4. Implement, then verify
 cargo test test_crit_XX_anchor_name -- --nocapture
@@ -146,7 +146,7 @@ Do not merge packaging work directly from a local debug session; keep the review
 ├── vexcoder/               # This repo — product code and release CI only
 │   ├── CONTRIBUTING.md
 │   ├── README.md
-│   ├── docs/adr/           # Architecture Decision Records
+│   ├── adr/           # Architecture Decision Records
 │   ├── src/                # Rust crate source
 │   └── tests/              # Integration tests
 └── vexdraft/               # Sibling devops repo — dispatcher, commit-debug, skills
@@ -161,7 +161,7 @@ loop and pre-push review to function. The internal layout is the assumed path co
 vexcoder/ (standalone view)
 ├── CONTRIBUTING.md                # Workflow guide + source map
 ├── README.md                      # Runtime and quickstart
-├── docs/adr/                      # Architecture Decision Records (open + completed)
+├── adr/                      # Architecture Decision Records (open + completed)
 ├── src/                           # Rust crate source
 │   └── bin/vex.rs                 # Binary entrypoint
 └── tests/                         # Integration tests
@@ -223,4 +223,4 @@ vexcoder/ (standalone view)
 ## Reference
 
 - [AGENTS.md](AGENTS.md) — bootstrap dependency map for the private dispatcher skill tree
-- [ADR index](docs/adr/ADR-README.md) — architectural decisions and their rationale
+- [ADR index](adr/ADR-README.md) — architectural decisions and their rationale

@@ -60,7 +60,7 @@ The critical architectural constraint preserved by this amendment:
 
 ## Application instructions
 
-Apply by editing `docs/adr/ADR-022-free-open-coding-agent-roadmap.md` in place:
+Apply by editing `adr/ADR-022-free-open-coding-agent-roadmap.md` in place:
 
 1. Replace Decision item 1 with the amended text above.
 2. Append Decision item 11 after item 10.

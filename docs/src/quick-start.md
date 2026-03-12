@@ -1,43 +1,81 @@
 # Quick Start
 
-This page gets you from zero to a running session in the fewest steps. For full platform-specific prerequisites and build options, see the [Installation](installation/index.md) guide.
+This page gets you from clone to a running session in the fewest steps.
 
-## Prerequisites
-
-- Rust stable toolchain (1.75 or later). Install via [rustup](https://rustup.rs).
-- A running inference endpoint that accepts either the `messages-v1` or `chat-compat` (OpenAI-compatible) API.
-
-## Run against a local endpoint
+## 1. Build the binary
 
 ```bash
 git clone https://github.com/aistar-au/vexcoder.git
 cd vexcoder
-VEX_MODEL_URL=http://localhost:8000/v1/messages cargo run
+cargo build --release
 ```
 
-VexCoder infers the protocol from the URL. An endpoint path containing `/v1/messages` uses `messages-v1`. An endpoint path containing `/chat/completions` or ending in `/v1` uses `chat-compat`.
+The binary will be at `target/release/vex`.
 
-## Run against a remote endpoint
+## 2. Create a workspace
 
 ```bash
-VEX_MODEL_URL=https://your-inference-server/v1/messages \
-VEX_MODEL_TOKEN=your-token \
-VEX_MODEL_NAME=your-model-name \
-cargo run
+./target/release/vex init
 ```
 
-## Verify the build gate passes
+This scaffolds:
 
-Before running in a development context, confirm the full gate is green:
+- `.vex/config.toml`
+- `.vex/validate.toml`
+- `AGENTS.md`
+
+## 3. Configure your model endpoint
+
+Local example:
+
+```toml
+# .vex/config.toml
+model_url = "http://localhost:11434/v1"
+model_name = "local/default"
+```
+
+Remote example:
+
+```toml
+# .vex/config.toml
+model_url = "https://your-endpoint.example/v1/messages"
+model_name = "your-model-name"
+```
+
+Export a token only when the endpoint requires one:
+
+```bash
+export VEX_MODEL_TOKEN="your-token"
+```
+
+## 4. Start the interactive UI
+
+```bash
+./target/release/vex
+```
+
+## 5. Run one-shot or batch commands
+
+One-shot plain text:
+
+```bash
+./target/release/vex -p "summarise this repository"
+```
+
+Batch mode:
+
+```bash
+./target/release/vex exec --task "review src/app.rs" --format jsonl
+```
+
+## 6. Verify the local gate
 
 ```bash
 make gate-fast
 ```
 
-This runs `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`, and `cargo test --all-targets`. A green gate is the baseline for any code contribution.
+## Next
 
-## Next steps
-
-- [Configuration reference](configuration.md) — all environment variables
-- [TUI Commands](commands.md) — what you can type inside the session
-- [Installation](installation/index.md) — platform-specific release builds
+- [Configuration](configuration.md)
+- [CLI and TUI Commands](commands.md)
+- [Installation](installation/index.md)

@@ -1,6 +1,6 @@
 # VexCoder
 
-Agentic coding assistant CLI app, implemented as a Rust + Ratatui application.
+Terminal-first coding assistant CLI app, implemented in Rust.
 
 ## Documentation
 
@@ -15,9 +15,12 @@ mdbook serve docs
 - [Quick Start](docs/src/quick-start.md)
 - [Installation — macOS, Linux, Windows](docs/src/installation/index.md)
 - [Configuration](docs/src/configuration.md)
-- [TUI Commands](docs/src/commands.md)
-- [Architecture Overview](docs/src/architecture.md)
-- [Architecture Decision Records](docs/adr/ADR-README.md)
+- [CLI and TUI Commands](docs/src/commands.md)
+- [Migration Guide](docs/src/migration.md)
+
+Architecture records live under [`adr/`](adr/ADR-README.md). They are kept in
+the repository for design history, but are not part of the published user
+guide.
 
 ## Contributing
 
