@@ -1,4 +1,3 @@
-use crate::prompts::CODER_SYSTEM_PROMPT;
 use crate::runtime::{EditLoop, UiUpdate};
 use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock};
 use crate::types::{Content, ContentBlock};
@@ -128,11 +127,11 @@ impl RuntimeContext {
         let mut loop_ctx = self.clone();
 
         tokio::spawn(async move {
-            set_runtime_prompt(
-                &loop_ctx.conversation,
-                Some(CODER_SYSTEM_PROMPT.to_string()),
-            )
-            .await;
+            let system_prompt = edit_loop
+                .profile
+                .system_prompt_text()
+                .expect("edit loop profile system prompt must resolve");
+            set_runtime_prompt(&loop_ctx.conversation, Some(system_prompt.to_string())).await;
 
             let result = edit_loop
                 .run(instruction, &mut loop_ctx, &loop_cancel)

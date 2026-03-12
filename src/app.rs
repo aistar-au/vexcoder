@@ -24,6 +24,7 @@ use crate::session_notes::{
 };
 use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest};
 use crate::tools::ToolOperator;
+use crate::types::ModelProfile;
 use crate::ui::render::history_visual_line_count;
 #[cfg(test)]
 use crate::ui::render::input_visual_rows;
@@ -993,7 +994,8 @@ impl TuiMode {
             return;
         }
         let task_id = self.current_task.id.clone();
-        let edit_loop = EditLoop::new(task_id);
+        let edit_loop = EditLoop::new(task_id)
+            .with_profile(ModelProfile::default_for_backend(self.model_backend));
         self.active_edit_loop = Some(edit_loop.clone());
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
@@ -1032,7 +1034,8 @@ impl TuiMode {
             .map(|o| format!("fix the {} failure", o.label))
             .unwrap_or_else(|| "fix the validation failure".to_string());
         let task_id = self.current_task.id.clone();
-        let edit_loop = EditLoop::new(task_id);
+        let edit_loop = EditLoop::new(task_id)
+            .with_profile(ModelProfile::default_for_backend(self.model_backend));
         self.active_edit_loop = Some(edit_loop.clone());
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
@@ -1145,10 +1148,10 @@ impl TuiMode {
         match block_on_context_task(async move { suite.run(&runner).await }) {
             Ok(result) => {
                 if remember_for_fix {
-                    let mut edit_loop = self
-                        .active_edit_loop
-                        .clone()
-                        .unwrap_or_else(|| EditLoop::new(self.current_task.id.clone()));
+                    let mut edit_loop = self.active_edit_loop.clone().unwrap_or_else(|| {
+                        EditLoop::new(self.current_task.id.clone())
+                            .with_profile(ModelProfile::default_for_backend(self.model_backend))
+                    });
                     edit_loop.set_last_validation_result(result.clone());
                     self.active_edit_loop = Some(edit_loop);
                 }
@@ -1198,6 +1201,12 @@ impl TuiMode {
         } else {
             "\u{2014}".to_string()
         };
+        let profile_name = self
+            .active_edit_loop
+            .as_ref()
+            .map(|edit_loop| edit_loop.profile_name())
+            .unwrap_or("default")
+            .to_string();
         let files = self
             .last_assembled_context
             .as_ref()
@@ -1208,7 +1217,7 @@ impl TuiMode {
         self.push_history_line("[context]".to_string());
         self.push_history_line(format!("  model     : {}", self.model_name));
         self.push_history_line(format!("  backend   : {:?}", self.model_backend));
-        self.push_history_line("  profile   : default".to_string());
+        self.push_history_line(format!("  profile   : {profile_name}"));
         self.push_history_line(format!("  task      : {}", self.current_task.id));
         self.push_history_line(format!("  status    : {:?}", self.current_task.status));
         self.push_history_line(format!("  turns     : {turns}"));
@@ -4784,6 +4793,27 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("1 active grant(s)")),
             "expected active grants count in /context output"
+        );
+    }
+
+    #[test]
+    fn test_tui_context_shows_active_profile_name() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        let mut profile =
+            ModelProfile::default_for_backend(crate::runtime::ModelBackendKind::ApiServer);
+        profile.name = "qwen-coder".to_string();
+        mode.active_edit_loop =
+            Some(EditLoop::new("task-profile".to_string()).with_profile(profile));
+
+        mode.on_user_input("/context".to_string(), &mut ctx);
+
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|line| line.contains("profile") && line.contains("qwen-coder")),
+            "expected active profile name in /context output"
         );
     }
 
