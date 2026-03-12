@@ -23,6 +23,8 @@ This ADR therefore does **not** need to invent a new event schema. Its job is na
 
 > bind ADR-025's canonical runtime JSON contract to a concrete local transport so the runtime can be driven through a local API without duplicating runtime logic.
 
+For milestone 1, CLI/TUI remains the primary operator surface. `LocalApiServer` exists to project ADR-025 envelopes across HTTP or socket boundaries without duplicating runtime behavior, so later adapters can hand off tasks and events as canonical JSON. Browser-specific origin policy, headers, and any in-tree web UI remain deferred.
+
 **Checklist continuation note:** ADR-024 Phase I checklist items PI-01 through PI-08 cover session lifecycle and command-surface work. **Note:** PI-08 (`/plan` and `/context`) is tracked in ADR-023 EL-11/EL-12 and is only listed in ADR-024 for cross-reference. ADR-025 continues the LocalApiServer track from PI-09 through PI-12 for the canonical JSON handoff contract. This ADR continues from PI-13 through PI-16 for transport binding.
 
 ---
@@ -49,7 +51,9 @@ Normative rule:
 
 - runtime logic remains in Rust core/runtime code;
 - transport parsing, auth checks, and stream framing live in the server adapter;
-- native clients, web views, editor panels, and local automation all consume the same canonical event model over a scoped transport surface.
+- native clients, editor panels, local automation, and any later JSON-capable adapter all consume the same canonical event model over a scoped transport surface.
+
+This ADR defines a JSON transport adapter, not a browser frontend contract. CORS, origin allowlists, browser auth flows, and in-tree web-UI behavior require a later ADR if that surface is added.
 
 ### 2. Canonical request and event payloads
 
@@ -87,6 +91,8 @@ Loopback remains the default bind mode. Non-loopback TCP exposure requires expli
 
 - **Same machine, same user, private IPC:** prefer Unix-domain socket transport. Loopback HTTP may omit TLS when bearer auth is present.
 - **TCP beyond strict loopback:** TLS is the default and is required in Phase I. This includes LAN, VPN, container-bridge, SSH-tunneled shared-host, reverse-proxied, browser-accessible, and other meaningful network exposure.
+- **Private-network certificate source:** for local, LAN, and VPN deployments, the certificate may be self-signed, issued by an internal/private CA, or issued by a public CA. This ADR requires encrypted transport on non-loopback TCP; it does not require public-WebPKI issuance for private-network use.
+- **Trust distribution note:** clients that rely on self-signed or internal-CA certificates must install or reference the appropriate trust material. That trust-distribution mechanism is adapter-specific and remains outside this ADR.
 - **Sensitive payload rule:** if prompts, session state, repo contents, tool results, or authentication tokens cross any non-local network path, TLS is mandatory.
 - **Multi-user or enterprise serving:** TLS plus certificate validation, certificate rotation, and service authentication are conventional hardening requirements. Those broader serving semantics remain out of scope for this ADR unless a later ADR widens them explicitly.
 
@@ -303,10 +309,11 @@ Add the following canonical config keys:
 [api]
 transport = "http"          # "http" | "unix" | "both"
 host      = "127.0.0.1"    # default loopback; non-loopback TCP requires TLS in Phase I
+                            # examples: "192.168.1.20" (LAN), "10.0.0.5"/"100.x.y.z" (VPN), "0.0.0.0" (all interfaces)
 port      = 6274            # override via VEX_API_PORT
 socket    = ""              # empty = platform default; Unix only
 key       = "${VEX_API_KEY}"  # env-var reference; repo-local rejected
-tls_cert  = ""              # PEM certificate path; required for non-loopback TCP
+tls_cert  = ""              # PEM certificate path; may be self-signed, internal-CA-issued, or public-CA-issued
 tls_key   = ""              # PEM private key path; required for non-loopback TCP
 ```
 
@@ -399,6 +406,7 @@ This ADR does **not** authorize:
 - OAuth flows
 - WebSocket support
 - multi-user or multi-tenant serving
+- browser-specific origin policy, CORS behavior, or in-tree web-UI behavior
 - cloud-hosted deployment
 - server-defined alternate event schemas
 
@@ -578,7 +586,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
 |----|------|--------|
 | **PI-13** | Implement `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [ ] |
 | **PI-14** | Implement `GET /v1/schema` serving ADR-025 schema bundle; exempt from envelope validation | [ ] |
-| **PI-15** | Add Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
+| **PI-15** | Add Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, private-network certificate support (self-signed/internal-CA/public-CA), stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
 | **PI-16** | Add integration tests for SSE stream order, SSE keepalive emission, auth failures (`401` for missing/invalid token), non-loopback-without-TLS rejection, schema validation, mid-stream runtime error, `MaxTurnsReached` sequence, `POST /v1/interrupt` with unknown task id returns `404`, `POST /v1/approve` with unknown task id returns `404` and with no pending approval returns `409`, and reconnect/new-turn behavior | [ ] |
 
 ---

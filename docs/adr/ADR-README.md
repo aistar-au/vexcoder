@@ -27,7 +27,7 @@ All ADR files live under `docs/adr/`.
 | [ADR-023](ADR-023-deterministic-edit-loop.md) | Deterministic edit loop — context assembly, patch-apply-validate cycle | Locked |
 | [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps — sandboxing, headless, layered config, MCP | Proposed |
 | [ADR-025](ADR-025-runtime-json-handoff-contract.md) | Runtime JSON handoff contract — trait-level event envelopes, JSON projection, and adapter-stable serialization | Proposed |
-| [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding — loopback API surface, SSE streaming, auth model, and schema endpoint | Proposed |
+| [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding — scoped HTTP/Unix-socket API surface, SSE streaming, TLS boundary, auth model, and schema endpoint for runtime JSON handoff | Proposed |
 
 ## Completed ADR Records
 

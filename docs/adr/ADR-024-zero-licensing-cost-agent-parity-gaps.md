@@ -263,7 +263,9 @@ This constraint applies to Phase H specifically. It does not prohibit a future n
 
 #### Phase I — Local API server surface (reserved)
 
-Formally reserved for a dedicated ADR. The `LocalApiServer` is the third `RuntimeMode + FrontendAdapter` implementation after `TuiMode` and `BatchMode`. It exposes the shared runtime core over scoped HTTP or Unix domain socket transports, enabling rich bidirectional communication with native GUI clients (native macOS application, web frontend, IDE extension) without duplicating any Rust logic in those clients. Loopback remains the default bind mode; any non-loopback TCP exposure requires explicit operator configuration and TLS.
+Formally reserved for a dedicated ADR. The `LocalApiServer` is the third `RuntimeMode + FrontendAdapter` implementation after `TuiMode` and `BatchMode`. It exposes the shared runtime core over scoped HTTP or Unix domain socket transports, enabling rich bidirectional communication with future adapters (native macOS application, IDE/editor surface, local automation, and any later browser-based client) without duplicating any Rust logic in those adapters. Loopback remains the default bind mode; any non-loopback TCP exposure requires explicit operator configuration and TLS.
+
+For milestone 1, the in-tree operator surfaces remain CLI/TUI and `BatchMode`. `LocalApiServer` exists to carry the ADR-025 JSON handoff seam across a transport boundary so later task handoff, worker, and agent surfaces can reuse the same canonical envelopes. Browser-specific behavior, origin policy, and any future web UI remain deferred.
 
 The relationship to cloud API servers is direct: architecturally, `LocalApiServer` and a cloud-hosted API server are the same construct — a `RuntimeMode` implementation that accepts requests and streams responses. The network path differs (private IPC, LAN, or internet); the interface contract does not. This means a future cloud-hosted or enterprise-licensed deployment follows the same expansion path: a `RuntimeMode` implementation that routes to a remote transport rather than a local socket.
 
@@ -1125,10 +1127,11 @@ max_project_instructions_tokens = 4096
 [api]
 transport = "http"          # "http" | "unix" | "both"
 host      = "127.0.0.1"     # default loopback; non-loopback TCP requires TLS in Phase I
+                             # examples: "192.168.1.20" (LAN), "10.0.0.5"/"100.x.y.z" (VPN), "0.0.0.0" (all interfaces)
 port      = 6274            # override via VEX_API_PORT
 socket    = ""              # empty = platform default; Unix only
 key       = "${VEX_API_KEY}"  # user config only when HTTP is enabled; repo-local rejected
-tls_cert  = ""              # PEM certificate path; required for non-loopback TCP
+tls_cert  = ""              # PEM certificate path; may be self-signed, internal-CA-issued, or public-CA-issued
 tls_key   = ""              # PEM private key path; required for non-loopback TCP
 
 # MCP servers — user config ONLY. Rejected in repo-local config.
@@ -1139,7 +1142,7 @@ command   = "npx"
 args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 ```
 
-`api.key` is user-config-only. Repo-local config must reject it at load time, and Phase I must reject non-loopback `api.host` values unless valid TLS is configured for the HTTP surface.
+`api.key` is user-config-only. Repo-local config must reject it at load time, and Phase I must reject non-loopback `api.host` values unless valid TLS is configured for the HTTP surface. For private LAN or VPN use, `tls_cert` may point to a self-signed or internal-CA-issued certificate; a public CA certificate is only required when operators want public-browser trust later.
 
 ---
 
@@ -1494,7 +1497,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-12** | Serde round-trip, schema parity, grammar parity, and BatchMode-derivation tests for the canonical envelope stream | [ ] |
 | **PI-13** | `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [ ] |
 | **PI-14** | `GET /v1/schema` serving the ADR-025 schema bundle; exempt from envelope validation | [ ] |
-| **PI-15** | Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
+| **PI-15** | Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, private-network certificate support (self-signed/internal-CA/public-CA), stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` auth rules, config guards, and repo-local secret rejection | [ ] |
 | **PI-16** | Integration tests for stream order, keepalive emission, auth failures, schema validation, mid-stream runtime error, max-turns terminal sequence, interrupt `404`, and reconnect/new-turn behavior | [ ] |
 | **PJ-01** | `/clear` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [x] |
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
@@ -1551,6 +1554,7 @@ When checking a box above, append an evidence block under this section:
 | Do not inject project instructions exceeding token budget | Emit warning and skip the file; do not truncate |
 | Do not auto-install git hooks | `vex install-hooks` must be an explicit operator action |
 | Do not add agent logic, model calls, or conversation state to `packaging/macos/` | Phase H constraint: packaging and credential layer only. A future `LocalApiServer: RuntimeMode + FrontendAdapter` in `src/` is the correct expansion path for a full native client — it is not a violation of this rule |
+| Do not infer browser-specific origin policy or in-tree web-UI behavior from `LocalApiServer` | Phase I defines a JSON transport seam for the runtime core; browser behavior requires a dedicated later ADR |
 | Do not implement `src/index/` without a dedicated ADR | Gap 12 is a formal deferral gate |
 | Do not use `std::process::Command` in `src/tools/workspace_explore.rs` | `search_files` must use `str::contains` from the Rust standard library; no subprocess permitted; no `regex` crate or external pattern-matching dependency |
 | `search_files`, `list_dir`, and `glob_files` must skip `.gitignore`-excluded paths | Apply at minimum `.gitignore` rules before returning results; extend to any workspace ignore mechanism once available |

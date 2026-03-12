@@ -29,6 +29,8 @@ The missing decision is therefore not "SSE first" or "JSONL first." The missing 
 
 > what JSON contract exists between runtime traits so the same runtime can later be projected as a local API without duplicating logic or inventing a second event model.
 
+That seam is broader than a future HTTP server. In milestone 1 it must already support CLI/TUI execution and BatchMode evidence output, and later it must support `LocalApiServer`, task handoff, and other JSON-capable adapters without introducing a second contract. Browser-specific origin policy, web-UI behavior, and multi-agent queue ownership rules remain separate concerns; this ADR defines only the canonical request/event seam they would consume.
+
 **Checklist continuation note:** ADR-024 Phase I checklist items PI-01 through PI-08 cover session lifecycle and command-surface work (`/permissions`, `/allow`, `/deny`, `/new`, `/resume`, `/mcp list`, `/mcp show`, `/plan`/`/context`). **Note:** PI-08 (`/plan` and `/context`) is tracked in ADR-023 EL-11/EL-12 and is only listed in ADR-024 for cross-reference. This ADR continues the LocalApiServer track from PI-09 for the canonical JSON handoff contract. ADR-026 continues from PI-13 for transport binding.
 
 **Current codebase naming note:** the live repository currently contains both provider-facing `ContentBlock::ToolUse { id }` / `ToolResult { tool_use_id, content, is_error }` types in `src/types/api_types.rs` and runtime-facing tool event names such as `StreamBlock::ToolCall` / `ToolResult { tool_call_id, output, is_error }` in the internal streaming path. This ADR does not require those existing names to unify immediately. PI-10 is the normalization layer that maps both existing shapes into one canonical runtime JSON contract.
@@ -430,7 +432,9 @@ The grammar constrains the **shape of the runtime tool-call JSON contract** at t
 **Constraints imposed on future work:**
 
 - No new API adapter may invent a parallel event schema instead of using `RuntimeEnvelope`.
+- Future task-handoff, worker, or multi-agent surfaces must serialize `RuntimeRequest` / `RuntimeEnvelope` (or an explicitly versioned successor) rather than inventing a separate JSON dialect.
 - No frontend or transport layer may consume provider-native event chunks directly.
+- Browser-specific origin policy, CORS behavior, and web-UI interaction rules remain out of scope for this ADR and require a later transport/UI ADR.
 - `schemas/runtime_envelope_v1.json`, `schemas/runtime_request_v1.json`, and `grammars/tool_call.gbnf` must stay in sync with Rust types and normalization rules.
 - Existing BatchMode JSONL remains stable unless a separate ADR authorizes a breaking change.
 - Transport details for LocalApiServer remain defined only in ADR-026.
