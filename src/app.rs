@@ -477,6 +477,19 @@ pub fn kebab_to_capability(s: &str) -> Option<Capability> {
     }
 }
 
+fn capability_for_tool_name(tool_name: &str) -> Option<Capability> {
+    match tool_name {
+        "read_file" | "list_files" | "list_directory" | "search" | "search_files"
+        | "search_content" | "find_files" | "git_status" | "git_diff" | "git_log" | "git_show" => {
+            Some(Capability::ReadFile)
+        }
+        "write_file" | "edit_file" | "rename_file" => Some(Capability::WriteFile),
+        "apply_patch" | "git_add" | "git_commit" => Some(Capability::ApplyPatch),
+        "run_command" => Some(Capability::RunCommand),
+        _ => None,
+    }
+}
+
 fn scope_to_label(scope: ApprovalScope) -> &'static str {
     match scope {
         ApprovalScope::Once => "once",
@@ -1810,14 +1823,36 @@ impl RuntimeMode for TuiMode {
                     let _ = response_tx.send(false);
                     return;
                 }
+
+                self.resolve_pending_approval(false);
+                self.resolve_pending_patch_approval(false);
+
                 if self.overlay_state.auto_approve_session {
                     let _ = response_tx.send(true);
                     self.push_history_line(format!("[auto-approved tool: {tool_name} session]"));
                     return;
                 }
 
-                self.resolve_pending_approval(false);
-                self.resolve_pending_patch_approval(false);
+                if let Some((capability, scope)) =
+                    capability_for_tool_name(&tool_name).and_then(|capability| {
+                        self.current_task
+                            .active_grants
+                            .get(&capability)
+                            .copied()
+                            .map(|scope| (capability, scope))
+                    })
+                {
+                    if matches!(scope, ApprovalScope::Once) {
+                        self.current_task.active_grants.remove(&capability);
+                    }
+                    let _ = response_tx.send(true);
+                    self.push_history_line(format!(
+                        "[auto-approved tool: {tool_name} {} grant]",
+                        scope_to_label(scope)
+                    ));
+                    return;
+                }
+
                 let summary = summarize_tool_approval_context(&tool_name, &input_preview);
                 self.push_history_line(format!("[tool approval requested: {summary}]"));
                 self.overlay_state.pending_approval = Some(PendingApproval {
@@ -3950,6 +3985,133 @@ mod tests {
                 "capability {kebab} failed round-trip through kebab_to_capability"
             );
         }
+    }
+
+    #[test]
+    fn test_capability_for_tool_name_maps_builtin_tools() {
+        assert_eq!(
+            capability_for_tool_name("read_file"),
+            Some(Capability::ReadFile)
+        );
+        assert_eq!(
+            capability_for_tool_name("write_file"),
+            Some(Capability::WriteFile)
+        );
+        assert_eq!(
+            capability_for_tool_name("apply_patch"),
+            Some(Capability::ApplyPatch)
+        );
+        assert_eq!(
+            capability_for_tool_name("run_command"),
+            Some(Capability::RunCommand)
+        );
+        assert_eq!(
+            capability_for_tool_name("git_commit"),
+            Some(Capability::ApplyPatch)
+        );
+        assert_eq!(capability_for_tool_name("unknown_tool"), None);
+    }
+
+    #[tokio::test]
+    async fn test_tool_approval_auto_approves_matching_session_grant() {
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new();
+        mode.current_task
+            .active_grants
+            .insert(Capability::RunCommand, ApprovalScope::Session);
+        let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();
+
+        mode.on_model_update(
+            UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
+                tool_name: "run_command".to_string(),
+                input_preview: "{\"tool\":\"write_file\"}".to_string(),
+                response_tx,
+            }),
+            &mut ctx,
+        );
+
+        assert!(response_rx.await.expect("response should resolve"));
+        assert_eq!(
+            mode.current_task.active_grants.get(&Capability::RunCommand),
+            Some(&ApprovalScope::Session),
+            "session grant must remain after auto-approval"
+        );
+        assert!(
+            mode.overlay_state.pending_approval.is_none(),
+            "matching grant must not open the approval overlay"
+        );
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|line| line.contains("[auto-approved tool: run_command session grant]")),
+            "expected auto-approval transcript entry"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_tool_approval_consumes_matching_once_grant() {
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new();
+        mode.current_task
+            .active_grants
+            .insert(Capability::ApplyPatch, ApprovalScope::Once);
+        let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();
+
+        mode.on_model_update(
+            UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
+                tool_name: "apply_patch".to_string(),
+                input_preview: "{\"path\":\"src/app.rs\"}".to_string(),
+                response_tx,
+            }),
+            &mut ctx,
+        );
+
+        assert!(response_rx.await.expect("response should resolve"));
+        assert!(
+            !mode
+                .current_task
+                .active_grants
+                .contains_key(&Capability::ApplyPatch),
+            "once grant must be consumed after auto-approval"
+        );
+        assert!(
+            mode.overlay_state.pending_approval.is_none(),
+            "matching once grant must not open the approval overlay"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_tool_approval_prompts_when_grant_does_not_match_tool() {
+        let mut ctx = setup_ctx();
+        let mut mode = TuiMode::new();
+        mode.current_task
+            .active_grants
+            .insert(Capability::ApplyPatch, ApprovalScope::Session);
+        let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();
+
+        mode.on_model_update(
+            UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
+                tool_name: "run_command".to_string(),
+                input_preview: "{\"tool\":\"write_file\"}".to_string(),
+                response_tx,
+            }),
+            &mut ctx,
+        );
+
+        let mut response_rx = Box::pin(response_rx);
+        assert!(
+            response_rx.as_mut().now_or_never().is_none(),
+            "non-matching grant must leave approval unresolved"
+        );
+        assert!(
+            mode.overlay_state.pending_approval.is_some(),
+            "non-matching grant must still open the approval overlay"
+        );
+        assert_eq!(
+            mode.current_task.active_grants.get(&Capability::ApplyPatch),
+            Some(&ApprovalScope::Session),
+            "non-matching grant must remain intact"
+        );
     }
 
     // -- PM-01 (app side): build_runtime_with_resume ---------------------------
