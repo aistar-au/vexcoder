@@ -57,10 +57,19 @@ impl EditLoop {
     pub async fn run(
         &mut self,
         _instruction: String,
-        _ctx: &mut RuntimeContext,
+        ctx: &mut RuntimeContext,
         cancel: &CancellationToken,
     ) -> Result<EditLoopOutcome> {
         // EL-03 skeleton only: loop body wiring lands in EL-04.
+        if let Ok(root) = std::env::current_dir() {
+            if Self::check_workspace_dirty(&root, &[])? {
+                ctx.emit_transcript_line(
+                    "[edit loop warning: workspace has uncommitted changes; proceeding without mutating git state]"
+                        .to_string(),
+                );
+            }
+        }
+
         for _ in 0..self.max_turns {
             if cancel.is_cancelled() {
                 return Ok(EditLoopOutcome::Cancelled);
@@ -131,17 +140,20 @@ mod tests {
     use std::sync::Arc;
     use tokio::sync::mpsc;
 
-    fn make_runtime_context() -> RuntimeContext {
-        let (tx, _rx) = mpsc::unbounded_channel::<UiUpdate>();
+    fn make_runtime_context() -> (RuntimeContext, mpsc::UnboundedReceiver<UiUpdate>) {
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
         let conversation = ConversationManager::new_mock(client, HashMap::new());
-        RuntimeContext::new(conversation, tx, CancellationToken::new())
+        let (tx, rx) = mpsc::unbounded_channel::<UiUpdate>();
+        (
+            RuntimeContext::new(conversation, tx, CancellationToken::new()),
+            rx,
+        )
     }
 
     #[tokio::test]
     async fn test_edit_loop_terminates_at_max_turns() {
         let mut edit_loop = EditLoop::new("task-001".to_string()).with_max_turns(1);
-        let mut ctx = make_runtime_context();
+        let (mut ctx, _rx) = make_runtime_context();
         let cancel = CancellationToken::new();
 
         let outcome = edit_loop
@@ -159,7 +171,7 @@ mod tests {
     #[tokio::test]
     async fn test_edit_loop_returns_cancelled_when_token_is_pre_cancelled() {
         let mut edit_loop = EditLoop::new("task-002".to_string());
-        let mut ctx = make_runtime_context();
+        let (mut ctx, _rx) = make_runtime_context();
         let cancel = CancellationToken::new();
         cancel.cancel();
 
@@ -242,14 +254,23 @@ mod tests {
         let clean =
             EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("target.rs")])
                 .expect("clean check");
-        assert!(!clean, "workspace should report clean immediately after commit");
+        assert!(
+            !clean,
+            "workspace should report clean immediately after commit"
+        );
 
-        fs::write(workspace.path().join("target.rs"), "fn main() { /* dirty */ }\n")
-            .expect("mutate");
+        fs::write(
+            workspace.path().join("target.rs"),
+            "fn main() { /* dirty */ }\n",
+        )
+        .expect("mutate");
         let dirty =
             EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("target.rs")])
                 .expect("dirty check");
-        assert!(dirty, "workspace should report dirty after tracked file change");
+        assert!(
+            dirty,
+            "workspace should report dirty after tracked file change"
+        );
     }
 
     #[tokio::test]
@@ -262,7 +283,7 @@ mod tests {
         });
 
         let mut edit_loop = EditLoop::new("task-cancel-mid".to_string()).with_max_turns(4);
-        let mut ctx = make_runtime_context();
+        let (mut ctx, _rx) = make_runtime_context();
         let outcome = edit_loop
             .run("edit src/lib.rs".to_string(), &mut ctx, &cancel)
             .await
@@ -272,5 +293,50 @@ mod tests {
             matches!(outcome, EditLoopOutcome::Cancelled),
             "loop must return Cancelled when token fires mid-run"
         );
+    }
+
+    #[tokio::test]
+    async fn test_edit_loop_run_emits_dirty_workspace_warning_to_transcript() {
+        let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+        let original_dir = std::env::current_dir().expect("current_dir");
+        let workspace = tempfile::tempdir().expect("tempdir");
+        fs::write(workspace.path().join("tracked.txt"), "v1\n").expect("seed file");
+        run_git(workspace.path(), &["init"]);
+        run_git(workspace.path(), &["add", "tracked.txt"]);
+        run_git(
+            workspace.path(),
+            &[
+                "-c",
+                "user.name=codex",
+                "-c",
+                "user.email=codex@example.com",
+                "commit",
+                "-m",
+                "init",
+            ],
+        );
+        fs::write(workspace.path().join("tracked.txt"), "v2\n").expect("mutate file");
+        std::env::set_current_dir(workspace.path()).expect("set_current_dir");
+
+        let mut edit_loop = EditLoop::new("task-dirty-warning".to_string()).with_max_turns(1);
+        let (mut ctx, mut rx) = make_runtime_context();
+        let cancel = CancellationToken::new();
+        let outcome = edit_loop
+            .run("edit tracked.txt".to_string(), &mut ctx, &cancel)
+            .await
+            .expect("run should succeed");
+        std::env::set_current_dir(original_dir).expect("restore current_dir");
+
+        let warning = rx.recv().await.expect("expected transcript update");
+        match warning {
+            UiUpdate::TranscriptLine(line) => {
+                assert!(
+                    line.contains("workspace has uncommitted changes"),
+                    "expected workspace-dirty warning, got: {line}"
+                );
+            }
+            _ => panic!("expected transcript warning update"),
+        }
+        assert!(matches!(outcome, EditLoopOutcome::MaxTurnsReached { .. }));
     }
 }

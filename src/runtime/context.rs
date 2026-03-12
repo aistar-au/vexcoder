@@ -10,6 +10,16 @@ pub struct RuntimeContext {
     cancel: CancellationToken,
 }
 
+impl Clone for RuntimeContext {
+    fn clone(&self) -> Self {
+        Self {
+            conversation: Arc::clone(&self.conversation),
+            update_tx: self.update_tx.clone(),
+            cancel: self.cancel.clone(),
+        }
+    }
+}
+
 impl RuntimeContext {
     pub fn new(
         conversation: ConversationManager,
@@ -137,6 +147,10 @@ impl RuntimeContext {
         }
 
         self.conversation.blocking_lock().clear_messages();
+    }
+
+    pub fn emit_transcript_line(&self, line: String) {
+        let _ = self.update_tx.send(UiUpdate::TranscriptLine(line));
     }
 }
 

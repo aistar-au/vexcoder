@@ -1222,6 +1222,18 @@ impl RuntimeMode for TuiMode {
         }
 
         if self.history_state.turn_in_progress {
+            let trimmed = input.trim();
+            let reentrant_edit_command = self.active_edit_loop.is_some()
+                && (trimmed == "/edit"
+                    || trimmed.starts_with("/edit ")
+                    || trimmed == "/fix"
+                    || trimmed.starts_with("/fix "));
+            if reentrant_edit_command {
+                self.push_history_line(format!("> {input}"));
+                self.push_history_line(String::new());
+                let _ = self.try_handle_slash_command(&input, ctx);
+                return;
+            }
             if self.history_state.cancel_pending {
                 self.push_history_line(
                     "[busy - cancelling current turn, input discarded]".to_string(),
@@ -1257,6 +1269,9 @@ impl RuntimeMode for TuiMode {
 
     fn on_model_update(&mut self, update: UiUpdate, _ctx: &mut RuntimeContext) {
         match update {
+            UiUpdate::TranscriptLine(line) => {
+                self.push_history_line(line);
+            }
             UiUpdate::StreamDelta(text) => {
                 if self.history_state.cancel_pending {
                     return;
