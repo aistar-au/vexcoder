@@ -5,7 +5,7 @@
 > The ADRs explain *why* the project is structured this way. Read them before opening a PR.
 >
 > **Agent bootstrap:** repo-local product guidance stays here, but the active
-> dispatcher skills now live in the internal private repo
+> dispatcher skills now live in the internal repository
 > `../vexdraft/.agents/skills/`.
 > Read [`AGENTS.md`](AGENTS.md) first for the dependency map and required load
 > order before using the private skill tree against this repo.
@@ -149,7 +149,7 @@ Do not merge packaging work directly from a local debug session; keep the review
 │   ├── docs/adr/           # Architecture Decision Records
 │   ├── src/                # Rust crate source
 │   └── tests/              # Integration tests
-└── vexdraft/               # Sibling devops repo — dispatcher, commit-debug, skills
+└── vexdraft/               # Internal devops repository — dispatcher, commit-debug, skills
     └── scripts/
         └── commit-debug.py # Multi-provider pre-push reviewer (called by dispatcher)
 ```

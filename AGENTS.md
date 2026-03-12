@@ -8,7 +8,7 @@
 
 `vexcoder` is the public product repo. The dispatcher skills, PR-contract
 rules, commit-debug tooling, docs automation, and roadmap automation that drive
-agent workflows now live in the internal private repo `../vexdraft`.
+agent workflows now live in the internal repository `../vexdraft`.
 
 This file is the bootstrap dependency map for agents working in `vexcoder`.
 Read it first, then follow the linked local and internal-repo sources.
