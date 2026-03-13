@@ -108,8 +108,8 @@ On acceptance of ADR-018 and successful CORE-17 cutover:
 **Status: Corrected by ADR-027**
 
 This document specified the full-screen TUI + captured streaming design.
-That design has been **corrected and enhanced** per ADR-027 (Codex/Copilot CLI
-alignment).
+That design has been **corrected and enhanced** per ADR-027 (full-screen
+command-session capture alignment).
 
 **Key corrections:**
 - Signal handling fixed (Ctrl+C propagation to subprocess)
@@ -118,7 +118,7 @@ alignment).
 - PTY support documented (interactive tools)
 
 **Design retained:**
-- Full-screen alternate screen (Codex/Copilot pattern)
+- Full-screen alternate screen (hosted-agent session pattern)
 - Command output capture (agent observability)
 - StreamBlock events for transcript
 

@@ -14,11 +14,11 @@
 
 1. **Remote API users** who connect to `api.anthropic.com` using the Anthropic Messages API (`/v1/messages`). This group uses hosted models and expects streaming SSE with `content_block_start` / `content_block_delta` events and native `tool_use` blocks.
 
-2. **Local model users** who run llama.cpp server, Ollama, or LM Studio locally. These tools expose an OpenAI-compatible `/v1/chat/completions` endpoint. This group cannot use the Anthropic protocol but wants the same agentic loop with local models.
+2. **Local model users** who run llama.cpp server, Ollama, or LM Studio locally. These tools expose a chat-completions-compatible `/v1/chat/completions` endpoint. This group cannot use the Anthropic protocol but wants the same agentic loop with local models.
 
 Requiring users to configure a protocol enum explicitly would create friction. Most users know their endpoint URL but do not necessarily know which wire protocol it speaks.
 
-Additionally, tool call representation differs between protocols: Anthropic uses structured `tool_use` content blocks; OpenAI uses `tool_calls` arrays in assistant deltas. The stream parser and message history builder must handle both.
+Additionally, tool call representation differs between protocols: Anthropic uses structured `tool_use` content blocks; the chat-completions protocol uses `tool_calls` arrays in assistant deltas. The stream parser and message history builder must handle both.
 
 A tagged-text fallback (`<function=name><parameter=key>value</parameter></function>`) also exists for local models that do not support either native tool protocol reliably.
 
@@ -29,8 +29,8 @@ A tagged-text fallback (`<function=name><parameter=key>value</parameter></functi
 Implement a single `ApiClient` that internally selects between `ApiProtocol::AnthropicMessages` and `ApiProtocol::OpenAiChatCompletions` based on the endpoint URL, with a manual override via `VEX_API_PROTOCOL`.
 
 **Protocol inference rules** (`infer_api_protocol()`):
-- URL contains `/chat/completions` → OpenAI
-- URL ends with `/v1` → OpenAI (base path convention)
+- URL contains `/chat/completions` → chat-completions protocol
+- URL ends with `/v1` → chat-completions protocol (base path convention)
 - Anything else → Anthropic Messages (default)
 
 **URL adaptation** (`adapt_to_openai_chat_completions_url()`):
@@ -38,7 +38,7 @@ Implement a single `ApiClient` that internally selects between `ApiProtocol::Ant
 - `/v1` → `/v1/chat/completions`
 - Already correct → unchanged
 
-**Stream parser** (`src/api/stream.rs`): attempts Anthropic SSE parse first; on failure attempts OpenAI chunk parse. OpenAI tool calls are translated into the same `StreamEvent` enum used by the Anthropic path, so `ConversationManager` is protocol-agnostic above the stream layer.
+**Stream parser** (`src/api/stream.rs`): attempts Anthropic SSE parse first; on failure attempts chat-completions chunk parse. Chat-completions tool calls are translated into the same `StreamEvent` enum used by the Anthropic path, so `ConversationManager` is protocol-agnostic above the stream layer.
 
 **Tagged-text fallback**: if neither protocol produces tool use blocks, `parse_tagged_tool_calls()` scans the assistant text for `<function=name>` syntax. This provides compatibility with models that emit tool calls as formatted text rather than structured JSON.
 
@@ -64,7 +64,7 @@ Cleaner at the type level but forces `ConversationManager` to accept a trait obj
 
 More explicit but creates friction. The most common migration path (Anthropic → local model) requires the user to edit two fields instead of one.
 
-### OpenAI protocol only, with an Anthropic adapter
+### Chat-completions protocol only, with an Anthropic adapter
 
 Would lose native Anthropic features (extended thinking, `betas` headers, native tool_choice) that do not map cleanly to the OpenAI schema.
 
@@ -73,16 +73,16 @@ Would lose native Anthropic features (extended thinking, `betas` headers, native
 ## Consequences
 
 **Easier:**
-- Zero-config local model support. Point `ANTHROPIC_API_URL` at any OpenAI-compatible server and it works.
+- Zero-config local model support. Point `ANTHROPIC_API_URL` at any chat-completions-compatible server and it works.
 - `ConversationManager` is protocol-agnostic; no protocol logic leaks into the conversation layer.
 - The tagged fallback means even models that ignore the tools schema can participate in the agentic loop.
 
 **Harder:**
-- The stream parser is more complex: it attempts two parse strategies per SSE event. Parse errors from the Anthropic path are silently retried as OpenAI before being logged.
+- The stream parser is more complex: it attempts two parse strategies per SSE event. Parse errors from the Anthropic path are silently retried as chat-completions protocol before being logged.
 - Testing requires mock streams for both protocols (see `src/api/mock_client.rs`).
 - Adding a third protocol requires extending the enum, the inference logic, the URL adapter, and the stream parser. The abstraction is extensible but not free.
 
 **Constraints imposed on future work:**
 - Protocol selection must remain automatic (URL-inferred) for the common case. Do not make `VEX_API_PROTOCOL` required.
-- New protocol-specific features (e.g., Anthropic extended thinking) must degrade gracefully when the active protocol is OpenAI.
+- New protocol-specific features (e.g., Anthropic extended thinking) must degrade gracefully when the active protocol is chat-completions based.
 - All protocol paths must be covered by integration tests using `MockApiClient`. Adding a new protocol path without mock coverage is not acceptable.

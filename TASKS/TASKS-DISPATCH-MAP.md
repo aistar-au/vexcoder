@@ -20,13 +20,13 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-013-tui-completion-deployment-plan.md` | Proposed |
 | `adr/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md` | Superseded by ADR-027 |
 | `adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md` | Accepted, follow-up maintenance remains |
-| `adr/ADR-022-amendment-2026-03-03.md` | Proposed |
+| `adr/ADR-022-amendment-2026-03-13.md` | Proposed |
 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed |
 | `adr/ADR-023-deterministic-edit-loop.md` | Locked |
 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed |
 | `adr/ADR-025-runtime-json-handoff-contract.md` | Proposed |
 | `adr/ADR-026-localapiserver-transport-binding.md` | Proposed |
-| `adr/ADR-027-primary-terminal-overlay-tui-and-command-passthrough.md` | Accepted |
+| `adr/ADR-027-full-screen-tui-command-session-capture.md` | Accepted |
 
 ## Immediate Dependency Notes
 
@@ -48,8 +48,8 @@ ADR-025 and ADR-026 are the first post-gate Phase I dispatch track. This
 dispatch note is descriptive only and does not relax the milestone-1 gate.
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
-current reference for terminal-overlay rendering and interactive command
-passthrough behavior.
+current reference for full-screen rendering and interactive command-session
+capture behavior.
 
 ## Tracking Notes
 

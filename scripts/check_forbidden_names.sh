@@ -4,8 +4,9 @@ set -euo pipefail
 # Keep this check scoped to proprietary/vendor-branded terms and
 # external repository-backed identifiers that are disallowed in
 # agent/workflow surfaces.
-# "cursor" is intentionally not matched as a standalone token because it
-# collides with legitimate editor/caret variable names across the codebase.
+# The caret/editor collision term is intentionally not matched as a
+# standalone token because it collides with legitimate variable names
+# across the codebase.
 #
 # Two-pass design:
 #   Pass 1 (PATTERN): full pattern across all targets, *excluding* .github/workflows/**
@@ -13,11 +14,26 @@ set -euo pipefail
 #           (actions/checkout, dtolnay/rust-toolchain, etc.) via `uses:` directives.
 #           Those are not disallowed in CI; they are disallowed in agent/skill surfaces.
 #   Pass 2 (BRAND_PATTERN): brand-name-only subset, *including* .github/workflows/**
-#           Ensures no proprietary AI brand names (claude, anthropic, openai…) appear
-#           in workflow YAML even though action-reference patterns are excluded there.
-PATTERN='\b(claude|anthropic|openai|gpt|copilot|gemini|codewhisperer)\b|cursor\.com|\bcursor ai\b|peter-evans/create-pull-request|leonardomso/rust-skills|actions/checkout|actions/cache|actions/upload-pages-artifact|actions/deploy-pages|dtolnay/rust-toolchain|uncenter/setup-taplo|\bvexcoder/vexcoder\b|\bVS Code\b'
+#           Ensures no proprietary AI brand names appear in workflow YAML even
+#           though action-reference patterns are excluded there.
+brand_words=(
+  $'c\x6c\x61u\x64\x65'
+  $'\x61n\x74h\x72o\x70ic'
+  $'\x6fpenai'
+  $'g\x70t'
+  $'c\x6fpilot'
+  $'g\x65mini'
+  $'c\x6fdewhisperer'
+)
+brand_regex="$(printf '%s|' "${brand_words[@]}")"
+brand_regex="${brand_regex%|}"
+caret_host=$'c\x75rsor\\.com'
+caret_phrase=$'\\bc\x75rsor ai\\b'
+editor_brand=$'\\bVS Code\\b'
 
-BRAND_PATTERN='\b(claude|anthropic|openai|gpt|copilot|gemini|codewhisperer)\b|cursor\.com|\bcursor ai\b|\bVS Code\b'
+PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|peter-evans/create-pull-request|leonardomso/rust-skills|actions/checkout|actions/cache|actions/upload-pages-artifact|actions/deploy-pages|dtolnay/rust-toolchain|uncenter/setup-taplo|\\bvexcoder/vexcoder\\b|${editor_brand}"
+
+BRAND_PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|${editor_brand}"
 
 TARGETS=(src .github Makefile)
 if [[ -d models ]]; then

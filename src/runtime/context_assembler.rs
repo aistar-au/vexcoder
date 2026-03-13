@@ -747,9 +747,9 @@ mod tests {
             workspace.path(),
             &[
                 "-c",
-                "user.name=codex",
+                "user.name=vex-test",
                 "-c",
-                "user.email=codex@example.com",
+                "user.email=vex-test@example.com",
                 "commit",
                 "-m",
                 "init",
@@ -792,9 +792,9 @@ mod tests {
             workspace.path(),
             &[
                 "-c",
-                "user.name=codex",
+                "user.name=vex-test",
                 "-c",
-                "user.email=codex@example.com",
+                "user.email=vex-test@example.com",
                 "commit",
                 "-m",
                 "init",

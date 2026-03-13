@@ -6,10 +6,9 @@ This page documents the commands and flags implemented in the current binary.
 
 ### `vex`
 
-Starts the interactive terminal UI as a primary-terminal overlay. The bottom
-status/transcript/input panes stay inside the current terminal instead of
-switching to an alternate screen buffer, so pre-launch shell scrollback remains
-available.
+Starts the interactive terminal UI in the alternate screen buffer. The managed
+session takes over the full terminal while it runs, so pre-launch shell
+scrollback is hidden until the UI exits.
 
 ### `vex --resume [task-id]`
 

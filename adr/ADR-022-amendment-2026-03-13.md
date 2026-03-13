@@ -7,12 +7,12 @@
 
 ## Command Execution (AMENDED 2026-03-13)
 
-**Aligned with Codex CLI / Copilot CLI pattern.**
+**Aligned with the current full-screen command-capture runtime pattern.**
 
 Command execution uses **full capture** for agent observability:
 
 - `Stdio::piped()` for stdout/stderr (not inherit)
-- Output streamed to transcript via `StreamBlock` events
+- Output rendered inside the managed transcript from captured stdout/stderr
 - Agent maintains full visibility of captured child-process output
 - Enables mid-task approvals, interruptions, reasoning
 
@@ -51,19 +51,19 @@ if let Some(dir) = &req.working_dir {
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Command capture | Complete | Captured in transcript via `StreamBlock`, concurrent sessions |
+| Command capture | Complete | Captured in the managed transcript for command-session runs |
 | Signal handling | Complete | `kill_on_drop(true)` + process group kill on cancel |
 | PTY support | Partial | Basic emulation via `portable_pty`, full tokio-pty pending |
 | Working dir validation | Complete | Already in command.rs |
 | Layout underflow | Complete | Saturating arithmetic in layout.rs |
-| Concurrent validation | Complete | `futures::future::join_all` in ValidationSuite::run |
-| run_command tool | Complete | Model-visible dispatch arm in tools.rs |
+| Concurrent validation | Complete | ValidationSuite::run executes commands concurrently in the workspace working dir |
+| run_command tool | Complete | Model-visible dispatch uses the same command runner contract and workspace working dir |
 | Edit loop | Complete | assemble→model→apply→validate→retry in edit_loop.rs |
 
 ## Compliance
 
 All future command tools must:
 1. Use capture path (no passthrough)
-2. Stream output via `StreamBlock` events
+2. Render captured stdout/stderr inside the managed session output
 3. Validate working directory before spawn
 4. Support timeout and cancellation

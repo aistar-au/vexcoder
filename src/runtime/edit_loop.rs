@@ -20,6 +20,7 @@ pub struct EditLoop {
     pub max_turns: u8,
     pub stop_on_clean_validate: bool,
     pub profile: ModelProfile,
+    working_dir: PathBuf,
     last_validation_result: Option<ValidationResult>,
 }
 
@@ -43,6 +44,7 @@ impl EditLoop {
             max_turns: DEFAULT_MAX_TURNS,
             stop_on_clean_validate: true,
             profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
+            working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             last_validation_result: None,
         }
     }
@@ -61,6 +63,11 @@ impl EditLoop {
         self
     }
 
+    pub fn with_working_dir(mut self, working_dir: PathBuf) -> Self {
+        self.working_dir = working_dir;
+        self
+    }
+
     pub fn profile_name(&self) -> &str {
         self.profile.name.as_str()
     }
@@ -76,17 +83,15 @@ impl EditLoop {
         cancel: &CancellationToken,
     ) -> Result<EditLoopOutcome> {
         // EL-03 step 1: workspace-dirty warning.
-        if let Ok(root) = std::env::current_dir() {
-            if Self::check_workspace_dirty(&root, &[])? {
-                ctx.emit_transcript_line(
+        if Self::check_workspace_dirty(&self.working_dir, &[])? {
+            ctx.emit_transcript_line(
                     "[edit loop warning: workspace has uncommitted changes; proceeding without mutating git state]"
                         .to_string(),
                 );
-            }
         }
 
         // EL-04: assemble → model → apply → validate → retry cycle.
-        let root = std::env::current_dir().unwrap_or_default();
+        let root = self.working_dir.clone();
         let validation_suite = ValidationSuite::load_or_infer(&root);
         let runner = DefaultCommandRunner::new();
 
@@ -129,7 +134,7 @@ impl EditLoop {
 
             // Validate: run the project validation suite concurrently.
             ctx.emit_transcript_line("[edit loop: running validation]".to_string());
-            let validation_result = validation_suite.run(&runner).await?;
+            let validation_result = validation_suite.run_in_dir(&runner, Some(&root)).await?;
             self.set_last_validation_result(validation_result.clone());
 
             if validation_result.passed {
@@ -267,9 +272,9 @@ mod tests {
             workspace.path(),
             &[
                 "-c",
-                "user.name=codex",
+                "user.name=vex-test",
                 "-c",
-                "user.email=codex@example.com",
+                "user.email=vex-test@example.com",
                 "commit",
                 "-m",
                 "init",
@@ -312,9 +317,9 @@ mod tests {
             workspace.path(),
             &[
                 "-c",
-                "user.name=codex",
+                "user.name=vex-test",
                 "-c",
-                "user.email=codex@example.com",
+                "user.email=vex-test@example.com",
                 "commit",
                 "-m",
                 "init",
@@ -377,9 +382,9 @@ mod tests {
             workspace.path(),
             &[
                 "-c",
-                "user.name=codex",
+                "user.name=vex-test",
                 "-c",
-                "user.email=codex@example.com",
+                "user.email=vex-test@example.com",
                 "commit",
                 "-m",
                 "init",

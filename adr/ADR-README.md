@@ -22,13 +22,13 @@ All ADR files live under `adr/`.
 | [ADR-013](ADR-013-tui-completion-deployment-plan.md) | TUI completion and deployment plan | Proposed |
 | [ADR-018](ADR-018-managed-tui-scrollback-streaming-cell-overlays.md) | Managed TUI scrollback, streaming cell, overlays | Superseded by ADR-027 |
 | [ADR-021](ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md) | Codebase audit: dead weight, duplication, and shared-code opportunities | Accepted (follow-up maintenance items remain) |
-| [ADR-022 amendment](ADR-022-amendment-2026-03-03.md) | ADR-022 scope amendment — re-scopes terminal-first as milestone constraint, not permanent identity | Proposed |
+| [ADR-022 amendment](ADR-022-amendment-2026-03-13.md) | ADR-022 command-execution amendment for full-screen command capture alignment | Proposed |
 | [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed |
 | [ADR-023](ADR-023-deterministic-edit-loop.md) | Deterministic edit loop — context assembly, patch-apply-validate cycle | Locked |
 | [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps — sandboxing, headless, layered config, MCP | Proposed |
 | [ADR-025](ADR-025-runtime-json-handoff-contract.md) | Runtime JSON handoff contract — trait-level event envelopes, JSON projection, and adapter-stable serialization | Proposed |
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding — scoped HTTP/Unix-socket API surface, SSE streaming, TLS boundary, auth model, and schema endpoint for runtime JSON handoff | Proposed |
-| [ADR-027](ADR-027-primary-terminal-overlay-tui-and-command-passthrough.md) | Codex/Copilot CLI alignment — full-screen TUI with command capture | Accepted |
+| [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI with command-session capture | Accepted |
 
 ## Completed ADR Records
 

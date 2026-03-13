@@ -18,13 +18,16 @@ pub enum UiUpdate {
     },
     ToolApprovalRequest(ToolApprovalRequest),
     CommandSessionAttached {
+        session_id: u64,
         pid: Option<u32>,
     },
     EditLoopComplete {
         outcome: EditLoopOutcome,
         last_validation_result: Option<ValidationResult>,
     },
-    CommandSessionFinished,
+    CommandSessionFinished {
+        session_id: u64,
+    },
     TurnComplete,
     Error(String),
 }

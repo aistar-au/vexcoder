@@ -376,7 +376,7 @@ impl RuntimeMode for BatchMode {
                 let _ = response_tx.send(approved);
             }
             UiUpdate::CommandSessionAttached { .. } => {}
-            UiUpdate::CommandSessionFinished => {}
+            UiUpdate::CommandSessionFinished { .. } => {}
             UiUpdate::EditLoopComplete { .. } => {}
         }
     }

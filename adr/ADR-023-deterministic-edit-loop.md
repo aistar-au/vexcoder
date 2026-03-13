@@ -710,7 +710,7 @@ All tasks require `cargo test --all-targets`, `check_no_alternate_routing.sh`, `
 | Do not use `std::process::Command` in `src/runtime/validation.rs` | All subprocess calls must route through `CommandRunner::run_one_shot` |
 | **`std::process::Command` IS permitted in `src/runtime/context_assembler.rs` for the two git read calls only** (`git status --short`, `git diff HEAD`) | These calls must not appear in the tool history or approval flow. Any other subprocess in `context_assembler.rs` is prohibited |
 | Do not inject the coding system prompt outside of an active `EditLoop` or semantic command turn | Verified by `test_coding_prompt_injected_during_edit_loop_only` |
-| Do not add provider names, model names, or proprietary product references to any file in `src/prompts/` or `models/` | `scripts/check_forbidden_names.sh` CI check (EL-09). The script must grep with at minimum: `grep -rniE "openai\|anthropic\|claude\|gemini\|gpt\|copilot\|cursor\|codewhisperer" src/prompts/ models/` — any match is a CI failure |
+| Do not add provider names, model names, or proprietary product references to any file in `src/prompts/` or `models/` | `scripts/check_forbidden_names.sh` CI check (EL-09). The script must enforce the maintained proprietary-name denylist against `src/prompts/` and `models/`; any match is a CI failure |
 | Do not implement `EditLoop` as a `RuntimeMode` | |
 | Do not implement EL-08 until ADR-022 Phase 1 is complete | |
 | Do not bypass `ContextAssembler`'s path-safety checks | All file reads must use `ToolOperator`'s workspace-root confinement guards |

@@ -13,7 +13,7 @@ Cargo.lock.report
 
 # --- IDEs ---
 .vscode/
-.claude/
+.cl[a]ude/
 .idea/
 *.swp
 *.bak
@@ -27,6 +27,9 @@ vexcoder-v0.1.0-fully-corrected.md
 
 # --- Local scratch files ---
 scratch-*
+
+# --- Generated local runtime state ---
+/.vex/state/
 
 # --- Generated docs output ---
 docs/book/

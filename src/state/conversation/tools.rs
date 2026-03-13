@@ -84,41 +84,45 @@ impl ConversationManager {
         self.run_hooks(HookEvent::PreTool, &tool_name, input, stream_delta_tx)
             .await?;
 
-        let task_name = tool_name.clone();
-        let task_input = input.clone();
-        let task_executor = self.tool_operator.clone();
-        #[cfg(test)]
-        let task_mock_responses = self.mock_tool_operator_responses.clone();
-
-        let mut task = tokio::task::spawn_blocking(move || {
+        let tool_result = if name == "run_command" {
+            execute_run_command_tool(&self.tool_operator, input, tool_timeout).await
+        } else {
+            let task_name = tool_name.clone();
+            let task_input = input.clone();
+            let task_executor = self.tool_operator.clone();
             #[cfg(test)]
-            {
-                execute_tool_blocking_with_operator(
-                    &task_executor,
-                    &task_name,
-                    &task_input,
-                    task_mock_responses,
-                )
-            }
-            #[cfg(not(test))]
-            {
-                execute_tool_blocking_with_operator(&task_executor, &task_name, &task_input)
-            }
-        });
+            let task_mock_responses = self.mock_tool_operator_responses.clone();
 
-        let tool_result = match tokio::time::timeout(tool_timeout, &mut task).await {
-            Ok(join_result) => match join_result {
-                Ok(result) => result,
-                Err(join_error) => Err(anyhow::anyhow!(
-                    "Tool execution task failed for {tool_name}: {join_error}"
-                )),
-            },
-            Err(_) => {
-                task.abort();
-                Err(anyhow::anyhow!(
-                    "Tool execution timed out after {}s for {tool_name}",
-                    tool_timeout.as_secs()
-                ))
+            let mut task = tokio::task::spawn_blocking(move || {
+                #[cfg(test)]
+                {
+                    execute_tool_blocking_with_operator(
+                        &task_executor,
+                        &task_name,
+                        &task_input,
+                        task_mock_responses,
+                    )
+                }
+                #[cfg(not(test))]
+                {
+                    execute_tool_blocking_with_operator(&task_executor, &task_name, &task_input)
+                }
+            });
+
+            match tokio::time::timeout(tool_timeout, &mut task).await {
+                Ok(join_result) => match join_result {
+                    Ok(result) => result,
+                    Err(join_error) => Err(anyhow::anyhow!(
+                        "Tool execution task failed for {tool_name}: {join_error}"
+                    )),
+                },
+                Err(_) => {
+                    task.abort();
+                    Err(anyhow::anyhow!(
+                        "Tool execution timed out after {}s for {tool_name}",
+                        tool_timeout.as_secs()
+                    ))
+                }
             }
         };
 
@@ -220,6 +224,52 @@ impl ConversationManager {
 
         Ok(())
     }
+}
+
+async fn execute_run_command_tool(
+    tool_operator: &ToolOperator,
+    input: &serde_json::Value,
+    tool_timeout: Duration,
+) -> Result<String> {
+    let program = required_tool_string_any(
+        input,
+        "run_command",
+        "command",
+        &["command", "program", "cmd"],
+    )?;
+    let args: Vec<String> = input
+        .get("args")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let request = PassthroughSandbox.wrap(CommandRequest {
+        program: program.to_string(),
+        args,
+        working_dir: Some(tool_operator.working_dir().to_path_buf()),
+    })?;
+    let runner = DefaultCommandRunner::new();
+    let output = tokio::time::timeout(tool_timeout, runner.run_one_shot(request))
+        .await
+        .map_err(|_| {
+            anyhow::anyhow!(
+                "Tool execution timed out after {}s for run_command",
+                tool_timeout.as_secs()
+            )
+        })??;
+
+    let mut result = format!("exit_code: {}\n", output.exit_code);
+    if !output.stdout.is_empty() {
+        result.push_str(&format!("stdout:\n{}", output.stdout));
+    }
+    if !output.stderr.is_empty() {
+        result.push_str(&format!("stderr:\n{}", output.stderr));
+    }
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -424,38 +474,7 @@ pub(super) fn execute_tool_dispatch(
                 .collect::<Vec<_>>()
                 .join("\n"))
         }
-        "run_command" => {
-            let program =
-                required_tool_string_any(input, name, "command", &["command", "program", "cmd"])?;
-            let args: Vec<String> = input
-                .get("args")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str().map(String::from))
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            let output = std::process::Command::new(program)
-                .args(&args)
-                .stdin(std::process::Stdio::null())
-                .output()
-                .with_context(|| format!("failed to execute command: {program}"))?;
-
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let exit_code = output.status.code().unwrap_or(-1);
-
-            let mut result = format!("exit_code: {exit_code}\n");
-            if !stdout.is_empty() {
-                result.push_str(&format!("stdout:\n{stdout}"));
-            }
-            if !stderr.is_empty() {
-                result.push_str(&format!("stderr:\n{stderr}"));
-            }
-            Ok(result)
-        }
+        "run_command" => bail!("run_command must execute through the runtime command runner"),
         _ => bail!("Unknown tool: {name}"),
     }
 }

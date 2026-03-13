@@ -59,6 +59,17 @@ impl ValidationSuite {
     where
         R: CommandRunner + ?Sized,
     {
+        self.run_in_dir(runner, None).await
+    }
+
+    pub async fn run_in_dir<R>(
+        &self,
+        runner: &R,
+        working_dir: Option<&Path>,
+    ) -> Result<ValidationResult>
+    where
+        R: CommandRunner + ?Sized,
+    {
         if self.commands.is_empty() {
             return Ok(ValidationResult {
                 passed: true,
@@ -70,7 +81,7 @@ impl ValidationSuite {
         let futures: Vec<_> = self
             .commands
             .iter()
-            .map(|command| run_validation_command(command, runner))
+            .map(|command| run_validation_command(command, runner, working_dir))
             .collect();
 
         let results = futures::future::join_all(futures).await;
@@ -214,7 +225,11 @@ impl ValidationSuite {
     }
 }
 
-async fn run_validation_command<R>(command: &ValidationCommand, runner: &R) -> ValidationOutput
+async fn run_validation_command<R>(
+    command: &ValidationCommand,
+    runner: &R,
+    working_dir: Option<&Path>,
+) -> ValidationOutput
 where
     R: CommandRunner + ?Sized,
 {
@@ -234,7 +249,7 @@ where
     let req = CommandRequest {
         program: command.program.clone(),
         args: command.args.clone(),
-        working_dir: None,
+        working_dir: working_dir.map(Path::to_path_buf),
     };
 
     let result = timeout(Duration::from_secs(timeout_secs), runner.run_one_shot(req)).await;
@@ -316,8 +331,8 @@ fn load_validate_toml(raw: &str) -> std::result::Result<Vec<ValidationCommand>, 
 #[cfg(test)]
 mod tests {
     use super::{
-        load_validate_toml, makefile_has_test_target, ValidationOutput, ValidationResult,
-        ValidationSuite,
+        load_validate_toml, makefile_has_test_target, ValidationCommand, ValidationOutput,
+        ValidationResult, ValidationSuite,
     };
     use std::fs;
 
@@ -457,6 +472,43 @@ mod tests {
         assert!(
             result.outputs.is_empty(),
             "empty validation suite must produce no outputs"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_validation_suite_run_in_dir_uses_requested_working_dir() {
+        use crate::runtime::command::DefaultCommandRunner;
+
+        let workspace = tempfile::tempdir().expect("tempdir");
+        let suite = ValidationSuite {
+            commands: vec![ValidationCommand {
+                label: "print working dir".to_string(),
+                #[cfg(windows)]
+                program: "cmd".to_string(),
+                #[cfg(not(windows))]
+                program: "pwd".to_string(),
+                #[cfg(windows)]
+                args: vec!["/C".to_string(), "cd".to_string()],
+                #[cfg(not(windows))]
+                args: Vec::new(),
+                timeout_secs: 2,
+            }],
+        };
+        let runner = DefaultCommandRunner::new();
+
+        let result = suite
+            .run_in_dir(&runner, Some(workspace.path()))
+            .await
+            .expect("validation suite must run");
+
+        assert!(result.passed);
+        assert_eq!(result.outputs.len(), 1);
+        assert!(
+            result.outputs[0]
+                .stdout_tail
+                .contains(&workspace.path().display().to_string()),
+            "validation command must run from requested working dir: {:?}",
+            result.outputs[0]
         );
     }
 }

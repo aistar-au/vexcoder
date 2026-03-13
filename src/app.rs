@@ -20,9 +20,9 @@ use crate::runtime::validation::ValidationSuite;
 #[cfg(test)]
 use crate::runtime::CommandResult;
 use crate::runtime::{
-    truncate_head_bytes, truncate_tail_bytes, ApprovalScope, Capability, CommandRequest,
-    CommandRunner, DefaultCommandRunner, EditLoopOutcome, PassthroughSandbox, SandboxDriver,
-    TaskState, TaskStatus, UiUpdate,
+    truncate_head_bytes, ApprovalScope, Capability, CommandRequest, CommandRunner,
+    DefaultCommandRunner, EditLoopOutcome, PassthroughSandbox, SandboxDriver, TaskState,
+    TaskStatus, UiUpdate,
 };
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
@@ -465,6 +465,7 @@ struct OverlayState {
 
 #[derive(Clone, Debug, Default)]
 struct CommandSessionState {
+    id: u64,
     command: String,
     pid: Option<u32>,
     status: String,
@@ -485,6 +486,7 @@ pub struct TuiMode {
     history_state: HistoryState,
     overlay_state: OverlayState,
     command_sessions: Vec<CommandSessionState>,
+    next_command_session_id: u64,
     history_line_cap: usize,
     repo_label: String,
     instructions_path: Option<String>,
@@ -636,66 +638,7 @@ async fn run_validation_suite_capture(
     // so no sandbox wrapping is applied.  A future ADR-024 follow-up may
     // thread the operator-configured sandbox driver into validation execution.
     let runner = DefaultCommandRunner::new();
-    let mut passed = true;
-    let mut outputs = Vec::with_capacity(suite.commands.len());
-
-    for command in suite.commands {
-        let request = CommandRequest {
-            program: command.program.clone(),
-            args: command.args.clone(),
-            working_dir: Some(working_dir.clone()),
-        };
-
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(command.timeout_secs.max(1)),
-            runner.run_one_shot(request),
-        )
-        .await
-        {
-            Ok(Ok(result)) => {
-                if result.exit_code != 0 {
-                    passed = false;
-                }
-                let (stdout_tail, stdout_truncated) = truncate_tail_bytes(&result.stdout, 4096);
-                let (stderr_tail, stderr_truncated) = truncate_tail_bytes(&result.stderr, 4096);
-                outputs.push(crate::runtime::ValidationOutput {
-                    label: command.label,
-                    exit_code: result.exit_code,
-                    stdout_tail,
-                    stderr_tail,
-                    stdout_truncated,
-                    stderr_truncated,
-                });
-            }
-            Ok(Err(error)) => {
-                passed = false;
-                outputs.push(crate::runtime::ValidationOutput {
-                    label: command.label,
-                    exit_code: -1,
-                    stdout_tail: String::new(),
-                    stderr_tail: error.to_string(),
-                    stdout_truncated: false,
-                    stderr_truncated: false,
-                });
-            }
-            Err(_) => {
-                passed = false;
-                outputs.push(crate::runtime::ValidationOutput {
-                    label: command.label,
-                    exit_code: -1,
-                    stdout_tail: String::new(),
-                    stderr_tail: format!(
-                        "validation command timed out after {}s",
-                        command.timeout_secs.max(1)
-                    ),
-                    stdout_truncated: false,
-                    stderr_truncated: false,
-                });
-            }
-        }
-    }
-
-    Ok(crate::runtime::ValidationResult { passed, outputs })
+    suite.run_in_dir(&runner, Some(&working_dir)).await
 }
 
 fn format_command_session_started(command: &str, pid: Option<u32>) -> String {
@@ -742,6 +685,7 @@ impl TuiMode {
             history_state: HistoryState::default(),
             overlay_state: OverlayState::default(),
             command_sessions: Vec::new(),
+            next_command_session_id: 1,
             history_line_cap: resolve_history_line_cap(),
             repo_label: resolve_repo_label(),
             instructions_path: None,
@@ -1159,13 +1103,17 @@ impl TuiMode {
         self.current_task.status = TaskStatus::Running;
     }
 
-    fn begin_command_session(&mut self, command: String) {
+    fn begin_command_session(&mut self, command: String) -> u64 {
+        let session_id = self.next_command_session_id;
+        self.next_command_session_id = self.next_command_session_id.saturating_add(1);
         self.command_sessions.push(CommandSessionState {
+            id: session_id,
             command,
             pid: None,
             status: "running".to_string(),
         });
         self.current_task.status = TaskStatus::Running;
+        session_id
     }
 
     fn commit_completed_turn(&mut self, ctx: &RuntimeContext) {
@@ -1366,6 +1314,7 @@ impl TuiMode {
         }
         let task_id = self.current_task.id.clone();
         let edit_loop = EditLoop::new(task_id)
+            .with_working_dir(self.working_dir.clone())
             .with_profile(ModelProfile::default_for_backend(self.model_backend));
         self.active_edit_loop = Some(edit_loop.clone());
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
@@ -1406,6 +1355,7 @@ impl TuiMode {
             .unwrap_or_else(|| "fix the validation failure".to_string());
         let task_id = self.current_task.id.clone();
         let edit_loop = EditLoop::new(task_id)
+            .with_working_dir(self.working_dir.clone())
             .with_profile(ModelProfile::default_for_backend(self.model_backend));
         self.active_edit_loop = Some(edit_loop.clone());
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
@@ -1530,11 +1480,14 @@ impl TuiMode {
     }
 
     fn start_command_session(&mut self, command: String, ctx: &RuntimeContext) {
+        let starting_batch = self.command_sessions.is_empty();
         self.history_state.turn_in_progress = true;
         self.history_state.cancel_pending = false;
         self.history_state.active_assistant_index = None;
-        self.begin_turn_capture(format!("!{command}"));
-        self.begin_command_session(command.clone());
+        if starting_batch {
+            self.begin_turn_capture(format!("!{command}"));
+        }
+        let session_id = self.begin_command_session(command.clone());
 
         let ctx = ctx.clone();
         let cancel = ctx.turn_cancellation_token();
@@ -1551,7 +1504,7 @@ impl TuiMode {
                 Ok(request) => request,
                 Err(error) => {
                     ctx.emit_transcript_line(format!("[command session] error: {error}"));
-                    ctx.emit_command_session_finished();
+                    ctx.emit_command_session_finished(session_id);
                     ctx.emit_turn_complete();
                     return;
                 }
@@ -1561,12 +1514,12 @@ impl TuiMode {
                 Ok(handle) => handle,
                 Err(error) => {
                     ctx.emit_transcript_line(format!("[command session] error: {error}"));
-                    ctx.emit_command_session_finished();
+                    ctx.emit_command_session_finished(session_id);
                     ctx.emit_turn_complete();
                     return;
                 }
             };
-            ctx.emit_command_session_attached(handle.pid());
+            ctx.emit_command_session_attached(session_id, handle.pid());
             ctx.emit_transcript_line(format_command_session_started(&command, handle.pid()));
 
             let mut cancel_requested = false;
@@ -1602,7 +1555,7 @@ impl TuiMode {
                     ctx.emit_transcript_line(format!("[command session] error: {error}"));
                 }
             }
-            ctx.emit_command_session_finished();
+            ctx.emit_command_session_finished(session_id);
             ctx.emit_turn_complete();
         });
     }
@@ -1736,6 +1689,7 @@ impl TuiMode {
                 if remember_for_fix {
                     let mut edit_loop = self.active_edit_loop.clone().unwrap_or_else(|| {
                         EditLoop::new(self.current_task.id.clone())
+                            .with_working_dir(self.working_dir.clone())
                             .with_profile(ModelProfile::default_for_backend(self.model_backend))
                     });
                     edit_loop.set_last_validation_result(result.clone());
@@ -2534,21 +2488,22 @@ impl RuntimeMode for TuiMode {
             }
             if self.history_state.cancel_pending {
                 self.push_history_line(
-                    "[busy - cancelling current turn, input queued]".to_string(),
+                    "[busy - cancelling current turn, input ignored]".to_string(),
                 );
             } else {
-                // Allow shell commands (!cmd) while a turn is in progress
-                // to support concurrent orchestrator-style execution.
+                // Allow additional shell commands only while an existing
+                // command-session batch is active. This avoids clobbering
+                // model-turn capture state with unrelated inline commands.
                 let trimmed = input.trim();
                 if let Some(command) = trimmed.strip_prefix('!') {
-                    if !command.trim().is_empty() {
+                    if self.command_session_active() && !command.trim().is_empty() {
                         self.push_history_line(format!("> {input}"));
                         self.push_history_line(String::new());
                         self.handle_bang_command(command, ctx);
                         return;
                     }
                 }
-                self.push_history_line("[busy - turn in progress, input queued]".to_string());
+                self.push_history_line("[busy - turn in progress, input ignored]".to_string());
             }
             return;
         }
@@ -2774,25 +2729,28 @@ impl RuntimeMode for TuiMode {
                     self.clamp_scroll_offset();
                 }
             }
-            UiUpdate::CommandSessionAttached { pid } => {
-                if let Some(session) = self.command_sessions.last_mut() {
+            UiUpdate::CommandSessionAttached { session_id, pid } => {
+                if let Some(session) = self
+                    .command_sessions
+                    .iter_mut()
+                    .find(|session| session.id == session_id)
+                {
                     session.pid = pid;
                 }
             }
-            UiUpdate::CommandSessionFinished => {
-                // Remove the most recently finished session; callers emit this
-                // once per completed subprocess.
+            UiUpdate::CommandSessionFinished { session_id } => {
                 if let Some(pos) = self
                     .command_sessions
                     .iter()
-                    .rposition(|s| s.status != "finished")
+                    .position(|session| session.id == session_id)
                 {
-                    self.command_sessions[pos].status = "finished".to_string();
+                    self.command_sessions.remove(pos);
                 }
-                self.command_sessions.retain(|s| s.status != "finished");
             }
             UiUpdate::TurnComplete => {
-                self.command_sessions.clear();
+                if !self.command_sessions.is_empty() {
+                    return;
+                }
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
@@ -5890,7 +5848,7 @@ mod tests {
         assert!(
             mode.history_lines()
                 .iter()
-                .any(|line| line == "inline-shell"),
+                .any(|line| line.contains("inline-shell")),
             "expected captured shell output in transcript"
         );
         assert!(
@@ -5938,6 +5896,54 @@ mod tests {
         assert!(wrapped.load(Ordering::SeqCst));
         assert_eq!(result.exit_code, 0);
         assert!(result.stdout.contains("passthrough-hit"));
+    }
+
+    #[test]
+    fn test_command_session_updates_track_matching_session() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.history_state.turn_in_progress = true;
+        mode.begin_turn_capture("!first".to_string());
+        let first = mode.begin_command_session("first".to_string());
+        let second = mode.begin_command_session("second".to_string());
+
+        mode.on_model_update(
+            UiUpdate::CommandSessionAttached {
+                session_id: second,
+                pid: Some(22),
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::CommandSessionAttached {
+                session_id: first,
+                pid: Some(11),
+            },
+            &mut ctx,
+        );
+
+        assert_eq!(mode.command_sessions[0].pid, Some(11));
+        assert_eq!(mode.command_sessions[1].pid, Some(22));
+
+        mode.on_model_update(
+            UiUpdate::CommandSessionFinished { session_id: first },
+            &mut ctx,
+        );
+        mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+
+        assert_eq!(mode.command_sessions.len(), 1);
+        assert!(mode.is_turn_in_progress());
+        assert_eq!(mode.command_sessions[0].command, "second");
+
+        mode.on_model_update(
+            UiUpdate::CommandSessionFinished { session_id: second },
+            &mut ctx,
+        );
+        mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+
+        assert!(mode.command_sessions.is_empty());
+        assert!(!mode.is_turn_in_progress());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -269,14 +269,16 @@ impl RuntimeContext {
         let _ = self.update_tx.send(UiUpdate::TurnComplete);
     }
 
-    pub fn emit_command_session_attached(&self, pid: Option<u32>) {
+    pub fn emit_command_session_attached(&self, session_id: u64, pid: Option<u32>) {
         let _ = self
             .update_tx
-            .send(UiUpdate::CommandSessionAttached { pid });
+            .send(UiUpdate::CommandSessionAttached { session_id, pid });
     }
 
-    pub fn emit_command_session_finished(&self) {
-        let _ = self.update_tx.send(UiUpdate::CommandSessionFinished);
+    pub fn emit_command_session_finished(&self, session_id: u64) {
+        let _ = self
+            .update_tx
+            .send(UiUpdate::CommandSessionFinished { session_id });
     }
 
     pub fn clear_conversation(&self) {

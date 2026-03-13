@@ -1668,6 +1668,37 @@ async fn test_execute_tool_edit_file_delete_summary_is_clear() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_execute_tool_run_command_uses_workspace_working_dir() -> Result<()> {
+    let temp = TempDir::new()?;
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let executor = ToolOperator::new(temp.path().to_path_buf());
+    let manager = ConversationManager::new(mock_api_client, executor);
+
+    #[cfg(windows)]
+    let input = json!({
+        "command": "cmd",
+        "args": ["/C", "cd"],
+    });
+    #[cfg(not(windows))]
+    let input = json!({
+        "command": "pwd",
+        "args": [],
+    });
+
+    let result = manager
+        .execute_tool_with_timeout("run_command", &input, Duration::from_secs(2))
+        .await?;
+
+    assert!(
+        result.contains(&temp.path().display().to_string()),
+        "run_command must execute from the workspace working directory: {result}"
+    );
+    Ok(())
+}
+
 #[test]
 fn test_append_incremental_suffix_snapshot_streaming() {
     let mut content = String::new();

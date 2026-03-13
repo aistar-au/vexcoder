@@ -476,8 +476,8 @@ and passthrough changes must follow ADR-027.
 **Status: Corrected by ADR-027**
 
 The cutover described here was the full-screen managed path.
-That design has been **corrected and enhanced** per ADR-027 (Codex/Copilot CLI
-alignment).
+That design has been **corrected and enhanced** per ADR-027 (full-screen
+command-session capture alignment).
 
 **Key corrections:**
 - Signal handling fixed
@@ -486,7 +486,7 @@ alignment).
 - PTY support documented
 
 **Design retained:**
-- Full-screen TUI (Codex/Copilot pattern)
+- Full-screen TUI (hosted-agent session pattern)
 - Command capture (agent observability)
 
 All checklist items from this document remain valid.

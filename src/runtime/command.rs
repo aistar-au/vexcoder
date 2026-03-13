@@ -41,11 +41,20 @@ fn kill_process_group(pid: Option<u32>) {
     }
 }
 
-#[cfg(not(unix))]
-fn kill_process_group(_pid: Option<u32>) {
-    // On Windows, process.kill() is sufficient — tokio terminates
-    // the job object which includes child processes.
+#[cfg(windows)]
+fn kill_process_group(pid: Option<u32>) {
+    if let Some(raw_pid) = pid {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/T", "/PID", &raw_pid.to_string()])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
 }
+
+#[cfg(all(not(unix), not(windows)))]
+fn kill_process_group(_pid: Option<u32>) {}
 
 pub struct CommandRequest {
     pub program: String,

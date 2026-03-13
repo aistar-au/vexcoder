@@ -16,7 +16,7 @@ Current task-dispatch dependency state:
 | `ADR-024` | Proposed | Parity-gap inventory, command surface, and deferred work. |
 | `ADR-025` | Proposed | First post-gate Phase I dispatch target (`PI-09` through `PI-12`); implementation remains gated on milestone-1 validation. |
 | `ADR-026` | Proposed | Follows `ADR-025` closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation remains gated on milestone-1 validation. |
-| `ADR-027` | Accepted | Defines the current primary-terminal overlay TUI and command passthrough behavior; supersedes the ADR-018/019 path. |
+| `ADR-027` | Accepted | Defines the current full-screen TUI with command-session capture; supersedes the ADR-018/019 path. |
 
 ADR-025 and ADR-026 are queued immediately after the milestone-1 correctness
 gate. This roadmap note is descriptive only and does not relax that gate.
