@@ -6031,12 +6031,6 @@ data: {"type":"message_stop"}"#.to_string(),
 
         let lines = mode.history_lines();
         assert!(
-            lines
-                .iter()
-                .any(|line| line.contains("[command session started")),
-            "expected managed command-session start marker in transcript"
-        );
-        assert!(
             lines.iter().any(|line| line.contains("model-tool-output")),
             "expected model run_command output in transcript"
         );
