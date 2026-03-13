@@ -568,6 +568,9 @@ where
 }
 
 async fn run_inline_shell_command(command: String, working_dir: PathBuf) -> Result<CommandResult> {
+    // The production security boundary for inline shell execution is the
+    // Capability::RunCommand approval gate in handle_bang_command(). This helper
+    // only runs after approval has been resolved.
     run_shell_command_with_runner(
         DefaultCommandRunner::new(),
         PassthroughSandbox,
@@ -5197,7 +5200,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_bang_prefix_routes_through_sandbox() {
+    async fn test_shell_command_runner_invokes_sandbox_wrap() {
         let temp = tempfile::tempdir().unwrap();
         let wrapped = Arc::new(AtomicBool::new(false));
         let result = run_shell_command_with_runner(
