@@ -553,7 +553,6 @@ fn shell_command_request(command: String, working_dir: PathBuf) -> CommandReques
     }
 }
 
-#[cfg(test)]
 async fn run_shell_command_with_runner<R, S>(
     runner: R,
     sandbox: S,
@@ -569,10 +568,13 @@ where
 }
 
 async fn run_inline_shell_command(command: String, working_dir: PathBuf) -> Result<CommandResult> {
-    let runner = WorkingDirCommandRunner::new(working_dir.clone());
-    runner
-        .run_one_shot(shell_command_request(command, working_dir))
-        .await
+    run_shell_command_with_runner(
+        DefaultCommandRunner::new(),
+        PassthroughSandbox,
+        command,
+        working_dir,
+    )
+    .await
 }
 
 fn format_inline_block(
