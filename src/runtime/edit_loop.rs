@@ -3,6 +3,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tokio_util::sync::CancellationToken;
 
+use crate::runtime::ModelBackendKind;
+use crate::types::ModelProfile;
+
 use super::context::RuntimeContext;
 use super::task_state::TaskId;
 use super::validation::ValidationResult;
@@ -15,6 +18,7 @@ pub struct EditLoop {
     pub task_id: TaskId,
     pub max_turns: u8,
     pub stop_on_clean_validate: bool,
+    pub profile: ModelProfile,
     last_validation_result: Option<ValidationResult>,
 }
 
@@ -37,6 +41,7 @@ impl EditLoop {
             task_id,
             max_turns: DEFAULT_MAX_TURNS,
             stop_on_clean_validate: true,
+            profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
             last_validation_result: None,
         }
     }
@@ -48,6 +53,15 @@ impl EditLoop {
 
     pub fn last_validation_result(&self) -> Option<&ValidationResult> {
         self.last_validation_result.as_ref()
+    }
+
+    pub fn with_profile(mut self, profile: ModelProfile) -> Self {
+        self.profile = profile;
+        self
+    }
+
+    pub fn profile_name(&self) -> &str {
+        self.profile.name.as_str()
     }
 
     pub fn set_last_validation_result(&mut self, result: ValidationResult) {
