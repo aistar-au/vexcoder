@@ -468,3 +468,26 @@ and passthrough changes must follow ADR-027.
 2. Do not mix Phase 2 cleanup into Phase 1 correctness/cutover commits.
 3. If a task depends on typed events or cutover state, block it until U1 and
    U4 + D1 are complete.
+
+---
+
+## Correction Note (2026-03-13)
+
+**Status: Corrected by ADR-027**
+
+The cutover described here was the full-screen managed path.
+That design has been **corrected and enhanced** per ADR-027 (Codex/Copilot CLI
+alignment).
+
+**Key corrections:**
+- Signal handling fixed
+- Working directory validation added
+- Layout underflow fixed
+- PTY support documented
+
+**Design retained:**
+- Full-screen TUI (Codex/Copilot pattern)
+- Command capture (agent observability)
+
+All checklist items from this document remain valid.
+See ADR-027 for the corrected implementation details.

@@ -105,7 +105,21 @@ On acceptance of ADR-018 and successful CORE-17 cutover:
 
 ## Supersession Note (2026-03-13)
 
-ADR-027 replaces the managed-TUI direction defined here with a primary-terminal
-overlay model and interactive command passthrough. This file remains in history
-to preserve the original scrollback and overlay design discussion, but the
-interactive runtime must now follow ADR-027.
+**Status: Corrected by ADR-027**
+
+This document specified the full-screen TUI + captured streaming design.
+That design has been **corrected and enhanced** per ADR-027 (Codex/Copilot CLI
+alignment).
+
+**Key corrections:**
+- Signal handling fixed (Ctrl+C propagation to subprocess)
+- Working directory validation added
+- Layout underflow fixed (saturating arithmetic)
+- PTY support documented (interactive tools)
+
+**Design retained:**
+- Full-screen alternate screen (Codex/Copilot pattern)
+- Command output capture (agent observability)
+- StreamBlock events for transcript
+
+See ADR-027 for the corrected implementation details.
