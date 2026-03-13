@@ -109,6 +109,16 @@ Commands entered inside the interactive UI start with `/`.
 - `/run [command]`
 - `/test`
 
+### Free-form input transforms
+
+- `@path`
+  - Expands a workspace-relative file or directory into the prompt before the model turn starts.
+  - Files are inlined as fenced text blocks. Missing paths are annotated inline instead of aborting the turn.
+  - Directories render a compact workspace-relative listing.
+- `!command`
+  - Runs a shell command immediately from the workspace without starting a model turn.
+  - Uses the same `run_command` approval gate as tool calls and records stdout/stderr plus `[exit: N]` in the transcript.
+
 ## Keyboard notes
 
 - `Ctrl+C` requests cancellation for the active turn.

@@ -12,10 +12,11 @@ use crate::runtime::mode::RuntimeMode;
 use crate::runtime::policy::sanitize_assistant_text;
 use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
 use crate::runtime::r#loop::Runtime;
-use crate::runtime::validation::ValidationSuite;
+use crate::runtime::validation::{ValidationSuite, VALIDATION_TAIL_BYTES};
 use crate::runtime::{
-    ApprovalScope, Capability, CommandHandle, CommandRequest, CommandResult, CommandRunner,
-    DefaultCommandRunner, EditLoopOutcome, PassthroughSandbox, SandboxDriver, TaskState, UiUpdate,
+    truncate_head_bytes, truncate_tail_bytes, ApprovalScope, Capability, CommandHandle,
+    CommandRequest, CommandResult, CommandRunner, DefaultCommandRunner, EditLoopOutcome,
+    PassthroughSandbox, SandboxDriver, TaskState, UiUpdate,
 };
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
@@ -42,7 +43,16 @@ use tokio_util::sync::CancellationToken;
 struct PendingApproval {
     tool_name: String,
     input_preview: String,
-    response_tx: tokio::sync::oneshot::Sender<bool>,
+    action: PendingApprovalAction,
+}
+
+enum PendingApprovalAction {
+    Tool(tokio::sync::oneshot::Sender<bool>),
+    InlineCommand(PendingInlineCommand),
+}
+
+struct PendingInlineCommand {
+    command: String,
 }
 
 struct PendingPatchApproval {
@@ -527,6 +537,56 @@ fn kebab_to_scope(s: &str) -> Option<ApprovalScope> {
     }
 }
 
+fn shell_command_request(command: String, working_dir: PathBuf) -> CommandRequest {
+    if cfg!(windows) {
+        CommandRequest {
+            program: "cmd".to_string(),
+            args: vec!["/C".to_string(), command],
+            working_dir: Some(working_dir),
+        }
+    } else {
+        CommandRequest {
+            program: "sh".to_string(),
+            args: vec!["-c".to_string(), command],
+            working_dir: Some(working_dir),
+        }
+    }
+}
+
+async fn run_shell_command_with_runner<R, S>(
+    runner: R,
+    sandbox: S,
+    command: String,
+    working_dir: PathBuf,
+) -> Result<CommandResult>
+where
+    R: CommandRunner,
+    S: SandboxDriver,
+{
+    let request = sandbox.wrap(shell_command_request(command, working_dir))?;
+    runner.run_one_shot(request).await
+}
+
+fn format_inline_block(
+    kind: &str,
+    path: &str,
+    content: &str,
+    truncated: bool,
+    byte_limit: Option<usize>,
+) -> String {
+    let mut rendered = format!("[{kind}: {path}]\n```text\n{content}\n```");
+    if truncated {
+        if let Some(limit) = byte_limit {
+            rendered.push_str(&format!(
+                "\n[{kind}: {path} \u{2014} truncated to {limit} bytes]"
+            ));
+        } else {
+            rendered.push_str(&format!("\n[{kind}: {path} \u{2014} truncated]"));
+        }
+    }
+    rendered
+}
+
 impl TuiMode {
     pub fn new() -> Self {
         Self::new_with_config(None, Config::default_for_tui())
@@ -698,7 +758,16 @@ impl TuiMode {
 
     fn resolve_pending_approval(&mut self, approved: bool) {
         if let Some(pending) = self.overlay_state.pending_approval.take() {
-            let _ = pending.response_tx.send(approved);
+            match pending.action {
+                PendingApprovalAction::Tool(response_tx) => {
+                    let _ = response_tx.send(approved);
+                }
+                PendingApprovalAction::InlineCommand(command) => {
+                    if approved {
+                        self.run_inline_command_to_transcript(&command.command);
+                    }
+                }
+            }
         }
     }
 
@@ -1044,6 +1113,162 @@ impl TuiMode {
             self.last_turn_input = Some(instruction.clone());
         }
         ctx.start_edit_loop(edit_loop, instruction);
+    }
+
+    fn expand_inline_file_tokens(&self, input: &str) -> String {
+        if input.starts_with('/') {
+            return input.to_string();
+        }
+
+        let assembler = ContextAssembler::default();
+        let operator = ToolOperator::new(self.working_dir.clone());
+        let mut output = String::new();
+        let mut token = String::new();
+
+        for ch in input.chars() {
+            if ch.is_whitespace() {
+                if !token.is_empty() {
+                    output.push_str(&self.expand_inline_token(&token, &operator, &assembler));
+                    token.clear();
+                }
+                output.push(ch);
+            } else {
+                token.push(ch);
+            }
+        }
+
+        if !token.is_empty() {
+            output.push_str(&self.expand_inline_token(&token, &operator, &assembler));
+        }
+
+        output
+    }
+
+    fn expand_inline_token(
+        &self,
+        token: &str,
+        operator: &ToolOperator,
+        assembler: &ContextAssembler,
+    ) -> String {
+        let Some(path) = token.strip_prefix('@') else {
+            return token.to_string();
+        };
+
+        if path.is_empty() {
+            return token.to_string();
+        }
+
+        match operator.existing_path(path) {
+            Ok(Some(resolved)) if resolved.is_dir() => {
+                match operator.list_files(Some(path), assembler.max_related) {
+                    Ok(listing) => format_inline_block("dir", path, &listing, false, None),
+                    Err(error) => format!("[dir: {path} \u{2014} {error}]"),
+                }
+            }
+            Ok(Some(_)) => match operator.read_file(path) {
+                Ok(content) => {
+                    let (content, truncated) =
+                        truncate_head_bytes(&content, assembler.max_file_bytes);
+                    format_inline_block(
+                        "file",
+                        path,
+                        &content,
+                        truncated,
+                        Some(assembler.max_file_bytes),
+                    )
+                }
+                Err(error) => format!("[file: {path} \u{2014} {error}]"),
+            },
+            Ok(None) => format!("[file: {path} \u{2014} not found]"),
+            Err(error) => format!("[file: {path} \u{2014} {error}]"),
+        }
+    }
+
+    fn handle_bang_command(&mut self, command: &str) {
+        let command = command.trim();
+        if command.is_empty() {
+            self.push_history_line("[shell] usage: !<command>".to_string());
+            return;
+        }
+
+        if self.overlay_state.auto_approve_session {
+            self.push_history_line("[auto-approved tool: run_command session]".to_string());
+            self.run_inline_command_to_transcript(command);
+            return;
+        }
+
+        if let Some(scope) = self
+            .current_task
+            .active_grants
+            .get(&Capability::RunCommand)
+            .copied()
+        {
+            if matches!(scope, ApprovalScope::Once) {
+                self.current_task
+                    .active_grants
+                    .remove(&Capability::RunCommand);
+            }
+            self.push_history_line(format!(
+                "[auto-approved tool: run_command {} grant]",
+                scope_to_label(scope)
+            ));
+            self.run_inline_command_to_transcript(command);
+            return;
+        }
+
+        let summary = summarize_tool_approval_context("run_command", command);
+        self.push_history_line(format!("[tool approval requested: {summary}]"));
+        self.overlay_state.pending_approval = Some(PendingApproval {
+            tool_name: "run_command".to_string(),
+            input_preview: command.to_string(),
+            action: PendingApprovalAction::InlineCommand(PendingInlineCommand {
+                command: command.to_string(),
+            }),
+        });
+    }
+
+    fn run_inline_command_to_transcript(&mut self, command: &str) {
+        let command = command.trim().to_string();
+        let working_dir = self.working_dir.clone();
+        match block_on_context_task(async move {
+            run_shell_command_with_runner(
+                DefaultCommandRunner::new(),
+                PassthroughSandbox,
+                command,
+                working_dir,
+            )
+            .await
+        }) {
+            Ok(result) => self.push_inline_command_result(&result),
+            Err(error) => self.push_history_line(format!("[shell] error: {error}")),
+        }
+    }
+
+    fn push_inline_command_result(&mut self, result: &CommandResult) {
+        let mut rendered = String::new();
+
+        for line in result.stdout.lines() {
+            rendered.push_str("stdout: ");
+            rendered.push_str(line);
+            rendered.push('\n');
+        }
+        for line in result.stderr.lines() {
+            rendered.push_str("stderr: ");
+            rendered.push_str(line);
+            rendered.push('\n');
+        }
+
+        let (tail, truncated) = truncate_tail_bytes(&rendered, VALIDATION_TAIL_BYTES);
+        if truncated {
+            self.push_history_line(format!(
+                "[output truncated \u{2014} showing last {} bytes]",
+                VALIDATION_TAIL_BYTES
+            ));
+        }
+        for line in tail.lines() {
+            self.push_history_line(line.to_string());
+        }
+        self.push_history_line(format!("[exit: {}]", result.exit_code));
     }
 
     fn start_single_turn(
@@ -1804,7 +2029,13 @@ impl RuntimeMode for TuiMode {
             return;
         }
 
-        let turn_input = input;
+        let trimmed = input.trim();
+        if let Some(command) = trimmed.strip_prefix('!') {
+            self.handle_bang_command(command);
+            return;
+        }
+
+        let turn_input = self.expand_inline_file_tokens(&input);
 
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
@@ -1910,7 +2141,7 @@ impl RuntimeMode for TuiMode {
                 self.overlay_state.pending_approval = Some(PendingApproval {
                     tool_name,
                     input_preview,
-                    response_tx,
+                    action: PendingApprovalAction::Tool(response_tx),
                 });
             }
             UiUpdate::EditLoopComplete {
@@ -2169,6 +2400,7 @@ mod tests {
     use crossterm::event::KeyEvent;
     use futures::FutureExt;
     use std::collections::HashMap;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
     fn setup_ctx() -> RuntimeContext {
@@ -2190,6 +2422,22 @@ mod tests {
             "/run cmd /C exit 0".to_string()
         } else {
             "/run sh -c true".to_string()
+        }
+    }
+
+    fn successful_bang_input() -> String {
+        "!echo inline-shell".to_string()
+    }
+
+    #[derive(Clone)]
+    struct RecordingSandbox {
+        wrapped: Arc<AtomicBool>,
+    }
+
+    impl SandboxDriver for RecordingSandbox {
+        fn wrap(&self, request: CommandRequest) -> Result<CommandRequest> {
+            self.wrapped.store(true, Ordering::SeqCst);
+            Ok(request)
         }
     }
 
@@ -2552,7 +2800,7 @@ mod tests {
         overlay_mode.overlay_state.pending_approval = Some(PendingApproval {
             tool_name: "read_file".to_string(),
             input_preview: "{\"path\":\"Cargo.toml\"}".to_string(),
-            response_tx,
+            action: PendingApprovalAction::Tool(response_tx),
         });
         assert_eq!(
             render_pass_order(&overlay_mode),
@@ -2718,7 +2966,7 @@ mod tests {
         mode.overlay_state.pending_approval = Some(PendingApproval {
             tool_name: "read_file".to_string(),
             input_preview: "{}".to_string(),
-            response_tx,
+            action: PendingApprovalAction::Tool(response_tx),
         });
 
         let overlay_enter = overlay_event_to_user_input(Event::Key(KeyEvent::new(
@@ -2767,7 +3015,7 @@ mod tests {
         mode.overlay_state.pending_approval = Some(PendingApproval {
             tool_name: "read_file".to_string(),
             input_preview: "{}".to_string(),
-            response_tx,
+            action: PendingApprovalAction::Tool(response_tx),
         });
         assert!(mode.overlay_active());
 
@@ -4735,6 +4983,102 @@ mod tests {
                 .any(|line| line.contains("[run]")),
             "expected /run transcript output"
         );
+    }
+
+    #[test]
+    fn test_at_path_injects_file_contents() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("note.txt"), "hello from file\n").unwrap();
+
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("summarize @note.txt".to_string(), &mut ctx);
+
+        let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+        assert!(turn_input.contains("[file: note.txt]"));
+        assert!(turn_input.contains("hello from file"));
+        assert!(mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_at_path_directory_renders_listing() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(temp.path().join("src")).unwrap();
+        std::fs::write(temp.path().join("src/lib.rs"), "pub fn hi() {}\n").unwrap();
+
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("review @src".to_string(), &mut ctx);
+
+        let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+        assert!(turn_input.contains("[dir: src]"));
+        assert!(turn_input.contains("src/lib.rs"));
+    }
+
+    #[test]
+    fn test_at_path_missing_file_is_annotated() {
+        let temp = tempfile::tempdir().unwrap();
+
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("inspect @missing.txt".to_string(), &mut ctx);
+
+        let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+        assert!(turn_input.contains("[file: missing.txt \u{2014} not found]"));
+    }
+
+    #[tokio::test]
+    async fn test_bang_prefix_runs_without_model_turn_after_approval() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        let mut ctx = setup_ctx();
+        let initial_messages = ctx.test_message_count().await;
+
+        mode.on_user_input(successful_bang_input(), &mut ctx);
+        assert!(mode.overlay_state.pending_approval.is_some());
+        assert!(!mode.is_turn_in_progress());
+
+        mode.on_user_input("1".to_string(), &mut ctx);
+
+        assert!(mode.overlay_state.pending_approval.is_none());
+        assert!(!mode.is_turn_in_progress());
+        assert_eq!(ctx.test_message_count().await, initial_messages);
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|line| line.contains("stdout: inline-shell")),
+            "expected inline shell stdout in transcript"
+        );
+        assert!(
+            mode.history_lines().iter().any(|line| line == "[exit: 0]"),
+            "expected inline shell exit status"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_bang_prefix_routes_through_sandbox() {
+        let temp = tempfile::tempdir().unwrap();
+        let wrapped = Arc::new(AtomicBool::new(false));
+        let result = run_shell_command_with_runner(
+            DefaultCommandRunner::new(),
+            RecordingSandbox {
+                wrapped: Arc::clone(&wrapped),
+            },
+            "echo sandbox-hit".to_string(),
+            temp.path().to_path_buf(),
+        )
+        .await
+        .unwrap();
+
+        assert!(wrapped.load(Ordering::SeqCst));
+        assert!(result.stdout.contains("sandbox-hit"));
     }
 
     #[tokio::test]

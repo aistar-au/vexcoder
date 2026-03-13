@@ -132,6 +132,15 @@ impl ToolOperator {
         }
     }
 
+    pub fn existing_path(&self, path: &str) -> Result<Option<PathBuf>> {
+        let resolved = self.resolve_path(path)?;
+        if resolved.exists() {
+            Ok(Some(resolved))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn write_file(&self, path: &str, content: &str) -> Result<WriteFileOutcome> {
         let resolved = self.resolve_path(path)?;
         if resolved.is_dir() {
