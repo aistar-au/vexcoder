@@ -82,6 +82,7 @@ impl CommandRunner for DefaultCommandRunner {
         if let Some(working_dir) = &req.working_dir {
             command.current_dir(working_dir);
         }
+        command.kill_on_drop(true);
         let output = command
             .output()
             .await

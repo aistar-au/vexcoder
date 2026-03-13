@@ -196,6 +196,14 @@ impl RuntimeContext {
         self.cancel = CancellationToken::new();
     }
 
+    pub fn turn_cancellation_token(&self) -> CancellationToken {
+        self.cancel.child_token()
+    }
+
+    pub fn emit_turn_complete(&self) {
+        let _ = self.update_tx.send(UiUpdate::TurnComplete);
+    }
+
     pub fn clear_conversation(&self) {
         if let Ok(mut conversation) = self.conversation.try_lock() {
             conversation.clear_messages();
