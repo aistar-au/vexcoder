@@ -153,14 +153,15 @@ impl RuntimeContext {
         let loop_cancel = self.cancel.child_token();
         let tx = self.update_tx.clone();
         let mut loop_ctx = self.clone();
+        let system_prompt = edit_loop
+            .profile
+            .system_prompt_text()
+            .expect("edit loop profile system prompt must resolve")
+            .to_string();
+
+        set_runtime_prompt_now(&self.conversation, Some(system_prompt.clone()));
 
         tokio::spawn(async move {
-            let system_prompt = edit_loop
-                .profile
-                .system_prompt_text()
-                .expect("edit loop profile system prompt must resolve");
-            set_runtime_prompt(&loop_ctx.conversation, Some(system_prompt.to_string())).await;
-
             let result = edit_loop
                 .run(instruction, &mut loop_ctx, &loop_cancel)
                 .await;
@@ -291,6 +292,17 @@ async fn set_runtime_prompt(
         manager.client()
     };
     client.set_supplementary_system_prompt(supplementary_system_prompt);
+}
+
+fn set_runtime_prompt_now(
+    conversation: &Arc<Mutex<ConversationManager>>,
+    supplementary_system_prompt: Option<String>,
+) {
+    if let Ok(manager) = conversation.try_lock() {
+        manager
+            .client()
+            .set_supplementary_system_prompt(supplementary_system_prompt);
+    }
 }
 
 fn normalize_turn_tokens(input: &str, response: &str, turn_tokens: TurnTokens) -> TurnTokens {

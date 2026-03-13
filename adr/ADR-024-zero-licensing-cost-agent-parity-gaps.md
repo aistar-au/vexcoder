@@ -1504,7 +1504,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PB-01** | `vex completions <shell>` | [x] |
 | **PB-02** | `vex install-hooks` / `vex uninstall-hooks` | [x] |
 | **PB-03** | `vex skills list\|install\|remove` + `registry.toml` | [x] |
-| **PC-01** | `/model <name>` runtime model switching | [ ] |
+| **PC-01** | `/model <name>` runtime model switching | [x] |
 | **PD-01** | `SandboxDriver` trait + `PassthroughSandbox` | [x] |
 | **PD-02** | `MacosSandboxExec` driver (best-effort + require flag) | [ ] |
 | **PD-03** | `DockerSandbox` driver | [ ] |
@@ -1518,9 +1518,9 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PH-01** | macOS application layer — process management + terminal surface | [ ] |
 | **PH-02** | macOS application layer — keychain credential storage + env injection | [ ] |
 | **PH-03** | macOS code signing, notarisation, and `.dmg` release attachment | [ ] |
-| **PI-01** | `/permissions` — renders active_grants table; no model turn | [ ] |
-| **PI-02** | `/allow <cap> [once\|session]` — grants capability; enum-derived names; no persist | [ ] |
-| **PI-03** | `/deny <cap>` — removes capability from active_grants | [ ] |
+| **PI-01** | `/permissions` — renders active_grants table; no model turn | [x] |
+| **PI-02** | `/allow <cap> [once\|session]` — grants capability; enum-derived names; no persist | [x] |
+| **PI-03** | `/deny <cap>` — removes capability from active_grants | [x] |
 | **PI-04** | `/new` — saves current TaskState, resets session, new TaskId | [x] |
 | **PI-05** | `/resume [<task-id>]` — loads TaskState; grants restored; conversation not restored | [x] |
 | **PI-06** | `/mcp list` — renders loaded servers and tool counts from McpRegistry | [ ] |
@@ -1537,23 +1537,23 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PJ-01** | `/clear` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [x] |
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
 | **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [x] |
-| **PJ-04** | `vex init` — scaffolds `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [ ] |
+| **PJ-04** | `vex init` — scaffolds `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [x] |
 | **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [x] (save wiring landed in the PI-04 batch) |
 | **PK-02** | `/about` — build metadata display; `build.rs` compile-time injection | [x] |
-| **PK-03** | `@<path>` inline injection — workspace-confined; truncation annotation; multi-token | [ ] |
-| **PK-04** | `!<command>` passthrough — SandboxDriver + ApprovalPolicy; no model turn | [ ] |
-| **PK-05** | User-defined commands — TOML loader; project + user scopes; `/commands` integration | [ ] |
-| **PK-06** | `/tools [desc]` — live dispatch table enumeration; MCP-namespaced tools | [ ] |
-| **PK-07** | `/diff [--staged]` — spawn_blocking git diff; truncation; no model turn | [ ] |
-| **PK-08** | `vex branch` and `vex pr-summary` — thin git wrappers; stdout output; no platform API | [ ] |
-| **PK-09** | `/generate-tests` — generate_tests_template.txt; non-test patch filter; framework flag | [ ] |
+| **PK-03** | `@<path>` inline injection — workspace-confined; truncation annotation; multi-token | [x] |
+| **PK-04** | `!<command>` passthrough — SandboxDriver + ApprovalPolicy; no model turn | [x] |
+| **PK-05** | User-defined commands — TOML loader; project + user scopes; `/commands` integration | [x] |
+| **PK-06** | `/tools [desc]` — live dispatch table enumeration; MCP-namespaced tools | [x] |
+| **PK-07** | `/diff [--staged]` — spawn_blocking git diff; truncation; no model turn | [x] |
+| **PK-08** | `vex branch` and `vex pr-summary` — thin git wrappers; stdout output; no platform API | [x] |
+| **PK-09** | `/generate-tests` — generate_tests_template.txt; non-test patch filter; framework flag | [x] |
 | **PL-01** | Pre/post-tool-call hooks — `[[hooks]]` config; `Capability`-triggered; `SandboxDriver`-wrapped; user-layer only | [x] |
-| **PL-02** | `vex doctor` — config probe, endpoint reachability, sandbox probe, MCP connectivity, `--json` output | [ ] |
-| **PL-03** | Session token counter — turn accumulator; `/usage` command; `BatchMode` JSONL `tokens` field | [ ] |
-| **PL-04** | `vex export <task-id>` — JSONL and Markdown formats; read-only; `--output`/`--force` flags | [ ] |
-| **PM-01** | `--resume [<task-id>]` startup flag — `TaskState::load` before TUI init; non-zero exit on failure | [ ] |
+| **PL-02** | `vex doctor` — config probe, endpoint reachability, sandbox probe, MCP connectivity, `--json` output | [x] |
+| **PL-03** | Session token counter — turn accumulator; `/usage` command; `BatchMode` JSONL `tokens` field | [x] |
+| **PL-04** | `vex export <task-id>` — JSONL and Markdown formats; read-only; `--output`/`--force` flags | [x] |
+| **PM-01** | `--resume [<task-id>]` startup flag — `TaskState::load` before TUI init; non-zero exit on failure | [x] |
 | **PM-02** | MCP HTTP `[mcp_servers.headers]` — env-var substitution; STDIO rejection; startup failure on unset var | [ ] |
-| **PM-03** | `-p`/`--print` flag — `BatchMode` single-turn; stdin pipe; plain-text stdout; gated on Gap 2 | [ ] |
+| **PM-03** | `-p`/`--print` flag — `BatchMode` single-turn; stdin pipe; plain-text stdout; gated on Gap 2 | [x] |
 | **PP-01** | `search_files`, `list_dir`, `glob_files` — workspace-confined; `.gitignore`-aware; bounded results; registered in dispatch table; gated on workspace ignore mechanism being available | [ ] |
 
 ## Dispatcher reporting contract (mandatory per checklist item)
@@ -1887,3 +1887,135 @@ The amendment that authorises native packaging and editor-surface work is record
     repo label, and instructions path.
   - `BUILD_DATE` and `GIT_COMMIT_SHORT` are injected via `build.rs` using
     `env!()` macros with `"unknown"` fallback.
+
+### [PI-01 / PI-02 / PI-03 / PM-01 / PM-03] - permissions, resume, and print surfaces
+- Dispatcher: `dispatcher/vexcoder-adr-024-pi-01-pi-02-pi-03-pm-01-pm-03-permissions-startup`
+- Commit: `aa4ba77d91525391a7773b16998eba464a04d610`
+- Files changed:
+  - `src/app.rs` (+398 -20)
+  - `src/batch_mode.rs` (+48 -0)
+  - `src/bin/vex.rs` (+284 -0)
+  - `Cargo.lock` (+41 -0)
+  - `Cargo.toml` (+1 -0)
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - `/permissions`, `/allow`, and `/deny` now render and mutate in-memory approval grants without starting a model turn.
+  - `--resume` loads a saved task before TUI startup, and `-p` / `--print` routes a single turn through `BatchMode` with plain-text stdout.
+  - The merged PR landed the command surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
+
+### [PC-01 / PJ-04 / PK-07] - model switching, workspace init, and diff helpers
+- Dispatcher: `dispatcher/vexcoder-adr-024-pc01-pj04-pk07`
+- Commit: `336708b7805b39159135c863b0a31eddb64a6c36`
+- Files changed:
+  - `src/app.rs` (+352 -0)
+  - `src/bin/vex.rs` (+301 -0)
+  - `src/config.rs` (+31 -0)
+  - `src/runtime/context.rs` (+14 -0)
+  - `src/runtime/context_assembler.rs` (+14 -0)
+  - `src/state/conversation/state.rs` (+8 -0)
+  - `src/api/client.rs` (+25 -18)
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - `/model` performs name-only switching and rejects backend changes mid-session.
+  - `vex init` writes non-destructive workspace scaffolding for `.vex/config.toml`, `.vex/validate.toml`, and `AGENTS.md`.
+  - `/diff` renders truncated git diff output without starting a model turn.
+
+### [PK-03 / PK-04] - inline path injection and shell passthrough
+- Dispatcher: `dispatcher/vexcoder-adr-024-pk-03-pk-04-input-transforms`
+- Commit: `8a329754582b024b50a0988f144717eb20d0b470`
+- Files changed:
+  - `src/app.rs` (+551 -21)
+  - `src/runtime/command.rs` (+1 -0)
+  - `src/runtime/context.rs` (+8 -0)
+  - `src/tools/operator.rs` (+9 -0)
+  - `docs/src/commands.md` (+10 -0)
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - `@path` now expands workspace-confined file and directory context inline before a model turn starts.
+  - `!command` routes shell passthrough through the existing approval and sandbox path with no model turn.
+  - The merged PR landed this surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
+
+### [PK-05 / PK-06 / PK-09] - custom commands, /tools, and /generate-tests
+- Dispatcher: `dispatcher/vexcoder-adr-024-pk-05-pk-06-pk-09-custom-commands`
+- Commit: `07dd065c8adae9bec71f86f0986314c5c1dc7a2a`
+- Files changed:
+  - `src/app.rs` (+619 -0)
+  - `src/custom_commands.rs` (+231 -0)
+  - `src/state/conversation/tools.rs` (+163 -0)
+  - `src/state/conversation/core.rs` (+55 -0)
+  - `src/state/conversation/tests.rs` (+81 -0)
+  - `src/runtime/context.rs` (+18 -0)
+  - `src/prompts.rs` (+30 -0)
+  - `src/prompts/generate_tests_template.txt` (+1 -0)
+  - `src/api/client.rs` (+24 -0)
+  - `docs/src/commands.md` (+16 -0)
+  - `TASKS/completed/REPO-RAW-URL-MAP.md` (+265 -265)
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - Project and user custom commands now load at startup, `/tools` enumerates the live dispatch table, and `/generate-tests` routes through a dedicated prompt template with non-test patch filtering.
+  - This batch also refreshed the tracked-file map for the new custom command module.
+
+### [PL-02 / PL-03 / PL-04] - doctor, usage accounting, and export
+- Dispatcher: `dispatcher/vexcoder-adr-024-pl-02-pl-03-pl-04-introspection`
+- Commit: `796c54d4caf91136249a43c27a94e4d3902dd48c`
+- Files changed:
+  - `src/doctor.rs` (+369 -0)
+  - `src/export.rs` (+207 -0)
+  - `src/usage.rs` (+121 -0)
+  - `src/turn_evidence.rs` (+138 -0)
+  - `src/app.rs` (+309 -0)
+  - `src/batch_mode.rs` (+247 -0)
+  - `src/bin/vex.rs` (+80 -0)
+  - `src/config.rs` (+195 -0)
+  - `src/runtime/context.rs` (+56 -0)
+  - `src/runtime/task_state.rs` (+20 -0)
+  - `src/state/conversation/core.rs` (+23 -0)
+  - `src/state/conversation/state.rs` (+9 -0)
+  - `src/types/api_types.rs` (+12 -0)
+  - `docs/src/commands.md` (+28 -0)
+  - `docs/src/configuration.md` (+5 -0)
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - `vex doctor` adds read-only environment probes, `/usage` tracks per-turn and session token totals, and `vex export` writes JSONL or Markdown task snapshots.
+  - The merged PR also refreshed turn evidence persistence so export uses the same saved turn schema as `BatchMode`.
+
+### [PK-08] - git branch wrapper and PR summary draft
+- Dispatcher: `dispatcher/vexcoder-adr-024-pk-08-reconcile`
+- Files changed:
+  - `src/bin/vex.rs` — adds `vex branch <name>` and `vex pr-summary`
+  - `src/runtime/task_state.rs` — records the most recent saved branch name
+  - `src/prompts.rs` — restores PR summary template rendering
+  - `src/prompts/pr_summary_template.txt` — PR summary draft template
+  - `docs/src/commands.md` — documents the new CLI wrappers
+  - `TASKS/ACTIVE-ROADMAP.md` — refreshes ADR-024 next-batch tracking
+  - `TASKS/TASKS-DISPATCH-MAP.md` — refreshes ADR-024 dispatch-map notes
+  - `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — reconciles merged batches and closes PK-08
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - `vex branch` is a thin wrapper over `git checkout -b` and records the branch name on the most recent saved task state when one exists.
+  - `vex pr-summary` assembles a merge-base diff against `origin/HEAD`, runs a single batch turn, and prints a `Title:` line plus Markdown body to stdout.
+  - This branch also reconciles stale ADR-024 checklist rows for merged PRs `#60`, `#63`, `#71`, `#72`, and `#74`.

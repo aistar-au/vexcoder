@@ -1,5 +1,17 @@
-Summarize the branch changes below as a concise title and body draft.
-Use the provided diff context and do not invent files or behavior.
+Summarize the branch changes below as a pull request draft.
+Use only the provided context and diff. Do not invent files, behavior, tests,
+or follow-up work.
+
+Return exactly this format:
+
+Title: <single-line title>
+
+## Summary
+- <bullet>
+- <bullet>
+
+## Testing
+- Not run
 
 Request:
 {{instruction}}

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -8,12 +8,13 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 use vexcoder::app::{build_runtime, build_runtime_with_resume, TuiMode};
-use vexcoder::batch_mode::{run_batch, AutoApproveScope, BatchRunOpts, OutputFormat};
+use vexcoder::batch_mode::{run_batch, AutoApproveScope, BatchResult, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
 use vexcoder::doctor::run_doctor;
 use vexcoder::export::{render_task_export, write_export_output, ExportFormat};
+use vexcoder::prompts::render_pr_summary_prompt;
 use vexcoder::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
-use vexcoder::runtime::{TaskState, TaskStatus};
+use vexcoder::runtime::{ContextAssembler, TaskState, TaskStatus};
 use vexcoder::ui::editor::{InputAction, InputEditor};
 use vexcoder::ui::layout::split_three_pane_layout;
 use vexcoder::ui::render::{
@@ -84,6 +85,10 @@ enum Commands {
         #[arg(long)]
         dir: Option<PathBuf>,
     },
+    /// Create a new git branch from HEAD and record it on the most recent task.
+    Branch { name: String },
+    /// Generate a pull request title and body draft for the current branch.
+    PrSummary,
     /// Configuration migration utilities.
     Migrate {
         #[command(subcommand)]
@@ -722,6 +727,205 @@ fn print_lines(lines: &[String]) {
     }
 }
 
+// ── PK-08: vex branch / vex pr-summary ────────────────────────────────────────
+
+async fn run_git_capture(cwd: PathBuf, args: Vec<String>) -> Result<String> {
+    let command_display = format!("git {}", args.join(" "));
+    let output = tokio::task::spawn_blocking(move || {
+        std::process::Command::new("git")
+            .current_dir(cwd)
+            .args(&args)
+            .output()
+    })
+    .await
+    .context("git command task join failed")?
+    .with_context(|| format!("failed to run `{command_display}`"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() {
+            stderr
+        } else if !stdout.is_empty() {
+            stdout
+        } else {
+            format!("exit status {}", output.status)
+        };
+        bail!("{command_display} failed: {detail}");
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn truncate_lines(text: &str, max_lines: usize) -> (String, bool) {
+    let lines = text.lines().collect::<Vec<_>>();
+    let truncated = lines.len() > max_lines;
+    let mut rendered = lines
+        .iter()
+        .take(max_lines)
+        .copied()
+        .collect::<Vec<_>>()
+        .join("\n");
+    if text.ends_with('\n') && !rendered.is_empty() {
+        rendered.push('\n');
+    }
+    (rendered, truncated)
+}
+
+fn record_branch_on_active_task(cwd: &Path, branch_name: &str) -> Result<Option<String>> {
+    let Some(file) = TaskState::state_files_from(cwd).into_iter().next() else {
+        return Ok(None);
+    };
+
+    let mut state = TaskState::load(&file.dir, &file.id)?;
+    state.branch_name = Some(branch_name.to_string());
+    let task_id = state.id.clone();
+    state.save(&file.dir)?;
+    Ok(Some(task_id))
+}
+
+async fn run_branch(cwd: &Path, name: &str) -> Result<Vec<String>> {
+    run_git_capture(
+        cwd.to_path_buf(),
+        vec!["checkout".to_string(), "-b".to_string(), name.to_string()],
+    )
+    .await?;
+
+    let mut summary = vec![format!("[branch] created: {name}")];
+    match record_branch_on_active_task(cwd, name)? {
+        Some(task_id) => summary.push(format!("[branch] recorded in task: {task_id}")),
+        None => summary.push("[branch] no saved task state found".to_string()),
+    }
+    Ok(summary)
+}
+
+async fn prepare_pr_summary_prompt(cwd: &Path) -> Result<String> {
+    let base_ref = run_git_capture(
+        cwd.to_path_buf(),
+        vec![
+            "symbolic-ref".to_string(),
+            "--quiet".to_string(),
+            "refs/remotes/origin/HEAD".to_string(),
+        ],
+    )
+    .await
+    .context(
+        "failed to detect origin/HEAD; set it first (for example: `git remote set-head origin -a`)",
+    )?
+    .trim()
+    .to_string();
+    if base_ref.is_empty() {
+        bail!("origin/HEAD resolved to an empty ref");
+    }
+
+    let head_ref = run_git_capture(
+        cwd.to_path_buf(),
+        vec![
+            "rev-parse".to_string(),
+            "--abbrev-ref".to_string(),
+            "HEAD".to_string(),
+        ],
+    )
+    .await?
+    .trim()
+    .to_string();
+    let merge_base = run_git_capture(
+        cwd.to_path_buf(),
+        vec![
+            "merge-base".to_string(),
+            "HEAD".to_string(),
+            base_ref.clone(),
+        ],
+    )
+    .await?
+    .trim()
+    .to_string();
+    let diff_stat = run_git_capture(
+        cwd.to_path_buf(),
+        vec![
+            "diff".to_string(),
+            "--stat".to_string(),
+            "--find-renames".to_string(),
+            merge_base.clone(),
+            "HEAD".to_string(),
+        ],
+    )
+    .await?;
+    let diff = run_git_capture(
+        cwd.to_path_buf(),
+        vec![
+            "diff".to_string(),
+            "--find-renames".to_string(),
+            merge_base.clone(),
+            "HEAD".to_string(),
+        ],
+    )
+    .await?;
+
+    if diff.trim().is_empty() {
+        bail!("[pr-summary] no diff from {base_ref}");
+    }
+
+    let max_diff_lines = ContextAssembler::default().max_diff_lines;
+    let (diff_excerpt, truncated) = truncate_lines(&diff, max_diff_lines);
+    let mut diff_context = String::new();
+    diff_context.push_str("## Diff stat\n```text\n");
+    if diff_stat.trim().is_empty() {
+        diff_context.push_str("[pr-summary] diff stat unavailable\n");
+    } else {
+        diff_context.push_str(diff_stat.trim_end());
+        diff_context.push('\n');
+    }
+    diff_context.push_str("```\n\n## Diff\n```diff\n");
+    diff_context.push_str(diff_excerpt.trim_end());
+    if !diff_excerpt.ends_with('\n') {
+        diff_context.push('\n');
+    }
+    diff_context.push_str("```\n");
+    if truncated {
+        diff_context.push_str(&format!(
+            "\n[diff truncated — showing first {max_diff_lines} lines]\n"
+        ));
+    }
+
+    let instruction = format!(
+        "Generate a concise pull request title and body draft for `{head_ref}` relative to `{base_ref}`."
+    );
+    let context = format!("Base ref: {base_ref}\nHead ref: {head_ref}\nMerge base: {merge_base}");
+    Ok(render_pr_summary_prompt(
+        &instruction,
+        &context,
+        &diff_context,
+    ))
+}
+
+async fn run_pr_summary_with_batch<F, Fut>(
+    cwd: &Path,
+    config: Config,
+    batch_runner: F,
+) -> Result<String>
+where
+    F: FnOnce(String, BatchRunOpts, Config) -> Fut,
+    Fut: std::future::Future<Output = Result<BatchResult>>,
+{
+    let prompt = prepare_pr_summary_prompt(cwd).await?;
+    let opts = BatchRunOpts {
+        max_turns: Some(1),
+        auto_approve: None,
+        format: OutputFormat::Text,
+        resume_state: None,
+    };
+    let result = batch_runner(prompt, opts, config).await?;
+    Ok(result.output_lines.join("\n"))
+}
+
+async fn run_pr_summary(cwd: &Path, config: &Config) -> Result<String> {
+    run_pr_summary_with_batch(cwd, config.clone(), |task, opts, config| async move {
+        run_batch(task, opts, &config).await
+    })
+    .await
+}
+
 #[cfg(test)]
 fn extract_init_template_keys(content: &str) -> std::collections::BTreeSet<String> {
     let mut section: Option<&str> = None;
@@ -835,6 +1039,20 @@ async fn main() -> Result<ExitCode> {
             print_lines(&summary);
             return Ok(ExitCode::SUCCESS);
         }
+        Some(Commands::Branch { name }) => {
+            let cwd = std::env::current_dir()?;
+            let summary = run_branch(&cwd, &name).await?;
+            print_lines(&summary);
+            return Ok(ExitCode::SUCCESS);
+        }
+        Some(Commands::PrSummary) => {
+            let cwd = std::env::current_dir()?;
+            let config = Config::load()?;
+            config.validate()?;
+            let rendered = run_pr_summary(&cwd, &config).await?;
+            print!("{rendered}");
+            return Ok(ExitCode::SUCCESS);
+        }
         Some(Commands::Migrate { sub }) => match sub {
             MigrateCommands::Config { output } => {
                 emit_migrate_config_output(output.as_deref())?;
@@ -918,15 +1136,84 @@ fn exit_code_for_status(status: TaskStatus) -> ExitCode {
 mod tests {
     use super::{
         emit_migrate_config_output, extract_init_template_keys, looks_like_terminal_transcript,
-        resolve_resume_state, Cli, Commands, MigrateCommands, SkillsCommands,
-        INIT_CONFIG_NORMATIVE_KEYS,
+        prepare_pr_summary_prompt, resolve_resume_state, run_branch, run_pr_summary_with_batch,
+        Cli, Commands, MigrateCommands, SkillsCommands, INIT_CONFIG_NORMATIVE_KEYS,
     };
     use clap::Parser;
     use clap_complete::Shell;
     use std::path::PathBuf;
+    use std::process::Command;
+    use vexcoder::batch_mode::{BatchResult, OutputFormat};
+    use vexcoder::config::Config;
+    use vexcoder::runtime::{TaskState, TaskStatus};
 
     mod test_support {
         pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    }
+
+    fn run_git(repo: &std::path::Path, args: &[&str]) {
+        let output = Command::new("git")
+            .current_dir(repo)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: stdout={} stderr={}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn git_stdout(repo: &std::path::Path, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .current_dir(repo)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: stdout={} stderr={}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    }
+
+    fn init_git_repo() -> tempfile::TempDir {
+        let temp = tempfile::tempdir().unwrap();
+        run_git(temp.path(), &["init"]);
+        run_git(temp.path(), &["checkout", "-b", "main"]);
+        run_git(temp.path(), &["config", "user.name", "Test User"]);
+        run_git(temp.path(), &["config", "user.email", "test@example.com"]);
+        std::fs::write(temp.path().join("README.md"), "hello\n").unwrap();
+        run_git(temp.path(), &["add", "README.md"]);
+        run_git(temp.path(), &["commit", "-m", "initial"]);
+        temp
+    }
+
+    fn init_pr_summary_repo() -> tempfile::TempDir {
+        let temp = init_git_repo();
+        let main_sha = git_stdout(temp.path(), &["rev-parse", "HEAD"]);
+        run_git(
+            temp.path(),
+            &["update-ref", "refs/remotes/origin/main", &main_sha],
+        );
+        run_git(
+            temp.path(),
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+            ],
+        );
+        run_git(temp.path(), &["checkout", "-b", "feature/pr-summary"]);
+        std::fs::write(temp.path().join("feature.txt"), "feature change\n").unwrap();
+        run_git(temp.path(), &["add", "feature.txt"]);
+        run_git(temp.path(), &["commit", "-m", "feature"]);
+        temp
     }
 
     #[test]
@@ -1238,6 +1525,21 @@ mod tests {
     }
 
     #[test]
+    fn test_branch_cli_parses_name() {
+        let cli = Cli::parse_from(["vex", "branch", "feature/demo"]);
+        match cli.command {
+            Some(Commands::Branch { name }) => assert_eq!(name, "feature/demo"),
+            _ => panic!("expected branch subcommand"),
+        }
+    }
+
+    #[test]
+    fn test_pr_summary_cli_parses() {
+        let cli = Cli::parse_from(["vex", "pr-summary"]);
+        assert!(matches!(cli.command, Some(Commands::PrSummary)));
+    }
+
+    #[test]
     fn test_uninstall_hooks_cli_parses() {
         let cli = Cli::parse_from(["vex", "uninstall-hooks"]);
         assert!(matches!(cli.command, Some(Commands::UninstallHooks)));
@@ -1403,6 +1705,102 @@ mod tests {
         assert!(
             !content.lines().any(|line| line.starts_with("    ")),
             "validate template must not contain leading indentation"
+        );
+    }
+
+    // -- PK-08: vex branch / vex pr-summary ------------------------------------
+
+    #[tokio::test]
+    async fn test_vex_branch_creates_git_branch() {
+        let repo = init_git_repo();
+
+        let summary = run_branch(repo.path(), "feature/demo").await.unwrap();
+        let branch = git_stdout(repo.path(), &["rev-parse", "--abbrev-ref", "HEAD"]);
+
+        assert_eq!(branch, "feature/demo");
+        assert!(summary
+            .iter()
+            .any(|line| line == "[branch] created: feature/demo"));
+    }
+
+    #[tokio::test]
+    async fn test_vex_branch_records_in_task_state() {
+        let _env_lock = crate::tests::test_support::ENV_LOCK.lock().await;
+        let repo = init_git_repo();
+        let state_dir = repo.path().join("state");
+        std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str());
+
+        let state = TaskState::new("task-branch".to_string());
+        state.save(&state_dir).unwrap();
+
+        run_branch(repo.path(), "feature/task-state").await.unwrap();
+
+        let loaded = TaskState::load(&state_dir, "task-branch").unwrap();
+        assert_eq!(loaded.branch_name.as_deref(), Some("feature/task-state"));
+
+        std::env::remove_var("VEX_STATE_DIR");
+    }
+
+    #[tokio::test]
+    async fn test_vex_pr_summary_assembles_merge_base_diff() {
+        let repo = init_pr_summary_repo();
+
+        let prompt = prepare_pr_summary_prompt(repo.path()).await.unwrap();
+
+        assert!(prompt.contains("refs/remotes/origin/main"));
+        assert!(prompt.contains("feature/pr-summary"));
+        assert!(prompt.contains("feature.txt"));
+        assert!(prompt.contains("+feature change"));
+    }
+
+    #[tokio::test]
+    async fn test_vex_pr_summary_outputs_to_stdout() {
+        let repo = init_pr_summary_repo();
+        let config = Config::default_for_tui();
+
+        let rendered = run_pr_summary_with_batch(repo.path(), config, |task, opts, _| async move {
+            assert_eq!(opts.max_turns, Some(1));
+            assert_eq!(opts.format, OutputFormat::Text);
+            assert!(task.contains("feature.txt"));
+            Ok(BatchResult {
+                status: TaskStatus::Completed,
+                output_lines: vec![
+                    "Title: Example PR".to_string(),
+                    String::new(),
+                    "## Summary".to_string(),
+                ],
+                turn_count: 1,
+                task_id: "task-pr-summary".to_string(),
+            })
+        })
+        .await
+        .unwrap();
+
+        assert!(rendered.starts_with("Title: Example PR"));
+    }
+
+    #[tokio::test]
+    async fn test_vex_pr_summary_does_not_start_tui() {
+        let repo = init_pr_summary_repo();
+        let config = Config::default_for_tui();
+        let state_dir = repo.path().join(".vex/state");
+        assert!(!state_dir.exists());
+
+        let rendered = run_pr_summary_with_batch(repo.path(), config, |_, _, _| async move {
+            Ok(BatchResult {
+                status: TaskStatus::Completed,
+                output_lines: vec!["Title: No TUI".to_string()],
+                turn_count: 1,
+                task_id: "task-pr-summary".to_string(),
+            })
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(rendered, "Title: No TUI");
+        assert!(
+            !state_dir.exists(),
+            "pr-summary must not bootstrap TUI state"
         );
     }
 }

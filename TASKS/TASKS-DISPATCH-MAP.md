@@ -52,3 +52,5 @@ dispatch note is descriptive only and does not relax the milestone-1 gate.
 - Update this file when repo-local task manifests are added, removed, or re-scoped.
 - Update `TASKS/completed/REPO-RAW-URL-MAP.md` in the same change set when tracked files are added or removed.
 - Source ADR documents and task manifests remain the behavioral source of truth.
+- ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
+  `#71`, `#72`, and `#74`; `PK-08` is the next unlocked pre-gate batch.
