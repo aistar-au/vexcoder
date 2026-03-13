@@ -109,11 +109,7 @@ impl EditLoop {
                 format!("{instruction}\n\n{retry_context}")
             };
 
-            ctx.emit_transcript_line(format!(
-                "[edit loop turn {}/{}]",
-                turn + 1,
-                self.max_turns
-            ));
+            ctx.emit_transcript_line(format!("[edit loop turn {}/{}]", turn + 1, self.max_turns));
 
             // Model: drive a full tool-loop turn (read/edit/write/command).
             match ctx.drive_edit_turn(message).await {

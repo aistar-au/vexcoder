@@ -425,12 +425,8 @@ pub(super) fn execute_tool_dispatch(
                 .join("\n"))
         }
         "run_command" => {
-            let program = required_tool_string_any(
-                input,
-                name,
-                "command",
-                &["command", "program", "cmd"],
-            )?;
+            let program =
+                required_tool_string_any(input, name, "command", &["command", "program", "cmd"])?;
             let args: Vec<String> = input
                 .get("args")
                 .and_then(|v| v.as_array())
