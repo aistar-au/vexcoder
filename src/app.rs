@@ -2990,6 +2990,18 @@ mod tests {
         )
     }
 
+    fn setup_ctx_with_responses_and_updates(
+        responses: Vec<Vec<String>>,
+    ) -> (RuntimeContext, mpsc::UnboundedReceiver<UiUpdate>) {
+        let (tx, rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(responses)));
+        let conversation = ConversationManager::new_mock(client, HashMap::new());
+        (
+            RuntimeContext::new(conversation, tx, CancellationToken::new()),
+            rx,
+        )
+    }
+
     fn setup_ctx_with_responses(responses: Vec<Vec<String>>) -> RuntimeContext {
         let (tx, _rx) = mpsc::unbounded_channel::<UiUpdate>();
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(responses)));
@@ -5966,6 +5978,78 @@ mod tests {
         assert_eq!(mode.command_sessions[0].command, "echo from-tool");
         assert_eq!(mode.command_sessions[0].pid, Some(7700));
         assert_eq!(mode.command_sessions[0].status, "running");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_model_run_command_streams_managed_session_into_tui_transcript() {
+        let temp = tempfile::tempdir().unwrap();
+        let responses = vec![
+            vec![
+                r#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_run_command_01","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
+                r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#.to_string(),
+                r#"event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Running a command now."}}"#.to_string(),
+                r#"event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_run_command_01","name":"run_command","input":{}}}"#.to_string(),
+                #[cfg(windows)]
+                r#"event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"command\":\"cmd\",\"args\":[\"/C\",\"echo model-tool-output\"]}"}}"#.to_string(),
+                #[cfg(not(windows))]
+                r#"event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"command\":\"sh\",\"args\":[\"-c\",\"printf 'model-tool-output\\n'\"]}"}}"#.to_string(),
+                r#"event: content_block_stop
+data: {"type":"content_block_stop","index":1}"#.to_string(),
+                r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":6}}"#.to_string(),
+                r#"event: message_stop
+data: {"type":"message_stop"}"#.to_string(),
+            ],
+            vec![
+                r#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_run_command_02","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
+                r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#.to_string(),
+                r#"event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Finished running the command."}}"#.to_string(),
+                r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":8}}"#.to_string(),
+                r#"event: message_stop
+data: {"type":"message_stop"}"#.to_string(),
+            ],
+        ];
+
+        let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+        mode.current_task
+            .active_grants
+            .insert(Capability::RunCommand, ApprovalScope::Session);
+        let (mut ctx, mut rx) = setup_ctx_with_responses_and_updates(responses);
+
+        mode.on_user_input("run the managed tool command".to_string(), &mut ctx);
+        drain_until_turn_complete(&mut mode, &mut ctx, &mut rx).await;
+
+        let lines = mode.history_lines();
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("[command session started pid=")),
+            "expected managed command-session start marker in transcript"
+        );
+        assert!(
+            lines.iter().any(|line| line.contains("model-tool-output")),
+            "expected model run_command output in transcript"
+        );
+        assert!(
+            lines.iter().any(|line| line == "[command session exit: 0]"),
+            "expected managed command-session exit marker in transcript"
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("Finished running the command.")),
+            "expected final assistant response after tool completion"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
