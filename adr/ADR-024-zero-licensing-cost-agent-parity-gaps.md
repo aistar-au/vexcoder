@@ -516,6 +516,16 @@ Reference agents expose a user-level notes surface that persists across sessions
 
 **Storage:** `~/.config/vex/memory.md` (XDG path) or `~/.vex/memory.md` as fallback. Plain UTF-8 Markdown. The file is created on first `/memory add` if it does not exist.
 
+**Session-local markdown artifacts:** When the runtime persists a human-readable
+per-session plan, checklist, or handoff note for operator inspection, the
+artifact lives under `~/.config/vex/session-state/<session-id>/` (XDG path) or
+`~/.vex/session-state/<session-id>/` as fallback. Plain UTF-8 Markdown is the
+required format. `plan.md` is the canonical filename for turn-local planning
+state. These files are operator-local scratch artifacts: they may be read back
+into the terminal runtime or local API surface for the same session, but they
+do not replace ADR-022's structured durable `TaskState` and must never be
+committed to the repo.
+
 **Session injection:** At session start, after project instructions are loaded, the notes file is read and appended to the system prompt using the same labelled-delimiter pattern as Gap 4. Token budget: `VEX_MAX_MEMORY_TOKENS` (default: 2 048). If the notes file exceeds the budget, it is not injected and a startup warning is emitted. The budget is checked independently of `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS`; both may be active simultaneously and their token counts do not sum toward a shared limit.
 
 **Commands added to `try_handle_slash_command`:**
@@ -544,6 +554,9 @@ Reference agents expose a user-level notes surface that persists across sessions
 - `/memory` commands must never start a model turn. All output is via `push_history_line`.
 - The notes file path is resolved from the user config layer (priority 3 in the Gap 3 layered chain). It must not be overrideable via repo-local config — notes are operator-personal and must not be settable per-project.
 - The notes file is never committed to source control. `vex init` (Gap 17) must write `~/.config/vex/memory.md` to a global `.gitignore_global` recommendation in `docs/src/migration.md`, not to the repo `.gitignore`.
+- Session-local markdown artifacts are advisory and human-readable; they must
+  not become the sole source of truth for approvals, command history, or resume
+  state.
 - `/memory clear` requires the confirmation overlay. Non-interactive (`BatchMode`) invocation must treat `/memory clear` as an error unless `--auto-approve` is passed.
 - Token budget overflow is a warning, not an error. A session without notes injection is still a valid session.
 

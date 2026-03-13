@@ -27,6 +27,18 @@ This aligns with common open-source Rust TUI patterns (`ratatui`,
 3. Use one active streaming cell; commit on `TurnComplete`.
 4. Route keyboard/mouse navigation into widget scrolling APIs.
 5. Keep overlays lifecycle-managed (enter/leave paired, panic-safe).
+6. The canonical terminal surface must preserve operator access to pre-launch
+   shell history. Managed TUI rendering therefore targets the primary terminal
+   session rather than treating the terminal as a disposable full-screen
+   surface. Operators must be able to inspect shell output that existed before
+   `vex` launched using ordinary terminal scrollback, while the runtime-owned
+   transcript begins at the launch boundary.
+7. Overlay prompts are the canonical operator-input surface for bounded
+   mid-task decisions. Approval, confirmation, resume-selection, credential
+   retry, and similar handoff prompts must render in-terminal without tearing
+   down the active task view. Resolving an overlay must preserve transcript
+   state, output-pane state, changed-file visibility, and scroll position, then
+   return control to the active task.
 
 ## `UiUpdate` Alignment (normative)
 
@@ -48,6 +60,12 @@ not overlap existing `StreamBlock*` streaming semantics.
 `CustomTerminal` may use ratatui insertion APIs for inline viewport behavior.
 Implementation must be validated against the pinned ratatui version in this
 repo (`ratatui = 0.29`) before task dispatch is considered complete.
+
+The managed TUI is not permitted to rely on a rendering strategy that makes
+pre-launch shell history unreachable until process exit. Primary-terminal
+rendering, inline insertion, or an equivalent terminal mode that leaves shell
+scrollback available during runtime are acceptable; terminal takeover that
+hides prior shell history for the duration of the session is not.
 
 ## Migration
 
@@ -78,3 +96,7 @@ On acceptance of ADR-018 and successful CORE-17 cutover:
 1. Do not split transcript ownership across multiple modules.
 2. Keep runtime-core contract boundaries intact (ADR-006/ADR-007).
 3. Do not delete superseded ADRs; mark them superseded.
+4. Overlay input blocks ordinary prompt submission until the pending decision is
+   resolved or cancelled.
+5. Bounded multi-choice overlay prompts must accept a small, explicit option
+   set and return the runtime to the interrupted task flow after resolution.

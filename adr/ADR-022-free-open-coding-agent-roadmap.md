@@ -198,6 +198,14 @@ support when required by an interactive command.
 Command and tool results must be surfaced as structured task evidence in the UI.
 They are not permitted to exist only as model-generated summaries.
 
+When command execution is initiated from the interactive terminal surface, the
+runtime owns the subprocess lifecycle and output ingestion. Command stdout,
+stderr, exit status, and cancellation state must remain visible inside the
+active runtime surface rather than being delegated exclusively to the parent
+shell. The command surface may mirror evidence into durable task state, but the
+operator must be able to inspect live command output from inside the app while
+the task remains active.
+
 `ApprovalPolicy` is separate from `RuntimeCorePolicy`. `RuntimeCorePolicy`
 continues to govern prompt-shaping and evidence-shaping concerns; it does not
 become the approval mechanism.
