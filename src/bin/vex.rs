@@ -1760,7 +1760,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_vex_branch_creates_git_branch() {
+        let _env_lock = crate::tests::test_support::ENV_LOCK.lock().await;
         let repo = init_git_repo();
+        let state_dir = repo.path().join("state");
+        std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str());
 
         let summary = run_branch(repo.path(), "feature/demo").await.unwrap();
         let branch = git_stdout(repo.path(), &["rev-parse", "--abbrev-ref", "HEAD"]);
@@ -1769,6 +1772,8 @@ mod tests {
         assert!(summary
             .iter()
             .any(|line| line == "[branch] created: feature/demo"));
+
+        std::env::remove_var("VEX_STATE_DIR");
     }
 
     #[tokio::test]
