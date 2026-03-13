@@ -349,7 +349,6 @@ impl RuntimeMode for BatchMode {
                 StreamBlock::ToolCall {
                     id, name, input, ..
                 } => {
-                    self.note_changed_files_from_tool_call(&name, &input);
                     self.pending_tool_calls
                         .insert(id, PendingToolCall { name, input });
                 }
@@ -359,7 +358,9 @@ impl RuntimeMode for BatchMode {
                     ..
                 } => {
                     if let Some(pending) = self.pending_tool_calls.remove(&tool_call_id) {
-                        self.note_changed_files_from_tool_call(&pending.name, &pending.input);
+                        if !is_error {
+                            self.note_changed_files_from_tool_call(&pending.name, &pending.input);
+                        }
                         self.note_command_history_from_tool_result(&pending.name, is_error);
                     }
                 }
@@ -924,6 +925,17 @@ mod tests {
         mode.on_model_update(
             UiUpdate::StreamBlockStart {
                 index: 1,
+                block: StreamBlock::ToolResult {
+                    tool_call_id: "tool-1".to_string(),
+                    output: "wrote file".to_string(),
+                    is_error: false,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 1,
                 block: StreamBlock::ToolCall {
                     id: "tool-2".to_string(),
                     name: "git_commit".to_string(),
@@ -964,6 +976,59 @@ mod tests {
         assert_eq!(command_history.len(), 1);
         assert_eq!(command_history[0]["program"], "git commit");
         assert_eq!(command_history[0]["exit_code"], 0);
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_ignores_failed_tool_changed_file_evidence() {
+        let mut ctx = setup_batch_ctx();
+        let opts = BatchRunOpts {
+            format: OutputFormat::Jsonl,
+            ..Default::default()
+        };
+        let mut mode = BatchMode::new("test-task".to_string(), opts, None, None);
+
+        mode.on_user_input("task".to_string(), &mut ctx);
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 0,
+                block: StreamBlock::ToolCall {
+                    id: "tool-1".to_string(),
+                    name: "write_file".to_string(),
+                    input: serde_json::json!({
+                        "path": "src/main.rs",
+                        "content": "fn main() {}\n"
+                    }),
+                    status: crate::state::ToolStatus::Executing,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 1,
+                block: StreamBlock::ToolResult {
+                    tool_call_id: "tool-1".to_string(),
+                    output: "permission denied".to_string(),
+                    is_error: true,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(UiUpdate::StreamDelta("done".to_string()), &mut ctx);
+        mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+
+        let turn_line = mode.output_lines.first().expect("expected turn line");
+        let turn_json: serde_json::Value = serde_json::from_str(turn_line).unwrap();
+        let changed_files = turn_json["changed_files"]
+            .as_array()
+            .expect("changed_files must be present");
+        assert!(
+            !changed_files
+                .iter()
+                .filter_map(|value| value.as_str())
+                .any(|path| path == "src/main.rs"),
+            "failed tool calls must not be recorded as changed files"
+        );
     }
 
     #[tokio::test]

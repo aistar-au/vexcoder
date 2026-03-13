@@ -21,6 +21,8 @@ pub struct SessionTokens {
     pub last_input: u64,
     pub last_output: u64,
     #[serde(default)]
+    pub last_estimated: bool,
+    #[serde(default)]
     pub estimated: bool,
 }
 
@@ -30,6 +32,7 @@ impl SessionTokens {
         self.output = self.output.saturating_add(turn.output);
         self.last_input = turn.input;
         self.last_output = turn.output;
+        self.last_estimated = turn.estimated;
         self.estimated = self.estimated || turn.estimated;
     }
 
@@ -45,7 +48,7 @@ impl SessionTokens {
         TurnTokens {
             input: self.last_input,
             output: self.last_output,
-            estimated: self.estimated,
+            estimated: self.last_estimated,
         }
     }
 }
@@ -88,6 +91,31 @@ mod tests {
         assert_eq!(session.output, 8);
         assert_eq!(session.last_input, 4);
         assert_eq!(session.last_output, 3);
+        assert!(session.last_estimated);
         assert!(session.estimated);
+    }
+
+    #[test]
+    fn session_tokens_last_turn_preserves_per_turn_estimate_flag() {
+        let mut session = SessionTokens::default();
+        session.record_turn(TurnTokens {
+            input: 10,
+            output: 5,
+            estimated: true,
+        });
+        session.record_turn(TurnTokens {
+            input: 4,
+            output: 3,
+            estimated: false,
+        });
+
+        assert!(
+            session.estimated,
+            "session should remember any estimated turn"
+        );
+        assert!(
+            !session.last_turn().estimated,
+            "last_turn should reflect only the latest turn"
+        );
     }
 }

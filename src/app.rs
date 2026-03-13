@@ -2500,11 +2500,6 @@ impl RuntimeMode for TuiMode {
                     StreamBlock::ToolCall {
                         id, name, input, ..
                     } => {
-                        note_changed_files_from_tool_call(
-                            &mut self.current_turn_changed_files,
-                            name,
-                            input,
-                        );
                         self.pending_turn_tool_calls.insert(
                             id.clone(),
                             PendingTurnToolCall {
@@ -2519,11 +2514,13 @@ impl RuntimeMode for TuiMode {
                         is_error,
                     } => {
                         if let Some(pending) = self.pending_turn_tool_calls.remove(tool_call_id) {
-                            note_changed_files_from_tool_call(
-                                &mut self.current_turn_changed_files,
-                                &pending.name,
-                                &pending.input,
-                            );
+                            if !*is_error {
+                                note_changed_files_from_tool_call(
+                                    &mut self.current_turn_changed_files,
+                                    &pending.name,
+                                    &pending.input,
+                                );
+                            }
                             if let Some(evidence) =
                                 command_evidence_from_tool_result(&pending.name, *is_error)
                             {
@@ -3226,6 +3223,84 @@ mod tests {
 
         assert_eq!(mode.max_scroll_offset(), 2);
         assert!(mode.status_line().contains("history:3"));
+    }
+
+    #[test]
+    fn tool_call_only_marks_changed_files_after_successful_result() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("task".to_string(), &mut ctx);
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 0,
+                block: StreamBlock::ToolCall {
+                    id: "tool-1".to_string(),
+                    name: "write_file".to_string(),
+                    input: serde_json::json!({
+                        "path": "src/main.rs",
+                        "content": "fn main() {}\n"
+                    }),
+                    status: crate::state::ToolStatus::Executing,
+                },
+            },
+            &mut ctx,
+        );
+        assert!(
+            mode.current_turn_changed_files.is_empty(),
+            "tool calls should not record changed files until they succeed"
+        );
+
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 1,
+                block: StreamBlock::ToolResult {
+                    tool_call_id: "tool-1".to_string(),
+                    output: "ok".to_string(),
+                    is_error: false,
+                },
+            },
+            &mut ctx,
+        );
+        assert!(mode.current_turn_changed_files.contains("src/main.rs"));
+    }
+
+    #[test]
+    fn failed_tool_result_does_not_record_changed_files() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("task".to_string(), &mut ctx);
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 0,
+                block: StreamBlock::ToolCall {
+                    id: "tool-1".to_string(),
+                    name: "write_file".to_string(),
+                    input: serde_json::json!({
+                        "path": "src/main.rs",
+                        "content": "fn main() {}\n"
+                    }),
+                    status: crate::state::ToolStatus::Executing,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 1,
+                block: StreamBlock::ToolResult {
+                    tool_call_id: "tool-1".to_string(),
+                    output: "permission denied".to_string(),
+                    is_error: true,
+                },
+            },
+            &mut ctx,
+        );
+        assert!(
+            mode.current_turn_changed_files.is_empty(),
+            "failed tool calls must not be exported as changed files"
+        );
     }
 
     #[test]
