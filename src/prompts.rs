@@ -2,11 +2,8 @@ pub const CODER_SYSTEM_PROMPT: &str = include_str!("prompts/coder_system.txt");
 
 const EDIT_TEMPLATE: &str = include_str!("prompts/edit_template.txt");
 const EXPLAIN_TEMPLATE: &str = include_str!("prompts/explain_template.txt");
-const FIX_TEMPLATE: &str = include_str!("prompts/fix_template.txt");
 const PLAN_TEMPLATE: &str = include_str!("prompts/plan_template.txt");
-const REVIEW_TEMPLATE: &str = include_str!("prompts/review_template.txt");
 const GENERATE_TESTS_TEMPLATE: &str = include_str!("prompts/generate_tests_template.txt");
-const PR_SUMMARY_TEMPLATE: &str = include_str!("prompts/pr_summary_template.txt");
 
 fn render_template(template: &str, replacements: &[(&str, &str)]) -> String {
     let mut rendered = String::with_capacity(template.len());
@@ -47,13 +44,6 @@ pub fn render_explain_prompt(instruction: &str, context: &str) -> String {
     )
 }
 
-pub fn render_fix_prompt(instruction: &str, context: &str) -> String {
-    render_template(
-        FIX_TEMPLATE,
-        &[("{{instruction}}", instruction), ("{{context}}", context)],
-    )
-}
-
 pub fn render_plan_prompt(instruction: &str, context: &str, scope: &str) -> String {
     render_template(
         PLAN_TEMPLATE,
@@ -61,17 +51,6 @@ pub fn render_plan_prompt(instruction: &str, context: &str, scope: &str) -> Stri
             ("{{instruction}}", instruction),
             ("{{context}}", context),
             ("{{scope}}", scope),
-        ],
-    )
-}
-
-pub fn render_review_prompt(instruction: &str, context: &str, diff_context: &str) -> String {
-    render_template(
-        REVIEW_TEMPLATE,
-        &[
-            ("{{instruction}}", instruction),
-            ("{{context}}", context),
-            ("{{diff_context}}", diff_context),
         ],
     )
 }
@@ -87,17 +66,6 @@ pub fn render_generate_tests_prompt(instruction: &str, context: &str, framework:
             ("{{instruction}}", instruction),
             ("{{context}}", context),
             ("{{framework}}", framework),
-        ],
-    )
-}
-
-pub fn render_pr_summary_prompt(instruction: &str, context: &str, diff_context: &str) -> String {
-    render_template(
-        PR_SUMMARY_TEMPLATE,
-        &[
-            ("{{instruction}}", instruction),
-            ("{{context}}", context),
-            ("{{diff_context}}", diff_context),
         ],
     )
 }
