@@ -2047,17 +2047,17 @@ impl RuntimeMode for TuiMode {
         self.push_history_line(format!("> {input}"));
         self.push_history_line(String::new());
 
-        if input.starts_with('/') && self.try_handle_slash_command(&input, ctx) {
-            return;
-        }
+        let turn_input = self.expand_inline_file_tokens(&input);
 
-        let trimmed = input.trim();
+        let trimmed = turn_input.trim();
         if let Some(command) = trimmed.strip_prefix('!') {
             self.handle_bang_command(command, ctx);
             return;
         }
 
-        let turn_input = self.expand_inline_file_tokens(&input);
+        if turn_input.starts_with('/') && self.try_handle_slash_command(&turn_input, ctx) {
+            return;
+        }
 
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
