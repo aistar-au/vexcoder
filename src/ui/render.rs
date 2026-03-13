@@ -2,7 +2,7 @@ use crate::app::TaskLayoutState;
 use crate::ui::input_metrics::{
     char_display_width, cursor_row_col, truncate_to_display_width, wrap_input_lines,
 };
-use crate::ui::layout::split_four_region_layout;
+use crate::ui::layout::{bottom_overlay_area, split_overlay_four_region_layout};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -212,7 +212,12 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
 
 /// Render the four-region task-first layout
 pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
-    let layout = split_four_region_layout(frame.area(), 2, 3);
+    let layout = split_overlay_four_region_layout(frame.area(), 2, 3);
+    let overlay_area = bottom_overlay_area(
+        frame.area(),
+        layout.input.y + layout.input.height - layout.header.y,
+    );
+    frame.render_widget(Clear, overlay_area);
 
     let mut header_lines = vec![Line::from(state.status_line.clone())];
     if !state.changed_files.is_empty() {
@@ -273,13 +278,17 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
 }
 
 pub fn render_overlay_modal(frame: &mut Frame<'_>, modal: OverlayModal<'_>) {
-    if frame.area().width == 0 || frame.area().height == 0 {
+    render_overlay_modal_in_area(frame, frame.area(), modal);
+}
+
+pub fn render_overlay_modal_in_area(frame: &mut Frame<'_>, anchor: Rect, modal: OverlayModal<'_>) {
+    if anchor.width == 0 || anchor.height == 0 {
         return;
     }
 
     let (title, accent, body, shortcuts) = modal_content(modal);
     let preferred_height = (body.len() + 8) as u16;
-    let area = centered_modal_area(frame.area(), preferred_height);
+    let area = centered_modal_area(anchor, preferred_height);
     frame.render_widget(Clear, area);
 
     let outer = Block::default()

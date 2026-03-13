@@ -6,7 +6,10 @@ This page documents the commands and flags implemented in the current binary.
 
 ### `vex`
 
-Starts the interactive terminal UI.
+Starts the interactive terminal UI as a primary-terminal overlay. The bottom
+status/transcript/input panes stay inside the current terminal instead of
+switching to an alternate screen buffer, so pre-launch shell scrollback remains
+available.
 
 ### `vex --resume [task-id]`
 
@@ -169,6 +172,9 @@ session totals.
 
 - `/run [command]`
 - `/test`
+  - Run directly in the terminal without starting a model turn.
+  - Command output stays in the terminal; the transcript keeps a compact summary
+    with per-command exit status.
 
 ### Free-form input transforms
 
@@ -178,7 +184,11 @@ session totals.
   - Directories render a compact workspace-relative listing.
 - `!command`
   - Runs a shell command immediately from the workspace without starting a model turn.
-  - Uses the same `run_command` approval gate as tool calls and records stdout/stderr plus `[exit: N]` in the transcript.
+  - Uses the same `run_command` approval gate as tool calls.
+  - Yields terminal control while the command runs, so interactive subprocesses
+    use the parent terminal directly.
+  - The transcript records that output was shown in the terminal plus the final
+    `[exit: N]` status.
 
 ## Keyboard notes
 

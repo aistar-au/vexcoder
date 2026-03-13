@@ -1,10 +1,28 @@
+use crate::terminal::TerminalGuard;
 use anyhow::{Context, Result};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::oneshot;
+
+fn validate_working_dir(working_dir: &Path) -> Result<()> {
+    if !working_dir.exists() {
+        anyhow::bail!(
+            "working directory does not exist: {}",
+            working_dir.display()
+        );
+    }
+    if !working_dir.is_dir() {
+        anyhow::bail!(
+            "working directory is not a directory: {}",
+            working_dir.display()
+        );
+    }
+    Ok(())
+}
 
 pub struct CommandRequest {
     pub program: String,
@@ -63,9 +81,61 @@ pub trait CommandRunner: Send + Sync {
 
 pub struct DefaultCommandRunner;
 
+#[cfg(unix)]
+struct ParentSigintGuard {
+    previous: libc::sighandler_t,
+}
+
+#[cfg(unix)]
+impl ParentSigintGuard {
+    fn ignore() -> Self {
+        let previous = unsafe { libc::signal(libc::SIGINT, libc::SIG_IGN) };
+        Self { previous }
+    }
+}
+
+#[cfg(unix)]
+impl Drop for ParentSigintGuard {
+    fn drop(&mut self) {
+        unsafe {
+            libc::signal(libc::SIGINT, self.previous);
+        }
+    }
+}
+
 impl DefaultCommandRunner {
     pub fn new() -> Self {
         Self
+    }
+
+    pub async fn run_passthrough_one_shot(&self, req: CommandRequest) -> Result<CommandResult> {
+        let mut command = Command::new(&req.program);
+        command.args(&req.args);
+        if let Some(working_dir) = &req.working_dir {
+            validate_working_dir(working_dir)?;
+            command.current_dir(working_dir);
+        }
+        command
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .kill_on_drop(true);
+
+        let _guard = TerminalGuard::yield_for_command()
+            .with_context(|| format!("failed to yield terminal for command: {}", req.program))?;
+        #[cfg(unix)]
+        let _sigint_guard = ParentSigintGuard::ignore();
+
+        let status = command
+            .status()
+            .await
+            .with_context(|| format!("failed to execute command: {}", req.program))?;
+
+        Ok(CommandResult {
+            exit_code: status.code().unwrap_or(-1),
+            stdout: String::new(),
+            stderr: String::new(),
+        })
     }
 }
 
@@ -80,6 +150,7 @@ impl CommandRunner for DefaultCommandRunner {
         let mut command = Command::new(&req.program);
         command.args(&req.args);
         if let Some(working_dir) = &req.working_dir {
+            validate_working_dir(working_dir)?;
             command.current_dir(working_dir);
         }
         command.kill_on_drop(true);
@@ -109,6 +180,7 @@ impl CommandRunner for DefaultCommandRunner {
         let mut command = Command::new(&req.program);
         command.args(&req.args);
         if let Some(working_dir) = &req.working_dir {
+            validate_working_dir(working_dir)?;
             command.current_dir(working_dir);
         }
 
@@ -195,6 +267,7 @@ impl CommandRunner for DefaultCommandRunner {
             cmd.arg(arg);
         }
         if let Some(working_dir) = &req.working_dir {
+            validate_working_dir(working_dir)?;
             cmd.cwd(working_dir);
         }
         let pty_process = pair
@@ -286,5 +359,18 @@ mod tests {
 
         assert!(result.is_ok(), "cancel must complete within 2 seconds");
         assert!(result.unwrap().is_ok(), "cancel must not error");
+    }
+
+    #[tokio::test]
+    async fn test_passthrough_one_shot_reports_exit_code() {
+        let runner = DefaultCommandRunner::new();
+        let req = echo_request();
+        let result = runner
+            .run_passthrough_one_shot(req)
+            .await
+            .expect("passthrough run failed");
+        assert_eq!(result.exit_code, 0);
+        assert!(result.stdout.is_empty());
+        assert!(result.stderr.is_empty());
     }
 }

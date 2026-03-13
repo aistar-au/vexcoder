@@ -5,7 +5,6 @@ use crate::prompts::{
     render_custom_command_instruction, render_edit_prompt, render_explain_prompt,
     render_generate_tests_prompt, CODER_SYSTEM_PROMPT,
 };
-use crate::runtime::command::PtySession;
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::context_assembler::{
     block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout, AssembledContext,
@@ -17,12 +16,13 @@ use crate::runtime::mode::RuntimeMode;
 use crate::runtime::policy::sanitize_assistant_text;
 use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
 use crate::runtime::r#loop::Runtime;
-use crate::runtime::validation::{ValidationSuite, VALIDATION_TAIL_BYTES};
+use crate::runtime::validation::ValidationSuite;
 use crate::runtime::{
-    truncate_head_bytes, truncate_tail_bytes, ApprovalScope, Capability, CommandHandle,
-    CommandRequest, CommandResult, CommandRunner, DefaultCommandRunner, EditLoopOutcome,
-    PassthroughSandbox, SandboxDriver, TaskState, TaskStatus, UiUpdate,
+    truncate_head_bytes, ApprovalScope, Capability, CommandRequest, DefaultCommandRunner,
+    EditLoopOutcome, PassthroughSandbox, SandboxDriver, TaskState, TaskStatus, UiUpdate,
 };
+#[cfg(test)]
+use crate::runtime::{CommandResult, CommandRunner};
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
 use crate::session_notes::{
@@ -431,74 +431,6 @@ fn parse_generate_tests_args(input: &str) -> std::result::Result<GenerateTestsAr
     Ok(parsed)
 }
 
-struct WorkingDirCommandRunner {
-    working_dir: PathBuf,
-    fallback: DefaultCommandRunner,
-    sandbox: PassthroughSandbox,
-}
-
-impl WorkingDirCommandRunner {
-    fn new(working_dir: PathBuf) -> Self {
-        Self {
-            working_dir,
-            fallback: DefaultCommandRunner::new(),
-            sandbox: PassthroughSandbox,
-        }
-    }
-}
-
-impl CommandRunner for WorkingDirCommandRunner {
-    async fn run_one_shot(&self, req: CommandRequest) -> Result<CommandResult> {
-        let CommandRequest {
-            program,
-            args,
-            working_dir,
-        } = req;
-        let wrapped_req = self.sandbox.wrap(CommandRequest {
-            program,
-            args,
-            working_dir: working_dir.or_else(|| Some(self.working_dir.clone())),
-        })?;
-        self.fallback.run_one_shot(wrapped_req).await
-    }
-
-    async fn run_streaming(
-        &self,
-        req: CommandRequest,
-        tx: tokio::sync::mpsc::Sender<crate::runtime::OutputChunk>,
-    ) -> Result<CommandHandle> {
-        let CommandRequest {
-            program,
-            args,
-            working_dir,
-        } = req;
-        let wrapped_req = self.sandbox.wrap(CommandRequest {
-            program,
-            args,
-            working_dir: working_dir.or_else(|| Some(self.working_dir.clone())),
-        })?;
-        self.fallback.run_streaming(wrapped_req, tx).await
-    }
-
-    async fn cancel(&self, handle: CommandHandle) -> Result<()> {
-        self.fallback.cancel(handle).await
-    }
-
-    fn attach_pty(&self, req: CommandRequest) -> Result<PtySession> {
-        let CommandRequest {
-            program,
-            args,
-            working_dir,
-        } = req;
-        let wrapped_req = self.sandbox.wrap(CommandRequest {
-            program,
-            args,
-            working_dir: working_dir.or_else(|| Some(self.working_dir.clone())),
-        })?;
-        self.fallback.attach_pty(wrapped_req)
-    }
-}
-
 struct HistoryState {
     lines: Vec<String>,
     turn_in_progress: bool,
@@ -543,6 +475,7 @@ pub struct TaskLayoutState {
 pub struct TuiMode {
     history_state: HistoryState,
     overlay_state: OverlayState,
+    passthrough_command_active: bool,
     history_line_cap: usize,
     repo_label: String,
     instructions_path: Option<String>,
@@ -650,6 +583,7 @@ fn shell_command_request(command: String, working_dir: PathBuf) -> CommandReques
     }
 }
 
+#[cfg(test)]
 async fn run_shell_command_with_runner<R, S>(
     runner: R,
     sandbox: S,
@@ -664,17 +598,26 @@ where
     runner.run_one_shot(request).await
 }
 
-async fn run_inline_shell_command(command: String, working_dir: PathBuf) -> Result<CommandResult> {
+async fn run_passthrough_shell_command<S>(
+    sandbox: S,
+    command: String,
+    working_dir: PathBuf,
+) -> Result<i32>
+where
+    S: SandboxDriver,
+{
+    let request = sandbox.wrap(shell_command_request(command, working_dir))?;
+    let result = DefaultCommandRunner::new()
+        .run_passthrough_one_shot(request)
+        .await?;
+    Ok(result.exit_code)
+}
+
+async fn run_inline_shell_command(command: String, working_dir: PathBuf) -> Result<i32> {
     // The production security boundary for inline shell execution is the
     // Capability::RunCommand approval gate in handle_bang_command(). This helper
     // only runs after approval has been resolved.
-    run_shell_command_with_runner(
-        DefaultCommandRunner::new(),
-        PassthroughSandbox,
-        command,
-        working_dir,
-    )
-    .await
+    run_passthrough_shell_command(PassthroughSandbox, command, working_dir).await
 }
 
 fn format_inline_block(
@@ -697,31 +640,76 @@ fn format_inline_block(
     rendered
 }
 
-fn render_inline_command_result_lines(result: &CommandResult) -> Vec<String> {
-    let mut rendered = String::new();
+async fn run_validation_suite_passthrough(
+    suite: ValidationSuite,
+    working_dir: PathBuf,
+) -> Result<crate::runtime::ValidationResult> {
+    let runner = DefaultCommandRunner::new();
+    let mut passed = true;
+    let mut outputs = Vec::with_capacity(suite.commands.len());
 
-    for line in result.stdout.lines() {
-        rendered.push_str("stdout: ");
-        rendered.push_str(line);
-        rendered.push('\n');
-    }
-    for line in result.stderr.lines() {
-        rendered.push_str("stderr: ");
-        rendered.push_str(line);
-        rendered.push('\n');
+    for command in suite.commands {
+        let request = CommandRequest {
+            program: command.program.clone(),
+            args: command.args.clone(),
+            working_dir: Some(working_dir.clone()),
+        };
+
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(command.timeout_secs.max(1)),
+            runner.run_passthrough_one_shot(request),
+        )
+        .await
+        {
+            Ok(Ok(result)) => {
+                if result.exit_code != 0 {
+                    passed = false;
+                }
+                outputs.push(crate::runtime::ValidationOutput {
+                    label: command.label,
+                    exit_code: result.exit_code,
+                    stdout_tail: String::new(),
+                    stderr_tail: String::new(),
+                    stdout_truncated: false,
+                    stderr_truncated: false,
+                });
+            }
+            Ok(Err(error)) => {
+                passed = false;
+                outputs.push(crate::runtime::ValidationOutput {
+                    label: command.label,
+                    exit_code: -1,
+                    stdout_tail: String::new(),
+                    stderr_tail: error.to_string(),
+                    stdout_truncated: false,
+                    stderr_truncated: false,
+                });
+            }
+            Err(_) => {
+                passed = false;
+                outputs.push(crate::runtime::ValidationOutput {
+                    label: command.label,
+                    exit_code: -1,
+                    stdout_tail: String::new(),
+                    stderr_tail: format!(
+                        "validation command timed out after {}s",
+                        command.timeout_secs.max(1)
+                    ),
+                    stdout_truncated: false,
+                    stderr_truncated: false,
+                });
+            }
+        }
     }
 
-    let mut lines = Vec::new();
-    let (tail, truncated) = truncate_tail_bytes(&rendered, VALIDATION_TAIL_BYTES);
-    if truncated {
-        lines.push(format!(
-            "[output truncated \u{2014} showing last {} bytes]",
-            VALIDATION_TAIL_BYTES
-        ));
-    }
-    lines.extend(tail.lines().map(ToOwned::to_owned));
-    lines.push(format!("[exit: {}]", result.exit_code));
-    lines
+    Ok(crate::runtime::ValidationResult { passed, outputs })
+}
+
+fn render_inline_command_result_lines(exit_code: i32) -> Vec<String> {
+    vec![
+        "[output shown in terminal]".to_string(),
+        format!("[exit: {exit_code}]"),
+    ]
 }
 
 impl TuiMode {
@@ -741,6 +729,7 @@ impl TuiMode {
         Self {
             history_state: HistoryState::default(),
             overlay_state: OverlayState::default(),
+            passthrough_command_active: false,
             history_line_cap: resolve_history_line_cap(),
             repo_label: resolve_repo_label(),
             instructions_path: None,
@@ -855,6 +844,10 @@ impl TuiMode {
 
     pub fn pending_memory_clear_overlay(&self) -> bool {
         self.overlay_state.pending_memory_clear
+    }
+
+    pub fn passthrough_command_active(&self) -> bool {
+        self.passthrough_command_active
     }
 
     pub fn set_history_content_width(&self, width: usize) {
@@ -1081,6 +1074,7 @@ impl TuiMode {
         self.history_state.lines.clear();
         self.history_state.turn_in_progress = false;
         self.history_state.cancel_pending = false;
+        self.passthrough_command_active = false;
         self.history_state.active_assistant_index = None;
         self.history_state.scroll_offset = 0;
         self.history_state.auto_follow = true;
@@ -1485,6 +1479,7 @@ impl TuiMode {
         self.history_state.turn_in_progress = true;
         self.history_state.cancel_pending = false;
         self.history_state.active_assistant_index = None;
+        self.passthrough_command_active = true;
 
         let ctx = ctx.clone();
         let cancel = ctx.turn_cancellation_token();
@@ -1499,8 +1494,8 @@ impl TuiMode {
                     working_dir,
                 ) => {
                     match result {
-                        Ok(result) => {
-                            for line in render_inline_command_result_lines(&result) {
+                        Ok(exit_code) => {
+                            for line in render_inline_command_result_lines(exit_code) {
                                 ctx.emit_transcript_line(line);
                             }
                         }
@@ -1633,8 +1628,10 @@ impl TuiMode {
             return;
         }
 
-        let runner = WorkingDirCommandRunner::new(self.working_dir.clone());
-        match block_on_context_task(async move { suite.run(&runner).await }) {
+        match block_on_context_task(run_validation_suite_passthrough(
+            suite,
+            self.working_dir.clone(),
+        )) {
             Ok(result) => {
                 if remember_for_fix {
                     let mut edit_loop = self.active_edit_loop.clone().unwrap_or_else(|| {
@@ -1664,6 +1661,9 @@ impl TuiMode {
                 format!("exit {}", output.exit_code)
             };
             self.push_history_line(format!("[{label}] {} [{status}]", output.label));
+            if output.stdout_tail.trim().is_empty() && output.stderr_tail.trim().is_empty() {
+                self.push_history_line("  output: shown in terminal".to_string());
+            }
             if !output.stdout_tail.trim().is_empty() {
                 for line in output.stdout_tail.lines() {
                     self.push_history_line(format!("  stdout: {line}"));
@@ -2606,6 +2606,7 @@ impl RuntimeMode for TuiMode {
                 outcome,
                 last_validation_result,
             } => {
+                self.passthrough_command_active = false;
                 if let Some(result) = last_validation_result {
                     if let Some(edit_loop) = self.active_edit_loop.as_mut() {
                         edit_loop.set_last_validation_result(result);
@@ -2651,6 +2652,7 @@ impl RuntimeMode for TuiMode {
                 }
             }
             UiUpdate::TurnComplete => {
+                self.passthrough_command_active = false;
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
@@ -2666,6 +2668,7 @@ impl RuntimeMode for TuiMode {
                 }
             }
             UiUpdate::Error(msg) => {
+                self.passthrough_command_active = false;
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
@@ -5729,8 +5732,8 @@ mod tests {
         assert!(
             mode.history_lines()
                 .iter()
-                .any(|line| line.contains("stdout: inline-shell")),
-            "expected inline shell stdout in transcript"
+                .any(|line| line == "[output shown in terminal]"),
+            "expected passthrough marker in transcript"
         );
         assert!(
             mode.history_lines().iter().any(|line| line == "[exit: 0]"),
@@ -5755,6 +5758,24 @@ mod tests {
 
         assert!(wrapped.load(Ordering::SeqCst));
         assert!(result.stdout.contains("sandbox-hit"));
+    }
+
+    #[tokio::test]
+    async fn test_passthrough_shell_command_invokes_sandbox_wrap() {
+        let temp = tempfile::tempdir().unwrap();
+        let wrapped = Arc::new(AtomicBool::new(false));
+        let exit_code = run_passthrough_shell_command(
+            RecordingSandbox {
+                wrapped: Arc::clone(&wrapped),
+            },
+            "echo passthrough-hit".to_string(),
+            temp.path().to_path_buf(),
+        )
+        .await
+        .unwrap();
+
+        assert!(wrapped.load(Ordering::SeqCst));
+        assert_eq!(exit_code, 0);
     }
 
     #[tokio::test]

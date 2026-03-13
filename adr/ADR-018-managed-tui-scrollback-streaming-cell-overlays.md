@@ -1,7 +1,7 @@
 # ADR-018: Managed TUI — Scrollback, Streaming Cell, Overlays
 
 **Date:** 2026-02-22
-**Status:** Proposed
+**Status:** Superseded by ADR-027
 **Deciders:** Core maintainer
 **Related tasks:** CORE-15, CORE-16, CORE-17, FEAT-17, FEAT-18, FEAT-19
 **ADR chain:** ADR-006, ADR-007, ADR-009, ADR-010
@@ -100,3 +100,12 @@ On acceptance of ADR-018 and successful CORE-17 cutover:
    resolved or cancelled.
 5. Bounded multi-choice overlay prompts must accept a small, explicit option
    set and return the runtime to the interrupted task flow after resolution.
+
+---
+
+## Supersession Note (2026-03-13)
+
+ADR-027 replaces the managed-TUI direction defined here with a primary-terminal
+overlay model and interactive command passthrough. This file remains in history
+to preserve the original scrollback and overlay design discussion, but the
+interactive runtime must now follow ADR-027.

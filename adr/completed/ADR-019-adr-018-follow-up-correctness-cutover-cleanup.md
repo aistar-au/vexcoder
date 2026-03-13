@@ -1,7 +1,7 @@
 # ADR-019: ADR-018 Follow-up — Correctness, Cutover, and Cleanup
 
 **Date:** 2026-02-22
-**Status:** Accepted
+**Status:** Superseded by ADR-027
 **Deciders:** Core maintainer
 **Related tasks:** B1, U1, U2, U3, U4, D1, D2 (dispatcher-assigned work items)
 **ADR chain:** ADR-006, ADR-007, ADR-008, ADR-009, ADR-010, ADR-018
@@ -258,6 +258,15 @@ for the exact commit that closes the checklist item.
 - Notes:
   - Replaced remaining legacy org-name branding references in active source files with `vexcoder`.
   - Updated docs source metadata URL to the vexcoder-branded GitHub path.
+
+---
+
+## Supersession Note (2026-03-13)
+
+ADR-027 replaces the follow-up execution contract recorded here for the
+interactive terminal surface. The checklist and evidence in this file remain the
+historical record of the managed-TUI cutover work, but new operator-facing TUI
+and passthrough changes must follow ADR-027.
 
 ### API Logging Follow-up - Canonicalize debug path env contract
 - Dispatcher: automation-agent

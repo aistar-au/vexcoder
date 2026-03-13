@@ -20,7 +20,7 @@ All ADR files live under `adr/`.
 | ADR | Title | Status |
 | :--- | :--- | :--- |
 | [ADR-013](ADR-013-tui-completion-deployment-plan.md) | TUI completion and deployment plan | Proposed |
-| [ADR-018](ADR-018-managed-tui-scrollback-streaming-cell-overlays.md) | Managed TUI scrollback, streaming cell, overlays | Proposed |
+| [ADR-018](ADR-018-managed-tui-scrollback-streaming-cell-overlays.md) | Managed TUI scrollback, streaming cell, overlays | Superseded by ADR-027 |
 | [ADR-021](ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md) | Codebase audit: dead weight, duplication, and shared-code opportunities | Accepted (follow-up maintenance items remain) |
 | [ADR-022 amendment](ADR-022-amendment-2026-03-03.md) | ADR-022 scope amendment — re-scopes terminal-first as milestone constraint, not permanent identity | Proposed |
 | [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed |
@@ -28,6 +28,7 @@ All ADR files live under `adr/`.
 | [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps — sandboxing, headless, layered config, MCP | Proposed |
 | [ADR-025](ADR-025-runtime-json-handoff-contract.md) | Runtime JSON handoff contract — trait-level event envelopes, JSON projection, and adapter-stable serialization | Proposed |
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding — scoped HTTP/Unix-socket API surface, SSE streaming, TLS boundary, auth model, and schema endpoint for runtime JSON handoff | Proposed |
+| [ADR-027](ADR-027-primary-terminal-overlay-tui-and-command-passthrough.md) | Primary-terminal overlay TUI and interactive command passthrough | Accepted |
 
 ## Completed ADR Records
 
@@ -49,5 +50,5 @@ All ADR files live under `adr/`.
 | [ADR-015](completed/ADR-015-local-endpoint-text-protocol-default.md) | Local endpoint text-protocol default for tool loop reliability | Accepted |
 | [ADR-016](completed/ADR-016-local-tool-loop-guard-and-correction.md) | Local tool-loop guard and correction path | Accepted |
 | [ADR-017](completed/ADR-017-append-terminal-single-session.md) | Append-terminal single session runtime | Superseded by ADR-018 |
-| [ADR-019](completed/ADR-019-adr-018-follow-up-correctness-cutover-cleanup.md) | ADR-018 follow-up sequencing for correctness, cutover, and cleanup | Accepted |
+| [ADR-019](completed/ADR-019-adr-018-follow-up-correctness-cutover-cleanup.md) | ADR-018 follow-up sequencing for correctness, cutover, and cleanup | Superseded by ADR-027 |
 | [ADR-020](completed/ADR-020-looping-architecture-enriched-response-correctness.md) | Looping architecture and enriched tool response correctness | Accepted |
