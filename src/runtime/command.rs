@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+#[cfg(unix)]
+use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
 
 fn validate_working_dir(working_dir: &Path) -> Result<()> {
@@ -83,23 +85,23 @@ pub struct DefaultCommandRunner;
 
 #[cfg(unix)]
 struct ParentSigintGuard {
-    previous: libc::sighandler_t,
+    task: tokio::task::JoinHandle<()>,
 }
 
 #[cfg(unix)]
 impl ParentSigintGuard {
-    fn ignore() -> Self {
-        let previous = unsafe { libc::signal(libc::SIGINT, libc::SIG_IGN) };
-        Self { previous }
+    fn ignore() -> Result<Self> {
+        let mut interrupts = signal(SignalKind::interrupt())
+            .context("failed to subscribe to SIGINT while running passthrough command")?;
+        let task = tokio::spawn(async move { while interrupts.recv().await.is_some() {} });
+        Ok(Self { task })
     }
 }
 
 #[cfg(unix)]
 impl Drop for ParentSigintGuard {
     fn drop(&mut self) {
-        unsafe {
-            libc::signal(libc::SIGINT, self.previous);
-        }
+        self.task.abort();
     }
 }
 
@@ -124,7 +126,7 @@ impl DefaultCommandRunner {
         let _guard = TerminalGuard::yield_for_command()
             .with_context(|| format!("failed to yield terminal for command: {}", req.program))?;
         #[cfg(unix)]
-        let _sigint_guard = ParentSigintGuard::ignore();
+        let _sigint_guard = ParentSigintGuard::ignore()?;
 
         let status = command
             .status()

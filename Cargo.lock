@@ -1879,7 +1879,6 @@ dependencies = [
  "crossterm",
  "filetime",
  "futures",
- "libc",
  "portable-pty",
  "ratatui",
  "reqwest",

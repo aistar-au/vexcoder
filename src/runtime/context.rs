@@ -240,6 +240,10 @@ impl RuntimeContext {
         let _ = self.update_tx.send(UiUpdate::TurnComplete);
     }
 
+    pub fn emit_passthrough_command_finished(&self) {
+        let _ = self.update_tx.send(UiUpdate::PassthroughCommandFinished);
+    }
+
     pub fn clear_conversation(&self) {
         if let Ok(mut conversation) = self.conversation.try_lock() {
             conversation.clear_messages();

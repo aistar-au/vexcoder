@@ -21,6 +21,7 @@ pub enum UiUpdate {
         outcome: EditLoopOutcome,
         last_validation_result: Option<ValidationResult>,
     },
+    PassthroughCommandFinished,
     TurnComplete,
     Error(String),
 }

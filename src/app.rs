@@ -1503,6 +1503,7 @@ impl TuiMode {
                     }
                 }
             }
+            ctx.emit_passthrough_command_finished();
             ctx.emit_turn_complete();
         });
     }
@@ -2650,6 +2651,9 @@ impl RuntimeMode for TuiMode {
                 } else {
                     self.clamp_scroll_offset();
                 }
+            }
+            UiUpdate::PassthroughCommandFinished => {
+                self.passthrough_command_active = false;
             }
             UiUpdate::TurnComplete => {
                 self.passthrough_command_active = false;
@@ -5727,6 +5731,10 @@ mod tests {
         drain_until_turn_complete(&mut mode, &mut ctx, &mut rx).await;
 
         assert!(mode.overlay_state.pending_approval.is_none());
+        assert!(
+            !mode.passthrough_command_active(),
+            "passthrough completion should restore normal TUI polling"
+        );
         assert!(!mode.is_turn_in_progress());
         assert_eq!(ctx.test_message_count().await, initial_messages);
         assert!(
