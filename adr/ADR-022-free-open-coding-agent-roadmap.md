@@ -81,7 +81,7 @@ The normative runtime configuration surface is:
 | `VEX_POLICY_FILE` | Capability-policy file (default: `.vex/policy.toml`) |
 | `VEX_WORKDIR` | Working directory for command execution |
 | `VEX_MAX_TOKENS` | Maximum tokens per model request |
-| `VEX_MAX_HISTORY_LINES` | Maximum rolling history retained |
+| `VEX_MAX_HISTORY_LINES` | Optional override for rolling history retained; default interactive scrollback remains uncapped until paged or file-backed transcript storage lands |
 
 The runtime architecture must not retain provider-branded variable names,
 branded endpoint defaults, or vendor-specific model-name prefix validation.

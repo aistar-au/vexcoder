@@ -95,6 +95,9 @@ enum ApprovalSelection {
     Deny,
 }
 
+// Interactive sessions keep terminal-style scrollback by default. Bounding
+// memory is future work for a paged or file-backed transcript store rather than
+// default truncation of the live session history.
 const DEFAULT_MAX_HISTORY_LINES: usize = usize::MAX;
 const MAX_HISTORY_LINES_ENV: &str = "VEX_MAX_HISTORY_LINES";
 const HISTORY_CONTENT_WIDTH_FALLBACK: usize = usize::MAX;
