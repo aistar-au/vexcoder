@@ -58,6 +58,23 @@ pub struct Config {
     pub hooks: Vec<HookConfig>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DoctorConfigSnapshot {
+    pub model_url: Option<String>,
+    pub working_dir: PathBuf,
+    pub model_token_present: bool,
+    pub sandbox_require: bool,
+    pub mcp_servers: Vec<DoctorMcpServer>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DoctorMcpServer {
+    pub name: String,
+    pub transport: String,
+    pub command: Option<String>,
+    pub url: Option<String>,
+}
+
 /// Intermediate per-layer config built from a TOML file.
 /// `deny_unknown_fields` ensures any unrecognized key is a hard failure.
 #[derive(Debug, Deserialize, Default)]
@@ -73,6 +90,14 @@ struct ConfigLayer {
     max_memory_tokens: Option<usize>,
     notes_path: Option<PathBuf>,
     hooks: Option<Vec<HookConfig>>,
+}
+
+#[derive(Debug, Default)]
+struct DoctorConfigLayer {
+    model_url: Option<String>,
+    working_dir: Option<PathBuf>,
+    sandbox_require: Option<bool>,
+    mcp_servers: Option<Vec<DoctorMcpServer>>,
 }
 
 impl Config {
@@ -209,6 +234,73 @@ impl Config {
     fn is_local_endpoint(&self) -> bool {
         is_local_endpoint_url(&self.model_url)
     }
+}
+
+pub fn doctor_snapshot(cwd: &Path) -> Result<DoctorConfigSnapshot> {
+    let repo_cfg = find_repo_local_config(cwd);
+    let user_cfg = user_config_path();
+    let system_cfg = system_config_path();
+
+    let system_layer = system_cfg
+        .as_deref()
+        .map(load_doctor_layer)
+        .transpose()?
+        .flatten()
+        .unwrap_or_default();
+    let user_layer = user_cfg
+        .as_deref()
+        .map(load_doctor_layer)
+        .transpose()?
+        .flatten()
+        .unwrap_or_default();
+    let repo_layer = repo_cfg
+        .as_deref()
+        .map(load_doctor_layer)
+        .transpose()?
+        .flatten()
+        .unwrap_or_default();
+
+    let env_model_url = std::env::var("VEX_MODEL_URL")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let env_working_dir = std::env::var("VEX_WORKDIR")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from);
+    let model_token_present = std::env::var("VEX_MODEL_TOKEN")
+        .ok()
+        .is_some_and(|value| !value.trim().is_empty());
+
+    let model_url = env_model_url
+        .or(repo_layer.model_url)
+        .or(user_layer.model_url)
+        .or(system_layer.model_url);
+    let working_dir = env_working_dir
+        .or(repo_layer.working_dir)
+        .or(user_layer.working_dir)
+        .or(system_layer.working_dir)
+        .map(expand_home)
+        .unwrap_or_else(|| cwd.to_path_buf());
+    let sandbox_require = repo_layer
+        .sandbox_require
+        .or(user_layer.sandbox_require)
+        .or(system_layer.sandbox_require)
+        .unwrap_or(false);
+    let mcp_servers = repo_layer
+        .mcp_servers
+        .or(user_layer.mcp_servers)
+        .or(system_layer.mcp_servers)
+        .unwrap_or_default();
+
+    Ok(DoctorConfigSnapshot {
+        model_url,
+        working_dir,
+        model_token_present,
+        sandbox_require,
+        mcp_servers,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -387,6 +479,84 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
     }
 
     Ok(Some(layer))
+}
+
+fn load_doctor_layer(path: &Path) -> Result<Option<DoctorConfigLayer>> {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => {
+            return Err(e)
+                .with_context(|| format!("failed to read config file '{}'", path.display()));
+        }
+    };
+
+    let raw: toml::Value = toml::from_str(&content)
+        .with_context(|| format!("malformed TOML in '{}'", path.display()))?;
+
+    let mcp_servers = raw
+        .get("mcp_servers")
+        .and_then(|value| value.as_array())
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| {
+                    let table = entry.as_table()?;
+                    let name = table
+                        .get("name")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or("unnamed")
+                        .trim()
+                        .to_string();
+                    let command = table
+                        .get("command")
+                        .and_then(|value| value.as_str())
+                        .map(|value| value.trim().to_string())
+                        .filter(|value| !value.is_empty());
+                    let url = table
+                        .get("url")
+                        .and_then(|value| value.as_str())
+                        .map(|value| value.trim().to_string())
+                        .filter(|value| !value.is_empty());
+                    let transport = table
+                        .get("transport")
+                        .and_then(|value| value.as_str())
+                        .map(|value| value.trim().to_string())
+                        .filter(|value| !value.is_empty())
+                        .or_else(|| {
+                            if url.is_some() {
+                                Some("http".to_string())
+                            } else if command.is_some() {
+                                Some("stdio".to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or_else(|| "unknown".to_string());
+
+                    Some(DoctorMcpServer {
+                        name,
+                        transport,
+                        command,
+                        url,
+                    })
+                })
+                .collect::<Vec<_>>()
+        });
+
+    Ok(Some(DoctorConfigLayer {
+        model_url: raw
+            .get("model_url")
+            .and_then(|value| value.as_str())
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty()),
+        working_dir: raw
+            .get("working_dir")
+            .and_then(|value| value.as_str())
+            .map(PathBuf::from),
+        sandbox_require: raw.get("sandbox_require").and_then(|value| value.as_bool()),
+        mcp_servers,
+    }))
 }
 
 /// Resolve a fully-merged ConfigLayer into a concrete Config.

@@ -78,11 +78,23 @@ pub struct MessageStartData {
     pub id: String,
     pub role: String,
     pub model: String,
+    #[serde(default)]
+    pub usage: Option<ApiUsage>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MessageDelta {
     pub stop_reason: Option<String>,
+    #[serde(default)]
+    pub usage: Option<ApiUsage>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ApiUsage {
+    #[serde(default)]
+    pub input_tokens: Option<u64>,
+    #[serde(default)]
+    pub output_tokens: Option<u64>,
 }
 
 #[cfg(test)]

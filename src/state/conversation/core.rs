@@ -5,7 +5,8 @@ use super::{
 };
 use crate::api::stream::StreamParser;
 use crate::runtime::policy::{default_runtime_policy, RuntimeCorePolicy};
-use crate::types::{ApiMessage, Content, ContentBlock, StreamEvent};
+use crate::types::{ApiMessage, ApiUsage, Content, ContentBlock, StreamEvent};
+use crate::usage::TurnTokens;
 use anyhow::Result;
 use futures::StreamExt;
 use std::collections::BTreeSet;
@@ -28,6 +29,7 @@ impl ConversationManager {
         turn_tool_policy: TurnToolPolicy,
     ) -> Result<String> {
         self.current_turn_blocks.clear();
+        self.last_turn_tokens = TurnTokens::default();
         let original_user_input = content.clone();
         self.push_user_message(content);
         if let Some(response) = builtin_supported_git_tools_response(&original_user_input) {
@@ -59,6 +61,7 @@ impl ConversationManager {
         let mut repeated_mutating_rounds = 0usize;
         let mut repeated_round_nudge_used = false;
         let mut last_assistant_text_for_history = String::new();
+        let mut turn_tokens = TurnTokens::default();
         loop {
             self.current_turn_blocks.clear();
             turn_user_anchor_index = self
@@ -85,7 +88,8 @@ impl ConversationManager {
 
                 for event in events {
                     match event {
-                        StreamEvent::MessageStart { .. } => {
+                        StreamEvent::MessageStart { message } => {
+                            accumulate_usage(&mut turn_tokens, message.usage.as_ref());
                             if !use_structured_blocks && stream_server_events {
                                 emit_text_update(
                                     stream_delta_tx,
@@ -246,6 +250,7 @@ impl ConversationManager {
                             }
                         }
                         StreamEvent::MessageDelta { delta } => {
+                            accumulate_usage(&mut turn_tokens, delta.usage.as_ref());
                             if !use_structured_blocks && stream_server_events {
                                 let stop_reason =
                                     delta.stop_reason.unwrap_or_else(|| "none".to_string());
@@ -435,6 +440,7 @@ impl ConversationManager {
                         stream_delta_tx,
                     );
                 }
+                self.last_turn_tokens = turn_tokens;
                 return Ok(assistant_text_for_history);
             }
 
@@ -700,5 +706,18 @@ impl ConversationManager {
                 });
             }
         }
+    }
+}
+
+fn accumulate_usage(turn_tokens: &mut TurnTokens, usage: Option<&ApiUsage>) {
+    let Some(usage) = usage else {
+        return;
+    };
+
+    if let Some(input) = usage.input_tokens {
+        turn_tokens.input = turn_tokens.input.saturating_add(input);
+    }
+    if let Some(output) = usage.output_tokens {
+        turn_tokens.output = turn_tokens.output.saturating_add(output);
     }
 }

@@ -96,7 +96,10 @@ sections for future expansion.
 
 - The active runtime keys are the top-level keys listed above.
 - `[[hooks]]` is active today.
-- Commented `[api]` and `[[mcp_servers]]` blocks are scaffold placeholders.
+- Commented `[api]` remains a scaffold placeholder.
+- `[[mcp_servers]]` and `sandbox_require` are not active runtime features yet,
+  but `vex doctor` reads them to probe MCP connectivity and report sandbox
+  fallback status.
 
 ## Minimal examples
 

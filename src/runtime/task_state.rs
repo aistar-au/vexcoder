@@ -5,6 +5,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::runtime::{ApprovalScope, Capability};
+use crate::turn_evidence::TurnEvidenceState;
 
 pub type TaskId = String;
 
@@ -50,6 +51,10 @@ pub struct TaskState {
     pub command_history: Vec<CommandEvidence>,
     pub conversation_snapshot: ConversationCheckpoint,
     pub interrupted_sessions: Vec<InterruptedCommand>,
+    #[serde(default)]
+    pub instructions_path: Option<String>,
+    #[serde(default)]
+    pub turns: Vec<TurnEvidenceState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,6 +74,8 @@ impl TaskState {
             command_history: Vec::new(),
             conversation_snapshot: ConversationCheckpoint::default(),
             interrupted_sessions: Vec::new(),
+            instructions_path: None,
+            turns: Vec::new(),
         }
     }
 
@@ -233,6 +240,15 @@ mod tests {
                 program: "cargo build".into(),
                 interrupted_at: "2026-03-01T00:00:00Z".into(),
             }],
+            instructions_path: Some("AGENTS.md".to_string()),
+            turns: vec![TurnEvidenceState {
+                input: "hello".to_string(),
+                response: "world".to_string(),
+                changed_files: vec!["src/main.rs".to_string()],
+                command_history: Vec::new(),
+                tool_invocations: Vec::new(),
+                tokens: Default::default(),
+            }],
         };
 
         state.save(dir.path()).expect("save failed");
@@ -242,6 +258,8 @@ mod tests {
         assert_eq!(loaded.changed_files, state.changed_files);
         assert!(loaded.command_history[0].interrupted);
         assert_eq!(loaded.interrupted_sessions.len(), 1);
+        assert_eq!(loaded.instructions_path, state.instructions_path);
+        assert_eq!(loaded.turns, state.turns);
     }
 
     #[test]
@@ -259,6 +277,8 @@ mod tests {
             }],
             conversation_snapshot: ConversationCheckpoint::default(),
             interrupted_sessions: Vec::new(),
+            instructions_path: None,
+            turns: Vec::new(),
         };
 
         state.save(dir.path()).expect("save failed");

@@ -21,7 +21,7 @@ use crate::runtime::validation::{ValidationSuite, VALIDATION_TAIL_BYTES};
 use crate::runtime::{
     truncate_head_bytes, truncate_tail_bytes, ApprovalScope, Capability, CommandHandle,
     CommandRequest, CommandResult, CommandRunner, DefaultCommandRunner, EditLoopOutcome,
-    PassthroughSandbox, SandboxDriver, TaskState, UiUpdate,
+    PassthroughSandbox, SandboxDriver, TaskState, TaskStatus, UiUpdate,
 };
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
@@ -30,6 +30,10 @@ use crate::session_notes::{
 };
 use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest, TurnToolPolicy};
 use crate::tools::ToolOperator;
+use crate::turn_evidence::{
+    command_evidence_from_tool_result, note_changed_files_from_tool_call, ToolInvocationSummary,
+    TurnEvidenceState,
+};
 use crate::types::ModelProfile;
 use crate::ui::render::history_visual_line_count;
 #[cfg(test)]
@@ -58,6 +62,12 @@ enum PendingApprovalAction {
 
 struct PendingInlineCommand {
     command: String,
+}
+
+#[derive(Clone)]
+struct PendingTurnToolCall {
+    name: String,
+    input: serde_json::Value,
 }
 
 struct PendingPatchApproval {
@@ -113,6 +123,7 @@ enum SlashCommandId {
     Test,
     Context,
     Tools,
+    Usage,
     GenerateTests,
     Commands,
     Help,
@@ -231,6 +242,12 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         },
         "/tools [desc]",
         "show live tool registry; no model turn",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Usage,
+        SlashCommandPattern::Exact("/usage"),
+        "/usage",
+        "show session token usage; no model turn",
     ),
     SlashCommandSpec::new(
         SlashCommandId::GenerateTests,
@@ -545,6 +562,12 @@ pub struct TuiMode {
     last_assembled_context: Option<AssembledContext>,
     read_only_turn_active: bool,
     active_edit_loop: Option<EditLoop>,
+    current_turn_input: String,
+    current_turn_response: String,
+    current_turn_changed_files: std::collections::BTreeSet<String>,
+    current_turn_command_history: Vec<crate::runtime::CommandEvidence>,
+    current_turn_tool_invocations: Vec<ToolInvocationSummary>,
+    pending_turn_tool_calls: std::collections::HashMap<String, PendingTurnToolCall>,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }
@@ -734,6 +757,12 @@ impl TuiMode {
             last_assembled_context: None,
             read_only_turn_active: false,
             active_edit_loop: None,
+            current_turn_input: String::new(),
+            current_turn_response: String::new(),
+            current_turn_changed_files: std::collections::BTreeSet::new(),
+            current_turn_command_history: Vec::new(),
+            current_turn_tool_invocations: Vec::new(),
+            pending_turn_tool_calls: std::collections::HashMap::new(),
             #[cfg(test)]
             last_turn_input: None,
         }
@@ -1058,15 +1087,96 @@ impl TuiMode {
         self.active_stream_blocks.clear();
         self.last_assembled_context = None;
         self.read_only_turn_active = false;
+        self.reset_turn_capture();
     }
 
     fn apply_resumed_task(&mut self, state: TaskState, ctx: &RuntimeContext) {
         let restored_id = state.id.clone();
         let status = format!("{:?}", state.status);
         self.current_task = state;
+        if let Some(path) = self.current_task.instructions_path.clone() {
+            self.instructions_path = Some(path);
+        } else {
+            self.current_task.instructions_path = self.instructions_path.clone();
+        }
         self.active_edit_loop = None;
+        ctx.reset_session_tokens();
         self.reset_conversation_window(ctx);
         self.push_history_line(format!("[resumed: {restored_id} status={status}]"));
+    }
+
+    fn reset_turn_capture(&mut self) {
+        self.current_turn_input.clear();
+        self.current_turn_response.clear();
+        self.current_turn_changed_files.clear();
+        self.current_turn_command_history.clear();
+        self.current_turn_tool_invocations.clear();
+        self.pending_turn_tool_calls.clear();
+    }
+
+    fn begin_turn_capture(&mut self, input: String) {
+        self.reset_turn_capture();
+        self.current_turn_input = input;
+        self.current_task.status = TaskStatus::Running;
+    }
+
+    fn commit_completed_turn(&mut self, ctx: &RuntimeContext) {
+        if self.current_turn_input.trim().is_empty()
+            && self.current_turn_response.trim().is_empty()
+            && self.current_turn_changed_files.is_empty()
+            && self.current_turn_command_history.is_empty()
+            && self.current_turn_tool_invocations.is_empty()
+        {
+            self.current_task.status = TaskStatus::Completed;
+            self.reset_turn_capture();
+            return;
+        }
+
+        let changed_files = self
+            .current_turn_changed_files
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        for path in &changed_files {
+            let path_buf = PathBuf::from(path);
+            if !self
+                .current_task
+                .changed_files
+                .iter()
+                .any(|existing| existing == &path_buf)
+            {
+                self.current_task.changed_files.push(path_buf);
+            }
+        }
+
+        let command_history = std::mem::take(&mut self.current_turn_command_history);
+        self.current_task
+            .command_history
+            .extend(command_history.iter().cloned());
+        self.current_task.instructions_path = self.instructions_path.clone();
+        self.current_task.status = TaskStatus::Completed;
+        self.current_task.turns.push(TurnEvidenceState {
+            input: std::mem::take(&mut self.current_turn_input),
+            response: std::mem::take(&mut self.current_turn_response),
+            changed_files,
+            command_history,
+            tool_invocations: std::mem::take(&mut self.current_turn_tool_invocations),
+            tokens: ctx.session_tokens_snapshot().last_turn(),
+        });
+
+        let dir = TaskState::state_dir();
+        if let Err(error) = self.current_task.save(&dir) {
+            self.push_history_line(format!("[state] save failed: {error}"));
+        }
+        self.reset_turn_capture();
+    }
+
+    fn summarize_usage_line_suffix(estimated: bool) -> &'static str {
+        if estimated {
+            " (estimated)"
+        } else {
+            ""
+        }
     }
 
     fn prompt_resume_selection(&mut self, entries: Vec<ResumeTaskEntry>) {
@@ -1175,6 +1285,7 @@ impl TuiMode {
                 SlashCommandId::Test => self.handle_test_command(),
                 SlashCommandId::Context => self.handle_context_command(ctx),
                 SlashCommandId::Tools => self.handle_tools_command(args),
+                SlashCommandId::Usage => self.handle_usage_command(ctx),
                 SlashCommandId::GenerateTests => self.handle_generate_tests_command(args, ctx),
                 SlashCommandId::Commands | SlashCommandId::Help => self.handle_commands_command(),
             }
@@ -1428,6 +1539,7 @@ impl TuiMode {
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
         self.read_only_turn_active = read_only;
+        self.begin_turn_capture(rendered.clone());
         #[cfg(test)]
         {
             self.last_turn_input = Some(rendered.clone());
@@ -1681,6 +1793,25 @@ impl TuiMode {
         }
     }
 
+    fn handle_usage_command(&mut self, ctx: &RuntimeContext) {
+        let usage = ctx.session_tokens_snapshot();
+        if !usage.has_completed_turns() {
+            self.push_history_line("[usage] no turns completed this session".to_string());
+            return;
+        }
+
+        let estimated = Self::summarize_usage_line_suffix(usage.estimated);
+        self.push_history_line("[usage]".to_string());
+        self.push_history_line(format!(
+            "  this turn   : {} in / {} out{}",
+            usage.last_input, usage.last_output, estimated
+        ));
+        self.push_history_line(format!(
+            "  session     : {} in / {} out{}",
+            usage.input, usage.output, estimated
+        ));
+    }
+
     fn handle_custom_command(
         &mut self,
         command: &CustomCommand,
@@ -1932,7 +2063,9 @@ impl TuiMode {
         }
         let new_id = new_task_id();
         self.current_task = TaskState::new(new_id.clone());
+        self.current_task.instructions_path = self.instructions_path.clone();
         self.active_edit_loop = None;
+        ctx.reset_session_tokens();
         self.reset_conversation_window(ctx);
         self.push_history_line(format!("[new session: {new_id}]"));
     }
@@ -1958,6 +2091,7 @@ impl TuiMode {
     fn handle_clear_command(&mut self, ctx: &mut RuntimeContext) {
         let task_id = self.current_task.id.clone();
         self.active_edit_loop = None;
+        ctx.reset_session_tokens();
         self.reset_conversation_window(ctx);
         self.push_history_line(format!(
             "[cleared: conversation history reset; task {task_id} continues]"
@@ -1981,6 +2115,7 @@ impl TuiMode {
         fork.active_grants = self.current_task.active_grants.clone();
         fork.changed_files = self.current_task.changed_files.clone();
         fork.status = self.current_task.status.clone();
+        fork.instructions_path = self.instructions_path.clone();
         self.current_task = fork;
         self.reset_conversation_window(ctx);
         self.push_history_line(format!("[fork: {new_id} branched from {parent_id}]"));
@@ -2165,6 +2300,21 @@ fn sanitize_task_label(label: &str) -> String {
     out.trim_matches('-').to_string()
 }
 
+fn summarize_tool_outcome(output: &str, is_error: bool) -> &'static str {
+    if !is_error {
+        return "ok";
+    }
+
+    let lowered = output.to_ascii_lowercase();
+    if lowered.contains("denied") {
+        "denied"
+    } else if lowered.contains("cancel") {
+        "cancelled"
+    } else {
+        "error"
+    }
+}
+
 fn list_recent_task_entries(limit: usize) -> Vec<ResumeTaskEntry> {
     TaskState::state_files()
         .into_iter()
@@ -2305,6 +2455,7 @@ impl RuntimeMode for TuiMode {
 
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
+        self.begin_turn_capture(turn_input.clone());
 
         #[cfg(test)]
         {
@@ -2323,6 +2474,7 @@ impl RuntimeMode for TuiMode {
                 if self.history_state.cancel_pending {
                     return;
                 }
+                self.current_turn_response.push_str(&text);
                 let idx = match self.history_state.active_assistant_index {
                     Some(idx) => idx,
                     None => {
@@ -2344,6 +2496,48 @@ impl RuntimeMode for TuiMode {
                 }
             }
             UiUpdate::StreamBlockStart { index, block } => {
+                match &block {
+                    StreamBlock::ToolCall {
+                        id, name, input, ..
+                    } => {
+                        note_changed_files_from_tool_call(
+                            &mut self.current_turn_changed_files,
+                            name,
+                            input,
+                        );
+                        self.pending_turn_tool_calls.insert(
+                            id.clone(),
+                            PendingTurnToolCall {
+                                name: name.clone(),
+                                input: input.clone(),
+                            },
+                        );
+                    }
+                    StreamBlock::ToolResult {
+                        tool_call_id,
+                        output,
+                        is_error,
+                    } => {
+                        if let Some(pending) = self.pending_turn_tool_calls.remove(tool_call_id) {
+                            note_changed_files_from_tool_call(
+                                &mut self.current_turn_changed_files,
+                                &pending.name,
+                                &pending.input,
+                            );
+                            if let Some(evidence) =
+                                command_evidence_from_tool_result(&pending.name, *is_error)
+                            {
+                                self.current_turn_command_history.push(evidence);
+                            }
+                            self.current_turn_tool_invocations
+                                .push(ToolInvocationSummary {
+                                    name: pending.name,
+                                    outcome: summarize_tool_outcome(output, *is_error).to_string(),
+                                });
+                        }
+                    }
+                    StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. } => {}
+                }
                 self.active_stream_blocks.insert(index, block);
             }
             UiUpdate::StreamBlockDelta { index, delta } => {
@@ -2462,6 +2656,7 @@ impl RuntimeMode for TuiMode {
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
+                self.commit_completed_turn(ctx);
                 self.history_state.cancel_pending = false;
                 self.history_state.turn_in_progress = false;
                 self.history_state.active_assistant_index = None;
@@ -2476,8 +2671,10 @@ impl RuntimeMode for TuiMode {
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
+                self.reset_turn_capture();
                 self.history_state.cancel_pending = false;
                 self.push_history_line(format!("[error] {msg}"));
+                self.current_task.status = TaskStatus::Failed;
                 self.history_state.turn_in_progress = false;
                 self.history_state.active_assistant_index = None;
                 self.read_only_turn_active = false;
@@ -2635,6 +2832,7 @@ pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext
 
     let mut mode = TuiMode::new_with_config(config.notes_path.clone(), config);
     mode.instructions_path = instructions_path;
+    mode.current_task.instructions_path = mode.instructions_path.clone();
     if let Some(warning) = notes_warning {
         mode.push_history_line(warning);
     }
@@ -2652,6 +2850,11 @@ pub fn build_runtime_with_resume(
     let restored_id = resume_state.id.clone();
     let status = format!("{:?}", resume_state.status);
     runtime.mode.current_task = resume_state;
+    if let Some(path) = runtime.mode.current_task.instructions_path.clone() {
+        runtime.mode.instructions_path = Some(path);
+    } else {
+        runtime.mode.current_task.instructions_path = runtime.mode.instructions_path.clone();
+    }
     runtime
         .mode
         .push_history_line(format!("[resumed: {restored_id} status={status}]"));
