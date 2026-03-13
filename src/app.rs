@@ -631,6 +631,10 @@ async fn run_validation_suite_capture(
     suite: ValidationSuite,
     working_dir: PathBuf,
 ) -> Result<crate::runtime::ValidationResult> {
+    // Validation commands are operator-defined build/test steps from the
+    // project config.  They run under the same user session that launched vex,
+    // so no sandbox wrapping is applied.  A future ADR-024 follow-up may
+    // thread the operator-configured sandbox driver into validation execution.
     let runner = DefaultCommandRunner::new();
     let mut passed = true;
     let mut outputs = Vec::with_capacity(suite.commands.len());
@@ -1531,6 +1535,10 @@ impl TuiMode {
         let working_dir = self.working_dir.clone();
         tokio::spawn(async move {
             let runner = DefaultCommandRunner::new();
+            // User-initiated !command execution — the Capability::RunCommand
+            // approval gate is the security boundary.  PassthroughSandbox is
+            // intentional here; a future ADR-024 follow-up may thread the
+            // operator-configured sandbox driver through TuiMode.
             let request = match PassthroughSandbox
                 .wrap(shell_command_request(command.clone(), working_dir))
             {
@@ -3048,7 +3056,7 @@ mod tests {
         rx: &mut mpsc::UnboundedReceiver<UiUpdate>,
     ) {
         loop {
-            let update = tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv())
+            let update = tokio::time::timeout(std::time::Duration::from_secs(10), rx.recv())
                 .await
                 .expect("timed out waiting for ui update")
                 .expect("ui update channel closed");
@@ -5904,16 +5912,16 @@ mod tests {
         assert!(result.stdout.contains("passthrough-hit"));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_bang_prefix_cancellation_completes_turn() {
         let temp = tempfile::tempdir().unwrap();
         let mut mode = TuiMode::new();
         mode.working_dir = temp.path().to_path_buf();
         let (mut ctx, mut rx) = setup_ctx_with_updates();
         let input = if cfg!(windows) {
-            "!ping -n 6 127.0.0.1 > nul".to_string()
+            "!ping -n 60 127.0.0.1 > nul".to_string()
         } else {
-            "!sleep 5".to_string()
+            "!sleep 30".to_string()
         };
 
         mode.on_user_input(input, &mut ctx);

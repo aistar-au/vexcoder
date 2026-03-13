@@ -23,6 +23,30 @@ fn validate_working_dir(working_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Send SIGKILL to the process group identified by `pid`.
+///
+/// Streaming commands run in their own process group (`process_group(0)`).
+/// Killing just the leader leaves children holding pipe FDs open; this
+/// helper terminates the whole group so reader tasks see EOF.
+#[cfg(unix)]
+fn kill_process_group(pid: Option<u32>) {
+    if let Some(raw_pid) = pid {
+        let pgid = format!("-{raw_pid}");
+        let _ = std::process::Command::new("kill")
+            .args(["-9", "--", &pgid])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+}
+
+#[cfg(not(unix))]
+fn kill_process_group(_pid: Option<u32>) {
+    // On Windows, process.kill() is sufficient — tokio terminates
+    // the job object which includes child processes.
+}
+
 pub struct CommandRequest {
     pub program: String,
     pub args: Vec<String>,
@@ -154,6 +178,12 @@ impl CommandRunner for DefaultCommandRunner {
             command.current_dir(working_dir);
         }
 
+        // Run the command in its own process group so that cancellation
+        // kills the entire tree (not just the shell, leaving children
+        // holding pipe FDs open).
+        #[cfg(unix)]
+        command.process_group(0);
+
         let mut process = command
             .stdin(Stdio::null())
             .stdout(std::process::Stdio::piped())
@@ -169,10 +199,7 @@ impl CommandRunner for DefaultCommandRunner {
         let tx_stdout = tx.clone();
         let stdout_task = tokio::spawn(async move {
             let mut reader = BufReader::new(stdout).lines();
-            let mut captured = String::new();
             while let Ok(Some(line)) = reader.next_line().await {
-                captured.push_str(&line);
-                captured.push('\n');
                 if tx_stdout
                     .send(OutputChunk {
                         stream: StreamKind::Stdout,
@@ -184,16 +211,12 @@ impl CommandRunner for DefaultCommandRunner {
                     break;
                 }
             }
-            captured
         });
 
         let tx_stderr = tx;
         let stderr_task = tokio::spawn(async move {
             let mut reader = BufReader::new(stderr).lines();
-            let mut captured = String::new();
             while let Ok(Some(line)) = reader.next_line().await {
-                captured.push_str(&line);
-                captured.push('\n');
                 if tx_stderr
                     .send(OutputChunk {
                         stream: StreamKind::Stderr,
@@ -205,24 +228,24 @@ impl CommandRunner for DefaultCommandRunner {
                     break;
                 }
             }
-            captured
         });
 
         tokio::spawn(async move {
             let wait_result = tokio::select! {
                 _ = cancel_rx => {
+                    kill_process_group(pid);
                     let _ = process.kill().await;
                     process.wait().await
                 }
                 result = process.wait() => result,
             };
-            let stdout = stdout_task.await.unwrap_or_default();
-            let stderr = stderr_task.await.unwrap_or_default();
+            let _ = stdout_task.await;
+            let _ = stderr_task.await;
             let result = wait_result
                 .map(|status| CommandResult {
                     exit_code: status.code().unwrap_or(-1),
-                    stdout,
-                    stderr,
+                    stdout: String::new(),
+                    stderr: String::new(),
                 })
                 .with_context(|| format!("Failed to wait on command: {}", req.program));
             let _ = completion_tx.send(result);
@@ -359,9 +382,15 @@ mod tests {
             .await
             .expect("streaming run failed");
         assert!(handle.pid().is_some());
-        while rx.recv().await.is_some() {}
+        let mut collected = String::new();
+        while let Some(chunk) = rx.recv().await {
+            collected.push_str(&chunk.text);
+        }
         let result = handle.wait().await.expect("wait failed");
         assert_eq!(result.exit_code, 0);
-        assert!(result.stdout.contains("hello"));
+        assert!(
+            collected.contains("hello"),
+            "expected 'hello' in streamed output, got: {collected}"
+        );
     }
 }
