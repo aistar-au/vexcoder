@@ -58,4 +58,6 @@ capture behavior.
 - Update `TASKS/completed/REPO-RAW-URL-MAP.md` in the same change set when tracked files are added or removed.
 - Source ADR documents and task manifests remain the behavioral source of truth.
 - ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
-  `#71`, `#72`, and `#74`; `PK-08` is the next unlocked pre-gate batch.
+  `#71`, `#72`, `#74`, and `#75`; `PK-08` is merged, and the next queued work
+  starts on the post-gate ADR-025 / ADR-026 track once milestone-1 validation
+  is green.

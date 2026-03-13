@@ -22,9 +22,9 @@ ADR-025 and ADR-026 are queued immediately after the milestone-1 correctness
 gate. This roadmap note is descriptive only and does not relax that gate.
 
 ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
-`#71`, `#72`, and `#74`. With those merged batches reflected in the checklist,
-`PK-08` (`vex branch` and `vex pr-summary`) is the next unlocked pre-gate
-ADR-024 batch.
+`#71`, `#72`, `#74`, and `#75`. `PK-08` (`vex branch` and `vex pr-summary`) is
+merged, so the remaining queued work begins with the post-gate ADR-025 /
+ADR-026 track once the milestone-1 correctness gate is green.
 
 ## Other Open ADRs Tracked In This Repo
 

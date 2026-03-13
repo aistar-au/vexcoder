@@ -2021,4 +2021,4 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Notes:
   - `vex branch` is a thin wrapper over `git checkout -b` and records the branch name on the most recent saved task state when one exists.
   - `vex pr-summary` assembles a merge-base diff against `origin/HEAD`, runs a single batch turn, and prints a `Title:` line plus Markdown body to stdout.
-  - This branch also reconciles stale ADR-024 checklist rows for merged PRs `#60`, `#63`, `#71`, `#72`, and `#74`.
+- This branch also reconciles stale ADR-024 checklist rows for merged PRs `#60`, `#63`, `#71`, `#72`, and `#74`; it later merged as PR `#75` to close `PK-08`.
