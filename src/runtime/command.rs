@@ -78,6 +78,32 @@ pub enum StreamKind {
     Stderr,
 }
 
+pub(crate) fn format_command_session_started(command: &str, pid: Option<u32>) -> String {
+    match pid {
+        Some(pid) => format!("[command session started pid={pid}] {command}"),
+        None => format!("[command session started] {command}"),
+    }
+}
+
+pub(crate) fn format_command_session_exit(exit_code: i32) -> String {
+    format!("[command session exit: {exit_code}]")
+}
+
+pub(crate) fn format_command_session_cancelled() -> String {
+    "[command session cancelled]".to_string()
+}
+
+pub(crate) fn format_command_session_output(chunk: OutputChunk) -> Vec<String> {
+    chunk
+        .text
+        .lines()
+        .map(|line| match &chunk.stream {
+            StreamKind::Stdout => line.to_string(),
+            StreamKind::Stderr => format!("[stderr] {line}"),
+        })
+        .collect()
+}
+
 pub struct CommandHandle {
     cancel_tx: Option<oneshot::Sender<()>>,
     pid: Option<u32>,

@@ -426,6 +426,24 @@ fn forward_conversation_update(
         ConversationStreamUpdate::ToolApprovalRequest(request) => {
             let _ = tx.send(UiUpdate::ToolApprovalRequest(request));
         }
+        ConversationStreamUpdate::TranscriptLine(line) => {
+            let _ = tx.send(UiUpdate::TranscriptLine(line));
+        }
+        ConversationStreamUpdate::CommandSessionStarted {
+            session_id,
+            command,
+        } => {
+            let _ = tx.send(UiUpdate::CommandSessionStarted {
+                session_id,
+                command,
+            });
+        }
+        ConversationStreamUpdate::CommandSessionAttached { session_id, pid } => {
+            let _ = tx.send(UiUpdate::CommandSessionAttached { session_id, pid });
+        }
+        ConversationStreamUpdate::CommandSessionFinished { session_id } => {
+            let _ = tx.send(UiUpdate::CommandSessionFinished { session_id });
+        }
     }
 }
 
@@ -799,6 +817,70 @@ data: {"type":"message_stop"}"#.to_string(),
             !saw_stream_delta,
             "unknown block index must not mirror into StreamDelta"
         );
+    }
+
+    #[tokio::test]
+    async fn test_ref_08_command_session_updates_forward_to_ui() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let mut textual_block_by_index = std::collections::HashMap::new();
+
+        forward_conversation_update(
+            ConversationStreamUpdate::CommandSessionStarted {
+                session_id: 41,
+                command: "echo forwarded".to_string(),
+            },
+            &mut textual_block_by_index,
+            &tx,
+        );
+        forward_conversation_update(
+            ConversationStreamUpdate::CommandSessionAttached {
+                session_id: 41,
+                pid: Some(4100),
+            },
+            &mut textual_block_by_index,
+            &tx,
+        );
+        forward_conversation_update(
+            ConversationStreamUpdate::TranscriptLine("forwarded".to_string()),
+            &mut textual_block_by_index,
+            &tx,
+        );
+        forward_conversation_update(
+            ConversationStreamUpdate::CommandSessionFinished { session_id: 41 },
+            &mut textual_block_by_index,
+            &tx,
+        );
+
+        match rx.recv().await {
+            Some(UiUpdate::CommandSessionStarted {
+                session_id,
+                command,
+            }) => {
+                assert_eq!(session_id, 41);
+                assert_eq!(command, "echo forwarded");
+            }
+            _ => panic!("expected CommandSessionStarted"),
+        }
+
+        match rx.recv().await {
+            Some(UiUpdate::CommandSessionAttached { session_id, pid }) => {
+                assert_eq!(session_id, 41);
+                assert_eq!(pid, Some(4100));
+            }
+            _ => panic!("expected CommandSessionAttached"),
+        }
+
+        match rx.recv().await {
+            Some(UiUpdate::TranscriptLine(line)) => assert_eq!(line, "forwarded"),
+            _ => panic!("expected TranscriptLine"),
+        }
+
+        match rx.recv().await {
+            Some(UiUpdate::CommandSessionFinished { session_id }) => {
+                assert_eq!(session_id, 41);
+            }
+            _ => panic!("expected CommandSessionFinished"),
+        }
     }
 
     #[tokio::test]

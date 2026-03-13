@@ -353,7 +353,11 @@ data: {"type":"message_stop"}"#.to_string(),
                     }
                     ConversationStreamUpdate::Delta(_)
                     | ConversationStreamUpdate::BlockDelta { .. }
-                    | ConversationStreamUpdate::BlockComplete { .. } => {}
+                    | ConversationStreamUpdate::BlockComplete { .. }
+                    | ConversationStreamUpdate::TranscriptLine(_)
+                    | ConversationStreamUpdate::CommandSessionStarted { .. }
+                    | ConversationStreamUpdate::CommandSessionAttached { .. }
+                    | ConversationStreamUpdate::CommandSessionFinished { .. } => {}
                 }
             }
         }
@@ -723,7 +727,11 @@ data: {"type":"message_stop"}"#.to_string(),
                     }
                     ConversationStreamUpdate::Delta(_)
                     | ConversationStreamUpdate::BlockDelta { .. }
-                    | ConversationStreamUpdate::BlockComplete { .. } => {}
+                    | ConversationStreamUpdate::BlockComplete { .. }
+                    | ConversationStreamUpdate::TranscriptLine(_)
+                    | ConversationStreamUpdate::CommandSessionStarted { .. }
+                    | ConversationStreamUpdate::CommandSessionAttached { .. }
+                    | ConversationStreamUpdate::CommandSessionFinished { .. } => {}
                 }
             }
         }
@@ -1695,6 +1703,85 @@ async fn test_execute_tool_run_command_uses_workspace_working_dir() -> Result<()
     assert!(
         result.contains(&temp.path().display().to_string()),
         "run_command must execute from the workspace working directory: {result}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_execute_tool_run_command_streams_managed_session_updates() -> Result<()> {
+    let temp = TempDir::new()?;
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let executor = ToolOperator::new(temp.path().to_path_buf());
+    let manager = ConversationManager::new(mock_api_client, executor);
+    let (update_tx, mut update_rx) = mpsc::unbounded_channel();
+
+    #[cfg(windows)]
+    let input = json!({
+        "command": "cmd",
+        "args": ["/C", "echo streamed-from-tool"],
+    });
+    #[cfg(not(windows))]
+    let input = json!({
+        "command": "sh",
+        "args": ["-c", "printf 'streamed-from-tool\\n'"],
+    });
+
+    let result = manager
+        .execute_tool_with_timeout_with_updates(
+            "run_command",
+            &input,
+            Duration::from_secs(3),
+            Some(&update_tx),
+        )
+        .await?;
+
+    let mut saw_session_started = false;
+    let mut saw_session_attached = false;
+    let mut saw_transcript_output = false;
+    let mut saw_session_finished = false;
+
+    while let Ok(update) = update_rx.try_recv() {
+        match update {
+            ConversationStreamUpdate::CommandSessionStarted { command, .. } => {
+                saw_session_started = !command.trim().is_empty();
+            }
+            ConversationStreamUpdate::CommandSessionAttached { pid, .. } => {
+                saw_session_attached = pid.is_some();
+            }
+            ConversationStreamUpdate::TranscriptLine(line) => {
+                if line.contains("streamed-from-tool") {
+                    saw_transcript_output = true;
+                }
+            }
+            ConversationStreamUpdate::CommandSessionFinished { .. } => {
+                saw_session_finished = true;
+            }
+            ConversationStreamUpdate::Delta(_)
+            | ConversationStreamUpdate::BlockStart { .. }
+            | ConversationStreamUpdate::BlockDelta { .. }
+            | ConversationStreamUpdate::BlockComplete { .. }
+            | ConversationStreamUpdate::ToolApprovalRequest(_) => {}
+        }
+    }
+
+    assert!(saw_session_started, "expected command session start update");
+    assert!(
+        saw_session_attached,
+        "expected command session attach update"
+    );
+    assert!(
+        saw_transcript_output,
+        "expected command session output to stream into transcript updates"
+    );
+    assert!(
+        saw_session_finished,
+        "expected command session finished update"
+    );
+    assert!(
+        result.contains("streamed-from-tool"),
+        "run_command tool result must still include final command output: {result}"
     );
     Ok(())
 }

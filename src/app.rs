@@ -20,9 +20,10 @@ use crate::runtime::validation::ValidationSuite;
 #[cfg(test)]
 use crate::runtime::CommandResult;
 use crate::runtime::{
-    truncate_head_bytes, ApprovalScope, Capability, CommandRequest, CommandRunner,
-    DefaultCommandRunner, EditLoopOutcome, PassthroughSandbox, SandboxDriver, TaskState,
-    TaskStatus, UiUpdate,
+    format_command_session_cancelled, format_command_session_exit, format_command_session_output,
+    format_command_session_started, truncate_head_bytes, ApprovalScope, Capability, CommandRequest,
+    CommandRunner, DefaultCommandRunner, EditLoopOutcome, PassthroughSandbox, SandboxDriver,
+    TaskState, TaskStatus, UiUpdate,
 };
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
@@ -641,32 +642,6 @@ async fn run_validation_suite_capture(
     suite.run_in_dir(&runner, Some(&working_dir)).await
 }
 
-fn format_command_session_started(command: &str, pid: Option<u32>) -> String {
-    match pid {
-        Some(pid) => format!("[command session started pid={pid}] {command}"),
-        None => format!("[command session started] {command}"),
-    }
-}
-
-fn format_command_session_exit(exit_code: i32) -> String {
-    format!("[command session exit: {exit_code}]")
-}
-
-fn format_command_session_cancelled() -> String {
-    "[command session cancelled]".to_string()
-}
-
-fn format_command_session_output(chunk: crate::runtime::OutputChunk) -> Vec<String> {
-    chunk
-        .text
-        .lines()
-        .map(|line| match &chunk.stream {
-            crate::runtime::StreamKind::Stdout => line.to_string(),
-            crate::runtime::StreamKind::Stderr => format!("[stderr] {line}"),
-        })
-        .collect()
-}
-
 impl TuiMode {
     pub fn new() -> Self {
         Self::new_with_config(None, Config::default_for_tui())
@@ -1105,7 +1080,21 @@ impl TuiMode {
 
     fn begin_command_session(&mut self, command: String) -> u64 {
         let session_id = self.next_command_session_id;
-        self.next_command_session_id = self.next_command_session_id.saturating_add(1);
+        self.begin_command_session_with_id(session_id, command);
+        session_id
+    }
+
+    fn begin_command_session_with_id(&mut self, session_id: u64, command: String) {
+        self.next_command_session_id = self
+            .next_command_session_id
+            .max(session_id.saturating_add(1));
+        if self
+            .command_sessions
+            .iter()
+            .any(|session| session.id == session_id)
+        {
+            return;
+        }
         self.command_sessions.push(CommandSessionState {
             id: session_id,
             command,
@@ -1113,7 +1102,6 @@ impl TuiMode {
             status: "running".to_string(),
         });
         self.current_task.status = TaskStatus::Running;
-        session_id
     }
 
     fn commit_completed_turn(&mut self, ctx: &RuntimeContext) {
@@ -2728,6 +2716,12 @@ impl RuntimeMode for TuiMode {
                 } else {
                     self.clamp_scroll_offset();
                 }
+            }
+            UiUpdate::CommandSessionStarted {
+                session_id,
+                command,
+            } => {
+                self.begin_command_session_with_id(session_id, command);
             }
             UiUpdate::CommandSessionAttached { session_id, pid } => {
                 if let Some(session) = self
@@ -5944,6 +5938,34 @@ mod tests {
 
         assert!(mode.command_sessions.is_empty());
         assert!(!mode.is_turn_in_progress());
+    }
+
+    #[test]
+    fn test_command_session_started_update_creates_running_session() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.history_state.turn_in_progress = true;
+        mode.on_model_update(
+            UiUpdate::CommandSessionStarted {
+                session_id: 77,
+                command: "echo from-tool".to_string(),
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::CommandSessionAttached {
+                session_id: 77,
+                pid: Some(7700),
+            },
+            &mut ctx,
+        );
+
+        assert_eq!(mode.command_sessions.len(), 1);
+        assert_eq!(mode.command_sessions[0].id, 77);
+        assert_eq!(mode.command_sessions[0].command, "echo from-tool");
+        assert_eq!(mode.command_sessions[0].pid, Some(7700));
+        assert_eq!(mode.command_sessions[0].status, "running");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

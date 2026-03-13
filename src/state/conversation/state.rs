@@ -16,6 +16,10 @@ pub enum ConversationStreamUpdate {
     BlockDelta { index: usize, delta: String },
     BlockComplete { index: usize },
     ToolApprovalRequest(ToolApprovalRequest),
+    TranscriptLine(String),
+    CommandSessionStarted { session_id: u64, command: String },
+    CommandSessionAttached { session_id: u64, pid: Option<u32> },
+    CommandSessionFinished { session_id: u64 },
 }
 
 pub struct ToolApprovalRequest {

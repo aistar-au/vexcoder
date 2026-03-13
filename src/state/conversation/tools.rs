@@ -2,7 +2,9 @@ use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, 
 use crate::config::{HookEvent, HookOnFail};
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::runtime::{
-    CommandRequest, CommandRunner, DefaultCommandRunner, PassthroughSandbox, SandboxDriver,
+    format_command_session_cancelled, format_command_session_exit, format_command_session_output,
+    format_command_session_started, CommandRequest, CommandRunner, DefaultCommandRunner,
+    PassthroughSandbox, SandboxDriver,
 };
 use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
 use crate::tools::{ToolOperator, WriteFileOutcome};
@@ -11,6 +13,7 @@ use crate::util::parse_bool_flag;
 use anyhow::{bail, Context, Result};
 #[cfg(test)]
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(all(test, not(windows)))]
 use std::sync::LazyLock;
 #[cfg(test)]
@@ -20,6 +23,7 @@ use tokio::sync::{mpsc, oneshot};
 
 #[cfg(all(test, not(windows)))]
 static HOOK_WARNINGS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+static RUN_COMMAND_SESSION_IDS: AtomicU64 = AtomicU64::new(1 << 63);
 
 fn emit_hook_warning(message: String) {
     eprintln!("{message}");
@@ -85,7 +89,8 @@ impl ConversationManager {
             .await?;
 
         let tool_result = if name == "run_command" {
-            execute_run_command_tool(&self.tool_operator, input, tool_timeout).await
+            execute_run_command_tool(&self.tool_operator, input, tool_timeout, stream_delta_tx)
+                .await
         } else {
             let task_name = tool_name.clone();
             let task_input = input.clone();
@@ -230,6 +235,7 @@ async fn execute_run_command_tool(
     tool_operator: &ToolOperator,
     input: &serde_json::Value,
     tool_timeout: Duration,
+    stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
 ) -> Result<String> {
     let program = required_tool_string_any(
         input,
@@ -246,6 +252,15 @@ async fn execute_run_command_tool(
                 .collect()
         })
         .unwrap_or_default();
+    let command = render_command_session_command(program, &args);
+    let session_id = RUN_COMMAND_SESSION_IDS.fetch_add(1, Ordering::Relaxed);
+
+    if let Some(tx) = stream_delta_tx {
+        let _ = tx.send(ConversationStreamUpdate::CommandSessionStarted {
+            session_id,
+            command: command.clone(),
+        });
+    }
 
     let request = PassthroughSandbox.wrap(CommandRequest {
         program: program.to_string(),
@@ -253,23 +268,115 @@ async fn execute_run_command_tool(
         working_dir: Some(tool_operator.working_dir().to_path_buf()),
     })?;
     let runner = DefaultCommandRunner::new();
-    let output = tokio::time::timeout(tool_timeout, runner.run_one_shot(request))
-        .await
-        .map_err(|_| {
-            anyhow::anyhow!(
-                "Tool execution timed out after {}s for run_command",
-                tool_timeout.as_secs()
-            )
-        })??;
+    let (output_tx, mut output_rx) = mpsc::channel(128);
+    let mut handle = match runner.run_streaming(request, output_tx).await {
+        Ok(handle) => handle,
+        Err(error) => {
+            if let Some(tx) = stream_delta_tx {
+                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(format!(
+                    "[command session] error: {error}"
+                )));
+                let _ = tx.send(ConversationStreamUpdate::CommandSessionFinished { session_id });
+            }
+            return Err(error);
+        }
+    };
 
-    let mut result = format!("exit_code: {}\n", output.exit_code);
-    if !output.stdout.is_empty() {
-        result.push_str(&format!("stdout:\n{}", output.stdout));
+    if let Some(tx) = stream_delta_tx {
+        let _ = tx.send(ConversationStreamUpdate::CommandSessionAttached {
+            session_id,
+            pid: handle.pid(),
+        });
+        let _ = tx.send(ConversationStreamUpdate::TranscriptLine(
+            format_command_session_started(&command, handle.pid()),
+        ));
     }
-    if !output.stderr.is_empty() {
-        result.push_str(&format!("stderr:\n{}", output.stderr));
+
+    let mut stdout = String::new();
+    let mut stderr = String::new();
+    let mut timed_out = false;
+    let sleep = tokio::time::sleep(tool_timeout);
+    tokio::pin!(sleep);
+
+    loop {
+        tokio::select! {
+            _ = &mut sleep, if !timed_out => {
+                timed_out = true;
+                let _ = handle.cancel();
+            }
+            chunk = output_rx.recv() => {
+                match chunk {
+                    Some(chunk) => {
+                        match &chunk.stream {
+                            crate::runtime::StreamKind::Stdout => stdout.push_str(&chunk.text),
+                            crate::runtime::StreamKind::Stderr => stderr.push_str(&chunk.text),
+                        }
+                        if let Some(tx) = stream_delta_tx {
+                            for line in format_command_session_output(chunk) {
+                                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(line));
+                            }
+                        }
+                    }
+                    None => break,
+                }
+            }
+        }
+    }
+
+    let wait_result = handle.wait().await;
+    if let Some(tx) = stream_delta_tx {
+        match &wait_result {
+            Ok(result) if timed_out => {
+                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(format!(
+                    "[command session] error: timed out after {}s",
+                    tool_timeout.as_secs()
+                )));
+                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(
+                    format_command_session_cancelled(),
+                ));
+                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(
+                    format_command_session_exit(result.exit_code),
+                ));
+            }
+            Ok(result) => {
+                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(
+                    format_command_session_exit(result.exit_code),
+                ));
+            }
+            Err(error) => {
+                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(format!(
+                    "[command session] error: {error}"
+                )));
+            }
+        }
+        let _ = tx.send(ConversationStreamUpdate::CommandSessionFinished { session_id });
+    }
+
+    if timed_out {
+        return Err(anyhow::anyhow!(
+            "Tool execution timed out after {}s for run_command",
+            tool_timeout.as_secs()
+        ));
+    }
+
+    let output = wait_result?;
+    let mut result = format!("exit_code: {}\n", output.exit_code);
+    if !stdout.is_empty() {
+        result.push_str(&format!("stdout:\n{stdout}"));
+    }
+    if !stderr.is_empty() {
+        result.push_str(&format!("stderr:\n{stderr}"));
     }
     Ok(result)
+}
+
+fn render_command_session_command(program: &str, args: &[String]) -> String {
+    let mut command = program.to_string();
+    for arg in args {
+        command.push(' ');
+        command.push_str(arg);
+    }
+    command
 }
 
 #[cfg(test)]

@@ -70,7 +70,7 @@ style full-screen session model:
 
 ## Current Limits And Follow-ups
 
-- Model-visible `run_command` still returns a completed tool result; it does not yet stream live command output into the model tool loop.
+- Model-visible `run_command` now uses the same managed command-session path as inline `!command`: live output is captured into the full-screen transcript while the tool result still returns the completed stdout/stderr summary to the model loop.
 - Concurrent inline command sessions now share the same managed transcript, but saved task evidence still records the batch at task-turn level rather than as independent structured session records.
 - PTY-backed interactive tools still depend on `portable_pty` through `src/runtime/command.rs::attach_pty()`. That dependency remains live in this branch and was not removed by the full-screen capture cutover. A full async PTY integration remains future work.
 

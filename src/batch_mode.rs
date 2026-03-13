@@ -375,6 +375,7 @@ impl RuntimeMode for BatchMode {
                 let approved = self.approval_decision();
                 let _ = response_tx.send(approved);
             }
+            UiUpdate::CommandSessionStarted { .. } => {}
             UiUpdate::CommandSessionAttached { .. } => {}
             UiUpdate::CommandSessionFinished { .. } => {}
             UiUpdate::EditLoopComplete { .. } => {}

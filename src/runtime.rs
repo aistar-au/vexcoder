@@ -20,6 +20,10 @@ pub use approval::{
     PolicyAction,
 };
 pub use backend::{ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode};
+pub(crate) use command::{
+    format_command_session_cancelled, format_command_session_exit, format_command_session_output,
+    format_command_session_started,
+};
 pub use command::{
     CommandHandle, CommandRequest, CommandResult, CommandRunner, DefaultCommandRunner, OutputChunk,
     StreamKind,
