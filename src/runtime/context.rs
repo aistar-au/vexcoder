@@ -197,7 +197,7 @@ impl RuntimeContext {
     }
 
     pub fn turn_cancellation_token(&self) -> CancellationToken {
-        self.cancel.clone()
+        self.cancel.child_token()
     }
 
     pub fn emit_turn_complete(&self) {

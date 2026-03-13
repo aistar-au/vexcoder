@@ -553,6 +553,7 @@ fn shell_command_request(command: String, working_dir: PathBuf) -> CommandReques
     }
 }
 
+#[cfg(test)]
 async fn run_shell_command_with_runner<R, S>(
     runner: R,
     sandbox: S,
@@ -565,6 +566,13 @@ where
 {
     let request = sandbox.wrap(shell_command_request(command, working_dir))?;
     runner.run_one_shot(request).await
+}
+
+async fn run_inline_shell_command(command: String, working_dir: PathBuf) -> Result<CommandResult> {
+    let runner = WorkingDirCommandRunner::new(working_dir.clone());
+    runner
+        .run_one_shot(shell_command_request(command, working_dir))
+        .await
 }
 
 fn format_inline_block(
@@ -1267,9 +1275,7 @@ impl TuiMode {
                 _ = cancel.cancelled() => {
                     ctx.emit_transcript_line("[shell] cancelled".to_string());
                 }
-                result = run_shell_command_with_runner(
-                    DefaultCommandRunner::new(),
-                    PassthroughSandbox,
+                result = run_inline_shell_command(
                     command,
                     working_dir,
                 ) => {
@@ -5075,6 +5081,85 @@ mod tests {
 
         let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
         assert!(turn_input.contains("[file: missing.txt \u{2014} not found]"));
+    }
+
+    #[test]
+    fn test_at_path_outside_workspace_is_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let outside_path = outside.path().join("secret.txt");
+        std::fs::write(&outside_path, "secret").unwrap();
+
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input(
+            format!("inspect @{}", outside_path.to_string_lossy()),
+            &mut ctx,
+        );
+
+        let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+        assert!(turn_input.contains("[file: "));
+        assert!(
+            turn_input.contains("outside workspace root")
+                || turn_input.contains("escapes workspace root")
+                || turn_input.contains("absolute or platform-specific path not allowed"),
+            "expected outside-workspace annotation, got: {turn_input}"
+        );
+    }
+
+    #[test]
+    fn test_at_path_multiple_tokens_resolved_in_order() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("one.txt"), "first").unwrap();
+        std::fs::write(temp.path().join("two.txt"), "second").unwrap();
+
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("compare @one.txt with @two.txt".to_string(), &mut ctx);
+
+        let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+        let first_idx = turn_input.find("[file: one.txt]").unwrap();
+        let second_idx = turn_input.find("[file: two.txt]").unwrap();
+        assert!(first_idx < second_idx);
+        assert!(turn_input.contains("first"));
+        assert!(turn_input.contains("second"));
+    }
+
+    #[test]
+    fn test_at_path_not_expanded_inside_slash_command_args() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("note.txt"), "hello from file\n").unwrap();
+
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/explain @note.txt".to_string(), &mut ctx);
+
+        let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+        assert!(!turn_input.contains("[file: note.txt]"));
+        assert!(!turn_input.contains("hello from file"));
+    }
+
+    #[test]
+    fn test_bang_prefix_requires_run_command_approval() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input(successful_bang_input(), &mut ctx);
+
+        assert!(mode.overlay_state.pending_approval.is_some());
+        assert!(!mode.is_turn_in_progress());
+        assert!(mode
+            .history_lines()
+            .iter()
+            .any(|line| { line.contains("[tool approval requested:") }));
     }
 
     #[tokio::test]
