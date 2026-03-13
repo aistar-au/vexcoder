@@ -1695,7 +1695,11 @@ impl TuiMode {
         let rendered_context = self.assemble_rendered_context(&scope_instruction);
         let instruction =
             render_custom_command_instruction(&command.template, &rendered_context, args);
-        let prompt = render_edit_prompt(&instruction, &rendered_context);
+        let prompt = if command.template.contains("{{context}}") {
+            instruction
+        } else {
+            render_edit_prompt(&instruction, &rendered_context)
+        };
         self.start_single_turn(prompt, ctx, false, None);
     }
 
@@ -5710,6 +5714,16 @@ mod tests {
 
         let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
         assert!(turn_input.contains("pub fn answer() -> i32 { 42 }"));
+        assert_eq!(
+            turn_input.matches("pub fn answer() -> i32 { 42 }").count(),
+            1,
+            "custom command context must be injected exactly once"
+        );
+        assert_eq!(
+            turn_input.matches("## Context").count(),
+            1,
+            "custom command context header must not be duplicated"
+        );
     }
 
     #[test]

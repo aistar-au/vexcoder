@@ -627,22 +627,50 @@ pub(super) fn tests_only_mutation_conflict_prompt(
     ))
 }
 
-fn mutating_tool_target_paths<'a>(tool_name: &str, input: &'a serde_json::Value) -> Vec<&'a str> {
+fn mutating_tool_target_paths(tool_name: &str, input: &serde_json::Value) -> Vec<String> {
     match tool_name {
-        "write_file" | "apply_patch" | "edit_file" => {
+        "write_file" | "edit_file" => {
             first_tool_string(input, &["path", "file_path", "file", "filename"])
                 .into_iter()
+                .map(ToString::to_string)
                 .collect()
         }
+        "apply_patch" => first_tool_string(input, &["path", "file_path", "file", "filename"])
+            .map(ToString::to_string)
+            .into_iter()
+            .chain(
+                first_tool_string(input, &["content", "patch", "diff"])
+                    .and_then(extract_apply_patch_target_path),
+            )
+            .collect(),
         "rename_file" => [
             first_tool_string(input, &["old_path", "from", "source_path"]),
             first_tool_string(input, &["new_path", "to", "target_path"]),
         ]
         .into_iter()
         .flatten()
+        .map(ToString::to_string)
         .collect(),
         _ => Vec::new(),
     }
+}
+
+fn extract_apply_patch_target_path(content: &str) -> Option<String> {
+    content.lines().find_map(|line| {
+        let path = line
+            .strip_prefix("+++ b/")
+            .or_else(|| line.strip_prefix("--- a/"))
+            .or_else(|| {
+                line.strip_prefix("diff --git a/")
+                    .and_then(|rest| rest.split_once(" b/").map(|(_, path)| path))
+            })?;
+        let normalized = path.trim();
+        if normalized.is_empty() || normalized == "/dev/null" {
+            None
+        } else {
+            Some(normalized.to_string())
+        }
+    })
 }
 
 fn is_test_target_path(path: &str) -> bool {
@@ -659,11 +687,13 @@ fn is_test_target_path(path: &str) -> bool {
     }
 
     let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
-    file_name.starts_with("test_")
+    matches!(file_name, "test.rs" | "tests.rs")
+        || file_name.starts_with("test_")
         || file_name.starts_with("spec_")
         || file_name.contains(".test.")
         || file_name.contains(".spec.")
         || file_name.ends_with("_test.rs")
+        || file_name.ends_with("_tests.rs")
         || file_name.ends_with("_test.py")
         || file_name.ends_with("_test.go")
         || file_name.ends_with("_test.js")
@@ -671,6 +701,68 @@ fn is_test_target_path(path: &str) -> bool {
         || file_name.ends_with("_test.ts")
         || file_name.ends_with("_test.tsx")
         || file_name.ends_with("_spec.rb")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_tests_only_policy_allows_rust_tests_module_paths() {
+        let input = json!({
+            "path": "src/state/conversation/tests.rs",
+            "content": "#[test]\nfn keeps_guard_happy() {}\n",
+        });
+
+        assert_eq!(
+            tests_only_mutation_conflict_prompt(
+                TurnToolPolicy::TestsOnlyMutations,
+                "write_file",
+                &input,
+            ),
+            None
+        );
+        assert!(is_test_target_path("src/state/conversation/tests.rs"));
+        assert!(is_test_target_path("src/runtime/test.rs"));
+    }
+
+    #[test]
+    fn test_tests_only_policy_blocks_apply_patch_source_paths() {
+        let input = json!({
+            "path": "src/lib.rs",
+            "content": "pub fn answer() -> i32 { 42 }\n",
+        });
+
+        let message = tests_only_mutation_conflict_prompt(
+            TurnToolPolicy::TestsOnlyMutations,
+            "apply_patch",
+            &input,
+        )
+        .expect("apply_patch against src/ should be rejected");
+        assert!(message.contains("src/lib.rs"));
+    }
+
+    #[test]
+    fn test_tests_only_policy_parses_apply_patch_diff_headers_when_path_missing() {
+        let input = json!({
+            "content": "\
+        diff --git a/src/lib.rs b/src/lib.rs\n\
+        --- a/src/lib.rs\n\
+        +++ b/src/lib.rs\n\
+        @@ -1 +1 @@\n\
+        -old\n\
+        +new\n"
+        });
+
+        let message = tests_only_mutation_conflict_prompt(
+            TurnToolPolicy::TestsOnlyMutations,
+            "apply_patch",
+            &input,
+        )
+        .expect("diff headers should still identify the blocked source file");
+        assert!(message.contains("src/lib.rs"));
+    }
 }
 
 pub(super) fn text_stats(text: &str) -> (usize, usize) {
