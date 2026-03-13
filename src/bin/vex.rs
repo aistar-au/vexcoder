@@ -729,12 +729,17 @@ fn print_lines(lines: &[String]) {
 
 // ── PK-08: vex branch / vex pr-summary ────────────────────────────────────────
 
-fn run_git_capture(cwd: &Path, args: &[&str]) -> Result<String> {
-    let output = std::process::Command::new("git")
-        .current_dir(cwd)
-        .args(args)
-        .output()
-        .with_context(|| format!("failed to run `git {}`", args.join(" ")))?;
+async fn run_git_capture(cwd: PathBuf, args: Vec<String>) -> Result<String> {
+    let command_display = format!("git {}", args.join(" "));
+    let output = tokio::task::spawn_blocking(move || {
+        std::process::Command::new("git")
+            .current_dir(cwd)
+            .args(&args)
+            .output()
+    })
+    .await
+    .context("git command task join failed")?
+    .with_context(|| format!("failed to run `{command_display}`"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -746,7 +751,7 @@ fn run_git_capture(cwd: &Path, args: &[&str]) -> Result<String> {
         } else {
             format!("exit status {}", output.status)
         };
-        bail!("git {} failed: {detail}", args.join(" "));
+        bail!("{command_display} failed: {detail}");
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
@@ -779,8 +784,12 @@ fn record_branch_on_active_task(cwd: &Path, branch_name: &str) -> Result<Option<
     Ok(Some(task_id))
 }
 
-fn run_branch(cwd: &Path, name: &str) -> Result<Vec<String>> {
-    run_git_capture(cwd, &["checkout", "-b", name])?;
+async fn run_branch(cwd: &Path, name: &str) -> Result<Vec<String>> {
+    run_git_capture(
+        cwd.to_path_buf(),
+        vec!["checkout".to_string(), "-b".to_string(), name.to_string()],
+    )
+    .await?;
 
     let mut summary = vec![format!("[branch] created: {name}")];
     match record_branch_on_active_task(cwd, name)? {
@@ -790,11 +799,16 @@ fn run_branch(cwd: &Path, name: &str) -> Result<Vec<String>> {
     Ok(summary)
 }
 
-fn prepare_pr_summary_prompt(cwd: &Path) -> Result<String> {
+async fn prepare_pr_summary_prompt(cwd: &Path) -> Result<String> {
     let base_ref = run_git_capture(
-        cwd,
-        &["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+        cwd.to_path_buf(),
+        vec![
+            "symbolic-ref".to_string(),
+            "--quiet".to_string(),
+            "refs/remotes/origin/HEAD".to_string(),
+        ],
     )
+    .await
     .context(
         "failed to detect origin/HEAD; set it first (for example: `git remote set-head origin -a`)",
     )?
@@ -804,17 +818,49 @@ fn prepare_pr_summary_prompt(cwd: &Path) -> Result<String> {
         bail!("origin/HEAD resolved to an empty ref");
     }
 
-    let head_ref = run_git_capture(cwd, &["rev-parse", "--abbrev-ref", "HEAD"])?
-        .trim()
-        .to_string();
-    let merge_base = run_git_capture(cwd, &["merge-base", "HEAD", &base_ref])?
-        .trim()
-        .to_string();
+    let head_ref = run_git_capture(
+        cwd.to_path_buf(),
+        vec![
+            "rev-parse".to_string(),
+            "--abbrev-ref".to_string(),
+            "HEAD".to_string(),
+        ],
+    )
+    .await?
+    .trim()
+    .to_string();
+    let merge_base = run_git_capture(
+        cwd.to_path_buf(),
+        vec![
+            "merge-base".to_string(),
+            "HEAD".to_string(),
+            base_ref.clone(),
+        ],
+    )
+    .await?
+    .trim()
+    .to_string();
     let diff_stat = run_git_capture(
-        cwd,
-        &["diff", "--stat", "--find-renames", &merge_base, "HEAD"],
-    )?;
-    let diff = run_git_capture(cwd, &["diff", "--find-renames", &merge_base, "HEAD"])?;
+        cwd.to_path_buf(),
+        vec![
+            "diff".to_string(),
+            "--stat".to_string(),
+            "--find-renames".to_string(),
+            merge_base.clone(),
+            "HEAD".to_string(),
+        ],
+    )
+    .await?;
+    let diff = run_git_capture(
+        cwd.to_path_buf(),
+        vec![
+            "diff".to_string(),
+            "--find-renames".to_string(),
+            merge_base.clone(),
+            "HEAD".to_string(),
+        ],
+    )
+    .await?;
 
     if diff.trim().is_empty() {
         bail!("[pr-summary] no diff from {base_ref}");
@@ -862,7 +908,7 @@ where
     F: FnOnce(String, BatchRunOpts, Config) -> Fut,
     Fut: std::future::Future<Output = Result<BatchResult>>,
 {
-    let prompt = prepare_pr_summary_prompt(cwd)?;
+    let prompt = prepare_pr_summary_prompt(cwd).await?;
     let opts = BatchRunOpts {
         max_turns: Some(1),
         auto_approve: None,
@@ -995,7 +1041,7 @@ async fn main() -> Result<ExitCode> {
         }
         Some(Commands::Branch { name }) => {
             let cwd = std::env::current_dir()?;
-            let summary = run_branch(&cwd, &name)?;
+            let summary = run_branch(&cwd, &name).await?;
             print_lines(&summary);
             return Ok(ExitCode::SUCCESS);
         }
@@ -1664,11 +1710,11 @@ mod tests {
 
     // -- PK-08: vex branch / vex pr-summary ------------------------------------
 
-    #[test]
-    fn test_vex_branch_creates_git_branch() {
+    #[tokio::test]
+    async fn test_vex_branch_creates_git_branch() {
         let repo = init_git_repo();
 
-        let summary = run_branch(repo.path(), "feature/demo").unwrap();
+        let summary = run_branch(repo.path(), "feature/demo").await.unwrap();
         let branch = git_stdout(repo.path(), &["rev-parse", "--abbrev-ref", "HEAD"]);
 
         assert_eq!(branch, "feature/demo");
@@ -1677,9 +1723,9 @@ mod tests {
             .any(|line| line == "[branch] created: feature/demo"));
     }
 
-    #[test]
-    fn test_vex_branch_records_in_task_state() {
-        let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
+    #[tokio::test]
+    async fn test_vex_branch_records_in_task_state() {
+        let _env_lock = crate::tests::test_support::ENV_LOCK.lock().await;
         let repo = init_git_repo();
         let state_dir = repo.path().join("state");
         std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str());
@@ -1687,7 +1733,7 @@ mod tests {
         let state = TaskState::new("task-branch".to_string());
         state.save(&state_dir).unwrap();
 
-        run_branch(repo.path(), "feature/task-state").unwrap();
+        run_branch(repo.path(), "feature/task-state").await.unwrap();
 
         let loaded = TaskState::load(&state_dir, "task-branch").unwrap();
         assert_eq!(loaded.branch_name.as_deref(), Some("feature/task-state"));
@@ -1695,11 +1741,11 @@ mod tests {
         std::env::remove_var("VEX_STATE_DIR");
     }
 
-    #[test]
-    fn test_vex_pr_summary_assembles_merge_base_diff() {
+    #[tokio::test]
+    async fn test_vex_pr_summary_assembles_merge_base_diff() {
         let repo = init_pr_summary_repo();
 
-        let prompt = prepare_pr_summary_prompt(repo.path()).unwrap();
+        let prompt = prepare_pr_summary_prompt(repo.path()).await.unwrap();
 
         assert!(prompt.contains("refs/remotes/origin/main"));
         assert!(prompt.contains("feature/pr-summary"));

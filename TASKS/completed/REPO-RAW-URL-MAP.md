@@ -81,7 +81,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 70 | `src/api/stream.rs` | ~251 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
 | 71 | `src/app.rs` | ~6217 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
 | 72 | `src/batch_mode.rs` | ~1316 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode.rs> |
-| 73 | `src/bin/vex.rs` | ~1760 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/bin/vex.rs> |
+| 73 | `src/bin/vex.rs` | ~1806 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/bin/vex.rs> |
 | 74 | `src/config.rs` | ~1172 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
 | 75 | `src/custom_commands.rs` | ~231 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/custom_commands.rs> |
 | 76 | `src/doctor.rs` | ~369 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/doctor.rs> |
