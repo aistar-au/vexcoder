@@ -277,12 +277,13 @@ pub fn doctor_snapshot(cwd: &Path) -> Result<DoctorConfigSnapshot> {
         .or(repo_layer.model_url)
         .or(user_layer.model_url)
         .or(system_layer.model_url);
-    let working_dir = env_working_dir
-        .or(repo_layer.working_dir)
-        .or(user_layer.working_dir)
-        .or(system_layer.working_dir)
-        .map(expand_home)
-        .unwrap_or_else(|| cwd.to_path_buf());
+    let working_dir = resolve_working_dir(
+        env_working_dir
+            .or(repo_layer.working_dir)
+            .or(user_layer.working_dir)
+            .or(system_layer.working_dir),
+        cwd,
+    );
     let sandbox_require = repo_layer
         .sandbox_require
         .or(user_layer.sandbox_require)
@@ -573,9 +574,7 @@ fn resolve_config(
     let model_name = merged
         .model_name
         .unwrap_or_else(|| "local/default".to_string());
-    let working_dir = merged
-        .working_dir
-        .unwrap_or_else(|| fallback_cwd.to_path_buf());
+    let working_dir = resolve_working_dir(merged.working_dir, fallback_cwd);
 
     let is_local = is_local_endpoint_url(&model_url);
 
@@ -618,6 +617,10 @@ fn resolve_config(
         notes_path: merged.notes_path.map(expand_home),
         hooks: merged.hooks.unwrap_or_default(),
     })
+}
+
+fn resolve_working_dir(working_dir: Option<PathBuf>, fallback_cwd: &Path) -> PathBuf {
+    working_dir.unwrap_or_else(|| fallback_cwd.to_path_buf())
 }
 
 fn expand_home(path: PathBuf) -> PathBuf {
@@ -830,6 +833,7 @@ pub fn migrate_config_from_env(envs: &[(&str, &str)]) -> String {
 #[cfg(test)]
 mod tests {
     use super::{Config, ModelBackendKind};
+    use std::path::PathBuf;
 
     struct EnvRestore {
         key: &'static str,
@@ -964,6 +968,21 @@ mod tests {
         std::env::remove_var("XDG_CONFIG_HOME");
 
         assert_eq!(super::user_config_path(), Some(legacy_path));
+    }
+
+    #[test]
+    fn test_doctor_snapshot_matches_runtime_working_dir_resolution() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _workdir = EnvRestore::capture("VEX_WORKDIR");
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("VEX_WORKDIR", "~/doctor-workdir");
+
+        let config = Config::load_for_tests(temp.path(), None, None).unwrap();
+        let snapshot = super::doctor_snapshot(temp.path()).unwrap();
+
+        assert_eq!(config.working_dir, PathBuf::from("~/doctor-workdir"));
+        assert_eq!(snapshot.working_dir, config.working_dir);
+        std::env::remove_var("VEX_WORKDIR");
     }
 
     #[test]

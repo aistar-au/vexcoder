@@ -1800,15 +1800,16 @@ impl TuiMode {
             return;
         }
 
-        let estimated = Self::summarize_usage_line_suffix(usage.estimated);
+        let turn_estimated = Self::summarize_usage_line_suffix(usage.last_estimated);
+        let session_estimated = Self::summarize_usage_line_suffix(usage.estimated);
         self.push_history_line("[usage]".to_string());
         self.push_history_line(format!(
             "  this turn   : {} in / {} out{}",
-            usage.last_input, usage.last_output, estimated
+            usage.last_input, usage.last_output, turn_estimated
         ));
         self.push_history_line(format!(
             "  session     : {} in / {} out{}",
-            usage.input, usage.output, estimated
+            usage.input, usage.output, session_estimated
         ));
     }
 
@@ -6093,6 +6094,34 @@ mod tests {
                 tool.name
             );
         }
+    }
+
+    #[test]
+    fn test_usage_command_uses_last_turn_estimate_flag() {
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        ctx.test_record_session_turn(crate::usage::TurnTokens {
+            input: 10,
+            output: 5,
+            estimated: true,
+        });
+        ctx.test_record_session_turn(crate::usage::TurnTokens {
+            input: 4,
+            output: 3,
+            estimated: false,
+        });
+
+        mode.on_user_input("/usage".to_string(), &mut ctx);
+
+        assert!(mode.history_lines().iter().any(|line| line == "[usage]"));
+        assert!(mode
+            .history_lines()
+            .iter()
+            .any(|line| line == "  this turn   : 4 in / 3 out"));
+        assert!(mode
+            .history_lines()
+            .iter()
+            .any(|line| line == "  session     : 14 in / 8 out (estimated)"));
     }
 
     #[tokio::test]

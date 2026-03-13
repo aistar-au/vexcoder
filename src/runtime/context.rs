@@ -219,6 +219,13 @@ impl RuntimeContext {
         self.conversation.lock().await.model_name()
     }
 
+    #[cfg(test)]
+    pub fn test_record_session_turn(&self, turn: TurnTokens) {
+        if let Ok(mut tokens) = self.session_tokens.lock() {
+            tokens.record_turn(turn);
+        }
+    }
+
     pub fn cancel_turn(&mut self) {
         self.cancel.cancel();
         self.cancel = CancellationToken::new();

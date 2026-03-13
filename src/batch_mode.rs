@@ -86,6 +86,7 @@ pub struct BatchMode {
     current_turn: usize,
     current_turn_input: String,
     current_turn_changed_files: BTreeSet<String>,
+    task_changed_files: BTreeSet<String>,
     current_turn_command_history: Vec<CommandEvidence>,
     current_turn_tokens: TurnTokens,
     pending_tool_calls: HashMap<String, PendingToolCall>,
@@ -119,6 +120,7 @@ impl BatchMode {
             current_turn: 0,
             current_turn_input: String::new(),
             current_turn_changed_files: BTreeSet::new(),
+            task_changed_files: BTreeSet::new(),
             current_turn_command_history: Vec::new(),
             current_turn_tokens: TurnTokens::default(),
             pending_tool_calls: HashMap::new(),
@@ -172,6 +174,8 @@ impl BatchMode {
             .iter()
             .cloned()
             .collect::<Vec<_>>();
+        self.task_changed_files
+            .extend(changed_files.iter().cloned());
         let command_history = std::mem::take(&mut self.current_turn_command_history);
         match self.format {
             OutputFormat::Jsonl => {
@@ -210,7 +214,7 @@ impl BatchMode {
                 task_id: self.task_id.clone(),
                 total_turns: self.current_turn,
                 instructions_path: self.instructions_path.clone(),
-                changed_files: self.current_turn_changed_files.iter().cloned().collect(),
+                changed_files: self.task_changed_files.iter().cloned().collect(),
             };
             let line = serde_json::to_string(&record)
                 .expect("batch JSONL summary record serialization must succeed");
@@ -1186,6 +1190,43 @@ mod tests {
         let summary_json: serde_json::Value =
             serde_json::from_str(mode.output_lines.last().expect("expected summary line")).unwrap();
         assert_eq!(summary_json["instructions_path"], "AGENTS.md");
+    }
+
+    #[test]
+    fn test_batch_mode_summary_keeps_changed_files_from_prior_turns() {
+        let opts = BatchRunOpts {
+            format: OutputFormat::Jsonl,
+            ..Default::default()
+        };
+        let mut mode = BatchMode::new("test-task".to_string(), opts, None, None);
+
+        mode.status = TaskStatus::Running;
+        mode.turn_in_progress = true;
+        mode.current_turn_changed_files
+            .insert("src/first.rs".to_string());
+        mode.finish_turn(TurnTokens::default());
+
+        mode.reset_current_turn_state();
+        mode.status = TaskStatus::Running;
+        mode.turn_in_progress = true;
+        mode.current_turn_changed_files
+            .insert("src/second.rs".to_string());
+        mode.finish_turn(TurnTokens::default());
+
+        mode.status = TaskStatus::Completed;
+        mode.append_summary();
+
+        let summary_json: serde_json::Value =
+            serde_json::from_str(mode.output_lines.last().expect("expected summary line")).unwrap();
+        let changed_files = summary_json["changed_files"]
+            .as_array()
+            .expect("summary changed_files must be present");
+        let changed_files = changed_files
+            .iter()
+            .filter_map(|value| value.as_str())
+            .collect::<Vec<_>>();
+        assert!(changed_files.contains(&"src/first.rs"));
+        assert!(changed_files.contains(&"src/second.rs"));
     }
 
     fn setup_batch_ctx() -> RuntimeContext {
