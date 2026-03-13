@@ -29,7 +29,7 @@ vexcoder-v0.1.0-fully-corrected.md
 scratch-*
 
 # --- Generated local runtime state ---
-/.vex/state/
+/.vex/
 
 # --- Generated docs output ---
 docs/book/
