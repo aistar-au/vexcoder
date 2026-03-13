@@ -1,4 +1,4 @@
-use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest};
+use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, TurnToolPolicy};
 use crate::config::{HookEvent, HookOnFail};
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::runtime::{
@@ -602,6 +602,75 @@ pub(super) fn mutating_tool_read_only_conflict_prompt(
     Some(format!(
         "Blocked mutating tool call `{tool_name}` because this request appears read-only. Use read-only tools (`read_file`, `search_files`, `list_files`, `git_status`, `git_diff`, `git_log`, `git_show`) and answer from those results. No file changes were made."
     ))
+}
+
+pub(super) fn tests_only_mutation_conflict_prompt(
+    policy: TurnToolPolicy,
+    tool_name: &str,
+    input: &serde_json::Value,
+) -> Option<String> {
+    if policy != TurnToolPolicy::TestsOnlyMutations {
+        return None;
+    }
+
+    let target_paths = mutating_tool_target_paths(tool_name, input);
+    if target_paths.is_empty() || target_paths.iter().all(|path| is_test_target_path(path)) {
+        return None;
+    }
+
+    let blocked_path = target_paths
+        .into_iter()
+        .find(|path| !is_test_target_path(path))
+        .unwrap_or_default();
+    Some(format!(
+        "Dropped non-test patch target `{blocked_path}` for /generate-tests. This command may only modify test files or paths under `test/` or `tests/`. Use `/edit` for source-file changes."
+    ))
+}
+
+fn mutating_tool_target_paths<'a>(tool_name: &str, input: &'a serde_json::Value) -> Vec<&'a str> {
+    match tool_name {
+        "write_file" | "apply_patch" | "edit_file" => {
+            first_tool_string(input, &["path", "file_path", "file", "filename"])
+                .into_iter()
+                .collect()
+        }
+        "rename_file" => [
+            first_tool_string(input, &["old_path", "from", "source_path"]),
+            first_tool_string(input, &["new_path", "to", "target_path"]),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn is_test_target_path(path: &str) -> bool {
+    let normalized = path.trim().replace('\\', "/").to_ascii_lowercase();
+    if normalized.is_empty() {
+        return false;
+    }
+
+    if normalized
+        .split('/')
+        .any(|segment| segment == "test" || segment == "tests" || segment == "__tests__")
+    {
+        return true;
+    }
+
+    let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+    file_name.starts_with("test_")
+        || file_name.starts_with("spec_")
+        || file_name.contains(".test.")
+        || file_name.contains(".spec.")
+        || file_name.ends_with("_test.rs")
+        || file_name.ends_with("_test.py")
+        || file_name.ends_with("_test.go")
+        || file_name.ends_with("_test.js")
+        || file_name.ends_with("_test.jsx")
+        || file_name.ends_with("_test.ts")
+        || file_name.ends_with("_test.tsx")
+        || file_name.ends_with("_spec.rb")
 }
 
 pub(super) fn text_stats(text: &str) -> (usize, usize) {

@@ -76,10 +76,18 @@ pub fn render_review_prompt(instruction: &str, context: &str, diff_context: &str
     )
 }
 
-pub fn render_generate_tests_prompt(instruction: &str, context: &str) -> String {
+pub fn render_custom_command_instruction(template: &str, context: &str, input: &str) -> String {
+    render_template(template, &[("{{context}}", context), ("{{input}}", input)])
+}
+
+pub fn render_generate_tests_prompt(instruction: &str, context: &str, framework: &str) -> String {
     render_template(
         GENERATE_TESTS_TEMPLATE,
-        &[("{{instruction}}", instruction), ("{{context}}", context)],
+        &[
+            ("{{instruction}}", instruction),
+            ("{{context}}", context),
+            ("{{framework}}", framework),
+        ],
     )
 }
 
@@ -111,6 +119,11 @@ mod tests {
         assert!(plan.contains("ctx"));
         assert!(plan.contains("src/app.rs"));
         assert!(!plan.contains("{{scope}}"));
+
+        let generate_tests = render_generate_tests_prompt("generate tests", "ctx", "cargo-test");
+        assert!(generate_tests.contains("generate tests"));
+        assert!(generate_tests.contains("cargo-test"));
+        assert!(!generate_tests.contains("{{framework}}"));
     }
 
     #[test]
@@ -127,6 +140,17 @@ mod tests {
     }
 
     #[test]
+    fn test_custom_command_template_replaces_context_and_input() {
+        let rendered = render_custom_command_instruction(
+            "Input={{input}}\nContext={{context}}",
+            "ctx",
+            "rest of prompt",
+        );
+        assert!(rendered.contains("Input=rest of prompt"));
+        assert!(rendered.contains("Context=ctx"));
+    }
+
+    #[test]
     fn test_docs_tools_md_lists_slash_commands() {
         let docs =
             std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/src/commands.md"))
@@ -139,6 +163,8 @@ mod tests {
             "/run [command]",
             "/test",
             "/context",
+            "/tools [desc]",
+            "/generate-tests [path] [--framework <name>]",
             "/commands",
             "/help",
         ] {

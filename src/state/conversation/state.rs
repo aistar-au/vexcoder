@@ -35,6 +35,13 @@ impl ToolApprovalRequest {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TurnToolPolicy {
+    #[default]
+    Default,
+    TestsOnlyMutations,
+}
+
 pub struct ConversationManager {
     pub(super) client: Arc<ApiClient>,
     pub(super) tool_operator: ToolOperator,

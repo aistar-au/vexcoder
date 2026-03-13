@@ -1,5 +1,8 @@
 use super::super::stream_block::{StreamBlock, ToolStatus};
-use super::{history::*, streaming::*, tools::*, ConversationManager, ConversationStreamUpdate};
+use super::{
+    history::*, streaming::*, tools::*, ConversationManager, ConversationStreamUpdate,
+    TurnToolPolicy,
+};
 use crate::api::stream::StreamParser;
 use crate::runtime::policy::{default_runtime_policy, RuntimeCorePolicy};
 use crate::types::{ApiMessage, Content, ContentBlock, StreamEvent};
@@ -13,6 +16,16 @@ impl ConversationManager {
         &mut self,
         content: String,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
+    ) -> Result<String> {
+        self.send_message_with_policy(content, stream_delta_tx, TurnToolPolicy::Default)
+            .await
+    }
+
+    pub async fn send_message_with_policy(
+        &mut self,
+        content: String,
+        stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
+        turn_tool_policy: TurnToolPolicy,
     ) -> Result<String> {
         self.current_turn_blocks.clear();
         let original_user_input = content.clone();
@@ -489,6 +502,46 @@ impl ConversationManager {
                         emit_text_update(stream_delta_tx, read_only_guard.clone());
                         let history_content = truncate_for_history(
                             &read_only_guard,
+                            limits.max_tool_result_history_chars,
+                        );
+                        if use_structured_round {
+                            tool_result_blocks.push(ContentBlock::ToolResult {
+                                tool_use_id: id,
+                                content: history_content,
+                                is_error: true,
+                            });
+                        } else {
+                            let rendered = format!("tool_error {name}:\n{history_content}");
+                            text_protocol_tool_results.push(truncate_for_history(
+                                &rendered,
+                                limits.max_tool_result_history_chars,
+                            ));
+                        }
+                        continue;
+                    }
+
+                    if let Some(test_only_guard) =
+                        tests_only_mutation_conflict_prompt(turn_tool_policy, &name, &input)
+                    {
+                        if use_structured_blocks {
+                            self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
+                            self.push_tool_result_block(
+                                StreamBlock::ToolResult {
+                                    tool_call_id: id.clone(),
+                                    output: test_only_guard.clone(),
+                                    is_error: true,
+                                },
+                                stream_delta_tx,
+                            );
+                        } else if stream_local_tool_events {
+                            emit_text_update(
+                                stream_delta_tx,
+                                format!("\n- [tool_error] {name}: {test_only_guard}\n"),
+                            );
+                        }
+                        emit_text_update(stream_delta_tx, test_only_guard.clone());
+                        let history_content = truncate_for_history(
+                            &test_only_guard,
                             limits.max_tool_result_history_chars,
                         );
                         if use_structured_round {

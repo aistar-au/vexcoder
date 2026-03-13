@@ -101,8 +101,24 @@ Commands entered inside the interactive UI start with `/`.
 
 - `/explain [path]`
 - `/context`
+- `/tools [desc]`
 - `/commands`
 - `/help`
+
+### Test generation
+
+- `/generate-tests [path] [--framework <name>]`
+  - Starts a single semantic turn using the test-generation prompt template.
+  - Assembles context for the requested path, or the most recently assembled file when no path is provided.
+  - Only test-file mutations are allowed; source-file edits must use `/edit`.
+
+### Custom commands
+
+- `/.vex/commands/*.toml`
+- `~/.config/vex/commands/*.toml`
+  - Custom slash commands load at session start from project and user command directories.
+  - Project-scoped commands override user-scoped commands with the same name.
+  - Templates support `{{context}}` and `{{input}}` substitution.
 
 ### Validation helpers
 

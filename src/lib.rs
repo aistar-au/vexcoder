@@ -2,6 +2,7 @@ pub mod api;
 pub mod app;
 pub mod batch_mode;
 pub mod config;
+pub(crate) mod custom_commands;
 pub mod edit_diff;
 pub mod git_hooks;
 pub mod prompts;
