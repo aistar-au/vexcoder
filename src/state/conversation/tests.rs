@@ -1114,6 +1114,87 @@ data: {"type":"message_stop"}"#.to_string(),
 }
 
 #[tokio::test]
+async fn test_generate_tests_blocks_non_test_patch_before_approval() -> Result<()> {
+    let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+    std::env::set_var("VEX_TOOL_CONFIRM", "off");
+
+    let first_response_sse = vec![
+        r#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_generate_tests_guard_01","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
+        r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_generate_tests_guard_01","name":"write_file","input":{"path":"src/lib.rs","content":"pub fn answer() -> i32 { 42 }\n"}}}"#.to_string(),
+        r#"event: content_block_stop
+data: {"type":"content_block_stop","index":0}"#.to_string(),
+        r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":5}}"#.to_string(),
+        r#"event: message_stop
+data: {"type":"message_stop"}"#.to_string(),
+    ];
+    let second_response_sse = plain_text_round(
+        "msg_generate_tests_guard_02",
+        "Test generation stayed within test files.",
+    );
+    let mock_api_client =
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+            first_response_sse,
+            second_response_sse,
+        ])));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let approval_task = tokio::spawn(async move {
+        let mut saw_approval_request = false;
+        while let Some(update) = rx.recv().await {
+            if matches!(update, ConversationStreamUpdate::ToolApprovalRequest(_)) {
+                saw_approval_request = true;
+            }
+        }
+        saw_approval_request
+    });
+    let final_text = manager
+        .send_message_with_policy(
+            "generate tests for src/lib.rs".to_string(),
+            Some(&tx),
+            TurnToolPolicy::TestsOnlyMutations,
+        )
+        .await?;
+    drop(tx);
+    let saw_approval_request = approval_task.await?;
+    std::env::remove_var("VEX_TOOL_CONFIRM");
+
+    assert!(
+        !saw_approval_request,
+        "/generate-tests guard must block non-test file writes before approval"
+    );
+    assert!(final_text.contains("Test generation stayed within test files."));
+
+    let tool_result_message = manager
+        .api_messages
+        .iter()
+        .find(|message| {
+            message.role == "user"
+                && matches!(message.content, Content::Blocks(_))
+                && message_contains_tool_result(message)
+        })
+        .expect("expected tool_result message in history");
+    if let Content::Blocks(blocks) = &tool_result_message.content {
+        assert!(blocks.iter().any(|block| matches!(
+            block,
+            ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+                is_error: true,
+            } if tool_use_id == "toolu_generate_tests_guard_01"
+                && content.contains("Dropped non-test patch target `src/lib.rs`")
+        )));
+    } else {
+        panic!("expected tool_result blocks");
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_git_tool_capability_query_short_circuits_without_api_round() -> Result<()> {
     let mock_api_client = ApiClient::new_mock(Arc::new(
         crate::api::mock_client::MockApiClient::new(vec![]),

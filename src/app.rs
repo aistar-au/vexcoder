@@ -1,5 +1,10 @@
+use crate::api::client::builtin_tool_summaries;
 use crate::config::Config;
-use crate::prompts::{render_explain_prompt, CODER_SYSTEM_PROMPT};
+use crate::custom_commands::{load_custom_commands, CustomCommand};
+use crate::prompts::{
+    render_custom_command_instruction, render_edit_prompt, render_explain_prompt,
+    render_generate_tests_prompt, CODER_SYSTEM_PROMPT,
+};
 use crate::runtime::command::PtySession;
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::context_assembler::{
@@ -23,7 +28,7 @@ use crate::session_notes::resolve_notes_for_injection;
 use crate::session_notes::{
     build_api_client_with_notes, resolve_notes_path_for_read, resolve_notes_path_for_write,
 };
-use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest};
+use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest, TurnToolPolicy};
 use crate::tools::ToolOperator;
 use crate::types::ModelProfile;
 use crate::ui::render::history_visual_line_count;
@@ -107,6 +112,8 @@ enum SlashCommandId {
     Run,
     Test,
     Context,
+    Tools,
+    GenerateTests,
     Commands,
     Help,
 }
@@ -215,6 +222,24 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         SlashCommandPattern::Exact("/context"),
         "/context",
         "show session context summary; no model turn",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Tools,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/tools",
+            prefix: "/tools ",
+        },
+        "/tools [desc]",
+        "show live tool registry; no model turn",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::GenerateTests,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/generate-tests",
+            prefix: "/generate-tests ",
+        },
+        "/generate-tests [path] [--framework <name>]",
+        "generate tests for a path; test files only",
     ),
     SlashCommandSpec::new(
         SlashCommandId::Model,
@@ -340,6 +365,54 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         "show working-tree diff; no model turn",
     ),
 ];
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct GenerateTestsArgs {
+    path: Option<String>,
+    framework: Option<String>,
+}
+
+fn builtin_slash_command_names() -> Vec<String> {
+    let mut names = SLASH_COMMANDS
+        .iter()
+        .filter_map(|spec| {
+            spec.display
+                .strip_prefix('/')
+                .and_then(|display| display.split_whitespace().next())
+                .map(ToString::to_string)
+        })
+        .collect::<Vec<_>>();
+    names.sort();
+    names.dedup();
+    names
+}
+
+fn parse_generate_tests_args(input: &str) -> std::result::Result<GenerateTestsArgs, String> {
+    let mut parsed = GenerateTestsArgs::default();
+    let mut tokens = input.split_whitespace();
+
+    while let Some(token) = tokens.next() {
+        if token == "--framework" {
+            let Some(framework) = tokens.next() else {
+                return Err(
+                    "[generate-tests] usage: /generate-tests [path] [--framework <name>]"
+                        .to_string(),
+                );
+            };
+            parsed.framework = Some(framework.to_string());
+            continue;
+        }
+
+        if parsed.path.is_some() {
+            return Err(
+                "[generate-tests] usage: /generate-tests [path] [--framework <name>]".to_string(),
+            );
+        }
+        parsed.path = Some(token.to_string());
+    }
+
+    Ok(parsed)
+}
 
 struct WorkingDirCommandRunner {
     working_dir: PathBuf,
@@ -468,6 +541,7 @@ pub struct TuiMode {
     model_backend: crate::runtime::ModelBackendKind,
     /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
+    custom_commands: Vec<CustomCommand>,
     last_assembled_context: Option<AssembledContext>,
     read_only_turn_active: bool,
     active_edit_loop: Option<EditLoop>,
@@ -639,6 +713,8 @@ impl TuiMode {
     }
 
     pub fn new_with_config(notes_path: Option<PathBuf>, config: Config) -> Self {
+        let custom_commands =
+            load_custom_commands(&config.working_dir, &builtin_slash_command_names());
         Self {
             history_state: HistoryState::default(),
             overlay_state: OverlayState::default(),
@@ -654,6 +730,7 @@ impl TuiMode {
             model_name: config.model_name.clone(),
             model_backend: config.model_backend,
             working_dir: config.working_dir.clone(),
+            custom_commands,
             last_assembled_context: None,
             read_only_turn_active: false,
             active_edit_loop: None,
@@ -1041,6 +1118,22 @@ impl TuiMode {
             .find_map(|spec| spec.pattern.parse(trimmed).map(|args| (spec, args)))
     }
 
+    fn registered_custom_command<'a>(
+        &'a self,
+        input: &'a str,
+    ) -> Option<(&'a CustomCommand, &'a str)> {
+        let trimmed = input.trim();
+        let raw = trimmed.strip_prefix('/')?;
+        let (name, args) = raw
+            .find(char::is_whitespace)
+            .map(|index| (&raw[..index], raw[index..].trim()))
+            .unwrap_or((raw, ""));
+        self.custom_commands
+            .iter()
+            .find(|command| command.name == name)
+            .map(|command| (command, args))
+    }
+
     fn is_reentrant_edit_command(input: &str) -> bool {
         Self::registered_slash_command(input)
             .map(|(spec, _)| matches!(spec.id, SlashCommandId::Edit | SlashCommandId::Fix))
@@ -1048,46 +1141,56 @@ impl TuiMode {
     }
 
     fn try_handle_slash_command(&mut self, input: &str, ctx: &mut RuntimeContext) -> bool {
-        let Some((spec, args)) = Self::registered_slash_command(input) else {
-            return false;
-        };
-
-        match spec.id {
-            SlashCommandId::Quit | SlashCommandId::Exit => self.handle_quit_command(),
-            SlashCommandId::About => self.handle_about_command(),
-            SlashCommandId::MemoryShow => self.handle_memory_display(),
-            SlashCommandId::MemoryAdd => {
-                if args.is_empty() {
-                    self.push_history_line("[memory] usage: /memory add <note>".to_string());
-                } else {
-                    self.handle_memory_add(args.to_string());
+        if let Some((spec, args)) = Self::registered_slash_command(input) {
+            match spec.id {
+                SlashCommandId::Quit | SlashCommandId::Exit => self.handle_quit_command(),
+                SlashCommandId::About => self.handle_about_command(),
+                SlashCommandId::MemoryShow => self.handle_memory_display(),
+                SlashCommandId::MemoryAdd => {
+                    if args.is_empty() {
+                        self.push_history_line("[memory] usage: /memory add <note>".to_string());
+                    } else {
+                        self.handle_memory_add(args.to_string());
+                    }
                 }
+                SlashCommandId::MemoryClear => {
+                    self.overlay_state.pending_memory_clear = true;
+                    self.push_history_line(
+                        "[memory] clear all notes? type y to confirm or n to cancel".to_string(),
+                    );
+                }
+                SlashCommandId::New => self.handle_new_command(ctx),
+                SlashCommandId::Resume => self.handle_resume_command(args, ctx),
+                SlashCommandId::Clear => self.handle_clear_command(ctx),
+                SlashCommandId::Fork => self.handle_fork_command(args, ctx),
+                SlashCommandId::Permissions => self.handle_permissions_command(),
+                SlashCommandId::Allow => self.handle_allow_command(args),
+                SlashCommandId::Deny => self.handle_deny_command(args),
+                SlashCommandId::Model => self.handle_model_command(args, ctx),
+                SlashCommandId::Diff => self.handle_diff_command(args),
+                SlashCommandId::Edit => self.handle_edit_command(args, ctx),
+                SlashCommandId::Fix => self.handle_fix_command(ctx),
+                SlashCommandId::Explain => self.handle_explain_command(args, ctx),
+                SlashCommandId::Run => self.handle_run_command(args),
+                SlashCommandId::Test => self.handle_test_command(),
+                SlashCommandId::Context => self.handle_context_command(ctx),
+                SlashCommandId::Tools => self.handle_tools_command(args),
+                SlashCommandId::GenerateTests => self.handle_generate_tests_command(args, ctx),
+                SlashCommandId::Commands | SlashCommandId::Help => self.handle_commands_command(),
             }
-            SlashCommandId::MemoryClear => {
-                self.overlay_state.pending_memory_clear = true;
-                self.push_history_line(
-                    "[memory] clear all notes? type y to confirm or n to cancel".to_string(),
-                );
-            }
-            SlashCommandId::New => self.handle_new_command(ctx),
-            SlashCommandId::Resume => self.handle_resume_command(args, ctx),
-            SlashCommandId::Clear => self.handle_clear_command(ctx),
-            SlashCommandId::Fork => self.handle_fork_command(args, ctx),
-            SlashCommandId::Permissions => self.handle_permissions_command(),
-            SlashCommandId::Allow => self.handle_allow_command(args),
-            SlashCommandId::Deny => self.handle_deny_command(args),
-            SlashCommandId::Model => self.handle_model_command(args, ctx),
-            SlashCommandId::Diff => self.handle_diff_command(args),
-            SlashCommandId::Edit => self.handle_edit_command(args, ctx),
-            SlashCommandId::Fix => self.handle_fix_command(ctx),
-            SlashCommandId::Explain => self.handle_explain_command(args, ctx),
-            SlashCommandId::Run => self.handle_run_command(args),
-            SlashCommandId::Test => self.handle_test_command(),
-            SlashCommandId::Context => self.handle_context_command(ctx),
-            SlashCommandId::Commands | SlashCommandId::Help => self.handle_commands_command(),
+
+            return true;
         }
 
-        true
+        if let Some((command, args)) = self
+            .registered_custom_command(input)
+            .map(|(command, args)| (command.clone(), args.to_string()))
+        {
+            self.handle_custom_command(&command, &args, ctx);
+            return true;
+        }
+
+        false
     }
 
     fn handle_edit_command(&mut self, instruction: &str, ctx: &mut RuntimeContext) {
@@ -1305,6 +1408,23 @@ impl TuiMode {
         read_only: bool,
         supplementary_system_prompt: Option<&str>,
     ) {
+        self.start_single_turn_with_policy(
+            rendered,
+            ctx,
+            read_only,
+            supplementary_system_prompt,
+            TurnToolPolicy::Default,
+        );
+    }
+
+    fn start_single_turn_with_policy(
+        &mut self,
+        rendered: String,
+        ctx: &mut RuntimeContext,
+        read_only: bool,
+        supplementary_system_prompt: Option<&str>,
+        turn_tool_policy: TurnToolPolicy,
+    ) {
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
         self.read_only_turn_active = read_only;
@@ -1312,10 +1432,33 @@ impl TuiMode {
         {
             self.last_turn_input = Some(rendered.clone());
         }
-        ctx.start_turn_with_system_prompt(
+        ctx.start_turn_with_system_prompt_and_policy(
             rendered,
             supplementary_system_prompt.map(ToString::to_string),
+            turn_tool_policy,
         );
+    }
+
+    fn assemble_rendered_context(&mut self, scope_instruction: &str) -> String {
+        let assembler = ContextAssembler::default();
+        let render_assembler = assembler.clone();
+        let operator = ToolOperator::new(self.working_dir.clone());
+        let scope_instruction_for_task = scope_instruction.to_string();
+        let assembled = block_on_context_task(async move {
+            tokio::task::spawn_blocking(move || {
+                assembler.assemble(&scope_instruction_for_task, &operator)
+            })
+            .await
+            .map_err(|error| anyhow::anyhow!("failed to join context assembly task: {error}"))?
+        })
+        .ok();
+        if let Some(context) = assembled.clone() {
+            self.last_assembled_context = Some(context);
+        }
+        assembled
+            .as_ref()
+            .map(|context| render_assembler.render(context))
+            .unwrap_or_else(|| "## Context\n[context: unavailable]\n".to_string())
     }
 
     fn handle_explain_command(&mut self, path_hint: &str, ctx: &mut RuntimeContext) {
@@ -1332,25 +1475,7 @@ impl TuiMode {
             .map(|path| format!("explain {path}"))
             .unwrap_or_else(|| "explain the current workspace state".to_string());
 
-        let assembler = ContextAssembler::default();
-        let render_assembler = assembler.clone();
-        let operator = ToolOperator::new(self.working_dir.clone());
-        let scope_instruction_for_task = scope_instruction.clone();
-        let assembled = block_on_context_task(async move {
-            tokio::task::spawn_blocking(move || {
-                assembler.assemble(&scope_instruction_for_task, &operator)
-            })
-            .await
-            .map_err(|error| anyhow::anyhow!("failed to join context assembly task: {error}"))?
-        })
-        .ok();
-        if let Some(context) = assembled.clone() {
-            self.last_assembled_context = Some(context);
-        }
-        let rendered_context = assembled
-            .as_ref()
-            .map(|context| render_assembler.render(context))
-            .unwrap_or_else(|| "## Context\n[context: unavailable]\n".to_string());
+        let rendered_context = self.assemble_rendered_context(&scope_instruction);
 
         let prompt = render_explain_prompt(&scope_instruction, &rendered_context);
         self.start_single_turn(prompt, ctx, true, Some(CODER_SYSTEM_PROMPT));
@@ -1520,6 +1645,120 @@ impl TuiMode {
                 self.push_history_line(format!("  {:32} — {}", spec.display, spec.description));
             }
         }
+        if !self.custom_commands.is_empty() {
+            self.push_history_line("[custom commands]".to_string());
+            let custom_command_lines = self
+                .custom_commands
+                .iter()
+                .map(|command| format!("  {:32} — {}", command.display(), command.description))
+                .collect::<Vec<_>>();
+            for line in custom_command_lines {
+                self.push_history_line(line);
+            }
+        }
+    }
+
+    fn handle_tools_command(&mut self, args: &str) {
+        let include_descriptions = match args.trim() {
+            "" => false,
+            "desc" => true,
+            _ => {
+                self.push_history_line("[tools] usage: /tools [desc]".to_string());
+                return;
+            }
+        };
+
+        self.push_history_line("[tools]".to_string());
+        self.push_history_line(
+            "[tools] MCP registry not yet available; built-in tools only".to_string(),
+        );
+        for tool in builtin_tool_summaries() {
+            if include_descriptions {
+                self.push_history_line(format!("  {:24} — {}", tool.name, tool.description));
+            } else {
+                self.push_history_line(format!("  {}", tool.name));
+            }
+        }
+    }
+
+    fn handle_custom_command(
+        &mut self,
+        command: &CustomCommand,
+        args: &str,
+        ctx: &mut RuntimeContext,
+    ) {
+        let scope_instruction = if args.is_empty() {
+            format!("run custom command {}", command.name)
+        } else {
+            args.to_string()
+        };
+        let rendered_context = self.assemble_rendered_context(&scope_instruction);
+        let instruction =
+            render_custom_command_instruction(&command.template, &rendered_context, args);
+        let prompt = if command.template.contains("{{context}}") {
+            instruction
+        } else {
+            render_edit_prompt(&instruction, &rendered_context)
+        };
+        self.start_single_turn(prompt, ctx, false, None);
+    }
+
+    fn handle_generate_tests_command(&mut self, args: &str, ctx: &mut RuntimeContext) {
+        let parsed = match parse_generate_tests_args(args) {
+            Ok(parsed) => parsed,
+            Err(message) => {
+                self.push_history_line(message);
+                return;
+            }
+        };
+        let Some(target_path) = parsed.path.or_else(|| self.default_generate_tests_path()) else {
+            self.push_history_line(
+                "[generate-tests] usage: /generate-tests [path] [--framework <name>]".to_string(),
+            );
+            return;
+        };
+
+        let scope_instruction = format!("generate tests for {target_path}");
+        let rendered_context = self.assemble_rendered_context(&scope_instruction);
+        let framework = parsed
+            .framework
+            .unwrap_or_else(|| self.infer_generate_tests_framework());
+        let prompt =
+            render_generate_tests_prompt(&scope_instruction, &rendered_context, &framework);
+        self.start_single_turn_with_policy(
+            prompt,
+            ctx,
+            false,
+            None,
+            TurnToolPolicy::TestsOnlyMutations,
+        );
+    }
+
+    fn default_generate_tests_path(&self) -> Option<String> {
+        self.last_assembled_context
+            .as_ref()
+            .and_then(|context| context.file_snapshots.first())
+            .map(|snapshot| snapshot.path.to_string_lossy().into_owned())
+            .or_else(|| {
+                self.current_task
+                    .changed_files
+                    .last()
+                    .map(|path| path.to_string_lossy().into_owned())
+            })
+    }
+
+    fn infer_generate_tests_framework(&self) -> String {
+        ValidationSuite::infer_from_repo(&self.working_dir)
+            .commands
+            .first()
+            .map(|command| match command.program.as_str() {
+                "cargo" => "cargo-test".to_string(),
+                "npm" => "npm-test".to_string(),
+                "make" => "make-test".to_string(),
+                other if !other.trim().is_empty() => other.trim().to_string(),
+                _ => "project-tests".to_string(),
+            })
+            .unwrap_or_else(|| "project-tests".to_string())
     }
 
     /// PC-01: `/model <n>` — name-only switch within the same backend/protocol.
@@ -2452,6 +2691,27 @@ mod tests {
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(responses)));
         let conversation = ConversationManager::new_mock(client, HashMap::new());
         RuntimeContext::new(conversation, tx, CancellationToken::new())
+    }
+
+    fn config_with_workdir(path: &std::path::Path) -> Config {
+        let mut config = Config::default_for_tui();
+        config.working_dir = path.to_path_buf();
+        config
+    }
+
+    fn write_custom_command(
+        dir: &std::path::Path,
+        file_name: &str,
+        name: &str,
+        description: &str,
+        template: &str,
+    ) {
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(
+            dir.join(file_name),
+            format!("name = {name:?}\ndescription = {description:?}\ntemplate = {template:?}\n"),
+        )
+        .unwrap();
     }
 
     fn successful_run_input() -> String {
@@ -5384,6 +5644,253 @@ mod tests {
             initial_messages,
             "/commands must not call ctx.start_turn"
         );
+    }
+
+    #[test]
+    fn test_custom_command_appears_in_commands_list() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        write_custom_command(
+            &temp.path().join(".vex/commands"),
+            "standup.toml",
+            "standup",
+            "summarise changes",
+            "Summarise {{input}} using {{context}}",
+        );
+
+        let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/commands".to_string(), &mut ctx);
+
+        assert!(mode
+            .history_lines()
+            .iter()
+            .any(|line| line == "[custom commands]"));
+        assert!(mode
+            .history_lines()
+            .iter()
+            .any(|line| line.contains("/standup [input]") && line.contains("summarise changes")));
+    }
+
+    #[test]
+    fn test_custom_command_invokes_single_turn() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        write_custom_command(
+            &temp.path().join(".vex/commands"),
+            "standup.toml",
+            "standup",
+            "summarise changes",
+            "Prompt: {{input}}",
+        );
+
+        let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/standup src/lib.rs".to_string(), &mut ctx);
+
+        let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+        assert!(mode.is_turn_in_progress());
+        assert!(turn_input.contains("Prompt: src/lib.rs"));
+    }
+
+    #[test]
+    fn test_custom_command_context_substitution() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        let src_dir = temp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join("lib.rs"), "pub fn answer() -> i32 { 42 }\n").unwrap();
+        write_custom_command(
+            &temp.path().join(".vex/commands"),
+            "standup.toml",
+            "standup",
+            "summarise changes",
+            "Context:\n{{context}}",
+        );
+
+        let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/standup src/lib.rs".to_string(), &mut ctx);
+
+        let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+        assert!(turn_input.contains("pub fn answer() -> i32 { 42 }"));
+        assert_eq!(
+            turn_input.matches("pub fn answer() -> i32 { 42 }").count(),
+            1,
+            "custom command context must be injected exactly once"
+        );
+        assert_eq!(
+            turn_input.matches("## Context").count(),
+            1,
+            "custom command context header must not be duplicated"
+        );
+    }
+
+    #[test]
+    fn test_custom_command_project_scoped_takes_precedence() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        let xdg = tempfile::tempdir().unwrap();
+        std::env::set_var("XDG_CONFIG_HOME", xdg.path());
+
+        write_custom_command(
+            &xdg.path().join("vex/commands"),
+            "standup.toml",
+            "standup",
+            "user",
+            "USER TEMPLATE",
+        );
+        write_custom_command(
+            &temp.path().join(".vex/commands"),
+            "standup.toml",
+            "standup",
+            "project",
+            "PROJECT TEMPLATE",
+        );
+
+        let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/standup".to_string(), &mut ctx);
+        std::env::remove_var("XDG_CONFIG_HOME");
+
+        let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+        assert!(turn_input.contains("PROJECT TEMPLATE"));
+        assert!(!turn_input.contains("USER TEMPLATE"));
+    }
+
+    #[test]
+    fn test_custom_command_cannot_shadow_builtin() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        write_custom_command(
+            &temp.path().join(".vex/commands"),
+            "edit.toml",
+            "edit",
+            "shadow builtin",
+            "shadow",
+        );
+
+        let mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+        assert!(mode.custom_commands.is_empty());
+    }
+
+    #[test]
+    fn test_tui_tools_renders_builtin_tools() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/tools".to_string(), &mut ctx);
+
+        assert!(mode.history_lines().iter().any(|line| line == "[tools]"));
+        assert!(mode
+            .history_lines()
+            .iter()
+            .any(|line| line.contains("built-in tools only")));
+        for tool in builtin_tool_summaries() {
+            assert!(
+                mode.history_lines()
+                    .iter()
+                    .any(|line| line.trim() == tool.name),
+                "expected '{}' in /tools output",
+                tool.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_tui_tools_desc_includes_descriptions() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+
+        mode.on_user_input("/tools desc".to_string(), &mut ctx);
+
+        for tool in builtin_tool_summaries() {
+            assert!(
+                mode.history_lines()
+                    .iter()
+                    .any(|line| line.contains(&tool.name) && line.contains(&tool.description)),
+                "expected '{}' description in /tools desc output",
+                tool.name
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_tui_tools_does_not_start_model_turn() {
+        let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+        let mut mode = TuiMode::new();
+        let mut ctx = setup_ctx();
+        let initial_messages = ctx.test_message_count().await;
+
+        mode.on_user_input("/tools".to_string(), &mut ctx);
+
+        assert!(!mode.is_turn_in_progress());
+        assert_eq!(ctx.test_message_count().await, initial_messages);
+    }
+
+    #[test]
+    fn test_tui_generate_tests_assembles_context() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        let src_dir = temp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join("lib.rs"), "pub fn answer() -> i32 { 42 }\n").unwrap();
+
+        let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/generate-tests src/lib.rs".to_string(), &mut ctx);
+
+        let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+        assert!(turn_input.contains("generate tests for src/lib.rs"));
+        assert!(turn_input.contains("pub fn answer() -> i32 { 42 }"));
+    }
+
+    #[test]
+    fn test_tui_generate_tests_infers_framework() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        let src_dir = temp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join("lib.rs"), "pub fn answer() -> i32 { 42 }\n").unwrap();
+        std::fs::write(
+            temp.path().join("Cargo.toml"),
+            "[package]\nname='demo'\nversion='0.1.0'\n",
+        )
+        .unwrap();
+
+        let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+        let mut ctx = setup_ctx();
+        mode.on_user_input("/generate-tests src/lib.rs".to_string(), &mut ctx);
+
+        let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+        assert!(turn_input.contains("Preferred test framework: cargo-test"));
+    }
+
+    #[test]
+    fn test_tui_generate_tests_framework_flag_overrides_inference() {
+        let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        let src_dir = temp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join("lib.rs"), "pub fn answer() -> i32 { 42 }\n").unwrap();
+        std::fs::write(
+            temp.path().join("Cargo.toml"),
+            "[package]\nname='demo'\nversion='0.1.0'\n",
+        )
+        .unwrap();
+
+        let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+        let mut ctx = setup_ctx();
+        mode.on_user_input(
+            "/generate-tests src/lib.rs --framework jest".to_string(),
+            &mut ctx,
+        );
+
+        let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+        assert!(turn_input.contains("Preferred test framework: jest"));
+        assert!(!turn_input.contains("Preferred test framework: cargo-test"));
     }
 
     #[test]

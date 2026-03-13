@@ -1,5 +1,5 @@
 use crate::runtime::{EditLoop, UiUpdate};
-use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock};
+use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock, TurnToolPolicy};
 use crate::types::{Content, ContentBlock};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
@@ -43,6 +43,19 @@ impl RuntimeContext {
         input: String,
         supplementary_system_prompt: Option<String>,
     ) {
+        self.start_turn_with_system_prompt_and_policy(
+            input,
+            supplementary_system_prompt,
+            TurnToolPolicy::Default,
+        );
+    }
+
+    pub fn start_turn_with_system_prompt_and_policy(
+        &mut self,
+        input: String,
+        supplementary_system_prompt: Option<String>,
+        turn_tool_policy: TurnToolPolicy,
+    ) {
         if tokio::runtime::Handle::try_current().is_err() {
             let _ = self.update_tx.send(UiUpdate::Error(
                 "runtime error: start_turn requires active Tokio runtime".to_string(),
@@ -61,7 +74,8 @@ impl RuntimeContext {
 
             let send_handle = tokio::spawn(async move {
                 let mut mgr = conversation_for_send.lock().await;
-                mgr.send_message(input, Some(&delta_tx)).await
+                mgr.send_message_with_policy(input, Some(&delta_tx), turn_tool_policy)
+                    .await
             });
 
             let mut textual_block_by_index = std::collections::HashMap::<usize, bool>::new();

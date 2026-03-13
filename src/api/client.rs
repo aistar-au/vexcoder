@@ -554,6 +554,30 @@ fn tool_definitions_chat_compat() -> Value {
     Value::Array(converted)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ToolSummary {
+    pub(crate) name: String,
+    pub(crate) description: String,
+}
+
+pub(crate) fn builtin_tool_summaries() -> Vec<ToolSummary> {
+    let definitions = tool_definitions();
+    let Some(entries) = definitions.as_array() else {
+        return Vec::new();
+    };
+
+    let mut summaries = entries
+        .iter()
+        .filter_map(|entry| {
+            let name = entry.get("name")?.as_str()?.to_string();
+            let description = entry.get("description")?.as_str()?.to_string();
+            Some(ToolSummary { name, description })
+        })
+        .collect::<Vec<_>>();
+    summaries.sort_by(|left, right| left.name.cmp(&right.name));
+    summaries
+}
+
 fn tool_definitions() -> serde_json::Value {
     json!([
         {

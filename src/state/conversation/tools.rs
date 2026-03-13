@@ -1,4 +1,4 @@
-use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest};
+use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, TurnToolPolicy};
 use crate::config::{HookEvent, HookOnFail};
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::runtime::{
@@ -602,6 +602,167 @@ pub(super) fn mutating_tool_read_only_conflict_prompt(
     Some(format!(
         "Blocked mutating tool call `{tool_name}` because this request appears read-only. Use read-only tools (`read_file`, `search_files`, `list_files`, `git_status`, `git_diff`, `git_log`, `git_show`) and answer from those results. No file changes were made."
     ))
+}
+
+pub(super) fn tests_only_mutation_conflict_prompt(
+    policy: TurnToolPolicy,
+    tool_name: &str,
+    input: &serde_json::Value,
+) -> Option<String> {
+    if policy != TurnToolPolicy::TestsOnlyMutations {
+        return None;
+    }
+
+    let target_paths = mutating_tool_target_paths(tool_name, input);
+    if target_paths.is_empty() || target_paths.iter().all(|path| is_test_target_path(path)) {
+        return None;
+    }
+
+    let blocked_path = target_paths
+        .into_iter()
+        .find(|path| !is_test_target_path(path))
+        .unwrap_or_default();
+    Some(format!(
+        "Dropped non-test patch target `{blocked_path}` for /generate-tests. This command may only modify test files or paths under `test/` or `tests/`. Use `/edit` for source-file changes."
+    ))
+}
+
+fn mutating_tool_target_paths(tool_name: &str, input: &serde_json::Value) -> Vec<String> {
+    match tool_name {
+        "write_file" | "edit_file" => {
+            first_tool_string(input, &["path", "file_path", "file", "filename"])
+                .into_iter()
+                .map(ToString::to_string)
+                .collect()
+        }
+        "apply_patch" => first_tool_string(input, &["path", "file_path", "file", "filename"])
+            .map(ToString::to_string)
+            .into_iter()
+            .chain(
+                first_tool_string(input, &["content", "patch", "diff"])
+                    .and_then(extract_apply_patch_target_path),
+            )
+            .collect(),
+        "rename_file" => [
+            first_tool_string(input, &["old_path", "from", "source_path"]),
+            first_tool_string(input, &["new_path", "to", "target_path"]),
+        ]
+        .into_iter()
+        .flatten()
+        .map(ToString::to_string)
+        .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn extract_apply_patch_target_path(content: &str) -> Option<String> {
+    content.lines().find_map(|line| {
+        let path = line
+            .strip_prefix("+++ b/")
+            .or_else(|| line.strip_prefix("--- a/"))
+            .or_else(|| {
+                line.strip_prefix("diff --git a/")
+                    .and_then(|rest| rest.split_once(" b/").map(|(_, path)| path))
+            })?;
+        let normalized = path.trim();
+        if normalized.is_empty() || normalized == "/dev/null" {
+            None
+        } else {
+            Some(normalized.to_string())
+        }
+    })
+}
+
+fn is_test_target_path(path: &str) -> bool {
+    let normalized = path.trim().replace('\\', "/").to_ascii_lowercase();
+    if normalized.is_empty() {
+        return false;
+    }
+
+    if normalized
+        .split('/')
+        .any(|segment| segment == "test" || segment == "tests" || segment == "__tests__")
+    {
+        return true;
+    }
+
+    let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+    matches!(file_name, "test.rs" | "tests.rs")
+        || file_name.starts_with("test_")
+        || file_name.starts_with("spec_")
+        || file_name.contains(".test.")
+        || file_name.contains(".spec.")
+        || file_name.ends_with("_test.rs")
+        || file_name.ends_with("_tests.rs")
+        || file_name.ends_with("_test.py")
+        || file_name.ends_with("_test.go")
+        || file_name.ends_with("_test.js")
+        || file_name.ends_with("_test.jsx")
+        || file_name.ends_with("_test.ts")
+        || file_name.ends_with("_test.tsx")
+        || file_name.ends_with("_spec.rb")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_tests_only_policy_allows_rust_tests_module_paths() {
+        let input = json!({
+            "path": "src/state/conversation/tests.rs",
+            "content": "#[test]\nfn keeps_guard_happy() {}\n",
+        });
+
+        assert_eq!(
+            tests_only_mutation_conflict_prompt(
+                TurnToolPolicy::TestsOnlyMutations,
+                "write_file",
+                &input,
+            ),
+            None
+        );
+        assert!(is_test_target_path("src/state/conversation/tests.rs"));
+        assert!(is_test_target_path("src/runtime/test.rs"));
+    }
+
+    #[test]
+    fn test_tests_only_policy_blocks_apply_patch_source_paths() {
+        let input = json!({
+            "path": "src/lib.rs",
+            "content": "pub fn answer() -> i32 { 42 }\n",
+        });
+
+        let message = tests_only_mutation_conflict_prompt(
+            TurnToolPolicy::TestsOnlyMutations,
+            "apply_patch",
+            &input,
+        )
+        .expect("apply_patch against src/ should be rejected");
+        assert!(message.contains("src/lib.rs"));
+    }
+
+    #[test]
+    fn test_tests_only_policy_parses_apply_patch_diff_headers_when_path_missing() {
+        let input = json!({
+            "content": "\
+        diff --git a/src/lib.rs b/src/lib.rs\n\
+        --- a/src/lib.rs\n\
+        +++ b/src/lib.rs\n\
+        @@ -1 +1 @@\n\
+        -old\n\
+        +new\n"
+        });
+
+        let message = tests_only_mutation_conflict_prompt(
+            TurnToolPolicy::TestsOnlyMutations,
+            "apply_patch",
+            &input,
+        )
+        .expect("diff headers should still identify the blocked source file");
+        assert!(message.contains("src/lib.rs"));
+    }
 }
 
 pub(super) fn text_stats(text: &str) -> (usize, usize) {

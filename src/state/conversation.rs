@@ -7,7 +7,9 @@ mod tools;
 #[cfg(test)]
 mod tests;
 
-pub use state::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest};
+pub use state::{
+    ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, TurnToolPolicy,
+};
 
 #[cfg(test)]
 use history::*;
