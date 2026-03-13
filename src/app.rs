@@ -17,12 +17,13 @@ use crate::runtime::policy::sanitize_assistant_text;
 use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
 use crate::runtime::r#loop::Runtime;
 use crate::runtime::validation::ValidationSuite;
-use crate::runtime::{
-    truncate_head_bytes, ApprovalScope, Capability, CommandRequest, DefaultCommandRunner,
-    EditLoopOutcome, PassthroughSandbox, SandboxDriver, TaskState, TaskStatus, UiUpdate,
-};
 #[cfg(test)]
-use crate::runtime::{CommandResult, CommandRunner};
+use crate::runtime::CommandResult;
+use crate::runtime::{
+    truncate_head_bytes, truncate_tail_bytes, ApprovalScope, Capability, CommandRequest,
+    CommandRunner, DefaultCommandRunner, EditLoopOutcome, PassthroughSandbox, SandboxDriver,
+    TaskState, TaskStatus, UiUpdate,
+};
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
 use crate::session_notes::{
@@ -463,19 +464,27 @@ struct OverlayState {
 }
 
 #[derive(Clone, Debug, Default)]
+struct CommandSessionState {
+    command: String,
+    pid: Option<u32>,
+    status: String,
+}
+
+#[derive(Clone, Debug, Default)]
 pub struct TaskLayoutState {
     pub task_id: String,
     pub status_line: String,
     pub activity_rows: Vec<String>,
     pub output_rows: Vec<String>,
     pub pending_approval: Option<String>,
+    pub input_hint: String,
     pub changed_files: Vec<String>,
 }
 
 pub struct TuiMode {
     history_state: HistoryState,
     overlay_state: OverlayState,
-    passthrough_command_active: bool,
+    command_session: Option<CommandSessionState>,
     history_line_cap: usize,
     repo_label: String,
     instructions_path: Option<String>,
@@ -598,28 +607,6 @@ where
     runner.run_one_shot(request).await
 }
 
-async fn run_passthrough_shell_command<S>(
-    sandbox: S,
-    command: String,
-    working_dir: PathBuf,
-) -> Result<i32>
-where
-    S: SandboxDriver,
-{
-    let request = sandbox.wrap(shell_command_request(command, working_dir))?;
-    let result = DefaultCommandRunner::new()
-        .run_passthrough_one_shot(request)
-        .await?;
-    Ok(result.exit_code)
-}
-
-async fn run_inline_shell_command(command: String, working_dir: PathBuf) -> Result<i32> {
-    // The production security boundary for inline shell execution is the
-    // Capability::RunCommand approval gate in handle_bang_command(). This helper
-    // only runs after approval has been resolved.
-    run_passthrough_shell_command(PassthroughSandbox, command, working_dir).await
-}
-
 fn format_inline_block(
     kind: &str,
     path: &str,
@@ -640,7 +627,7 @@ fn format_inline_block(
     rendered
 }
 
-async fn run_validation_suite_passthrough(
+async fn run_validation_suite_capture(
     suite: ValidationSuite,
     working_dir: PathBuf,
 ) -> Result<crate::runtime::ValidationResult> {
@@ -657,7 +644,7 @@ async fn run_validation_suite_passthrough(
 
         match tokio::time::timeout(
             std::time::Duration::from_secs(command.timeout_secs.max(1)),
-            runner.run_passthrough_one_shot(request),
+            runner.run_one_shot(request),
         )
         .await
         {
@@ -665,13 +652,15 @@ async fn run_validation_suite_passthrough(
                 if result.exit_code != 0 {
                     passed = false;
                 }
+                let (stdout_tail, stdout_truncated) = truncate_tail_bytes(&result.stdout, 4096);
+                let (stderr_tail, stderr_truncated) = truncate_tail_bytes(&result.stderr, 4096);
                 outputs.push(crate::runtime::ValidationOutput {
                     label: command.label,
                     exit_code: result.exit_code,
-                    stdout_tail: String::new(),
-                    stderr_tail: String::new(),
-                    stdout_truncated: false,
-                    stderr_truncated: false,
+                    stdout_tail,
+                    stderr_tail,
+                    stdout_truncated,
+                    stderr_truncated,
                 });
             }
             Ok(Err(error)) => {
@@ -705,11 +694,30 @@ async fn run_validation_suite_passthrough(
     Ok(crate::runtime::ValidationResult { passed, outputs })
 }
 
-fn render_inline_command_result_lines(exit_code: i32) -> Vec<String> {
-    vec![
-        "[output shown in terminal]".to_string(),
-        format!("[exit: {exit_code}]"),
-    ]
+fn format_command_session_started(command: &str, pid: Option<u32>) -> String {
+    match pid {
+        Some(pid) => format!("[command session started pid={pid}] {command}"),
+        None => format!("[command session started] {command}"),
+    }
+}
+
+fn format_command_session_exit(exit_code: i32) -> String {
+    format!("[command session exit: {exit_code}]")
+}
+
+fn format_command_session_cancelled() -> String {
+    "[command session cancelled]".to_string()
+}
+
+fn format_command_session_output(chunk: crate::runtime::OutputChunk) -> Vec<String> {
+    chunk
+        .text
+        .lines()
+        .map(|line| match &chunk.stream {
+            crate::runtime::StreamKind::Stdout => line.to_string(),
+            crate::runtime::StreamKind::Stderr => format!("[stderr] {line}"),
+        })
+        .collect()
 }
 
 impl TuiMode {
@@ -729,7 +737,7 @@ impl TuiMode {
         Self {
             history_state: HistoryState::default(),
             overlay_state: OverlayState::default(),
-            passthrough_command_active: false,
+            command_session: None,
             history_line_cap: resolve_history_line_cap(),
             repo_label: resolve_repo_label(),
             instructions_path: None,
@@ -760,6 +768,8 @@ impl TuiMode {
     fn mode_status_label(&self) -> &'static str {
         if self.overlay_active() {
             "overlay"
+        } else if self.command_session_active() {
+            "command-session"
         } else if self.pending_quit {
             "quit-arm"
         } else if self.history_state.cancel_pending {
@@ -846,12 +856,28 @@ impl TuiMode {
         self.overlay_state.pending_memory_clear
     }
 
-    pub fn passthrough_command_active(&self) -> bool {
-        self.passthrough_command_active
+    pub fn command_session_active(&self) -> bool {
+        self.command_session.is_some()
     }
 
     pub fn set_history_content_width(&self, width: usize) {
         self.history_content_width.set(width.max(1));
+    }
+
+    fn command_session_rows(&self) -> Option<Vec<String>> {
+        self.command_session.as_ref().map(|session| {
+            vec![
+                format!("command: {}", session.command),
+                format!(
+                    "pid    : {}",
+                    session
+                        .pid
+                        .map(|pid| pid.to_string())
+                        .unwrap_or_else(|| "pending".to_string())
+                ),
+                format!("status : {}", session.status),
+            ]
+        })
     }
 
     pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
@@ -869,23 +895,32 @@ impl TuiMode {
             })
         };
 
-        let activity_rows = self
-            .history_state
-            .lines
-            .iter()
-            .rev()
-            .take(8)
-            .cloned()
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect();
+        let activity_rows = self.command_session_rows().unwrap_or_else(|| {
+            self.history_state
+                .lines
+                .iter()
+                .rev()
+                .take(8)
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect()
+        });
+        let input_hint = if let Some(approval) = pending_approval.clone() {
+            format!("{approval}\n[y/n/s] ")
+        } else if self.command_session_active() {
+            "[command session active — Ctrl+C to cancel]".to_string()
+        } else {
+            "> ".to_string()
+        };
         Some(TaskLayoutState {
             task_id: self.current_task.id.clone(),
             status_line: self.status_line(),
             activity_rows,
             output_rows: self.history_state.lines.clone(),
             pending_approval,
+            input_hint,
             changed_files: self
                 .current_task
                 .changed_files
@@ -903,7 +938,7 @@ impl TuiMode {
                 }
                 PendingApprovalAction::InlineCommand(command) => {
                     if approved {
-                        self.start_inline_command(command.command, ctx);
+                        self.start_command_session(command.command, ctx);
                     }
                 }
             }
@@ -1074,7 +1109,7 @@ impl TuiMode {
         self.history_state.lines.clear();
         self.history_state.turn_in_progress = false;
         self.history_state.cancel_pending = false;
-        self.passthrough_command_active = false;
+        self.command_session = None;
         self.history_state.active_assistant_index = None;
         self.history_state.scroll_offset = 0;
         self.history_state.auto_follow = true;
@@ -1111,6 +1146,15 @@ impl TuiMode {
     fn begin_turn_capture(&mut self, input: String) {
         self.reset_turn_capture();
         self.current_turn_input = input;
+        self.current_task.status = TaskStatus::Running;
+    }
+
+    fn begin_command_session(&mut self, command: String) {
+        self.command_session = Some(CommandSessionState {
+            command,
+            pid: None,
+            status: "running".to_string(),
+        });
         self.current_task.status = TaskStatus::Running;
     }
 
@@ -1441,7 +1485,7 @@ impl TuiMode {
 
         if self.overlay_state.auto_approve_session {
             self.push_history_line("[auto-approved tool: run_command session]".to_string());
-            self.start_inline_command(command.to_string(), ctx);
+            self.start_command_session(command.to_string(), ctx);
             return;
         }
 
@@ -1460,7 +1504,7 @@ impl TuiMode {
                 "[auto-approved tool: run_command {} grant]",
                 scope_to_label(scope)
             ));
-            self.start_inline_command(command.to_string(), ctx);
+            self.start_command_session(command.to_string(), ctx);
             return;
         }
 
@@ -1475,35 +1519,76 @@ impl TuiMode {
         });
     }
 
-    fn start_inline_command(&mut self, command: String, ctx: &RuntimeContext) {
+    fn start_command_session(&mut self, command: String, ctx: &RuntimeContext) {
         self.history_state.turn_in_progress = true;
         self.history_state.cancel_pending = false;
         self.history_state.active_assistant_index = None;
-        self.passthrough_command_active = true;
+        self.begin_turn_capture(format!("!{command}"));
+        self.begin_command_session(command.clone());
 
         let ctx = ctx.clone();
         let cancel = ctx.turn_cancellation_token();
         let working_dir = self.working_dir.clone();
         tokio::spawn(async move {
-            tokio::select! {
-                _ = cancel.cancelled() => {
-                    ctx.emit_transcript_line("[shell] cancelled".to_string());
+            let runner = DefaultCommandRunner::new();
+            let request = match PassthroughSandbox
+                .wrap(shell_command_request(command.clone(), working_dir))
+            {
+                Ok(request) => request,
+                Err(error) => {
+                    ctx.emit_transcript_line(format!("[command session] error: {error}"));
+                    ctx.emit_command_session_finished();
+                    ctx.emit_turn_complete();
+                    return;
                 }
-                result = run_inline_shell_command(
-                    command,
-                    working_dir,
-                ) => {
-                    match result {
-                        Ok(exit_code) => {
-                            for line in render_inline_command_result_lines(exit_code) {
-                                ctx.emit_transcript_line(line);
+            };
+            let (output_tx, mut output_rx) = mpsc::channel(128);
+            let mut handle = match runner.run_streaming(request, output_tx).await {
+                Ok(handle) => handle,
+                Err(error) => {
+                    ctx.emit_transcript_line(format!("[command session] error: {error}"));
+                    ctx.emit_command_session_finished();
+                    ctx.emit_turn_complete();
+                    return;
+                }
+            };
+            ctx.emit_command_session_attached(handle.pid());
+            ctx.emit_transcript_line(format_command_session_started(&command, handle.pid()));
+
+            let mut cancel_requested = false;
+            loop {
+                tokio::select! {
+                    _ = cancel.cancelled(), if !cancel_requested => {
+                        cancel_requested = true;
+                        let _ = handle.cancel();
+                        ctx.emit_transcript_line("[command session cancellation requested]".to_string());
+                    }
+                    chunk = output_rx.recv() => {
+                        match chunk {
+                            Some(chunk) => {
+                                for line in format_command_session_output(chunk) {
+                                    ctx.emit_transcript_line(line);
+                                }
                             }
+                            None => break,
                         }
-                        Err(error) => ctx.emit_transcript_line(format!("[shell] error: {error}")),
                     }
                 }
             }
-            ctx.emit_passthrough_command_finished();
+
+            match handle.wait().await {
+                Ok(result) => {
+                    if cancel_requested {
+                        ctx.emit_transcript_line(format_command_session_cancelled());
+                    } else {
+                        ctx.emit_transcript_line(format_command_session_exit(result.exit_code));
+                    }
+                }
+                Err(error) => {
+                    ctx.emit_transcript_line(format!("[command session] error: {error}"));
+                }
+            }
+            ctx.emit_command_session_finished();
             ctx.emit_turn_complete();
         });
     }
@@ -1629,7 +1714,7 @@ impl TuiMode {
             return;
         }
 
-        match block_on_context_task(run_validation_suite_passthrough(
+        match block_on_context_task(run_validation_suite_capture(
             suite,
             self.working_dir.clone(),
         )) {
@@ -1662,18 +1747,24 @@ impl TuiMode {
                 format!("exit {}", output.exit_code)
             };
             self.push_history_line(format!("[{label}] {} [{status}]", output.label));
-            if output.stdout_tail.trim().is_empty() && output.stderr_tail.trim().is_empty() {
-                self.push_history_line("  output: shown in terminal".to_string());
-            }
             if !output.stdout_tail.trim().is_empty() {
                 for line in output.stdout_tail.lines() {
                     self.push_history_line(format!("  stdout: {line}"));
+                }
+                if output.stdout_truncated {
+                    self.push_history_line("  stdout: [truncated]".to_string());
                 }
             }
             if !output.stderr_tail.trim().is_empty() {
                 for line in output.stderr_tail.lines() {
                     self.push_history_line(format!("  stderr: {line}"));
                 }
+                if output.stderr_truncated {
+                    self.push_history_line("  stderr: [truncated]".to_string());
+                }
+            }
+            if output.stdout_tail.trim().is_empty() && output.stderr_tail.trim().is_empty() {
+                self.push_history_line("  output: [no captured output]".to_string());
             }
         }
 
@@ -2470,6 +2561,12 @@ impl RuntimeMode for TuiMode {
     fn on_model_update(&mut self, update: UiUpdate, ctx: &mut RuntimeContext) {
         match update {
             UiUpdate::TranscriptLine(line) => {
+                if self.history_state.turn_in_progress {
+                    if !self.current_turn_response.is_empty() {
+                        self.current_turn_response.push('\n');
+                    }
+                    self.current_turn_response.push_str(&line);
+                }
                 self.push_history_line(line);
             }
             UiUpdate::StreamDelta(text) => {
@@ -2607,7 +2704,7 @@ impl RuntimeMode for TuiMode {
                 outcome,
                 last_validation_result,
             } => {
-                self.passthrough_command_active = false;
+                self.command_session = None;
                 if let Some(result) = last_validation_result {
                     if let Some(edit_loop) = self.active_edit_loop.as_mut() {
                         edit_loop.set_last_validation_result(result);
@@ -2652,11 +2749,16 @@ impl RuntimeMode for TuiMode {
                     self.clamp_scroll_offset();
                 }
             }
-            UiUpdate::PassthroughCommandFinished => {
-                self.passthrough_command_active = false;
+            UiUpdate::CommandSessionAttached { pid } => {
+                if let Some(session) = self.command_session.as_mut() {
+                    session.pid = pid;
+                }
+            }
+            UiUpdate::CommandSessionFinished => {
+                self.command_session = None;
             }
             UiUpdate::TurnComplete => {
-                self.passthrough_command_active = false;
+                self.command_session = None;
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
@@ -2672,7 +2774,7 @@ impl RuntimeMode for TuiMode {
                 }
             }
             UiUpdate::Error(msg) => {
-                self.passthrough_command_active = false;
+                self.command_session = None;
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
@@ -2696,7 +2798,13 @@ impl RuntimeMode for TuiMode {
             self.resolve_pending_approval(false, ctx);
             self.resolve_pending_patch_approval(false);
             self.history_state.cancel_pending = true;
-            self.push_history_line("[turn cancellation requested]".to_string());
+            if let Some(session) = self.command_session.as_mut() {
+                session.status = "cancelling".to_string();
+                self.current_task.status = TaskStatus::Cancelling;
+                self.push_history_line("[command session cancellation requested]".to_string());
+            } else {
+                self.push_history_line("[turn cancellation requested]".to_string());
+            }
             self.pending_quit = false;
             self.quit_requested = false;
             return;
@@ -5732,20 +5840,28 @@ mod tests {
 
         assert!(mode.overlay_state.pending_approval.is_none());
         assert!(
-            !mode.passthrough_command_active(),
-            "passthrough completion should restore normal TUI polling"
+            !mode.command_session_active(),
+            "command session completion should restore normal TUI polling"
         );
         assert!(!mode.is_turn_in_progress());
         assert_eq!(ctx.test_message_count().await, initial_messages);
         assert!(
             mode.history_lines()
                 .iter()
-                .any(|line| line == "[output shown in terminal]"),
-            "expected passthrough marker in transcript"
+                .any(|line| line.contains("[command session started")),
+            "expected command session start marker in transcript"
         );
         assert!(
-            mode.history_lines().iter().any(|line| line == "[exit: 0]"),
-            "expected inline shell exit status"
+            mode.history_lines()
+                .iter()
+                .any(|line| line == "inline-shell"),
+            "expected captured shell output in transcript"
+        );
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|line| line == "[command session exit: 0]"),
+            "expected command session exit status"
         );
     }
 
@@ -5769,10 +5885,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_passthrough_shell_command_invokes_sandbox_wrap() {
+    async fn test_shell_command_request_invokes_sandbox_wrap() {
         let temp = tempfile::tempdir().unwrap();
         let wrapped = Arc::new(AtomicBool::new(false));
-        let exit_code = run_passthrough_shell_command(
+        let result = run_shell_command_with_runner(
+            DefaultCommandRunner::new(),
             RecordingSandbox {
                 wrapped: Arc::clone(&wrapped),
             },
@@ -5783,7 +5900,8 @@ mod tests {
         .unwrap();
 
         assert!(wrapped.load(Ordering::SeqCst));
-        assert_eq!(exit_code, 0);
+        assert_eq!(result.exit_code, 0);
+        assert!(result.stdout.contains("passthrough-hit"));
     }
 
     #[tokio::test]
@@ -5809,8 +5927,8 @@ mod tests {
         assert!(
             mode.history_lines()
                 .iter()
-                .any(|line| line == "[shell] cancelled"),
-            "expected cancellation feedback for inline shell commands"
+                .any(|line| line == "[command session cancelled]"),
+            "expected cancellation feedback for command sessions"
         );
     }
 

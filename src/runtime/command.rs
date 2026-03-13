@@ -1,4 +1,3 @@
-use crate::terminal::TerminalGuard;
 use anyhow::{Context, Result};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::io::Read;
@@ -6,8 +5,6 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
-#[cfg(unix)]
-use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
 
 fn validate_working_dir(working_dir: &Path) -> Result<()> {
@@ -50,9 +47,31 @@ pub enum StreamKind {
 
 pub struct CommandHandle {
     cancel_tx: Option<oneshot::Sender<()>>,
+    pid: Option<u32>,
+    completion_rx: Option<oneshot::Receiver<Result<CommandResult>>>,
 }
 
 impl CommandHandle {
+    pub fn pid(&self) -> Option<u32> {
+        self.pid
+    }
+
+    pub fn cancel(&mut self) -> Result<()> {
+        if let Some(tx) = self.cancel_tx.take() {
+            let _ = tx.send(());
+        }
+        Ok(())
+    }
+
+    pub async fn wait(mut self) -> Result<CommandResult> {
+        let rx = self
+            .completion_rx
+            .take()
+            .context("command session completion receiver missing")?;
+        rx.await
+            .context("command session completion channel dropped")?
+    }
+
     /// Returns true if this handle has not yet sent a cancel signal.
     /// Only used in tests to assert handle state after `cancel` is called.
     #[cfg(test)]
@@ -83,61 +102,9 @@ pub trait CommandRunner: Send + Sync {
 
 pub struct DefaultCommandRunner;
 
-#[cfg(unix)]
-struct ParentSigintGuard {
-    task: tokio::task::JoinHandle<()>,
-}
-
-#[cfg(unix)]
-impl ParentSigintGuard {
-    fn ignore() -> Result<Self> {
-        let mut interrupts = signal(SignalKind::interrupt())
-            .context("failed to subscribe to SIGINT while running passthrough command")?;
-        let task = tokio::spawn(async move { while interrupts.recv().await.is_some() {} });
-        Ok(Self { task })
-    }
-}
-
-#[cfg(unix)]
-impl Drop for ParentSigintGuard {
-    fn drop(&mut self) {
-        self.task.abort();
-    }
-}
-
 impl DefaultCommandRunner {
     pub fn new() -> Self {
         Self
-    }
-
-    pub async fn run_passthrough_one_shot(&self, req: CommandRequest) -> Result<CommandResult> {
-        let mut command = Command::new(&req.program);
-        command.args(&req.args);
-        if let Some(working_dir) = &req.working_dir {
-            validate_working_dir(working_dir)?;
-            command.current_dir(working_dir);
-        }
-        command
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .kill_on_drop(true);
-
-        let _guard = TerminalGuard::yield_for_command()
-            .with_context(|| format!("failed to yield terminal for command: {}", req.program))?;
-        #[cfg(unix)]
-        let _sigint_guard = ParentSigintGuard::ignore()?;
-
-        let status = command
-            .status()
-            .await
-            .with_context(|| format!("failed to execute command: {}", req.program))?;
-
-        Ok(CommandResult {
-            exit_code: status.code().unwrap_or(-1),
-            stdout: String::new(),
-            stderr: String::new(),
-        })
     }
 }
 
@@ -155,7 +122,7 @@ impl CommandRunner for DefaultCommandRunner {
             validate_working_dir(working_dir)?;
             command.current_dir(working_dir);
         }
-        command.kill_on_drop(true);
+        command.stdin(Stdio::null()).kill_on_drop(true);
         let output = command
             .output()
             .await
@@ -178,6 +145,7 @@ impl CommandRunner for DefaultCommandRunner {
         tx: tokio::sync::mpsc::Sender<OutputChunk>,
     ) -> Result<CommandHandle> {
         let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
+        let (completion_tx, completion_rx) = oneshot::channel::<Result<CommandResult>>();
 
         let mut command = Command::new(&req.program);
         command.args(&req.args);
@@ -187,11 +155,13 @@ impl CommandRunner for DefaultCommandRunner {
         }
 
         let mut process = command
+            .stdin(Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true)
             .spawn()
             .with_context(|| format!("Failed to spawn command: {}", req.program))?;
+        let pid = process.id();
 
         let stdout = process.stdout.take().context("Failed to capture stdout")?;
         let stderr = process.stderr.take().context("Failed to capture stderr")?;
@@ -199,7 +169,10 @@ impl CommandRunner for DefaultCommandRunner {
         let tx_stdout = tx.clone();
         let stdout_task = tokio::spawn(async move {
             let mut reader = BufReader::new(stdout).lines();
+            let mut captured = String::new();
             while let Ok(Some(line)) = reader.next_line().await {
+                captured.push_str(&line);
+                captured.push('\n');
                 if tx_stdout
                     .send(OutputChunk {
                         stream: StreamKind::Stdout,
@@ -211,12 +184,16 @@ impl CommandRunner for DefaultCommandRunner {
                     break;
                 }
             }
+            captured
         });
 
         let tx_stderr = tx;
         let stderr_task = tokio::spawn(async move {
             let mut reader = BufReader::new(stderr).lines();
+            let mut captured = String::new();
             while let Ok(Some(line)) = reader.next_line().await {
+                captured.push_str(&line);
+                captured.push('\n');
                 if tx_stderr
                     .send(OutputChunk {
                         stream: StreamKind::Stderr,
@@ -228,29 +205,38 @@ impl CommandRunner for DefaultCommandRunner {
                     break;
                 }
             }
+            captured
         });
 
         tokio::spawn(async move {
-            tokio::select! {
+            let wait_result = tokio::select! {
                 _ = cancel_rx => {
                     let _ = process.kill().await;
+                    process.wait().await
                 }
-                _ = stdout_task => {}
-                _ = stderr_task => {}
-            }
-            let _ = process.wait().await;
+                result = process.wait() => result,
+            };
+            let stdout = stdout_task.await.unwrap_or_default();
+            let stderr = stderr_task.await.unwrap_or_default();
+            let result = wait_result
+                .map(|status| CommandResult {
+                    exit_code: status.code().unwrap_or(-1),
+                    stdout,
+                    stderr,
+                })
+                .with_context(|| format!("Failed to wait on command: {}", req.program));
+            let _ = completion_tx.send(result);
         });
 
         Ok(CommandHandle {
             cancel_tx: Some(cancel_tx),
+            pid,
+            completion_rx: Some(completion_rx),
         })
     }
 
-    async fn cancel(&self, handle: CommandHandle) -> Result<()> {
-        if let Some(tx) = handle.cancel_tx {
-            let _ = tx.send(());
-        }
-        Ok(())
+    async fn cancel(&self, mut handle: CommandHandle) -> Result<()> {
+        handle.cancel()
     }
 
     fn attach_pty(&self, req: CommandRequest) -> Result<PtySession> {
@@ -364,15 +350,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_passthrough_one_shot_reports_exit_code() {
+    async fn test_streaming_command_reports_pid_and_exit_code() {
         let runner = DefaultCommandRunner::new();
         let req = echo_request();
-        let result = runner
-            .run_passthrough_one_shot(req)
+        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+        let handle = runner
+            .run_streaming(req, tx)
             .await
-            .expect("passthrough run failed");
+            .expect("streaming run failed");
+        assert!(handle.pid().is_some());
+        while rx.recv().await.is_some() {}
+        let result = handle.wait().await.expect("wait failed");
         assert_eq!(result.exit_code, 0);
-        assert!(result.stdout.is_empty());
-        assert!(result.stderr.is_empty());
+        assert!(result.stdout.contains("hello"));
     }
 }

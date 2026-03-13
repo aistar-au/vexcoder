@@ -38,14 +38,14 @@ Aider, as:
 2. **Command output captured in transcript**
    - `Stdio::piped()` for stdout/stderr
    - Output streamed to transcript via `StreamBlock`
-   - Agent maintains full observability of subprocess output
+   - Agent maintains full observability of captured command-session output
    - Enables mid-task approvals, interruptions, reasoning
 
-3. **Implementation bugs corrected**
-   - Working directory validation added before spawn
-   - Signal propagation fixed (Ctrl+C forwarded to subprocess)
-   - Layout underflow fixed (saturating arithmetic)
-   - `kill_on_drop(true)` for subprocess cleanup
+3. **Follow-up implementation requirements**
+   - Working directory validation before spawn
+   - Ctrl+C propagation to the active command session during captured runs
+   - Layout underflow protection via saturating arithmetic
+   - `kill_on_drop(true)` for child-process cleanup
 
 4. **PTY support for interactive tools**
    - Interactive tools (vim, top) use PTY emulation
@@ -83,7 +83,7 @@ Aider, as:
 | Context | Behavior |
 |---------|----------|
 | TUI rendering | Ctrl+C cancels current LLM request |
-| Command execution | Ctrl+C forwarded to subprocess via `kill_on_drop` |
+| Command execution | Ctrl+C forwarded to the active command session via `kill_on_drop` |
 | Input mode | Esc clears input, Enter submits |
 | Application exit | Ctrl+Q quits cleanly, restores terminal |
 
@@ -112,7 +112,7 @@ PRs.
 | Symbol | Kind | Reason |
 |--------|------|--------|
 | `run_passthrough_one_shot()` | method (pub) | All commands use capture path; no inherited-stdio passthrough |
-| `ParentSigintGuard` | struct (private, unix) | SIGINT suppression not needed when subprocess is captured (not inherited) |
+| `ParentSigintGuard` | struct (private, unix) | SIGINT suppression not needed when the command session is captured instead of inheriting parent-terminal stdio |
 | `ParentSigintGuard::ignore()` | method | Same as above |
 | `PtySession` | struct (pub) | Replaced by stub PTY in capture path; `portable_pty` dependency removable |
 | `PtySession::read_output()` | method (pub) | Same as above |
@@ -163,10 +163,10 @@ the new full-screen `split_four_region_layout()` instead of the overlay variant.
 
 ### Positive
 - Matches Codex CLI / Copilot CLI user experience
-- Agent has full observability of command output
+- Agent has full observability of captured command output
 - Enables approval workflows, mid-task interruptions
 - Clean, focused agent session (no shell distraction)
-- All implementation bugs fixed (validation, signals, layout)
+- Documents the required follow-up fixes for validation, signals, and layout
 
 ### Negative / Trade-offs
 - Pre-launch shell history not visible during session

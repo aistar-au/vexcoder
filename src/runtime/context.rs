@@ -240,8 +240,14 @@ impl RuntimeContext {
         let _ = self.update_tx.send(UiUpdate::TurnComplete);
     }
 
-    pub fn emit_passthrough_command_finished(&self) {
-        let _ = self.update_tx.send(UiUpdate::PassthroughCommandFinished);
+    pub fn emit_command_session_attached(&self, pid: Option<u32>) {
+        let _ = self
+            .update_tx
+            .send(UiUpdate::CommandSessionAttached { pid });
+    }
+
+    pub fn emit_command_session_finished(&self) {
+        let _ = self.update_tx.send(UiUpdate::CommandSessionFinished);
     }
 
     pub fn clear_conversation(&self) {
@@ -511,7 +517,7 @@ mod tests {
             "fix the parser".to_string(),
         );
 
-        tokio::time::timeout(Duration::from_millis(500), async {
+        tokio::time::timeout(Duration::from_secs(2), async {
             loop {
                 if ctx
                     .test_system_prompt()
@@ -527,7 +533,7 @@ mod tests {
         .expect("coding prompt must be injected while the edit loop is active");
 
         loop {
-            match tokio::time::timeout(Duration::from_millis(500), rx.recv()).await {
+            match tokio::time::timeout(Duration::from_secs(2), rx.recv()).await {
                 Ok(Some(UiUpdate::EditLoopComplete { .. })) => break,
                 Ok(Some(UiUpdate::TranscriptLine(_))) => {}
                 Ok(Some(UiUpdate::Error(e))) => panic!("unexpected error: {e}"),

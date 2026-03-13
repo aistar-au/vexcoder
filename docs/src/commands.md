@@ -172,9 +172,9 @@ session totals.
 
 - `/run [command]`
 - `/test`
-  - Run directly in the terminal without starting a model turn.
-  - Command output stays in the terminal; the transcript keeps a compact summary
-    with per-command exit status.
+  - Run without starting a model turn.
+  - Command output is captured for the transcript, with per-command stdout,
+    stderr, and exit status summarized after each command completes.
 
 ### Free-form input transforms
 
@@ -185,10 +185,10 @@ session totals.
 - `!command`
   - Runs a shell command immediately from the workspace without starting a model turn.
   - Uses the same `run_command` approval gate as tool calls.
-  - Yields terminal control while the command runs, so interactive subprocesses
-    use the parent terminal directly.
-  - The transcript records that output was shown in the terminal plus the final
-    `[exit: N]` status.
+  - Starts a captured command session inside the managed TUI instead of yielding
+    terminal control back to the parent shell.
+  - The transcript records the command, PID, streamed output, and final
+    `[command session exit: N]` status.
 
 ## Keyboard notes
 

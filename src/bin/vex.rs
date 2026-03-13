@@ -16,7 +16,7 @@ use vexcoder::prompts::render_pr_summary_prompt;
 use vexcoder::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
 use vexcoder::runtime::{ContextAssembler, TaskState, TaskStatus};
 use vexcoder::ui::editor::{InputAction, InputEditor};
-use vexcoder::ui::layout::split_overlay_three_pane_layout;
+use vexcoder::ui::layout::split_three_pane_layout;
 use vexcoder::ui::render::{
     history_content_width_for_area, input_visual_rows, render_input, render_messages,
     render_overlay_modal_in_area, render_status_line, render_task_layout, OverlayModal,
@@ -336,6 +336,47 @@ impl ManagedTuiFrontend {
             }
         }
     }
+
+    fn map_command_session_key(&mut self, key: KeyEvent) -> Option<UserInputEvent> {
+        match key.code {
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                Some(UserInputEvent::Interrupt)
+            }
+            KeyCode::PageUp => Some(UserInputEvent::Scroll {
+                target: ScrollTarget::History,
+                action: ScrollAction::PageUp(10),
+            }),
+            KeyCode::PageDown => Some(UserInputEvent::Scroll {
+                target: ScrollTarget::History,
+                action: ScrollAction::PageDown(10),
+            }),
+            KeyCode::Home if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                Some(UserInputEvent::Scroll {
+                    target: ScrollTarget::History,
+                    action: ScrollAction::Home,
+                })
+            }
+            KeyCode::End if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                Some(UserInputEvent::Scroll {
+                    target: ScrollTarget::History,
+                    action: ScrollAction::End,
+                })
+            }
+            KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                Some(UserInputEvent::Scroll {
+                    target: ScrollTarget::History,
+                    action: ScrollAction::LineUp,
+                })
+            }
+            KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                Some(UserInputEvent::Scroll {
+                    target: ScrollTarget::History,
+                    action: ScrollAction::LineDown,
+                })
+            }
+            _ => None,
+        }
+    }
 }
 
 impl Drop for ManagedTuiFrontend {
@@ -346,9 +387,6 @@ impl Drop for ManagedTuiFrontend {
 
 impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
     fn poll_user_input(&mut self, mode: &TuiMode) -> Option<UserInputEvent> {
-        if mode.passthrough_command_active() {
-            return None;
-        }
         if mode.quit_requested() {
             self.quit = true;
             return None;
@@ -374,6 +412,8 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                 }
                 if mode.overlay_active() {
                     self.map_overlay_key(key)
+                } else if mode.command_session_active() {
+                    self.map_command_session_key(key)
                 } else {
                     self.map_regular_key(key)
                 }
@@ -386,6 +426,8 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                     } else {
                         Some(UserInputEvent::Text(trimmed.to_string()))
                     }
+                } else if mode.command_session_active() {
+                    None
                 } else {
                     if self.should_ignore_startup_paste(&text) {
                         return None;
@@ -399,9 +441,6 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
     }
 
     fn render(&mut self, mode: &TuiMode) {
-        if mode.passthrough_command_active() {
-            return;
-        }
         let input = self.editor.buffer().to_string();
         let cursor = self.editor.cursor();
 
@@ -412,14 +451,8 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
             } else {
                 let input_width = area.width.saturating_sub(2).max(1) as usize;
                 let input_rows = input_visual_rows(&input, input_width).max(1) as u16;
-                let panes = split_overlay_three_pane_layout(area, input_rows);
-                let overlay_area = ratatui::layout::Rect::new(
-                    panes.header.x,
-                    panes.header.y,
-                    panes.header.width,
-                    panes.input.y.saturating_add(panes.input.height) - panes.header.y,
-                );
-                frame.render_widget(Clear, overlay_area);
+                let panes = split_three_pane_layout(area, input_rows);
+                frame.render_widget(Clear, area);
                 let history_width =
                     history_content_width_for_area(mode.history_lines(), panes.history);
                 mode.set_history_content_width(history_width);
@@ -434,7 +467,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                 if let Some((patch_preview, scroll_offset)) = mode.pending_patch_overlay() {
                     render_overlay_modal_in_area(
                         frame,
-                        overlay_area,
+                        area,
                         OverlayModal::PatchApprove {
                             patch_preview,
                             scroll_offset,
@@ -446,7 +479,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                 {
                     render_overlay_modal_in_area(
                         frame,
-                        overlay_area,
+                        area,
                         OverlayModal::ToolPermission {
                             tool_name,
                             input_preview,
@@ -456,7 +489,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                 } else if mode.pending_memory_clear_overlay() {
                     render_overlay_modal_in_area(
                         frame,
-                        overlay_area,
+                        area,
                         OverlayModal::ToolPermission {
                             tool_name: "memory clear",
                             input_preview: "clear all notes? type y to confirm, n to cancel",

@@ -17,11 +17,14 @@ pub enum UiUpdate {
         index: usize,
     },
     ToolApprovalRequest(ToolApprovalRequest),
+    CommandSessionAttached {
+        pid: Option<u32>,
+    },
     EditLoopComplete {
         outcome: EditLoopOutcome,
         last_validation_result: Option<ValidationResult>,
     },
-    PassthroughCommandFinished,
+    CommandSessionFinished,
     TurnComplete,
     Error(String),
 }

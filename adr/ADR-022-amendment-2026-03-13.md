@@ -13,7 +13,7 @@ Command execution uses **full capture** for agent observability:
 
 - `Stdio::piped()` for stdout/stderr (not inherit)
 - Output streamed to transcript via `StreamBlock` events
-- Agent maintains full visibility of subprocess output
+- Agent maintains full visibility of captured child-process output
 - Enables mid-task approvals, interruptions, reasoning
 
 ### Implementation Details
@@ -37,7 +37,7 @@ if let Some(dir) = &req.working_dir {
 
 ### Signal Handling
 
-- Ctrl+C during command: Forwarded to subprocess via `kill_on_drop`
+- Ctrl+C during command: Forwarded to the active command session via `kill_on_drop`
 - Ctrl+C during LLM: Cancels current request
 - Ctrl+Q: Clean application exit
 
