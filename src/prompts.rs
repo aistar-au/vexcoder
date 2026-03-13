@@ -4,6 +4,7 @@ const EDIT_TEMPLATE: &str = include_str!("prompts/edit_template.txt");
 const EXPLAIN_TEMPLATE: &str = include_str!("prompts/explain_template.txt");
 const PLAN_TEMPLATE: &str = include_str!("prompts/plan_template.txt");
 const GENERATE_TESTS_TEMPLATE: &str = include_str!("prompts/generate_tests_template.txt");
+const PR_SUMMARY_TEMPLATE: &str = include_str!("prompts/pr_summary_template.txt");
 
 fn render_template(template: &str, replacements: &[(&str, &str)]) -> String {
     let mut rendered = String::with_capacity(template.len());
@@ -70,6 +71,17 @@ pub fn render_generate_tests_prompt(instruction: &str, context: &str, framework:
     )
 }
 
+pub fn render_pr_summary_prompt(instruction: &str, context: &str, diff_context: &str) -> String {
+    render_template(
+        PR_SUMMARY_TEMPLATE,
+        &[
+            ("{{instruction}}", instruction),
+            ("{{context}}", context),
+            ("{{diff_context}}", diff_context),
+        ],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,6 +104,12 @@ mod tests {
         assert!(generate_tests.contains("generate tests"));
         assert!(generate_tests.contains("cargo-test"));
         assert!(!generate_tests.contains("{{framework}}"));
+
+        let pr_summary = render_pr_summary_prompt("write a PR summary", "ctx", "diff");
+        assert!(pr_summary.contains("write a PR summary"));
+        assert!(pr_summary.contains("ctx"));
+        assert!(pr_summary.contains("diff"));
+        assert!(!pr_summary.contains("{{diff_context}}"));
     }
 
     #[test]

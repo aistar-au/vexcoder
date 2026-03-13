@@ -52,6 +52,8 @@ pub struct TaskState {
     pub conversation_snapshot: ConversationCheckpoint,
     pub interrupted_sessions: Vec<InterruptedCommand>,
     #[serde(default)]
+    pub branch_name: Option<String>,
+    #[serde(default)]
     pub instructions_path: Option<String>,
     #[serde(default)]
     pub turns: Vec<TurnEvidenceState>,
@@ -74,6 +76,7 @@ impl TaskState {
             command_history: Vec::new(),
             conversation_snapshot: ConversationCheckpoint::default(),
             interrupted_sessions: Vec::new(),
+            branch_name: None,
             instructions_path: None,
             turns: Vec::new(),
         }
@@ -240,6 +243,7 @@ mod tests {
                 program: "cargo build".into(),
                 interrupted_at: "2026-03-01T00:00:00Z".into(),
             }],
+            branch_name: Some("feature/task-001".to_string()),
             instructions_path: Some("AGENTS.md".to_string()),
             turns: vec![TurnEvidenceState {
                 input: "hello".to_string(),
@@ -258,6 +262,7 @@ mod tests {
         assert_eq!(loaded.changed_files, state.changed_files);
         assert!(loaded.command_history[0].interrupted);
         assert_eq!(loaded.interrupted_sessions.len(), 1);
+        assert_eq!(loaded.branch_name, state.branch_name);
         assert_eq!(loaded.instructions_path, state.instructions_path);
         assert_eq!(loaded.turns, state.turns);
     }
@@ -277,6 +282,7 @@ mod tests {
             }],
             conversation_snapshot: ConversationCheckpoint::default(),
             interrupted_sessions: Vec::new(),
+            branch_name: None,
             instructions_path: None,
             turns: Vec::new(),
         };

@@ -57,6 +57,23 @@ Exports a saved task from `.vex/state` (or `VEX_STATE_DIR`).
 Creates `.vex/config.toml`, `.vex/validate.toml`, and `AGENTS.md` without
 overwriting existing files.
 
+### `vex branch <name>`
+
+Creates and switches to a new git branch from `HEAD`.
+
+If a saved task state exists, VexCoder records the branch name on the most
+recent task file in `.vex/state` (or `VEX_STATE_DIR`).
+
+### `vex pr-summary`
+
+Builds a diff from the current branch against the merge-base of the default
+remote branch (`origin/HEAD`) and runs one model turn to draft a PR title and
+body.
+
+The result prints to stdout. The current template starts with a `Title:` line
+followed by a Markdown body, so you can review it locally or pipe it into your
+own git-hosting CLI workflow.
+
 ### `vex migrate config [--output PATH]`
 
 Writes a TOML fragment based on legacy environment variables.
