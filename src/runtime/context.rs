@@ -549,6 +549,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_coding_prompt_injected_during_edit_loop_only() {
+        let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+        let temp = tempfile::tempdir().unwrap();
         let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
         let conversation = ConversationManager::new_mock(client, HashMap::new());
@@ -562,7 +564,9 @@ mod tests {
         );
 
         ctx.start_edit_loop(
-            EditLoop::new("task-edit-loop-prompt".to_string()).with_max_turns(128),
+            EditLoop::new("task-edit-loop-prompt".to_string())
+                .with_max_turns(128)
+                .with_working_dir(temp.path().to_path_buf()),
             "fix the parser".to_string(),
         );
 
