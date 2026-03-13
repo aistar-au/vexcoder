@@ -2990,12 +2990,14 @@ mod tests {
         )
     }
 
-    fn setup_ctx_with_responses_and_updates(
+    fn setup_ctx_with_responses_and_updates_in_dir(
         responses: Vec<Vec<String>>,
+        working_dir: &std::path::Path,
     ) -> (RuntimeContext, mpsc::UnboundedReceiver<UiUpdate>) {
         let (tx, rx) = mpsc::unbounded_channel::<UiUpdate>();
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(responses)));
-        let conversation = ConversationManager::new_mock(client, HashMap::new());
+        let conversation =
+            ConversationManager::new(client, ToolOperator::new(working_dir.to_path_buf()));
         (
             RuntimeContext::new(conversation, tx, CancellationToken::new()),
             rx,
@@ -6024,7 +6026,7 @@ data: {"type":"message_stop"}"#.to_string(),
         mode.current_task
             .active_grants
             .insert(Capability::RunCommand, ApprovalScope::Session);
-        let (mut ctx, mut rx) = setup_ctx_with_responses_and_updates(responses);
+        let (mut ctx, mut rx) = setup_ctx_with_responses_and_updates_in_dir(responses, temp.path());
 
         mode.on_user_input("run the managed tool command".to_string(), &mut ctx);
         drain_until_turn_complete(&mut mode, &mut ctx, &mut rx).await;
