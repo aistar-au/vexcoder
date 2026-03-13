@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tokio_util::sync::CancellationToken;
@@ -169,11 +169,22 @@ impl EditLoop {
 
         let output = match command.output() {
             Ok(o) => o,
-            Err(_) => return Ok(false), // Git not available, assume not dirty
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => {
+                return Err(error)
+                    .context("failed to execute git status for workspace-dirty check");
+            }
         };
 
         if !output.status.success() {
-            return Ok(false);
+            let stderr = String::from_utf8_lossy(&output.stderr).to_ascii_lowercase();
+            if stderr.contains("not a git repository") {
+                return Ok(false);
+            }
+            anyhow::bail!(
+                "git status failed for workspace-dirty check: {}",
+                stderr.trim()
+            );
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);

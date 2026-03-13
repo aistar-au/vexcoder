@@ -335,8 +335,8 @@ Add a `vex migrate config` sub-command that reads the environment for legacy var
 
 | Legacy variable | Current replacement | Notes |
 | :--- | :--- | :--- |
-| `VEX_API_PROTOCOL=anthropic` | `model_protocol = "messages-v1"` | |
-| `VEX_API_PROTOCOL=openai` | `model_protocol = "chat-compat"` | |
+| `VEX_API_PROTOCOL=<legacy messages value>` | `model_protocol = "messages-v1"` | |
+| `VEX_API_PROTOCOL=<legacy chat value>` | `model_protocol = "chat-compat"` | |
 | `VEX_STRUCTURED_TOOL_PROTOCOL=on` | `tool_call_mode = "structured"` | |
 | `VEX_STRUCTURED_TOOL_PROTOCOL=off` | `tool_call_mode = "tagged-fallback"` | |
 | `VEX_MODEL_URL` (full endpoint path) | `model_url` (base URL, endpoint stripped) | Strip `/v1/messages` or `/v1/chat/completions` suffix |
@@ -1106,7 +1106,7 @@ A `src/index/` module providing structured code search, symbol lookup, or semant
 | `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS` | Token budget for project instructions injection | `4096` |
 | `VEX_MAX_MEMORY_TOKENS` | Token budget for user notes injection | `2048` |
 | `VEX_AT_INJECT_MAX_BYTES` | Max bytes per `@<path>` inline file injection | `32768` (shared with `ContextAssembler::max_file_bytes`) |
-| `VEX_DISABLE_LARGE_CONTEXT` | When `true`, restricts context window requests to the model's standard context limit. Equivalent to `CLAUDE_CODE_DISABLE_1M_CONTEXT` in reference implementations. Not yet wired to runtime behaviour — reserved for when a large-context model backend is supported. | `false` |
+| `VEX_DISABLE_LARGE_CONTEXT` | When `true`, restricts context window requests to the model's standard context limit. Equivalent to the legacy hosted-agent 1M-context toggle used by some reference tools. Not yet wired to runtime behaviour — reserved for when a large-context model backend is supported. | `false` |
 | `VEX_MODEL_URL_SKIP_TLS_CHECK` | Bypass certificate verification for an HTTPS `model_url` in development only; emits a startup warning and is not permitted in repo-local config | `false` |
 
 ### New prompt templates (additions to ADR-023 `src/prompts/`)
@@ -1264,7 +1264,7 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | # | Scenario | Expected result |
 | :--- | :--- | :--- |
 | 1 | Place `.vex/config.toml` in repo; start `vex` with no `VEX_*` env vars | Config values active |
-| 2 | Set `VEX_API_PROTOCOL=anthropic`; run `vex migrate config` | Output contains `model_protocol = "messages-v1"` |
+| 2 | Set `VEX_API_PROTOCOL` to the legacy messages value; run `vex migrate config` | Output contains `model_protocol = "messages-v1"` |
 | 3 | `vex exec --task "list Rust source files" --format jsonl` | JSONL to stdout; no TUI |
 | 4 | `VEX_SANDBOX=macos-exec`; spawn a command | Wrapped in `sandbox-exec`; warn and fall back when unavailable |
 | 5 | `VEX_SANDBOX=macos-exec VEX_SANDBOX_REQUIRE=true`; `sandbox-exec` absent | Process aborts with diagnostic |
@@ -1302,8 +1302,11 @@ fn config_model_token_rejected_from_file() {
 }
 
 #[test]
-fn migrate_config_maps_vex_api_protocol_anthropic() {
-    let output = migrate_config_from_env(&[("VEX_API_PROTOCOL", "anthropic")]);
+fn migrate_config_maps_vex_api_protocol_legacy_messages_value() {
+    let output = migrate_config_from_env(&[(
+        "VEX_API_PROTOCOL",
+        legacy_messages_protocol_value(),
+    )]);
     assert!(output.contains("model_protocol = \"messages-v1\""));
 }
 
@@ -1622,7 +1625,7 @@ When checking a box above, append an evidence block under this section:
 | `[[hooks]]` `on_fail = "abort"` must abort the pending tool result and surface the error to the operator; it must not terminate the process | A hook failure is a tool-level event, not a session-level event |
 | Do not begin Phases G or H before milestone-1 correctness work is validated | Sequencing guard |
 | Do not add a dependency licensed under a commercial, copyleft, or conditionally-paid license | All direct dependencies must carry MIT, Apache 2.0, or dual MIT/Apache 2.0 licensing; exceptions require a dedicated ADR with explicit legal basis |
-| Do not use provider-branded names or proprietary product references in runtime code, config keys, or default values | Documentation may reference external tools by name for operator clarity; runtime behaviour must remain neutral. **Migration tooling exception (Gap 11):** `vex migrate config` is the sole permitted context in which pre-ADR-022 branded variable values (e.g. `VEX_API_PROTOCOL=anthropic`) may be read at runtime — exclusively to map them to neutral equivalents. No other code path may read or emit branded values. |
+| Do not use provider-branded names or proprietary product references in runtime code, config keys, or default values | Documentation may reference external tools by name for operator clarity; runtime behaviour must remain neutral. **Migration tooling exception (Gap 11):** `vex migrate config` is the sole permitted context in which pre-ADR-022 branded variable values (for example, the legacy messages token behind `VEX_API_PROTOCOL`) may be read at runtime — exclusively to map them to neutral equivalents. No other code path may read or emit branded values. |
 | MCP HTTP header values containing secrets must use `${ENV_VAR_NAME}` substitution; literal secrets must never appear in config files | Enforced at config load time: values without `${}` syntax are used verbatim and are assumed non-secret; values with `${}` are resolved from environment only |
 | `-p`/`--print` must not be implemented before Gap 2 (`BatchMode`) is complete | `--print` is a routing flag over `BatchMode`; implementing it without `BatchMode` requires duplicating runtime logic, which is prohibited |
 | Do not implement a minimal/simple execution mode env var (`VEX_SIMPLE` or equivalent) without a dedicated ADR | The exact feature-disable set must be decided deliberately; disabling MCP, hooks, or skills piecemeal without a specification creates inconsistent operator expectations |
@@ -1814,7 +1817,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `src/bin/vex.rs` — `vex migrate config` sub-command
   - `docs/src/migration.md` — variable rename table, command alias reference, and usage guide
 - Validation:
-  - `cargo test test_migrate_config_maps_anthropic --all-targets` : pass
+  - `cargo test test_migrate_config_maps_legacy_messages_value --all-targets` : pass
   - `cargo test test_migrate_config_maps_structured_tool_protocol_on --all-targets` : pass
   - `cargo test test_migrate_config_header_comment_present --all-targets` : pass
   - `cargo test test_migrate_config_cli_parses_output_flag --all-targets` : pass

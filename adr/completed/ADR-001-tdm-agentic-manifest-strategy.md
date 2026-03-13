@@ -72,7 +72,7 @@ Works well for human contributors with persistent memory. Fails for agents becau
 
 Anchor tests alone do not give an agent enough context to understand *what* to implement. The manifest provides the background (what is broken and why) that the agent needs to write correct code, not just code that passes the test.
 
-### Single large AGENTS.md / CLAUDE.md file
+### Single large AGENTS-style bootstrap file
 
 Popularised by llama.cpp and other AI-native projects. Works well for stable conventions but degrades for per-task context because the file grows unbounded. `vexcoder` uses `CONTRIBUTING.md` for stable workflow conventions and `TASKS/` for per-task ephemeral context — separating the two concerns.
 

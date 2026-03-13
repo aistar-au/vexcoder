@@ -14,7 +14,7 @@
 > `vexcoder` remains terminal-agent-first, not editor-first.
 
 **After:**
-> `vexcoder` is terminal-agent-first for the first milestone. The terminal runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a VS Code extension) are not in scope for the first milestone and must not be allowed to drive architectural changes to the runtime core.
+> `vexcoder` is terminal-agent-first for the first milestone. The terminal runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the first milestone and must not be allowed to drive architectural changes to the runtime core.
 
 ### Decision item 11 — added
 

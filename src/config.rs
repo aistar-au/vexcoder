@@ -859,7 +859,7 @@ mod tests {
     }
 
     #[test]
-    fn test_config_loads_vex_model_name_without_claude_prefix() {
+    fn test_config_loads_vex_model_name_without_legacy_prefix() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
         std::env::set_var("VEX_MODEL_NAME", "llama-3-70b");
@@ -1107,7 +1107,7 @@ mod tests {
     }
 
     #[test]
-    fn test_migrate_maps_anthropic_protocol() {
+    fn test_migrate_maps_legacy_messages_protocol() {
         let out = super::migrate_config_from_env(&[(
             "VEX_API_PROTOCOL",
             super::legacy_messages_protocol_value(),
@@ -1116,7 +1116,7 @@ mod tests {
     }
 
     #[test]
-    fn test_migrate_maps_openai_protocol() {
+    fn test_migrate_maps_legacy_chat_protocol() {
         let out = super::migrate_config_from_env(&[(
             "VEX_API_PROTOCOL",
             super::legacy_chat_protocol_value(),

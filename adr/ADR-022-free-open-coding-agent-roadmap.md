@@ -49,7 +49,7 @@ agent loop is stable.
 
 This ADR locks the following decisions:
 
-1. `vexcoder` is terminal-agent-first for the first milestone. The terminal runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a VS Code extension) are not in scope for the first milestone and must not be allowed to drive architectural changes to the runtime core.
+1. `vexcoder` is terminal-agent-first for the first milestone. The terminal runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the first milestone and must not be allowed to drive architectural changes to the runtime core.
 2. The default operating posture is approval-first.
 3. The first milestone supports both local model runtimes and self-hosted,
    neutral-compatible model servers.

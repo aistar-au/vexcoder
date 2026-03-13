@@ -1265,7 +1265,7 @@ mod tests {
     }
 
     #[test]
-    fn test_migrate_config_maps_anthropic() {
+    fn test_migrate_config_maps_legacy_messages_value() {
         let out = vexcoder::config::migrate_config_from_env(&[(
             "VEX_API_PROTOCOL",
             concat!("anth", "ropic"),
