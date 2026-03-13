@@ -182,6 +182,35 @@ impl RuntimeContext {
         });
     }
 
+    /// Drive a single model turn within the current async task and wait for
+    /// completion, forwarding stream events to the TUI while the turn runs.
+    ///
+    /// Used by `EditLoop::run` to execute assemble→model→apply cycles without
+    /// spawning a detached task. The conversation lock is held only for the
+    /// duration of `send_message_with_policy`.
+    pub async fn drive_edit_turn(&self, input: String) -> anyhow::Result<String> {
+        let (delta_tx, mut delta_rx) = mpsc::unbounded_channel::<ConversationStreamUpdate>();
+        let conversation = Arc::clone(&self.conversation);
+        let tx = self.update_tx.clone();
+
+        let send_handle = tokio::spawn(async move {
+            let mut mgr = conversation.lock().await;
+            mgr.send_message_with_policy(input, Some(&delta_tx), TurnToolPolicy::Default)
+                .await
+        });
+
+        let mut textual_block_by_index = std::collections::HashMap::<usize, bool>::new();
+        while let Some(update) = delta_rx.recv().await {
+            forward_conversation_update(update, &mut textual_block_by_index, &tx);
+        }
+
+        match send_handle.await {
+            Ok(Ok(response_text)) => Ok(response_text),
+            Ok(Err(e)) => Err(e),
+            Err(e) => Err(anyhow::anyhow!("edit turn task failed: {e}")),
+        }
+    }
+
     pub fn set_model_name(&self, name: String) -> Result<(), &'static str> {
         let conversation = self
             .conversation

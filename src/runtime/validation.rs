@@ -50,18 +50,34 @@ struct ValidateConfig {
 }
 
 impl ValidationSuite {
-    /// Run all commands in the suite and collect results.
+    /// Run all commands in the suite **concurrently** and collect results.
     ///
     /// Wired by EL-03 (`EditLoop::run` step 6) and EL-05 (`/run`, `/test`).
+    /// Commands are spawned in parallel; results are collected in declaration
+    /// order so retry formatting is stable.
     pub async fn run<R>(&self, runner: &R) -> Result<ValidationResult>
     where
         R: CommandRunner + ?Sized,
     {
-        let mut passed = true;
-        let mut outputs = Vec::with_capacity(self.commands.len());
+        if self.commands.is_empty() {
+            return Ok(ValidationResult {
+                passed: true,
+                outputs: Vec::new(),
+            });
+        }
 
-        for command in &self.commands {
-            let output = run_validation_command(command, runner).await;
+        // Launch all validation commands concurrently.
+        let futures: Vec<_> = self
+            .commands
+            .iter()
+            .map(|command| run_validation_command(command, runner))
+            .collect();
+
+        let results = futures::future::join_all(futures).await;
+
+        let mut passed = true;
+        let mut outputs = Vec::with_capacity(results.len());
+        for output in results {
             if output.exit_code != 0 {
                 passed = false;
             }

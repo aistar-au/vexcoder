@@ -424,6 +424,42 @@ pub(super) fn execute_tool_dispatch(
                 .collect::<Vec<_>>()
                 .join("\n"))
         }
+        "run_command" => {
+            let program = required_tool_string_any(
+                input,
+                name,
+                "command",
+                &["command", "program", "cmd"],
+            )?;
+            let args: Vec<String> = input
+                .get("args")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let output = std::process::Command::new(program)
+                .args(&args)
+                .stdin(std::process::Stdio::null())
+                .output()
+                .with_context(|| format!("failed to execute command: {program}"))?;
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let exit_code = output.status.code().unwrap_or(-1);
+
+            let mut result = format!("exit_code: {exit_code}\n");
+            if !stdout.is_empty() {
+                result.push_str(&format!("stdout:\n{stdout}"));
+            }
+            if !stderr.is_empty() {
+                result.push_str(&format!("stderr:\n{stderr}"));
+            }
+            Ok(result)
+        }
         _ => bail!("Unknown tool: {name}"),
     }
 }
@@ -1024,7 +1060,13 @@ pub(super) fn is_mutating_tool_round(blocks: &[ContentBlock]) -> bool {
 pub(super) fn tool_requires_confirmation(name: &str) -> bool {
     matches!(
         name,
-        "write_file" | "apply_patch" | "edit_file" | "rename_file" | "git_add" | "git_commit"
+        "write_file"
+            | "apply_patch"
+            | "edit_file"
+            | "rename_file"
+            | "git_add"
+            | "git_commit"
+            | "run_command"
     )
 }
 

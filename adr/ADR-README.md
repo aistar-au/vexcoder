@@ -28,7 +28,7 @@ All ADR files live under `adr/`.
 | [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps — sandboxing, headless, layered config, MCP | Proposed |
 | [ADR-025](ADR-025-runtime-json-handoff-contract.md) | Runtime JSON handoff contract — trait-level event envelopes, JSON projection, and adapter-stable serialization | Proposed |
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding — scoped HTTP/Unix-socket API surface, SSE streaming, TLS boundary, auth model, and schema endpoint for runtime JSON handoff | Proposed |
-| [ADR-027](ADR-027-primary-terminal-overlay-tui-and-command-passthrough.md) | Primary-terminal overlay TUI and interactive command passthrough | Accepted |
+| [ADR-027](ADR-027-primary-terminal-overlay-tui-and-command-passthrough.md) | Codex/Copilot CLI alignment — full-screen TUI with command capture | Accepted |
 
 ## Completed ADR Records
 

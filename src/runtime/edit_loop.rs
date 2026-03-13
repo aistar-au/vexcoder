@@ -6,9 +6,10 @@ use tokio_util::sync::CancellationToken;
 use crate::runtime::ModelBackendKind;
 use crate::types::ModelProfile;
 
+use super::command::DefaultCommandRunner;
 use super::context::RuntimeContext;
 use super::task_state::TaskId;
-use super::validation::ValidationResult;
+use super::validation::{ValidationResult, ValidationSuite};
 
 const DEFAULT_MAX_TURNS: u8 = 6;
 const HARD_MAX_TURNS: u8 = 12;
@@ -70,11 +71,11 @@ impl EditLoop {
 
     pub async fn run(
         &mut self,
-        _instruction: String,
+        instruction: String,
         ctx: &mut RuntimeContext,
         cancel: &CancellationToken,
     ) -> Result<EditLoopOutcome> {
-        // EL-03 skeleton only: loop body wiring lands in EL-04.
+        // EL-03 step 1: workspace-dirty warning.
         if let Ok(root) = std::env::current_dir() {
             if Self::check_workspace_dirty(&root, &[])? {
                 ctx.emit_transcript_line(
@@ -84,11 +85,70 @@ impl EditLoop {
             }
         }
 
-        for _ in 0..self.max_turns {
+        // EL-04: assemble → model → apply → validate → retry cycle.
+        let root = std::env::current_dir().unwrap_or_default();
+        let validation_suite = ValidationSuite::load_or_infer(&root);
+        let runner = DefaultCommandRunner::new();
+
+        let mut retry_context = String::new();
+        let mut patch_applied: bool;
+
+        for turn in 0..self.max_turns {
             if cancel.is_cancelled() {
                 return Ok(EditLoopOutcome::Cancelled);
             }
+
+            // Yield between turns so the TUI, tests, and other tasks can
+            // observe intermediate state (e.g. system-prompt injection).
             tokio::task::yield_now().await;
+
+            // Assemble: instruction + validation retry context (if any).
+            let message = if retry_context.is_empty() {
+                instruction.clone()
+            } else {
+                format!("{instruction}\n\n{retry_context}")
+            };
+
+            ctx.emit_transcript_line(format!(
+                "[edit loop turn {}/{}]",
+                turn + 1,
+                self.max_turns
+            ));
+
+            // Model: drive a full tool-loop turn (read/edit/write/command).
+            match ctx.drive_edit_turn(message).await {
+                Ok(_response) => {
+                    patch_applied = true;
+                }
+                Err(err) => {
+                    ctx.emit_transcript_line(format!("[edit loop turn error: {err}]"));
+                    retry_context = format!("[previous turn failed: {err}]");
+                    continue;
+                }
+            }
+
+            if cancel.is_cancelled() {
+                return Ok(EditLoopOutcome::Cancelled);
+            }
+
+            // Validate: run the project validation suite concurrently.
+            ctx.emit_transcript_line("[edit loop: running validation]".to_string());
+            let validation_result = validation_suite.run(&runner).await?;
+            self.set_last_validation_result(validation_result.clone());
+
+            if validation_result.passed {
+                ctx.emit_transcript_line("[edit loop: validation passed]".to_string());
+                if self.stop_on_clean_validate {
+                    return Ok(EditLoopOutcome::Success {
+                        patch_applied,
+                        validate_passed: true,
+                    });
+                }
+            } else {
+                // Retry: format failure output as context for the next turn.
+                retry_context = validation_suite.format_for_retry(&validation_result);
+                ctx.emit_transcript_line("[edit loop: validation failed, retrying]".to_string());
+            }
         }
 
         Ok(EditLoopOutcome::MaxTurnsReached {

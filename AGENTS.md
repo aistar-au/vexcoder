@@ -82,12 +82,13 @@ the product-side constraints:
 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Parity-gap inventory, command surface, and deferred work. |
 | `adr/ADR-025-runtime-json-handoff-contract.md` | Phase I canonical runtime JSON handoff contract and post-gate dispatch entry point. |
 | `adr/ADR-026-localapiserver-transport-binding.md` | Phase I transport binding, TLS rules, and post-ADR-025 dispatch sequence. |
+| `adr/ADR-027-primary-terminal-overlay-tui-and-command-passthrough.md` | Codex/Copilot CLI alignment: full-screen TUI, command capture, dead-code removal roadmap. |
 | `Makefile` | Local verification entry points and architecture gate wrappers. |
 
 ## Current cross-repo dependency state
 
 For dispatcher-owned workflow and skill routing, the current active ADR set is
-ADR-021 through ADR-026. `adr/ADR-README.md` remains the full source of
+ADR-021 through ADR-027. `adr/ADR-README.md` remains the full source of
 truth for the broader open-ADR list.
 
 | ADR | Current state | Dependency note |
@@ -98,6 +99,7 @@ truth for the broader open-ADR list.
 | ADR-024 | Proposed | Defines gap work around layered config, MCP, skills, export, and related parity surface. |
 | ADR-025 | Proposed | First post-gate Phase I dispatch target (`PI-09` through `PI-12`); implementation remains gated on milestone-1 correctness validation. |
 | ADR-026 | Proposed | Follows ADR-025 closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation remains gated on milestone-1 correctness validation. |
+| ADR-027 | Accepted | Codex/Copilot CLI alignment: full-screen TUI with command capture, concurrent validation, dead-code removal roadmap. Supersedes ADR-018 and ADR-019. |
 
 ## Verification baseline
 

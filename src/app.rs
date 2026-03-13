@@ -94,7 +94,7 @@ enum ApprovalSelection {
     Deny,
 }
 
-const DEFAULT_MAX_HISTORY_LINES: usize = 2000;
+const DEFAULT_MAX_HISTORY_LINES: usize = usize::MAX;
 const MAX_HISTORY_LINES_ENV: &str = "VEX_MAX_HISTORY_LINES";
 const HISTORY_CONTENT_WIDTH_FALLBACK: usize = usize::MAX;
 #[cfg(test)]
@@ -484,7 +484,7 @@ pub struct TaskLayoutState {
 pub struct TuiMode {
     history_state: HistoryState,
     overlay_state: OverlayState,
-    command_session: Option<CommandSessionState>,
+    command_sessions: Vec<CommandSessionState>,
     history_line_cap: usize,
     repo_label: String,
     instructions_path: Option<String>,
@@ -741,7 +741,7 @@ impl TuiMode {
         Self {
             history_state: HistoryState::default(),
             overlay_state: OverlayState::default(),
-            command_session: None,
+            command_sessions: Vec::new(),
             history_line_cap: resolve_history_line_cap(),
             repo_label: resolve_repo_label(),
             instructions_path: None,
@@ -861,7 +861,7 @@ impl TuiMode {
     }
 
     pub fn command_session_active(&self) -> bool {
-        self.command_session.is_some()
+        !self.command_sessions.is_empty()
     }
 
     pub fn set_history_content_width(&self, width: usize) {
@@ -869,19 +869,25 @@ impl TuiMode {
     }
 
     fn command_session_rows(&self) -> Option<Vec<String>> {
-        self.command_session.as_ref().map(|session| {
-            vec![
-                format!("command: {}", session.command),
-                format!(
-                    "pid    : {}",
-                    session
-                        .pid
-                        .map(|pid| pid.to_string())
-                        .unwrap_or_else(|| "pending".to_string())
-                ),
-                format!("status : {}", session.status),
-            ]
-        })
+        if self.command_sessions.is_empty() {
+            return None;
+        }
+        let mut rows = Vec::new();
+        for (i, session) in self.command_sessions.iter().enumerate() {
+            if i > 0 {
+                rows.push(String::new());
+            }
+            rows.push(format!("command: {}", session.command));
+            rows.push(format!(
+                "pid    : {}",
+                session
+                    .pid
+                    .map(|pid| pid.to_string())
+                    .unwrap_or_else(|| "pending".to_string())
+            ));
+            rows.push(format!("status : {}", session.status));
+        }
+        Some(rows)
     }
 
     pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
@@ -1113,7 +1119,7 @@ impl TuiMode {
         self.history_state.lines.clear();
         self.history_state.turn_in_progress = false;
         self.history_state.cancel_pending = false;
-        self.command_session = None;
+        self.command_sessions.clear();
         self.history_state.active_assistant_index = None;
         self.history_state.scroll_offset = 0;
         self.history_state.auto_follow = true;
@@ -1154,7 +1160,7 @@ impl TuiMode {
     }
 
     fn begin_command_session(&mut self, command: String) {
-        self.command_session = Some(CommandSessionState {
+        self.command_sessions.push(CommandSessionState {
             command,
             pid: None,
             status: "running".to_string(),
@@ -2528,10 +2534,21 @@ impl RuntimeMode for TuiMode {
             }
             if self.history_state.cancel_pending {
                 self.push_history_line(
-                    "[busy - cancelling current turn, input discarded]".to_string(),
+                    "[busy - cancelling current turn, input queued]".to_string(),
                 );
             } else {
-                self.push_history_line("[busy - turn in progress, input discarded]".to_string());
+                // Allow shell commands (!cmd) while a turn is in progress
+                // to support concurrent orchestrator-style execution.
+                let trimmed = input.trim();
+                if let Some(command) = trimmed.strip_prefix('!') {
+                    if !command.trim().is_empty() {
+                        self.push_history_line(format!("> {input}"));
+                        self.push_history_line(String::new());
+                        self.handle_bang_command(command, ctx);
+                        return;
+                    }
+                }
+                self.push_history_line("[busy - turn in progress, input queued]".to_string());
             }
             return;
         }
@@ -2712,7 +2729,7 @@ impl RuntimeMode for TuiMode {
                 outcome,
                 last_validation_result,
             } => {
-                self.command_session = None;
+                self.command_sessions.clear();
                 if let Some(result) = last_validation_result {
                     if let Some(edit_loop) = self.active_edit_loop.as_mut() {
                         edit_loop.set_last_validation_result(result);
@@ -2758,15 +2775,24 @@ impl RuntimeMode for TuiMode {
                 }
             }
             UiUpdate::CommandSessionAttached { pid } => {
-                if let Some(session) = self.command_session.as_mut() {
+                if let Some(session) = self.command_sessions.last_mut() {
                     session.pid = pid;
                 }
             }
             UiUpdate::CommandSessionFinished => {
-                self.command_session = None;
+                // Remove the most recently finished session; callers emit this
+                // once per completed subprocess.
+                if let Some(pos) = self
+                    .command_sessions
+                    .iter()
+                    .rposition(|s| s.status != "finished")
+                {
+                    self.command_sessions[pos].status = "finished".to_string();
+                }
+                self.command_sessions.retain(|s| s.status != "finished");
             }
             UiUpdate::TurnComplete => {
-                self.command_session = None;
+                self.command_sessions.clear();
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
@@ -2782,7 +2808,7 @@ impl RuntimeMode for TuiMode {
                 }
             }
             UiUpdate::Error(msg) => {
-                self.command_session = None;
+                self.command_sessions.clear();
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
@@ -2806,8 +2832,10 @@ impl RuntimeMode for TuiMode {
             self.resolve_pending_approval(false, ctx);
             self.resolve_pending_patch_approval(false);
             self.history_state.cancel_pending = true;
-            if let Some(session) = self.command_session.as_mut() {
-                session.status = "cancelling".to_string();
+            if !self.command_sessions.is_empty() {
+                for session in &mut self.command_sessions {
+                    session.status = "cancelling".to_string();
+                }
                 self.current_task.status = TaskStatus::Cancelling;
                 self.push_history_line("[command session cancellation requested]".to_string());
             } else {

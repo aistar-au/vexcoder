@@ -51,11 +51,14 @@ if let Some(dir) = &req.working_dir {
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Command capture | Pending | ADR-027 implementation |
-| Signal handling | Pending | Ctrl+C propagation redesign |
-| PTY support | Partial | Basic emulation, full tokio-pty pending |
+| Command capture | Complete | Captured in transcript via `StreamBlock`, concurrent sessions |
+| Signal handling | Complete | `kill_on_drop(true)` + process group kill on cancel |
+| PTY support | Partial | Basic emulation via `portable_pty`, full tokio-pty pending |
 | Working dir validation | Complete | Already in command.rs |
-| Layout underflow | Pending | Saturating arithmetic in layout.rs |
+| Layout underflow | Complete | Saturating arithmetic in layout.rs |
+| Concurrent validation | Complete | `futures::future::join_all` in ValidationSuite::run |
+| run_command tool | Complete | Model-visible dispatch arm in tools.rs |
+| Edit loop | Complete | assemble→model→apply→validate→retry in edit_loop.rs |
 
 ## Compliance
 
