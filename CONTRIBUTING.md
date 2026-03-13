@@ -219,6 +219,8 @@ vexcoder/ (standalone view)
 | `src/util.rs` | Shared utility functions (bool/env parsing and endpoint helpers). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/util.rs> |
 | `src/workspace.rs` | Repo-root and workspace-relative path helpers for repo-scoped state. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/workspace.rs> |
 | `tests/integration_test.rs` | Integration tests for config validation behavior. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/integration_test.rs> |
+| `tests/layout_underflow_tests.rs` | TUI layout constraint and underflow regression tests. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/layout_underflow_tests.rs> |
+| `tests/signal_handling_tests.rs` | Command session cancellation and process group signal tests. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/signal_handling_tests.rs> |
 | `tests/stream_parser_tests.rs` | Stream parser protocol and fragmentation tests. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/stream_parser_tests.rs> |
 | `tests/tool_operator_tests.rs` | Tool operator behavior/security tests for file and git actions. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |
 
