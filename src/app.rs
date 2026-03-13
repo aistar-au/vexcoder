@@ -587,6 +587,33 @@ fn format_inline_block(
     rendered
 }
 
+fn render_inline_command_result_lines(result: &CommandResult) -> Vec<String> {
+    let mut rendered = String::new();
+
+    for line in result.stdout.lines() {
+        rendered.push_str("stdout: ");
+        rendered.push_str(line);
+        rendered.push('\n');
+    }
+    for line in result.stderr.lines() {
+        rendered.push_str("stderr: ");
+        rendered.push_str(line);
+        rendered.push('\n');
+    }
+
+    let mut lines = Vec::new();
+    let (tail, truncated) = truncate_tail_bytes(&rendered, VALIDATION_TAIL_BYTES);
+    if truncated {
+        lines.push(format!(
+            "[output truncated \u{2014} showing last {} bytes]",
+            VALIDATION_TAIL_BYTES
+        ));
+    }
+    lines.extend(tail.lines().map(ToOwned::to_owned));
+    lines.push(format!("[exit: {}]", result.exit_code));
+    lines
+}
+
 impl TuiMode {
     pub fn new() -> Self {
         Self::new_with_config(None, Config::default_for_tui())
@@ -756,7 +783,7 @@ impl TuiMode {
         })
     }
 
-    fn resolve_pending_approval(&mut self, approved: bool) {
+    fn resolve_pending_approval(&mut self, approved: bool, ctx: &RuntimeContext) {
         if let Some(pending) = self.overlay_state.pending_approval.take() {
             match pending.action {
                 PendingApprovalAction::Tool(response_tx) => {
@@ -764,7 +791,7 @@ impl TuiMode {
                 }
                 PendingApprovalAction::InlineCommand(command) => {
                     if approved {
-                        self.run_inline_command_to_transcript(&command.command);
+                        self.start_inline_command(command.command, ctx);
                     }
                 }
             }
@@ -785,16 +812,16 @@ impl TuiMode {
         match parse_approval_selection(input) {
             Some(ApprovalSelection::ApproveOnce) => {
                 self.push_history_line(format!("[tool approval accepted once: {context}]"));
-                self.resolve_pending_approval(true);
+                self.resolve_pending_approval(true, ctx);
             }
             Some(ApprovalSelection::ApproveSession) => {
                 self.overlay_state.auto_approve_session = true;
                 self.push_history_line(format!("[tool approval enabled for session: {context}]"));
-                self.resolve_pending_approval(true);
+                self.resolve_pending_approval(true, ctx);
             }
             Some(ApprovalSelection::Deny) => {
                 self.push_history_line(format!("[tool approval denied: {context}]"));
-                self.resolve_pending_approval(false);
+                self.resolve_pending_approval(false, ctx);
             }
             None => {
                 self.push_history_line("[invalid selection, expected 1/2/3]".to_string());
@@ -1184,7 +1211,7 @@ impl TuiMode {
         }
     }
 
-    fn handle_bang_command(&mut self, command: &str) {
+    fn handle_bang_command(&mut self, command: &str, ctx: &RuntimeContext) {
         let command = command.trim();
         if command.is_empty() {
             self.push_history_line("[shell] usage: !<command>".to_string());
@@ -1193,7 +1220,7 @@ impl TuiMode {
 
         if self.overlay_state.auto_approve_session {
             self.push_history_line("[auto-approved tool: run_command session]".to_string());
-            self.run_inline_command_to_transcript(command);
+            self.start_inline_command(command.to_string(), ctx);
             return;
         }
 
@@ -1212,7 +1239,7 @@ impl TuiMode {
                 "[auto-approved tool: run_command {} grant]",
                 scope_to_label(scope)
             ));
-            self.run_inline_command_to_transcript(command);
+            self.start_inline_command(command.to_string(), ctx);
             return;
         }
 
@@ -1227,48 +1254,37 @@ impl TuiMode {
         });
     }
 
-    fn run_inline_command_to_transcript(&mut self, command: &str) {
-        let command = command.trim().to_string();
+    fn start_inline_command(&mut self, command: String, ctx: &RuntimeContext) {
+        self.history_state.turn_in_progress = true;
+        self.history_state.cancel_pending = false;
+        self.history_state.active_assistant_index = None;
+
+        let ctx = ctx.clone();
+        let cancel = ctx.turn_cancellation_token();
         let working_dir = self.working_dir.clone();
-        match block_on_context_task(async move {
-            run_shell_command_with_runner(
-                DefaultCommandRunner::new(),
-                PassthroughSandbox,
-                command,
-                working_dir,
-            )
-            .await
-        }) {
-            Ok(result) => self.push_inline_command_result(&result),
-            Err(error) => self.push_history_line(format!("[shell] error: {error}")),
-        }
-    }
-
-    fn push_inline_command_result(&mut self, result: &CommandResult) {
-        let mut rendered = String::new();
-
-        for line in result.stdout.lines() {
-            rendered.push_str("stdout: ");
-            rendered.push_str(line);
-            rendered.push('\n');
-        }
-        for line in result.stderr.lines() {
-            rendered.push_str("stderr: ");
-            rendered.push_str(line);
-            rendered.push('\n');
-        }
-
-        let (tail, truncated) = truncate_tail_bytes(&rendered, VALIDATION_TAIL_BYTES);
-        if truncated {
-            self.push_history_line(format!(
-                "[output truncated \u{2014} showing last {} bytes]",
-                VALIDATION_TAIL_BYTES
-            ));
-        }
-        for line in tail.lines() {
-            self.push_history_line(line.to_string());
-        }
-        self.push_history_line(format!("[exit: {}]", result.exit_code));
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = cancel.cancelled() => {
+                    ctx.emit_transcript_line("[shell] cancelled".to_string());
+                }
+                result = run_shell_command_with_runner(
+                    DefaultCommandRunner::new(),
+                    PassthroughSandbox,
+                    command,
+                    working_dir,
+                ) => {
+                    match result {
+                        Ok(result) => {
+                            for line in render_inline_command_result_lines(&result) {
+                                ctx.emit_transcript_line(line);
+                            }
+                        }
+                        Err(error) => ctx.emit_transcript_line(format!("[shell] error: {error}")),
+                    }
+                }
+            }
+            ctx.emit_turn_complete();
+        });
     }
 
     fn start_single_turn(
@@ -2031,7 +2047,7 @@ impl RuntimeMode for TuiMode {
 
         let trimmed = input.trim();
         if let Some(command) = trimmed.strip_prefix('!') {
-            self.handle_bang_command(command);
+            self.handle_bang_command(command, ctx);
             return;
         }
 
@@ -2048,7 +2064,7 @@ impl RuntimeMode for TuiMode {
         ctx.start_turn(turn_input);
     }
 
-    fn on_model_update(&mut self, update: UiUpdate, _ctx: &mut RuntimeContext) {
+    fn on_model_update(&mut self, update: UiUpdate, ctx: &mut RuntimeContext) {
         match update {
             UiUpdate::TranscriptLine(line) => {
                 self.push_history_line(line);
@@ -2102,7 +2118,7 @@ impl RuntimeMode for TuiMode {
                     return;
                 }
 
-                self.resolve_pending_approval(false);
+                self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
 
                 if self.read_only_turn_active {
@@ -2153,7 +2169,7 @@ impl RuntimeMode for TuiMode {
                         edit_loop.set_last_validation_result(result);
                     }
                 }
-                self.resolve_pending_approval(false);
+                self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
                 self.history_state.cancel_pending = false;
@@ -2193,7 +2209,7 @@ impl RuntimeMode for TuiMode {
                 }
             }
             UiUpdate::TurnComplete => {
-                self.resolve_pending_approval(false);
+                self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
                 self.history_state.cancel_pending = false;
@@ -2207,7 +2223,7 @@ impl RuntimeMode for TuiMode {
                 }
             }
             UiUpdate::Error(msg) => {
-                self.resolve_pending_approval(false);
+                self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
                 self.history_state.cancel_pending = false;
@@ -2225,7 +2241,7 @@ impl RuntimeMode for TuiMode {
                 return;
             }
             ctx.cancel_turn();
-            self.resolve_pending_approval(false);
+            self.resolve_pending_approval(false, ctx);
             self.resolve_pending_patch_approval(false);
             self.history_state.cancel_pending = true;
             self.push_history_line("[turn cancellation requested]".to_string());
@@ -2410,6 +2426,16 @@ mod tests {
         RuntimeContext::new(conversation, tx, CancellationToken::new())
     }
 
+    fn setup_ctx_with_updates() -> (RuntimeContext, mpsc::UnboundedReceiver<UiUpdate>) {
+        let (tx, rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+        let conversation = ConversationManager::new_mock(client, HashMap::new());
+        (
+            RuntimeContext::new(conversation, tx, CancellationToken::new()),
+            rx,
+        )
+    }
+
     fn setup_ctx_with_responses(responses: Vec<Vec<String>>) -> RuntimeContext {
         let (tx, _rx) = mpsc::unbounded_channel::<UiUpdate>();
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(responses)));
@@ -2427,6 +2453,24 @@ mod tests {
 
     fn successful_bang_input() -> String {
         "!echo inline-shell".to_string()
+    }
+
+    async fn drain_until_turn_complete(
+        mode: &mut TuiMode,
+        ctx: &mut RuntimeContext,
+        rx: &mut mpsc::UnboundedReceiver<UiUpdate>,
+    ) {
+        loop {
+            let update = tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv())
+                .await
+                .expect("timed out waiting for ui update")
+                .expect("ui update channel closed");
+            let done = matches!(update, UiUpdate::TurnComplete | UiUpdate::Error(_));
+            mode.on_model_update(update, ctx);
+            if done {
+                break;
+            }
+        }
     }
 
     #[derive(Clone)]
@@ -5038,7 +5082,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let mut mode = TuiMode::new();
         mode.working_dir = temp.path().to_path_buf();
-        let mut ctx = setup_ctx();
+        let (mut ctx, mut rx) = setup_ctx_with_updates();
         let initial_messages = ctx.test_message_count().await;
 
         mode.on_user_input(successful_bang_input(), &mut ctx);
@@ -5046,6 +5090,9 @@ mod tests {
         assert!(!mode.is_turn_in_progress());
 
         mode.on_user_input("1".to_string(), &mut ctx);
+        assert!(mode.is_turn_in_progress());
+
+        drain_until_turn_complete(&mut mode, &mut ctx, &mut rx).await;
 
         assert!(mode.overlay_state.pending_approval.is_none());
         assert!(!mode.is_turn_in_progress());
@@ -5079,6 +5126,34 @@ mod tests {
 
         assert!(wrapped.load(Ordering::SeqCst));
         assert!(result.stdout.contains("sandbox-hit"));
+    }
+
+    #[tokio::test]
+    async fn test_bang_prefix_cancellation_completes_turn() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut mode = TuiMode::new();
+        mode.working_dir = temp.path().to_path_buf();
+        let (mut ctx, mut rx) = setup_ctx_with_updates();
+        let input = if cfg!(windows) {
+            "!ping -n 6 127.0.0.1 > nul".to_string()
+        } else {
+            "!sleep 5".to_string()
+        };
+
+        mode.on_user_input(input, &mut ctx);
+        mode.on_user_input("1".to_string(), &mut ctx);
+        assert!(mode.is_turn_in_progress());
+
+        mode.on_interrupt(&mut ctx);
+        drain_until_turn_complete(&mut mode, &mut ctx, &mut rx).await;
+
+        assert!(!mode.is_turn_in_progress());
+        assert!(
+            mode.history_lines()
+                .iter()
+                .any(|line| line == "[shell] cancelled"),
+            "expected cancellation feedback for inline shell commands"
+        );
     }
 
     #[tokio::test]
