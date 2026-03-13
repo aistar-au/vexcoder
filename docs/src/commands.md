@@ -30,6 +30,28 @@ Useful flags:
 - `--format jsonl|text`
 - `--output PATH`
 
+Each JSONL turn record includes a `tokens` object with `input`, `output`, and
+`estimated` fields.
+
+### `vex doctor [--json]`
+
+Runs a read-only environment health check. It validates config loading, checks
+model endpoint reachability, reports sandbox fallback status, probes configured
+MCP servers without starting them, inspects state-directory writability, and
+verifies that any present policy file parses cleanly.
+
+Exit code is non-zero only when one or more checks fail. `--json` emits a JSON
+array of `{check,status,message}` objects.
+
+### `vex export <task-id> [--format jsonl|markdown] [--output PATH] [--force]`
+
+Exports a saved task from `.vex/state` (or `VEX_STATE_DIR`).
+
+- `jsonl` matches the batch-turn schema used by `vex exec`
+- `markdown` omits full assistant response text and only includes tool outcomes
+- `--output PATH` writes to a file instead of stdout
+- `--force` allows overwriting an existing output file
+
 ### `vex init [--dir PATH]`
 
 Creates `.vex/config.toml`, `.vex/validate.toml`, and `AGENTS.md` without
@@ -102,8 +124,14 @@ Commands entered inside the interactive UI start with `/`.
 - `/explain [path]`
 - `/context`
 - `/tools [desc]`
+- `/usage`
 - `/commands`
 - `/help`
+
+`/usage` prints the most recent turn's token counts and the cumulative session
+totals. If the runtime does not return usage metadata, the values are estimated
+from character counts and marked `(estimated)`. `/new` and `/clear` reset the
+session totals.
 
 ### Test generation
 

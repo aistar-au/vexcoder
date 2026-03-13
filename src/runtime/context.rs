@@ -1,7 +1,8 @@
 use crate::runtime::{EditLoop, UiUpdate};
 use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock, TurnToolPolicy};
 use crate::types::{Content, ContentBlock};
-use std::sync::Arc;
+use crate::usage::{estimate_tokens, SessionTokens, TurnTokens};
+use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 
@@ -9,6 +10,7 @@ pub struct RuntimeContext {
     conversation: Arc<Mutex<ConversationManager>>,
     update_tx: mpsc::UnboundedSender<UiUpdate>,
     cancel: CancellationToken,
+    session_tokens: Arc<StdMutex<SessionTokens>>,
 }
 
 impl Clone for RuntimeContext {
@@ -17,6 +19,7 @@ impl Clone for RuntimeContext {
             conversation: Arc::clone(&self.conversation),
             update_tx: self.update_tx.clone(),
             cancel: self.cancel.clone(),
+            session_tokens: Arc::clone(&self.session_tokens),
         }
     }
 }
@@ -31,6 +34,7 @@ impl RuntimeContext {
             conversation: Arc::new(Mutex::new(conversation)),
             update_tx,
             cancel,
+            session_tokens: Arc::new(StdMutex::new(SessionTokens::default())),
         }
     }
 
@@ -66,6 +70,8 @@ impl RuntimeContext {
         let turn_cancel = self.cancel.child_token();
         let tx = self.update_tx.clone();
         let conversation = Arc::clone(&self.conversation);
+        let session_tokens = Arc::clone(&self.session_tokens);
+        let input_for_estimate = input.clone();
 
         tokio::spawn(async move {
             set_runtime_prompt(&conversation, supplementary_system_prompt).await;
@@ -74,8 +80,11 @@ impl RuntimeContext {
 
             let send_handle = tokio::spawn(async move {
                 let mut mgr = conversation_for_send.lock().await;
-                mgr.send_message_with_policy(input, Some(&delta_tx), turn_tool_policy)
-                    .await
+                let result = mgr
+                    .send_message_with_policy(input, Some(&delta_tx), turn_tool_policy)
+                    .await;
+                let turn_tokens = mgr.take_last_turn_tokens();
+                (result, turn_tokens)
             });
 
             let mut textual_block_by_index = std::collections::HashMap::<usize, bool>::new();
@@ -111,10 +120,15 @@ impl RuntimeContext {
             }
 
             match send_result.expect("non-cancelled turn must await send_handle") {
-                Ok(Ok(_)) => {
+                Ok((Ok(response_text), turn_tokens)) => {
+                    let recorded =
+                        normalize_turn_tokens(&input_for_estimate, &response_text, turn_tokens);
+                    if let Ok(mut tokens) = session_tokens.lock() {
+                        tokens.record_turn(recorded);
+                    }
                     let _ = tx.send(UiUpdate::TurnComplete);
                 }
-                Ok(Err(e)) => {
+                Ok((Err(e), _)) => {
                     let _ = tx.send(UiUpdate::Error(e.to_string()));
                 }
                 Err(e) => {
@@ -205,6 +219,13 @@ impl RuntimeContext {
         self.conversation.lock().await.model_name()
     }
 
+    #[cfg(test)]
+    pub fn test_record_session_turn(&self, turn: TurnTokens) {
+        if let Ok(mut tokens) = self.session_tokens.lock() {
+            tokens.record_turn(turn);
+        }
+    }
+
     pub fn cancel_turn(&mut self) {
         self.cancel.cancel();
         self.cancel = CancellationToken::new();
@@ -239,6 +260,19 @@ impl RuntimeContext {
         let _ = self.update_tx.send(UiUpdate::TranscriptLine(line));
     }
 
+    pub fn session_tokens_snapshot(&self) -> SessionTokens {
+        self.session_tokens
+            .lock()
+            .map(|tokens| *tokens)
+            .unwrap_or_default()
+    }
+
+    pub fn reset_session_tokens(&self) {
+        if let Ok(mut tokens) = self.session_tokens.lock() {
+            tokens.reset();
+        }
+    }
+
     pub fn estimated_conversation_tokens(&self) -> usize {
         self.conversation
             .try_lock()
@@ -257,6 +291,18 @@ async fn set_runtime_prompt(
         manager.client()
     };
     client.set_supplementary_system_prompt(supplementary_system_prompt);
+}
+
+fn normalize_turn_tokens(input: &str, response: &str, turn_tokens: TurnTokens) -> TurnTokens {
+    if turn_tokens.is_zero() {
+        TurnTokens {
+            input: estimate_tokens(input),
+            output: estimate_tokens(response),
+            estimated: true,
+        }
+    } else {
+        turn_tokens
+    }
 }
 
 fn estimate_token_count(messages: &[crate::types::ApiMessage]) -> usize {

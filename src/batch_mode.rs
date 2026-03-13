@@ -1,5 +1,4 @@
 use anyhow::Result;
-use serde::Serialize;
 use std::collections::{BTreeSet, HashMap, VecDeque};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -17,6 +16,11 @@ use crate::runtime::{
 use crate::session_notes::{build_api_client_with_notes, clear_notes_file};
 use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest};
 use crate::tools::ToolOperator;
+use crate::turn_evidence::{
+    command_evidence_from_tool_result, note_changed_files_from_tool_call, SummaryRecord,
+    TurnEvidenceRecord,
+};
+use crate::usage::TurnTokens;
 use std::path::PathBuf;
 
 // ── Output format ─────────────────────────────────────────────────────────────
@@ -66,28 +70,6 @@ pub struct BatchResult {
     pub task_id: TaskId,
 }
 
-// ── JSONL turn record ──────────────────────────────────────────────────────────
-
-#[derive(Serialize)]
-struct TurnRecord<'a> {
-    turn: usize,
-    input: &'a str,
-    response: &'a str,
-    instructions_path: Option<&'a str>,
-    changed_files: Vec<String>,
-    command_history: Vec<serde_json::Value>,
-}
-
-#[derive(Serialize)]
-struct SummaryRecord<'a> {
-    summary: bool,
-    status: &'a str,
-    task_id: &'a str,
-    total_turns: usize,
-    instructions_path: Option<&'a str>,
-    changed_files: Vec<String>,
-}
-
 // ── BatchMode (RuntimeMode impl) ───────────────────────────────────────────────
 
 pub struct BatchMode {
@@ -104,7 +86,9 @@ pub struct BatchMode {
     current_turn: usize,
     current_turn_input: String,
     current_turn_changed_files: BTreeSet<String>,
+    task_changed_files: BTreeSet<String>,
     current_turn_command_history: Vec<CommandEvidence>,
+    current_turn_tokens: TurnTokens,
     pending_tool_calls: HashMap<String, PendingToolCall>,
     output_lines: Vec<String>,
 }
@@ -136,7 +120,9 @@ impl BatchMode {
             current_turn: 0,
             current_turn_input: String::new(),
             current_turn_changed_files: BTreeSet::new(),
+            task_changed_files: BTreeSet::new(),
             current_turn_command_history: Vec::new(),
+            current_turn_tokens: TurnTokens::default(),
             pending_tool_calls: HashMap::new(),
             output_lines: Vec::new(),
         }
@@ -166,6 +152,7 @@ impl BatchMode {
         self.current_turn_input.clear();
         self.current_turn_changed_files.clear();
         self.current_turn_command_history.clear();
+        self.current_turn_tokens = TurnTokens::default();
         self.pending_tool_calls.clear();
     }
 
@@ -176,8 +163,9 @@ impl BatchMode {
         self.turn_in_progress = false;
     }
 
-    fn finish_turn(&mut self) {
+    fn finish_turn(&mut self, tokens: TurnTokens) {
         self.current_turn += 1;
+        self.current_turn_tokens = tokens;
 
         let response = std::mem::take(&mut self.current_response);
         let input_text = std::mem::take(&mut self.current_turn_input);
@@ -186,22 +174,19 @@ impl BatchMode {
             .iter()
             .cloned()
             .collect::<Vec<_>>();
-        let command_history = self
-            .current_turn_command_history
-            .iter()
-            .map(|entry| {
-                serde_json::to_value(entry).expect("command evidence serialization must succeed")
-            })
-            .collect::<Vec<_>>();
+        self.task_changed_files
+            .extend(changed_files.iter().cloned());
+        let command_history = std::mem::take(&mut self.current_turn_command_history);
         match self.format {
             OutputFormat::Jsonl => {
-                let record = TurnRecord {
+                let record = TurnEvidenceRecord {
                     turn: self.current_turn,
-                    input: &input_text,
-                    response: &response,
-                    instructions_path: self.instructions_path.as_deref(),
+                    input: input_text,
+                    response,
+                    instructions_path: self.instructions_path.clone(),
                     changed_files,
                     command_history,
+                    tokens: self.current_turn_tokens,
                 };
                 let line = serde_json::to_string(&record)
                     .expect("batch JSONL turn record serialization must succeed");
@@ -216,6 +201,7 @@ impl BatchMode {
         }
 
         self.turn_in_progress = false;
+        self.current_turn_tokens = TurnTokens::default();
         self.pending_tool_calls.clear();
     }
 
@@ -224,11 +210,11 @@ impl BatchMode {
             let status_str = format!("{:?}", self.status);
             let record = SummaryRecord {
                 summary: true,
-                status: &status_str,
-                task_id: &self.task_id,
+                status: status_str,
+                task_id: self.task_id.clone(),
                 total_turns: self.current_turn,
-                instructions_path: self.instructions_path.as_deref(),
-                changed_files: self.current_turn_changed_files.iter().cloned().collect(),
+                instructions_path: self.instructions_path.clone(),
+                changed_files: self.task_changed_files.iter().cloned().collect(),
             };
             let line = serde_json::to_string(&record)
                 .expect("batch JSONL summary record serialization must succeed");
@@ -242,7 +228,7 @@ impl BatchMode {
         self.turn_in_progress = true;
         self.current_turn_input = input.to_string();
         self.current_response = message;
-        self.finish_turn();
+        self.finish_turn(TurnTokens::default());
         if !self.done {
             self.status = TaskStatus::Completed;
             self.append_summary();
@@ -256,7 +242,7 @@ impl BatchMode {
         self.turn_in_progress = true;
         self.current_turn_input = input.to_string();
         self.current_response = message;
-        self.finish_turn();
+        self.finish_turn(TurnTokens::default());
         if !self.done {
             self.status = TaskStatus::Failed;
             self.append_summary();
@@ -285,50 +271,13 @@ impl BatchMode {
     }
 
     fn note_changed_files_from_tool_call(&mut self, name: &str, input: &serde_json::Value) {
-        match name {
-            "write_file" | "apply_patch" | "edit_file" | "git_add" => {
-                if let Some(path) =
-                    first_string_field(input, &["path", "file_path", "file", "filename"])
-                {
-                    self.current_turn_changed_files.insert(path.to_string());
-                }
-            }
-            "rename_file" => {
-                for key in [
-                    "old_path",
-                    "from",
-                    "source_path",
-                    "new_path",
-                    "to",
-                    "target_path",
-                ] {
-                    if let Some(path) = first_string_field(input, &[key]) {
-                        self.current_turn_changed_files.insert(path.to_string());
-                    }
-                }
-            }
-            _ => {}
-        }
+        note_changed_files_from_tool_call(&mut self.current_turn_changed_files, name, input);
     }
 
     fn note_command_history_from_tool_result(&mut self, name: &str, is_error: bool) {
-        let program = match name {
-            "git_status" => Some("git status"),
-            "git_diff" => Some("git diff"),
-            "git_log" => Some("git log"),
-            "git_show" => Some("git show"),
-            "git_add" => Some("git add"),
-            "git_commit" => Some("git commit"),
-            _ => None,
-        };
-        let Some(program) = program else {
-            return;
-        };
-        self.current_turn_command_history.push(CommandEvidence {
-            program: program.to_string(),
-            exit_code: Some(if is_error { 1 } else { 0 }),
-            interrupted: false,
-        });
+        if let Some(evidence) = command_evidence_from_tool_result(name, is_error) {
+            self.current_turn_command_history.push(evidence);
+        }
     }
 }
 
@@ -377,14 +326,14 @@ impl RuntimeMode for BatchMode {
         ctx.start_turn(input);
     }
 
-    fn on_model_update(&mut self, update: UiUpdate, _ctx: &mut RuntimeContext) {
+    fn on_model_update(&mut self, update: UiUpdate, ctx: &mut RuntimeContext) {
         match update {
             UiUpdate::TranscriptLine(_) => {}
             UiUpdate::StreamDelta(text) => {
                 self.current_response.push_str(&text);
             }
             UiUpdate::TurnComplete => {
-                self.finish_turn();
+                self.finish_turn(ctx.session_tokens_snapshot().last_turn());
                 if !self.done {
                     self.status = TaskStatus::Completed;
                     self.append_summary();
@@ -393,7 +342,7 @@ impl RuntimeMode for BatchMode {
             }
             UiUpdate::Error(msg) => {
                 self.current_response.push_str(&msg);
-                self.finish_turn();
+                self.finish_turn(TurnTokens::default());
                 if !self.done {
                     self.status = TaskStatus::Failed;
                     self.append_summary();
@@ -404,7 +353,6 @@ impl RuntimeMode for BatchMode {
                 StreamBlock::ToolCall {
                     id, name, input, ..
                 } => {
-                    self.note_changed_files_from_tool_call(&name, &input);
                     self.pending_tool_calls
                         .insert(id, PendingToolCall { name, input });
                 }
@@ -414,7 +362,9 @@ impl RuntimeMode for BatchMode {
                     ..
                 } => {
                     if let Some(pending) = self.pending_tool_calls.remove(&tool_call_id) {
-                        self.note_changed_files_from_tool_call(&pending.name, &pending.input);
+                        if !is_error {
+                            self.note_changed_files_from_tool_call(&pending.name, &pending.input);
+                        }
                         self.note_command_history_from_tool_result(&pending.name, is_error);
                     }
                 }
@@ -432,13 +382,6 @@ impl RuntimeMode for BatchMode {
     fn is_turn_in_progress(&self) -> bool {
         self.turn_in_progress
     }
-}
-
-fn first_string_field<'a>(input: &'a serde_json::Value, keys: &[&str]) -> Option<&'a str> {
-    keys.iter()
-        .find_map(|key| input.get(*key).and_then(|value| value.as_str()))
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
 }
 
 // ── BatchFrontend (FrontendAdapter impl) ───────────────────────────────────────
@@ -986,6 +929,17 @@ mod tests {
         mode.on_model_update(
             UiUpdate::StreamBlockStart {
                 index: 1,
+                block: StreamBlock::ToolResult {
+                    tool_call_id: "tool-1".to_string(),
+                    output: "wrote file".to_string(),
+                    is_error: false,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 1,
                 block: StreamBlock::ToolCall {
                     id: "tool-2".to_string(),
                     name: "git_commit".to_string(),
@@ -1026,6 +980,59 @@ mod tests {
         assert_eq!(command_history.len(), 1);
         assert_eq!(command_history[0]["program"], "git commit");
         assert_eq!(command_history[0]["exit_code"], 0);
+    }
+
+    #[tokio::test]
+    async fn test_batch_mode_ignores_failed_tool_changed_file_evidence() {
+        let mut ctx = setup_batch_ctx();
+        let opts = BatchRunOpts {
+            format: OutputFormat::Jsonl,
+            ..Default::default()
+        };
+        let mut mode = BatchMode::new("test-task".to_string(), opts, None, None);
+
+        mode.on_user_input("task".to_string(), &mut ctx);
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 0,
+                block: StreamBlock::ToolCall {
+                    id: "tool-1".to_string(),
+                    name: "write_file".to_string(),
+                    input: serde_json::json!({
+                        "path": "src/main.rs",
+                        "content": "fn main() {}\n"
+                    }),
+                    status: crate::state::ToolStatus::Executing,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 1,
+                block: StreamBlock::ToolResult {
+                    tool_call_id: "tool-1".to_string(),
+                    output: "permission denied".to_string(),
+                    is_error: true,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(UiUpdate::StreamDelta("done".to_string()), &mut ctx);
+        mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+
+        let turn_line = mode.output_lines.first().expect("expected turn line");
+        let turn_json: serde_json::Value = serde_json::from_str(turn_line).unwrap();
+        let changed_files = turn_json["changed_files"]
+            .as_array()
+            .expect("changed_files must be present");
+        assert!(
+            !changed_files
+                .iter()
+                .filter_map(|value| value.as_str())
+                .any(|path| path == "src/main.rs"),
+            "failed tool calls must not be recorded as changed files"
+        );
     }
 
     #[tokio::test]
@@ -1167,17 +1174,59 @@ mod tests {
         mode.status = TaskStatus::Running;
         mode.turn_in_progress = true;
         mode.current_response = "done".to_string();
-        mode.finish_turn();
+        mode.finish_turn(TurnTokens {
+            input: 8,
+            output: 4,
+            estimated: false,
+        });
         mode.status = TaskStatus::Completed;
         mode.append_summary();
 
         let turn_json: serde_json::Value =
             serde_json::from_str(mode.output_lines.first().expect("expected turn line")).unwrap();
         assert_eq!(turn_json["instructions_path"], "AGENTS.md");
+        assert_eq!(turn_json["tokens"]["input"], 8);
 
         let summary_json: serde_json::Value =
             serde_json::from_str(mode.output_lines.last().expect("expected summary line")).unwrap();
         assert_eq!(summary_json["instructions_path"], "AGENTS.md");
+    }
+
+    #[test]
+    fn test_batch_mode_summary_keeps_changed_files_from_prior_turns() {
+        let opts = BatchRunOpts {
+            format: OutputFormat::Jsonl,
+            ..Default::default()
+        };
+        let mut mode = BatchMode::new("test-task".to_string(), opts, None, None);
+
+        mode.status = TaskStatus::Running;
+        mode.turn_in_progress = true;
+        mode.current_turn_changed_files
+            .insert("src/first.rs".to_string());
+        mode.finish_turn(TurnTokens::default());
+
+        mode.reset_current_turn_state();
+        mode.status = TaskStatus::Running;
+        mode.turn_in_progress = true;
+        mode.current_turn_changed_files
+            .insert("src/second.rs".to_string());
+        mode.finish_turn(TurnTokens::default());
+
+        mode.status = TaskStatus::Completed;
+        mode.append_summary();
+
+        let summary_json: serde_json::Value =
+            serde_json::from_str(mode.output_lines.last().expect("expected summary line")).unwrap();
+        let changed_files = summary_json["changed_files"]
+            .as_array()
+            .expect("summary changed_files must be present");
+        let changed_files = changed_files
+            .iter()
+            .filter_map(|value| value.as_str())
+            .collect::<Vec<_>>();
+        assert!(changed_files.contains(&"src/first.rs"));
+        assert!(changed_files.contains(&"src/second.rs"));
     }
 
     fn setup_batch_ctx() -> RuntimeContext {
@@ -1223,7 +1272,11 @@ mod tests {
         mode.turn_in_progress = true;
         mode.current_turn_input = "what is the answer".to_string();
         mode.current_response = "forty-two".to_string();
-        mode.finish_turn();
+        mode.finish_turn(TurnTokens {
+            input: 5,
+            output: 7,
+            estimated: true,
+        });
 
         let turn_json: serde_json::Value =
             serde_json::from_str(mode.output_lines.first().expect("expected turn line")).unwrap();
@@ -1234,6 +1287,8 @@ mod tests {
             "what is the answer",
             "input field must record the prompt text submitted for this turn"
         );
+        assert_eq!(turn_json["tokens"]["output"], 7);
+        assert_eq!(turn_json["tokens"]["estimated"], true);
     }
 
     #[tokio::test]

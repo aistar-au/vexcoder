@@ -4,6 +4,10 @@ use crate::runtime::CommandRequest;
 
 pub trait SandboxDriver: Send + Sync {
     fn wrap(&self, req: CommandRequest) -> Result<CommandRequest>;
+
+    fn probe(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]

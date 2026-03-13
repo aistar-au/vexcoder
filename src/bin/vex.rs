@@ -10,6 +10,8 @@ use std::time::{Duration, Instant};
 use vexcoder::app::{build_runtime, build_runtime_with_resume, TuiMode};
 use vexcoder::batch_mode::{run_batch, AutoApproveScope, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
+use vexcoder::doctor::run_doctor;
+use vexcoder::export::{render_task_export, write_export_output, ExportFormat};
 use vexcoder::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
 use vexcoder::runtime::{TaskState, TaskStatus};
 use vexcoder::ui::editor::{InputAction, InputEditor};
@@ -86,6 +88,21 @@ enum Commands {
     Migrate {
         #[command(subcommand)]
         sub: MigrateCommands,
+    },
+    /// Check environment health without starting the agent loop.
+    Doctor {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Export a saved task to JSONL or Markdown.
+    Export {
+        task_id: String,
+        #[arg(long, default_value = "jsonl", value_parser = ["jsonl", "markdown"])]
+        format: String,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -824,6 +841,35 @@ async fn main() -> Result<ExitCode> {
                 return Ok(ExitCode::SUCCESS);
             }
         },
+        Some(Commands::Doctor { json }) => {
+            let cwd = std::env::current_dir()?;
+            let report = run_doctor(&cwd).await;
+            let rendered = if json {
+                report.render_json()?
+            } else {
+                report.render_text()
+            };
+            println!("{rendered}");
+            return Ok(if report.has_failures() {
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            });
+        }
+        Some(Commands::Export {
+            task_id,
+            format,
+            output,
+            force,
+        }) => {
+            let format = ExportFormat::parse(&format)?;
+            let state = TaskState::load_from_search_dirs(&task_id)?;
+            let rendered = render_task_export(&state, format)?;
+            if write_export_output(&rendered, output.as_deref(), force)?.is_none() {
+                print!("{rendered}");
+            }
+            return Ok(ExitCode::SUCCESS);
+        }
         None => {}
     }
 
@@ -1155,6 +1201,40 @@ mod tests {
     fn test_install_hooks_cli_parses() {
         let cli = Cli::parse_from(["vex", "install-hooks"]);
         assert!(matches!(cli.command, Some(Commands::InstallHooks)));
+    }
+
+    #[test]
+    fn test_doctor_cli_parses_json_flag() {
+        let cli = Cli::parse_from(["vex", "doctor", "--json"]);
+        assert!(matches!(cli.command, Some(Commands::Doctor { json: true })));
+    }
+
+    #[test]
+    fn test_export_cli_parses_output_and_force() {
+        let cli = Cli::parse_from([
+            "vex",
+            "export",
+            "task-123",
+            "--format",
+            "markdown",
+            "--output",
+            "/tmp/export.md",
+            "--force",
+        ]);
+        match cli.command {
+            Some(Commands::Export {
+                task_id,
+                format,
+                output,
+                force,
+            }) => {
+                assert_eq!(task_id, "task-123");
+                assert_eq!(format, "markdown");
+                assert_eq!(output, Some(PathBuf::from("/tmp/export.md")));
+                assert!(force);
+            }
+            _ => panic!("expected export subcommand"),
+        }
     }
 
     #[test]

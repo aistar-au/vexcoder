@@ -4,6 +4,7 @@ use crate::config::HookConfig;
 use crate::tool_preview::ReadFileSnapshotCache;
 use crate::tools::ToolOperator;
 use crate::types::{ApiMessage, Content};
+use crate::usage::TurnTokens;
 use std::sync::Arc;
 #[cfg(test)]
 use std::{collections::HashMap, sync::Mutex};
@@ -48,6 +49,7 @@ pub struct ConversationManager {
     pub(super) hooks: Vec<HookConfig>,
     pub(super) api_messages: Vec<ApiMessage>,
     pub(super) current_turn_blocks: Vec<StreamBlock>,
+    pub(super) last_turn_tokens: TurnTokens,
     pub(super) read_file_history_cache: ReadFileSnapshotCache,
     #[cfg(test)]
     pub(super) mock_tool_operator_responses: Option<Arc<Mutex<HashMap<String, String>>>>,
@@ -69,6 +71,7 @@ impl ConversationManager {
             hooks,
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
+            last_turn_tokens: TurnTokens::default(),
             read_file_history_cache: ReadFileSnapshotCache::default(),
             #[cfg(test)]
             mock_tool_operator_responses: None,
@@ -83,6 +86,7 @@ impl ConversationManager {
             hooks: Vec::new(),
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
+            last_turn_tokens: TurnTokens::default(),
             read_file_history_cache: ReadFileSnapshotCache::default(),
             mock_tool_operator_responses: Some(Arc::new(Mutex::new(tool_operator_responses))),
         }
@@ -102,6 +106,7 @@ impl ConversationManager {
     pub fn clear_messages(&mut self) {
         self.api_messages.clear();
         self.current_turn_blocks.clear();
+        self.last_turn_tokens = TurnTokens::default();
         self.read_file_history_cache = ReadFileSnapshotCache::default();
     }
 
@@ -115,5 +120,9 @@ impl ConversationManager {
 
     pub fn client(&self) -> Arc<ApiClient> {
         Arc::clone(&self.client)
+    }
+
+    pub fn take_last_turn_tokens(&mut self) -> TurnTokens {
+        std::mem::take(&mut self.last_turn_tokens)
     }
 }
