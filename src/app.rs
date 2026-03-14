@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::custom_commands::{load_custom_commands, CustomCommand};
 use crate::prompts::{
     render_custom_command_instruction, render_edit_prompt, render_explain_prompt,
-    render_generate_tests_prompt, CODER_SYSTEM_PROMPT,
+    render_generate_tests_prompt, render_review_prompt, CODER_SYSTEM_PROMPT,
 };
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::context_assembler::{
@@ -69,9 +69,9 @@ use self::overlay::{
 use self::scroll::{input_rows_for_buffer, RenderGuard};
 use self::util::{
     builtin_slash_command_names, capability_for_tool_name, format_inline_block, kebab_to_scope,
-    list_recent_task_entries, new_task_id, parse_generate_tests_args, resolve_history_line_cap,
-    resolve_repo_label, run_validation_suite_capture, sanitize_task_label, scope_to_label,
-    shell_command_request, summarize_tool_outcome,
+    list_recent_task_entries, new_task_id, parse_generate_tests_args, parse_review_args,
+    resolve_history_line_cap, resolve_repo_label, run_validation_suite_capture, sanitize_task_label,
+    scope_to_label, shell_command_request, summarize_tool_outcome,
 };
 pub use self::util::{capability_to_kebab, kebab_to_capability};
 
@@ -148,6 +148,7 @@ enum SlashCommandId {
     Edit,
     Fix,
     Explain,
+    Review,
     Run,
     Test,
     Context,
@@ -241,6 +242,15 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         },
         "/explain [path]",
         "explain a file or region; no patch",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Review,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/review",
+            prefix: "/review ",
+        },
+        "/review [--base <git-ref>] [--files <glob>] [<instruction>]",
+        "review a diff or file set; no patch",
     ),
     SlashCommandSpec::new(
         SlashCommandId::Run,
@@ -416,6 +426,13 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
 struct GenerateTestsArgs {
     path: Option<String>,
     framework: Option<String>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ReviewArgs {
+    base: Option<String>,
+    files: Option<String>,
+    instruction: Option<String>,
 }
 
 struct HistoryState {

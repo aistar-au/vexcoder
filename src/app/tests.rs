@@ -2608,6 +2608,19 @@ fn test_tui_clear_clears_active_edit_loop_field() {
     );
 }
 
+async fn wait_for_model_turn(ctx: &RuntimeContext, label: &str) {
+    tokio::time::timeout(Duration::from_millis(500), async {
+        loop {
+            if ctx.test_message_count().await > 0 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("{label} must start a single model turn"));
+}
+
 #[tokio::test]
 async fn test_tui_explain_does_not_invoke_edit_loop() {
     let mut mode = TuiMode::new();
@@ -2618,16 +2631,7 @@ async fn test_tui_explain_does_not_invoke_edit_loop() {
 
     mode.on_user_input("/explain src/app.rs".to_string(), &mut ctx);
 
-    tokio::time::timeout(Duration::from_millis(500), async {
-        loop {
-            if ctx.test_message_count().await > 0 {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("/explain must start a single model turn");
+    wait_for_model_turn(&ctx, "/explain").await;
 
     assert!(
         mode.active_edit_loop.is_none(),
@@ -2710,6 +2714,188 @@ async fn test_read_only_turn_flag_clears_after_turn_completion() {
     assert!(
         mode.overlay_state.pending_approval.is_some(),
         "normal turns must restore the approval overlay"
+    );
+}
+
+#[tokio::test]
+async fn test_tui_review_default_assembles_head_diff() {
+    let mut ctx = setup_ctx_with_responses(vec![vec![
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Reviewed\"},\"finish_reason\":\"stop\"}]}".to_string(),
+    ]]);
+    let temp = tempfile::tempdir().unwrap();
+    init_git_repo(temp.path());
+    std::fs::write(temp.path().join("tracked.txt"), "hello\n").unwrap();
+    git_success(temp.path(), &["add", "tracked.txt"]);
+    git_success(temp.path(), &["commit", "-m", "init"]);
+    std::fs::write(temp.path().join("tracked.txt"), "world\n").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+    mode.on_user_input("/review".to_string(), &mut ctx);
+
+    wait_for_model_turn(&ctx, "/review").await;
+
+    assert!(
+        mode.active_edit_loop.is_none(),
+        "/review must not invoke EditLoop"
+    );
+    assert!(
+        mode.last_turn_input.as_deref().is_some_and(|prompt| {
+            prompt.contains("Review the implementation described below.")
+                && prompt.contains("Diff context:\n")
+                && prompt.contains("diff --git")
+                && prompt.contains("tracked.txt")
+        }),
+        "/review must render the review prompt with git diff context"
+    );
+}
+
+#[tokio::test]
+async fn test_tui_review_base_flag_validates_ref() {
+    let mut ctx = setup_ctx_with_responses(vec![vec![
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Reviewed\"},\"finish_reason\":\"stop\"}]}".to_string(),
+    ]]);
+    let temp = tempfile::tempdir().unwrap();
+    init_git_repo(temp.path());
+    std::fs::write(temp.path().join("tracked.txt"), "base\n").unwrap();
+    git_success(temp.path(), &["add", "tracked.txt"]);
+    git_success(temp.path(), &["commit", "-m", "init"]);
+    std::fs::write(temp.path().join("tracked.txt"), "changed\n").unwrap();
+    git_success(temp.path(), &["add", "tracked.txt"]);
+    git_success(temp.path(), &["commit", "-m", "change"]);
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+    mode.on_user_input("/review --base HEAD~1 inspect".to_string(), &mut ctx);
+
+    wait_for_model_turn(&ctx, "/review --base").await;
+
+    assert!(
+        mode.last_turn_input.as_deref().is_some_and(|prompt| {
+            prompt.contains("Request:\ninspect")
+                && prompt.contains("diff --git")
+                && prompt.contains("tracked.txt")
+                && prompt.contains("+changed")
+        }),
+        "/review --base must start a turn with the requested diff"
+    );
+}
+
+#[tokio::test]
+async fn test_tui_review_invalid_ref_emits_error_no_turn() {
+    let mut ctx = setup_ctx();
+    let temp = tempfile::tempdir().unwrap();
+    init_git_repo(temp.path());
+    std::fs::write(temp.path().join("tracked.txt"), "base\n").unwrap();
+    git_success(temp.path(), &["add", "tracked.txt"]);
+    git_success(temp.path(), &["commit", "-m", "init"]);
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+    let initial_messages = ctx.test_message_count().await;
+    mode.on_user_input("/review --base missing-ref".to_string(), &mut ctx);
+
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line == "[review: invalid base ref 'missing-ref']"));
+    assert!(
+        !mode.is_turn_in_progress(),
+        "invalid /review base refs must not start a turn"
+    );
+    assert_eq!(ctx.test_message_count().await, initial_messages);
+}
+
+#[tokio::test]
+async fn test_tui_review_mutual_exclusion_base_and_files() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    let initial_messages = ctx.test_message_count().await;
+
+    mode.on_user_input(
+        "/review --base HEAD --files src/*.rs inspect".to_string(),
+        &mut ctx,
+    );
+
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line == "[review: --base and --files are mutually exclusive]"));
+    assert!(!mode.is_turn_in_progress());
+    assert_eq!(ctx.test_message_count().await, initial_messages);
+}
+
+#[tokio::test]
+async fn test_tui_review_drops_pending_patch_silently() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    let temp = tempfile::tempdir().unwrap();
+    init_git_repo(temp.path());
+    std::fs::write(temp.path().join("tracked.txt"), "hello\n").unwrap();
+    git_success(temp.path(), &["add", "tracked.txt"]);
+    git_success(temp.path(), &["commit", "-m", "init"]);
+    std::fs::write(temp.path().join("tracked.txt"), "world\n").unwrap();
+
+    mode.working_dir = temp.path().to_path_buf();
+    mode.on_user_input("/review".to_string(), &mut ctx);
+
+    let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();
+    mode.on_model_update(
+        UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
+            tool_name: "apply_patch".to_string(),
+            input_preview: "{\"path\":\"tracked.txt\"}".to_string(),
+            response_tx,
+        }),
+        &mut ctx,
+    );
+
+    assert!(
+        !response_rx.await.expect("response should resolve"),
+        "/review must silently deny approval-requiring tool calls"
+    );
+    assert!(
+        mode.overlay_state.pending_approval.is_none(),
+        "/review must not surface the approval overlay"
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .all(|line| !line.contains("[tool approval requested:")),
+        "/review denial should stay silent in transcript output"
+    );
+}
+
+#[tokio::test]
+async fn test_tui_review_files_flag_uses_context_assembler() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx_with_responses(vec![vec![
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Reviewed\"},\"finish_reason\":\"stop\"}]}".to_string(),
+    ]]);
+    let temp = tempfile::tempdir().unwrap();
+    let src_dir = temp.path().join("src");
+    std::fs::create_dir_all(&src_dir).unwrap();
+    std::fs::write(src_dir.join("lib.rs"), "pub fn answer() -> i32 { 42 }\n").unwrap();
+
+    mode.working_dir = temp.path().to_path_buf();
+    mode.on_user_input("/review --files src/*.rs inspect".to_string(), &mut ctx);
+
+    wait_for_model_turn(&ctx, "/review --files").await;
+
+    let assembled = mode
+        .last_assembled_context
+        .as_ref()
+        .expect("/review --files must capture assembled context");
+    assert!(assembled
+        .file_snapshots
+        .iter()
+        .any(|snapshot| snapshot.path == std::path::Path::new("src/lib.rs")));
+    assert!(
+        mode.last_turn_input.as_deref().is_some_and(|prompt| {
+            prompt.contains("[review files] pattern: src/*.rs")
+                && prompt.contains("src/lib.rs")
+                && prompt.contains("pub fn answer() -> i32 { 42 }")
+        }),
+        "/review --files must render assembled file context"
     );
 }
 

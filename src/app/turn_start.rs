@@ -46,9 +46,8 @@ impl TuiMode {
             .unwrap_or(CODER_SYSTEM_PROMPT)
     }
 
-    pub(super) fn assemble_rendered_context(&mut self, scope_instruction: &str) -> String {
+    pub(super) fn try_assemble_context(&mut self, scope_instruction: &str) -> Result<AssembledContext> {
         let assembler = ContextAssembler::default();
-        let render_assembler = assembler.clone();
         let operator = ToolOperator::new(self.working_dir.clone());
         let scope_instruction_for_task = scope_instruction.to_string();
         let assembled = block_on_context_task(async move {
@@ -57,15 +56,16 @@ impl TuiMode {
             })
             .await
             .map_err(|error| anyhow::anyhow!("failed to join context assembly task: {error}"))?
-        })
-        .ok();
-        if let Some(context) = assembled.clone() {
-            self.last_assembled_context = Some(context);
-        }
-        assembled
-            .as_ref()
-            .map(|context| render_assembler.render(context))
-            .unwrap_or_else(|| "## Context\n[context: unavailable]\n".to_string())
+        })?;
+        self.last_assembled_context = Some(assembled.clone());
+        Ok(assembled)
+    }
+
+    pub(super) fn assemble_rendered_context(&mut self, scope_instruction: &str) -> String {
+        let render_assembler = ContextAssembler::default();
+        self.try_assemble_context(scope_instruction)
+            .map(|context| render_assembler.render(&context))
+            .unwrap_or_else(|_| "## Context\n[context: unavailable]\n".to_string())
     }
 
     pub(super) fn resolved_notes_path(&self) -> Option<PathBuf> {
