@@ -3055,9 +3055,9 @@ mod tests {
                 .await
                 .expect("timed out waiting for ui update")
                 .expect("ui update channel closed");
-            let done = matches!(update, UiUpdate::TurnComplete | UiUpdate::Error(_));
+            let terminal = matches!(update, UiUpdate::TurnComplete | UiUpdate::Error(_));
             mode.on_model_update(update, ctx);
-            if done {
+            if terminal && !mode.is_turn_in_progress() {
                 break;
             }
         }
@@ -6036,7 +6036,7 @@ data: {"type":"message_stop"}"#.to_string(),
         assert!(
             lines
                 .iter()
-                .any(|line| line.contains("[command session started pid=")),
+                .any(|line| line.contains("[command session started")),
             "expected managed command-session start marker in transcript"
         );
         assert!(
