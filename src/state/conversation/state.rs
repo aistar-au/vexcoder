@@ -86,7 +86,7 @@ impl ConversationManager {
     pub fn new_mock(client: ApiClient, tool_operator_responses: HashMap<String, String>) -> Self {
         Self {
             client: Arc::new(client),
-            tool_operator: ToolOperator::new(std::path::PathBuf::from("/tmp")), // Dummy operator
+            tool_operator: ToolOperator::new(std::env::temp_dir()), // Cross-platform temp dir
             hooks: Vec::new(),
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
