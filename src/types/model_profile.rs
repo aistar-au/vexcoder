@@ -37,7 +37,10 @@ impl ModelProfile {
             system_prompt: PathBuf::from(CODER_SYSTEM_PROMPT_PATH),
             temperature: 0.3,
             top_p: 1.0,
-            max_tokens: 4096,
+            max_tokens: match backend {
+                ModelBackendKind::LocalRuntime => 1024,
+                ModelBackendKind::ApiServer => 4096,
+            },
             stop_sequences: Vec::new(),
             structured_tools: matches!(backend, ModelBackendKind::ApiServer),
             reasoning_budget: 0,
@@ -146,6 +149,14 @@ mod tests {
 
     #[test]
     fn test_default_profile_follows_backend_defaults() {
+        assert_eq!(
+            ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime).max_tokens,
+            1024
+        );
+        assert_eq!(
+            ModelProfile::default_for_backend(ModelBackendKind::ApiServer).max_tokens,
+            4096
+        );
         assert_eq!(
             ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime).tool_call_mode(),
             ToolCallMode::TaggedFallback
