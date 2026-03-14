@@ -17,6 +17,7 @@ Cargo.lock.report
 .idea/
 *.swp
 *.bak
+.agents/
 
 # --- TDM Strategy ---
 # We keep TASKS/ in git, but you might want to ignore temp logs if you create them
