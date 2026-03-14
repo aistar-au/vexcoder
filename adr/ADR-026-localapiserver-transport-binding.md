@@ -25,13 +25,16 @@ This ADR therefore does **not** need to invent a new event schema. Its job is na
 
 For milestone 1, CLI/TUI remains the primary operator surface. `LocalApiServer` exists to project ADR-025 envelopes across HTTP or socket boundaries without duplicating runtime behavior, so later adapters can hand off tasks and events as canonical JSON. Browser-specific origin policy, headers, and any in-tree web UI remain deferred.
 
-**Checklist continuation note:** ADR-024 Phase I checklist items PI-01 through PI-08 cover session lifecycle and command-surface work. **Note:** PI-08 (`/plan` and `/context`) is tracked in ADR-023 EL-11/EL-12 and is only listed in ADR-024 for cross-reference. ADR-025 continues the LocalApiServer track from PI-09 through PI-12 for the canonical JSON handoff contract. This ADR continues from PI-13 through PI-16 for transport binding.
+**Checklist continuation note:** ADR-024 Phase I checklist items PI-01 through PI-08 cover session lifecycle and command-surface work. **Note:** PI-08 (`/plan` and `/context`) is tracked in ADR-023 EL-11/EL-12 and is only listed in ADR-024 for cross-reference. ADR-025 continues the LocalApiServer track from PI-09 through PI-12 for the canonical JSON handoff contract. This ADR continues from PI-13 through PI-16 for transport binding. ADR-028 defines the application-facade and transport-boundary rule that later CLI and server work must respect. A reconciliation change must keep ADR-024's Phase I checklist and config-key section aligned with ADR-025 and ADR-026 before transport work is treated as merge-ready.
 
 ---
 
 ## Sequencing guard
 
-This ADR satisfies ADR-024's Phase I specification requirement, but implementation must not begin until milestone-1 correctness work (ADR-022 phases 1–8 plus ADR-023 deterministic edit loop) is validated end-to-end.
+This ADR satisfies ADR-024's Phase I specification requirement, but implementation must not begin until:
+
+1. Phase H (macOS packaging and distribution) is complete, and
+2. milestone-1 correctness work (ADR-022 phases 1–8 plus ADR-023 deterministic edit loop) is validated end-to-end.
 
 No dispatcher may begin LocalApiServer implementation before that gate is green.
 

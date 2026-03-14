@@ -12,6 +12,7 @@ mdbook serve docs
 ```
 
 - [Introduction](docs/src/introduction.md)
+- [Architecture Overview](docs/src/architecture.md)
 - [Quick Start](docs/src/quick-start.md)
 - [Installation — macOS, Linux, Windows](docs/src/installation/index.md)
 - [Configuration](docs/src/configuration.md)
@@ -20,7 +21,8 @@ mdbook serve docs
 
 Architecture records live under [`adr/`](adr/ADR-README.md). They are kept in
 the repository for design history, but are not part of the published user
-guide.
+guide. The current runtime, application, and transport layout is summarized in
+[`docs/src/architecture.md`](docs/src/architecture.md), with ADR-025 through ADR-028 carrying the detailed design history.
 
 ## Contributing
 

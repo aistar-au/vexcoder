@@ -95,6 +95,8 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 **Phase I (local API server)** requires a dedicated ADR specifying wire protocol, local socket authentication, and streaming response format before any dispatcher begins work. It may not begin before milestone-1 correctness work is validated end-to-end.
 
+The dedicated ADRs for Phase I are ADR-025 (canonical runtime JSON handoff contract), ADR-026 (LocalApiServer transport binding), and ADR-028 (application facade and transport boundaries). ADR-025 and ADR-026 define the machine-readable and transport-facing surfaces; ADR-028 defines the application-layer dependency boundary they must use.
+
 ---
 
 ## Decision
@@ -1537,6 +1539,8 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-14** | `GET /v1/schema` serving the ADR-025 schema bundle; exempt from envelope validation | [ ] |
 | **PI-15** | Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, explicit loopback detection (`127.0.0.0/8`, `::1`, `localhost` resolving only to loopback), minimum TLS version 1.2 with 1.3 preferred, private-network certificate support (self-signed/internal-CA/public-CA), `tls_cert`/`tls_key` PEM and key-match validation, `tls_ca_cert` operator trust-bundle support, explicit `tls_skip_verify` rejection, reserved `vpn_trust` config guard, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` HTTP-vs-Unix split, config guards, and repo-local secret rejection | [ ] |
 | **PI-16** | Integration tests for stream order, keepalive emission, auth failures, loopback classification (`127.0.0.1`, other `127/8`, `::1`, and `localhost`), schema validation, mid-stream runtime error, max-turns terminal sequence, interrupt `404`, reconnect/new-turn behavior, non-loopback-without-TLS rejection, TLS 1.2 minimum enforcement, `tls_cert`/`tls_key` mismatch rejection, `tls_skip_verify=true` rejection, and `vpn_trust=true` rejection until a dedicated ADR exists | [ ] |
+
+**Phase I continuation note:** PI-09 through PI-16 are the post-PI-08 continuation of ADR-024's reserved LocalApiServer track. PI-08 (`/plan` and `/context`) remains tracked in ADR-023 EL-11/EL-12 and is listed here only for cross-reference. ADR-028 adds the application-facade and transport-boundary constraint that later CLI and LocalApiServer refactors must follow.
 | **PJ-01** | `/clear` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [x] |
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
 | **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [x] |

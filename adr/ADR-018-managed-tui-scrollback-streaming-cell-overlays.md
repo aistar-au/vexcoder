@@ -123,3 +123,7 @@ command-session capture alignment).
 - StreamBlock events for transcript
 
 See ADR-027 for the corrected implementation details.
+
+## Architecture Boundary Note (2026-03-15)
+
+ADR-028 defines the longer-term application and transport split that ADR-018 did not make explicit. This superseded ADR must not be read as permission for the long-term application layer to keep mixing TUI/session state, runtime coordination, shared command semantics, or startup wiring. Those concerns now belong behind an explicit application facade, with terminal and transport concerns implemented in separate outer modules.

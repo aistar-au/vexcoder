@@ -84,12 +84,13 @@ the product-side constraints:
 | `adr/ADR-025-runtime-json-handoff-contract.md` | Phase I canonical runtime JSON handoff contract and post-gate dispatch entry point. |
 | `adr/ADR-026-localapiserver-transport-binding.md` | Phase I transport binding, TLS rules, and post-ADR-025 dispatch sequence. |
 | `adr/ADR-027-full-screen-tui-command-session-capture.md` | Full-screen TUI and command-session capture alignment, plus current implementation limits. |
+| `adr/ADR-028-application-facade-and-transport-boundaries.md` | Application/runtime/transport dependency boundary and `src/app.rs` decomposition plan. |
 | `Makefile` | Local verification entry points and architecture gate wrappers. |
 
 ## Current cross-repo dependency state
 
 For dispatcher-owned workflow and skill routing, the current active ADR set is
-ADR-021 through ADR-027. `adr/ADR-README.md` remains the full source of
+ADR-021 through ADR-028. `adr/ADR-README.md` remains the full source of
 truth for the broader open-ADR list.
 
 | ADR | Current state | Dependency note |
@@ -101,6 +102,7 @@ truth for the broader open-ADR list.
 | ADR-025 | Proposed | First post-gate Phase I dispatch target (`PI-09` through `PI-12`); implementation remains gated on milestone-1 correctness validation. |
 | ADR-026 | Proposed | Follows ADR-025 closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation remains gated on milestone-1 correctness validation. |
 | ADR-027 | Accepted | Full-screen TUI with command-session capture, concurrent validation, and current follow-up limits. Supersedes ADR-018 and ADR-019. |
+| ADR-028 | Proposed | Defines the application facade and transport boundary so future CLI and LocalApiServer work does not extend `src/app.rs` or `src/bin/vex.rs` as permanent convergence points. |
 
 ## Verification baseline
 

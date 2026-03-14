@@ -75,6 +75,7 @@ style full-screen session model:
 - Concurrent inline command sessions now share the same managed transcript, but saved task evidence still records the batch at task-turn level rather than as independent structured session records.
 - Interactive transcript history remains uncapped by default so the full-screen session keeps terminal-style scrollback semantics. Bounding RAM is deferred to a paged or file-backed transcript store; `VEX_MAX_HISTORY_LINES` remains an operator override rather than the default behavior.
 - PTY-backed interactive tools still depend on `portable_pty` through `src/runtime/command.rs::attach_pty()`. That dependency remains live in this branch and was not removed by the full-screen capture cutover. A full async PTY integration remains future work.
+- ADR-028 is the follow-up boundary ADR for splitting long-term application coordination away from transport framing and startup routing. This ADR covers the full-screen TUI and captured command-session behavior only; it does not authorize `src/app.rs` or `src/bin/vex.rs` to remain the permanent home of shared machine-readable runtime seams or server transport code.
 
 ## Regression Coverage
 
