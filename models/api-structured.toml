@@ -1,0 +1,8 @@
+name = "api-structured"
+system_prompt = "src/prompts/coder_system.txt"
+temperature = 0.2
+top_p = 0.95
+max_tokens = 4096
+stop_sequences = ["\n```\n", "<|endoftext|>"]
+structured_tools = true
+reasoning_budget = 0

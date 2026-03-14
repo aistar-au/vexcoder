@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 use crate::prompts::CODER_SYSTEM_PROMPT;
@@ -7,7 +7,7 @@ use crate::runtime::{ModelBackendKind, ToolCallMode};
 
 const CODER_SYSTEM_PROMPT_PATH: &str = "src/prompts/coder_system.txt";
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ModelProfile {
     pub name: String,
@@ -37,7 +37,10 @@ impl ModelProfile {
             system_prompt: PathBuf::from(CODER_SYSTEM_PROMPT_PATH),
             temperature: 0.3,
             top_p: 1.0,
-            max_tokens: 4096,
+            max_tokens: match backend {
+                ModelBackendKind::LocalRuntime => 1024,
+                ModelBackendKind::ApiServer => 4096,
+            },
             stop_sequences: Vec::new(),
             structured_tools: matches!(backend, ModelBackendKind::ApiServer),
             reasoning_budget: 0,
@@ -105,10 +108,10 @@ mod tests {
 
     #[test]
     fn test_model_profile_loads_from_toml() {
-        let profile = ModelProfile::load(&repo_root().join("models/qwen-coder.toml"))
-            .expect("qwen fixture should load");
+        let profile = ModelProfile::load(&repo_root().join("models/api-structured.toml"))
+            .expect("structured fixture should load");
 
-        assert_eq!(profile.name, "qwen-coder");
+        assert_eq!(profile.name, "api-structured");
         assert_eq!(
             profile.system_prompt,
             PathBuf::from(CODER_SYSTEM_PROMPT_PATH)
@@ -137,8 +140,8 @@ mod tests {
 
     #[test]
     fn test_model_profile_structured_tools_false_uses_tagged_fallback() {
-        let profile = ModelProfile::load(&repo_root().join("models/codellama.toml"))
-            .expect("codellama fixture should load");
+        let profile = ModelProfile::load(&repo_root().join("models/local-tagged.toml"))
+            .expect("tagged fixture should load");
 
         assert!(!profile.structured_tools);
         assert_eq!(profile.tool_call_mode(), ToolCallMode::TaggedFallback);
@@ -146,6 +149,14 @@ mod tests {
 
     #[test]
     fn test_default_profile_follows_backend_defaults() {
+        assert_eq!(
+            ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime).max_tokens,
+            1024
+        );
+        assert_eq!(
+            ModelProfile::default_for_backend(ModelBackendKind::ApiServer).max_tokens,
+            4096
+        );
         assert_eq!(
             ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime).tool_call_mode(),
             ToolCallMode::TaggedFallback

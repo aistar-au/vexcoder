@@ -52,6 +52,11 @@ pub struct ApiClient {
     model_protocol: ModelProtocol,
     tool_call_mode: ToolCallMode,
     model_headers: reqwest::header::HeaderMap,
+    temperature: f32,
+    top_p: f32,
+    max_tokens: u32,
+    stop_sequences: Vec<String>,
+    reasoning_budget: u32,
     /// Project instructions block appended to the base prompt when present.
     project_instructions: Option<String>,
     notes_content: Option<String>,
@@ -77,6 +82,11 @@ impl ApiClient {
             model_protocol: config.model_protocol,
             tool_call_mode: config.tool_call_mode,
             model_headers: config.model_headers.clone(),
+            temperature: config.model_profile.temperature,
+            top_p: config.model_profile.top_p,
+            max_tokens: config.model_profile.max_tokens,
+            stop_sequences: config.model_profile.stop_sequences.clone(),
+            reasoning_budget: config.model_profile.reasoning_budget,
             project_instructions: None,
             notes_content: None,
             #[cfg(test)]
@@ -98,6 +108,11 @@ impl ApiClient {
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
             model_headers: reqwest::header::HeaderMap::new(),
+            temperature: 0.3,
+            top_p: 1.0,
+            max_tokens: 4096,
+            stop_sequences: Vec::new(),
+            reasoning_budget: 0,
             project_instructions: None,
             notes_content: None,
             mock_stream_producer: Some(mock_producer),
@@ -220,7 +235,7 @@ impl ApiClient {
         }
 
         let request_url = self.request_url();
-        let max_tokens = resolve_max_tokens(&self.api_url);
+        let max_tokens = resolve_max_tokens(self.max_tokens);
         let api_protocol = self.api_protocol();
         let model = self.model_name();
         let system_prompt = self.system_prompt();
@@ -229,6 +244,8 @@ impl ApiClient {
                 let mut payload = json!({
                     "model": model,
                     "max_tokens": max_tokens,
+                    "temperature": self.temperature,
+                    "top_p": self.top_p,
                     "stream": true,
                     "system": system_prompt.clone(),
                     "messages": messages,
@@ -240,12 +257,20 @@ impl ApiClient {
                     payload_object.insert("tool_choice".to_string(), json!({ "type": "auto" }));
                     payload_object.insert("tools".to_string(), tool_definitions());
                 }
+                if !self.stop_sequences.is_empty() {
+                    let payload_object = payload
+                        .as_object_mut()
+                        .expect("payload must be a JSON object");
+                    payload_object.insert("stop_sequences".to_string(), json!(self.stop_sequences));
+                }
                 payload
             }
             ApiProtocol::ChatCompat => {
                 let mut payload = json!({
                     "model": model,
                     "max_tokens": max_tokens,
+                    "temperature": self.temperature,
+                    "top_p": self.top_p,
                     "stream": true,
                     "messages": chat_compat_messages(messages, &system_prompt),
                 });
@@ -255,6 +280,19 @@ impl ApiClient {
                         .expect("payload must be a JSON object");
                     payload_object.insert("tool_choice".to_string(), json!("auto"));
                     payload_object.insert("tools".to_string(), tool_definitions_chat_compat());
+                }
+                if !self.stop_sequences.is_empty() {
+                    let payload_object = payload
+                        .as_object_mut()
+                        .expect("payload must be a JSON object");
+                    payload_object.insert("stop".to_string(), json!(self.stop_sequences));
+                }
+                if self.reasoning_budget > 0 {
+                    let payload_object = payload
+                        .as_object_mut()
+                        .expect("payload must be a JSON object");
+                    payload_object
+                        .insert("reasoning_effort".to_string(), json!(self.reasoning_budget));
                 }
                 payload
             }
@@ -377,19 +415,14 @@ fn resolve_structured_tool_protocol(api_url: &str) -> bool {
     !is_local_endpoint_url(api_url)
 }
 
-fn resolve_max_tokens(api_url: &str) -> u32 {
+fn resolve_max_tokens(default_max_tokens: u32) -> u32 {
     if let Some(value) = std::env::var("VEX_MAX_TOKENS")
         .ok()
         .and_then(|v| v.trim().parse::<u32>().ok())
     {
         return value.clamp(128, 8192);
     }
-
-    if is_local_endpoint_url(api_url) {
-        1024
-    } else {
-        4096
-    }
+    default_max_tokens
 }
 
 #[allow(dead_code)]
@@ -808,9 +841,9 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_max_tokens_defaults_for_local() {
-        let tokens = resolve_max_tokens("http://localhost:8000/v1/messages");
-        assert_eq!(tokens, 1024);
+    fn test_resolve_max_tokens_defaults_to_profile_budget() {
+        let tokens = resolve_max_tokens(4096);
+        assert_eq!(tokens, 4096);
     }
 
     #[test]
@@ -859,6 +892,9 @@ mod tests {
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::TaggedFallback,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                ModelBackendKind::LocalRuntime,
+            ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
@@ -883,6 +919,9 @@ mod tests {
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::TaggedFallback,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                ModelBackendKind::LocalRuntime,
+            ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
@@ -906,6 +945,9 @@ mod tests {
             model_backend: ModelBackendKind::ApiServer,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                ModelBackendKind::ApiServer,
+            ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),

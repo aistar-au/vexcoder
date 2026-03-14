@@ -1,4 +1,4 @@
-name = "deepseek-coder"
+name = "api-balanced"
 system_prompt = "src/prompts/coder_system.txt"
 temperature = 0.2
 top_p = 0.9
