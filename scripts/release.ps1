@@ -11,7 +11,13 @@ param(
 
     [string]$BuildTool = $(if ($env:BUILD_TOOL) { $env:BUILD_TOOL } else { "cargo" }),
 
-    [switch]$RunGate
+    [switch]$RunGate,
+
+    [switch]$GateOnly,
+
+    [switch]$BuildOnly,
+
+    [switch]$PackageOnly
 )
 
 Set-StrictMode -Version Latest
@@ -29,6 +35,9 @@ Inputs:
   OUT_DIR / arg3   output directory (default: dist)
   BUILD_TOOL       cargo or cross (default: cargo)
   RUN_GATE         run cargo fmt/clippy/check/test before packaging
+  GATE_ONLY        run the gate and exit without building or packaging
+  BUILD_ONLY       build the release binary and exit without packaging
+  PACKAGE_ONLY     package an existing binary at target/<target>/release
 "@
 }
 
@@ -41,6 +50,21 @@ function Get-RequiredCommand {
     }
 
     return $command.Source
+}
+
+function Assert-ReleaseMode {
+    $modeCount = @($GateOnly, $BuildOnly, $PackageOnly) | Where-Object { $_ } | Measure-Object | Select-Object -ExpandProperty Count
+    if ($modeCount -gt 1) {
+        throw "FAIL: GateOnly, BuildOnly, and PackageOnly are mutually exclusive"
+    }
+
+    if ($GateOnly -and -not $RunGate) {
+        throw "FAIL: GateOnly requires RunGate"
+    }
+
+    if ($PackageOnly -and $RunGate) {
+        throw "FAIL: PackageOnly cannot be combined with RunGate"
+    }
 }
 
 function Get-LatestDirectory {
@@ -185,24 +209,34 @@ if ($Version -notmatch '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$') {
     throw "FAIL: VERSION must look like v0.1.0 or v0.1.0-alpha.1"
 }
 
-if ($BuildTool -notin @("cargo", "cross")) {
-    throw "FAIL: BUILD_TOOL must be 'cargo' or 'cross' (got '$BuildTool')"
-}
+Assert-ReleaseMode
 
 $cargoBin = Join-Path $env:USERPROFILE ".cargo\bin"
 if (Test-Path $cargoBin) {
     $env:PATH = "$cargoBin;$env:PATH"
 }
 
-$cargoPath = Get-RequiredCommand -Name "cargo"
-$buildToolPath = if ($BuildTool -eq "cargo") { $cargoPath } else { Get-RequiredCommand -Name $BuildTool }
+$needsBuild = -not $GateOnly -and -not $PackageOnly
+$needsCargo = $RunGate -or $needsBuild
 
-if ($Target -like "*windows-msvc") {
+if ($needsBuild -and $BuildTool -notin @("cargo", "cross")) {
+    throw "FAIL: BUILD_TOOL must be 'cargo' or 'cross' (got '$BuildTool')"
+}
+
+if ($needsCargo) {
+    $cargoPath = Get-RequiredCommand -Name "cargo"
+    $buildToolPath = if ($BuildTool -eq "cargo") { $cargoPath } else { Get-RequiredCommand -Name $BuildTool }
+}
+
+if ($needsBuild -and $Target -like "*windows-msvc") {
     Set-MsvcEnvironment
 }
 
 if ($RunGate) {
     Invoke-NativeGate -CargoPath $cargoPath
+    if ($GateOnly) {
+        return
+    }
 }
 
 $archiveVersion = $Version.TrimStart("v")
@@ -221,6 +255,20 @@ $stageDir = Join-Path $OutDir $packageDir
 $archivePath = Join-Path $OutDir $archiveName
 $checksumPath = "$archivePath.sha256"
 
+if ($needsBuild) {
+    & $buildToolPath build --release --target $Target
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+}
+
+if ($BuildOnly) {
+    if (-not (Test-Path $binaryPath)) {
+        throw "FAIL: built binary not found at $binaryPath"
+    }
+    return
+}
+
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 
 foreach ($path in @($stageDir, $archivePath, $checksumPath)) {
@@ -230,11 +278,6 @@ foreach ($path in @($stageDir, $archivePath, $checksumPath)) {
 }
 
 New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
-
-& $buildToolPath build --release --target $Target
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
 
 if (-not (Test-Path $binaryPath)) {
     throw "FAIL: built binary not found at $binaryPath"

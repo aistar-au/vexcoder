@@ -13,6 +13,10 @@ pub struct RuntimeContext {
     session_tokens: Arc<StdMutex<SessionTokens>>,
 }
 
+pub(crate) struct EditTurnResult {
+    pub patch_applied: bool,
+}
+
 impl Clone for RuntimeContext {
     fn clone(&self) -> Self {
         Self {
@@ -188,15 +192,18 @@ impl RuntimeContext {
     /// Used by `EditLoop::run` to execute assemble→model→apply cycles without
     /// spawning a detached task. The conversation lock is held only for the
     /// duration of `send_message_with_policy`.
-    pub async fn drive_edit_turn(&self, input: String) -> anyhow::Result<String> {
+    pub(crate) async fn drive_edit_turn(&self, input: String) -> anyhow::Result<EditTurnResult> {
         let (delta_tx, mut delta_rx) = mpsc::unbounded_channel::<ConversationStreamUpdate>();
         let conversation = Arc::clone(&self.conversation);
         let tx = self.update_tx.clone();
 
         let send_handle = tokio::spawn(async move {
             let mut mgr = conversation.lock().await;
-            mgr.send_message_with_policy(input, Some(&delta_tx), TurnToolPolicy::Default)
-                .await
+            let result = mgr
+                .send_message_with_policy(input, Some(&delta_tx), TurnToolPolicy::Default)
+                .await;
+            let patch_applied = mgr.current_turn_has_successful_mutation();
+            (result, patch_applied)
         });
 
         let mut textual_block_by_index = std::collections::HashMap::<usize, bool>::new();
@@ -205,8 +212,8 @@ impl RuntimeContext {
         }
 
         match send_handle.await {
-            Ok(Ok(response_text)) => Ok(response_text),
-            Ok(Err(e)) => Err(e),
+            Ok((Ok(_response_text), patch_applied)) => Ok(EditTurnResult { patch_applied }),
+            Ok((Err(e), _)) => Err(e),
             Err(e) => Err(anyhow::anyhow!("edit turn task failed: {e}")),
         }
     }
@@ -562,7 +569,9 @@ mod tests {
         );
 
         ctx.start_edit_loop(
-            EditLoop::new("task-edit-loop-prompt".to_string()).with_max_turns(128),
+            EditLoop::new("task-edit-loop-prompt".to_string())
+                .with_max_turns(128)
+                .with_working_dir(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))),
             "fix the parser".to_string(),
         );
 

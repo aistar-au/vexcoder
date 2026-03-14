@@ -89,6 +89,12 @@ Overrides the project instructions token budget.
 
 Overrides the notes token budget.
 
+### `VEX_MAX_COMMAND_OUTPUT_BYTES`
+
+Maximum bytes kept in the accumulated stdout/stderr buffer returned to the
+model after a `run_command` tool call. The full output is always streamed to
+the TUI transcript. Default: `51200` (50 KiB).
+
 ## `vex init` scaffold
 
 `vex init` writes a commented config skeleton. It includes some reserved

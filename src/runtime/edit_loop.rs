@@ -96,8 +96,6 @@ impl EditLoop {
         let runner = DefaultCommandRunner::new();
 
         let mut retry_context = String::new();
-        let mut patch_applied: bool;
-
         for turn in 0..self.max_turns {
             if cancel.is_cancelled() {
                 return Ok(EditLoopOutcome::Cancelled);
@@ -117,19 +115,25 @@ impl EditLoop {
             ctx.emit_transcript_line(format!("[edit loop turn {}/{}]", turn + 1, self.max_turns));
 
             // Model: drive a full tool-loop turn (read/edit/write/command).
-            match ctx.drive_edit_turn(message).await {
-                Ok(_response) => {
-                    patch_applied = true;
-                }
+            let patch_applied = match ctx.drive_edit_turn(message).await {
+                Ok(turn_result) => turn_result.patch_applied,
                 Err(err) => {
                     ctx.emit_transcript_line(format!("[edit loop turn error: {err}]"));
                     retry_context = format!("[previous turn failed: {err}]");
                     continue;
                 }
-            }
+            };
 
             if cancel.is_cancelled() {
                 return Ok(EditLoopOutcome::Cancelled);
+            }
+
+            if !patch_applied {
+                ctx.emit_transcript_line("[edit loop: no patch applied, retrying]".to_string());
+                retry_context =
+                    "[previous turn produced no patch; propose and apply a concrete edit]"
+                        .to_string();
+                continue;
             }
 
             // Validate: run the project validation suite concurrently.
@@ -375,6 +379,57 @@ mod tests {
         assert!(
             matches!(outcome, EditLoopOutcome::Cancelled),
             "loop must return Cancelled when token fires mid-run"
+        );
+    }
+
+    fn final_text_turn(message_id: &str, text: &str) -> Vec<String> {
+        vec![
+            format!(
+                r#"event: message_start
+data: {{"type":"message_start","message":{{"id":"{message_id}","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{{"input_tokens":10,"output_tokens":1}}}}}}"#
+            ),
+            r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#
+                .to_string(),
+            format!(
+                r#"event: content_block_delta
+data: {{"type":"content_block_delta","index":0,"delta":{{"type":"text_delta","text":"{text}"}}}}"#
+            ),
+            r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":9}}"#
+                .to_string(),
+            r#"event: message_stop
+data: {"type":"message_stop"}"#
+                .to_string(),
+        ]
+    }
+
+    #[tokio::test]
+    async fn test_edit_loop_skips_validation_when_no_patch_is_applied() {
+        let workspace = tempfile::tempdir().expect("tempdir");
+        run_git(workspace.path(), &["init"]);
+
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![final_text_turn(
+            "msg-no-patch",
+            "I need more context before editing.",
+        )])));
+        let conversation = ConversationManager::new_mock(client, HashMap::new());
+        let (tx, _rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
+        let mut edit_loop = EditLoop::new("task-no-patch".to_string())
+            .with_max_turns(1)
+            .with_working_dir(workspace.path().to_path_buf());
+        let cancel = CancellationToken::new();
+
+        let outcome = edit_loop
+            .run("edit src/lib.rs".to_string(), &mut ctx, &cancel)
+            .await
+            .expect("run should succeed");
+
+        assert!(matches!(outcome, EditLoopOutcome::MaxTurnsReached { .. }));
+        assert!(
+            edit_loop.last_validation_result().is_none(),
+            "validation must not run when the turn applied no patch"
         );
     }
 

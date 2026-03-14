@@ -2509,3 +2509,60 @@ fn test_clear_messages_resets_cached_conversation_state() {
         crate::tool_preview::ReadFileSnapshotSummary::FirstRead { .. }
     ));
 }
+
+#[test]
+fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_result() {
+    let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+    let mut manager = ConversationManager::new_mock(client, HashMap::new());
+
+    manager.current_turn_blocks = vec![
+        StreamBlock::ToolCall {
+            id: "tool_mut".to_string(),
+            name: "apply_patch".to_string(),
+            input: json!({"path":"src/lib.rs"}),
+            status: ToolStatus::Complete,
+        },
+        StreamBlock::ToolResult {
+            tool_call_id: "tool_mut".to_string(),
+            output: "patched".to_string(),
+            is_error: false,
+        },
+    ];
+    assert!(manager.current_turn_has_successful_mutation());
+
+    manager.current_turn_blocks = vec![
+        StreamBlock::ToolCall {
+            id: "tool_read".to_string(),
+            name: "read_file".to_string(),
+            input: json!({"path":"src/lib.rs"}),
+            status: ToolStatus::Complete,
+        },
+        StreamBlock::ToolResult {
+            tool_call_id: "tool_read".to_string(),
+            output: "contents".to_string(),
+            is_error: false,
+        },
+    ];
+    assert!(
+        !manager.current_turn_has_successful_mutation(),
+        "read-only tools must not count as a patch-applied turn"
+    );
+
+    manager.current_turn_blocks = vec![
+        StreamBlock::ToolCall {
+            id: "tool_fail".to_string(),
+            name: "apply_patch".to_string(),
+            input: json!({"path":"src/lib.rs"}),
+            status: ToolStatus::Error,
+        },
+        StreamBlock::ToolResult {
+            tool_call_id: "tool_fail".to_string(),
+            output: "error".to_string(),
+            is_error: true,
+        },
+    ];
+    assert!(
+        !manager.current_turn_has_successful_mutation(),
+        "failed mutating tools must not count as an applied patch"
+    );
+}

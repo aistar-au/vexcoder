@@ -129,4 +129,37 @@ impl ConversationManager {
     pub fn take_last_turn_tokens(&mut self) -> TurnTokens {
         std::mem::take(&mut self.last_turn_tokens)
     }
+
+    pub fn current_turn_has_successful_mutation(&self) -> bool {
+        let mut mutating_tool_call_ids = std::collections::BTreeSet::new();
+        for block in &self.current_turn_blocks {
+            if let StreamBlock::ToolCall { id, name, .. } = block {
+                if is_turn_mutation_tool(name) {
+                    mutating_tool_call_ids.insert(id.as_str());
+                }
+            }
+        }
+
+        if mutating_tool_call_ids.is_empty() {
+            return false;
+        }
+
+        self.current_turn_blocks.iter().any(|block| {
+            matches!(
+                block,
+                StreamBlock::ToolResult {
+                    tool_call_id,
+                    is_error,
+                    ..
+                } if !*is_error && mutating_tool_call_ids.contains(tool_call_id.as_str())
+            )
+        })
+    }
+}
+
+fn is_turn_mutation_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "write_file" | "apply_patch" | "edit_file" | "rename_file"
+    )
 }

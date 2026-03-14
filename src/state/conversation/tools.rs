@@ -25,6 +25,33 @@ use tokio::sync::{mpsc, oneshot};
 static HOOK_WARNINGS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 static RUN_COMMAND_SESSION_IDS: AtomicU64 = AtomicU64::new(1 << 63);
 
+/// Maximum bytes kept in the accumulated stdout/stderr buffers returned to the
+/// model after a `run_command` tool call.  The full output is always streamed to
+/// the TUI via `TranscriptLine`, so this cap only limits the in-process buffer
+/// that becomes the tool result.  Override with `VEX_MAX_COMMAND_OUTPUT_BYTES`.
+const DEFAULT_MAX_COMMAND_OUTPUT_BYTES: usize = 50 * 1024; // 50 KiB
+
+fn max_command_output_bytes() -> usize {
+    std::env::var("VEX_MAX_COMMAND_OUTPUT_BYTES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_MAX_COMMAND_OUTPUT_BYTES)
+}
+
+/// Append `text` to `buf`, keeping only the tail when the cap is exceeded.
+fn append_capped(buf: &mut String, text: &str, cap: usize) {
+    buf.push_str(text);
+    if buf.len() > cap {
+        let excess = buf.len() - cap;
+        let drain_end = buf
+            .char_indices()
+            .find(|(i, _)| *i >= excess)
+            .map(|(i, _)| i)
+            .unwrap_or(excess);
+        buf.drain(..drain_end);
+    }
+}
+
 fn emit_hook_warning(message: String) {
     eprintln!("{message}");
     #[cfg(all(test, not(windows)))]
@@ -294,6 +321,9 @@ async fn execute_run_command_tool(
 
     let mut stdout = String::new();
     let mut stderr = String::new();
+    let mut stdout_total: usize = 0;
+    let mut stderr_total: usize = 0;
+    let cap = max_command_output_bytes();
     let mut timed_out = false;
     let sleep = tokio::time::sleep(tool_timeout);
     tokio::pin!(sleep);
@@ -308,8 +338,14 @@ async fn execute_run_command_tool(
                 match chunk {
                     Some(chunk) => {
                         match &chunk.stream {
-                            crate::runtime::StreamKind::Stdout => stdout.push_str(&chunk.text),
-                            crate::runtime::StreamKind::Stderr => stderr.push_str(&chunk.text),
+                            crate::runtime::StreamKind::Stdout => {
+                                stdout_total += chunk.text.len();
+                                append_capped(&mut stdout, &chunk.text, cap);
+                            }
+                            crate::runtime::StreamKind::Stderr => {
+                                stderr_total += chunk.text.len();
+                                append_capped(&mut stderr, &chunk.text, cap);
+                            }
                         }
                         if let Some(tx) = stream_delta_tx {
                             for line in format_command_session_output(chunk) {
@@ -362,10 +398,24 @@ async fn execute_run_command_tool(
     let output = wait_result?;
     let mut result = format!("exit_code: {}\n", output.exit_code);
     if !stdout.is_empty() {
-        result.push_str(&format!("stdout:\n{stdout}"));
+        if stdout_total > cap {
+            result.push_str(&format!(
+                "stdout (last {} of {} bytes):\n{}",
+                cap, stdout_total, stdout
+            ));
+        } else {
+            result.push_str(&format!("stdout:\n{stdout}"));
+        }
     }
     if !stderr.is_empty() {
-        result.push_str(&format!("stderr:\n{stderr}"));
+        if stderr_total > cap {
+            result.push_str(&format!(
+                "stderr (last {} of {} bytes):\n{}",
+                cap, stderr_total, stderr
+            ));
+        } else {
+            result.push_str(&format!("stderr:\n{stderr}"));
+        }
     }
     Ok(result)
 }
