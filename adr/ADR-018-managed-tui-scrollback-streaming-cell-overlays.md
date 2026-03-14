@@ -1,7 +1,7 @@
 # ADR-018: Managed TUI — Scrollback, Streaming Cell, Overlays
 
 **Date:** 2026-02-22
-**Status:** Proposed
+**Status:** Superseded by ADR-027
 **Deciders:** Core maintainer
 **Related tasks:** CORE-15, CORE-16, CORE-17, FEAT-17, FEAT-18, FEAT-19
 **ADR chain:** ADR-006, ADR-007, ADR-009, ADR-010
@@ -100,3 +100,26 @@ On acceptance of ADR-018 and successful CORE-17 cutover:
    resolved or cancelled.
 5. Bounded multi-choice overlay prompts must accept a small, explicit option
    set and return the runtime to the interrupted task flow after resolution.
+
+---
+
+## Supersession Note (2026-03-13)
+
+**Status: Corrected by ADR-027**
+
+This document specified the full-screen TUI + captured streaming design.
+That design has been **corrected and enhanced** per ADR-027 (full-screen
+command-session capture alignment).
+
+**Key corrections:**
+- Signal handling fixed (Ctrl+C propagation to subprocess)
+- Working directory validation added
+- Layout underflow fixed (saturating arithmetic)
+- PTY support documented (interactive tools)
+
+**Design retained:**
+- Full-screen alternate screen (hosted-agent session pattern)
+- Command output capture (agent observability)
+- StreamBlock events for transcript
+
+See ADR-027 for the corrected implementation details.

@@ -6,9 +6,10 @@ use tokio_util::sync::CancellationToken;
 use crate::runtime::ModelBackendKind;
 use crate::types::ModelProfile;
 
+use super::command::DefaultCommandRunner;
 use super::context::RuntimeContext;
 use super::task_state::TaskId;
-use super::validation::ValidationResult;
+use super::validation::{ValidationResult, ValidationSuite};
 
 const DEFAULT_MAX_TURNS: u8 = 6;
 const HARD_MAX_TURNS: u8 = 12;
@@ -19,6 +20,7 @@ pub struct EditLoop {
     pub max_turns: u8,
     pub stop_on_clean_validate: bool,
     pub profile: ModelProfile,
+    working_dir: PathBuf,
     last_validation_result: Option<ValidationResult>,
 }
 
@@ -42,6 +44,7 @@ impl EditLoop {
             max_turns: DEFAULT_MAX_TURNS,
             stop_on_clean_validate: true,
             profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
+            working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             last_validation_result: None,
         }
     }
@@ -60,6 +63,11 @@ impl EditLoop {
         self
     }
 
+    pub fn with_working_dir(mut self, working_dir: PathBuf) -> Self {
+        self.working_dir = working_dir;
+        self
+    }
+
     pub fn profile_name(&self) -> &str {
         self.profile.name.as_str()
     }
@@ -70,25 +78,82 @@ impl EditLoop {
 
     pub async fn run(
         &mut self,
-        _instruction: String,
+        instruction: String,
         ctx: &mut RuntimeContext,
         cancel: &CancellationToken,
     ) -> Result<EditLoopOutcome> {
-        // EL-03 skeleton only: loop body wiring lands in EL-04.
-        if let Ok(root) = std::env::current_dir() {
-            if Self::check_workspace_dirty(&root, &[])? {
-                ctx.emit_transcript_line(
+        // EL-03 step 1: workspace-dirty warning.
+        if Self::check_workspace_dirty(&self.working_dir, &[])? {
+            ctx.emit_transcript_line(
                     "[edit loop warning: workspace has uncommitted changes; proceeding without mutating git state]"
                         .to_string(),
                 );
-            }
         }
 
-        for _ in 0..self.max_turns {
+        // EL-04: assemble → model → apply → validate → retry cycle.
+        let root = self.working_dir.clone();
+        let validation_suite = ValidationSuite::load_or_infer(&root);
+        let runner = DefaultCommandRunner::new();
+
+        let mut retry_context = String::new();
+        for turn in 0..self.max_turns {
             if cancel.is_cancelled() {
                 return Ok(EditLoopOutcome::Cancelled);
             }
+
+            // Yield between turns so the TUI, tests, and other tasks can
+            // observe intermediate state (e.g. system-prompt injection).
             tokio::task::yield_now().await;
+
+            // Assemble: instruction + validation retry context (if any).
+            let message = if retry_context.is_empty() {
+                instruction.clone()
+            } else {
+                format!("{instruction}\n\n{retry_context}")
+            };
+
+            ctx.emit_transcript_line(format!("[edit loop turn {}/{}]", turn + 1, self.max_turns));
+
+            // Model: drive a full tool-loop turn (read/edit/write/command).
+            let patch_applied = match ctx.drive_edit_turn(message).await {
+                Ok(turn_result) => turn_result.patch_applied,
+                Err(err) => {
+                    ctx.emit_transcript_line(format!("[edit loop turn error: {err}]"));
+                    retry_context = format!("[previous turn failed: {err}]");
+                    continue;
+                }
+            };
+
+            if cancel.is_cancelled() {
+                return Ok(EditLoopOutcome::Cancelled);
+            }
+
+            if !patch_applied {
+                ctx.emit_transcript_line("[edit loop: no patch applied, retrying]".to_string());
+                retry_context =
+                    "[previous turn produced no patch; propose and apply a concrete edit]"
+                        .to_string();
+                continue;
+            }
+
+            // Validate: run the project validation suite concurrently.
+            ctx.emit_transcript_line("[edit loop: running validation]".to_string());
+            let validation_result = validation_suite.run_in_dir(&runner, Some(&root)).await?;
+            self.set_last_validation_result(validation_result.clone());
+
+            if validation_result.passed {
+                ctx.emit_transcript_line("[edit loop: validation passed]".to_string());
+                if self.stop_on_clean_validate {
+                    return Ok(EditLoopOutcome::Success {
+                        patch_applied,
+                        validate_passed: true,
+                    });
+                }
+            } else {
+                // Retry: format failure output as context for the next turn.
+                retry_context = validation_suite.format_for_retry(&validation_result);
+                ctx.emit_transcript_line("[edit loop: validation failed, retrying]".to_string());
+            }
         }
 
         Ok(EditLoopOutcome::MaxTurnsReached {
@@ -106,16 +171,24 @@ impl EditLoop {
             }
         }
 
-        let output = command
-            .output()
-            .context("failed to execute git status for workspace-dirty check")?;
+        let output = match command.output() {
+            Ok(o) => o,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => {
+                return Err(error)
+                    .context("failed to execute git status for workspace-dirty check");
+            }
+        };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).to_ascii_lowercase();
             if stderr.contains("not a git repository") {
                 return Ok(false);
             }
-            return Ok(false);
+            anyhow::bail!(
+                "git status failed for workspace-dirty check: {}",
+                stderr.trim()
+            );
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -211,9 +284,9 @@ mod tests {
             workspace.path(),
             &[
                 "-c",
-                "user.name=codex",
+                "user.name=vex-test",
                 "-c",
-                "user.email=codex@example.com",
+                "user.email=vex-test@example.com",
                 "commit",
                 "-m",
                 "init",
@@ -256,9 +329,9 @@ mod tests {
             workspace.path(),
             &[
                 "-c",
-                "user.name=codex",
+                "user.name=vex-test",
                 "-c",
-                "user.email=codex@example.com",
+                "user.email=vex-test@example.com",
                 "commit",
                 "-m",
                 "init",
@@ -309,6 +382,57 @@ mod tests {
         );
     }
 
+    fn final_text_turn(message_id: &str, text: &str) -> Vec<String> {
+        vec![
+            format!(
+                r#"event: message_start
+data: {{"type":"message_start","message":{{"id":"{message_id}","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{{"input_tokens":10,"output_tokens":1}}}}}}"#
+            ),
+            r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#
+                .to_string(),
+            format!(
+                r#"event: content_block_delta
+data: {{"type":"content_block_delta","index":0,"delta":{{"type":"text_delta","text":"{text}"}}}}"#
+            ),
+            r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":9}}"#
+                .to_string(),
+            r#"event: message_stop
+data: {"type":"message_stop"}"#
+                .to_string(),
+        ]
+    }
+
+    #[tokio::test]
+    async fn test_edit_loop_skips_validation_when_no_patch_is_applied() {
+        let workspace = tempfile::tempdir().expect("tempdir");
+        run_git(workspace.path(), &["init"]);
+
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![final_text_turn(
+            "msg-no-patch",
+            "I need more context before editing.",
+        )])));
+        let conversation = ConversationManager::new_mock(client, HashMap::new());
+        let (tx, _rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
+        let mut edit_loop = EditLoop::new("task-no-patch".to_string())
+            .with_max_turns(1)
+            .with_working_dir(workspace.path().to_path_buf());
+        let cancel = CancellationToken::new();
+
+        let outcome = edit_loop
+            .run("edit src/lib.rs".to_string(), &mut ctx, &cancel)
+            .await
+            .expect("run should succeed");
+
+        assert!(matches!(outcome, EditLoopOutcome::MaxTurnsReached { .. }));
+        assert!(
+            edit_loop.last_validation_result().is_none(),
+            "validation must not run when the turn applied no patch"
+        );
+    }
+
     #[tokio::test]
     async fn test_edit_loop_run_emits_dirty_workspace_warning_to_transcript() {
         let _env_lock = crate::test_support::ENV_LOCK.lock().await;
@@ -321,9 +445,9 @@ mod tests {
             workspace.path(),
             &[
                 "-c",
-                "user.name=codex",
+                "user.name=vex-test",
                 "-c",
-                "user.email=codex@example.com",
+                "user.email=vex-test@example.com",
                 "commit",
                 "-m",
                 "init",

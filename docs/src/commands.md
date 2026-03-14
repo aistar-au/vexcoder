@@ -6,7 +6,9 @@ This page documents the commands and flags implemented in the current binary.
 
 ### `vex`
 
-Starts the interactive terminal UI.
+Starts the interactive terminal UI in the alternate screen buffer. The managed
+session takes over the full terminal while it runs, so pre-launch shell
+scrollback is hidden until the UI exits.
 
 ### `vex --resume [task-id]`
 
@@ -169,6 +171,9 @@ session totals.
 
 - `/run [command]`
 - `/test`
+  - Run without starting a model turn.
+  - Command output is captured for the transcript, with per-command stdout,
+    stderr, and exit status summarized after each command completes.
 
 ### Free-form input transforms
 
@@ -178,7 +183,11 @@ session totals.
   - Directories render a compact workspace-relative listing.
 - `!command`
   - Runs a shell command immediately from the workspace without starting a model turn.
-  - Uses the same `run_command` approval gate as tool calls and records stdout/stderr plus `[exit: N]` in the transcript.
+  - Uses the same `run_command` approval gate as tool calls.
+  - Starts a captured command session inside the managed TUI instead of yielding
+    terminal control back to the parent shell.
+  - The transcript records the command, PID, streamed output, and final
+    `[command session exit: N]` status.
 
 ## Keyboard notes
 

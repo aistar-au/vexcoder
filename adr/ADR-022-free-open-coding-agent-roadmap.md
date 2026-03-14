@@ -49,7 +49,7 @@ agent loop is stable.
 
 This ADR locks the following decisions:
 
-1. `vexcoder` is terminal-agent-first for the first milestone. The terminal runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a VS Code extension) are not in scope for the first milestone and must not be allowed to drive architectural changes to the runtime core.
+1. `vexcoder` is terminal-agent-first for the first milestone. The terminal runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the first milestone and must not be allowed to drive architectural changes to the runtime core.
 2. The default operating posture is approval-first.
 3. The first milestone supports both local model runtimes and self-hosted,
    neutral-compatible model servers.
@@ -81,7 +81,7 @@ The normative runtime configuration surface is:
 | `VEX_POLICY_FILE` | Capability-policy file (default: `.vex/policy.toml`) |
 | `VEX_WORKDIR` | Working directory for command execution |
 | `VEX_MAX_TOKENS` | Maximum tokens per model request |
-| `VEX_MAX_HISTORY_LINES` | Maximum rolling history retained |
+| `VEX_MAX_HISTORY_LINES` | Optional override for rolling history retained; default interactive scrollback remains uncapped until paged or file-backed transcript storage lands |
 
 The runtime architecture must not retain provider-branded variable names,
 branded endpoint defaults, or vendor-specific model-name prefix validation.

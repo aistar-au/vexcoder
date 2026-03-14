@@ -18,14 +18,15 @@ Source of truth: `adr/ADR-README.md`.
 | ADR source file | Status |
 | :--- | :--- |
 | `adr/ADR-013-tui-completion-deployment-plan.md` | Proposed |
-| `adr/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md` | Proposed |
+| `adr/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md` | Superseded by ADR-027 |
 | `adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md` | Accepted, follow-up maintenance remains |
-| `adr/ADR-022-amendment-2026-03-03.md` | Proposed |
+| `adr/ADR-022-amendment-2026-03-13.md` | Proposed |
 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed |
 | `adr/ADR-023-deterministic-edit-loop.md` | Locked |
 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed |
 | `adr/ADR-025-runtime-json-handoff-contract.md` | Proposed |
 | `adr/ADR-026-localapiserver-transport-binding.md` | Proposed |
+| `adr/ADR-027-full-screen-tui-command-session-capture.md` | Accepted |
 
 ## Immediate Dependency Notes
 
@@ -46,6 +47,10 @@ ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
 ADR-025 and ADR-026 are the first post-gate Phase I dispatch track. This
 dispatch note is descriptive only and does not relax the milestone-1 gate.
 
+ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
+current reference for full-screen rendering and interactive command-session
+capture behavior.
+
 ## Tracking Notes
 
 - Update `TASKS/ACTIVE-ROADMAP.md` when the active ADR set changes.
@@ -53,4 +58,6 @@ dispatch note is descriptive only and does not relax the milestone-1 gate.
 - Update `TASKS/completed/REPO-RAW-URL-MAP.md` in the same change set when tracked files are added or removed.
 - Source ADR documents and task manifests remain the behavioral source of truth.
 - ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
-  `#71`, `#72`, and `#74`; `PK-08` is the next unlocked pre-gate batch.
+  `#71`, `#72`, `#74`, and `#75`; `PK-08` is merged, and the next queued work
+  starts on the post-gate ADR-025 / ADR-026 track once milestone-1 validation
+  is green.

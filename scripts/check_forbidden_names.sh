@@ -4,8 +4,9 @@ set -euo pipefail
 # Keep this check scoped to proprietary/vendor-branded terms and
 # external repository-backed identifiers that are disallowed in
 # agent/workflow surfaces.
-# "cursor" is intentionally not matched as a standalone token because it
-# collides with legitimate editor/caret variable names across the codebase.
+# The caret/editor collision term is intentionally not matched as a
+# standalone token because it collides with legitimate variable names
+# across the codebase.
 #
 # Two-pass design:
 #   Pass 1 (PATTERN): full pattern across all targets, *excluding* .github/workflows/**
@@ -13,13 +14,40 @@ set -euo pipefail
 #           (actions/checkout, dtolnay/rust-toolchain, etc.) via `uses:` directives.
 #           Those are not disallowed in CI; they are disallowed in agent/skill surfaces.
 #   Pass 2 (BRAND_PATTERN): brand-name-only subset, *including* .github/workflows/**
-#           Ensures no proprietary AI brand names (claude, anthropic, openai…) appear
-#           in workflow YAML even though action-reference patterns are excluded there.
-PATTERN='\b(claude|anthropic|openai|gpt|copilot|gemini|codewhisperer)\b|cursor\.com|\bcursor ai\b|peter-evans/create-pull-request|leonardomso/rust-skills|actions/checkout|actions/cache|actions/upload-pages-artifact|actions/deploy-pages|dtolnay/rust-toolchain|uncenter/setup-taplo|\bvexcoder/vexcoder\b|\bVS Code\b'
+#           Ensures no proprietary assistant-brand names appear in workflow YAML even
+#           though action-reference patterns are excluded there.
+brand_words=(
+  $'\x63\x6c\x61\x75\x64\x65'
+  $'\x61\x6e\x74\x68\x72\x6f\x70\x69\x63'
+  $'\x6f\x70\x65\x6e\x61\x69'
+  $'\x67\x70\x74'
+  $'\x63\x6f\x70\x69\x6c\x6f\x74'
+  $'\x67\x65\x6d\x69\x6e\x69'
+  $'\x63\x6f\x64\x65\x77\x68\x69\x73\x70\x65\x72\x65\x72'
+)
+brand_regex="$(printf '%s|' "${brand_words[@]}")"
+brand_regex="${brand_regex%|}"
+caret_host=$'\x63\x75\x72\x73\x6f\x72\\.com'
+caret_phrase=$'\\b\x63\x75\x72\x73\x6f\x72 ai\\b'
+editor_brand=$'\\bVS Code\\b'
 
-BRAND_PATTERN='\b(claude|anthropic|openai|gpt|copilot|gemini|codewhisperer)\b|cursor\.com|\bcursor ai\b|\bVS Code\b'
+PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|peter-evans/create-pull-request|leonardomso/rust-skills|actions/checkout|actions/cache|actions/upload-pages-artifact|actions/deploy-pages|dtolnay/rust-toolchain|uncenter/setup-taplo|\\bvexcoder/vexcoder\\b|${editor_brand}"
 
-TARGETS=(src .github Makefile)
+BRAND_PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|${editor_brand}"
+
+TARGETS=(
+  .gitignore
+  AGENTS.md
+  CONTRIBUTING.md
+  TASKS
+  adr
+  docs/src
+  src
+  tests
+  scripts
+  .github
+  Makefile
+)
 if [[ -d models ]]; then
   TARGETS+=(models)
 fi
@@ -30,6 +58,7 @@ failed=0
 if rg -n --hidden -i \
     --glob '!.git' \
     --glob '!.github/workflows/**' \
+    --glob '!scripts/check_forbidden_names.sh' \
     "$PATTERN" "${TARGETS[@]}"; then
   failed=1
 fi

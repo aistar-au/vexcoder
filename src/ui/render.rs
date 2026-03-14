@@ -213,6 +213,7 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
 /// Render the four-region task-first layout
 pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     let layout = split_four_region_layout(frame.area(), 2, 3);
+    frame.render_widget(Clear, frame.area());
 
     let mut header_lines = vec![Line::from(state.status_line.clone())];
     if !state.changed_files.is_empty() {
@@ -242,9 +243,22 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
             styled
         })
         .collect();
+    let activity_title = if state
+        .activity_rows
+        .first()
+        .map(|row| row.starts_with("command:"))
+        .unwrap_or(false)
+    {
+        "Command Session"
+    } else {
+        "Activity"
+    };
     frame.render_widget(
-        Paragraph::new(Text::from(activity_text))
-            .block(Block::default().borders(Borders::NONE).title("Activity")),
+        Paragraph::new(Text::from(activity_text)).block(
+            Block::default()
+                .borders(Borders::NONE)
+                .title(activity_title),
+        ),
         layout.activity,
     );
 
@@ -261,25 +275,24 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
         layout.output,
     );
 
-    let input_content = if let Some(ref approval) = state.pending_approval {
-        format!("{}\n[y/n/s] ", approval)
-    } else {
-        "> ".to_string()
-    };
     frame.render_widget(
-        Paragraph::new(input_content).wrap(Wrap { trim: false }),
+        Paragraph::new(state.input_hint.clone()).wrap(Wrap { trim: false }),
         layout.input,
     );
 }
 
 pub fn render_overlay_modal(frame: &mut Frame<'_>, modal: OverlayModal<'_>) {
-    if frame.area().width == 0 || frame.area().height == 0 {
+    render_overlay_modal_in_area(frame, frame.area(), modal);
+}
+
+pub fn render_overlay_modal_in_area(frame: &mut Frame<'_>, anchor: Rect, modal: OverlayModal<'_>) {
+    if anchor.width == 0 || anchor.height == 0 {
         return;
     }
 
     let (title, accent, body, shortcuts) = modal_content(modal);
     let preferred_height = (body.len() + 8) as u16;
-    let area = centered_modal_area(frame.area(), preferred_height);
+    let area = centered_modal_area(anchor, preferred_height);
     frame.render_widget(Clear, area);
 
     let outer = Block::default()
@@ -537,6 +550,7 @@ mod tests {
             output_rows: vec![],
             changed_files: vec!["src/main.rs".into()],
             pending_approval: Some("ApplyPatch: src/main.rs".into()),
+            input_hint: "ApplyPatch: src/main.rs\n[y/n/s] ".into(),
         };
 
         terminal.draw(|f| render_task_layout(f, &state)).unwrap();

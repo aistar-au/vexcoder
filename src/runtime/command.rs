@@ -1,10 +1,60 @@
 use anyhow::{Context, Result};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::oneshot;
+
+fn validate_working_dir(working_dir: &Path) -> Result<()> {
+    if !working_dir.exists() {
+        anyhow::bail!(
+            "working directory does not exist: {}",
+            working_dir.display()
+        );
+    }
+    if !working_dir.is_dir() {
+        anyhow::bail!(
+            "working directory is not a directory: {}",
+            working_dir.display()
+        );
+    }
+    Ok(())
+}
+
+/// Send SIGKILL to the process group identified by `pid`.
+///
+/// Streaming commands run in their own process group (`process_group(0)`).
+/// Killing just the leader leaves children holding pipe FDs open; this
+/// helper terminates the whole group so reader tasks see EOF.
+#[cfg(unix)]
+fn kill_process_group(pid: Option<u32>) {
+    if let Some(raw_pid) = pid {
+        let pgid = format!("-{raw_pid}");
+        let _ = std::process::Command::new("kill")
+            .args(["-9", "--", &pgid])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+}
+
+#[cfg(windows)]
+fn kill_process_group(pid: Option<u32>) {
+    if let Some(raw_pid) = pid {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/T", "/PID", &raw_pid.to_string()])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+}
+
+#[cfg(all(not(unix), not(windows)))]
+fn kill_process_group(_pid: Option<u32>) {}
 
 pub struct CommandRequest {
     pub program: String,
@@ -28,11 +78,59 @@ pub enum StreamKind {
     Stderr,
 }
 
+pub(crate) fn format_command_session_started(command: &str, pid: Option<u32>) -> String {
+    match pid {
+        Some(pid) => format!("[command session started pid={pid}] {command}"),
+        None => format!("[command session started] {command}"),
+    }
+}
+
+pub(crate) fn format_command_session_exit(exit_code: i32) -> String {
+    format!("[command session exit: {exit_code}]")
+}
+
+pub(crate) fn format_command_session_cancelled() -> String {
+    "[command session cancelled]".to_string()
+}
+
+pub(crate) fn format_command_session_output(chunk: OutputChunk) -> Vec<String> {
+    chunk
+        .text
+        .lines()
+        .map(|line| match &chunk.stream {
+            StreamKind::Stdout => line.to_string(),
+            StreamKind::Stderr => format!("[stderr] {line}"),
+        })
+        .collect()
+}
+
 pub struct CommandHandle {
     cancel_tx: Option<oneshot::Sender<()>>,
+    pid: Option<u32>,
+    completion_rx: Option<oneshot::Receiver<Result<CommandResult>>>,
 }
 
 impl CommandHandle {
+    pub fn pid(&self) -> Option<u32> {
+        self.pid
+    }
+
+    pub fn cancel(&mut self) -> Result<()> {
+        if let Some(tx) = self.cancel_tx.take() {
+            let _ = tx.send(());
+        }
+        Ok(())
+    }
+
+    pub async fn wait(mut self) -> Result<CommandResult> {
+        let rx = self
+            .completion_rx
+            .take()
+            .context("command session completion receiver missing")?;
+        rx.await
+            .context("command session completion channel dropped")?
+    }
+
     /// Returns true if this handle has not yet sent a cancel signal.
     /// Only used in tests to assert handle state after `cancel` is called.
     #[cfg(test)]
@@ -80,9 +178,10 @@ impl CommandRunner for DefaultCommandRunner {
         let mut command = Command::new(&req.program);
         command.args(&req.args);
         if let Some(working_dir) = &req.working_dir {
+            validate_working_dir(working_dir)?;
             command.current_dir(working_dir);
         }
-        command.kill_on_drop(true);
+        command.stdin(Stdio::null()).kill_on_drop(true);
         let output = command
             .output()
             .await
@@ -105,19 +204,29 @@ impl CommandRunner for DefaultCommandRunner {
         tx: tokio::sync::mpsc::Sender<OutputChunk>,
     ) -> Result<CommandHandle> {
         let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
+        let (completion_tx, completion_rx) = oneshot::channel::<Result<CommandResult>>();
 
         let mut command = Command::new(&req.program);
         command.args(&req.args);
         if let Some(working_dir) = &req.working_dir {
+            validate_working_dir(working_dir)?;
             command.current_dir(working_dir);
         }
 
+        // Run the command in its own process group so that cancellation
+        // kills the entire tree (not just the shell, leaving children
+        // holding pipe FDs open).
+        #[cfg(unix)]
+        command.process_group(0);
+
         let mut process = command
+            .stdin(Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true)
             .spawn()
             .with_context(|| format!("Failed to spawn command: {}", req.program))?;
+        let pid = process.id();
 
         let stdout = process.stdout.take().context("Failed to capture stdout")?;
         let stderr = process.stderr.take().context("Failed to capture stderr")?;
@@ -157,26 +266,35 @@ impl CommandRunner for DefaultCommandRunner {
         });
 
         tokio::spawn(async move {
-            tokio::select! {
+            let wait_result = tokio::select! {
                 _ = cancel_rx => {
+                    kill_process_group(pid);
                     let _ = process.kill().await;
+                    process.wait().await
                 }
-                _ = stdout_task => {}
-                _ = stderr_task => {}
-            }
-            let _ = process.wait().await;
+                result = process.wait() => result,
+            };
+            let _ = stdout_task.await;
+            let _ = stderr_task.await;
+            let result = wait_result
+                .map(|status| CommandResult {
+                    exit_code: status.code().unwrap_or(-1),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                })
+                .with_context(|| format!("Failed to wait on command: {}", req.program));
+            let _ = completion_tx.send(result);
         });
 
         Ok(CommandHandle {
             cancel_tx: Some(cancel_tx),
+            pid,
+            completion_rx: Some(completion_rx),
         })
     }
 
-    async fn cancel(&self, handle: CommandHandle) -> Result<()> {
-        if let Some(tx) = handle.cancel_tx {
-            let _ = tx.send(());
-        }
-        Ok(())
+    async fn cancel(&self, mut handle: CommandHandle) -> Result<()> {
+        handle.cancel()
     }
 
     fn attach_pty(&self, req: CommandRequest) -> Result<PtySession> {
@@ -195,6 +313,7 @@ impl CommandRunner for DefaultCommandRunner {
             cmd.arg(arg);
         }
         if let Some(working_dir) = &req.working_dir {
+            validate_working_dir(working_dir)?;
             cmd.cwd(working_dir);
         }
         let pty_process = pair
@@ -286,5 +405,27 @@ mod tests {
 
         assert!(result.is_ok(), "cancel must complete within 2 seconds");
         assert!(result.unwrap().is_ok(), "cancel must not error");
+    }
+
+    #[tokio::test]
+    async fn test_streaming_command_reports_pid_and_exit_code() {
+        let runner = DefaultCommandRunner::new();
+        let req = echo_request();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+        let handle = runner
+            .run_streaming(req, tx)
+            .await
+            .expect("streaming run failed");
+        assert!(handle.pid().is_some());
+        let mut collected = String::new();
+        while let Some(chunk) = rx.recv().await {
+            collected.push_str(&chunk.text);
+        }
+        let result = handle.wait().await.expect("wait failed");
+        assert_eq!(result.exit_code, 0);
+        assert!(
+            collected.contains("hello"),
+            "expected 'hello' in streamed output, got: {collected}"
+        );
     }
 }

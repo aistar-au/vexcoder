@@ -89,7 +89,7 @@ pub trait RuntimeMode {
 During the REF track (REF-02 through REF-06):
 - No new CLI flags or environment variables.
 - No new tools.
-- No changes to the Anthropic or OpenAI protocol paths.
+- No changes to the `messages-v1` or chat-completions protocol paths.
 - `cargo test --all` must pass after every task.
 - Each task touches at most two files.
 

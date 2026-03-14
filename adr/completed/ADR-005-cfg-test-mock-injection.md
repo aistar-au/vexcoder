@@ -98,4 +98,4 @@ When the REF track reaches REF-05 (generic runtime loop), extract `ApiStream` as
 **Constraints imposed on future work:**
 - Do not add additional `#[cfg(test)]` fields to `ApiClient`. If a second injectable dependency is needed, that is the signal to do the trait extraction instead.
 - `src/api/mock_client.rs` must remain gated behind `#[cfg(test)]`. It must never be compiled into release builds.
-- Any new test that uses `ConversationManager` with network calls must use `ApiClient::new_mock()`. Tests that reach the real Anthropic API are integration tests and must be gated behind a feature flag or ignored by default.
+- Any new test that uses `ConversationManager` with network calls must use `ApiClient::new_mock()`. Tests that reach the real hosted `messages-v1` API are integration tests and must be gated behind a feature flag or ignored by default.

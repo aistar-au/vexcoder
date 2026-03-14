@@ -13,6 +13,10 @@ pub struct RuntimeContext {
     session_tokens: Arc<StdMutex<SessionTokens>>,
 }
 
+pub(crate) struct EditTurnResult {
+    pub patch_applied: bool,
+}
+
 impl Clone for RuntimeContext {
     fn clone(&self) -> Self {
         Self {
@@ -182,6 +186,38 @@ impl RuntimeContext {
         });
     }
 
+    /// Drive a single model turn within the current async task and wait for
+    /// completion, forwarding stream events to the TUI while the turn runs.
+    ///
+    /// Used by `EditLoop::run` to execute assemble→model→apply cycles without
+    /// spawning a detached task. The conversation lock is held only for the
+    /// duration of `send_message_with_policy`.
+    pub(crate) async fn drive_edit_turn(&self, input: String) -> anyhow::Result<EditTurnResult> {
+        let (delta_tx, mut delta_rx) = mpsc::unbounded_channel::<ConversationStreamUpdate>();
+        let conversation = Arc::clone(&self.conversation);
+        let tx = self.update_tx.clone();
+
+        let send_handle = tokio::spawn(async move {
+            let mut mgr = conversation.lock().await;
+            let result = mgr
+                .send_message_with_policy(input, Some(&delta_tx), TurnToolPolicy::Default)
+                .await;
+            let patch_applied = mgr.current_turn_has_successful_mutation();
+            (result, patch_applied)
+        });
+
+        let mut textual_block_by_index = std::collections::HashMap::<usize, bool>::new();
+        while let Some(update) = delta_rx.recv().await {
+            forward_conversation_update(update, &mut textual_block_by_index, &tx);
+        }
+
+        match send_handle.await {
+            Ok((Ok(_response_text), patch_applied)) => Ok(EditTurnResult { patch_applied }),
+            Ok((Err(e), _)) => Err(e),
+            Err(e) => Err(anyhow::anyhow!("edit turn task failed: {e}")),
+        }
+    }
+
     pub fn set_model_name(&self, name: String) -> Result<(), &'static str> {
         let conversation = self
             .conversation
@@ -238,6 +274,18 @@ impl RuntimeContext {
 
     pub fn emit_turn_complete(&self) {
         let _ = self.update_tx.send(UiUpdate::TurnComplete);
+    }
+
+    pub fn emit_command_session_attached(&self, session_id: u64, pid: Option<u32>) {
+        let _ = self
+            .update_tx
+            .send(UiUpdate::CommandSessionAttached { session_id, pid });
+    }
+
+    pub fn emit_command_session_finished(&self, session_id: u64) {
+        let _ = self
+            .update_tx
+            .send(UiUpdate::CommandSessionFinished { session_id });
     }
 
     pub fn clear_conversation(&self) {
@@ -385,6 +433,24 @@ fn forward_conversation_update(
         ConversationStreamUpdate::ToolApprovalRequest(request) => {
             let _ = tx.send(UiUpdate::ToolApprovalRequest(request));
         }
+        ConversationStreamUpdate::TranscriptLine(line) => {
+            let _ = tx.send(UiUpdate::TranscriptLine(line));
+        }
+        ConversationStreamUpdate::CommandSessionStarted {
+            session_id,
+            command,
+        } => {
+            let _ = tx.send(UiUpdate::CommandSessionStarted {
+                session_id,
+                command,
+            });
+        }
+        ConversationStreamUpdate::CommandSessionAttached { session_id, pid } => {
+            let _ = tx.send(UiUpdate::CommandSessionAttached { session_id, pid });
+        }
+        ConversationStreamUpdate::CommandSessionFinished { session_id } => {
+            let _ = tx.send(UiUpdate::CommandSessionFinished { session_id });
+        }
     }
 }
 
@@ -503,11 +569,13 @@ mod tests {
         );
 
         ctx.start_edit_loop(
-            EditLoop::new("task-edit-loop-prompt".to_string()).with_max_turns(128),
+            EditLoop::new("task-edit-loop-prompt".to_string())
+                .with_max_turns(128)
+                .with_working_dir(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))),
             "fix the parser".to_string(),
         );
 
-        tokio::time::timeout(Duration::from_millis(500), async {
+        tokio::time::timeout(Duration::from_secs(2), async {
             loop {
                 if ctx
                     .test_system_prompt()
@@ -523,7 +591,7 @@ mod tests {
         .expect("coding prompt must be injected while the edit loop is active");
 
         loop {
-            match tokio::time::timeout(Duration::from_millis(500), rx.recv()).await {
+            match tokio::time::timeout(Duration::from_secs(2), rx.recv()).await {
                 Ok(Some(UiUpdate::EditLoopComplete { .. })) => break,
                 Ok(Some(UiUpdate::TranscriptLine(_))) => {}
                 Ok(Some(UiUpdate::Error(e))) => panic!("unexpected error: {e}"),
@@ -758,6 +826,70 @@ data: {"type":"message_stop"}"#.to_string(),
             !saw_stream_delta,
             "unknown block index must not mirror into StreamDelta"
         );
+    }
+
+    #[tokio::test]
+    async fn test_ref_08_command_session_updates_forward_to_ui() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let mut textual_block_by_index = std::collections::HashMap::new();
+
+        forward_conversation_update(
+            ConversationStreamUpdate::CommandSessionStarted {
+                session_id: 41,
+                command: "echo forwarded".to_string(),
+            },
+            &mut textual_block_by_index,
+            &tx,
+        );
+        forward_conversation_update(
+            ConversationStreamUpdate::CommandSessionAttached {
+                session_id: 41,
+                pid: Some(4100),
+            },
+            &mut textual_block_by_index,
+            &tx,
+        );
+        forward_conversation_update(
+            ConversationStreamUpdate::TranscriptLine("forwarded".to_string()),
+            &mut textual_block_by_index,
+            &tx,
+        );
+        forward_conversation_update(
+            ConversationStreamUpdate::CommandSessionFinished { session_id: 41 },
+            &mut textual_block_by_index,
+            &tx,
+        );
+
+        match rx.recv().await {
+            Some(UiUpdate::CommandSessionStarted {
+                session_id,
+                command,
+            }) => {
+                assert_eq!(session_id, 41);
+                assert_eq!(command, "echo forwarded");
+            }
+            _ => panic!("expected CommandSessionStarted"),
+        }
+
+        match rx.recv().await {
+            Some(UiUpdate::CommandSessionAttached { session_id, pid }) => {
+                assert_eq!(session_id, 41);
+                assert_eq!(pid, Some(4100));
+            }
+            _ => panic!("expected CommandSessionAttached"),
+        }
+
+        match rx.recv().await {
+            Some(UiUpdate::TranscriptLine(line)) => assert_eq!(line, "forwarded"),
+            _ => panic!("expected TranscriptLine"),
+        }
+
+        match rx.recv().await {
+            Some(UiUpdate::CommandSessionFinished { session_id }) => {
+                assert_eq!(session_id, 41);
+            }
+            _ => panic!("expected CommandSessionFinished"),
+        }
     }
 
     #[tokio::test]

@@ -1,3 +1,4 @@
+use anyhow::Result;
 use crossterm::{
     cursor::Show,
     event::{DisableBracketedPaste, EnableBracketedPaste},
@@ -5,7 +6,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
-use std::io::{self, Stdout};
+use std::io::{self, IsTerminal, Stdout};
 use std::sync::Once;
 
 pub type TerminalType = Terminal<CrosstermBackend<Stdout>>;
@@ -21,19 +22,36 @@ pub fn install_panic_hook_once() {
     });
 }
 
-pub fn setup() -> anyhow::Result<TerminalType> {
+fn terminal_supports_full_screen() -> bool {
+    io::stdin().is_terminal() && io::stdout().is_terminal()
+}
+
+fn enter_full_screen_mode() -> Result<()> {
     install_panic_hook_once();
+    if !terminal_supports_full_screen() {
+        return Ok(());
+    }
 
     enable_raw_mode()?;
     execute!(io::stdout(), EnterAlternateScreen, EnableBracketedPaste)?;
+    Ok(())
+}
 
+pub fn setup() -> Result<TerminalType> {
+    enter_full_screen_mode()?;
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
-    terminal.clear()?;
+    if terminal_supports_full_screen() {
+        terminal.clear()?;
+    }
     Ok(terminal)
 }
 
-pub fn restore() -> anyhow::Result<()> {
+pub fn restore() -> Result<()> {
+    if !terminal_supports_full_screen() {
+        return Ok(());
+    }
+
     let _ = disable_raw_mode();
     let _ = execute!(
         io::stdout(),

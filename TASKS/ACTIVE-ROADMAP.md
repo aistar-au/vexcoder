@@ -16,24 +16,25 @@ Current task-dispatch dependency state:
 | `ADR-024` | Proposed | Parity-gap inventory, command surface, and deferred work. |
 | `ADR-025` | Proposed | First post-gate Phase I dispatch target (`PI-09` through `PI-12`); implementation remains gated on milestone-1 validation. |
 | `ADR-026` | Proposed | Follows `ADR-025` closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation remains gated on milestone-1 validation. |
+| `ADR-027` | Accepted | Defines the current full-screen TUI with command-session capture; supersedes the ADR-018/019 path. |
 
 ADR-025 and ADR-026 are queued immediately after the milestone-1 correctness
 gate. This roadmap note is descriptive only and does not relax that gate.
 
 ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
-`#71`, `#72`, and `#74`. With those merged batches reflected in the checklist,
-`PK-08` (`vex branch` and `vex pr-summary`) is the next unlocked pre-gate
-ADR-024 batch.
+`#71`, `#72`, `#74`, and `#75`. `PK-08` (`vex branch` and `vex pr-summary`) is
+merged, so the remaining queued work begins with the post-gate ADR-025 /
+ADR-026 track once the milestone-1 correctness gate is green.
 
 ## Other Open ADRs Tracked In This Repo
 
-`adr/ADR-README.md` also lists these open ADRs outside the current
+`adr/ADR-README.md` also lists these tracked ADRs outside the current
 dispatch-facing active set:
 
 | ADR | Status | Note |
 | :--- | :--- | :--- |
 | `ADR-013` | Proposed | TUI completion and deployment plan. |
-| `ADR-018` | Proposed | Managed TUI scrollback, streaming cell, and overlays. |
+| `ADR-018` | Superseded by ADR-027 | Earlier managed-TUI overlay path retained for history only. |
 
 ## Repo-Local Task Manifests
 

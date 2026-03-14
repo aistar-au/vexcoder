@@ -2,7 +2,9 @@ use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, 
 use crate::config::{HookEvent, HookOnFail};
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::runtime::{
-    CommandRequest, CommandRunner, DefaultCommandRunner, PassthroughSandbox, SandboxDriver,
+    format_command_session_cancelled, format_command_session_exit, format_command_session_output,
+    format_command_session_started, CommandRequest, CommandRunner, DefaultCommandRunner,
+    PassthroughSandbox, SandboxDriver,
 };
 use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
 use crate::tools::{ToolOperator, WriteFileOutcome};
@@ -11,6 +13,7 @@ use crate::util::parse_bool_flag;
 use anyhow::{bail, Context, Result};
 #[cfg(test)]
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(all(test, not(windows)))]
 use std::sync::LazyLock;
 #[cfg(test)]
@@ -20,6 +23,34 @@ use tokio::sync::{mpsc, oneshot};
 
 #[cfg(all(test, not(windows)))]
 static HOOK_WARNINGS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+static RUN_COMMAND_SESSION_IDS: AtomicU64 = AtomicU64::new(1 << 63);
+
+/// Maximum bytes kept in the accumulated stdout/stderr buffers returned to the
+/// model after a `run_command` tool call.  The full output is always streamed to
+/// the TUI via `TranscriptLine`, so this cap only limits the in-process buffer
+/// that becomes the tool result.  Override with `VEX_MAX_COMMAND_OUTPUT_BYTES`.
+const DEFAULT_MAX_COMMAND_OUTPUT_BYTES: usize = 50 * 1024; // 50 KiB
+
+fn max_command_output_bytes() -> usize {
+    std::env::var("VEX_MAX_COMMAND_OUTPUT_BYTES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_MAX_COMMAND_OUTPUT_BYTES)
+}
+
+/// Append `text` to `buf`, keeping only the tail when the cap is exceeded.
+fn append_capped(buf: &mut String, text: &str, cap: usize) {
+    buf.push_str(text);
+    if buf.len() > cap {
+        let excess = buf.len() - cap;
+        let drain_end = buf
+            .char_indices()
+            .find(|(i, _)| *i >= excess)
+            .map(|(i, _)| i)
+            .unwrap_or(excess);
+        buf.drain(..drain_end);
+    }
+}
 
 fn emit_hook_warning(message: String) {
     eprintln!("{message}");
@@ -84,41 +115,46 @@ impl ConversationManager {
         self.run_hooks(HookEvent::PreTool, &tool_name, input, stream_delta_tx)
             .await?;
 
-        let task_name = tool_name.clone();
-        let task_input = input.clone();
-        let task_executor = self.tool_operator.clone();
-        #[cfg(test)]
-        let task_mock_responses = self.mock_tool_operator_responses.clone();
-
-        let mut task = tokio::task::spawn_blocking(move || {
+        let tool_result = if name == "run_command" {
+            execute_run_command_tool(&self.tool_operator, input, tool_timeout, stream_delta_tx)
+                .await
+        } else {
+            let task_name = tool_name.clone();
+            let task_input = input.clone();
+            let task_executor = self.tool_operator.clone();
             #[cfg(test)]
-            {
-                execute_tool_blocking_with_operator(
-                    &task_executor,
-                    &task_name,
-                    &task_input,
-                    task_mock_responses,
-                )
-            }
-            #[cfg(not(test))]
-            {
-                execute_tool_blocking_with_operator(&task_executor, &task_name, &task_input)
-            }
-        });
+            let task_mock_responses = self.mock_tool_operator_responses.clone();
 
-        let tool_result = match tokio::time::timeout(tool_timeout, &mut task).await {
-            Ok(join_result) => match join_result {
-                Ok(result) => result,
-                Err(join_error) => Err(anyhow::anyhow!(
-                    "Tool execution task failed for {tool_name}: {join_error}"
-                )),
-            },
-            Err(_) => {
-                task.abort();
-                Err(anyhow::anyhow!(
-                    "Tool execution timed out after {}s for {tool_name}",
-                    tool_timeout.as_secs()
-                ))
+            let mut task = tokio::task::spawn_blocking(move || {
+                #[cfg(test)]
+                {
+                    execute_tool_blocking_with_operator(
+                        &task_executor,
+                        &task_name,
+                        &task_input,
+                        task_mock_responses,
+                    )
+                }
+                #[cfg(not(test))]
+                {
+                    execute_tool_blocking_with_operator(&task_executor, &task_name, &task_input)
+                }
+            });
+
+            match tokio::time::timeout(tool_timeout, &mut task).await {
+                Ok(join_result) => match join_result {
+                    Ok(result) => result,
+                    Err(join_error) => Err(anyhow::anyhow!(
+                        "Tool execution task failed for {tool_name}: {join_error}"
+                    )),
+                },
+                Err(_) => {
+                    task.abort();
+                    Err(anyhow::anyhow!(
+                        "Tool execution timed out after {}s for {tool_name}",
+                        tool_timeout.as_secs()
+                    ))
+                }
             }
         };
 
@@ -220,6 +256,177 @@ impl ConversationManager {
 
         Ok(())
     }
+}
+
+async fn execute_run_command_tool(
+    tool_operator: &ToolOperator,
+    input: &serde_json::Value,
+    tool_timeout: Duration,
+    stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
+) -> Result<String> {
+    let program = required_tool_string_any(
+        input,
+        "run_command",
+        "command",
+        &["command", "program", "cmd"],
+    )?;
+    let args: Vec<String> = input
+        .get("args")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    let command = render_command_session_command(program, &args);
+    let session_id = RUN_COMMAND_SESSION_IDS.fetch_add(1, Ordering::Relaxed);
+
+    if let Some(tx) = stream_delta_tx {
+        let _ = tx.send(ConversationStreamUpdate::CommandSessionStarted {
+            session_id,
+            command: command.clone(),
+        });
+    }
+
+    let request = PassthroughSandbox.wrap(CommandRequest {
+        program: program.to_string(),
+        args,
+        working_dir: Some(tool_operator.working_dir().to_path_buf()),
+    })?;
+    let runner = DefaultCommandRunner::new();
+    let (output_tx, mut output_rx) = mpsc::channel(128);
+    let mut handle = match runner.run_streaming(request, output_tx).await {
+        Ok(handle) => handle,
+        Err(error) => {
+            if let Some(tx) = stream_delta_tx {
+                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(format!(
+                    "[command session] error: {error}"
+                )));
+                let _ = tx.send(ConversationStreamUpdate::CommandSessionFinished { session_id });
+            }
+            return Err(error);
+        }
+    };
+
+    if let Some(tx) = stream_delta_tx {
+        let _ = tx.send(ConversationStreamUpdate::CommandSessionAttached {
+            session_id,
+            pid: handle.pid(),
+        });
+        let _ = tx.send(ConversationStreamUpdate::TranscriptLine(
+            format_command_session_started(&command, handle.pid()),
+        ));
+    }
+
+    let mut stdout = String::new();
+    let mut stderr = String::new();
+    let mut stdout_total: usize = 0;
+    let mut stderr_total: usize = 0;
+    let cap = max_command_output_bytes();
+    let mut timed_out = false;
+    let sleep = tokio::time::sleep(tool_timeout);
+    tokio::pin!(sleep);
+
+    loop {
+        tokio::select! {
+            _ = &mut sleep, if !timed_out => {
+                timed_out = true;
+                let _ = handle.cancel();
+            }
+            chunk = output_rx.recv() => {
+                match chunk {
+                    Some(chunk) => {
+                        match &chunk.stream {
+                            crate::runtime::StreamKind::Stdout => {
+                                stdout_total += chunk.text.len();
+                                append_capped(&mut stdout, &chunk.text, cap);
+                            }
+                            crate::runtime::StreamKind::Stderr => {
+                                stderr_total += chunk.text.len();
+                                append_capped(&mut stderr, &chunk.text, cap);
+                            }
+                        }
+                        if let Some(tx) = stream_delta_tx {
+                            for line in format_command_session_output(chunk) {
+                                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(line));
+                            }
+                        }
+                    }
+                    None => break,
+                }
+            }
+        }
+    }
+
+    let wait_result = handle.wait().await;
+    if let Some(tx) = stream_delta_tx {
+        match &wait_result {
+            Ok(result) if timed_out => {
+                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(format!(
+                    "[command session] error: timed out after {}s",
+                    tool_timeout.as_secs()
+                )));
+                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(
+                    format_command_session_cancelled(),
+                ));
+                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(
+                    format_command_session_exit(result.exit_code),
+                ));
+            }
+            Ok(result) => {
+                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(
+                    format_command_session_exit(result.exit_code),
+                ));
+            }
+            Err(error) => {
+                let _ = tx.send(ConversationStreamUpdate::TranscriptLine(format!(
+                    "[command session] error: {error}"
+                )));
+            }
+        }
+        let _ = tx.send(ConversationStreamUpdate::CommandSessionFinished { session_id });
+    }
+
+    if timed_out {
+        return Err(anyhow::anyhow!(
+            "Tool execution timed out after {}s for run_command",
+            tool_timeout.as_secs()
+        ));
+    }
+
+    let output = wait_result?;
+    let mut result = format!("exit_code: {}\n", output.exit_code);
+    if !stdout.is_empty() {
+        if stdout_total > cap {
+            result.push_str(&format!(
+                "stdout (last {} of {} bytes):\n{}",
+                cap, stdout_total, stdout
+            ));
+        } else {
+            result.push_str(&format!("stdout:\n{stdout}"));
+        }
+    }
+    if !stderr.is_empty() {
+        if stderr_total > cap {
+            result.push_str(&format!(
+                "stderr (last {} of {} bytes):\n{}",
+                cap, stderr_total, stderr
+            ));
+        } else {
+            result.push_str(&format!("stderr:\n{stderr}"));
+        }
+    }
+    Ok(result)
+}
+
+fn render_command_session_command(program: &str, args: &[String]) -> String {
+    let mut command = program.to_string();
+    for arg in args {
+        command.push(' ');
+        command.push_str(arg);
+    }
+    command
 }
 
 #[cfg(test)]
@@ -424,6 +631,7 @@ pub(super) fn execute_tool_dispatch(
                 .collect::<Vec<_>>()
                 .join("\n"))
         }
+        "run_command" => bail!("run_command must execute through the runtime command runner"),
         _ => bail!("Unknown tool: {name}"),
     }
 }
@@ -1024,7 +1232,13 @@ pub(super) fn is_mutating_tool_round(blocks: &[ContentBlock]) -> bool {
 pub(super) fn tool_requires_confirmation(name: &str) -> bool {
     matches!(
         name,
-        "write_file" | "apply_patch" | "edit_file" | "rename_file" | "git_add" | "git_commit"
+        "write_file"
+            | "apply_patch"
+            | "edit_file"
+            | "rename_file"
+            | "git_add"
+            | "git_commit"
+            | "run_command"
     )
 }
 

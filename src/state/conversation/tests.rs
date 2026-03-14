@@ -353,7 +353,11 @@ data: {"type":"message_stop"}"#.to_string(),
                     }
                     ConversationStreamUpdate::Delta(_)
                     | ConversationStreamUpdate::BlockDelta { .. }
-                    | ConversationStreamUpdate::BlockComplete { .. } => {}
+                    | ConversationStreamUpdate::BlockComplete { .. }
+                    | ConversationStreamUpdate::TranscriptLine(_)
+                    | ConversationStreamUpdate::CommandSessionStarted { .. }
+                    | ConversationStreamUpdate::CommandSessionAttached { .. }
+                    | ConversationStreamUpdate::CommandSessionFinished { .. } => {}
                 }
             }
         }
@@ -723,7 +727,11 @@ data: {"type":"message_stop"}"#.to_string(),
                     }
                     ConversationStreamUpdate::Delta(_)
                     | ConversationStreamUpdate::BlockDelta { .. }
-                    | ConversationStreamUpdate::BlockComplete { .. } => {}
+                    | ConversationStreamUpdate::BlockComplete { .. }
+                    | ConversationStreamUpdate::TranscriptLine(_)
+                    | ConversationStreamUpdate::CommandSessionStarted { .. }
+                    | ConversationStreamUpdate::CommandSessionAttached { .. }
+                    | ConversationStreamUpdate::CommandSessionFinished { .. } => {}
                 }
             }
         }
@@ -1668,6 +1676,116 @@ async fn test_execute_tool_edit_file_delete_summary_is_clear() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_execute_tool_run_command_uses_workspace_working_dir() -> Result<()> {
+    let temp = TempDir::new()?;
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let executor = ToolOperator::new(temp.path().to_path_buf());
+    let manager = ConversationManager::new(mock_api_client, executor);
+
+    #[cfg(windows)]
+    let input = json!({
+        "command": "cmd",
+        "args": ["/C", "cd"],
+    });
+    #[cfg(not(windows))]
+    let input = json!({
+        "command": "pwd",
+        "args": [],
+    });
+
+    let result = manager
+        .execute_tool_with_timeout("run_command", &input, Duration::from_secs(2))
+        .await?;
+
+    assert!(
+        result.contains(&temp.path().display().to_string()),
+        "run_command must execute from the workspace working directory: {result}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_execute_tool_run_command_streams_managed_session_updates() -> Result<()> {
+    let temp = TempDir::new()?;
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let executor = ToolOperator::new(temp.path().to_path_buf());
+    let manager = ConversationManager::new(mock_api_client, executor);
+    let (update_tx, mut update_rx) = mpsc::unbounded_channel();
+
+    #[cfg(windows)]
+    let input = json!({
+        "command": "cmd",
+        "args": ["/C", "echo streamed-from-tool"],
+    });
+    #[cfg(not(windows))]
+    let input = json!({
+        "command": "sh",
+        "args": ["-c", "printf 'streamed-from-tool\\n'"],
+    });
+
+    let result = manager
+        .execute_tool_with_timeout_with_updates(
+            "run_command",
+            &input,
+            Duration::from_secs(3),
+            Some(&update_tx),
+        )
+        .await?;
+
+    let mut saw_session_started = false;
+    let mut saw_session_attached = false;
+    let mut saw_transcript_output = false;
+    let mut saw_session_finished = false;
+
+    while let Ok(update) = update_rx.try_recv() {
+        match update {
+            ConversationStreamUpdate::CommandSessionStarted { command, .. } => {
+                saw_session_started = !command.trim().is_empty();
+            }
+            ConversationStreamUpdate::CommandSessionAttached { pid, .. } => {
+                saw_session_attached = pid.is_some();
+            }
+            ConversationStreamUpdate::TranscriptLine(line) => {
+                if line.contains("streamed-from-tool") {
+                    saw_transcript_output = true;
+                }
+            }
+            ConversationStreamUpdate::CommandSessionFinished { .. } => {
+                saw_session_finished = true;
+            }
+            ConversationStreamUpdate::Delta(_)
+            | ConversationStreamUpdate::BlockStart { .. }
+            | ConversationStreamUpdate::BlockDelta { .. }
+            | ConversationStreamUpdate::BlockComplete { .. }
+            | ConversationStreamUpdate::ToolApprovalRequest(_) => {}
+        }
+    }
+
+    assert!(saw_session_started, "expected command session start update");
+    assert!(
+        saw_session_attached,
+        "expected command session attach update"
+    );
+    assert!(
+        saw_transcript_output,
+        "expected command session output to stream into transcript updates"
+    );
+    assert!(
+        saw_session_finished,
+        "expected command session finished update"
+    );
+    assert!(
+        result.contains("streamed-from-tool"),
+        "run_command tool result must still include final command output: {result}"
+    );
+    Ok(())
+}
+
 #[test]
 fn test_append_incremental_suffix_snapshot_streaming() {
     let mut content = String::new();
@@ -2390,4 +2508,61 @@ fn test_clear_messages_resets_cached_conversation_state() {
             .summarize("src/app.rs", "v2"),
         crate::tool_preview::ReadFileSnapshotSummary::FirstRead { .. }
     ));
+}
+
+#[test]
+fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_result() {
+    let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+    let mut manager = ConversationManager::new_mock(client, HashMap::new());
+
+    manager.current_turn_blocks = vec![
+        StreamBlock::ToolCall {
+            id: "tool_mut".to_string(),
+            name: "apply_patch".to_string(),
+            input: json!({"path":"src/lib.rs"}),
+            status: ToolStatus::Complete,
+        },
+        StreamBlock::ToolResult {
+            tool_call_id: "tool_mut".to_string(),
+            output: "patched".to_string(),
+            is_error: false,
+        },
+    ];
+    assert!(manager.current_turn_has_successful_mutation());
+
+    manager.current_turn_blocks = vec![
+        StreamBlock::ToolCall {
+            id: "tool_read".to_string(),
+            name: "read_file".to_string(),
+            input: json!({"path":"src/lib.rs"}),
+            status: ToolStatus::Complete,
+        },
+        StreamBlock::ToolResult {
+            tool_call_id: "tool_read".to_string(),
+            output: "contents".to_string(),
+            is_error: false,
+        },
+    ];
+    assert!(
+        !manager.current_turn_has_successful_mutation(),
+        "read-only tools must not count as a patch-applied turn"
+    );
+
+    manager.current_turn_blocks = vec![
+        StreamBlock::ToolCall {
+            id: "tool_fail".to_string(),
+            name: "apply_patch".to_string(),
+            input: json!({"path":"src/lib.rs"}),
+            status: ToolStatus::Error,
+        },
+        StreamBlock::ToolResult {
+            tool_call_id: "tool_fail".to_string(),
+            output: "error".to_string(),
+            is_error: true,
+        },
+    ];
+    assert!(
+        !manager.current_turn_has_successful_mutation(),
+        "failed mutating tools must not count as an applied patch"
+    );
 }

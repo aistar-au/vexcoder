@@ -23,12 +23,12 @@ ADR-022 locked the first-milestone roadmap for `vexcoder` as a coding agent whos
 
 Every direct dependency of `vexcoder` must be licensed under a permissive, royalty-free license — specifically MIT, Apache 2.0, or a dual MIT/Apache 2.0 offering — such that building, distributing, and operating the application imposes no licensing fee, royalty obligation, or copyright assignment requirement on any party. This is the operative reason the project uses Rust (MIT/Apache 2.0) and ratatui (MIT): neither the language toolchain, the TUI framework, nor any crate in the dependency graph charges a licensing fee or restricts redistribution. Crates introduced directly by this ADR: `clap_complete` (Gap 6, MIT/Apache 2.0). All satisfy the constraint. The same constraint applies to all future Rust crate dependencies added under this ADR. Any crate carrying a commercial license, a copyleft license that would require source disclosure of this codebase, or a license that conditions use on a paid tier is prohibited without a dedicated ADR recording an explicit exception and its legal basis.
 
-**Operational and runtime dependency scope:** This ADR also introduces optional operational dependencies — Docker (Apache 2.0, used by `DockerSandbox`), npm-distributed MCP server packages (licenses vary per package), Homebrew (BSD 2-Clause), and GitHub Actions CI tooling (license varies per action). These are not Rust crate dependencies compiled into the binary; they are operator-provided runtime components or CI infrastructure. The licensing constraint for these is therefore different: they are not required for the binary to build or run in `PassthroughSandbox` mode, and operators who use them accept their respective license terms independently. However, for long-term multi-year legal clarity the following rules apply:
+**Operational and runtime dependency scope:** This ADR also introduces optional operational dependencies — a container runtime (Apache 2.0 in the reference setup, used by `DockerSandbox`), npm-distributed MCP server packages (licenses vary per package), a package-manager tap ecosystem (BSD 2-Clause in the reference setup), and CI-platform workflow tooling (license varies per component). These are not Rust crate dependencies compiled into the binary; they are operator-provided runtime components or CI infrastructure. The licensing constraint for these is therefore different: they are not required for the binary to build or run in `PassthroughSandbox` mode, and operators who use them accept their respective license terms independently. However, for long-term multi-year legal clarity the following rules apply:
 
-- **Docker (`DockerSandbox`):** Docker Engine is Apache 2.0 for the community edition. Docker Desktop has a separate commercial license that applies to certain business uses. The ADR does not bundle Docker; operators install it independently. Documentation must note that operators using Docker Desktop in a commercial context must verify their Docker Desktop licensing.
+- **Container runtime (`DockerSandbox`):** the reference container runtime is Apache 2.0 for the community edition, while some desktop distributions have separate commercial terms for certain business uses. The ADR does not bundle any container runtime; operators install it independently. Documentation must note that operators are responsible for verifying the licensing terms of the specific distribution they use.
 - **MCP server packages:** The `[[mcp_servers]]` config allows operators to configure arbitrary npm packages as tool servers. `vexcoder` makes no representation about the licenses of third-party MCP packages. Documentation must note that operators are responsible for verifying the license of any MCP server package they configure.
-- **CI tooling (GitHub Actions, `cross`, mingw toolchain):** These are build and release infrastructure, not runtime components. Their licensing does not affect the distributed binary's license obligations. **mingw runtime library exception:** the mingw runtime libraries (`libgcc`, `libwinpthread`) are distributed under the GCC Runtime Library Exception, which explicitly permits static linking into permissively-licensed binaries without copyleft propagation. No licensing obligation is imposed on the distributed `vex` binary by the mingw toolchain.
-- **Homebrew tap:** The tap formula is maintained under the same license as the `vexcoder` repository.
+- **CI tooling (CI platform workflows, cross-compilation tool, mingw toolchain):** These are build and release infrastructure, not runtime components. Their licensing does not affect the distributed binary's license obligations. **mingw runtime library exception:** the mingw runtime libraries (`libgcc`, `libwinpthread`) are distributed under the GCC Runtime Library Exception, which explicitly permits static linking into permissively-licensed binaries without copyleft propagation. No licensing obligation is imposed on the distributed `vex` binary by the mingw toolchain.
+- **Package-manager tap:** The tap formula is maintained under the same license as the `vexcoder` repository.
 
 ### Gaps addressed by this ADR
 
@@ -79,7 +79,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | Enterprise governance (audit logs, seat management, org policy) | Single-user, self-hosted by design. Multi-tenant governance infrastructure contradicts the zero-licensing-cost constraint and the self-hostable posture. Deferred indefinitely. |
 | OS-managed settings (macOS plist, Windows Registry fleet policy) | Requires platform-specific policy distribution infrastructure. Deferred indefinitely; operators use the layered config chain (ADR-024 Gap 3). Must not be implemented without a dedicated ADR. |
 | Voice input | Requires audio I/O subsystem incompatible with terminal-first constraint. Deferred indefinitely. |
-| Platform API integration (GitHub PR creation via REST API) | `vex pr-summary` (Gap 24) produces text for pipe to the operator's platform CLI; direct REST API calls require credential management for each platform and a dedicated ADR. Deferred indefinitely. |
+| Platform API integration (hosting-platform PR creation via REST API) | `vex pr-summary` (Gap 24) produces text for pipe to the operator's platform CLI; direct REST API calls require credential management for each platform and a dedicated ADR. Deferred indefinitely. |
 | Built-in web search | Depends on MCP (Gap 5). Implementing web search before MCP exists would permanently couple it to the core runtime |
 | IDE extensions | Deferred to a post-first-milestone ADR per ADR-022 amendment Decision item 11. File-based editor extensions must use `vex exec` (Gap 2). Native GUI surfaces (IDE panels with live streaming, macOS native client) must use the `LocalApiServer` path reserved in Phase I |
 | Conversation compaction / context-window management | Long-running sessions that approach the model's context limit have no managed strategy for pruning or summarising old turns. `ConversationCheckpoint` in `TaskState` records a `message_count` and `summary` string but neither is populated nor acted upon by the runtime today. Implementing compaction requires a dedicated ADR: the summarisation prompt, the trigger threshold, and whether the summary is injected as a system message or a synthetic turn all affect model behaviour and must be decided deliberately. Deferred until the edit loop and BatchMode are stable — compaction adds the most value for long `vex exec` runs, and those require BatchMode to exist first. **Command-surface note:** reference CLIs expose active context management commands (`/compact`, `/usage`). ADR-023 `EL-12` introduces `/context` for read-only token-estimate display. `/compact` (trigger summarisation) and a richer `/usage` (per-tool token attribution) are part of this deferred gap and must not be implemented without the dedicated compaction ADR. This gap is a formal deferral gate: do not implement conversation pruning or summarisation without a dedicated ADR. A per-session turn-token counter (Gap 28) is separable from this gate: it reads token counts reported by the API response and requires no summarisation strategy. Gap 28 must not be blocked by this deferral. |
@@ -234,11 +234,11 @@ Add `/model <name>` to `TuiMode::handle_slash_command`. The command updates `Run
 
 ### Gap 9 — Binary Distribution Pipeline and macOS Packaging
 
-**Sequencing:** branch-debug packaging lands on `dispatcher/**` first; prerelease and stable publishing happens from tags after the reviewed branch is merged. Homebrew automation remains deferred for the alpha packaging cut.
+**Sequencing:** branch-debug packaging lands on `dispatcher/**` first; prerelease and stable publishing happens from tags after the reviewed branch is merged. Package-manager tap automation remains deferred for the alpha packaging cut.
 
-#### Phase G — GitHub Releases pipeline
+#### Phase G — Hosted release pipeline
 
-Add a `release.yml` GitHub Actions workflow triggered on dispatcher branch pushes for packaging verification and on semver tags, including prerelease tags such as `v0.1.0-alpha.1`. Branch pushes build the archives below and upload them as Actions artifacts only. Tag pushes publish pre-built binaries for the following targets:
+Add a `release.yml` CI workflow triggered on dispatcher branch pushes for packaging verification and on semver tags, including prerelease tags such as `v0.1.0-alpha.1`. Branch pushes build the archives below and upload them as CI artifacts only. Tag pushes publish pre-built binaries for the following targets:
 
 | Target | CI runner | Notes |
 | :--- | :--- | :--- |
@@ -250,9 +250,9 @@ Add a `release.yml` GitHub Actions workflow triggered on dispatcher branch pushe
 
 **Windows target note:** `x86_64-pc-windows-msvc` requires a Windows CI runner and the MSVC toolchain. `x86_64-pc-windows-gnu` (mingw) is cross-compilable from Linux via `cross` with no Windows runner required. Use `gnu` as the default Windows target. A future ADR may add an `msvc` build on a Windows runner if installer tooling requires it. See the dependency licensing constraint section for the mingw runtime library exception applicable to static builds.
 
-Each target produces a compressed archive (`vex-<version>-<target>.tar.gz` or `.zip` for the Windows target). Tag-triggered runs attach the archives to the GitHub Release. A `checksums.txt` file containing `sha256` hashes for all archives is published alongside them.
+Each target produces a compressed archive (`vex-<version>-<target>.tar.gz` or `.zip` for the Windows target). Tag-triggered runs attach the archives to the hosted release entry. A `checksums.txt` file containing `sha256` hashes for all archives is published alongside them.
 
-A Homebrew tap formula (`homebrew-vex`) is maintained as a separate repository, but its automatic repository-dispatch update remains deferred for the alpha packaging cut.
+A package-manager tap formula (`homebrew-vex`) is maintained as a separate repository, but its automatic repository-dispatch update remains deferred for the alpha packaging cut.
 
 #### Phase H — macOS application wrapper
 
@@ -262,9 +262,9 @@ A native macOS application under `packaging/macos/` that:
 - Embeds the compiled `vex` binary in the app bundle at `Contents/MacOS/vex`.
 - Reads `VEX_MODEL_TOKEN` from the system keychain via `Security.framework` and injects it as an environment variable into the managed process at launch. It must not write the token to disk.
 - Presents a terminal surface (initially: launches the system terminal with the embedded binary; an embedded `NSTextView`-based terminal surface is a separately-scoped follow-up and not required for Phase H correctness).
-- Distributes via a `.dmg` attached to GitHub Releases.
+- Distributes via a `.dmg` attached to the hosted release entry.
 
-**Code signing and notarisation (required for distribution):** the macOS wrapper must be signed with a Developer ID Application certificate and notarised via `xcrun notarytool` before distribution. An unsigned `.dmg` will be blocked by Gatekeeper on every supported macOS version. The release workflow must include a signing and notarisation step. The certificate and App Store Connect API key must be stored as GitHub Actions secrets (`APPLE_DEVELOPER_ID_CERT`, `APPLE_NOTARYTOOL_KEY`). If these secrets are absent, the workflow must skip signing and attach a clearly labelled "unsigned development build" to the release rather than failing silently.
+**Code signing and notarisation (required for distribution):** the macOS wrapper must be signed with a Developer ID Application certificate and notarised via `xcrun notarytool` before distribution. An unsigned `.dmg` will be blocked by Gatekeeper on every supported macOS version. The release workflow must include a signing and notarisation step. The certificate and notary API key must be stored as CI secrets (`APPLE_DEVELOPER_ID_CERT`, `APPLE_NOTARYTOOL_KEY`). If these secrets are absent, the workflow must skip signing and attach a clearly labelled "unsigned development build" to the release rather than failing silently.
 
 **Phase H boundary constraint:** the native macOS application in Phase H is a packaging and credential layer only. It must not contain agent logic, model calls, conversation state, or tool dispatch. All such logic remains exclusively in the Rust binary. Any PR to `packaging/macos/` that modifies any file under `src/` in the same changeset is out of scope for Phase H and must be rejected.
 
@@ -335,8 +335,8 @@ Add a `vex migrate config` sub-command that reads the environment for legacy var
 
 | Legacy variable | Current replacement | Notes |
 | :--- | :--- | :--- |
-| `VEX_API_PROTOCOL=anthropic` | `model_protocol = "messages-v1"` | |
-| `VEX_API_PROTOCOL=openai` | `model_protocol = "chat-compat"` | |
+| `VEX_API_PROTOCOL=<legacy messages value>` | `model_protocol = "messages-v1"` | |
+| `VEX_API_PROTOCOL=<legacy chat value>` | `model_protocol = "chat-compat"` | |
 | `VEX_STRUCTURED_TOOL_PROTOCOL=on` | `tool_call_mode = "structured"` | |
 | `VEX_STRUCTURED_TOOL_PROTOCOL=off` | `tool_call_mode = "tagged-fallback"` | |
 | `VEX_MODEL_URL` (full endpoint path) | `model_url` (base URL, endpoint stripped) | Strip `/v1/messages` or `/v1/chat/completions` suffix |
@@ -770,7 +770,7 @@ vex pr-summary
     This is a CLI sub-command, not a TUI slash command.
 ```
 
-**Scope boundary:** These are thin wrappers over `git` binary calls and `ContextAssembler`-style diff assembly. They do not integrate with any specific hosting platform API (GitHub, GitLab, Gitea). Platform API integration (creating PRs via REST API) is explicitly out of scope and requires a dedicated ADR. `vex pr-summary` produces a text artifact the operator pipes to whatever CLI tool manages their remote.
+**Scope boundary:** These are thin wrappers over `git` binary calls and `ContextAssembler`-style diff assembly. They do not integrate with any specific hosting platform API. Platform API integration (creating PRs via REST API) is explicitly out of scope and requires a dedicated ADR. `vex pr-summary` produces a text artifact the operator pipes to whatever CLI tool manages their remote.
 
 **New prompt template:** `src/prompts/pr_summary_template.txt` — added to EL-06 scope.
 
@@ -806,7 +806,7 @@ vex pr-summary
 
 ### Gap 26 — Pre/Post-Tool-Call Hooks
 
-Reference implementations (Codex, Claude Code) support a `hooks` configuration table that fires operator-defined shell commands before or after specific tool calls — for example, running a formatter after every `write_file`, or a linter before any `apply_patch`. Gap 7 adds git commit hooks only; a general-purpose hooks system addressing the same feature present in reference CLIs is a separate and higher-value capability.
+Reference hosted agent CLIs support a `hooks` configuration table that fires operator-defined shell commands before or after specific tool calls — for example, running a formatter after every `write_file`, or a linter before any `apply_patch`. Gap 7 adds git commit hooks only; a general-purpose hooks system addressing the same feature present in reference CLIs is a separate and higher-value capability.
 
 **Configuration** (user config only — `~/.config/vex/config.toml`; repo-local hooks carry the same supply-chain risk as `[[mcp_servers]]` and are rejected at config load time):
 
@@ -873,7 +873,7 @@ Output is rendered to stdout as a human-readable list. `--json` emits a JSON arr
 
 ### Gap 28 — Session-Level Token Counter
 
-Reference implementations (Codex, Claude Code) display per-turn and cumulative token usage from API responses. This gap is explicitly separable from the compaction deferral gate: counting tokens reported in API responses requires no summarisation strategy and must not be blocked by the compaction ADR requirement.
+Reference hosted agent CLIs display per-turn and cumulative token usage from API responses. This gap is explicitly separable from the compaction deferral gate: counting tokens reported in API responses requires no summarisation strategy and must not be blocked by the compaction ADR requirement.
 
 **Source:** token counts are read from the `usage` field in model API responses (`input_tokens`, `output_tokens`). For local runtimes that do not return usage fields, counts are estimated at `chars ÷ 4` with an `(estimated)` annotation displayed wherever the count appears.
 
@@ -1106,7 +1106,7 @@ A `src/index/` module providing structured code search, symbol lookup, or semant
 | `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS` | Token budget for project instructions injection | `4096` |
 | `VEX_MAX_MEMORY_TOKENS` | Token budget for user notes injection | `2048` |
 | `VEX_AT_INJECT_MAX_BYTES` | Max bytes per `@<path>` inline file injection | `32768` (shared with `ContextAssembler::max_file_bytes`) |
-| `VEX_DISABLE_LARGE_CONTEXT` | When `true`, restricts context window requests to the model's standard context limit. Equivalent to `CLAUDE_CODE_DISABLE_1M_CONTEXT` in reference implementations. Not yet wired to runtime behaviour — reserved for when a large-context model backend is supported. | `false` |
+| `VEX_DISABLE_LARGE_CONTEXT` | When `true`, restricts context window requests to the model's standard context limit. Equivalent to the legacy hosted-agent 1M-context toggle used by some reference tools. Not yet wired to runtime behaviour — reserved for when a large-context model backend is supported. | `false` |
 | `VEX_MODEL_URL_SKIP_TLS_CHECK` | Bypass certificate verification for an HTTPS `model_url` in development only; emits a startup warning and is not permitted in repo-local config | `false` |
 
 ### New prompt templates (additions to ADR-023 `src/prompts/`)
@@ -1240,9 +1240,9 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 
 | Objective | Completion condition |
 | :--- | :--- |
-| GitHub Releases workflow | Branch pushes to `dispatcher/**` upload packaging artifacts; tagging `v*.*.*` or prerelease tags such as `v0.1.0-alpha.1` publishes all five target archives |
+| Hosted release workflow | Branch pushes to `dispatcher/**` upload packaging artifacts; tagging `v*.*.*` or prerelease tags such as `v0.1.0-alpha.1` publishes all five target archives |
 | Checksums | `checksums.txt` with `sha256` published alongside archives |
-| Homebrew tap | Deferred for the alpha packaging cut; future repository dispatch updates the formula |
+| Package-manager tap | Deferred for the alpha packaging cut; future repository dispatch updates the formula |
 
 ### Phase H — macOS application wrapper (post-first-milestone)
 
@@ -1252,7 +1252,7 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | Keychain credential storage | `VEX_MODEL_TOKEN` sourced from keychain; injected as env var; not written to disk |
 | No agent logic (Phase H) | Wrapper contains no runtime, model, or state code. Full native client capability deferred to Phase I (`LocalApiServer`) |
 | Code signing and notarisation | Binary signed with Developer ID; notarised via `xcrun notarytool`; unsigned builds labelled clearly |
-| Release artifact | `.dmg` attached to GitHub Release |
+| Release artifact | `.dmg` attached to hosted release entry |
 | Boundary preserved | No PR to `packaging/macos/` requires changes to `src/` |
 
 ---
@@ -1264,7 +1264,7 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | # | Scenario | Expected result |
 | :--- | :--- | :--- |
 | 1 | Place `.vex/config.toml` in repo; start `vex` with no `VEX_*` env vars | Config values active |
-| 2 | Set `VEX_API_PROTOCOL=anthropic`; run `vex migrate config` | Output contains `model_protocol = "messages-v1"` |
+| 2 | Set `VEX_API_PROTOCOL` to the legacy messages value; run `vex migrate config` | Output contains `model_protocol = "messages-v1"` |
 | 3 | `vex exec --task "list Rust source files" --format jsonl` | JSONL to stdout; no TUI |
 | 4 | `VEX_SANDBOX=macos-exec`; spawn a command | Wrapped in `sandbox-exec`; warn and fall back when unavailable |
 | 5 | `VEX_SANDBOX=macos-exec VEX_SANDBOX_REQUIRE=true`; `sandbox-exec` absent | Process aborts with diagnostic |
@@ -1302,8 +1302,11 @@ fn config_model_token_rejected_from_file() {
 }
 
 #[test]
-fn migrate_config_maps_vex_api_protocol_anthropic() {
-    let output = migrate_config_from_env(&[("VEX_API_PROTOCOL", "anthropic")]);
+fn migrate_config_maps_vex_api_protocol_legacy_messages_value() {
+    let output = migrate_config_from_env(&[(
+        "VEX_API_PROTOCOL",
+        legacy_messages_protocol_value(),
+    )]);
     assert!(output.contains("model_protocol = \"messages-v1\""));
 }
 
@@ -1464,7 +1467,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 ## Consequences
 
 **Easier after this ADR:**
-- Operators can install `vex` from GitHub Releases without building from source.
+- Operators can install `vex` from hosted release artifacts without building from source.
 - macOS users have a native application wrapper with keychain-backed credential storage.
 - Operators migrating from pre-ADR-022 deployments have a single command to produce the correct config fragment.
 - CI pipelines can drive the agent headlessly via `vex exec`.
@@ -1512,9 +1515,9 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PE-02** | `vex exec` sub-command with JSONL/text output | [x] |
 | **PF-01** | `McpRegistry` with STDIO and HTTP transports | [ ] |
 | **PF-02** | `Capability::McpTool` and approval wiring | [ ] |
-| **PG-01** | GitHub Releases workflow — Linux and macOS targets | [ ] |
-| **PG-02** | GitHub Releases workflow — Windows (gnu) target | [ ] |
-| **PG-03** | Homebrew tap formula + auto-update dispatch | [ ] |
+| **PG-01** | Hosted release workflow — Linux and macOS targets | [ ] |
+| **PG-02** | Hosted release workflow — Windows (gnu) target | [ ] |
+| **PG-03** | Package-manager tap formula + auto-update dispatch | [ ] |
 | **PH-01** | macOS application layer — process management + terminal surface | [ ] |
 | **PH-02** | macOS application layer — keychain credential storage + env injection | [ ] |
 | **PH-03** | macOS code signing, notarisation, and `.dmg` release attachment | [ ] |
@@ -1622,7 +1625,7 @@ When checking a box above, append an evidence block under this section:
 | `[[hooks]]` `on_fail = "abort"` must abort the pending tool result and surface the error to the operator; it must not terminate the process | A hook failure is a tool-level event, not a session-level event |
 | Do not begin Phases G or H before milestone-1 correctness work is validated | Sequencing guard |
 | Do not add a dependency licensed under a commercial, copyleft, or conditionally-paid license | All direct dependencies must carry MIT, Apache 2.0, or dual MIT/Apache 2.0 licensing; exceptions require a dedicated ADR with explicit legal basis |
-| Do not use provider-branded names or proprietary product references in runtime code, config keys, or default values | Documentation may reference external tools by name for operator clarity; runtime behaviour must remain neutral. **Migration tooling exception (Gap 11):** `vex migrate config` is the sole permitted context in which pre-ADR-022 branded variable values (e.g. `VEX_API_PROTOCOL=anthropic`) may be read at runtime — exclusively to map them to neutral equivalents. No other code path may read or emit branded values. |
+| Do not use provider-branded names or proprietary product references in runtime code, config keys, or default values | Documentation may reference external tools by name for operator clarity; runtime behaviour must remain neutral. **Migration tooling exception (Gap 11):** `vex migrate config` is the sole permitted context in which pre-ADR-022 branded variable values (for example, the legacy messages token behind `VEX_API_PROTOCOL`) may be read at runtime — exclusively to map them to neutral equivalents. No other code path may read or emit branded values. |
 | MCP HTTP header values containing secrets must use `${ENV_VAR_NAME}` substitution; literal secrets must never appear in config files | Enforced at config load time: values without `${}` syntax are used verbatim and are assumed non-secret; values with `${}` are resolved from environment only |
 | `-p`/`--print` must not be implemented before Gap 2 (`BatchMode`) is complete | `--print` is a routing flag over `BatchMode`; implementing it without `BatchMode` requires duplicating runtime logic, which is prohibited |
 | Do not implement a minimal/simple execution mode env var (`VEX_SIMPLE` or equivalent) without a dedicated ADR | The exact feature-disable set must be decided deliberately; disabling MCP, hooks, or skills piecemeal without a specification creates inconsistent operator expectations |
@@ -1632,18 +1635,18 @@ When checking a box above, append an evidence block under this section:
 
 ## Appendix — ADR-022 Amendment (2026-03-03)
 
-The amendment that authorises native packaging and editor-surface work is recorded in `adr/ADR-022-amendment-2026-03-03.md` and must be applied to `adr/ADR-022-free-open-coding-agent-roadmap.md` before Phases G–H work begins. See that file for exact application instructions.
+The current command-execution amendment is recorded in `adr/ADR-022-amendment-2026-03-13.md` and must be applied to `adr/ADR-022-free-open-coding-agent-roadmap.md` before Phases G-H work begins. See that file for exact application instructions.
 
 ---
 
 ## References
 
 - `adr/ADR-022-free-open-coding-agent-roadmap.md` — zero-licensing-cost coding agent roadmap (permissive-dependency constraint, self-hostable posture)
-- `adr/ADR-022-amendment-2026-03-03.md` — terminal-first constraint scoped to milestone 1
+- `adr/ADR-022-amendment-2026-03-13.md` — command-execution alignment and milestone-1 capture behavior
 - `adr/ADR-023-deterministic-edit-loop.md` — edit loop, context assembly, model profiles, semantic commands
 - `adr/completed/ADR-014-runtime-core-policy-dedup-and-enforcement.md` — policy separation
 - `adr/completed/ADR-006-runtime-mode-contracts.md` — runtime mode contracts
-- `adr/ADR-022-amendment-2026-03-03.md` — canonical migration guide and variable rename table
+- `adr/ADR-022-amendment-2026-03-13.md` — command-execution migration notes and current runtime contract
 - `.agents/skills/registry.toml` — skills registry manifest
 
 ### [PB-01 / PB-02 / PB-03] - completions, hooks, and skills CLI surface
@@ -1814,7 +1817,7 @@ The amendment that authorises native packaging and editor-surface work is record
   - `src/bin/vex.rs` — `vex migrate config` sub-command
   - `docs/src/migration.md` — variable rename table, command alias reference, and usage guide
 - Validation:
-  - `cargo test test_migrate_config_maps_anthropic --all-targets` : pass
+  - `cargo test test_migrate_config_maps_legacy_messages_value --all-targets` : pass
   - `cargo test test_migrate_config_maps_structured_tool_protocol_on --all-targets` : pass
   - `cargo test test_migrate_config_header_comment_present --all-targets` : pass
   - `cargo test test_migrate_config_cli_parses_output_flag --all-targets` : pass
@@ -2018,4 +2021,4 @@ The amendment that authorises native packaging and editor-surface work is record
 - Notes:
   - `vex branch` is a thin wrapper over `git checkout -b` and records the branch name on the most recent saved task state when one exists.
   - `vex pr-summary` assembles a merge-base diff against `origin/HEAD`, runs a single batch turn, and prints a `Title:` line plus Markdown body to stdout.
-  - This branch also reconciles stale ADR-024 checklist rows for merged PRs `#60`, `#63`, `#71`, `#72`, and `#74`.
+- This branch also reconciles stale ADR-024 checklist rows for merged PRs `#60`, `#63`, `#71`, `#72`, and `#74`; it later merged as PR `#75` to close `PK-08`.
