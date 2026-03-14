@@ -2,7 +2,7 @@
 
 **Target files:**
 - `Makefile` — extend `check-boundary` coverage to `src/batch_mode.rs`
-- `docs/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — PE-01 / PE-02 closeout evidence and tracked deferral notes
+- `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — PE-01 / PE-02 closeout evidence and tracked deferral notes
 - `src/batch_mode.rs` — new file
 - `src/bin/vex.rs` — add `vex exec` subcommand
 - `src/lib.rs` — expose `batch_mode` module

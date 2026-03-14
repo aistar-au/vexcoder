@@ -124,7 +124,7 @@ cargo build --release --bin vex
 git push -u origin dispatcher/v0.1.0-alpha.1-packaging
 ```
 
-Windows packaging is currently an unsigned alpha path. SmartScreen warnings are expected until Authenticode signing lands; SignPath.io is the first signing path to evaluate for open-source release automation.
+Windows packaging is currently an unsigned alpha path. Platform trust warnings are expected until code signing lands; evaluate a compatible signing service only when the packaging ADR set explicitly requires it.
 
 Branch pushes to `.github/workflows/release.yml` upload packaging artifacts for review only. Once the branch workflow is green and the archives look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
 
@@ -180,8 +180,9 @@ vexcoder/ (standalone view)
 | `src/api/logging.rs` | Shared API debug/error logger and env-based log path handling. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/logging.rs> |
 | `src/api/mock_client.rs` | Mock streaming client used by tests. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
 | `src/api/stream.rs` | Stream/SSE event parsing helpers used by API layer. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
-| `src/app.rs` | TUI mode state machine: input, overlays, history, and UI event handling. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
-| `src/config.rs` | Config loading/validation from environment variables. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
+| `src/app.rs` | Current interactive application module root: TUI mode state, input, overlays, history, and runtime-facing coordination. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
+| `src/batch_mode.rs` | Non-interactive batch runner for `vex exec`, including JSONL and text turn output. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode.rs> |
+| `src/config.rs` | Layered config loading and validation across environment, repo-local, user, and system sources. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
 | `src/edit_diff.rs` | Edit preview diff/hunk formatting utilities. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/edit_diff.rs> |
 | `src/git_hooks.rs` | Git hook install/remove helpers and commit-trailer hook script. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/git_hooks.rs> |
 | `src/runtime.rs` | Runtime module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime.rs> |

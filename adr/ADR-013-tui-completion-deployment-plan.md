@@ -72,16 +72,16 @@ Execute the work in two phases with the sequencing below.
 
 | Order | Task | Target files | ADR-012 gate | Anchor test |
 | :--- | :--- | :--- | :--- | :--- |
-| 1 | CORE-09 | `src/app/mod.rs` | prerequisite | `ui_state_slices_compile` |
-| 2 | CORE-07 | `src/ui/layout.rs` (new), `src/app/mod.rs` | #3 viewport | `layout_splits_into_three_panes` |
-| 3 | CORE-08 | `src/app/mod.rs`, `src/ui/render.rs` | #4 overlay z-order | `overlay_renders_after_base_panes` |
-| 4 | CORE-10 | `src/app/mod.rs` | #2 interrupt, #4 overlay | `overlay_blocks_submit` |
-| 5 | CORE-11 | `src/app/mod.rs` | #4 overlay | `approval_sender_resolved_exactly_once` |
-| 6 | FEAT-10 | `src/ui/render.rs`, `src/app/mod.rs` | #4 | `header_stable_during_streaming` |
-| 7 | FEAT-11 | `src/ui/render.rs`, `src/app/mod.rs` | #4 modal surface | `all_modals_use_unified_renderer` |
-| 8 | FEAT-12 | `src/ui/render.rs`, `src/app/mod.rs` | #4 scrollable modal | `diff_overlay_scrolls` |
-| 9 | FEAT-13 | `src/app/mod.rs`, `src/ui/render.rs` | #1 input durability | `multiline_submit_outside_overlay_only` |
-| 10 | FEAT-14 | `src/app/mod.rs` | #1 input durability | `history_stable_during_overlay` |
+| 1 | CORE-09 | `src/app.rs` | prerequisite | `ui_state_slices_compile` |
+| 2 | CORE-07 | `src/ui/layout.rs` (new), `src/app.rs` | #3 viewport | `layout_splits_into_three_panes` |
+| 3 | CORE-08 | `src/app.rs`, `src/ui/render.rs` | #4 overlay z-order | `overlay_renders_after_base_panes` |
+| 4 | CORE-10 | `src/app.rs` | #2 interrupt, #4 overlay | `overlay_blocks_submit` |
+| 5 | CORE-11 | `src/app.rs` | #4 overlay | `approval_sender_resolved_exactly_once` |
+| 6 | FEAT-10 | `src/ui/render.rs`, `src/app.rs` | #4 | `header_stable_during_streaming` |
+| 7 | FEAT-11 | `src/ui/render.rs`, `src/app.rs` | #4 modal surface | `all_modals_use_unified_renderer` |
+| 8 | FEAT-12 | `src/ui/render.rs`, `src/app.rs` | #4 scrollable modal | `diff_overlay_scrolls` |
+| 9 | FEAT-13 | `src/app.rs`, `src/ui/render.rs` | #1 input durability | `multiline_submit_outside_overlay_only` |
+| 10 | FEAT-14 | `src/app.rs` | #1 input durability | `history_stable_during_overlay` |
 
 **Dependency rules:** CORE-09 has no upstream dependency and must be dispatched first.
 CORE-07 and CORE-08 may be dispatched once CORE-09 anchor is green. CORE-10 and
@@ -95,11 +95,11 @@ New task manifests at `adr/completed/CORE-12-*.md`, `adr/completed/CORE-13-*.md`
 
 | Task | Target files | ADR-012 gate | Anchor test |
 | :--- | :--- | :--- | :--- |
-| FEAT-15 | `src/app/mod.rs` | #3 scrollback | `scrollback_retains_position_during_streaming` |
-| CORE-12 | `src/app/mod.rs` | #5 transcript retention | `transcript_does_not_exceed_cap_after_n_turns` |
-| CORE-13 | `src/app/mod.rs` | #6 render efficiency | `render_not_called_when_state_unchanged` |
-| CORE-14 | `src/terminal/mod.rs`, `src/app/mod.rs` | #7 terminal lifecycle | `terminal_restored_after_simulated_panic` |
-| FEAT-16 | `src/app/mod.rs` | #1 + #2 | `idle_interrupt_shows_feedback`, `input_drop_shows_feedback` |
+| FEAT-15 | `src/app.rs` | #3 scrollback | `scrollback_retains_position_during_streaming` |
+| CORE-12 | `src/app.rs` | #5 transcript retention | `transcript_does_not_exceed_cap_after_n_turns` |
+| CORE-13 | `src/app.rs` | #6 render efficiency | `render_not_called_when_state_unchanged` |
+| CORE-14 | `src/terminal.rs`, `src/app.rs` | #7 terminal lifecycle | `terminal_restored_after_simulated_panic` |
+| FEAT-16 | `src/app.rs` | #1 + #2 | `idle_interrupt_shows_feedback`, `input_drop_shows_feedback` |
 
 **Dispatch order for Phase 2:** CORE-14 (panic hook) is independent and low-risk — it
 must be dispatched before any Phase 1 task because raw mode is already active and a

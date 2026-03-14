@@ -31,7 +31,7 @@ Expand-Archive vex.zip -DestinationPath .
 .\vex-0.1.0-alpha.1-x86_64-pc-windows-msvc\vex.exe
 ```
 
-Windows archives are currently unsigned. SmartScreen will display an "Unknown Publisher" warning. Authenticode signing via SignPath.io is planned for a future release.
+Windows archives are currently unsigned. The operating system will display an unknown-publisher warning until code signing is added in a future release.
 
 ## Supported targets
 

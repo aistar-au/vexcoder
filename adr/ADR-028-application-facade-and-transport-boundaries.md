@@ -53,6 +53,7 @@ Adopt a layered boundary model with strict inward dependency direction.
 
 **Target modules**
 
+- `src/server.rs`
 - `src/server/http.rs`
 - `src/server/sse.rs`
 - `src/server/socket.rs`
@@ -80,12 +81,12 @@ For the current ADR chain, transport means the ADR-026 `LocalApiServer` surface 
 
 **Target modules**
 
+- `src/app.rs`                    # module root during transition
 - `src/app/core.rs`
 - `src/app/commands.rs`
 - `src/app/context.rs`
 - `src/app/errors.rs`
 - `src/app/util.rs`
-- `src/app/mod.rs`
 
 **Responsibilities**
 
@@ -105,7 +106,7 @@ For the current ADR chain, transport means the ADR-026 `LocalApiServer` surface 
 **Facade API sketch**
 
 ```rust
-// src/app/mod.rs
+// src/app.rs
 
 pub async fn execute_command(req: CommandRequest) -> Result<CommandResponse, AppError>;
 pub fn subscribe_runtime_events() -> impl futures_core::Stream<Item = RuntimeEnvelope>;
@@ -256,10 +257,10 @@ Those remain follow-up implementation or transport decisions.
 
 Use the following order to minimize breakage.
 
-1. **Create the application facade skeleton** under `src/app/` and define facade entrypoints plus the shared error and command types. Reuse ADR-025 `RuntimeEnvelope` for machine-readable event streaming rather than introducing a new canonical envelope.
+1. **Create the application facade skeleton** under `src/app/` while keeping `src/app.rs` as the module root during transition. Define facade entrypoints plus the shared error and command types. Reuse ADR-025 `RuntimeEnvelope` for machine-readable event streaming rather than introducing a new canonical envelope.
 2. **Refactor `src/app.rs`** by moving shared application coordination and command semantics into facade modules. Keep behavior identical. Use compatibility shims while the cutover is in progress.
 3. **Reduce `src/bin/vex.rs`** to CLI parsing, config loading, startup routing, and facade calls. Do not remove legitimate startup-routing responsibilities, but do remove reusable application semantics from the binary.
-4. **Introduce `src/server/` modules** only for the ADR-026-authorized local transports. Server modules consume facade output and frame ADR-025 envelopes for transport.
+4. **Introduce `src/server.rs` plus `src/server/` submodules** only for the ADR-026-authorized local transports. Server modules consume facade output and frame ADR-025 envelopes for transport.
 5. **Keep direct facade invocation available during transition** for local CLI paths if needed. A self-client or embedded-server path may be introduced later, but it is not required by ADR-028 itself.
 6. **Tighten dependency boundaries** with tests and grep-based contract checks so runtime does not reach outward into CLI or transport.
 

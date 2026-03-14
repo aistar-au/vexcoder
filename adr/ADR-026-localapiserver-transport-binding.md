@@ -90,7 +90,7 @@ Loopback remains the default bind mode. Non-loopback TCP exposure requires expli
 - Windows clients must use HTTP transport.
 - On Windows, operators should rely on host firewall rules whenever non-loopback TCP exposure is enabled.
 
-**Recommended internet exposure pattern — loopback plus tunnel proxy:** when operators want internet reachability in Phase I, the preferred topology is to keep `LocalApiServer` bound to loopback and place an outbound tunnel proxy on the same host in front of it. A Cloudflare Tunnel / `cloudflared` deployment is the canonical example: the tunnel daemon forwards internet requests to `127.0.0.1:6274` by default, so from `LocalApiServer`'s perspective the connection remains loopback HTTP with bearer auth. In that topology, the tunnel provider handles the external TLS surface. Operators using a custom `api.port` must update the tunnel target accordingly. This guidance does not relax the rules for direct non-loopback TCP binds in §3.1.
+**Recommended internet exposure pattern — loopback plus tunnel proxy:** when operators want internet reachability in Phase I, the preferred topology is to keep `LocalApiServer` bound to loopback and place an outbound tunnel proxy on the same host in front of it. A local tunnel daemon that forwards internet requests to `127.0.0.1:6274` is the intended example, so from `LocalApiServer`'s perspective the connection remains loopback HTTP with bearer auth. In that topology, the tunnel provider handles the external TLS surface. Operators using a custom `api.port` must update the tunnel target accordingly. This guidance does not relax the rules for direct non-loopback TCP binds in §3.1.
 
 ### 3.1 TLS boundary (normative)
 
@@ -363,7 +363,7 @@ vpn_trust = false           # RESERVED false only; VPN carve-out requires a dedi
 
 - [x] Apply the `[api]` config-key block to ADR-024's `Config TOML canonical keys` section (in-place amendment; ADR-024 is Proposed).
 - [x] Extend ADR-024's Phase I dispatcher checklist from PI-09 through PI-16. ADR-025 owns PI-09–12; this ADR owns PI-13–16. The reconciliation PR is owned by the ADR-025 dispatcher (PI-09 closeout) and must be merged before PI-13 begins.
-- [x] Verify all JSON, GBNF, and schema examples in ADR-025 / ADR-026 remain syntax-clean after reconciliation.
+- [x] Verify all JSON, GBNF, and schema examples in ADR-025 and ADR-026 remain syntax-clean after reconciliation.
 
 ### 9. Validation at the API boundary
 
@@ -666,7 +666,7 @@ When checking any PI-13…PI-16 box, append an evidence block:
 | `tls_ca_cert` is operator trust-distribution metadata, not server-side trust bypass | Validate readability when non-empty; the server does not consume it for inbound TLS termination |
 | Do not implement `tls_skip_verify` in Phase I | Certificate-verification bypass defeats the confidentiality and endpoint-identity guarantees that motivate TLS |
 | Do not implement `api.vpn_trust` without a dedicated ADR | A VPN-specific carve-out requires an explicit rule set; until then VPN addresses follow the ordinary non-loopback TLS requirement |
-| Tunnel-proxy internet exposure keeps `LocalApiServer` in loopback mode | Cloudflare Tunnel and equivalent proxies target `127.0.0.1:6274` by default; if `api.port` changes, operator docs must update the tunnel target |
+| Tunnel-proxy internet exposure keeps `LocalApiServer` in loopback mode | Tunnel proxies target `127.0.0.1:6274` by default; if `api.port` changes, operator docs must update the tunnel target |
 | Direct internet exposure must not be presented as the default Phase I path | Operator docs must warn that public binds need upstream rate limiting and hardening beyond TLS plus bearer auth |
 | `transport = "both"` applies TLS rules only to the HTTP surface | Unix-socket transport remains filesystem-auth only and is unaffected by TLS config |
 | Do not use SSE event-name taxonomy as semantic state | Event name is always `runtime`; semantics live in JSON |

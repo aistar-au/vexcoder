@@ -137,7 +137,7 @@ To produce the same `.zip` archive used by GitHub Releases, install the Visual S
 
 The archive is written to `dist\`.
 
-Note: release archives are currently unsigned. SmartScreen will display an "Unknown Publisher" warning when you try to run the extracted binary. This is expected until Authenticode signing is added. You can bypass it by right-clicking the binary, selecting Properties, and checking Unblock.
+Note: release archives are currently unsigned. The operating system will display an unknown-publisher warning when you try to run the extracted binary. This is expected until code signing is added. You can bypass it by opening the file properties and allowing the local binary to run.
 
 ## Troubleshooting
 

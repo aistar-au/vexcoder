@@ -95,7 +95,10 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 **Phase I (local API server)** requires a dedicated ADR specifying wire protocol, local socket authentication, and streaming response format before any dispatcher begins work. It may not begin before milestone-1 correctness work is validated end-to-end.
 
-The dedicated ADRs for Phase I are ADR-025 (canonical runtime JSON handoff contract), ADR-026 (LocalApiServer transport binding), and ADR-028 (application facade and transport boundaries). ADR-025 and ADR-026 define the machine-readable and transport-facing surfaces; ADR-028 defines the application-layer dependency boundary they must use.
+The dedicated ADRs for the Phase I machine-readable and transport surfaces are
+ADR-025 (canonical runtime JSON handoff contract) and ADR-026
+(LocalApiServer transport binding). ADR-028 (application facade and transport
+boundaries) is the boundary ADR that Phase I CLI and LocalApiServer work must respect.
 
 ---
 
@@ -1498,7 +1501,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 
 ## Dispatcher checklist
 
-**Phase I dispatch ordering (post-gate):** once milestone-1 correctness work is validated end-to-end, PI-09 and PI-11 may dispatch in parallel. PI-10 depends on PI-09. PI-12 depends on PI-09 through PI-11. PI-13 and PI-14 may dispatch in parallel only after PI-12 and the ADR-024 reconciliation edits are merged. PI-15 follows PI-13 and PI-14. PI-16 is last. This ordering prioritizes ADR-025 / ADR-026 work immediately after the milestone-1 gate; it does not relax that gate.
+**Phase I dispatch ordering (post-gate):** once milestone-1 correctness work is validated end-to-end, PI-09 and PI-11 may dispatch in parallel. PI-10 depends on PI-09. PI-12 depends on PI-09 through PI-11. PI-13 and PI-14 may dispatch in parallel only after PI-12 and the ADR-024 reconciliation edits are merged. PI-15 follows PI-13 and PI-14. PI-16 is last. This ordering prioritizes ADR-025 and ADR-026 work immediately after the milestone-1 gate; ADR-028 remains the boundary ADR those later refactors must respect. This note does not relax the gate.
 
 | ID | Task | Status |
 | :--- | :--- | :--- |

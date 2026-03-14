@@ -17,15 +17,17 @@ Current task-dispatch dependency state:
 | `ADR-025` | Proposed | First post-gate Phase I dispatch target (`PI-09` through `PI-12`); implementation remains gated on milestone-1 validation. |
 | `ADR-026` | Proposed | Follows `ADR-025` closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation remains gated on milestone-1 validation. |
 | `ADR-027` | Accepted | Defines the current full-screen TUI with command-session capture; supersedes the ADR-018/019 path. |
+| `ADR-028` | Proposed | Defines the application facade and transport boundary that later CLI and LocalApiServer refactors must follow. |
 
-ADR-025 and ADR-026 are queued immediately after the milestone-1 correctness
-gate. This roadmap note is descriptive only and does not relax that gate.
+ADR-025, ADR-026, and ADR-028 are the post-gate Phase I and boundary ADR set.
+This roadmap note is descriptive only and does not relax the milestone-1 gate.
 
 ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
 `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`. `PK-08` (`vex branch` and
 `vex pr-summary`), the ADR-027 command-session follow-up, and `EL-09` are
-merged. The remaining milestone-1 queue does not begin at ADR-025 / ADR-026
-yet: `EL-10` still sits in front of the post-gate Phase I track.
+merged. The remaining milestone-1 queue does not begin at the ADR-025,
+ADR-026, and ADR-028 stage yet: `EL-10` still sits in front of that
+post-gate set.
 
 ## Current Next Dispatcher Batch
 

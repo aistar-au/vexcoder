@@ -20,6 +20,6 @@ The long-term architecture work is tracked in the ADR set under `adr/`.
 
 - ADR-025 defines the canonical machine-readable runtime request and event contract.
 - ADR-026 defines the proposed `LocalApiServer` transport binding over that contract.
-- ADR-028 defines the next refactor boundary: shared application semantics should move out of `src/app.rs` into a smaller application facade, while future server transport code should live in separate `src/server/` modules.
+- ADR-028 defines the next refactor boundary: shared application semantics should move behind a smaller application facade while `src/app.rs` remains the module root during transition, and future server transport code should live in `src/server.rs` plus focused `src/server/` submodules.
 
 That means the current `src/app.rs`-centric layout is still the live implementation, but it is not intended to be the permanent shape for machine-readable runtime access or local server transports.

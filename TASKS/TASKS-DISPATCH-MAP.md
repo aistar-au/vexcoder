@@ -27,6 +27,7 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-025-runtime-json-handoff-contract.md` | Proposed |
 | `adr/ADR-026-localapiserver-transport-binding.md` | Proposed |
 | `adr/ADR-027-full-screen-tui-command-session-capture.md` | Accepted |
+| `adr/ADR-028-application-facade-and-transport-boundaries.md` | Proposed |
 
 ## Immediate Dependency Notes
 
@@ -44,12 +45,13 @@ ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
   -> PI-16 last
 ```
 
-ADR-025 and ADR-026 are the first post-gate Phase I dispatch track. This
-dispatch note is descriptive only and does not relax the milestone-1 gate.
+ADR-025 and ADR-026 are the first post-gate Phase I dispatch track. ADR-028 is
+the boundary ADR that later CLI and LocalApiServer refactors must respect.
+This dispatch note is descriptive only and does not relax the milestone-1 gate.
 
 ## Current Next Dispatcher Batch
 
-`EL-10` is the current next batch, not the post-gate ADR-025 / ADR-026 track.
+`EL-10` is the current next batch, not the post-gate ADR-025, ADR-026, and ADR-028 set.
 
 - Scope: `/review` command path and diff assembly
 - Anchor tests: `test_tui_review_default_assembles_head_diff`; `test_tui_review_base_flag_validates_ref`; `test_tui_review_invalid_ref_emits_error_no_turn`
@@ -70,4 +72,4 @@ capture behavior.
 - ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
   `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`; `PK-08`, `EL-09`, and the
   ADR-027 follow-up are merged, but `EL-10` remains ahead of the post-gate
-  ADR-025 / ADR-026 track.
+  ADR-025, ADR-026, and ADR-028 track.
