@@ -30,10 +30,30 @@ fn prepare_forbidden_names_fixture() -> tempfile::TempDir {
     temp
 }
 
+fn forbidden_names_shell() -> std::path::PathBuf {
+    if cfg!(windows) {
+        for var in ["ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"] {
+            if let Some(root) = std::env::var_os(var) {
+                let root = std::path::PathBuf::from(root);
+                for candidate in [
+                    root.join("Git").join("bin").join("bash.exe"),
+                    root.join("Git").join("usr").join("bin").join("bash.exe"),
+                ] {
+                    if candidate.is_file() {
+                        return candidate;
+                    }
+                }
+            }
+        }
+    }
+
+    std::path::PathBuf::from("bash")
+}
+
 fn run_forbidden_names_check(repo_root: &std::path::Path) -> std::process::Output {
     let script = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("scripts/check_forbidden_names.sh");
-    std::process::Command::new("bash")
+    std::process::Command::new(forbidden_names_shell())
         .arg(script)
         .current_dir(repo_root)
         .output()
