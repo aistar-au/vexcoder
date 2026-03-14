@@ -108,10 +108,10 @@ mod tests {
 
     #[test]
     fn test_model_profile_loads_from_toml() {
-        let profile = ModelProfile::load(&repo_root().join("models/qwen-coder.toml"))
-            .expect("qwen fixture should load");
+        let profile = ModelProfile::load(&repo_root().join("models/api-structured.toml"))
+            .expect("structured fixture should load");
 
-        assert_eq!(profile.name, "qwen-coder");
+        assert_eq!(profile.name, "api-structured");
         assert_eq!(
             profile.system_prompt,
             PathBuf::from(CODER_SYSTEM_PROMPT_PATH)
@@ -140,8 +140,8 @@ mod tests {
 
     #[test]
     fn test_model_profile_structured_tools_false_uses_tagged_fallback() {
-        let profile = ModelProfile::load(&repo_root().join("models/codellama.toml"))
-            .expect("codellama fixture should load");
+        let profile = ModelProfile::load(&repo_root().join("models/local-tagged.toml"))
+            .expect("tagged fixture should load");
 
         assert!(!profile.structured_tools);
         assert_eq!(profile.tool_call_mode(), ToolCallMode::TaggedFallback);

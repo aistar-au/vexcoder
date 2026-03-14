@@ -89,7 +89,7 @@ is user-config only.
 | `VEX_MODEL_BACKEND` | `local-runtime` or `api-server` | inferred from URL |
 | `VEX_MODEL_PROTOCOL` | `messages-v1` or `chat-compat` | inferred from URL |
 | `VEX_TOOL_CALL_MODE` | `structured` or `tagged-fallback` | inferred from endpoint |
-| `VEX_MODEL_PROFILE` | Repo-tracked profile path such as `models/qwen-coder.toml` | backend default profile |
+| `VEX_MODEL_PROFILE` | Repo-tracked profile path such as `models/api-structured.toml` | backend default profile |
 | `VEX_MODEL_HEADERS_JSON` | Extra request headers as a JSON object | (none) |
 | `VEX_WORKDIR` | Working directory for tool execution | `$PWD` |
 | `VEX_MAX_MEMORY_TOKENS` | Token budget for user notes injection | `2048` |

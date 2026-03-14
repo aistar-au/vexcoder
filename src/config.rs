@@ -1192,18 +1192,22 @@ mod tests {
         std::fs::create_dir_all(repo_root.join(".git")).unwrap();
         std::fs::create_dir_all(&cwd).unwrap();
         std::fs::write(
-            repo_root.join("models/qwen-coder.toml"),
+            repo_root.join("models/api-structured.toml"),
             std::fs::read_to_string(
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("models/qwen-coder.toml"),
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("models/api-structured.toml"),
             )
             .unwrap(),
         )
         .unwrap();
-        std::fs::write(&user_cfg, "model_profile = \"models/qwen-coder.toml\"\n").unwrap();
+        std::fs::write(
+            &user_cfg,
+            "model_profile = \"models/api-structured.toml\"\n",
+        )
+        .unwrap();
 
         let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap();
 
-        assert_eq!(cfg.model_profile.name, "qwen-coder");
+        assert_eq!(cfg.model_profile.name, "api-structured");
         assert_eq!(cfg.tool_call_mode, cfg.model_profile.tool_call_mode());
     }
 

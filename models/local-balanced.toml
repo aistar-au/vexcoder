@@ -1,6 +1,6 @@
-name = "codellama"
+name = "local-balanced"
 system_prompt = "src/prompts/coder_system.txt"
-temperature = 0.2
+temperature = 0.25
 top_p = 0.9
 max_tokens = 4096
 stop_sequences = ["\n```\n"]

@@ -65,10 +65,10 @@ Canonical raw URL index for every tracked file in this repository.
 | 54 | `docs/src/SUMMARY.md` | ~16 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/SUMMARY.md> |
 | 55 | `LICENSE` | ~21 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/LICENSE> |
 | 56 | `Makefile` | ~277 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Makefile> |
-| 57 | `models/codellama.toml` | ~8 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/models/codellama.toml> |
-| 58 | `models/deepseek-coder.toml` | ~8 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/models/deepseek-coder.toml> |
-| 59 | `models/qwen-coder.toml` | ~8 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/models/qwen-coder.toml> |
-| 60 | `models/starcoder.toml` | ~8 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/models/starcoder.toml> |
+| 57 | `models/api-balanced.toml` | ~8 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/models/api-balanced.toml> |
+| 58 | `models/api-structured.toml` | ~8 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/models/api-structured.toml> |
+| 59 | `models/local-balanced.toml` | ~8 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/models/local-balanced.toml> |
+| 60 | `models/local-tagged.toml` | ~8 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/models/local-tagged.toml> |
 | 61 | `README.md` | ~31 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/README.md> |
 | 62 | `scripts/check_forbidden_imports.sh` | ~32 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/check_forbidden_imports.sh> |
 | 63 | `scripts/check_forbidden_names.sh` | ~48 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/check_forbidden_names.sh> |

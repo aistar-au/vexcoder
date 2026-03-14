@@ -76,7 +76,7 @@ Overrides tool-call encoding. Accepted values: `structured`,
 
 ### `VEX_MODEL_PROFILE`
 
-Selects a repo-tracked model profile such as `models/qwen-coder.toml`.
+Selects a repo-tracked model profile such as `models/api-structured.toml`.
 An invalid or missing path is a startup failure.
 
 ### `VEX_WORKDIR`
@@ -126,7 +126,7 @@ Local endpoint:
 ```toml
 model_url = "http://localhost:11434/v1"
 model_name = "local/default"
-model_profile = "models/qwen-coder.toml"
+model_profile = "models/local-balanced.toml"
 ```
 
 Remote endpoint:
@@ -134,7 +134,7 @@ Remote endpoint:
 ```toml
 model_url = "https://api.example.internal/v1/messages"
 model_name = "repo-assistant"
-model_profile = "models/deepseek-coder.toml"
+model_profile = "models/api-structured.toml"
 ```
 
 Token for authenticated endpoints:

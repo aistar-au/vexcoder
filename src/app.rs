@@ -5217,13 +5217,13 @@ mod tests {
         let mut ctx = setup_ctx();
         let mut mode = TuiMode::new();
         let old = mode.model_name.clone();
-        mode.on_user_input("/model local/qwen3-8b".to_string(), &mut ctx);
-        assert_eq!(mode.model_name, "local/qwen3-8b");
-        assert_eq!(ctx.test_model_name().await, "local/qwen3-8b");
+        mode.on_user_input("/model local/coder-8b".to_string(), &mut ctx);
+        assert_eq!(mode.model_name, "local/coder-8b");
+        assert_eq!(ctx.test_model_name().await, "local/coder-8b");
         assert!(mode
             .history_lines()
             .iter()
-            .any(|l| l.contains(&old) && l.contains("local/qwen3-8b")));
+            .any(|l| l.contains(&old) && l.contains("local/coder-8b")));
     }
 
     #[tokio::test]
@@ -6172,7 +6172,7 @@ data: {"type":"message_stop"}"#.to_string(),
         let mut ctx = setup_ctx();
         let mut profile =
             ModelProfile::default_for_backend(crate::runtime::ModelBackendKind::ApiServer);
-        profile.name = "qwen-coder".to_string();
+        profile.name = "api-structured".to_string();
         mode.active_edit_loop =
             Some(EditLoop::new("task-profile".to_string()).with_profile(profile));
 
@@ -6181,7 +6181,7 @@ data: {"type":"message_stop"}"#.to_string(),
         assert!(
             mode.history_lines()
                 .iter()
-                .any(|line| line.contains("profile") && line.contains("qwen-coder")),
+                .any(|line| line.contains("profile") && line.contains("api-structured")),
             "expected active profile name in /context output"
         );
     }

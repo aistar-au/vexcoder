@@ -32,7 +32,7 @@ Local example:
 # .vex/config.toml
 model_url = "http://localhost:11434/v1"
 model_name = "local/default"
-model_profile = "models/qwen-coder.toml"
+model_profile = "models/local-balanced.toml"
 ```
 
 Remote example:
@@ -41,7 +41,7 @@ Remote example:
 # .vex/config.toml
 model_url = "https://your-endpoint.example/v1/messages"
 model_name = "your-model-name"
-model_profile = "models/deepseek-coder.toml"
+model_profile = "models/api-structured.toml"
 ```
 
 Export a token only when the endpoint requires one:

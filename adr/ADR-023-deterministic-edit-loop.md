@@ -20,9 +20,9 @@ What L7 does not address is the *task-level* problem: there is no runtime constr
 2. After a failed patch apply or a failing test run, the model receives no structured summary of what went wrong; it either loops vacuously or stalls.
 3. There is no bounded stop condition for a coding task; a runaway loop can exhaust the full context window without making progress.
 4. The TUI has no semantic entry points for common coding workflows; users type free-form instructions for operations that have well-defined shapes.
-5. Free/open models (Qwen2.5-Coder, DeepSeek-Coder-V2, Code Llama, StarCoder2) respond significantly better to coding-specific system prompt framing and low-temperature presets than to the existing general-purpose prompt. There is currently no mechanism to load model-specific parameter profiles.
+5. Repo-hosted coding models respond significantly better to coding-specific system prompt framing and low-temperature presets than to the existing general-purpose prompt. There is currently no mechanism to load model-specific parameter profiles.
 
-These gaps are distinct from the approval, sandboxing, and config-layering concerns addressed in ADR-022. They belong to a single coherent capability: a **deterministic edit loop** that automates the instruction → context → patch → apply → validate → retry-with-error cycle, together with the prompt and parameter infrastructure that makes free/open models perform reliably within it.
+These gaps are distinct from the approval, sandboxing, and config-layering concerns addressed in ADR-022. They belong to a single coherent capability: a **deterministic edit loop** that automates the instruction → context → patch → apply → validate → retry-with-error cycle, together with the prompt and parameter infrastructure that makes repo-hosted coding models perform reliably within it.
 
 The existing runtime infrastructure makes this tractable without architectural changes:
 
@@ -67,7 +67,7 @@ src/prompts/pr_summary_template.txt
 
 Constraints:
 
-- Template files must not contain provider names or proprietary product references. CI must include a `scripts/check_forbidden_names.sh` grep check covering the content of `src/prompts/` files and the content of `models/*.toml` files. **Scope note:** the check targets proprietary vendor-branded identifiers, not free/open model family names. Profile *filenames* in `models/` (e.g. `qwen-coder.toml`, `deepseek-coder.toml`) are exempt from the filename check; only file content is checked. This check is added to the dispatcher checklist as **EL-09** and must pass for every checklist item from EL-06 onward.
+- Template files must not contain provider names or proprietary product references. CI must include a `scripts/check_forbidden_names.sh` grep check covering the content of `src/prompts/` files and the content and filenames of `models/*.toml` files. Profile fixtures must use generic backend/scope-oriented names rather than branded identifiers. This check is added to the dispatcher checklist as **EL-09** and must pass for every checklist item from EL-06 onward.
 - The coding system prompt is only injected when the edit loop or a semantic command is active. Free-form turns use the `RuntimeCorePolicy` base prompt only.
 - Templates are plain UTF-8 text files. `include_str!` keeps the binary self-contained while keeping the text separately auditable.
 
@@ -78,24 +78,24 @@ Constraints:
 New directory: `models/`
 
 ```
-models/qwen-coder.toml
-models/deepseek-coder.toml
-models/starcoder.toml
-models/codellama.toml
+models/api-balanced.toml
+models/api-structured.toml
+models/local-balanced.toml
+models/local-tagged.toml
 ```
 
 Each file is a `ModelProfile` TOML document:
 
 ```toml
-# models/qwen-coder.toml
-name             = "qwen-coder"
+# models/api-structured.toml
+name             = "api-structured"
 system_prompt    = "src/prompts/coder_system.txt"
 temperature      = 0.2
 top_p            = 0.95
 max_tokens       = 4096
 stop_sequences   = ["\n```\n", "<|endoftext|>"]
 structured_tools = true
-reasoning_budget = 0     # 0 = disabled; positive integer = max reasoning tokens (DeepSeek-R1, QwQ-32B, Qwen3 and equivalent free/open R1-class models)
+reasoning_budget = 0     # 0 = disabled; positive integer = max reasoning tokens on backends that expose a reasoning-budget hint
 ```
 
 The corresponding Rust type:
@@ -119,7 +119,7 @@ impl ModelProfile {
 }
 ```
 
-A profile is selected by setting `VEX_MODEL_PROFILE=models/qwen-coder.toml` or the `model_profile` key in `.vex/config.toml`. When no profile is set, `ModelProfile::default_for_backend` returns a conservative default (temperature 0.3, no stop sequences, structured tools following existing backend detection logic).
+A profile is selected by setting `VEX_MODEL_PROFILE=models/api-structured.toml` or the `model_profile` key in `.vex/config.toml`. When no profile is set, `ModelProfile::default_for_backend` returns a conservative default (temperature 0.3, no stop sequences, structured tools following existing backend detection logic).
 
 Constraints:
 
@@ -128,7 +128,7 @@ Constraints:
 - The `system_prompt` field is a path to a prompt template file, not an inlined text blob.
 - Profile files live in `models/` at the repo root, are committed to source control, and must not reference proprietary names.
 - **`structured_tools = false` fallback:** When a profile sets `structured_tools = false`, the runtime must fall back to tagged-fallback tool call mode (the same path used by `model_protocol = "chat-compat"` backends in ADR-022). This is the correct default for models that do not reliably follow structured tool schemas. A profile must never be loaded without a well-defined tool call mode resolution; the absence of a `structured_tools` key is a hard validation failure at load time.
-- **`reasoning_budget` semantics:** When `reasoning_budget > 0`, the value is passed to the active `ModelProtocol` implementation as a chain-of-thought token budget hint. Each protocol implementation maps this to the backend-specific wire parameter where one exists: `chat-compat` backends that implement a `reasoning_effort`-equivalent extension use that integer field; backends that have no standardised reasoning-budget parameter (such as standard Ollama and llama.cpp server endpoints, which surface chain-of-thought output as `<think>` tag content within the regular token stream) omit the parameter and emit a startup informational note. When `reasoning_budget = 0`, no reasoning parameter is emitted regardless of backend. A profile that sets `reasoning_budget > 0` on a backend that does not support it must not abort the session. This field is the designated extension point for chain-of-thought-capable free/open models — including DeepSeek-R1-class, QwQ-32B, and Qwen3 variants — served via self-hosted runtimes such as Ollama, llama.cpp server, and vLLM.
+- **`reasoning_budget` semantics:** When `reasoning_budget > 0`, the value is passed to the active `ModelProtocol` implementation as a chain-of-thought token budget hint. Each protocol implementation maps this to the backend-specific wire parameter where one exists: `chat-compat` backends that implement a `reasoning_effort`-equivalent extension use that integer field; backends that have no standardised reasoning-budget parameter surface no extra parameter and emit a startup informational note. When `reasoning_budget = 0`, no reasoning parameter is emitted regardless of backend. A profile that sets `reasoning_budget > 0` on a backend that does not support it must not abort the session.
 - **Sequencing gate:** `ModelProfile` config integration (`model_profile` TOML key, `VEX_MODEL_PROFILE` env var) is gated on ADR-022 Phase 1 (layered config) completion. EL-07 (struct and files) may proceed; EL-08 (config integration) may not.
 
 ---
