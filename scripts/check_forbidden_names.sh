@@ -76,6 +76,15 @@ if [[ -d models ]]; then
 fi
 
 failed=0
+temp_lists=()
+
+cleanup_temp_lists() {
+  if [[ ${#temp_lists[@]} -gt 0 ]]; then
+    rm -f "${temp_lists[@]}"
+  fi
+}
+
+trap cleanup_temp_lists EXIT
 
 # Pass 1: full pattern — .github/workflows/** excluded (.github non-workflow files still scanned)
 if "$RG_BIN" -n --hidden -i \
@@ -94,8 +103,13 @@ fi
 
 # Pass 3: filenames in src/prompts/ and models/ must also stay generic.
 for path_root in src/prompts models; do
-  if [[ -d "$path_root" ]] && find "$path_root" -type f -print | "$RG_BIN" -n -i "$BRAND_PATTERN"; then
-    failed=1
+  if [[ -d "$path_root" ]]; then
+    path_list="$(mktemp)"
+    temp_lists+=("$path_list")
+    find "$path_root" -type f -print >"$path_list"
+    if "$RG_BIN" -n -i "$BRAND_PATTERN" <"$path_list"; then
+      failed=1
+    fi
   fi
 done
 
