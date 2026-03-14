@@ -10,6 +10,104 @@ mod test_support {
     pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 }
 
+fn prepare_forbidden_names_fixture() -> tempfile::TempDir {
+    let temp = tempfile::tempdir().unwrap();
+    for dir in [
+        "TASKS",
+        "adr",
+        "docs/src",
+        "src/prompts",
+        "tests",
+        "scripts",
+        ".github/workflows",
+        "models",
+    ] {
+        std::fs::create_dir_all(temp.path().join(dir)).unwrap();
+    }
+    for file in [".gitignore", "AGENTS.md", "CONTRIBUTING.md", "Makefile"] {
+        std::fs::write(temp.path().join(file), "\n").unwrap();
+    }
+    temp
+}
+
+fn forbidden_names_shell() -> std::path::PathBuf {
+    if cfg!(windows) {
+        for var in ["ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"] {
+            if let Some(root) = std::env::var_os(var) {
+                let root = std::path::PathBuf::from(root);
+                for candidate in [
+                    root.join("Git").join("bin").join("bash.exe"),
+                    root.join("Git").join("usr").join("bin").join("bash.exe"),
+                ] {
+                    if candidate.is_file() {
+                        return candidate;
+                    }
+                }
+            }
+        }
+    }
+
+    std::path::PathBuf::from("bash")
+}
+
+fn windows_ripgrep_binary() -> Option<std::path::PathBuf> {
+    if !cfg!(windows) {
+        return None;
+    }
+
+    if let Ok(output) = std::process::Command::new("where").arg("rg.exe").output() {
+        if output.status.success() {
+            if let Some(path) = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty())
+            {
+                return Some(std::path::PathBuf::from(path));
+            }
+        }
+    }
+
+    [
+        std::env::var_os("CARGO_HOME")
+            .map(std::path::PathBuf::from)
+            .map(|root| root.join("bin").join("rg.exe")),
+        std::env::var_os("USERPROFILE")
+            .map(std::path::PathBuf::from)
+            .map(|root| root.join(".cargo").join("bin").join("rg.exe")),
+    ]
+    .into_iter()
+    .flatten()
+    .find(|path| path.is_file())
+}
+
+fn run_forbidden_names_check(repo_root: &std::path::Path) -> std::process::Output {
+    let script = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("scripts/check_forbidden_names.sh");
+    let mut command = std::process::Command::new(forbidden_names_shell());
+    command.arg(script).current_dir(repo_root);
+
+    if let Some(rg_binary) = windows_ripgrep_binary() {
+        command.env("VEX_RG_BIN", rg_binary.to_string_lossy().replace('\\', "/"));
+    }
+
+    command.output().unwrap()
+}
+
+fn forbidden_prompt_content() -> String {
+    String::from_utf8(vec![
+        0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2d, 0x62, 0x72, 0x61, 0x6e, 0x64, 0x65, 0x64, 0x20,
+        0x70, 0x72, 0x6f, 0x6d, 0x70, 0x74, 0x20, 0x74, 0x65, 0x78, 0x74, 0x0a,
+    ])
+    .unwrap()
+}
+
+fn forbidden_model_filename() -> String {
+    String::from_utf8(vec![
+        0x71, 0x77, 0x65, 0x6e, 0x2d, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74, 0x6f, 0x6d, 0x6c,
+    ])
+    .unwrap()
+}
+
 #[test]
 fn test_config_validation_rejects_local_model_for_remote_endpoint() {
     let config = Config {
@@ -151,6 +249,59 @@ fn test_config_rejects_unknown_toml_keys() {
     assert!(
         msg.contains("user.toml"),
         "expected file name in error: {msg}"
+    );
+}
+
+#[test]
+fn check_forbidden_names_sh_blocks_proprietary_name_in_prompts_dir() {
+    let temp = prepare_forbidden_names_fixture();
+    std::fs::write(
+        temp.path().join("src/prompts/coder_system.txt"),
+        forbidden_prompt_content(),
+    )
+    .unwrap();
+
+    let output = run_forbidden_names_check(temp.path());
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    assert!(
+        !output.status.success(),
+        "expected forbidden-name check to fail for prompt content: {text}"
+    );
+    assert!(
+        text.contains("src/prompts/coder_system.txt"),
+        "expected prompt path in output: {text}"
+    );
+}
+
+#[test]
+fn check_forbidden_names_sh_blocks_proprietary_name_in_model_filename() {
+    let temp = prepare_forbidden_names_fixture();
+    let forbidden_filename = forbidden_model_filename();
+    std::fs::write(
+        temp.path().join("models").join(&forbidden_filename),
+        "name = \"api-structured\"\n",
+    )
+    .unwrap();
+
+    let output = run_forbidden_names_check(temp.path());
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    assert!(
+        !output.status.success(),
+        "expected forbidden-name check to fail for model filename: {text}"
+    );
+    assert!(
+        text.contains(&format!("models/{forbidden_filename}")),
+        "expected model path in output: {text}"
     );
 }
 

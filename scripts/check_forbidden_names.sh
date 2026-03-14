@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+RG_BIN="${VEX_RG_BIN:-rg}"
+if [[ "$RG_BIN" == *"/"* || "$RG_BIN" == *"\\"* ]]; then
+  if [[ ! -x "$RG_BIN" ]]; then
+    echo "FAIL: ripgrep executable not found at $RG_BIN" >&2
+    exit 1
+  fi
+elif ! command -v "$RG_BIN" >/dev/null 2>&1; then
+  if command -v rg.exe >/dev/null 2>&1; then
+    RG_BIN="rg.exe"
+  else
+    echo "FAIL: ripgrep executable not found (expected rg, rg.exe, or VEX_RG_BIN)" >&2
+    exit 1
+  fi
+fi
+
 # Keep this check scoped to proprietary/vendor-branded terms and
 # external repository-backed identifiers that are disallowed in
 # agent/workflow surfaces.
@@ -16,6 +31,9 @@ set -euo pipefail
 #   Pass 2 (BRAND_PATTERN): brand-name-only subset, *including* .github/workflows/**
 #           Ensures no proprietary assistant-brand names appear in workflow YAML even
 #           though action-reference patterns are excluded there.
+#   Pass 3 (PATH_PATTERN): brand-name subset over prompt/model file paths so
+#           branded fixture/template filenames are rejected even when file
+#           contents are generic.
 brand_words=(
   $'\x63\x6c\x61\x75\x64\x65'
   $'\x61\x6e\x74\x68\x72\x6f\x70\x69\x63'
@@ -60,7 +78,7 @@ fi
 failed=0
 
 # Pass 1: full pattern — .github/workflows/** excluded (.github non-workflow files still scanned)
-if rg -n --hidden -i \
+if "$RG_BIN" -n --hidden -i \
     --glob '!.git' \
     --glob '!.github/workflows/**' \
     --glob '!scripts/check_forbidden_names.sh' \
@@ -70,9 +88,16 @@ fi
 
 # Pass 2: brand names only — also covers .github/workflows/ (no AI brand names in CI YAML)
 if [[ -d .github/workflows ]] && \
-   rg -n --hidden -i --glob '!.git' "$BRAND_PATTERN" .github/workflows/; then
+   "$RG_BIN" -n --hidden -i --glob '!.git' "$BRAND_PATTERN" .github/workflows/; then
   failed=1
 fi
+
+# Pass 3: filenames in src/prompts/ and models/ must also stay generic.
+for path_root in src/prompts models; do
+  if [[ -d "$path_root" ]] && find "$path_root" -type f -print | "$RG_BIN" -n -i "$BRAND_PATTERN"; then
+    failed=1
+  fi
+done
 
 if [[ $failed -ne 0 ]]; then
   echo "FAIL: forbidden branded names found in ${TARGETS[*]}"
