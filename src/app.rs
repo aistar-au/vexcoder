@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::custom_commands::{load_custom_commands, CustomCommand};
 use crate::prompts::{
     render_custom_command_instruction, render_edit_prompt, render_explain_prompt,
-    render_generate_tests_prompt,
+    render_generate_tests_prompt, CODER_SYSTEM_PROMPT,
 };
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::context_assembler::{
@@ -1596,7 +1596,7 @@ impl TuiMode {
     fn selected_system_prompt(&self) -> &'static str {
         self.model_profile
             .system_prompt_text()
-            .expect("configured model profile system prompt must resolve")
+            .unwrap_or(CODER_SYSTEM_PROMPT)
     }
 
     fn assemble_rendered_context(&mut self, scope_instruction: &str) -> String {
@@ -3012,6 +3012,14 @@ mod tests {
             RuntimeContext::new(conversation, tx, CancellationToken::new()),
             rx,
         )
+    }
+
+    #[test]
+    fn test_selected_system_prompt_falls_back_to_bundled_prompt() {
+        let mut mode = TuiMode::new();
+        mode.model_profile.system_prompt = PathBuf::from("src/prompts/missing.txt");
+
+        assert_eq!(mode.selected_system_prompt(), CODER_SYSTEM_PROMPT);
     }
 
     fn setup_ctx_with_responses(responses: Vec<Vec<String>>) -> RuntimeContext {
