@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 use crate::prompts::CODER_SYSTEM_PROMPT;
@@ -7,7 +7,7 @@ use crate::runtime::{ModelBackendKind, ToolCallMode};
 
 const CODER_SYSTEM_PROMPT_PATH: &str = "src/prompts/coder_system.txt";
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ModelProfile {
     pub name: String,

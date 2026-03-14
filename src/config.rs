@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 use crate::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode};
+use crate::types::ModelProfile;
 use crate::util::is_local_endpoint_url;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -45,6 +46,7 @@ pub struct Config {
     pub model_backend: ModelBackendKind,
     pub model_protocol: ModelProtocol,
     pub tool_call_mode: ToolCallMode,
+    pub model_profile: ModelProfile,
     /// Estimated token budget for project instructions injection (byte len / 4).
     /// Controlled by `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS`. Default: 4096.
     pub max_project_instructions_tokens: usize,
@@ -86,6 +88,7 @@ struct ConfigLayer {
     model_backend: Option<String>,
     model_protocol: Option<String>,
     tool_call_mode: Option<String>,
+    model_profile: Option<PathBuf>,
     max_project_instructions_tokens: Option<usize>,
     max_memory_tokens: Option<usize>,
     notes_path: Option<PathBuf>,
@@ -116,11 +119,13 @@ impl Config {
         let repo_cfg = find_repo_local_config(&cwd);
         let user_cfg = user_config_path();
         let system_cfg = system_config_path();
+        let profile_base_dir = resolve_profile_base_dir(&cwd, repo_cfg.as_deref());
         Self::load_layers(
             &cwd,
             repo_cfg.as_deref(),
             user_cfg.as_deref(),
             system_cfg.as_deref(),
+            &profile_base_dir,
         )
     }
 
@@ -130,7 +135,8 @@ impl Config {
     /// ancestors of `cwd`.
     pub fn load_for_tests(cwd: &Path, user: Option<&Path>, system: Option<&Path>) -> Result<Self> {
         let repo_cfg = find_repo_local_config(cwd);
-        Self::load_layers(cwd, repo_cfg.as_deref(), user, system)
+        let profile_base_dir = resolve_profile_base_dir(cwd, repo_cfg.as_deref());
+        Self::load_layers(cwd, repo_cfg.as_deref(), user, system, &profile_base_dir)
     }
 
     fn load_layers(
@@ -138,6 +144,7 @@ impl Config {
         repo_cfg: Option<&Path>,
         user_cfg: Option<&Path>,
         system_cfg: Option<&Path>,
+        profile_base_dir: &Path,
     ) -> Result<Self> {
         // Load file layers; missing files yield None, present-but-invalid files error.
         let system_layer = system_cfg.map(load_config_layer).transpose()?.flatten();
@@ -183,7 +190,7 @@ impl Config {
         }
         merged = apply_over(merged, env_layer);
 
-        resolve_config(merged, env_token, cwd)
+        resolve_config(merged, env_token, cwd, profile_base_dir)
     }
 
     /// Sensible defaults for interactive TUI startup — used when no config
@@ -200,6 +207,7 @@ impl Config {
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::ChatCompat,
             tool_call_mode: ToolCallMode::TaggedFallback,
+            model_profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
             model_headers: HeaderMap::new(),
@@ -317,6 +325,7 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
         model_backend: over.model_backend.or(base.model_backend),
         model_protocol: over.model_protocol.or(base.model_protocol),
         tool_call_mode: over.tool_call_mode.or(base.tool_call_mode),
+        model_profile: over.model_profile.or(base.model_profile),
         max_project_instructions_tokens: over
             .max_project_instructions_tokens
             .or(base.max_project_instructions_tokens),
@@ -406,6 +415,10 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         model_backend,
         model_protocol,
         tool_call_mode,
+        model_profile: std::env::var("VEX_MODEL_PROFILE")
+            .ok()
+            .filter(|v| !v.trim().is_empty())
+            .map(PathBuf::from),
         max_project_instructions_tokens,
         max_memory_tokens,
         notes_path: None,
@@ -567,6 +580,7 @@ fn resolve_config(
     merged: ConfigLayer,
     env_token: Option<String>,
     fallback_cwd: &Path,
+    profile_base_dir: &Path,
 ) -> Result<Config> {
     let model_url = merged
         .model_url
@@ -592,14 +606,24 @@ fn resolve_config(
         .and_then(parse_model_protocol)
         .unwrap_or_else(|| infer_model_protocol(&model_url));
 
-    let tool_call_mode = merged
-        .tool_call_mode
-        .and_then(parse_tool_call_mode)
-        .unwrap_or(if is_local {
-            ToolCallMode::TaggedFallback
-        } else {
-            ToolCallMode::Structured
-        });
+    let explicit_profile_path = merged.model_profile.clone();
+    let model_profile = load_model_profile(
+        explicit_profile_path.as_deref(),
+        profile_base_dir,
+        model_backend,
+    )?;
+    let tool_call_mode = if explicit_profile_path.is_some() {
+        model_profile.tool_call_mode()
+    } else {
+        merged
+            .tool_call_mode
+            .and_then(parse_tool_call_mode)
+            .unwrap_or(if is_local {
+                ToolCallMode::TaggedFallback
+            } else {
+                ToolCallMode::Structured
+            })
+    };
     let max_project_instructions_tokens = merged.max_project_instructions_tokens.unwrap_or(4096);
     let max_memory_tokens = merged.max_memory_tokens.unwrap_or(2048);
 
@@ -611,6 +635,7 @@ fn resolve_config(
         model_backend,
         model_protocol,
         tool_call_mode,
+        model_profile,
         max_project_instructions_tokens,
         max_memory_tokens,
         model_headers: parse_model_headers_json()?,
@@ -621,6 +646,39 @@ fn resolve_config(
 
 fn resolve_working_dir(working_dir: Option<PathBuf>, fallback_cwd: &Path) -> PathBuf {
     working_dir.unwrap_or_else(|| fallback_cwd.to_path_buf())
+}
+
+fn load_model_profile(
+    selected_path: Option<&Path>,
+    profile_base_dir: &Path,
+    model_backend: ModelBackendKind,
+) -> Result<ModelProfile> {
+    let Some(path) = selected_path else {
+        return Ok(ModelProfile::default_for_backend(model_backend));
+    };
+
+    let resolved = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        profile_base_dir.join(path)
+    };
+    ModelProfile::load(&resolved).with_context(|| {
+        format!(
+            "failed to load model profile '{}' (base '{}')",
+            path.display(),
+            profile_base_dir.display()
+        )
+    })
+}
+
+fn resolve_profile_base_dir(cwd: &Path, repo_cfg: Option<&Path>) -> PathBuf {
+    if let Some(root) = repo_cfg
+        .and_then(|config| config.parent())
+        .and_then(Path::parent)
+    {
+        return root.to_path_buf();
+    }
+    find_repo_root(cwd).unwrap_or_else(|| cwd.to_path_buf())
 }
 
 fn expand_home(path: PathBuf) -> PathBuf {
@@ -646,6 +704,16 @@ fn find_repo_local_config(cwd: &Path) -> Option<PathBuf> {
         let candidate = dir.join(".vex").join("config.toml");
         if candidate.exists() {
             return Some(candidate);
+        }
+        dir = dir.parent()?;
+    }
+}
+
+fn find_repo_root(cwd: &Path) -> Option<PathBuf> {
+    let mut dir: &Path = cwd;
+    loop {
+        if dir.join(".git").exists() || dir.join(".vex").join("config.toml").exists() {
+            return Some(dir.to_path_buf());
         }
         dir = dir.parent()?;
     }
@@ -834,6 +902,8 @@ pub fn migrate_config_from_env(envs: &[(&str, &str)]) -> String {
 mod tests {
     use super::{Config, ModelBackendKind};
     use std::path::PathBuf;
+
+    use crate::types::ModelProfile;
 
     struct EnvRestore {
         key: &'static str,
@@ -1089,6 +1159,10 @@ mod tests {
         let cfg = Config::default_for_tui();
         assert_eq!(cfg.model_name, "local/default");
         assert_eq!(cfg.model_backend, ModelBackendKind::LocalRuntime);
+        assert_eq!(
+            cfg.model_profile,
+            ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime)
+        );
         assert!(cfg.model_token.is_none());
         assert!(cfg.hooks.is_empty());
     }
@@ -1104,6 +1178,33 @@ mod tests {
         std::env::remove_var("VEX_MAX_MEMORY_TOKENS");
         std::env::remove_var("VEX_MODEL_URL");
         std::env::remove_var("VEX_MODEL_NAME");
+    }
+
+    #[test]
+    fn test_model_profile_loaded_from_layered_config() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let temp = tempfile::tempdir().unwrap();
+        let repo_root = temp.path().join("repo");
+        let cwd = repo_root.join("nested/project");
+        let user_cfg = temp.path().join("user.toml");
+
+        std::fs::create_dir_all(repo_root.join("models")).unwrap();
+        std::fs::create_dir_all(repo_root.join(".git")).unwrap();
+        std::fs::create_dir_all(&cwd).unwrap();
+        std::fs::write(
+            repo_root.join("models/qwen-coder.toml"),
+            std::fs::read_to_string(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("models/qwen-coder.toml"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        std::fs::write(&user_cfg, "model_profile = \"models/qwen-coder.toml\"\n").unwrap();
+
+        let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap();
+
+        assert_eq!(cfg.model_profile.name, "qwen-coder");
+        assert_eq!(cfg.tool_call_mode, cfg.model_profile.tool_call_mode());
     }
 
     #[test]

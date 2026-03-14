@@ -31,11 +31,18 @@ These keys are read by the current runtime from config files:
 | `model_backend` | `local-runtime` or `api-server` | inferred |
 | `model_protocol` | `messages-v1` or `chat-compat` | inferred |
 | `tool_call_mode` | `structured` or `tagged-fallback` | inferred |
+| `model_profile` | Path to a repo-tracked profile under `models/` | backend default profile |
 | `max_project_instructions_tokens` | Project instructions token budget | `4096` |
 | `max_memory_tokens` | Notes token budget | `2048` |
 | `notes_path` | Notes file used by `/memory` | unset |
 
 `notes_path` is user-config only.
+
+When `model_profile` is set, the runtime loads the profile at startup and uses
+its request parameters (`temperature`, `top_p`, `max_tokens`, stop sequences,
+reasoning budget, and structured-tool fallback). Relative paths are resolved
+from the workspace repo root when one is available, otherwise from the current
+working directory.
 
 ## Environment variables
 
@@ -66,6 +73,11 @@ Overrides backend inference. Accepted values: `local-runtime`, `api-server`.
 
 Overrides tool-call encoding. Accepted values: `structured`,
 `tagged-fallback`.
+
+### `VEX_MODEL_PROFILE`
+
+Selects a repo-tracked model profile such as `models/qwen-coder.toml`.
+An invalid or missing path is a startup failure.
 
 ### `VEX_WORKDIR`
 
@@ -114,6 +126,7 @@ Local endpoint:
 ```toml
 model_url = "http://localhost:11434/v1"
 model_name = "local/default"
+model_profile = "models/qwen-coder.toml"
 ```
 
 Remote endpoint:
@@ -121,6 +134,7 @@ Remote endpoint:
 ```toml
 model_url = "https://api.example.internal/v1/messages"
 model_name = "repo-assistant"
+model_profile = "models/deepseek-coder.toml"
 ```
 
 Token for authenticated endpoints:

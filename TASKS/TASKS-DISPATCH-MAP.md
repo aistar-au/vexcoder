@@ -32,7 +32,7 @@ Source of truth: `adr/ADR-README.md`.
 
 ```text
 PA-01 -> PJ-03
-EL-03 -> EL-04 -> EL-05
+EL-07 -> EL-08 -> EL-09
 
 Milestone-1 gate:
 ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
@@ -47,6 +47,16 @@ ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
 ADR-025 and ADR-026 are the first post-gate Phase I dispatch track. This
 dispatch note is descriptive only and does not relax the milestone-1 gate.
 
+## Current Next Dispatcher Batch
+
+`EL-08` is the current next batch, not the post-gate ADR-025 / ADR-026 track.
+
+- Scope: `ModelProfile` layered-config integration
+- Anchor test: `test_model_profile_loaded_from_layered_config`
+- Primary code files: `src/config.rs`, `src/app.rs`, `src/api/client.rs`
+- Required scaffold/docs sync: `src/bin/vex.rs`, `docs/src/configuration.md`
+- Supporting tests: `src/config.rs`, `tests/integration_test.rs`
+
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
 current reference for full-screen rendering and interactive command-session
 capture behavior.
@@ -58,6 +68,5 @@ capture behavior.
 - Update `TASKS/completed/REPO-RAW-URL-MAP.md` in the same change set when tracked files are added or removed.
 - Source ADR documents and task manifests remain the behavioral source of truth.
 - ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
-  `#71`, `#72`, `#74`, and `#75`; `PK-08` is merged, and the next queued work
-  starts on the post-gate ADR-025 / ADR-026 track once milestone-1 validation
-  is green.
+  `#71`, `#72`, `#74`, `#75`, and `#78`; `PK-08` is merged, but `EL-08`
+  remains ahead of the post-gate ADR-025 / ADR-026 track.

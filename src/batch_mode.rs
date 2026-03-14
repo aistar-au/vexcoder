@@ -814,6 +814,9 @@ mod tests {
             model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
             model_protocol: crate::runtime::ModelProtocol::MessagesV1,
             tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                crate::runtime::ModelBackendKind::LocalRuntime,
+            ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
@@ -1085,6 +1088,9 @@ mod tests {
             model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
             model_protocol: crate::runtime::ModelProtocol::MessagesV1,
             tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                crate::runtime::ModelBackendKind::LocalRuntime,
+            ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
@@ -1115,6 +1121,9 @@ mod tests {
             model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
             model_protocol: crate::runtime::ModelProtocol::MessagesV1,
             tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                crate::runtime::ModelBackendKind::LocalRuntime,
+            ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
@@ -1140,6 +1149,9 @@ mod tests {
             model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
             model_protocol: crate::runtime::ModelProtocol::MessagesV1,
             tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                crate::runtime::ModelBackendKind::LocalRuntime,
+            ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),

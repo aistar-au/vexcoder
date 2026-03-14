@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::custom_commands::{load_custom_commands, CustomCommand};
 use crate::prompts::{
     render_custom_command_instruction, render_edit_prompt, render_explain_prompt,
-    render_generate_tests_prompt, CODER_SYSTEM_PROMPT,
+    render_generate_tests_prompt,
 };
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::context_assembler::{
@@ -504,6 +504,8 @@ pub struct TuiMode {
     model_name: String,
     /// Locked at session start; `/model` rejects changes that require a different backend.
     model_backend: crate::runtime::ModelBackendKind,
+    /// Selected coding profile for edit-loop and semantic-command prompts.
+    model_profile: ModelProfile,
     /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
     custom_commands: Vec<CustomCommand>,
@@ -675,6 +677,7 @@ impl TuiMode {
             current_task: crate::runtime::TaskState::new(new_task_id()),
             model_name: config.model_name.clone(),
             model_backend: config.model_backend,
+            model_profile: config.model_profile.clone(),
             working_dir: config.working_dir.clone(),
             custom_commands,
             last_assembled_context: None,
@@ -1306,7 +1309,7 @@ impl TuiMode {
         let task_id = self.current_task.id.clone();
         let edit_loop = EditLoop::new(task_id)
             .with_working_dir(self.working_dir.clone())
-            .with_profile(ModelProfile::default_for_backend(self.model_backend));
+            .with_profile(self.model_profile.clone());
         self.active_edit_loop = Some(edit_loop.clone());
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
@@ -1347,7 +1350,7 @@ impl TuiMode {
         let task_id = self.current_task.id.clone();
         let edit_loop = EditLoop::new(task_id)
             .with_working_dir(self.working_dir.clone())
-            .with_profile(ModelProfile::default_for_backend(self.model_backend));
+            .with_profile(self.model_profile.clone());
         self.active_edit_loop = Some(edit_loop.clone());
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
@@ -1590,6 +1593,12 @@ impl TuiMode {
         );
     }
 
+    fn selected_system_prompt(&self) -> &'static str {
+        self.model_profile
+            .system_prompt_text()
+            .expect("configured model profile system prompt must resolve")
+    }
+
     fn assemble_rendered_context(&mut self, scope_instruction: &str) -> String {
         let assembler = ContextAssembler::default();
         let render_assembler = assembler.clone();
@@ -1629,7 +1638,7 @@ impl TuiMode {
         let rendered_context = self.assemble_rendered_context(&scope_instruction);
 
         let prompt = render_explain_prompt(&scope_instruction, &rendered_context);
-        self.start_single_turn(prompt, ctx, true, Some(CODER_SYSTEM_PROMPT));
+        self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
     }
 
     fn handle_run_command(&mut self, command_str: &str) {
@@ -1681,7 +1690,7 @@ impl TuiMode {
                     let mut edit_loop = self.active_edit_loop.clone().unwrap_or_else(|| {
                         EditLoop::new(self.current_task.id.clone())
                             .with_working_dir(self.working_dir.clone())
-                            .with_profile(ModelProfile::default_for_backend(self.model_backend))
+                            .with_profile(self.model_profile.clone())
                     });
                     edit_loop.set_last_validation_result(result.clone());
                     self.active_edit_loop = Some(edit_loop);
@@ -1745,7 +1754,7 @@ impl TuiMode {
             .active_edit_loop
             .as_ref()
             .map(|edit_loop| edit_loop.profile_name())
-            .unwrap_or("default")
+            .unwrap_or(self.model_profile.name.as_str())
             .to_string();
         let files = self
             .last_assembled_context
@@ -1912,7 +1921,7 @@ impl TuiMode {
             prompt,
             ctx,
             false,
-            None,
+            Some(self.selected_system_prompt()),
             TurnToolPolicy::TestsOnlyMutations,
         );
     }
@@ -4324,6 +4333,9 @@ mod tests {
             model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
             model_protocol: crate::runtime::ModelProtocol::MessagesV1,
             tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            model_profile: ModelProfile::default_for_backend(
+                crate::runtime::ModelBackendKind::LocalRuntime,
+            ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
@@ -5147,6 +5159,9 @@ mod tests {
             model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
             model_protocol: crate::runtime::ModelProtocol::MessagesV1,
             tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            model_profile: ModelProfile::default_for_backend(
+                crate::runtime::ModelBackendKind::LocalRuntime,
+            ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
