@@ -50,14 +50,64 @@ fn forbidden_names_shell() -> std::path::PathBuf {
     std::path::PathBuf::from("bash")
 }
 
+fn windows_ripgrep_dir() -> Option<std::path::PathBuf> {
+    if !cfg!(windows) {
+        return None;
+    }
+
+    if let Ok(output) = std::process::Command::new("where").arg("rg.exe").output() {
+        if output.status.success() {
+            if let Some(path) = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty())
+            {
+                let path = std::path::PathBuf::from(path);
+                if let Some(parent) = path.parent() {
+                    return Some(parent.to_path_buf());
+                }
+            }
+        }
+    }
+
+    for path in [
+        std::env::var_os("CARGO_HOME")
+            .map(std::path::PathBuf::from)
+            .map(|root| root.join("bin").join("rg.exe")),
+        std::env::var_os("USERPROFILE")
+            .map(std::path::PathBuf::from)
+            .map(|root| root.join(".cargo").join("bin").join("rg.exe")),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if path.is_file() {
+            if let Some(parent) = path.parent() {
+                return Some(parent.to_path_buf());
+            }
+        }
+    }
+
+    None
+}
+
 fn run_forbidden_names_check(repo_root: &std::path::Path) -> std::process::Output {
     let script = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("scripts/check_forbidden_names.sh");
-    std::process::Command::new(forbidden_names_shell())
-        .arg(script)
-        .current_dir(repo_root)
-        .output()
-        .unwrap()
+    let mut command = std::process::Command::new(forbidden_names_shell());
+    command.arg(script).current_dir(repo_root);
+
+    if let Some(rg_dir) = windows_ripgrep_dir() {
+        let mut path = std::ffi::OsString::new();
+        path.push(rg_dir.as_os_str());
+        path.push(";");
+        if let Some(existing_path) = std::env::var_os("PATH") {
+            path.push(existing_path);
+        }
+        command.env("PATH", path);
+    }
+
+    command.output().unwrap()
 }
 
 fn forbidden_prompt_content() -> String {
