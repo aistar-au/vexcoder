@@ -32,7 +32,7 @@ Source of truth: `adr/ADR-README.md`.
 
 ```text
 PA-01 -> PJ-03
-EL-07 -> EL-08 -> EL-09
+EL-08 -> EL-09 -> EL-10 -> EL-11
 
 Milestone-1 gate:
 ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
@@ -49,13 +49,13 @@ dispatch note is descriptive only and does not relax the milestone-1 gate.
 
 ## Current Next Dispatcher Batch
 
-`EL-08` is the current next batch, not the post-gate ADR-025 / ADR-026 track.
+`EL-10` is the current next batch, not the post-gate ADR-025 / ADR-026 track.
 
-- Scope: `ModelProfile` layered-config integration
-- Anchor test: `test_model_profile_loaded_from_layered_config`
-- Primary code files: `src/config.rs`, `src/app.rs`, `src/api/client.rs`
-- Required scaffold/docs sync: `src/bin/vex.rs`, `docs/src/configuration.md`
-- Supporting tests: `src/config.rs`, `tests/integration_test.rs`
+- Scope: `/review` command path and diff assembly
+- Anchor tests: `test_tui_review_default_assembles_head_diff`; `test_tui_review_base_flag_validates_ref`; `test_tui_review_invalid_ref_emits_error_no_turn`
+- Primary code files: `src/app.rs`, `src/runtime/context_assembler.rs`, `src/prompts.rs`
+- Required scaffold/docs sync: `src/prompts/review_template.txt`, `docs/src/commands.md`
+- Supporting tests: `src/app.rs`, `tests/integration_test.rs`
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
 current reference for full-screen rendering and interactive command-session
@@ -68,5 +68,6 @@ capture behavior.
 - Update `TASKS/completed/REPO-RAW-URL-MAP.md` in the same change set when tracked files are added or removed.
 - Source ADR documents and task manifests remain the behavioral source of truth.
 - ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
-  `#71`, `#72`, `#74`, `#75`, and `#78`; `PK-08` is merged, but `EL-08`
-  remains ahead of the post-gate ADR-025 / ADR-026 track.
+  `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`; `PK-08`, `EL-09`, and the
+  ADR-027 follow-up are merged, but `EL-10` remains ahead of the post-gate
+  ADR-025 / ADR-026 track.

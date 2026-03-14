@@ -16,6 +16,9 @@ set -euo pipefail
 #   Pass 2 (BRAND_PATTERN): brand-name-only subset, *including* .github/workflows/**
 #           Ensures no proprietary assistant-brand names appear in workflow YAML even
 #           though action-reference patterns are excluded there.
+#   Pass 3 (PATH_PATTERN): brand-name subset over prompt/model file paths so
+#           branded fixture/template filenames are rejected even when file
+#           contents are generic.
 brand_words=(
   $'\x63\x6c\x61\x75\x64\x65'
   $'\x61\x6e\x74\x68\x72\x6f\x70\x69\x63'
@@ -73,6 +76,13 @@ if [[ -d .github/workflows ]] && \
    rg -n --hidden -i --glob '!.git' "$BRAND_PATTERN" .github/workflows/; then
   failed=1
 fi
+
+# Pass 3: filenames in src/prompts/ and models/ must also stay generic.
+for path_root in src/prompts models; do
+  if [[ -d "$path_root" ]] && find "$path_root" -type f -print | rg -n -i "$BRAND_PATTERN"; then
+    failed=1
+  fi
+done
 
 if [[ $failed -ne 0 ]]; then
   echo "FAIL: forbidden branded names found in ${TARGETS[*]}"

@@ -96,7 +96,7 @@ truth for the broader open-ADR list.
 | :--- | :--- | :--- |
 | ADR-021 | Accepted, follow-up maintenance remains | Audit and cleanup items can still affect `src/`, tests, or docs shape. |
 | ADR-022 | Proposed, with 2026-03-13 amendment | Sets the free/open roadmap target that the private dispatcher skills are validating against. |
-| ADR-023 | Locked | EL-07 is merged and ADR-024 Phase A is reconciled complete. The current next edit-loop batch is EL-08 (`ModelProfile` config integration via layered config), followed by EL-09. Target files for EL-08 are `src/config.rs`, `src/app.rs`, `src/api/client.rs`, `src/bin/vex.rs`, `docs/src/configuration.md`, and the config-layer tests in `src/config.rs` / `tests/integration_test.rs`. |
+| ADR-023 | Locked | EL-08 and EL-09 are merged and ADR-024 Phase A is reconciled complete. The current next edit-loop batch is EL-10 (`/review` command path and diff assembly), followed by EL-11. Target files for EL-10 are `src/app.rs`, `src/runtime/context_assembler.rs`, `src/prompts.rs`, `src/prompts/review_template.txt`, `docs/src/commands.md`, and the review-path tests in `src/app.rs` / `tests/integration_test.rs`. |
 | ADR-024 | Proposed | Defines gap work around layered config, MCP, skills, export, and related parity surface. |
 | ADR-025 | Proposed | First post-gate Phase I dispatch target (`PI-09` through `PI-12`); implementation remains gated on milestone-1 correctness validation. |
 | ADR-026 | Proposed | Follows ADR-025 closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation remains gated on milestone-1 correctness validation. |
