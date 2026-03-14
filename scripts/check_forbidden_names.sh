@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+PYTHON_BIN=""
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+  PYTHON_BIN="python"
+fi
+
 RG_BIN="${VEX_RG_BIN:-rg}"
+SCAN_BACKEND="rg"
 if [[ "$RG_BIN" == *"/"* || "$RG_BIN" == *"\\"* ]]; then
   if [[ ! -x "$RG_BIN" ]]; then
     echo "FAIL: ripgrep executable not found at $RG_BIN" >&2
@@ -10,11 +18,115 @@ if [[ "$RG_BIN" == *"/"* || "$RG_BIN" == *"\\"* ]]; then
 elif ! command -v "$RG_BIN" >/dev/null 2>&1; then
   if command -v rg.exe >/dev/null 2>&1; then
     RG_BIN="rg.exe"
+  elif [[ -n "$PYTHON_BIN" ]]; then
+    SCAN_BACKEND="python"
   else
-    echo "FAIL: ripgrep executable not found (expected rg, rg.exe, or VEX_RG_BIN)" >&2
+    echo "FAIL: ripgrep executable not found (expected rg, rg.exe, or VEX_RG_BIN), and no python fallback is available" >&2
     exit 1
   fi
 fi
+
+scan_targets() {
+  local pattern="$1"
+  shift
+  if [[ "$SCAN_BACKEND" == "rg" ]]; then
+    "$RG_BIN" -n --hidden -i \
+      --glob '!.git' \
+      --glob '!.github/workflows/**' \
+      --glob '!scripts/check_forbidden_names.sh' \
+      "$pattern" "$@"
+    return
+  fi
+
+  "$PYTHON_BIN" - "$pattern" "$@" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+pattern = re.compile(sys.argv[1], re.IGNORECASE)
+roots = [Path(arg) for arg in sys.argv[2:]]
+matched = False
+
+for root in roots:
+    if not root.exists():
+        continue
+    paths = [root] if root.is_file() else [p for p in root.rglob("*") if p.is_file()]
+    for path in paths:
+        rel = path.as_posix()
+        if rel == "scripts/check_forbidden_names.sh":
+            continue
+        if rel.startswith(".git/") or rel.startswith(".github/workflows/"):
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError as exc:
+            print(f"FAIL: unable to read {rel}: {exc}", file=sys.stderr)
+            sys.exit(2)
+        for line_number, line in enumerate(lines, start=1):
+            if pattern.search(line):
+                print(f"{rel}:{line_number}:{line}")
+                matched = True
+
+sys.exit(0 if matched else 1)
+PY
+}
+
+scan_workflows() {
+  if [[ "$SCAN_BACKEND" == "rg" ]]; then
+    "$RG_BIN" -n --hidden -i --glob '!.git' "$BRAND_PATTERN" .github/workflows/
+    return
+  fi
+
+  "$PYTHON_BIN" - "$BRAND_PATTERN" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+pattern = re.compile(sys.argv[1], re.IGNORECASE)
+root = Path(".github/workflows")
+matched = False
+
+for path in root.rglob("*"):
+    if not path.is_file():
+        continue
+    rel = path.as_posix()
+    try:
+        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError as exc:
+        print(f"FAIL: unable to read {rel}: {exc}", file=sys.stderr)
+        sys.exit(2)
+    for line_number, line in enumerate(lines, start=1):
+        if pattern.search(line):
+            print(f"{rel}:{line_number}:{line}")
+            matched = True
+
+sys.exit(0 if matched else 1)
+PY
+}
+
+scan_paths_from_stdin() {
+  local pattern="$1"
+  if [[ "$SCAN_BACKEND" == "rg" ]]; then
+    "$RG_BIN" -n -i "$pattern"
+    return
+  fi
+
+  "$PYTHON_BIN" - "$pattern" <<'PY'
+import re
+import sys
+
+pattern = re.compile(sys.argv[1], re.IGNORECASE)
+matched = False
+
+for line_number, raw_line in enumerate(sys.stdin, start=1):
+    line = raw_line.rstrip("\n")
+    if pattern.search(line):
+        print(f"{line_number}:{line}")
+        matched = True
+
+sys.exit(0 if matched else 1)
+PY
+}
 
 # Keep this check scoped to proprietary/vendor-branded terms and
 # external repository-backed identifiers that are disallowed in
@@ -87,17 +199,13 @@ cleanup_temp_lists() {
 trap cleanup_temp_lists EXIT
 
 # Pass 1: full pattern — .github/workflows/** excluded (.github non-workflow files still scanned)
-if "$RG_BIN" -n --hidden -i \
-    --glob '!.git' \
-    --glob '!.github/workflows/**' \
-    --glob '!scripts/check_forbidden_names.sh' \
-    "$PATTERN" "${TARGETS[@]}"; then
+if scan_targets "$PATTERN" "${TARGETS[@]}"; then
   failed=1
 fi
 
 # Pass 2: brand names only — also covers .github/workflows/ (no AI brand names in CI YAML)
 if [[ -d .github/workflows ]] && \
-   "$RG_BIN" -n --hidden -i --glob '!.git' "$BRAND_PATTERN" .github/workflows/; then
+   scan_workflows; then
   failed=1
 fi
 
@@ -107,7 +215,7 @@ for path_root in src/prompts models; do
     path_list="$(mktemp)"
     temp_lists+=("$path_list")
     find "$path_root" -type f -print >"$path_list"
-    if "$RG_BIN" -n -i "$BRAND_PATTERN" <"$path_list"; then
+    if scan_paths_from_stdin "$BRAND_PATTERN" <"$path_list"; then
       failed=1
     fi
   fi
