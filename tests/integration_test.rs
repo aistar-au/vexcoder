@@ -50,7 +50,7 @@ fn forbidden_names_shell() -> std::path::PathBuf {
     std::path::PathBuf::from("bash")
 }
 
-fn windows_ripgrep_dir() -> Option<std::path::PathBuf> {
+fn windows_ripgrep_binary() -> Option<std::path::PathBuf> {
     if !cfg!(windows) {
         return None;
     }
@@ -62,15 +62,12 @@ fn windows_ripgrep_dir() -> Option<std::path::PathBuf> {
                 .map(str::trim)
                 .find(|line| !line.is_empty())
             {
-                let path = std::path::PathBuf::from(path);
-                if let Some(parent) = path.parent() {
-                    return Some(parent.to_path_buf());
-                }
+                return Some(std::path::PathBuf::from(path));
             }
         }
     }
 
-    for path in [
+    [
         std::env::var_os("CARGO_HOME")
             .map(std::path::PathBuf::from)
             .map(|root| root.join("bin").join("rg.exe")),
@@ -80,15 +77,7 @@ fn windows_ripgrep_dir() -> Option<std::path::PathBuf> {
     ]
     .into_iter()
     .flatten()
-    {
-        if path.is_file() {
-            if let Some(parent) = path.parent() {
-                return Some(parent.to_path_buf());
-            }
-        }
-    }
-
-    None
+    .find(|path| path.is_file())
 }
 
 fn run_forbidden_names_check(repo_root: &std::path::Path) -> std::process::Output {
@@ -97,14 +86,8 @@ fn run_forbidden_names_check(repo_root: &std::path::Path) -> std::process::Outpu
     let mut command = std::process::Command::new(forbidden_names_shell());
     command.arg(script).current_dir(repo_root);
 
-    if let Some(rg_dir) = windows_ripgrep_dir() {
-        let mut path = std::ffi::OsString::new();
-        path.push(rg_dir.as_os_str());
-        path.push(";");
-        if let Some(existing_path) = std::env::var_os("PATH") {
-            path.push(existing_path);
-        }
-        command.env("PATH", path);
+    if let Some(rg_binary) = windows_ripgrep_binary() {
+        command.env("VEX_RG_BIN", rg_binary.to_string_lossy().replace('\\', "/"));
     }
 
     command.output().unwrap()
