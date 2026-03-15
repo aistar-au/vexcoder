@@ -31,6 +31,7 @@ All ADR files live under `adr/`.
 | [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI with command-session capture | Accepted |
 | [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Proposed |
 | [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness and session persistence extensions | Proposed |
+| [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Proposed |
 
 ## Completed ADR Records
 

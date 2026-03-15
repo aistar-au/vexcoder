@@ -16,6 +16,8 @@ order is:
 ADR-026 remains sequenced after ADR-025 closeout and ADR-024 reconciliation.
 ADR-028 is the boundary ADR that post-gate implementation must respect.
 ADR-029 remains active follow-up work but does not supersede ADR-025 order.
+ADR-030 defines the task-state and orchestrator control-flow contract that
+downstream runtime work must preserve.
 
 ## Required source documents
 
@@ -32,6 +34,7 @@ Read these before starting implementation:
 - `adr/ADR-026-localapiserver-transport-binding.md`
 - `adr/ADR-028-application-facade-and-transport-boundaries.md`
 - `adr/ADR-029-stream-parser-completeness-and-session-persistence.md`
+- `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md`
 
 ### Private skill sources
 
@@ -139,6 +142,8 @@ PI-09 (complete) + PI-11 (complete)
 - Keep ADR-026 sequenced after ADR-025 closeout and ADR-024 reconciliation.
 - Treat ADR-028 as boundary ADR for post-gate implementation.
 - Treat ADR-029 as active follow-up work; do not let it supersede ADR-025 order.
+- Treat ADR-030 as the control-flow ADR for post-gate runtime work; do not let
+  it supersede ADR-025 dependency order.
 - Follow all no-touch / explicit-approval / exact-diff rules from AGENTS.md,
   CONTRIBUTING.md, and the private dispatcher skills.
 
@@ -163,7 +168,7 @@ Add targeted ADR-025 tests as part of PI-12. Run verification after each item.
   into canonical runtime envelopes.
 - PI-12 adds serde round-trip, schema parity, grammar parity, and BatchMode
   derivation test coverage.
-- ADR-026, ADR-028, and ADR-029 remain active but dependency-sequenced
+- ADR-026, ADR-028, ADR-029, and ADR-030 remain active but dependency-sequenced
   follow-up ADRs.
 
 ## Expected deliverables
