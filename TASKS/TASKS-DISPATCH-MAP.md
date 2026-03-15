@@ -51,13 +51,12 @@ This dispatch note is descriptive only and does not relax the milestone-1 gate.
 
 ## Current Next Dispatcher Batch
 
-`EL-10` is the current next batch, not the post-gate ADR-025, ADR-026, and ADR-028 set.
+`EL-12` and `EL-13` (combined reporting pass) are the next batches.
+Both commands are code-complete on `main`; only ADR-023 evidence blocks
+and roadmap checkpoint updates are needed.
 
-- Scope: `/plan` scope assembly and read-only planning turn
-- Anchor tests: `test_tui_plan_starts_single_turn_no_loop`; `test_tui_plan_drops_pending_patch_silently`; `test_tui_plan_scope_populated_from_assembler`
-- Primary code files: `src/app.rs`, `src/prompts.rs`
-- Required scaffold/docs sync: `src/prompts/plan_template.txt`, `docs/src/commands.md`
-- Supporting tests: `src/app.rs`
+- EL-12: `/context` reporting pass; anchor tests already green
+- EL-13: `/commands`/`/help` reporting pass; anchor tests already green
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
 current reference for full-screen rendering and interactive command-session
@@ -70,6 +69,7 @@ capture behavior.
 - Update `TASKS/completed/REPO-RAW-URL-MAP.md` in the same change set when tracked files are added or removed.
 - Source ADR documents and task manifests remain the behavioral source of truth.
 - ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
-  `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`; `PK-08`, `EL-09`, and the
-  ADR-027 follow-up are merged, but `EL-10` remains ahead of the post-gate
-  ADR-025, ADR-026, and ADR-028 track.
+  `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`; `PK-08`, `EL-09`, `EL-10`, and
+  the ADR-027 follow-up are merged. `EL-11` is in review (PR #90). `EL-12` and
+  `EL-13` are code-complete but awaiting ADR-023 evidence reporting. These remain
+  ahead of the post-gate ADR-025, ADR-026, and ADR-028 track.

@@ -37,6 +37,7 @@ impl TuiMode {
                 SlashCommandId::Fix => self.handle_fix_command(ctx),
                 SlashCommandId::Explain => self.handle_explain_command(args, ctx),
                 SlashCommandId::Review => self.handle_review_command(args, ctx),
+                SlashCommandId::Plan => self.handle_plan_command(args, ctx),
                 SlashCommandId::Run => self.handle_run_command(args),
                 SlashCommandId::Test => self.handle_test_command(),
                 SlashCommandId::Context => self.handle_context_command(ctx),
@@ -286,6 +287,24 @@ impl TuiMode {
         self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
     }
 
+    pub(super) fn handle_plan_command(&mut self, instruction: &str, ctx: &mut RuntimeContext) {
+        if instruction.is_empty() {
+            self.push_history_line("[plan] usage: /plan <instruction>".to_string());
+            return;
+        }
+        let scope_instruction = format!("plan {instruction}");
+        let assembled = match self.try_assemble_context(&scope_instruction) {
+            Ok(assembled) => assembled,
+            Err(error) => {
+                self.push_history_line(format!("[plan] error: {error}"));
+                return;
+            }
+        };
+        let render_assembler = ContextAssembler::default();
+        let rendered_context = render_assembler.render(&assembled);
+        let prompt = render_plan_prompt(instruction, &rendered_context, &scope_instruction);
+        self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
+    }
     pub(super) fn handle_run_command(&mut self, command_str: &str) {
         let suite = if command_str.is_empty() {
             let mut inferred = ValidationSuite::load_or_infer(&self.working_dir);

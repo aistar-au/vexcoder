@@ -2905,6 +2905,90 @@ async fn test_tui_review_files_flag_uses_context_assembler() {
     );
 }
 
+#[tokio::test]
+async fn test_tui_plan_starts_single_turn_no_loop() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx_with_responses(vec![vec![
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Plan\"},\"finish_reason\":\"stop\"}]}"
+            .to_string(),
+    ]]);
+
+    mode.on_user_input("/plan implement feature X".to_string(), &mut ctx);
+
+    wait_for_model_turn(&ctx, "/plan").await;
+
+    assert!(
+        mode.active_edit_loop.is_none(),
+        "/plan must not invoke EditLoop"
+    );
+    assert!(
+        mode.last_turn_input.as_deref().is_some_and(|prompt| {
+            prompt.contains("Create a concise implementation plan for the request below.")
+                && prompt.contains(
+                    "Request:
+implement feature X",
+                )
+        }),
+        "/plan must render the plan template prompt"
+    );
+}
+
+#[tokio::test]
+async fn test_tui_plan_drops_pending_patch_silently() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("/plan implement feature X".to_string(), &mut ctx);
+
+    let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();
+    mode.on_model_update(
+        UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
+            tool_name: "apply_patch".to_string(),
+            input_preview: "{\"path\":\"src/lib.rs\"}".to_string(),
+            response_tx,
+        }),
+        &mut ctx,
+    );
+
+    assert!(
+        !response_rx.await.expect("response should resolve"),
+        "/plan must silently deny approval-requiring tool calls"
+    );
+    assert!(
+        mode.overlay_state.pending_approval.is_none(),
+        "/plan must not surface the approval overlay"
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .all(|line| !line.contains("[tool approval requested:")),
+        "/plan denial should stay silent in transcript output"
+    );
+}
+
+#[tokio::test]
+async fn test_tui_plan_scope_populated_from_assembler() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx_with_responses(vec![vec![
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Plan\"},\"finish_reason\":\"stop\"}]}"
+            .to_string(),
+    ]]);
+    let temp = tempfile::tempdir().unwrap();
+    let src_dir = temp.path().join("src");
+    std::fs::create_dir_all(&src_dir).unwrap();
+    std::fs::write(src_dir.join("lib.rs"), "pub fn answer() -> i32 { 42 }\n").unwrap();
+
+    mode.working_dir = temp.path().to_path_buf();
+    mode.on_user_input("/plan implement feature X".to_string(), &mut ctx);
+
+    wait_for_model_turn(&ctx, "/plan scope").await;
+
+    assert!(
+        mode.last_assembled_context.is_some(),
+        "/plan must populate last_assembled_context via ContextAssembler"
+    );
+}
+
 #[test]
 fn test_tui_run_command_invokes_validation_suite_only() {
     let mut mode = TuiMode::new();
