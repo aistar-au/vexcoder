@@ -9,7 +9,7 @@ Most interactive application coordination still lives in `src/app.rs`. The runti
 
 ## Current code layout
 
-- `src/bin/vex.rs` parses CLI arguments, loads config, and routes startup into the interactive UI, batch mode, export, migration, and other CLI paths.
+- `src/bin/vex.rs` parses CLI arguments, loads config, and routes startup into the interactive UI, batch mode, export, compatibility helpers, and other CLI paths.
 - `src/app.rs` owns the current interactive command surface, transcript state, approval prompts, and runtime-facing coordination for the full-screen TUI.
 - `src/batch_mode.rs` runs the same runtime headlessly for `vex exec` and writes JSONL or text output.
 - `src/runtime/` contains the reusable runtime machinery: context assembly, the edit loop, command and sandbox plumbing, project instructions, task state, and validation.
