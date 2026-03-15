@@ -158,3 +158,36 @@ fn test_chat_compat_tool_call_stream_maps_to_unified_events() {
         other => panic!("unexpected event: {other:?}"),
     }
 }
+
+#[test]
+fn test_chat_compat_message_flag_not_reset_after_done() {
+    let mut parser = StreamParser::new();
+
+    // First message: chat-compat with content
+    let chunk1 = br#"data: {"id":"msg1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}
+
+"#;
+    let events1 = parser.process(chunk1).expect("first message");
+    eprintln!("Events after first message: {} events", events1.len());
+    assert!(events1.len() >= 1, "Should have at least MessageStart and ContentBlockDelta");
+    assert!(matches!(events1.get(0), Some(StreamEvent::MessageStart { .. })), 
+            "First event should be MessageStart");
+    
+    // [DONE] marker
+    let chunk_done = br#"data: [DONE]
+
+"#;
+    let _events_done = parser.process(chunk_done).expect("done");
+    
+    // Second message: another chat-compat message 
+    let chunk2 = br#"data: {"id":"msg2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"World"},"finish_reason":null}]}
+
+"#;
+    let events2 = parser.process(chunk2).expect("second message");
+    eprintln!("Events after second message: {} events", events2.len());
+    
+    // BUG: We expect MessageStart for the second message, but we won't get it
+    let has_message_start = events2.iter().any(|e| matches!(e, StreamEvent::MessageStart { .. }));
+    assert!(has_message_start, 
+            "Second message should emit MessageStart event, but parser flag was not reset");
+}
