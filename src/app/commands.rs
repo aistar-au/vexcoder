@@ -152,7 +152,7 @@ impl TuiMode {
             }
         };
         let instruction = parsed.instruction.unwrap_or_else(|| {
-            "Review the current changes for correctness, risk, and missing cases.".to_string()
+            "Review these changes for correctness, clarity, and potential issues.".to_string()
         });
 
         if let Some(files_glob) = parsed.files.as_deref() {

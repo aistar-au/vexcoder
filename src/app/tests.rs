@@ -2743,6 +2743,9 @@ async fn test_tui_review_default_assembles_head_diff() {
     assert!(
         mode.last_turn_input.as_deref().is_some_and(|prompt| {
             prompt.contains("Review the implementation described below.")
+                && prompt.contains(
+                    "Review these changes for correctness, clarity, and potential issues.",
+                )
                 && prompt.contains("Diff context:\n")
                 && prompt.contains("diff --git")
                 && prompt.contains("tracked.txt")
