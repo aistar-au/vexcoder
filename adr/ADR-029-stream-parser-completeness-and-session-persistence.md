@@ -260,7 +260,7 @@ pub struct Delta {
 pub struct ApiUsage {
     pub input_tokens: Option<u64>,
     pub output_tokens: Option<u64>,
-  pub total_tokens: Option<u64>,
+    pub total_tokens: Option<u64>,
     pub cache_creation_input_tokens: Option<u64>,
     pub cache_read_input_tokens: Option<u64>,
 }
