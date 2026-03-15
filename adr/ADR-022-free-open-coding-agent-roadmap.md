@@ -416,6 +416,36 @@ fn approval_policy_is_capability_scoped() {
 }
 ```
 
+### Milestone-1 validation log (2026-03-15)
+
+- Branch: `dispatcher/vexcoder-adr-022-m1-validation-gate`
+- Base: `origin/main` @ `feb8d4db161a0a72bf5134a6d88e187a576190d5`
+- Outcome: **passed**
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+  - `bash scripts/check_forbidden_names.sh` : pass
+  - targeted command anchors : pass
+    - `/review`: `test_tui_review_default_assembles_head_diff`, `test_tui_review_base_flag_validates_ref`, `test_tui_review_invalid_ref_emits_error_no_turn`, `test_tui_review_mutual_exclusion_base_and_files`, `test_tui_review_drops_pending_patch_silently`, `test_tui_review_files_flag_uses_context_assembler`
+    - `/plan`: `test_tui_plan_starts_single_turn_no_loop`, `test_tui_plan_drops_pending_patch_silently`, `test_tui_plan_scope_populated_from_assembler`
+    - zero-turn commands: `test_tui_context_renders_without_model_turn`, `test_tui_context_shows_tilde_token_estimate`, `test_tui_context_shows_active_grants_count`, `test_tui_commands_renders_all_registered_commands`, `test_tui_help_is_alias_for_commands`, `test_commands_output_does_not_call_start_turn`
+
+| Phase | Gate evidence | Result |
+| :--- | :--- | :--- |
+| Phase 1 — Neutralize config and model abstractions | `cargo test --all-targets` kept the config and prompt/path regression suite green, including neutral config parsing and chat-compat coverage; `check_forbidden_names.sh` stayed clean. | pass |
+| Phase 2 — Add first-class command execution | `make gate-fast` kept command-runner compile, clippy, and test coverage green; inline command, runner, and cancellation coverage remained green inside `cargo test --all-targets`. | pass |
+| Phase 3 — Make edits diff-native | `cargo test --all-targets` kept edit-loop, diff-preview, and patch-approval regressions green. | pass |
+| Phase 4 — Introduce capability-based approval policy | approval-policy, approval-overlay, and command-approval tests remained green in `cargo test --all-targets`. | pass |
+| Phase 5 — Add durable task state and resume | resume, task-state, memory-note, and persisted-grant regressions remained green in `cargo test --all-targets`. | pass |
+| Phase 6 — Rework the TUI around task execution | `make gate-fast` and the targeted `/review`, `/plan`, `/context`, `/commands`, and `/help` anchors kept the task-first TUI path green. | pass |
+| Phase 7 — Improve repo-navigation tooling | context-assembly, `@path`, `/review --files`, `/plan`, and diff-context coverage remained green in `cargo test --all-targets`. | pass |
+| Phase 8 — Defer browser automation | no browser surface was introduced; the gate remained green without widening the first-milestone capability set. | pass |
+
+Milestone-1 therefore closes as the ADR-022 validation gate for phases 1
+through 8 together with the completed ADR-023 command surface.
+
 ## Consequences
 
 ### Benefits
