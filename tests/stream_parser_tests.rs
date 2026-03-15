@@ -158,3 +158,34 @@ fn test_chat_compat_tool_call_stream_maps_to_unified_events() {
         other => panic!("unexpected event: {other:?}"),
     }
 }
+
+#[test]
+fn test_chat_compat_state_reset_after_done() {
+    let mut parser = StreamParser::new();
+
+    let chunk1 = br#"data: {"id":"msg1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}
+
+"#;
+    let events1 = parser.process(chunk1).expect("first message");
+    assert!(matches!(
+        events1.first(),
+        Some(StreamEvent::MessageStart { .. })
+    ));
+
+    let chunk_done = br#"data: [DONE]
+
+"#;
+    let _events_done = parser.process(chunk_done).expect("done");
+
+    let chunk2 = br#"data: {"id":"msg2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"World"},"finish_reason":null}]}
+
+"#;
+    let events2 = parser.process(chunk2).expect("second message");
+    let has_message_start = events2
+        .iter()
+        .any(|e| matches!(e, StreamEvent::MessageStart { .. }));
+    assert!(
+        has_message_start,
+        "second message should emit MessageStart after [DONE]"
+    );
+}
