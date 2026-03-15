@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-13
 **Status:** Amended
-**Related:** ADR-018, ADR-019, ADR-027
+**Related:** ADR-018, ADR-019, ADR-027, ADR-030
 **Supersedes:** Previous ADR-022 command execution section
 
 ## Command Execution (AMENDED 2026-03-13)
@@ -67,3 +67,5 @@ All future command tools must:
 2. Render captured stdout/stderr inside the managed session output
 3. Validate working directory before spawn
 4. Support timeout and cancellation
+5. Keep managed command-session lifetime under runtime ownership even when the
+   provider stream has already ended

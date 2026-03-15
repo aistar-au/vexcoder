@@ -19,8 +19,9 @@ Current task-dispatch dependency state:
 | `ADR-027` | Accepted | Defines the current full-screen TUI with command-session capture; supersedes the ADR-018/019 path. |
 | `ADR-028` | Proposed | Defines the application facade and transport boundary that later CLI and LocalApiServer refactors must follow. |
 | `ADR-029` | Proposed | Extends the active ADR set with stream-parser completeness and session-persistence follow-up work without changing the milestone-1 gate result. |
+| `ADR-030` | Proposed | Defines the task-state-owned orchestrator model so canonical runtime events update task state before continuation, completion, and command-session decisions are made. |
 
-ADR-025, ADR-026, ADR-028, and ADR-029 are the active post-gate ADR set.
+ADR-025, ADR-026, ADR-028, ADR-029, and ADR-030 are the active post-gate ADR set.
 
 ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
 `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`. `PK-08` (`vex branch` and
@@ -28,7 +29,7 @@ ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
 ADR-023 implementation track (`EL-01` through `EL-13`) are now on `main`.
 Milestone-1 validation passed on `2026-03-15` on branch
 `dispatcher/vexcoder-adr-022-m1-validation-gate`; the ADR-025, ADR-026,
-ADR-028, and ADR-029 post-gate work now remains sequenced only by their
+ADR-028, ADR-029, and ADR-030 post-gate work now remains sequenced only by their
 documented dependencies.
 
 ## Current Next Dispatcher Batch
@@ -39,7 +40,7 @@ The next dispatcher batch is ADR-025 Phase I continuation (`PI-10`, then `PI-12`
 - `PI-09` and `PI-11` now establish the canonical runtime handoff types, grammar, and schema assets for ADR-025.
 - Keep `PI-10` sequenced immediately after `PI-09`, and keep `PI-12` sequenced after both `PI-10` and `PI-11`.
 - ADR-026 remains sequenced after ADR-025 closeout and ADR-024 reconciliation.
-- Treat ADR-028 as the boundary ADR for the post-gate CLI and LocalApiServer work, while ADR-029 remains an active stream/parser and persistence follow-up ADR.
+- Treat ADR-028 as the boundary ADR for the post-gate CLI and LocalApiServer work, while ADR-029 remains an active stream/parser and persistence follow-up ADR and ADR-030 defines the task-state/orchestrator control-flow contract that downstream work must preserve.
 
 ## Other Open ADRs Tracked In This Repo
 
