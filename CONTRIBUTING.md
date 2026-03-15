@@ -181,8 +181,11 @@ vexcoder/ (standalone view)
 | `src/api/mock_client.rs` | Mock streaming client used by tests. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
 | `src/api/stream.rs` | Stream/SSE event parsing helpers used by API layer. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
 | `src/app.rs` | Current interactive application module root: TUI mode state, input, overlays, history, and runtime-facing coordination. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
+| `src/app/accessors.rs` | TuiMode status and read-only accessor methods extracted from app facade under ADR-028 phase 4. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/accessors.rs> |
 | `src/app/commands.rs` | Slash-command handler methods extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/commands.rs> |
+| `src/app/ctor.rs` | TuiMode construction methods extracted from app facade under ADR-028 phase 4. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/ctor.rs> |
 | `src/app/inline.rs` | Inline `@`-token file-expansion methods extracted from app facade under ADR-028 phase 3. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/inline.rs> |
+| `src/app/layout.rs` | Layout-state and command-routing helper methods extracted from app facade under ADR-028 phase 4. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/layout.rs> |
 | `src/app/overlay.rs` | Overlay and approval handler methods extracted from app facade under ADR-028 phase 2. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/overlay.rs> |
 | `src/app/scroll.rs` | Viewport and history scroll methods extracted from app facade under ADR-028 phase 2. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/scroll.rs> |
 | `src/app/shell.rs` | Bang-command approval and command-session spawn methods extracted from app facade under ADR-028 phase 3. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/shell.rs> |
