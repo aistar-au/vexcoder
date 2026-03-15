@@ -12,7 +12,7 @@ Current task-dispatch dependency state:
 | `ADR-021` | Accepted, follow-up maintenance remains | Audit and cleanup items can still affect `src/`, tests, or docs shape. |
 | `ADR-022 amendment` | Proposed | Constrains first-milestone scope relative to `ADR-022`. |
 | `ADR-022` | Proposed | Free/open roadmap target and config/interface decision surface. |
-| `ADR-023` | Locked | `EL-08`, `EL-09`, `EL-10`, and `EL-11` are merged or in review. `EL-12` (`/context` reporting pass) and `EL-13` (`/commands`/`/help` reporting pass) are code-complete on `main`; checkpoint updates are next. |
+| `ADR-023` | Locked | `EL-08` through `EL-13` are now on `main`. The ADR-023 implementation track is complete; the next dependency step is the milestone-1 validation gate before ADR-025 and ADR-026 dispatch resumes. |
 | `ADR-024` | Proposed | Parity-gap inventory, command surface, and deferred work. |
 | `ADR-025` | Proposed | First post-gate Phase I dispatch target (`PI-09` through `PI-12`); implementation remains gated on milestone-1 validation. |
 | `ADR-026` | Proposed | Follows `ADR-025` closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation remains gated on milestone-1 validation. |
@@ -24,19 +24,18 @@ This roadmap note is descriptive only and does not relax the milestone-1 gate.
 
 ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
 `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`. `PK-08` (`vex branch` and
-`vex pr-summary`), the ADR-027 command-session follow-up, and `EL-09` are
-merged. The remaining milestone-1 queue does not begin at the ADR-025,
-ADR-026, and ADR-028 stage yet: `EL-10` still sits in front of that
-post-gate set.
+`vex pr-summary`), the ADR-027 command-session follow-up, and the full
+ADR-023 implementation track (`EL-01` through `EL-13`) are now on `main`.
+The next milestone-1 step is validation closeout before the ADR-025,
+ADR-026, and ADR-028 post-gate work begins.
 
 ## Current Next Dispatcher Batch
 
-`ADR-023 EL-12` and `EL-13` are the next dispatcher batches (combined reporting
-pass). Both commands are code-complete on `main`; only ADR-023 evidence blocks
-and roadmap checkpoint updates are needed.
+The next dispatcher batch is the milestone-1 validation gate.
 
-- EL-12: `/context` — `test_tui_context_renders_without_model_turn`; `test_tui_context_shows_tilde_token_estimate`; `test_tui_context_shows_active_grants_count`
-- EL-13: `/commands`/`/help` — `test_tui_commands_renders_all_registered_commands`; `test_tui_help_is_alias_for_commands`; `test_commands_output_does_not_call_start_turn`; `test_missing_command_description_is_compile_error`
+- Confirm ADR-022 phases 1 through 8 remain validated together with the completed ADR-023 edit-loop track.
+- Use that gate result to decide when ADR-025 PI-09 through PI-12 can begin.
+- Do not claim the milestone-1 gate is passed until the dedicated validation batch lands.
 
 ## Other Open ADRs Tracked In This Repo
 

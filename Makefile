@@ -139,7 +139,7 @@ lint:
 # This target runs gate-fast only — the local Rust gate. It is intentionally
 # self-contained so vexcoder's Makefile carries no cross-repo path assumptions.
 #
-# Sibling layout (required): ~/git-repo/vexcoder and ~/git-repo/vexdraft must
+# Adjacent local layout (required): ~/git-repo/vexcoder and ~/git-repo/vexdraft must
 # exist side by side. The dispatcher calls commit-debug.py from vexdraft directly.
 # ------------------------------------------------------------------------------
 commit-debug-gate: gate-fast
