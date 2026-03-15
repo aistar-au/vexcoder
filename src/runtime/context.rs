@@ -379,7 +379,7 @@ fn estimate_char_count(messages: &[crate::types::ApiMessage]) -> usize {
                     + blocks
                         .iter()
                         .map(|block| match block {
-                            ContentBlock::Text { text } => text.len(),
+                            ContentBlock::Text { text, .. } => text.len(),
                             ContentBlock::ToolUse { id, name, input } => {
                                 id.len() + name.len() + input.to_string().len()
                             }
@@ -393,6 +393,13 @@ fn estimate_char_count(messages: &[crate::types::ApiMessage]) -> usize {
                                 signature,
                             } => thinking.len() + signature.len(),
                             ContentBlock::RedactedThinking { data } => data.len(),
+                            ContentBlock::ServerToolUse { id, name, input } => {
+                                id.len() + name.len() + input.to_string().len()
+                            }
+                            ContentBlock::WebSearchToolResult {
+                                tool_use_id,
+                                content,
+                            } => tool_use_id.len() + content.to_string().len(),
                         })
                         .sum::<usize>()
             }
@@ -625,6 +632,7 @@ mod tests {
                 content: Content::Blocks(vec![
                     ContentBlock::Text {
                         text: "efgh".to_string(),
+                        citations: None,
                     },
                     ContentBlock::ToolResult {
                         tool_use_id: "tool-1".to_string(),

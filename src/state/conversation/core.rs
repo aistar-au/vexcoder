@@ -133,6 +133,8 @@ impl ConversationManager {
                                     ContentBlock::ToolResult { .. } => {}
                                     ContentBlock::Thinking { .. }
                                     | ContentBlock::RedactedThinking { .. } => {}
+                                    ContentBlock::ServerToolUse { .. }
+                                    | ContentBlock::WebSearchToolResult { .. } => {}
                                 }
                             } else if stream_server_events {
                                 let event_label = match &content_block {
@@ -148,6 +150,12 @@ impl ConversationManager {
                                     }
                                     ContentBlock::RedactedThinking { .. } => {
                                         "\n* Event: redacted_thinking_block\n".to_string()
+                                    }
+                                    ContentBlock::ServerToolUse { name, .. } => {
+                                        format!("\n* Event: server_tool_use({name})\n")
+                                    }
+                                    ContentBlock::WebSearchToolResult { .. } => {
+                                        "\n* Event: web_search_tool_result\n".to_string()
                                     }
                                 };
                                 emit_text_update(stream_delta_tx, event_label);
@@ -257,8 +265,8 @@ impl ConversationManager {
                                 );
                             }
                         }
-                        StreamEvent::MessageDelta { delta } => {
-                            accumulate_usage(&mut turn_tokens, delta.usage.as_ref());
+                        StreamEvent::MessageDelta { delta, usage } => {
+                            accumulate_usage(&mut turn_tokens, usage.as_ref());
                             if !use_structured_blocks && stream_server_events {
                                 let stop_reason =
                                     delta.stop_reason.unwrap_or_else(|| "none".to_string());
@@ -405,6 +413,7 @@ impl ConversationManager {
                             &assistant_text_for_history,
                             limits.max_assistant_history_chars,
                         ),
+                        citations: None,
                     });
                 }
                 assistant_content_blocks.extend(tool_use_blocks.clone());

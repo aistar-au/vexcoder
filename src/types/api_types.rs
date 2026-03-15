@@ -18,6 +18,8 @@ pub enum Content {
 pub enum ContentBlock {
     Text {
         text: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        citations: Option<Vec<serde_json::Value>>,
     },
     ToolUse {
         id: String,
@@ -37,6 +39,17 @@ pub enum ContentBlock {
     },
     RedactedThinking {
         data: String,
+    },
+    ServerToolUse {
+        id: String,
+        name: String,
+        #[serde(default = "default_json_object")]
+        input: serde_json::Value,
+    },
+    WebSearchToolResult {
+        tool_use_id: String,
+        #[serde(default)]
+        content: serde_json::Value,
     },
 }
 
@@ -63,6 +76,8 @@ pub enum StreamEvent {
     },
     MessageDelta {
         delta: MessageDelta,
+        #[serde(default)]
+        usage: Option<ApiUsage>,
     },
     MessageStop,
     Ping,
@@ -91,8 +106,16 @@ pub struct Delta {
 #[derive(Debug, Clone, Deserialize)]
 pub struct MessageStartData {
     pub id: String,
+    #[serde(rename = "type", default)]
+    pub message_type: Option<String>,
     pub role: String,
     pub model: String,
+    #[serde(default)]
+    pub content: Option<Vec<serde_json::Value>>,
+    #[serde(default)]
+    pub stop_reason: Option<String>,
+    #[serde(default)]
+    pub stop_sequence: Option<String>,
     #[serde(default)]
     pub usage: Option<ApiUsage>,
 }
@@ -102,22 +125,56 @@ pub struct MessageDelta {
     pub stop_reason: Option<String>,
     #[serde(default)]
     pub stop_sequence: Option<String>,
-    #[serde(default)]
-    pub usage: Option<ApiUsage>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ApiUsage {
+    // Core token counts (cross-protocol normalised)
     #[serde(default, alias = "prompt_tokens")]
     pub input_tokens: Option<u64>,
     #[serde(default, alias = "completion_tokens")]
     pub output_tokens: Option<u64>,
     #[serde(default)]
     pub total_tokens: Option<u64>,
+    // Provider cache fields
     #[serde(default)]
     pub cache_creation_input_tokens: Option<u64>,
     #[serde(default)]
     pub cache_read_input_tokens: Option<u64>,
+    #[serde(default)]
+    pub cache_creation: Option<serde_json::Value>,
+    // Extended usage metadata
+    #[serde(default)]
+    pub service_tier: Option<String>,
+    #[serde(default)]
+    pub web_search_requests: Option<u64>,
+    // Detailed token breakdowns (chat completions)
+    #[serde(default)]
+    pub prompt_tokens_details: Option<PromptTokenDetails>,
+    #[serde(default)]
+    pub completion_tokens_details: Option<CompletionTokenDetails>,
+}
+
+/// Prompt token detail breakdown (chat completions protocol).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct PromptTokenDetails {
+    #[serde(default)]
+    pub cached_tokens: Option<u64>,
+    #[serde(default)]
+    pub audio_tokens: Option<u64>,
+}
+
+/// Completion token detail breakdown (chat completions protocol).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct CompletionTokenDetails {
+    #[serde(default)]
+    pub reasoning_tokens: Option<u64>,
+    #[serde(default)]
+    pub audio_tokens: Option<u64>,
+    #[serde(default)]
+    pub accepted_prediction_tokens: Option<u64>,
+    #[serde(default)]
+    pub rejected_prediction_tokens: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -227,5 +284,128 @@ mod tests {
         let delta: MessageDelta = serde_json::from_str(json).unwrap();
         assert_eq!(delta.stop_reason.as_deref(), Some("stop_sequence"));
         assert_eq!(delta.stop_sequence.as_deref(), Some("\n\nHuman:"));
+    }
+
+    #[test]
+    fn test_message_delta_event_top_level_usage_deserialises() {
+        // Messages v1 wire format: usage is a sibling of delta, not nested inside it
+        let json = r#"{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":15}}"#;
+        let evt: StreamEvent = serde_json::from_str(json).unwrap();
+        match evt {
+            StreamEvent::MessageDelta { delta, usage } => {
+                assert_eq!(delta.stop_reason.as_deref(), Some("end_turn"));
+                let usage = usage.expect("top-level usage must be present");
+                assert_eq!(usage.output_tokens, Some(15));
+            }
+            other => panic!("expected MessageDelta variant, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_message_start_full_message_deserialises() {
+        let json = r#"{
+            "type":"message_start",
+            "message":{
+                "id":"msg_01XY","type":"message","role":"assistant",
+                "content":[],"model":"model-name-20241022",
+                "stop_reason":null,"stop_sequence":null,
+                "usage":{"input_tokens":25,"output_tokens":1}
+            }
+        }"#;
+        let evt: StreamEvent = serde_json::from_str(json).unwrap();
+        match evt {
+            StreamEvent::MessageStart { message } => {
+                assert_eq!(message.id, "msg_01XY");
+                assert_eq!(message.message_type.as_deref(), Some("message"));
+                assert_eq!(message.role, "assistant");
+                assert_eq!(message.model, "model-name-20241022");
+                assert!(message.stop_reason.is_none());
+                assert!(message.stop_sequence.is_none());
+                let content = message.content.expect("content array must be present");
+                assert!(content.is_empty());
+                let usage = message.usage.expect("usage must be present");
+                assert_eq!(usage.input_tokens, Some(25));
+                assert_eq!(usage.output_tokens, Some(1));
+            }
+            other => panic!("expected MessageStart variant, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_content_block_text_with_citations_deserialises() {
+        let json = r#"{"type":"text","text":"hello","citations":[{"type":"char_location","start":0,"end":5}]}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        match block {
+            ContentBlock::Text { text, citations } => {
+                assert_eq!(text, "hello");
+                let cites = citations.expect("citations must be present");
+                assert_eq!(cites.len(), 1);
+            }
+            other => panic!("expected Text variant, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_content_block_server_tool_use_deserialises() {
+        let json = r#"{"type":"server_tool_use","id":"srvtoolu_01","name":"web_search","input":{"query":"test"}}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        match block {
+            ContentBlock::ServerToolUse { id, name, input } => {
+                assert_eq!(id, "srvtoolu_01");
+                assert_eq!(name, "web_search");
+                assert_eq!(input["query"], "test");
+            }
+            other => panic!("expected ServerToolUse variant, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_content_block_web_search_tool_result_deserialises() {
+        let json = r#"{"type":"web_search_tool_result","tool_use_id":"srvtoolu_01","content":[{"type":"web_search_result","url":"https://example.com","title":"Example"}]}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        match block {
+            ContentBlock::WebSearchToolResult {
+                tool_use_id,
+                content,
+            } => {
+                assert_eq!(tool_use_id, "srvtoolu_01");
+                assert!(content.is_array());
+            }
+            other => panic!("expected WebSearchToolResult variant, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_api_usage_extended_fields_deserialise() {
+        let json = r#"{
+            "input_tokens":100,"output_tokens":50,
+            "cache_creation_input_tokens":200,"cache_read_input_tokens":800,
+            "service_tier":"standard","web_search_requests":3,
+            "cache_creation":{"type":"ephemeral","duration":"5m"}
+        }"#;
+        let usage: ApiUsage = serde_json::from_str(json).unwrap();
+        assert_eq!(usage.input_tokens, Some(100));
+        assert_eq!(usage.service_tier.as_deref(), Some("standard"));
+        assert_eq!(usage.web_search_requests, Some(3));
+        assert!(usage.cache_creation.is_some());
+    }
+
+    #[test]
+    fn test_api_usage_openai_detail_breakdowns_deserialise() {
+        let json = r#"{
+            "prompt_tokens":120,"completion_tokens":30,"total_tokens":150,
+            "prompt_tokens_details":{"cached_tokens":80,"audio_tokens":0},
+            "completion_tokens_details":{"reasoning_tokens":10,"audio_tokens":0,"accepted_prediction_tokens":5,"rejected_prediction_tokens":2}
+        }"#;
+        let usage: ApiUsage = serde_json::from_str(json).unwrap();
+        assert_eq!(usage.input_tokens, Some(120));
+        assert_eq!(usage.output_tokens, Some(30));
+        assert_eq!(usage.total_tokens, Some(150));
+        let prompt_details = usage.prompt_tokens_details.expect("prompt details");
+        assert_eq!(prompt_details.cached_tokens, Some(80));
+        let completion_details = usage.completion_tokens_details.expect("completion details");
+        assert_eq!(completion_details.reasoning_tokens, Some(10));
+        assert_eq!(completion_details.accepted_prediction_tokens, Some(5));
+        assert_eq!(completion_details.rejected_prediction_tokens, Some(2));
     }
 }

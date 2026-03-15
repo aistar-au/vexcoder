@@ -18,8 +18,24 @@ struct ChatCompatToolState {
     stopped: bool,
 }
 
+// Chat-compat structs deserialize the full documented chat completions streaming surface.
+// Fields that are not yet consumed by the conversion logic are retained so that
+// serde does not silently drop documented values if future code needs them.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct ChatCompatChunk {
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    object: Option<String>,
+    #[serde(default)]
+    created: Option<u64>,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    system_fingerprint: Option<String>,
+    #[serde(default)]
+    service_tier: Option<String>,
     #[serde(default)]
     choices: Vec<ChatCompatChoice>,
     #[serde(default)]
@@ -27,27 +43,40 @@ struct ChatCompatChunk {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct ChatCompatChoice {
+    #[serde(default)]
+    index: Option<usize>,
     #[serde(default)]
     delta: ChatCompatDelta,
     #[serde(default)]
     finish_reason: Option<String>,
+    #[serde(default)]
+    logprobs: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Default, Deserialize)]
+#[allow(dead_code)]
 struct ChatCompatDelta {
     #[serde(default)]
+    role: Option<String>,
+    #[serde(default)]
     content: Option<String>,
+    #[serde(default)]
+    refusal: Option<String>,
     #[serde(default)]
     tool_calls: Option<Vec<ChatCompatToolCallDelta>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
+#[allow(dead_code)]
 struct ChatCompatToolCallDelta {
     #[serde(default)]
     index: Option<usize>,
     #[serde(default)]
     id: Option<String>,
+    #[serde(rename = "type", default)]
+    call_type: Option<String>,
     #[serde(default)]
     function: Option<ChatCompatFunctionDelta>,
 }
@@ -147,8 +176,8 @@ impl StreamParser {
                 delta: MessageDelta {
                     stop_reason: None,
                     stop_sequence: None,
-                    usage: Some(usage),
                 },
+                usage: Some(usage),
             });
         }
 
@@ -289,11 +318,31 @@ mod tests {
 
         assert_eq!(events.len(), 1);
         match &events[0] {
-            StreamEvent::MessageDelta { delta } => {
-                let usage = delta.usage.as_ref().expect("usage should be present");
+            StreamEvent::MessageDelta { usage, .. } => {
+                let usage = usage.as_ref().expect("usage should be present");
                 assert_eq!(usage.input_tokens, Some(12));
                 assert_eq!(usage.output_tokens, Some(7));
                 assert_eq!(usage.total_tokens, Some(19));
+            }
+            other => panic!("expected MessageDelta event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_process_anthropic_message_delta_top_level_usage() {
+        let mut parser = StreamParser::new();
+        let events = parser
+            .process(
+                b"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":15}}\n\n",
+            )
+            .unwrap();
+
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            StreamEvent::MessageDelta { delta, usage } => {
+                assert_eq!(delta.stop_reason.as_deref(), Some("end_turn"));
+                let usage = usage.as_ref().expect("top-level usage must be present");
+                assert_eq!(usage.output_tokens, Some(15));
             }
             other => panic!("expected MessageDelta event, got {other:?}"),
         }

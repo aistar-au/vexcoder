@@ -199,7 +199,7 @@ data: {"type": "message_stop"}"#.to_string(),
     assert_eq!(messages[1].role, "assistant");
     if let Content::Blocks(blocks) = &messages[1].content {
         assert_eq!(blocks.len(), 2);
-        if let ContentBlock::Text { text } = &blocks[0] {
+        if let ContentBlock::Text { text, .. } = &blocks[0] {
             assert!(text.contains("Okay, I can help with that."));
         }
         if let ContentBlock::ToolUse { id: _, name, input } = &blocks[1] {
@@ -229,7 +229,7 @@ data: {"type": "message_stop"}"#.to_string(),
     assert_eq!(messages[3].role, "assistant");
     if let Content::Blocks(blocks) = &messages[3].content {
         assert_eq!(blocks.len(), 1);
-        if let ContentBlock::Text { text } = &blocks[0] {
+        if let ContentBlock::Text { text, .. } = &blocks[0] {
             assert!(text.contains("The content of file.txt is 'Hello from file.txt'"));
         }
     }

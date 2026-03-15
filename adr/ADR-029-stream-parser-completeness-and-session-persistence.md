@@ -57,18 +57,29 @@ error is retryable; the parser's job is only to represent it faithfully.
 
 ### 2. Expand `ContentBlock`
 
-Add two new variants to the `ContentBlock` enum:
+Add four new variants to the `ContentBlock` enum:
 
 ```rust
 Thinking { thinking: String, signature: String },
 RedactedThinking { data: String },
+ServerToolUse { id: String, name: String, input: serde_json::Value },
+WebSearchToolResult { tool_use_id: String, content: serde_json::Value },
 ```
 
-These cover the two content block types emitted during extended-thinking model
-sessions. Both are legal `content_block_start` payloads and must be
-deserialised when present. Callers that do not use extended thinking may ignore
-them; the runtime is not required to display thinking content in the TUI by
-this ADR.
+Additionally, the existing `Text` variant gains an optional `citations` field:
+
+```rust
+Text { text: String, citations: Option<Vec<serde_json::Value>> },
+```
+
+`Thinking` and `RedactedThinking` cover extended-thinking model sessions.
+`ServerToolUse` represents server-side tool invocations (e.g., web search)
+that the API executes internally. `WebSearchToolResult` carries the results
+of such invocations. `citations` on `Text` captures citation metadata that
+the API may attach to text blocks when citations are enabled.
+
+Callers that do not use these features may ignore the variants; the runtime
+is not required to display them in the TUI by this ADR.
 
 ### 3. Expand `Delta`
 
@@ -85,27 +96,54 @@ fields provide the matching payload slots.
 
 ### 4. Expand `ApiUsage`
 
-Add protocol-normalised token fields and two optional cache-usage fields to
-`ApiUsage`:
+Add protocol-normalised token fields, cache-usage fields, extended usage
+metadata, and detailed token breakdowns:
 
 ```rust
-pub input_tokens: Option<u64>,
-pub output_tokens: Option<u64>,
-pub total_tokens: Option<u64>,
-pub cache_creation_input_tokens: Option<u64>,
-pub cache_read_input_tokens: Option<u64>,
+pub struct ApiUsage {
+    // Core token counts (cross-protocol normalised)
+    pub input_tokens: Option<u64>,     // alias: prompt_tokens
+    pub output_tokens: Option<u64>,    // alias: completion_tokens
+    pub total_tokens: Option<u64>,
+    // Provider cache fields
+    pub cache_creation_input_tokens: Option<u64>,
+    pub cache_read_input_tokens: Option<u64>,
+    pub cache_creation: Option<serde_json::Value>,
+    // Extended usage metadata
+    pub service_tier: Option<String>,
+    pub web_search_requests: Option<u64>,
+    // Detailed token breakdowns (chat completions)
+    pub prompt_tokens_details: Option<PromptTokenDetails>,
+    pub completion_tokens_details: Option<CompletionTokenDetails>,
+}
+
+pub struct PromptTokenDetails {
+    pub cached_tokens: Option<u64>,
+    pub audio_tokens: Option<u64>,
+}
+
+pub struct CompletionTokenDetails {
+    pub reasoning_tokens: Option<u64>,
+    pub audio_tokens: Option<u64>,
+    pub accepted_prediction_tokens: Option<u64>,
+    pub rejected_prediction_tokens: Option<u64>,
+}
 ```
 
 `input_tokens` and `output_tokens` are the normalised in-memory field names.
 For messages v1 they deserialise from the same-named fields. For chat
-completions they deserialise from `prompt_tokens` and `completion_tokens`.
-`total_tokens` captures the chat-completions total when the backend returns it.
+completions they deserialise from `prompt_tokens` and `completion_tokens`
+via serde aliases. `total_tokens` captures the chat-completions total.
 
-The cache fields are populated from the corresponding messages v1 usage fields
-when the backend returns them. They are optional because not all backends or
-all requests emit cache metrics.
+`cache_creation` captures the messages v1 cache-creation breakdown object
+(ephemeral durations). `service_tier` and `web_search_requests` are
+extended-usage metadata from the messages v1 protocol. `prompt_tokens_details`
+and `completion_tokens_details` carry the chat completions token-detail
+breakdowns (cached tokens, reasoning tokens, audio tokens, prediction tokens).
 
-### 5. Expand `MessageDelta`
+All fields are optional and default to `None` when absent.
+
+### 5. Expand `MessageDelta` and fix `message_delta` usage location
 
 Add the stop sequence string to `MessageDelta`:
 
@@ -114,9 +152,55 @@ pub stop_sequence: Option<String>,
 ```
 
 This field is present in the protocol when `stop_reason` is `"stop_sequence"`
-and carries the exact sequence that terminated the generation. It allows the
-orchestrator loop to distinguish which stop sequence fired without parsing the
-model output.
+and carries the exact sequence that terminated the generation.
+
+**Critical wire-format fix:** The messages v1 `message_delta` event carries
+`usage` as a **top-level sibling** of `delta`, not nested inside the `delta`
+object. The `StreamEvent::MessageDelta` variant must therefore carry `usage`
+at the variant level:
+
+```rust
+MessageDelta {
+    delta: MessageDelta,
+    usage: Option<ApiUsage>,
+},
+```
+
+The `MessageDelta` struct itself contains only `stop_reason` and
+`stop_sequence`. This matches the documented wire format:
+`{"type":"message_delta","delta":{...},"usage":{...}}`.
+
+### 5a. Expand `MessageStartData`
+
+The documented `message_start` payload includes a full `Message` object.
+`MessageStartData` is expanded to capture all documented fields:
+
+```rust
+pub struct MessageStartData {
+    pub id: String,
+    pub message_type: Option<String>,  // serde rename from "type"
+    pub role: String,
+    pub model: String,
+    pub content: Option<Vec<serde_json::Value>>,
+    pub stop_reason: Option<String>,
+    pub stop_sequence: Option<String>,
+    pub usage: Option<ApiUsage>,
+}
+```
+
+### 5b. Expand chat-completions streaming surface
+
+The internal chat-compat deserialization types are expanded to capture the
+full documented chat completions streaming chunk surface:
+
+- `ChatCompatChunk`: `id`, `object`, `created`, `model`,
+  `system_fingerprint`, `service_tier`, `choices`, `usage`
+- `ChatCompatChoice`: `index`, `delta`, `finish_reason`, `logprobs`
+- `ChatCompatDelta`: `role`, `content`, `refusal`, `tool_calls`
+- `ChatCompatToolCallDelta`: `index`, `id`, `type`, `function`
+
+Fields not yet consumed by the conversion logic are retained so serde does
+not silently drop documented values.
 
 ### 6. Add `ApiStreamError`
 
@@ -221,7 +305,7 @@ pub enum StreamEvent {
     ContentBlockStart { index: usize, content_block: ContentBlock },
     ContentBlockDelta { index: usize, delta: Delta },
     ContentBlockStop { index: usize },
-    MessageDelta { delta: MessageDelta },
+    MessageDelta { delta: MessageDelta, usage: Option<ApiUsage> },
     MessageStop,
     Ping,
     Error { error: ApiStreamError },
@@ -234,11 +318,13 @@ pub enum StreamEvent {
 
 ```rust
 pub enum ContentBlock {
-    Text { text: String },
+    Text { text: String, citations: Option<Vec<serde_json::Value>> },
     ToolUse { id: String, name: String, input: serde_json::Value },
     ToolResult { tool_use_id: String, content: String, is_error: bool },
     Thinking { thinking: String, signature: String },
     RedactedThinking { data: String },
+    ServerToolUse { id: String, name: String, input: serde_json::Value },
+    WebSearchToolResult { tool_use_id: String, content: serde_json::Value },
 }
 ```
 
@@ -254,6 +340,21 @@ pub struct Delta {
 }
 ```
 
+### `MessageStartData` (complete, post-ADR-029)
+
+```rust
+pub struct MessageStartData {
+    pub id: String,
+    pub message_type: Option<String>,
+    pub role: String,
+    pub model: String,
+    pub content: Option<Vec<serde_json::Value>>,
+    pub stop_reason: Option<String>,
+    pub stop_sequence: Option<String>,
+    pub usage: Option<ApiUsage>,
+}
+```
+
 ### `ApiUsage` (normalised across messages v1 and chat completions, post-ADR-029)
 
 ```rust
@@ -263,6 +364,23 @@ pub struct ApiUsage {
     pub total_tokens: Option<u64>,
     pub cache_creation_input_tokens: Option<u64>,
     pub cache_read_input_tokens: Option<u64>,
+    pub cache_creation: Option<serde_json::Value>,
+    pub service_tier: Option<String>,
+    pub web_search_requests: Option<u64>,
+    pub prompt_tokens_details: Option<PromptTokenDetails>,
+    pub completion_tokens_details: Option<CompletionTokenDetails>,
+}
+
+pub struct PromptTokenDetails {
+    pub cached_tokens: Option<u64>,
+    pub audio_tokens: Option<u64>,
+}
+
+pub struct CompletionTokenDetails {
+    pub reasoning_tokens: Option<u64>,
+    pub audio_tokens: Option<u64>,
+    pub accepted_prediction_tokens: Option<u64>,
+    pub rejected_prediction_tokens: Option<u64>,
 }
 ```
 
@@ -293,6 +411,7 @@ pub struct TaskState {
 
 ### Required tests
 
+**Original ADR-029 tests (all passing):**
 - Deserialising a `StreamEvent` from `{"type":"error","error":{"type":"overloaded_error","message":"..."}}` produces `StreamEvent::Error` with the correct fields.
 - Deserialising a ping frame through `StreamParser::process()` produces `StreamEvent::Ping`.
 - Deserialising a `ContentBlockStart` with `{"type":"thinking","thinking":"...","signature":"..."}` produces `ContentBlock::Thinking`.
@@ -302,6 +421,16 @@ pub struct TaskState {
 - A `TaskState` written with the new fields round-trips through `save()` and `load()` with all four new fields intact.
 - A `TaskState` written before ADR-029 (without the new fields) loads without error; new fields default to empty/None.
 - Accumulating cache tokens across three simulated turns produces correct totals in `CacheUsageStats`.
+
+**Stream surface coverage tests (added for full protocol coverage):**
+- A messages v1 `message_delta` event with **top-level** usage (`{"type":"message_delta","delta":{...},"usage":{...}}`) deserialises with usage at the event level, not inside the delta.
+- A full `message_start` event deserialises `MessageStartData` with `message_type`, `content`, `stop_reason`, `stop_sequence`, and `usage`.
+- A `ContentBlock` text block with citations deserialises the `citations` array.
+- A `ContentBlock` with `"type":"server_tool_use"` deserialises as `ServerToolUse`.
+- A `ContentBlock` with `"type":"web_search_tool_result"` deserialises as `WebSearchToolResult`.
+- An `ApiUsage` with extended fields (`service_tier`, `web_search_requests`, `cache_creation`) deserialises all fields.
+- An `ApiUsage` with chat completions detail breakdowns (`prompt_tokens_details`, `completion_tokens_details`) deserialises the nested detail structs.
+- A messages v1 `message_delta` SSE frame through `StreamParser::process()` surfaces usage at the event level.
 
 ### Completion condition
 
