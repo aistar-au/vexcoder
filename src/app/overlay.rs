@@ -1,0 +1,231 @@
+use super::*;
+
+#[cfg(test)]
+use crossterm::event::{Event, KeyCode, KeyModifiers};
+
+impl TuiMode {
+    pub(super) fn resolve_pending_approval(&mut self, approved: bool, ctx: &RuntimeContext) {
+        if let Some(pending) = self.overlay_state.pending_approval.take() {
+            match pending.action {
+                PendingApprovalAction::Tool(response_tx) => {
+                    let _ = response_tx.send(approved);
+                }
+                PendingApprovalAction::InlineCommand(command) => {
+                    if approved {
+                        self.start_command_session(command.command, ctx);
+                    }
+                }
+            }
+        }
+    }
+
+    pub(super) fn handle_approval_input(&mut self, input: &str, ctx: &mut RuntimeContext) {
+        if self.overlay_state.pending_resume_selection.is_some() {
+            self.handle_resume_selection_input(input, ctx);
+            return;
+        }
+        let context = self
+            .overlay_state
+            .pending_approval
+            .as_ref()
+            .map(|p| summarize_tool_approval_context(&p.tool_name, &p.input_preview))
+            .unwrap_or_else(|| "unknown".to_string());
+        match parse_approval_selection(input) {
+            Some(ApprovalSelection::ApproveOnce) => {
+                self.push_history_line(format!("[tool approval accepted once: {context}]"));
+                self.resolve_pending_approval(true, ctx);
+            }
+            Some(ApprovalSelection::ApproveSession) => {
+                self.overlay_state.auto_approve_session = true;
+                self.push_history_line(format!("[tool approval enabled for session: {context}]"));
+                self.resolve_pending_approval(true, ctx);
+            }
+            Some(ApprovalSelection::Deny) => {
+                self.push_history_line(format!("[tool approval denied: {context}]"));
+                self.resolve_pending_approval(false, ctx);
+            }
+            None => {
+                self.push_history_line("[invalid selection, expected 1/2/3]".to_string());
+            }
+        }
+    }
+
+    pub(super) fn resolve_pending_patch_approval(&mut self, approved: bool) {
+        if let Some(mut pending) = self.overlay_state.pending_patch_approval.take() {
+            if let Some(tx) = pending.response_tx.take() {
+                let _ = tx.send(approved);
+            }
+            let decision = if approved { "accepted" } else { "denied" };
+            self.push_history_line(format!("[patch approval {decision}]"));
+        }
+    }
+
+    pub(super) fn apply_patch_overlay_scroll_action(&mut self, action: ScrollAction) {
+        if let Some(pending) = self.overlay_state.pending_patch_approval.as_mut() {
+            let max = pending.patch_preview.lines().count().saturating_sub(1);
+            match action {
+                ScrollAction::LineUp => {
+                    pending.scroll_offset = pending.scroll_offset.saturating_sub(1);
+                }
+                ScrollAction::LineDown => {
+                    pending.scroll_offset = pending.scroll_offset.saturating_add(1).min(max);
+                }
+                ScrollAction::PageUp(step) => {
+                    pending.scroll_offset = pending.scroll_offset.saturating_sub(step.max(1));
+                }
+                ScrollAction::PageDown(step) => {
+                    pending.scroll_offset =
+                        pending.scroll_offset.saturating_add(step.max(1)).min(max);
+                }
+                ScrollAction::Home => {
+                    pending.scroll_offset = 0;
+                }
+                ScrollAction::End => {
+                    pending.scroll_offset = max;
+                }
+            }
+        }
+    }
+
+    pub(super) fn handle_patch_overlay_input(&mut self, input: &str) {
+        if self.overlay_state.pending_patch_approval.is_none() {
+            return;
+        }
+
+        match parse_approval_selection(input) {
+            Some(ApprovalSelection::ApproveOnce) => self.resolve_pending_patch_approval(true),
+            Some(ApprovalSelection::Deny) => self.resolve_pending_patch_approval(false),
+            Some(ApprovalSelection::ApproveSession) | None => {}
+        }
+    }
+
+    pub(super) fn prompt_resume_selection(&mut self, entries: Vec<ResumeTaskEntry>) {
+        self.push_history_line("[resume] choose a task to resume:".to_string());
+        for (index, entry) in entries.iter().enumerate() {
+            self.push_history_line(format!("  {}. {} ({})", index + 1, entry.id, entry.status));
+        }
+        self.push_history_line("[resume] type 1-5 to select or n to cancel".to_string());
+        self.overlay_state.pending_resume_selection = Some(PendingResumeSelection { entries });
+    }
+
+    pub(super) fn handle_resume_selection_input(&mut self, input: &str, ctx: &mut RuntimeContext) {
+        let trimmed = input.trim();
+        if matches!(trimmed.to_ascii_lowercase().as_str(), "n" | "no" | "esc") {
+            self.overlay_state.pending_resume_selection = None;
+            self.push_history_line("[resume] cancelled".to_string());
+            return;
+        }
+
+        let Some(selection) = trimmed.parse::<usize>().ok() else {
+            self.push_history_line("[resume] invalid selection, expected 1-5 or n".to_string());
+            return;
+        };
+
+        let Some(entry) = self
+            .overlay_state
+            .pending_resume_selection
+            .as_ref()
+            .and_then(|pending| pending.entries.get(selection.saturating_sub(1)))
+            .cloned()
+        else {
+            self.push_history_line("[resume] invalid selection, expected 1-5 or n".to_string());
+            return;
+        };
+
+        self.overlay_state.pending_resume_selection = None;
+        match TaskState::load_from_search_dirs(&entry.id) {
+            Ok(state) => self.apply_resumed_task(state, ctx),
+            Err(_) => {
+                self.push_history_line(format!("[resume: task '{}' not found]", entry.id));
+            }
+        }
+    }
+}
+
+pub(super) fn summarize_tool_approval_context(tool_name: &str, input_preview: &str) -> String {
+    let mut path: Option<&str> = None;
+    let mut summary_line: Option<&str> = None;
+
+    for line in input_preview.lines().take(8) {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if path.is_none() && trimmed.starts_with("path:") {
+            path = Some(trimmed);
+            continue;
+        }
+        if summary_line.is_none()
+            && (trimmed.starts_with("change:") || trimmed.starts_with("content:"))
+        {
+            summary_line = Some(trimmed);
+            continue;
+        }
+        if summary_line.is_none() {
+            summary_line = Some(trimmed);
+        }
+    }
+
+    match (path, summary_line) {
+        (Some(path), Some(summary)) => format!("{tool_name} {path} {summary}"),
+        (Some(path), None) => format!("{tool_name} {path}"),
+        (None, Some(summary)) => format!("{tool_name} {summary}"),
+        (None, None) => tool_name.to_string(),
+    }
+}
+
+pub(super) fn parse_approval_selection(input: &str) -> Option<ApprovalSelection> {
+    let normalized = input.trim().to_lowercase();
+    match normalized.as_str() {
+        "1" | "y" | "yes" => Some(ApprovalSelection::ApproveOnce),
+        "2" | "a" | "always" => Some(ApprovalSelection::ApproveSession),
+        "3" | "n" | "no" | "esc" => Some(ApprovalSelection::Deny),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+pub(super) fn overlay_event_to_user_input(event: Event) -> Option<UserInputEvent> {
+    match event {
+        Event::Key(key) => match key.code {
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                Some(UserInputEvent::Interrupt)
+            }
+            KeyCode::Esc => Some(UserInputEvent::Text("esc".to_string())),
+            KeyCode::Char(ch)
+                if !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && !key.modifiers.contains(KeyModifiers::ALT) =>
+            {
+                Some(UserInputEvent::Text(ch.to_string()))
+            }
+            _ => None,
+        },
+        Event::Paste(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(UserInputEvent::Text(trimmed.to_string()))
+            }
+        }
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RenderPass {
+    Header,
+    History,
+    Input,
+    Overlay,
+}
+
+#[cfg(test)]
+pub(super) fn render_pass_order(mode: &TuiMode) -> Vec<RenderPass> {
+    let mut order = vec![RenderPass::Header, RenderPass::History, RenderPass::Input];
+    if mode.overlay_active() {
+        order.push(RenderPass::Overlay);
+    }
+    order
+}

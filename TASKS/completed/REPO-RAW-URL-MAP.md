@@ -18,7 +18,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 7 | `.github/workflows/release.yml` | ~229 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/release.yml> |
 | 8 | `.gitignore` | ~36 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitignore> |
 | 9 | `AGENTS.md` | ~147 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/AGENTS.md> |
-| 10 | `CONTRIBUTING.md` | ~233 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
+| 10 | `CONTRIBUTING.md` | ~236 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
 | 11 | `Cargo.lock` | ~2474 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.lock> |
 | 12 | `Cargo.toml` | ~36 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.toml> |
 | 13 | `LICENSE` | ~21 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/LICENSE> |
@@ -30,7 +30,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 19 | `TASKS/PJ-03-memory-notes.md` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes.md> |
 | 20 | `TASKS/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PL-01-pre-post-tool-hooks.md> |
 | 21 | `TASKS/TASKS-DISPATCH-MAP.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
-| 22 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~161 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
+| 22 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~164 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 23 | `adr/ADR-013-tui-completion-deployment-plan.md` | ~236 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-013-tui-completion-deployment-plan.md> |
 | 24 | `adr/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md` | ~129 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md> |
 | 25 | `adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md` | ~414 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md> |
@@ -90,7 +90,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 79 | `src/api/logging.rs` | ~85 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/logging.rs> |
 | 80 | `src/api/mock_client.rs` | ~47 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
 | 81 | `src/api/stream.rs` | ~251 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
-| 82 | `src/app.rs` | ~1962 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
+| 82 | `src/app.rs` | ~1490 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
 | 83 | `src/app/commands.rs` | ~751 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/commands.rs> |
 | 84 | `src/app/tests.rs` | ~3552 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests.rs> |
 | 85 | `src/app/util.rs` | ~261 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/util.rs> |
