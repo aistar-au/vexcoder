@@ -9,6 +9,7 @@ Whole-repo tracked file map: `TASKS/completed/REPO-RAW-URL-MAP.md`.
 
 | Manifest | ADR source | Depends on | Scope |
 | :--- | :--- | :--- | :--- |
+| `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | `ADR-025` PI-10, PI-12 | `PI-09`, `PI-11` | Normalization layer and serde/schema/grammar/BatchMode test coverage. |
 | `TASKS/PJ-03-memory-notes.md` | `ADR-024` Gap 16 | `PA-01` | `/memory`, `/memory add`, `/memory clear`, and session-note injection. |
 
 ## Open ADR Dispatch Sources
@@ -38,9 +39,9 @@ EL-08 -> EL-09 -> EL-10 -> EL-11 -> EL-12 -> EL-13 (complete)
 
 Milestone-1 gate (passed 2026-03-15):
 ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
-  -> ADR-025 PI-09 + PI-11 (parallel)
-  -> PI-10 after PI-09
-  -> PI-12 after PI-09 through PI-11
+  -> ADR-025 PI-09 + PI-11 (kickoff complete)
+  -> PI-10 next after PI-09
+  -> PI-12 after PI-10 and PI-11
   -> ADR-026 PI-13 + PI-14 (parallel) after PI-12 and ADR-024 reconciliation
   -> PI-15 after PI-13 and PI-14
   -> PI-16 last
@@ -53,9 +54,11 @@ milestone-1 gate or ADR-025 sequencing.
 
 ## Current Next Dispatcher Batch
 
-The next dispatcher batch is ADR-025 Phase I kickoff (`PI-09` through `PI-12`).
+The next dispatcher batch is ADR-025 Phase I continuation (`PI-10`, then `PI-12`).
 
 - Milestone-1 validation is complete; use the recorded gate result in ADR-022 as the Phase I entry condition.
+- `PI-09` and `PI-11` are now the completed kickoff entry work for ADR-025.
+- Keep `PI-10` sequenced after `PI-09`, and keep `PI-12` sequenced after both `PI-10` and `PI-11`.
 - Keep ADR-026 sequenced after ADR-025 closeout and ADR-024 reconciliation.
 - Treat ADR-028 as the boundary ADR for the post-gate Phase I work, not as the next immediate implementation batch.
 

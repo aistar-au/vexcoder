@@ -267,7 +267,7 @@ The full grammar file is included in Appendix A of this ADR.
 
 **Clarification (ADR-024 Gap 11):** ADR-024 Gap 11's `tool_call_mode = "structured"` refers to provider API structured-output features on hosted backends. This ADR's GBNF grammar covers local-model constrained decoding for backends that do not expose provider-native structured tool calling. Both mechanisms target the same outcome — valid JSON tool-call payloads — but at different layers. PI-10 normalization must accept both paths and produce identical `RuntimeEnvelope` output regardless of backend type.
 
-**Note on GBNF `json_safe_char`:** The grammar in Appendix A defines a conservative `json_safe_char` set for local-model constrained decoding. This set intentionally excludes some characters valid in JSON strings (e.g. `(`, `)`, `;`, `$`) to limit the local-model output surface. This restriction applies to unescaped characters only; standard JSON escapes, including `\uXXXX`, remain valid through the `escape` rule. Backends that do not use constrained decoding are not restricted by this grammar; PI-10 normalization and serde validation accept the full JSON string character set from those backends.
+**Note on GBNF `json_safe_char`:** The grammar in Appendix A defines a conservative `json_safe_char` set for local-model constrained decoding. This set intentionally excludes some characters valid in JSON strings (e.g. `(`, `)`, `;`, `$`) to limit the local-model output surface, while still permitting common glob wildcards such as `*` and `?` so `glob_files` arguments can be emitted directly. This restriction applies to unescaped characters only; standard JSON escapes, including `\uXXXX`, remain valid through the `escape` rule. Backends that do not use constrained decoding are not restricted by this grammar; PI-10 normalization and serde validation accept the full JSON string character set from those backends.
 
 ### 6. BatchMode remains backward-compatible and derivable
 
@@ -451,9 +451,9 @@ The grammar constrains the **shape of the runtime tool-call JSON contract** at t
 
 | ID | Task | Status |
 |----|------|--------|
-| **PI-09** | Add `src/runtime/json_handoff.rs` with `RuntimeRequest` (including `ApproveCapability` and `DenyCapability`), `RuntimeEnvelope`, `RuntimeEvent` (including `MaxTurnsReached`), `TokenUsageEnvelope`, `ValidationOutputEnvelope`, and `grammars/tool_call.gbnf` | [ ] |
+| **PI-09** | Add `src/runtime/json_handoff.rs` with `RuntimeRequest` (including `ApproveCapability` and `DenyCapability`), `RuntimeEnvelope`, `RuntimeEvent` (including `MaxTurnsReached`), `TokenUsageEnvelope`, `ValidationOutputEnvelope`, and `grammars/tool_call.gbnf` | [x] |
 | **PI-10** | Add normalization layer from provider/native stream updates into canonical runtime envelopes; runtime injects `ToolCall.id`; provider ids are discarded at normalization boundary; include `UiUpdate::ToolApprovalRequest` → `ApprovalRequest` mapping; include `ApproveCapability`/`DenyCapability` → `ApprovalResolved` mapping; include `StreamBlockStart/Delta/Complete` explicit no-project rule | [ ] |
-| **PI-11** | Add `schemas/runtime_envelope_v1.json` and `schemas/runtime_request_v1.json`, including `MaxTurnsReached` event, `ApproveCapability`/`DenyCapability` request variants, `tool_name` via `$ref` in `tool_result` (not inlined), and MCP namespace validation for `ToolCall.name` | [ ] |
+| **PI-11** | Add `schemas/runtime_envelope_v1.json` and `schemas/runtime_request_v1.json`, including `MaxTurnsReached` event, `ApproveCapability`/`DenyCapability` request variants, `tool_name` via `$ref` in `tool_result` (not inlined), and MCP namespace validation for `ToolCall.name` | [x] |
 | **PI-12** | Add serde round-trip tests, schema parity tests, grammar parity tests, and BatchMode derivation tests. Tests must prove: first envelope of every turn has `seq == 1`; `TurnRecord` + `SummaryRecord` replay from canonical envelopes matches the existing JSONL shape modulo JSON field ordering; `TurnRecord.response` uses `AssistantMessage.content` when present and falls back to concatenated `AssistantDelta.text`; `TurnRecord.changed_files` matches `turn_end.changed_files`; `SummaryRecord.status` matches final `turn_end.status`; recoverable vs non-recoverable `error` envelopes follow the ordering rules in this ADR; `MaxTurnsReached` is always followed by `TurnEnd { status: "failed" }` | [ ] |
 
 ---
@@ -477,6 +477,39 @@ When checking any PI-09…PI-12 box, append an evidence block:
 ```
 
 ---
+
+### [PI-09] - Canonical runtime handoff types and grammar
+- Dispatcher: `dispatcher/adr-025-phase-1-kickoff`
+- Commit: `a7b22137f779fd617b3ec1420b9a3a615e719fc0`
+- Files changed:
+  - `src/runtime.rs` (+4 -0)
+  - `src/runtime/json_handoff.rs` (+169 -0)
+  - `grammars/tool_call.gbnf` (+66 -0)
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+  - `bash scripts/check_forbidden_names.sh` : pass
+- Notes:
+  - Added the canonical ADR-025 Rust handoff surface and the normative tool-call grammar without starting the PI-10 normalization layer.
+  - Keeps `ToolCall.id` ownership in the runtime contract while leaving provider-id discard and event projection work dependency-sequenced for PI-10.
+
+### [PI-11] - Runtime envelope and request schemas
+- Dispatcher: `dispatcher/adr-025-phase-1-kickoff`
+- Commit: `a7b22137f779fd617b3ec1420b9a3a615e719fc0`
+- Files changed:
+  - `schemas/runtime_envelope_v1.json` (+193 -0)
+  - `schemas/runtime_request_v1.json` (+53 -0)
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+  - `bash scripts/check_forbidden_names.sh` : pass
+- Notes:
+  - Added the versioned ADR-025 schema assets, including `MaxTurnsReached`, approval request variants, and MCP namespace validation for canonical tool names.
+  - Leaves PI-12 schema/serde/grammar parity enforcement and BatchMode-derivation coverage sequenced behind PI-10.
 
 ## Compliance notes for agents
 
@@ -509,7 +542,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
 
 ## Appendix A: GBNF grammar (`grammars/tool_call.gbnf`)
 
-The grammar below constrains local-model constrained-decoding output. It is intentionally conservative: the `json_safe_char` set covers common identifier and path characters but excludes some valid JSON string characters (e.g. `(`, `)`, `;`, `$`). Backends that do not use constrained decoding are not restricted by this grammar; PI-10 normalization and serde accept the full JSON character set from those backends.
+The grammar below constrains local-model constrained-decoding output. It is intentionally conservative: the `json_safe_char` set covers common identifier, path, and glob-pattern characters, while excluding some valid JSON string characters (e.g. `(`, `)`, `;`, `$`). Backends that do not use constrained decoding are not restricted by this grammar; PI-10 normalization and serde accept the full JSON character set from those backends.
 
 ```gbnf
 root ::= ws tool_call_array ws
@@ -556,7 +589,7 @@ json_array ::= "[" ws "]"
 json_string ::= "\"" json_char* "\""
 json_char ::= json_safe_char | escape
 
-json_safe_char ::= lower | upper | digit | "_" | "-" | "." | "/" | ":" | " " | "[" | "]" | "{" | "}" | "," | "@" | "#" | "+" | "="
+json_safe_char ::= lower | upper | digit | "_" | "-" | "." | "/" | ":" | " " | "[" | "]" | "{" | "}" | "," | "@" | "#" | "+" | "=" | "*" | "?"
 
 escape ::= "\\\"" | "\\\\" | "\\/" | "\\b" | "\\f" | "\\n" | "\\r" | "\\t"
          | "\\u" hex hex hex hex

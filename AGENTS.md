@@ -111,10 +111,10 @@ for the broader open-ADR list.
 | :--- | :--- | :--- |
 | ADR-021 | Accepted, follow-up maintenance remains | Audit and cleanup items can still affect `src/`, tests, or docs shape. |
 | ADR-022 | Proposed, with 2026-03-13 amendment | Sets the free/open roadmap target that the private dispatcher skills are validating against. |
-| ADR-023 | Locked | EL-08, EL-09, and EL-10 are merged and ADR-024 Phase A is reconciled complete. The current next edit-loop batch is EL-11 (`/plan` scope assembly and read-only plan turn), followed by EL-12. Target files for EL-11 are `src/app.rs`, `src/prompts.rs`, `src/prompts/plan_template.txt`, `docs/src/commands.md`, and the plan-path tests in `src/app.rs`. |
+| ADR-023 | Locked | `EL-08` through `EL-13` are now on `main`. The ADR-023 implementation track is complete; milestone-1 validation has passed and the post-gate ADR-025 Phase I work is now active. |
 | ADR-024 | Proposed | Defines gap work around layered config, MCP, skills, export, and related parity surface. |
-| ADR-025 | Proposed | First post-gate Phase I dispatch target (`PI-09` through `PI-12`); implementation remains gated on milestone-1 correctness validation. |
-| ADR-026 | Proposed | Follows ADR-025 closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation remains gated on milestone-1 correctness validation. |
+| ADR-025 | Proposed | Phase I kickoff landed with `PI-09` and `PI-11`; the next dependency-sequenced work is `PI-10`, followed by `PI-12`. |
+| ADR-026 | Proposed | Follows ADR-025 closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation sequenced after `PI-12`. |
 | ADR-027 | Accepted | Full-screen TUI with command-session capture, concurrent validation, and current follow-up limits. Supersedes ADR-018 and ADR-019. |
 | ADR-028 | Proposed | Defines the application facade and transport boundary so future CLI and LocalApiServer work does not extend `src/app.rs` or `src/bin/vex.rs` as permanent convergence points. |
 | ADR-029 | Proposed | Defines stream parser completeness across `messages-v1` and `chat-compat`, including metadata retention for usage, chunk, choice, and tool-call fields plus task-state plan/note/cache persistence. |
