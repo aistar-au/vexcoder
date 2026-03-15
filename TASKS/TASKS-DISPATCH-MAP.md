@@ -33,7 +33,7 @@ Source of truth: `adr/ADR-README.md`.
 
 ```text
 PA-01 -> PJ-03
-EL-08 -> EL-09 -> EL-10 -> EL-11
+EL-08 -> EL-09 -> EL-10 -> EL-11 -> EL-12
 
 Milestone-1 gate:
 ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
@@ -53,11 +53,11 @@ This dispatch note is descriptive only and does not relax the milestone-1 gate.
 
 `EL-10` is the current next batch, not the post-gate ADR-025, ADR-026, and ADR-028 set.
 
-- Scope: `/review` command path and diff assembly
-- Anchor tests: `test_tui_review_default_assembles_head_diff`; `test_tui_review_base_flag_validates_ref`; `test_tui_review_invalid_ref_emits_error_no_turn`
-- Primary code files: `src/app.rs`, `src/runtime/context_assembler.rs`, `src/prompts.rs`
-- Required scaffold/docs sync: `src/prompts/review_template.txt`, `docs/src/commands.md`
-- Supporting tests: `src/app.rs`, `tests/integration_test.rs`
+- Scope: `/plan` scope assembly and read-only planning turn
+- Anchor tests: `test_tui_plan_starts_single_turn_no_loop`; `test_tui_plan_drops_pending_patch_silently`; `test_tui_plan_scope_populated_from_assembler`
+- Primary code files: `src/app.rs`, `src/prompts.rs`
+- Required scaffold/docs sync: `src/prompts/plan_template.txt`, `docs/src/commands.md`
+- Supporting tests: `src/app.rs`
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
 current reference for full-screen rendering and interactive command-session

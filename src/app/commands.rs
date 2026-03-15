@@ -36,6 +36,7 @@ impl TuiMode {
                 SlashCommandId::Edit => self.handle_edit_command(args, ctx),
                 SlashCommandId::Fix => self.handle_fix_command(ctx),
                 SlashCommandId::Explain => self.handle_explain_command(args, ctx),
+                SlashCommandId::Review => self.handle_review_command(args, ctx),
                 SlashCommandId::Run => self.handle_run_command(args),
                 SlashCommandId::Test => self.handle_test_command(),
                 SlashCommandId::Context => self.handle_context_command(ctx),
@@ -142,6 +143,149 @@ impl TuiMode {
         let prompt = render_explain_prompt(&scope_instruction, &rendered_context);
         self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
     }
+    pub(super) fn handle_review_command(&mut self, args: &str, ctx: &mut RuntimeContext) {
+        let parsed = match parse_review_args(args) {
+            Ok(parsed) => parsed,
+            Err(error) => {
+                self.push_history_line(error);
+                return;
+            }
+        };
+        let instruction = parsed.instruction.unwrap_or_else(|| {
+            "Review these changes for correctness, clarity, and potential issues.".to_string()
+        });
+
+        if let Some(files_glob) = parsed.files.as_deref() {
+            self.start_review_files_turn(files_glob, &instruction, ctx);
+            return;
+        }
+
+        let base_ref = parsed.base.as_deref().unwrap_or("HEAD");
+        self.start_review_diff_turn(base_ref, &instruction, ctx);
+    }
+
+    fn start_review_diff_turn(
+        &mut self,
+        base_ref: &str,
+        instruction: &str,
+        ctx: &mut RuntimeContext,
+    ) {
+        let defaults = ContextAssembler::default();
+        let timeout_ms = resolve_git_timeout_ms(defaults.git_timeout_ms);
+
+        match block_on_context_task(run_git_command_with_timeout(
+            self.working_dir.clone(),
+            vec![
+                "rev-parse".to_string(),
+                "--verify".to_string(),
+                base_ref.to_string(),
+            ],
+            timeout_ms,
+        )) {
+            Ok(result) => {
+                if result.non_git_repo {
+                    self.push_history_line("[review] not a git repository".to_string());
+                    return;
+                }
+                if result.timed_out {
+                    self.push_history_line(format!(
+                        "[review] error: git rev-parse timed out after {timeout_ms}ms"
+                    ));
+                    return;
+                }
+                if result.output.is_none() {
+                    self.push_history_line(format!("[review: invalid base ref '{base_ref}']"));
+                    return;
+                }
+            }
+            Err(error) => {
+                self.push_history_line(format!("[review] error: {error}"));
+                return;
+            }
+        }
+
+        match block_on_context_task(run_git_command_with_timeout(
+            self.working_dir.clone(),
+            vec!["diff".to_string(), base_ref.to_string()],
+            timeout_ms,
+        )) {
+            Ok(result) => {
+                if result.non_git_repo {
+                    self.push_history_line("[review] not a git repository".to_string());
+                    return;
+                }
+                if result.timed_out {
+                    self.push_history_line(format!(
+                        "[review] error: git diff timed out after {timeout_ms}ms"
+                    ));
+                    return;
+                }
+                let Some(diff_context) = result.output else {
+                    self.push_history_line("[review] error: git diff failed".to_string());
+                    return;
+                };
+                if diff_context.trim().is_empty() {
+                    self.push_history_line("[review] working tree is clean".to_string());
+                    return;
+                }
+
+                let prompt = render_review_prompt(instruction, "", &diff_context);
+                self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
+            }
+            Err(error) => {
+                self.push_history_line(format!("[review] error: {error}"));
+            }
+        }
+    }
+
+    fn start_review_files_turn(
+        &mut self,
+        files_glob: &str,
+        instruction: &str,
+        ctx: &mut RuntimeContext,
+    ) {
+        let operator = ToolOperator::new(self.working_dir.clone());
+        let matched_paths = match operator.find_files(files_glob) {
+            Ok(paths) => paths
+                .iter()
+                .map(|path| operator.to_workspace_relative_display(path))
+                .collect::<Vec<_>>(),
+            Err(error) => {
+                self.push_history_line(format!("[review] error: {error}"));
+                return;
+            }
+        };
+
+        if matched_paths.is_empty() {
+            self.push_history_line(format!("[review] no files matched '{files_glob}'"));
+            return;
+        }
+
+        let assembled = match self.try_assemble_context(&matched_paths.join(" ")) {
+            Ok(assembled) => assembled,
+            Err(error) => {
+                self.push_history_line(format!("[review] error: {error}"));
+                return;
+            }
+        };
+        let render_assembler = ContextAssembler::default();
+        let diff_context = render_assembler.render(&assembled);
+        let mut context_lines = vec![
+            format!("[review files] pattern: {files_glob}"),
+            format!("[review files] matched: {}", matched_paths.join(", ")),
+        ];
+        if let Some(status_summary) = assembled
+            .git_status_summary
+            .as_ref()
+            .filter(|summary| !summary.trim().is_empty())
+        {
+            context_lines.push(status_summary.clone());
+        }
+
+        let prompt = render_review_prompt(instruction, &context_lines.join("\n"), &diff_context);
+        self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
+    }
+
     pub(super) fn handle_run_command(&mut self, command_str: &str) {
         let suite = if command_str.is_empty() {
             let mut inferred = ValidationSuite::load_or_infer(&self.working_dir);
