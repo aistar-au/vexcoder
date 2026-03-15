@@ -388,6 +388,11 @@ fn estimate_char_count(messages: &[crate::types::ApiMessage]) -> usize {
                                 content,
                                 ..
                             } => tool_use_id.len() + content.len(),
+                            ContentBlock::Thinking {
+                                thinking,
+                                signature,
+                            } => thinking.len() + signature.len(),
+                            ContentBlock::RedactedThinking { data } => data.len(),
                         })
                         .sum::<usize>()
             }

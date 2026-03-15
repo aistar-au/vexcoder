@@ -156,6 +156,8 @@ impl StreamParser {
                         delta_type: Some("text_delta".to_string()),
                         text: Some(content),
                         partial_json: None,
+                        thinking: None,
+                        signature: None,
                     },
                 });
             }
@@ -225,6 +227,8 @@ impl StreamParser {
                     delta_type: Some("input_json_delta".to_string()),
                     text: None,
                     partial_json: Some(partial_json),
+                    thinking: None,
+                    signature: None,
                 },
             });
         }

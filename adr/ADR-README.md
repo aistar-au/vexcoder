@@ -30,6 +30,7 @@ All ADR files live under `adr/`.
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding — scoped HTTP/Unix-socket API surface, SSE streaming, TLS boundary, auth model, and schema endpoint for runtime JSON handoff | Proposed |
 | [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI with command-session capture | Accepted |
 | [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Proposed |
+| [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness and session persistence extensions | Proposed |
 
 ## Completed ADR Records
 

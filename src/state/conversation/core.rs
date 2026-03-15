@@ -131,6 +131,8 @@ impl ConversationManager {
                                         );
                                     }
                                     ContentBlock::ToolResult { .. } => {}
+                                    ContentBlock::Thinking { .. }
+                                    | ContentBlock::RedactedThinking { .. } => {}
                                 }
                             } else if stream_server_events {
                                 let event_label = match &content_block {
@@ -140,6 +142,12 @@ impl ConversationManager {
                                     }
                                     ContentBlock::ToolResult { .. } => {
                                         format!("\n* Event: tool_result_block#{index}\n")
+                                    }
+                                    ContentBlock::Thinking { .. } => {
+                                        "\n* Event: thinking_block\n".to_string()
+                                    }
+                                    ContentBlock::RedactedThinking { .. } => {
+                                        "\n* Event: redacted_thinking_block\n".to_string()
                                     }
                                 };
                                 emit_text_update(stream_delta_tx, event_label);
@@ -265,6 +273,15 @@ impl ConversationManager {
                                 emit_text_update(
                                     stream_delta_tx,
                                     "\n* Event: message_stop\n".to_string(),
+                                );
+                            }
+                        }
+                        StreamEvent::Ping => {}
+                        StreamEvent::Error { error } => {
+                            if !use_structured_blocks && stream_server_events {
+                                emit_text_update(
+                                    stream_delta_tx,
+                                    format!("\n* Event: stream_error type={}\n", error.error_type),
                                 );
                             }
                         }

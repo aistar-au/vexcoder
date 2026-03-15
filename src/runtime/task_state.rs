@@ -42,6 +42,27 @@ pub struct InterruptedCommand {
     pub interrupted_at: String,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SessionNote {
+    pub content: String,
+    pub created_at_turn: usize,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ContextCompactionRecord {
+    pub turn_index: usize,
+    pub messages_before: usize,
+    pub messages_after: usize,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CacheUsageStats {
+    pub total_cache_creation_tokens: u64,
+    pub total_cache_read_tokens: u64,
+    pub total_cache_write_tokens: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TaskState {
     pub id: TaskId,
@@ -57,6 +78,14 @@ pub struct TaskState {
     pub instructions_path: Option<String>,
     #[serde(default)]
     pub turns: Vec<TurnEvidenceState>,
+    #[serde(default)]
+    pub plan: Option<String>,
+    #[serde(default)]
+    pub session_notes: Vec<SessionNote>,
+    #[serde(default)]
+    pub context_compaction: Vec<ContextCompactionRecord>,
+    #[serde(default)]
+    pub cache_usage: CacheUsageStats,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,6 +108,10 @@ impl TaskState {
             branch_name: None,
             instructions_path: None,
             turns: Vec::new(),
+            plan: None,
+            session_notes: Vec::new(),
+            context_compaction: Vec::new(),
+            cache_usage: CacheUsageStats::default(),
         }
     }
 
@@ -253,6 +286,22 @@ mod tests {
                 tool_invocations: Vec::new(),
                 tokens: Default::default(),
             }],
+            plan: Some("step 1: do the thing".to_string()),
+            session_notes: vec![SessionNote {
+                content: "remember this".to_string(),
+                created_at_turn: 0,
+            }],
+            context_compaction: vec![ContextCompactionRecord {
+                turn_index: 1,
+                messages_before: 20,
+                messages_after: 4,
+                summary: "trimmed early turns".to_string(),
+            }],
+            cache_usage: CacheUsageStats {
+                total_cache_creation_tokens: 500,
+                total_cache_read_tokens: 1200,
+                total_cache_write_tokens: 0,
+            },
         };
 
         state.save(dir.path()).expect("save failed");
@@ -265,6 +314,43 @@ mod tests {
         assert_eq!(loaded.branch_name, state.branch_name);
         assert_eq!(loaded.instructions_path, state.instructions_path);
         assert_eq!(loaded.turns, state.turns);
+        assert_eq!(loaded.plan, state.plan);
+        assert_eq!(loaded.session_notes, state.session_notes);
+        assert_eq!(loaded.context_compaction, state.context_compaction);
+        assert_eq!(loaded.cache_usage, state.cache_usage);
+    }
+
+    #[test]
+    fn test_task_state_pre_adr029_file_loads_with_default_new_fields() {
+        let dir = TempDir::new().unwrap();
+        let legacy_json = r#"{
+            "id": "task-legacy",
+            "status": "Completed",
+            "active_grants": {},
+            "changed_files": [],
+            "command_history": [],
+            "conversation_snapshot": {"message_count": 0, "summary": ""},
+            "interrupted_sessions": []
+        }"#;
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.path().join("task-legacy.json"), legacy_json).unwrap();
+
+        let loaded = TaskState::load(dir.path(), "task-legacy").expect("load failed");
+        assert_eq!(loaded.plan, None);
+        assert!(loaded.session_notes.is_empty());
+        assert!(loaded.context_compaction.is_empty());
+        assert_eq!(loaded.cache_usage, CacheUsageStats::default());
+    }
+
+    #[test]
+    fn test_cache_usage_stats_accumulate() {
+        let mut stats = CacheUsageStats::default();
+        stats.total_cache_creation_tokens += 100;
+        stats.total_cache_read_tokens += 400;
+        stats.total_cache_creation_tokens += 50;
+        stats.total_cache_read_tokens += 600;
+        assert_eq!(stats.total_cache_creation_tokens, 150);
+        assert_eq!(stats.total_cache_read_tokens, 1000);
     }
 
     #[test]
@@ -285,6 +371,10 @@ mod tests {
             branch_name: None,
             instructions_path: None,
             turns: Vec::new(),
+            plan: None,
+            session_notes: Vec::new(),
+            context_compaction: Vec::new(),
+            cache_usage: CacheUsageStats::default(),
         };
 
         state.save(dir.path()).expect("save failed");

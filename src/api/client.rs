@@ -501,7 +501,9 @@ fn append_chat_compat_message(out: &mut Vec<Value>, message: &ApiMessage) {
                             }
                         }));
                     }
-                    ContentBlock::ToolResult { .. } => {}
+                    ContentBlock::ToolResult { .. }
+                    | ContentBlock::Thinking { .. }
+                    | ContentBlock::RedactedThinking { .. } => {}
                 }
             }
 
@@ -540,7 +542,9 @@ fn append_chat_compat_message(out: &mut Vec<Value>, message: &ApiMessage) {
                         }));
                         pushed = true;
                     }
-                    ContentBlock::ToolUse { .. } => {}
+                    ContentBlock::ToolUse { .. }
+                    | ContentBlock::Thinking { .. }
+                    | ContentBlock::RedactedThinking { .. } => {}
                 }
             }
 
