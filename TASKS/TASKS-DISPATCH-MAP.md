@@ -28,6 +28,7 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-026-localapiserver-transport-binding.md` | Proposed |
 | `adr/ADR-027-full-screen-tui-command-session-capture.md` | Accepted |
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Proposed |
+| `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Proposed |
 
 ## Immediate Dependency Notes
 
@@ -35,7 +36,7 @@ Source of truth: `adr/ADR-README.md`.
 PA-01 -> PJ-03
 EL-08 -> EL-09 -> EL-10 -> EL-11 -> EL-12 -> EL-13 (complete)
 
-Milestone-1 gate:
+Milestone-1 gate (passed 2026-03-15):
 ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
   -> ADR-025 PI-09 + PI-11 (parallel)
   -> PI-10 after PI-09
@@ -47,15 +48,16 @@ ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
 
 ADR-025 and ADR-026 are the first post-gate Phase I dispatch track. ADR-028 is
 the boundary ADR that later CLI and LocalApiServer refactors must respect.
-This dispatch note is descriptive only and does not relax the milestone-1 gate.
+ADR-029 remains active in parallel as a stream/parser persistence ADR and does
+not change the post-gate sequencing.
 
 ## Current Next Dispatcher Batch
 
-The next dispatcher batch is the milestone-1 validation gate.
+The milestone-1 validation gate passed on `2026-03-15`.
 
-- Validate ADR-022 phases 1 through 8 together with the completed ADR-023 implementation track.
-- Keep ADR-025 and ADR-026 gated until that milestone-1 batch is explicitly complete.
-- Treat ADR-028 as the boundary ADR for the post-gate Phase I work, not as the next immediate implementation batch.
+- ADR-025 PI-09 and PI-11 are now the next dispatchable Phase I batch.
+- PI-10 follows PI-09; PI-12 follows PI-09 through PI-11.
+- ADR-026 remains sequenced after PI-12 and ADR-024 reconciliation, while ADR-028 continues to constrain the boundary for those later refactors.
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
 current reference for full-screen rendering and interactive command-session
@@ -70,5 +72,6 @@ capture behavior.
 - ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
   `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`; `PK-08`, the ADR-027 follow-up,
   and the full ADR-023 implementation track (`EL-01` through `EL-13`) are now
-  on `main`. The milestone-1 validation gate remains ahead of the ADR-025,
-  ADR-026, and ADR-028 post-gate track.
+  on `main`. The milestone-1 validation gate passed on `2026-03-15`; ADR-025,
+  ADR-026, and ADR-028 are now the post-gate track, with ADR-029 active in the
+  wider dispatch set.

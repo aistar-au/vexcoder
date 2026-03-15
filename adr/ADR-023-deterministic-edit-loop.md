@@ -713,6 +713,32 @@ When checking a box above, append an evidence block under this section:
     - `/commands` renders from the live `SLASH_COMMANDS` registration table.
     - `/help` remains an alias to the same handler, and the anchor tests verify neither path starts a model turn.
 
+### Milestone-1 validation gate - ADR-022 phases 1-8 + ADR-023 end-to-end
+- Dispatcher: coding agent
+- Branch: `dispatcher/vexcoder-adr-022-m1-validation-gate`
+- Validation:
+    - `cargo test --all-targets` : pass
+    - `make gate-fast` : pass
+    - `check_no_alternate_routing.sh` : pass
+    - `check_forbidden_imports.sh` : pass
+    - `check_forbidden_names.sh` : pass
+- Focused command anchors:
+    - `test_tui_context_renders_without_model_turn` : pass
+    - `test_tui_context_shows_tilde_token_estimate` : pass
+    - `test_tui_context_shows_active_grants_count` : pass
+    - `test_tui_commands_renders_all_registered_commands` : pass
+    - `test_tui_help_is_alias_for_commands` : pass
+    - `test_commands_output_does_not_call_start_turn` : pass
+    - `test_tui_review_default_assembles_head_diff` : pass
+    - `test_tui_review_invalid_ref_emits_error_no_turn` : pass
+    - `test_tui_plan_starts_single_turn_no_loop` : pass
+    - `test_tui_plan_scope_populated_from_assembler` : pass
+- Notes:
+    - `/context`, `/commands`, and `/help` remain zero-turn command paths.
+    - `/review` still validates refs and returns early on invalid input without starting a model turn.
+    - `/plan` remains a one-turn semantic command and does not invoke `EditLoop`.
+    - The milestone-1 correctness gate passed without requiring code changes in the command handlers or anchor tests.
+
 ---
 
 ## Task sequence and anchor tests

@@ -416,6 +416,37 @@ fn approval_policy_is_capability_scoped() {
 }
 ```
 
+### Milestone-1 validation evidence (2026-03-15)
+
+- Dispatcher branch: `dispatcher/vexcoder-adr-022-m1-validation-gate`
+- Scope: validated ADR-022 phases 1 through 8 together with the merged
+  ADR-023 deterministic edit-loop path (`EL-01` through `EL-13`) after the
+  stream-parser/session-persistence updates tracked in ADR-029 landed on
+  `main`.
+- Full validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+  - `bash scripts/check_forbidden_names.sh` : pass
+- Representative phase evidence:
+  - **Phase 1 — Neutralize config and model abstractions:** `config::tests::test_model_profile_loaded_from_layered_config`
+  - **Phase 2 — Add first-class command execution:** `app::tests::test_shell_command_runner_invokes_sandbox_wrap`; `app::tests::test_model_run_command_streams_managed_session_into_tui_transcript`
+  - **Phase 3 — Make edits diff-native:** `app::tests::test_tui_review_drops_pending_patch_silently`
+  - **Phase 4 — Introduce capability-based approval policy:** `app::tests::test_allow_defaults_to_once_scope`
+  - **Phase 5 — Add durable task state and resume:** `app::tests::test_build_runtime_with_resume_restores_task`
+  - **Phase 6 — Rework the TUI around task execution:** `app::tests::test_tui_plan_starts_single_turn_no_loop`; `app::tests::test_tui_context_renders_without_model_turn`
+  - **Phase 7 — Improve repo-navigation tooling:** `runtime::context_assembler::tests::test_context_assembler_includes_named_file_snapshot`
+  - **Phase 8 — Defer browser automation:** `src/runtime/approval.rs` still reserves `Capability::Browser` in the approval/type surface while milestone-1 ships no browser automation path
+- Command-behavior checkpoints:
+  - `/context` remained zero-turn: `app::tests::test_tui_context_renders_without_model_turn`
+  - `/commands` and `/help` remained zero-turn aliases: `app::tests::test_tui_commands_renders_all_registered_commands`; `app::tests::test_tui_help_is_alias_for_commands`; `app::tests::test_commands_output_does_not_call_start_turn`
+  - `/review` still rejects invalid refs without starting a turn: `app::tests::test_tui_review_invalid_ref_emits_error_no_turn`
+  - `/plan` still starts a single semantic turn without invoking the edit loop: `app::tests::test_tui_plan_starts_single_turn_no_loop`; `app::tests::test_tui_plan_scope_populated_from_assembler`
+- Outcome: milestone-1 correctness validation passed. ADR-025 and ADR-026 may
+  proceed according to the post-gate ordering already recorded in ADR-024,
+  ADR-025, ADR-026, and the repo-local dispatch map.
+
 ## Consequences
 
 ### Benefits
