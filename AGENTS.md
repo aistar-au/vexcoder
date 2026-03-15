@@ -1,21 +1,24 @@
-# Agent Bootstrap
+# Agent Bootstrap (overhauled for GitHub and local)
 
-> **Skills are NOT in this repo.**
-> All `SKILL.md` files live in `../vexdraft/.agents/skills/`.
-> There is no `.agents/` directory in this repo; do not probe or create one.
-> This file is step zero. Loading skills from `vexdraft` is step one.
-> Bootstrap table is below; follow it before any other action.
+> **Skills are not stored in this repo.**
+> They live in the `.agents` tree of the adjacent private repo **`vexdraft`**.  
+> On a **local checkout**, agent skills are loaded from `../vexdraft/.agents/skills/`.  
+> When running on **GitHub.com** or any remote environment, the dispatcher fetches skills from the `aistar-au/vexdraft` repository (the same `.agents` path) and loads them automatically.  
+> There is no `.agents/` directory in this repo; do **not** probe or create one.  
+> This file is step zero; loading skills from `vexdraft` (locally or remotely) is step one.
 
-`vexcoder` is the public product repo. The dispatcher skills, PR-contract
-rules, commit-debug tooling, docs automation, and roadmap automation that drive
-agent workflows now live in the internal private repo `../vexdraft`.
+`vexcoder` is the public product repo. The dispatcher skills, PR-contract rules,
+commit-debug tooling, docs automation, and roadmap automation that drive agent
+workflows now live in the internal private repo `../vexdraft`. In remote
+contexts (e.g. GitHub runners), the dispatcher resolves `../vexdraft` against
+the `aistar-au/vexdraft` repository to load the same sources.
 
-This file is the bootstrap dependency map for agents working in `vexcoder`.
-Read it first, then follow the linked local and internal-repo sources.
+This file is the bootstrap dependency map for agents working in `vexcoder`. Read
+it first, then follow the linked local and internal-repo sources.
 
 ## Required internal layout
 
-The expected checkout layout is:
+When working **locally**, the expected checkout layout is:
 
 ```text
 ~/git-repo/
@@ -23,13 +26,16 @@ The expected checkout layout is:
 └── vexdraft/
 ```
 
-If `../vexdraft` is missing, skill bootstrap is incomplete and dispatcher-owned
-workflows cannot be verified from this repo alone.
+If `../vexdraft` is missing, local skill bootstrap is incomplete and
+dispatcher-owned workflows cannot be verified from this repo alone.  
+When running on GitHub.com or another remote environment, the dispatcher
+implicitly fetches the `vexdraft` repository and does not rely on a
+neighboring checkout.
 
 ## Session start sync (required)
 
 Before any work in this repo — reading, drafting, implementing, or verifying —
-run the following in both working trees:
+run the following in both working trees *when working locally*:
 
 ```sh
 # In ~/git-repo/vexcoder
@@ -45,8 +51,10 @@ test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" \
   && echo "vexdraft in sync" || { echo "vexdraft MISMATCH — do not proceed"; exit 1; }
 ```
 
-A stale local HEAD in either repo is a hard stop. Confirm sync before the first
-tool call in any session. See `vex-remote-contract` Hard Rule 34.
+A stale local HEAD in either repo is a hard stop. Confirm sync before the
+first tool call in any session. See `vex-remote-contract` Hard Rule 34.  
+On GitHub runners the dispatcher checks out fresh `vexcoder` and
+`vexdraft` repos automatically, so manual sync is not required.
 
 ## Bootstrap dependencies
 
@@ -55,17 +63,22 @@ review text:
 
 | Order | File | Why it is a dependency |
 | :--- | :--- | :--- |
-| 1 | `../vexdraft/.agents/skills/vex-local-bash/SKILL.md` | Local drafting rules for summaries, findings, and PR motivation text. |
-| 2 | `../vexdraft/.agents/skills/vex-remote-contract/SKILL.md` | Cross-repo branch verification, raw URL validation, PR-body posting, and push/merge contract. |
-| 3 | `../vexdraft/.agents/skills/vex-rust-arch/SKILL.md` | Rust-specific architecture guidance when the task touches `src/**/*.rs`, `tests/**/*.rs`, or ADR-024 gaps. |
+| 1 | `../vexdraft/.agents/skills/vex-local-bash/SKILL.md` (<https://github.com/aistar-au/vexdraft/blob/main/.agents/skills/vex-local-bash/SKILL.md>) | Local drafting rules for summaries, findings, and PR motivation text. |
+| 2 | `../vexdraft/.agents/skills/vex-remote-contract/SKILL.md` (<https://github.com/aistar-au/vexdraft/blob/main/.agents/skills/vex-remote-contract/SKILL.md>) | Cross-repo branch verification, raw URL validation, PR-body posting, and push/merge contract. |
+| 3 | `../vexdraft/.agents/skills/vex-rust-arch/SKILL.md` (<https://github.com/aistar-au/vexdraft/blob/main/.agents/skills/vex-rust-arch/SKILL.md>) | Rust-specific architecture guidance when the task touches `src/**/*.rs`, `tests/**/*.rs`, or ADR-024 gaps. |
+
+**Note:** In remote environments these same files are loaded from the
+`aistar-au/vexdraft` repository. Paths beginning with `../vexdraft/` refer to the
+adjacent local checkout when present; the dispatcher resolves them against
+remote sources otherwise.
 
 Supplemental dependency files are loaded only when the task scope requires
 them:
 
 | Trigger | File | Purpose |
 | :--- | :--- | :--- |
-| ADR-024 parity or gap planning | `../vexdraft/.agents/skills/vex-remote-contract/references/adr-024-gap-map.md` | Gap inventory and dependency notes for ADR-024 work. |
-| Rust coding task needs expanded language rules | `../vexdraft/.agents/skills/vex-remote-contract/references/rust-rules.md` | Rust implementation constraints used by the dispatcher workflow. |
+| ADR-024 parity or gap planning | `../vexdraft/.agents/skills/vex-remote-contract/references/adr-024-gap-map.md` (<https://github.com/aistar-au/vexdraft/blob/main/.agents/skills/vex-remote-contract/references/adr-024-gap-map.md>) | Gap inventory and dependency notes for ADR-024 work. |
+| Rust coding task needs expanded language rules | `../vexdraft/.agents/skills/vex-remote-contract/references/rust-rules.md` (<https://github.com/aistar-au/vexdraft/blob/main/.agents/skills/vex-remote-contract/references/rust-rules.md>) | Rust implementation constraints used by the dispatcher workflow. |
 
 ## Local repo sources
 
@@ -91,8 +104,8 @@ the product-side constraints:
 ## Current cross-repo dependency state
 
 For dispatcher-owned workflow and skill routing, the current active ADR set is
-ADR-021 through ADR-029. `adr/ADR-README.md` remains the full source of
-truth for the broader open-ADR list.
+ADR-021 through ADR-029. `adr/ADR-README.md` remains the full source of truth
+for the broader open-ADR list.
 
 | ADR | Current state | Dependency note |
 | :--- | :--- | :--- |
@@ -117,7 +130,8 @@ Minimum local verification for repo changes:
 
 If the changed paths include `src/**/*.rs` or `tests/**/*.rs`, the dispatcher
 workflow in `../vexdraft` also expects the internal-repo review path described in
-`../vexdraft/.agents/skills/vex-remote-contract/SKILL.md`.
+`../vexdraft/.agents/skills/vex-remote-contract/SKILL.md`. In remote contexts
+these checks run automatically in the CI pipeline.
 
 ## Dispatcher contract notes
 
@@ -145,5 +159,7 @@ rely on them:
 
 `vexcoder` owns public product code, tests, release CI, and local architecture
 gates. `vexdraft` owns the private operator skill tree and dispatcher tooling
-that batch-review, verify, and post work against this repo. Both sides are part
-of the current review contract.
+that batch-review, verify, and post work against this repo. Both sides
+are part of the current review contract, and the dispatcher resolves `vexdraft`
+either from the adjacent local checkout or from the GitHub repository,
+depending on the execution environment.
