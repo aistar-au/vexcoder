@@ -653,8 +653,8 @@ Rejected. `TaskState`'s `CommandEvidence` struct records execution facts, not st
 | **EL-09** | `scripts/check_forbidden_names.sh` — covers `src/prompts/` and `models/`; added to CI | Must pass for all items EL-06 onward | [ ] |
 | **EL-10** | `/review` — `review_template.txt`; `--base`/`--files` flag parsing; ref validation; PendingPatch drop; diff assembly via `spawn_blocking` | Must be green after EL-05; gated on EL-06 for template | [ ] |
 | **EL-11** | `/plan` — `plan_template.txt`; `{{scope}}` assembly via `ContextAssembler`; PendingPatch drop; no EditLoop invocation | Must be green after EL-05; gated on EL-06 for template | [ ] |
-| **EL-12** | `/context` — zero-turn status render; token estimate; `active_grants` count; git summary; no model turn | Must be green after EL-05 | [ ] |
-| **EL-13** | `/commands` and `/help` alias — runtime-generated from dispatch table; description registration; compile-error for missing descriptions | Must be green after EL-04 | [ ] |
+| **EL-12** | `/context` — zero-turn status render; token estimate; `active_grants` count; git summary; no model turn | Must be green after EL-05 | [x] |
+| **EL-13** | `/commands` and `/help` alias — runtime-generated from dispatch table; description registration; compile-error for missing descriptions | Must be green after EL-04 | [x] |
 
 ## Dispatcher reporting contract (mandatory per checklist item)
 
@@ -676,6 +676,42 @@ When checking a box above, append an evidence block under this section:
 - Notes:
   - <what was built and why>
 ```
+
+### EL-12 - /context zero-turn status render
+- Dispatcher: coding agent
+- Commit: 37f379d42f2fee392e5fbfebff9ef131e4174de8
+- Files changed:
+    - `src/app/commands.rs` (existing — `handle_context_command` already present on `main`)
+    - `src/app/tests.rs` (existing — EL-12 anchor tests already present on `main`)
+- Line references:
+    - `src/app/commands.rs:407`
+    - `src/app/tests.rs:3402`
+- Validation:
+    - `cargo test --all-targets` : pass
+    - `check_no_alternate_routing.sh` : pass
+    - `check_forbidden_imports.sh` : pass
+    - `check_forbidden_names.sh` : pass
+- Notes:
+    - `/context` remains a zero-turn status command.
+    - EL-12 anchors verify the status render path does not call `ctx.start_turn`, preserves the token estimate annotation, and reports active grants.
+
+### EL-13 - /commands and /help alias from dispatch table
+- Dispatcher: coding agent
+- Commit: 37f379d42f2fee392e5fbfebff9ef131e4174de8
+- Files changed:
+    - `src/app/commands.rs` (existing — `handle_commands_command` already present on `main`)
+    - `src/app/tests.rs` (existing — EL-13 anchor tests already present on `main`)
+- Line references:
+    - `src/app/commands.rs:470`
+    - `src/app/tests.rs:3481`
+- Validation:
+    - `cargo test --all-targets` : pass
+    - `check_no_alternate_routing.sh` : pass
+    - `check_forbidden_imports.sh` : pass
+    - `check_forbidden_names.sh` : pass
+- Notes:
+    - `/commands` renders from the live `SLASH_COMMANDS` registration table.
+    - `/help` remains an alias to the same handler, and the anchor tests verify neither path starts a model turn.
 
 ---
 

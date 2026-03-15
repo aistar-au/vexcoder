@@ -33,7 +33,7 @@ Source of truth: `adr/ADR-README.md`.
 
 ```text
 PA-01 -> PJ-03
-EL-08 -> EL-09 -> EL-10 -> EL-11 -> EL-12
+EL-08 -> EL-09 -> EL-10 -> EL-11 -> EL-12 -> EL-13 (complete)
 
 Milestone-1 gate:
 ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
@@ -51,12 +51,11 @@ This dispatch note is descriptive only and does not relax the milestone-1 gate.
 
 ## Current Next Dispatcher Batch
 
-`EL-12` and `EL-13` (combined reporting pass) are the next batches.
-Both commands are code-complete on `main`; only ADR-023 evidence blocks
-and roadmap checkpoint updates are needed.
+The next dispatcher batch is the milestone-1 validation gate.
 
-- EL-12: `/context` reporting pass; anchor tests already green
-- EL-13: `/commands`/`/help` reporting pass; anchor tests already green
+- Validate ADR-022 phases 1 through 8 together with the completed ADR-023 implementation track.
+- Keep ADR-025 and ADR-026 gated until that milestone-1 batch is explicitly complete.
+- Treat ADR-028 as the boundary ADR for the post-gate Phase I work, not as the next immediate implementation batch.
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
 current reference for full-screen rendering and interactive command-session
@@ -69,7 +68,7 @@ capture behavior.
 - Update `TASKS/completed/REPO-RAW-URL-MAP.md` in the same change set when tracked files are added or removed.
 - Source ADR documents and task manifests remain the behavioral source of truth.
 - ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
-  `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`; `PK-08`, `EL-09`, `EL-10`, and
-  the ADR-027 follow-up are merged. `EL-11` is in review (PR #90). `EL-12` and
-  `EL-13` are code-complete but awaiting ADR-023 evidence reporting. These remain
-  ahead of the post-gate ADR-025, ADR-026, and ADR-028 track.
+  `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`; `PK-08`, the ADR-027 follow-up,
+  and the full ADR-023 implementation track (`EL-01` through `EL-13`) are now
+  on `main`. The milestone-1 validation gate remains ahead of the ADR-025,
+  ADR-026, and ADR-028 post-gate track.

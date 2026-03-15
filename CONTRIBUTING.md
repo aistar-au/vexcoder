@@ -149,7 +149,7 @@ Do not merge packaging work directly from a local debug session; keep the review
 │   ├── adr/           # Architecture Decision Records
 │   ├── src/                # Rust crate source
 │   └── tests/              # Integration tests
-└── vexdraft/               # Sibling devops repo — dispatcher, commit-debug, skills
+└── vexdraft/               # Adjacent devops repo — dispatcher, commit-debug, skills
     └── scripts/
         └── commit-debug.py # Multi-provider pre-push reviewer (called by dispatcher)
 ```

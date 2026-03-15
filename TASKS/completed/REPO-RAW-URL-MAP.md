@@ -24,12 +24,12 @@ Canonical raw URL index for every tracked file in this repository.
 | 13 | `LICENSE` | ~21 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/LICENSE> |
 | 14 | `Makefile` | ~277 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Makefile> |
 | 15 | `README.md` | ~33 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/README.md> |
-| 16 | `TASKS/ACTIVE-ROADMAP.md` | ~53 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
+| 16 | `TASKS/ACTIVE-ROADMAP.md` | ~52 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
 | 17 | `TASKS/PE-01-batch-mode.md` | ~239 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PE-01-batch-mode.md> |
 | 18 | `TASKS/PJ-03-memory-notes-injection.md` | ~165 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes-injection.md> |
 | 19 | `TASKS/PJ-03-memory-notes.md` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes.md> |
 | 20 | `TASKS/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PL-01-pre-post-tool-hooks.md> |
-| 21 | `TASKS/TASKS-DISPATCH-MAP.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
+| 21 | `TASKS/TASKS-DISPATCH-MAP.md` | ~74 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
 | 22 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~176 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 23 | `adr/ADR-013-tui-completion-deployment-plan.md` | ~236 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-013-tui-completion-deployment-plan.md> |
 | 24 | `adr/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md` | ~129 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md> |
@@ -37,7 +37,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 26 | `adr/ADR-022-amendment-2026-03-03.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-03.md> |
 | 27 | `adr/ADR-022-amendment-2026-03-13.md` | ~69 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-13.md> |
 | 28 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | ~451 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-free-open-coding-agent-roadmap.md> |
-| 29 | `adr/ADR-023-deterministic-edit-loop.md` | ~732 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-023-deterministic-edit-loop.md> |
+| 29 | `adr/ADR-023-deterministic-edit-loop.md` | ~768 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-023-deterministic-edit-loop.md> |
 | 30 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | ~2031 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md> |
 | 31 | `adr/ADR-025-runtime-json-handoff-contract.md` | ~848 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-025-runtime-json-handoff-contract.md> |
 | 32 | `adr/ADR-026-localapiserver-transport-binding.md` | ~697 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-026-localapiserver-transport-binding.md> |

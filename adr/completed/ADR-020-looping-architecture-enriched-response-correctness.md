@@ -66,7 +66,7 @@ explicit regression tests.
 - Move conversation logic into responsibility-focused submodules:
   `state.rs`, `core.rs`, `tools.rs`, `streaming.rs`, `history.rs`, and
   `tests.rs`.
-- Preserve public API and behavior while reducing the god-file blast radius for
+- Preserve public API and behavior while reducing the monolithic-file blast radius for
   future fixes.
 
 ## Dispatcher checklist
