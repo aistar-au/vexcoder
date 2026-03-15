@@ -141,6 +141,12 @@ Commands entered inside the interactive UI start with `/`.
 ### Read-only semantic turns
 
 - `/explain [path]`
+- `/review [--base <git-ref>] [--files <glob>] [<instruction>]`
+  - Starts a single review turn without entering the edit loop.
+  - With no flags, reviews `git diff HEAD`.
+  - `--base <git-ref>` reviews `git diff <git-ref>` after validating the ref.
+  - `--files <glob>` assembles matching workspace files instead of a diff and cannot be combined with `--base`.
+  - Patch requests are silently denied during the turn.
 - `/context`
 - `/tools [desc]`
 - `/usage`

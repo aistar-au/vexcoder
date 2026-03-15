@@ -1,7 +1,7 @@
 use super::{
     ApprovalScope, Capability, CommandRequest, DefaultCommandRunner, GenerateTestsArgs,
-    ResumeTaskEntry, TaskState, ValidationSuite, DEFAULT_MAX_HISTORY_LINES, MAX_HISTORY_LINES_ENV,
-    SLASH_COMMANDS,
+    ResumeTaskEntry, ReviewArgs, TaskState, ValidationSuite, DEFAULT_MAX_HISTORY_LINES,
+    MAX_HISTORY_LINES_ENV, SLASH_COMMANDS,
 };
 use anyhow::Result;
 use std::path::PathBuf;
@@ -45,6 +45,51 @@ pub(super) fn parse_generate_tests_args(
             );
         }
         parsed.path = Some(token.to_string());
+    }
+
+    Ok(parsed)
+}
+
+pub(super) fn parse_review_args(input: &str) -> std::result::Result<ReviewArgs, String> {
+    const USAGE: &str =
+        "[review] usage: /review [--base <git-ref>] [--files <glob>] [<instruction>]";
+
+    let mut parsed = ReviewArgs::default();
+    let mut tokens = input.split_whitespace();
+    let mut instruction_tokens = Vec::new();
+
+    while let Some(token) = tokens.next() {
+        match token {
+            "--base" if instruction_tokens.is_empty() => {
+                let Some(base_ref) = tokens.next() else {
+                    return Err(USAGE.to_string());
+                };
+                if parsed.base.replace(base_ref.to_string()).is_some() {
+                    return Err(USAGE.to_string());
+                }
+            }
+            "--files" if instruction_tokens.is_empty() => {
+                let Some(files_glob) = tokens.next() else {
+                    return Err(USAGE.to_string());
+                };
+                if parsed.files.replace(files_glob.to_string()).is_some() {
+                    return Err(USAGE.to_string());
+                }
+            }
+            _ => {
+                instruction_tokens.push(token.to_string());
+                instruction_tokens.extend(tokens.map(ToString::to_string));
+                break;
+            }
+        }
+    }
+
+    if parsed.base.is_some() && parsed.files.is_some() {
+        return Err("[review: --base and --files are mutually exclusive]".to_string());
+    }
+
+    if !instruction_tokens.is_empty() {
+        parsed.instruction = Some(instruction_tokens.join(" "));
     }
 
     Ok(parsed)

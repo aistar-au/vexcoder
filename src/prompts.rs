@@ -5,6 +5,7 @@ const EXPLAIN_TEMPLATE: &str = include_str!("prompts/explain_template.txt");
 const PLAN_TEMPLATE: &str = include_str!("prompts/plan_template.txt");
 const GENERATE_TESTS_TEMPLATE: &str = include_str!("prompts/generate_tests_template.txt");
 const PR_SUMMARY_TEMPLATE: &str = include_str!("prompts/pr_summary_template.txt");
+const REVIEW_TEMPLATE: &str = include_str!("prompts/review_template.txt");
 
 fn render_template(template: &str, replacements: &[(&str, &str)]) -> String {
     let mut rendered = String::with_capacity(template.len());
@@ -82,6 +83,17 @@ pub fn render_pr_summary_prompt(instruction: &str, context: &str, diff_context: 
     )
 }
 
+pub fn render_review_prompt(instruction: &str, context: &str, diff_context: &str) -> String {
+    render_template(
+        REVIEW_TEMPLATE,
+        &[
+            ("{{instruction}}", instruction),
+            ("{{context}}", context),
+            ("{{diff_context}}", diff_context),
+        ],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,6 +122,14 @@ mod tests {
         assert!(pr_summary.contains("ctx"));
         assert!(pr_summary.contains("diff"));
         assert!(!pr_summary.contains("{{diff_context}}"));
+
+        let review = render_review_prompt("review the change", "ctx", "diff");
+        assert!(review.contains("review the change"));
+        assert!(review.contains("ctx"));
+        assert!(review.contains("diff"));
+        assert!(!review.contains("{{instruction}}"));
+        assert!(!review.contains("{{context}}"));
+        assert!(!review.contains("{{diff_context}}"));
     }
 
     #[test]
@@ -146,6 +166,7 @@ mod tests {
             "/edit <instruction>",
             "/fix",
             "/explain [path]",
+            "/review [--base <git-ref>] [--files <glob>] [<instruction>]",
             "/run [command]",
             "/test",
             "/context",
