@@ -181,6 +181,9 @@ vexcoder/ (standalone view)
 | `src/api/mock_client.rs` | Mock streaming client used by tests. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
 | `src/api/stream.rs` | Stream/SSE event parsing helpers used by API layer. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
 | `src/app.rs` | Current interactive application module root: TUI mode state, input, overlays, history, and runtime-facing coordination. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
+| `src/app/commands.rs` | Slash-command handler methods extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/commands.rs> |
+| `src/app/tests.rs` | App-level unit and integration tests extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests.rs> |
+| `src/app/util.rs` | Module-level helper functions extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/util.rs> |
 | `src/batch_mode.rs` | Non-interactive batch runner for `vex exec`, including JSONL and text turn output. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode.rs> |
 | `src/config.rs` | Layered config loading and validation across environment, repo-local, user, and system sources. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
 | `src/edit_diff.rs` | Edit preview diff/hunk formatting utilities. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/edit_diff.rs> |
