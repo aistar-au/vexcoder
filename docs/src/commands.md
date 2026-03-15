@@ -147,6 +147,10 @@ Commands entered inside the interactive UI start with `/`.
   - `--base <git-ref>` reviews `git diff <git-ref>` after validating the ref.
   - `--files <glob>` assembles matching workspace files instead of a diff and cannot be combined with `--base`.
   - Patch requests are silently denied during the turn.
+- `/plan <instruction>`
+  - Generates a concise implementation plan for the given instruction.
+  - Assembles workspace context via `ContextAssembler`; renders `plan_template.txt`.
+  - Never enters the edit loop; patch requests are silently denied during the turn.
 - `/context`
 - `/tools [desc]`
 - `/usage`
