@@ -1,0 +1,413 @@
+# ADR-030: Runtime Task State and Orchestrator Control Flow
+
+- **Status:** Proposed
+- **Date:** 2026-03-16
+- **Deciders:** Maintainers
+- **Depends on:** ADR-023, ADR-025, ADR-027, ADR-028, ADR-029
+- **Supersedes:** None
+- **Superseded by:** None
+
+## Context
+
+The runtime is no longer a thin chat client. It already contains or is actively
+gaining:
+
+- a deterministic edit loop
+- managed tool execution and command sessions
+- provider stream parsing across multiple protocol shapes
+- canonical runtime handoff types and schemas
+- batch/export/evidence consumers that should not depend on provider-native
+  wire values
+
+Those pieces exist across multiple ADRs, but the repository does not yet define
+a single normative execution model that answers all of the following clearly:
+
+1. What is the difference between a provider event, a runtime event, and task
+   state?
+2. Which layer owns truth about what is currently happening?
+3. Which layer decides whether the task continues or stops?
+4. How do managed command sessions fit into the task loop?
+5. Which downstream surfaces are allowed to observe provider-native event
+   names?
+6. What is the canonical control flow from streamed provider output to task
+   completion?
+
+Without a dedicated definition, the architecture can drift toward incorrect
+patterns such as:
+
+- treating provider `message_stop` or equivalent wire events as task completion
+- letting provider-native event names leak into runtime, batch, export, or UI
+  logic
+- coupling subprocess lifetime to provider stream lifetime
+- letting UI state become the source of truth for task execution
+- treating tool execution as a side effect instead of part of the orchestrated
+  runtime loop
+
+## Decision
+
+The runtime SHALL be defined as a **task-state-owned orchestrator**.
+
+The canonical runtime execution model is:
+
+```text
+provider event arrives
+→ normalize to runtime event
+→ update task state
+→ orchestrator checks state
+→ execute next required action
+→ continue until runtime completion
+```
+
+This flow is normative.
+
+## Definitions
+
+### Provider event
+
+A provider event is a transport- or protocol-specific unit received from an
+inference backend or local server.
+
+Examples include:
+
+- stream lifecycle events
+- content block start/delta/stop events
+- message stop events
+- usage chunks
+- heartbeat or ping events
+- provider-native error events
+
+Provider events describe what arrived over the wire. They do not define runtime
+truth and do not directly control task completion.
+
+### Runtime event
+
+A runtime event is a canonical, runtime-owned event emitted after
+provider-native input has been normalized into the repository's internal
+execution model.
+
+Runtime events exist so that downstream consumers can rely on stable semantics
+independent of provider protocol shape.
+
+### Task state
+
+Task state is the durable runtime-owned record of what is currently true for a
+task and its turns.
+
+Task state is the source of truth for:
+
+- current turn and sequence position
+- accumulated conversation/tool/validation history
+- pending approvals
+- active managed command sessions
+- mutation and validation status
+- blocked, interrupted, failed, or completed state
+- runtime-owned completion decisions
+
+### Orchestrator
+
+The orchestrator is the runtime control authority that decides what happens next
+after task state is updated.
+
+The orchestrator is responsible for continuation, pausing, retrying, validation
+sequencing, and terminal completion.
+
+## Ownership model
+
+### Provider adapter / parser layer
+
+This layer owns:
+
+- transport calls
+- provider stream parsing
+- provider-native usage extraction
+- provider-native error extraction
+- compatibility handling across protocol variants
+
+This layer does not own:
+
+- task completion
+- task truth
+- command lifecycle
+- agent continuation policy
+
+### Normalization layer
+
+This layer owns:
+
+- mapping provider-native events into canonical runtime events
+- runtime-owned sequencing and envelope emission
+- removal of provider-native event leakage from downstream consumers
+
+This layer does not own:
+
+- stop/continue decisions
+- tool execution policy
+- subprocess lifetime policy
+
+### Task state
+
+Task state owns durable truth about the task.
+
+All runtime decisions MUST be made against task state rather than raw provider
+events.
+
+### Orchestrator / deterministic edit loop
+
+This layer owns:
+
+- whether the task continues
+- whether a tool or command must execute
+- whether validation must run
+- whether approval must pause execution
+- whether the task is complete
+- whether a no-op or non-mutating turn requires retry guidance
+
+### Managed command session
+
+Managed command session state owns:
+
+- subprocess attachment
+- subprocess output streaming
+- subprocess interruption/cancellation
+- subprocess completion
+- bounded result shaping back into model-visible context
+- full transcript visibility for UI or evidence consumers where applicable
+
+Command session lifetime MUST be owned by the runtime, not by the provider
+stream lifecycle.
+
+### UI / batch / export / evidence
+
+These surfaces MUST consume canonical runtime events and task-derived state
+only.
+
+They MUST NOT depend on provider-native event names or provider-specific stream
+semantics.
+
+## Canonical control flow
+
+The runtime SHALL operate according to the following logical sequence:
+
+1. Create or resume task state.
+2. Build current turn context from task state.
+3. Call the provider through a transport adapter.
+4. Parse incoming provider-native events.
+5. Normalize them into canonical runtime events.
+6. Apply those runtime events to task state.
+7. Ask the orchestrator what action is required next.
+8. If the next action is tool execution, execute the tool and write the result
+   back into task state.
+9. If the next action is a managed command session, start or continue the
+   subprocess under runtime ownership, stream output, and write the command
+   result back into task state after completion.
+10. If the next action is patch application or validation, execute it under
+    runtime policy and write the result back into task state.
+11. If the next action is approval wait, pause the task under runtime-owned
+    pending-approval state.
+12. Continue until runtime-owned completion criteria are satisfied.
+
+## Invariants
+
+The following are mandatory invariants.
+
+### Invariant 1: provider events are never task truth
+
+Raw provider events MUST NOT be treated as authoritative task state.
+
+### Invariant 2: provider stream completion is not task completion
+
+A provider-native stream end, message stop, or equivalent transport event MUST
+NOT by itself terminate a task.
+
+### Invariant 3: runtime state decides continuation
+
+Continuation and terminal completion MUST be decided by the orchestrator after
+task state has been updated.
+
+### Invariant 4: managed command sessions outlive provider stream chunks
+
+A managed subprocess MAY continue running after a provider response has ended.
+Its lifecycle remains runtime-owned until interruption or exit.
+
+### Invariant 5: tool and command results re-enter task state
+
+Every executed tool, command, validation, or patch result that influences
+future reasoning MUST be recorded back into task state and become eligible
+context for the next turn.
+
+### Invariant 6: downstream consumers do not inspect provider-native event names
+
+UI, batch mode, export, evidence, and similar consumers MUST depend on
+canonical runtime events or task-derived summaries only.
+
+### Invariant 7: application facade is not the orchestrator
+
+UI/application facade code MAY reflect runtime state and forward user actions,
+but it MUST NOT become the source of execution truth or the owner of
+continuation policy.
+
+## Required task state surface
+
+The concrete type layout may evolve, but task state MUST be capable of
+representing at least:
+
+- task identity
+- turn identity
+- runtime sequence progression
+- accumulated conversation history
+- tool calls and tool results
+- validation runs and outcomes
+- patch/mutation status
+- pending approval state
+- managed command session attachment and lifecycle
+- blocked/interrupted/failed/completed terminal states
+- maximum-turn and retry conditions
+
+## Managed command session rules
+
+Managed command sessions are part of the orchestrated task loop, not
+side-channel behavior.
+
+When the model requests command execution:
+
+1. The orchestrator decides whether execution is allowed or approval-gated.
+2. The runtime starts the subprocess under managed session control.
+3. UI-facing output may stream continuously.
+4. Model-visible command result shaping MAY be bounded or summarized.
+5. The command does not become complete until the runtime observes process exit
+   or interruption.
+6. The command result is written back into task state.
+7. The orchestrator then decides the next step.
+
+A command session MUST NOT be considered complete merely because the provider
+has stopped streaming.
+
+## Completion rules
+
+A task is complete only when runtime-owned completion conditions are satisfied.
+
+Examples of valid completion conditions include:
+
+- the orchestrator determines no further action is required
+- the requested edits and required validations have succeeded
+- an explicit final response is consistent with task state and no further
+  runtime action is pending
+- the task reaches a runtime-owned terminal failure or max-turn condition
+
+Invalid completion signals include:
+
+- provider-native stream end
+- provider-native stop reason alone
+- a single tool return without orchestrator evaluation
+- command launch without command completion handling
+- UI inactivity
+
+## Consequences
+
+### Positive
+
+- keeps provider protocol details out of runtime semantics
+- gives batch/export/evidence a stable contract
+- makes local-server transport work additive rather than invasive
+- clarifies the difference between stream parsing, task truth, and
+  orchestration
+- protects long-running shell jobs from premature termination due to
+  stream-bound reasoning
+- makes retry, validation, and approval flows easier to reason about and test
+
+### Negative
+
+- requires explicit task-state updates instead of informal propagation
+- may require refactoring code paths that currently react too directly to
+  provider-native events
+- adds pressure to keep normalization and task-state transitions well tested
+
+## Non-goals
+
+This ADR does not:
+
+- redefine provider-specific parsing formats
+- replace the canonical runtime schema work of ADR-025
+- replace the deterministic edit-loop policy details of ADR-023
+- replace the managed command-session mechanics of ADR-027
+- define the local API server transport binding of ADR-026
+- mandate a particular Rust module layout
+
+## Relationship to existing ADRs
+
+### ADR-023 — deterministic edit loop
+
+ADR-023 defines core loop behavior. This ADR clarifies that the edit loop is
+the orchestrator and that its decisions are based on task state, not
+provider-native events.
+
+### ADR-025 — runtime JSON handoff contract
+
+ADR-025 defines canonical runtime events and envelopes. This ADR defines where
+those events sit in the control flow and forbids provider-event leakage
+downstream.
+
+### ADR-027 — managed command sessions
+
+ADR-027 defines subprocess and command-session behavior. This ADR places those
+sessions inside the runtime-owned task loop and clarifies that their lifetime is
+independent of provider stream completion.
+
+### ADR-028 — application facade and transport boundaries
+
+ADR-028 keeps application/UI surfaces separated from runtime orchestration. This
+ADR reinforces that the app facade is not the source of task truth.
+
+### ADR-029 — stream parser completeness
+
+ADR-029 expands and clarifies provider stream parsing. This ADR states that
+parser completeness serves normalization and task-state updates but does not
+itself control orchestration.
+
+## Implementation guidance
+
+The active implementation sequence remains:
+
+- canonical handoff types and schemas
+- normalization layer
+- task-state-consistent derivation and testing
+- transport binding on top of runtime-owned semantics
+
+In practical terms, the repository should prefer:
+
+```text
+provider event
+→ normalizer emits runtime event
+→ runtime event mutates task state
+→ orchestrator decides next action
+```
+
+over:
+
+```text
+provider event
+→ ad hoc consumer reacts directly
+→ runtime behavior emerges implicitly
+```
+
+## Verification guidance
+
+Coverage should prove at least:
+
+1. provider-native stream end does not automatically complete the task
+2. tool results are written back into task state before the next turn
+3. managed command sessions remain active until subprocess exit or interruption
+4. downstream derivations operate on canonical runtime events rather than
+   provider-native names
+5. no-op turns and failed validations cause orchestrator-driven continuation
+   where policy requires it
+6. max-turn and approval pauses are represented in task state and respected by
+   the orchestrator
+
+## References
+
+- ADR-023 — deterministic edit loop
+- ADR-025 — runtime JSON handoff contract
+- ADR-027 — full-screen TUI command session capture / managed command sessions
+- ADR-028 — application facade and transport boundaries
+- ADR-029 — stream parser completeness and session persistence

@@ -30,6 +30,7 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-027-full-screen-tui-command-session-capture.md` | Accepted |
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Proposed |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Proposed |
+| `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Proposed |
 
 ## Immediate Dependency Notes
 
@@ -49,8 +50,8 @@ ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
 
 ADR-025 and ADR-026 are the first post-gate Phase I dispatch track. ADR-028 is
 the boundary ADR that later CLI and LocalApiServer refactors must respect.
-ADR-029 remains part of the active ADR set but does not supersede the passed
-milestone-1 gate or ADR-025 sequencing.
+ADR-029 and ADR-030 remain part of the active ADR set but do not supersede the
+passed milestone-1 gate or ADR-025 sequencing.
 
 ## Current Next Dispatcher Batch
 
@@ -61,6 +62,7 @@ The next dispatcher batch is ADR-025 Phase I continuation (`PI-10`, then `PI-12`
 - Keep `PI-10` sequenced after `PI-09`, and keep `PI-12` sequenced after both `PI-10` and `PI-11`.
 - Keep ADR-026 sequenced after ADR-025 closeout and ADR-024 reconciliation.
 - Treat ADR-028 as the boundary ADR for the post-gate Phase I work, not as the next immediate implementation batch.
+- Treat ADR-030 as the control-flow ADR for the post-gate runtime work: provider events normalize into canonical runtime events, task state owns truth, and orchestrator decisions remain runtime-owned.
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
 current reference for full-screen rendering and interactive command-session

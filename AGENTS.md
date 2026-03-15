@@ -99,12 +99,13 @@ the product-side constraints:
 | `adr/ADR-027-full-screen-tui-command-session-capture.md` | Full-screen TUI and command-session capture alignment, plus current implementation limits. |
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Application/runtime/transport dependency boundary and `src/app.rs` decomposition plan. |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Stream parser completeness, normalized SSE metadata retention, and task-state session persistence extensions. |
+| `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Normative runtime control-flow ownership: provider events normalize into runtime events, task state owns truth, and the orchestrator owns continuation. |
 | `Makefile` | Local verification entry points and architecture gate wrappers. |
 
 ## Current cross-repo dependency state
 
 For dispatcher-owned workflow and skill routing, the current active ADR set is
-ADR-021 through ADR-029. `adr/ADR-README.md` remains the full source of truth
+ADR-021 through ADR-030. `adr/ADR-README.md` remains the full source of truth
 for the broader open-ADR list.
 
 | ADR | Current state | Dependency note |
@@ -118,6 +119,7 @@ for the broader open-ADR list.
 | ADR-027 | Accepted | Full-screen TUI with command-session capture, concurrent validation, and current follow-up limits. Supersedes ADR-018 and ADR-019. |
 | ADR-028 | Proposed | Defines the application facade and transport boundary so future CLI and LocalApiServer work does not extend `src/app.rs` or `src/bin/vex.rs` as permanent convergence points. |
 | ADR-029 | Proposed | Defines stream parser completeness across `messages-v1` and `chat-compat`, including metadata retention for usage, chunk, choice, and tool-call fields plus task-state plan/note/cache persistence. |
+| ADR-030 | Proposed | Defines the task-state-owned orchestrator model so provider events normalize into runtime events, task state remains the source of truth, and command-session lifetime stays runtime-owned. |
 
 ## Verification baseline
 
