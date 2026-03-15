@@ -267,7 +267,7 @@ The full grammar file is included in Appendix A of this ADR.
 
 **Clarification (ADR-024 Gap 11):** ADR-024 Gap 11's `tool_call_mode = "structured"` refers to provider API structured-output features on hosted backends. This ADR's GBNF grammar covers local-model constrained decoding for backends that do not expose provider-native structured tool calling. Both mechanisms target the same outcome — valid JSON tool-call payloads — but at different layers. PI-10 normalization must accept both paths and produce identical `RuntimeEnvelope` output regardless of backend type.
 
-**Note on GBNF `json_safe_char`:** The grammar in Appendix A defines a conservative `json_safe_char` set for local-model constrained decoding. This set intentionally excludes some characters valid in JSON strings (e.g. `(`, `)`, `;`, `$`) to limit the local-model output surface. This restriction applies to unescaped characters only; standard JSON escapes, including `\uXXXX`, remain valid through the `escape` rule. Backends that do not use constrained decoding are not restricted by this grammar; PI-10 normalization and serde validation accept the full JSON string character set from those backends.
+**Note on GBNF `json_safe_char`:** The grammar in Appendix A defines a conservative `json_safe_char` set for local-model constrained decoding. This set intentionally excludes some characters valid in JSON strings (e.g. `(`, `)`, `;`, `$`) to limit the local-model output surface, while still permitting common glob wildcards such as `*` and `?` so `glob_files` arguments can be emitted directly. This restriction applies to unescaped characters only; standard JSON escapes, including `\uXXXX`, remain valid through the `escape` rule. Backends that do not use constrained decoding are not restricted by this grammar; PI-10 normalization and serde validation accept the full JSON string character set from those backends.
 
 ### 6. BatchMode remains backward-compatible and derivable
 
@@ -542,7 +542,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
 
 ## Appendix A: GBNF grammar (`grammars/tool_call.gbnf`)
 
-The grammar below constrains local-model constrained-decoding output. It is intentionally conservative: the `json_safe_char` set covers common identifier and path characters but excludes some valid JSON string characters (e.g. `(`, `)`, `;`, `$`). Backends that do not use constrained decoding are not restricted by this grammar; PI-10 normalization and serde accept the full JSON character set from those backends.
+The grammar below constrains local-model constrained-decoding output. It is intentionally conservative: the `json_safe_char` set covers common identifier, path, and glob-pattern characters, while excluding some valid JSON string characters (e.g. `(`, `)`, `;`, `$`). Backends that do not use constrained decoding are not restricted by this grammar; PI-10 normalization and serde accept the full JSON character set from those backends.
 
 ```gbnf
 root ::= ws tool_call_array ws
@@ -589,7 +589,7 @@ json_array ::= "[" ws "]"
 json_string ::= "\"" json_char* "\""
 json_char ::= json_safe_char | escape
 
-json_safe_char ::= lower | upper | digit | "_" | "-" | "." | "/" | ":" | " " | "[" | "]" | "{" | "}" | "," | "@" | "#" | "+" | "="
+json_safe_char ::= lower | upper | digit | "_" | "-" | "." | "/" | ":" | " " | "[" | "]" | "{" | "}" | "," | "@" | "#" | "+" | "=" | "*" | "?"
 
 escape ::= "\\\"" | "\\\\" | "\\/" | "\\b" | "\\f" | "\\n" | "\\r" | "\\t"
          | "\\u" hex hex hex hex

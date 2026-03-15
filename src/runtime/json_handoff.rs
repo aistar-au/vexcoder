@@ -165,5 +165,6 @@ mod tests {
         assert!(grammar.contains("mcp_tool ::= \"\\\"mcp."));
         assert!(grammar.contains("\\\"read_file\\\""));
         assert!(grammar.contains("\\\"apply_patch\\\""));
+        assert!(grammar.contains("\"*\" | \"?\""));
     }
 }

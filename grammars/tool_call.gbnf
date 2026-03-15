@@ -42,7 +42,7 @@ json_array ::= "[" ws "]"
 json_string ::= "\"" json_char* "\""
 json_char ::= json_safe_char | escape
 
-json_safe_char ::= lower | upper | digit | "_" | "-" | "." | "/" | ":" | " " | "[" | "]" | "{" | "}" | "," | "@" | "#" | "+" | "="
+json_safe_char ::= lower | upper | digit | "_" | "-" | "." | "/" | ":" | " " | "[" | "]" | "{" | "}" | "," | "@" | "#" | "+" | "=" | "*" | "?"
 
 escape ::= "\\\"" | "\\\\" | "\\/" | "\\b" | "\\f" | "\\n" | "\\r" | "\\t"
          | "\\u" hex hex hex hex
