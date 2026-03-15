@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::custom_commands::{load_custom_commands, CustomCommand};
 use crate::prompts::{
     render_custom_command_instruction, render_edit_prompt, render_explain_prompt,
-    render_generate_tests_prompt, render_review_prompt, CODER_SYSTEM_PROMPT,
+    render_generate_tests_prompt, render_plan_prompt, render_review_prompt, CODER_SYSTEM_PROMPT,
 };
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::context_assembler::{
@@ -152,6 +152,7 @@ enum SlashCommandId {
     Fix,
     Explain,
     Review,
+    Plan,
     Run,
     Test,
     Context,
@@ -254,6 +255,15 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         },
         "/review [--base <git-ref>] [--files <glob>] [<instruction>]",
         "review a diff or file set; no patch",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Plan,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/plan",
+            prefix: "/plan ",
+        },
+        "/plan <instruction>",
+        "generate an implementation plan; no patch",
     ),
     SlashCommandSpec::new(
         SlashCommandId::Run,
