@@ -5,6 +5,7 @@ pub mod context;
 pub mod context_assembler;
 pub mod edit_loop;
 pub mod frontend;
+pub mod json_handoff;
 pub mod r#loop;
 pub mod mode;
 pub mod policy;
@@ -30,6 +31,9 @@ pub use command::{
 };
 pub use context_assembler::{AssembledContext, ContextAssembler, FileSnapshot};
 pub use edit_loop::{EditLoop, EditLoopOutcome};
+pub use json_handoff::{
+    RuntimeEnvelope, RuntimeEvent, RuntimeRequest, TokenUsageEnvelope, ValidationOutputEnvelope,
+};
 pub use sandbox::{PassthroughSandbox, SandboxDriver};
 pub use task_state::{
     CommandEvidence, ConversationCheckpoint, InterruptedCommand, TaskId, TaskState, TaskStatus,

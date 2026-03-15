@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vexcoder.io/schemas/runtime_envelope_v1.json",
+  "title": "RuntimeEnvelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "task_id", "turn", "seq", "event"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "task_id": { "type": "string", "minLength": 1 },
+    "turn": { "type": "integer", "minimum": 1 },
+    "seq": { "type": "integer", "minimum": 1 },
+    "event": { "$ref": "#/$defs/runtime_event" }
+  },
+  "$defs": {
+    "tool_name": {
+      "type": "string",
+      "pattern": "^(read_file|write_file|apply_patch|run_command|search_files|list_dir|glob_files|mcp\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_]*)$"
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["once", "session"]
+    },
+    "token_usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "output"],
+      "properties": {
+        "input": { "type": "integer", "minimum": 0 },
+        "output": { "type": "integer", "minimum": 0 },
+        "estimated": { "type": "boolean", "default": false }
+      }
+    },
+    "validation_output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "exit_code", "stdout_tail", "stderr_tail"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "exit_code": { "type": "integer" },
+        "stdout_tail": { "type": "string" },
+        "stderr_tail": { "type": "string" }
+      }
+    },
+    "runtime_event": {
+      "oneOf": [
+        { "$ref": "#/$defs/turn_start" },
+        { "$ref": "#/$defs/assistant_delta" },
+        { "$ref": "#/$defs/assistant_message" },
+        { "$ref": "#/$defs/tool_call" },
+        { "$ref": "#/$defs/tool_result" },
+        { "$ref": "#/$defs/approval_request" },
+        { "$ref": "#/$defs/approval_resolved" },
+        { "$ref": "#/$defs/validation_result" },
+        { "$ref": "#/$defs/turn_end" },
+        { "$ref": "#/$defs/error" },
+        { "$ref": "#/$defs/max_turns_reached" }
+      ]
+    },
+    "turn_start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "turn_start" },
+        "input": { "type": ["string", "null"] }
+      }
+    },
+    "assistant_delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "const": "assistant_delta" },
+        "text": { "type": "string" }
+      }
+    },
+    "assistant_message": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "content"],
+      "properties": {
+        "type": { "const": "assistant_message" },
+        "content": { "type": "string" }
+      }
+    },
+    "tool_call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "name", "arguments"],
+      "properties": {
+        "type": { "const": "tool_call" },
+        "id": { "type": "string", "pattern": "^call_[0-9]+_[0-9a-f]{4}$" },
+        "name": { "$ref": "#/$defs/tool_name" },
+        "arguments": { "type": "object" }
+      }
+    },
+    "tool_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "tool_call_id", "is_error", "output"],
+      "properties": {
+        "type": { "const": "tool_result" },
+        "tool_call_id": { "type": "string", "pattern": "^call_[0-9]+_[0-9a-f]{4}$" },
+        "tool_name": {
+          "oneOf": [
+            { "$ref": "#/$defs/tool_name" },
+            { "type": "null" }
+          ]
+        },
+        "is_error": { "type": "boolean" },
+        "output": { "type": "string" }
+      }
+    },
+    "approval_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "capability", "scope"],
+      "properties": {
+        "type": { "const": "approval_request" },
+        "capability": { "type": "string", "minLength": 1 },
+        "scope": { "$ref": "#/$defs/scope" },
+        "tool_name": { "type": ["string", "null"] }
+      }
+    },
+    "approval_resolved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "capability", "scope", "approved"],
+      "properties": {
+        "type": { "const": "approval_resolved" },
+        "capability": { "type": "string", "minLength": 1 },
+        "scope": { "$ref": "#/$defs/scope" },
+        "approved": { "type": "boolean" }
+      }
+    },
+    "validation_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "passed", "outputs"],
+      "properties": {
+        "type": { "const": "validation_result" },
+        "passed": { "type": "boolean" },
+        "outputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/validation_output" }
+        }
+      }
+    },
+    "turn_end": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "status", "changed_files"],
+      "properties": {
+        "type": { "const": "turn_end" },
+        "status": {
+          "type": "string",
+          "enum": ["completed", "failed", "cancelled"]
+        },
+        "usage": {
+          "oneOf": [
+            { "$ref": "#/$defs/token_usage" },
+            { "type": "null" }
+          ]
+        },
+        "changed_files": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "code", "message", "recoverable"],
+      "properties": {
+        "type": { "const": "error" },
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "recoverable": { "type": "boolean" }
+      }
+    },
+    "max_turns_reached": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "max_turns"],
+      "properties": {
+        "type": { "const": "max_turns_reached" },
+        "max_turns": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}
