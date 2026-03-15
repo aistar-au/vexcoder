@@ -169,6 +169,8 @@ impl StreamParser {
         if json_data == "[DONE]" {
             let mut events = Vec::new();
             self.close_chat_compat_tool_blocks(&mut events);
+            self.chat_compat_message_started = false;
+            self.chat_compat_tools.clear();
             return Some(events);
         }
 
