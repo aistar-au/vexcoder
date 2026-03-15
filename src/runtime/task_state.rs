@@ -60,7 +60,6 @@ pub struct ContextCompactionRecord {
 pub struct CacheUsageStats {
     pub total_cache_creation_tokens: u64,
     pub total_cache_read_tokens: u64,
-    pub total_cache_write_tokens: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -300,7 +299,6 @@ mod tests {
             cache_usage: CacheUsageStats {
                 total_cache_creation_tokens: 500,
                 total_cache_read_tokens: 1200,
-                total_cache_write_tokens: 0,
             },
         };
 

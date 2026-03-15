@@ -1,5 +1,5 @@
 use super::logging::emit_sse_parse_error;
-use crate::types::{ContentBlock, Delta, StreamEvent};
+use crate::types::{ApiUsage, ContentBlock, Delta, MessageDelta, StreamEvent};
 use anyhow::Result;
 use serde::Deserialize;
 
@@ -22,6 +22,8 @@ struct ChatCompatToolState {
 struct ChatCompatChunk {
     #[serde(default)]
     choices: Vec<ChatCompatChoice>,
+    #[serde(default)]
+    usage: Option<ApiUsage>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,27 +97,22 @@ impl StreamParser {
 
             if !data_lines.is_empty() {
                 let json_data = data_lines.join("\n");
-                let should_parse = if json_data == "[DONE]" {
-                    true
-                } else {
-                    event_type.as_deref().is_none_or(|ty| ty != "ping")
-                };
+                if event_type.as_deref() == Some("ping") {
+                    events.push(StreamEvent::Ping);
+                    continue;
+                }
 
-                if should_parse {
-                    match serde_json::from_str::<StreamEvent>(&json_data) {
-                        Ok(evt) => events.push(evt),
-                        Err(messages_v1_error) => {
-                            if let Some(chat_compat_events) =
-                                self.parse_chat_compat_chunk(&json_data)
-                            {
-                                events.extend(chat_compat_events);
-                            } else {
-                                emit_sse_parse_error(
-                                    event_type.as_deref(),
-                                    &json_data,
-                                    &messages_v1_error,
-                                );
-                            }
+                match serde_json::from_str::<StreamEvent>(&json_data) {
+                    Ok(evt) => events.push(evt),
+                    Err(messages_v1_error) => {
+                        if let Some(chat_compat_events) = self.parse_chat_compat_chunk(&json_data) {
+                            events.extend(chat_compat_events);
+                        } else {
+                            emit_sse_parse_error(
+                                event_type.as_deref(),
+                                &json_data,
+                                &messages_v1_error,
+                            );
                         }
                     }
                 }
@@ -143,11 +140,22 @@ impl StreamParser {
         }
 
         let chunk = serde_json::from_str::<ChatCompatChunk>(json_data).ok()?;
-        if chunk.choices.is_empty() {
-            return Some(Vec::new());
+        let mut events = Vec::new();
+
+        if let Some(usage) = chunk.usage {
+            events.push(StreamEvent::MessageDelta {
+                delta: MessageDelta {
+                    stop_reason: None,
+                    stop_sequence: None,
+                    usage: Some(usage),
+                },
+            });
         }
 
-        let mut events = Vec::new();
+        if chunk.choices.is_empty() {
+            return Some(events);
+        }
+
         for choice in chunk.choices {
             if let Some(content) = choice.delta.content {
                 events.push(StreamEvent::ContentBlockDelta {
@@ -250,6 +258,44 @@ impl StreamParser {
                 events.push(StreamEvent::ContentBlockStop { index });
                 state.stopped = true;
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StreamParser;
+    use crate::types::StreamEvent;
+
+    #[test]
+    fn test_process_emits_ping_for_ping_frame() {
+        let mut parser = StreamParser::new();
+        let events = parser
+            .process(b"event: ping\ndata: {\"type\":\"ping\"}\n\n")
+            .unwrap();
+
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], StreamEvent::Ping));
+    }
+
+    #[test]
+    fn test_process_maps_chat_compat_usage_chunk() {
+        let mut parser = StreamParser::new();
+        let events = parser
+            .process(
+                b"data: {\"choices\":[],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":7,\"total_tokens\":19}}\n\n",
+            )
+            .unwrap();
+
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            StreamEvent::MessageDelta { delta } => {
+                let usage = delta.usage.as_ref().expect("usage should be present");
+                assert_eq!(usage.input_tokens, Some(12));
+                assert_eq!(usage.output_tokens, Some(7));
+                assert_eq!(usage.total_tokens, Some(19));
+            }
+            other => panic!("expected MessageDelta event, got {other:?}"),
         }
     }
 }

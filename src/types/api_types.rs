@@ -108,16 +108,16 @@ pub struct MessageDelta {
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ApiUsage {
-    #[serde(default)]
+    #[serde(default, alias = "prompt_tokens")]
     pub input_tokens: Option<u64>,
-    #[serde(default)]
+    #[serde(default, alias = "completion_tokens")]
     pub output_tokens: Option<u64>,
+    #[serde(default)]
+    pub total_tokens: Option<u64>,
     #[serde(default)]
     pub cache_creation_input_tokens: Option<u64>,
     #[serde(default)]
     pub cache_read_input_tokens: Option<u64>,
-    #[serde(default)]
-    pub cache_write_input_tokens: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -203,9 +203,22 @@ mod tests {
     fn test_api_usage_cache_fields_deserialise() {
         let json = r#"{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":200,"cache_read_input_tokens":800}"#;
         let usage: ApiUsage = serde_json::from_str(json).unwrap();
+        assert_eq!(usage.input_tokens, Some(100));
+        assert_eq!(usage.output_tokens, Some(50));
         assert_eq!(usage.cache_creation_input_tokens, Some(200));
         assert_eq!(usage.cache_read_input_tokens, Some(800));
-        assert!(usage.cache_write_input_tokens.is_none());
+        assert!(usage.total_tokens.is_none());
+    }
+
+    #[test]
+    fn test_api_usage_chat_compat_fields_deserialise() {
+        let json = r#"{"prompt_tokens":120,"completion_tokens":30,"total_tokens":150}"#;
+        let usage: ApiUsage = serde_json::from_str(json).unwrap();
+        assert_eq!(usage.input_tokens, Some(120));
+        assert_eq!(usage.output_tokens, Some(30));
+        assert_eq!(usage.total_tokens, Some(150));
+        assert!(usage.cache_creation_input_tokens.is_none());
+        assert!(usage.cache_read_input_tokens.is_none());
     }
 
     #[test]

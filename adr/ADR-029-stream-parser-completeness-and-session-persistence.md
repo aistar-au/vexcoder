@@ -47,8 +47,8 @@ Error { error: ApiStreamError },
 ```
 
 `Ping` represents the server keep-alive heartbeat and carries no data. The
-existing parser already discards frames with `event: ping`; the new variant
-makes the discard explicit and typed.
+new variant must be produced when the parser sees `event: ping` so the
+messages v1 heartbeat is represented explicitly instead of being dropped.
 
 `Error` carries a structured error envelope. Any frame whose JSON deserialises
 to `{"type":"error",...}` must be surfaced as this variant rather than absorbed
@@ -85,17 +85,25 @@ fields provide the matching payload slots.
 
 ### 4. Expand `ApiUsage`
 
-Add three optional cache-usage fields to `ApiUsage`:
+Add protocol-normalised token fields and two optional cache-usage fields to
+`ApiUsage`:
 
 ```rust
+pub input_tokens: Option<u64>,
+pub output_tokens: Option<u64>,
+pub total_tokens: Option<u64>,
 pub cache_creation_input_tokens: Option<u64>,
 pub cache_read_input_tokens: Option<u64>,
-pub cache_write_input_tokens: Option<u64>,
 ```
 
-These are populated from the corresponding fields in `MessageStart` usage and
-`MessageDelta` usage objects when the backend returns them. They are optional
-because not all backends or all requests emit cache metrics.
+`input_tokens` and `output_tokens` are the normalised in-memory field names.
+For messages v1 they deserialise from the same-named fields. For chat
+completions they deserialise from `prompt_tokens` and `completion_tokens`.
+`total_tokens` captures the chat-completions total when the backend returns it.
+
+The cache fields are populated from the corresponding messages v1 usage fields
+when the backend returns them. They are optional because not all backends or
+all requests emit cache metrics.
 
 ### 5. Expand `MessageDelta`
 
@@ -163,7 +171,6 @@ pub struct ContextCompactionRecord {
 pub struct CacheUsageStats {
     pub total_cache_creation_tokens: u64,
     pub total_cache_read_tokens: u64,
-    pub total_cache_write_tokens: u64,
 }
 ```
 
@@ -247,15 +254,15 @@ pub struct Delta {
 }
 ```
 
-### `ApiUsage` (complete, post-ADR-029)
+### `ApiUsage` (normalised across messages v1 and chat completions, post-ADR-029)
 
 ```rust
 pub struct ApiUsage {
     pub input_tokens: Option<u64>,
     pub output_tokens: Option<u64>,
+  pub total_tokens: Option<u64>,
     pub cache_creation_input_tokens: Option<u64>,
     pub cache_read_input_tokens: Option<u64>,
-    pub cache_write_input_tokens: Option<u64>,
 }
 ```
 
@@ -287,10 +294,11 @@ pub struct TaskState {
 ### Required tests
 
 - Deserialising a `StreamEvent` from `{"type":"error","error":{"type":"overloaded_error","message":"..."}}` produces `StreamEvent::Error` with the correct fields.
-- Deserialising a `StreamEvent` from `[DONE]` or a ping frame does not produce `StreamEvent::Error` or `StreamEvent::Unknown`.
+- Deserialising a ping frame through `StreamParser::process()` produces `StreamEvent::Ping`.
 - Deserialising a `ContentBlockStart` with `{"type":"thinking","thinking":"...","signature":"..."}` produces `ContentBlock::Thinking`.
 - A `Delta` with `{"type":"thinking_delta","thinking":"..."}` deserialises with the `thinking` field populated.
 - An `ApiUsage` with `{"cache_creation_input_tokens":100}` deserialises with that field present and others absent.
+- A chat-completions usage chunk with `{"prompt_tokens":...,"completion_tokens":...,"total_tokens":...}` is surfaced as `MessageDelta { usage: ... }` with the normalised token fields populated.
 - A `TaskState` written with the new fields round-trips through `save()` and `load()` with all four new fields intact.
 - A `TaskState` written before ADR-029 (without the new fields) loads without error; new fields default to empty/None.
 - Accumulating cache tokens across three simulated turns produces correct totals in `CacheUsageStats`.
