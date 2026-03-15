@@ -12,10 +12,10 @@ Current task-dispatch dependency state:
 | `ADR-021` | Accepted, follow-up maintenance remains | Audit and cleanup items can still affect `src/`, tests, or docs shape. |
 | `ADR-022 amendment` | Proposed | Constrains first-milestone scope relative to `ADR-022`. |
 | `ADR-022` | Proposed | Free/open roadmap target and config/interface decision surface. |
-| `ADR-023` | Locked | `EL-08` through `EL-13` are now on `main`. The ADR-023 implementation track is complete; the next dependency step is the milestone-1 validation gate before ADR-025 and ADR-026 dispatch resumes. |
+| `ADR-023` | Locked | `EL-08` through `EL-13` are now on `main`. The ADR-023 implementation track is complete; milestone-1 validation has passed and the post-gate ADR-025 Phase I work is now active. |
 | `ADR-024` | Proposed | Parity-gap inventory, command surface, and deferred work. |
 | `ADR-025` | Proposed | Phase I kickoff landed with `PI-09` and `PI-11`; the next dependency-sequenced work is `PI-10`, followed by `PI-12`. |
-| `ADR-026` | Proposed | Follows `ADR-025` closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation remains gated on milestone-1 validation. |
+| `ADR-026` | Proposed | Follows `ADR-025` closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation sequenced after `PI-12`. |
 | `ADR-027` | Accepted | Defines the current full-screen TUI with command-session capture; supersedes the ADR-018/019 path. |
 | `ADR-028` | Proposed | Defines the application facade and transport boundary that later CLI and LocalApiServer refactors must follow. |
 | `ADR-029` | Proposed | Extends the active ADR set with stream-parser completeness and session-persistence follow-up work without changing the milestone-1 gate result. |
