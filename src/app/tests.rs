@@ -2720,7 +2720,8 @@ async fn test_read_only_turn_flag_clears_after_turn_completion() {
 #[tokio::test]
 async fn test_tui_review_default_assembles_head_diff() {
     let mut ctx = setup_ctx_with_responses(vec![vec![
-        "data: {\"choices\":[{\"delta\":{\"content\":\"Reviewed\"},\"finish_reason\":\"stop\"}]}".to_string(),
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Reviewed\"},\"finish_reason\":\"stop\"}]}"
+            .to_string(),
     ]]);
     let temp = tempfile::tempdir().unwrap();
     init_git_repo(temp.path());
@@ -2753,7 +2754,8 @@ async fn test_tui_review_default_assembles_head_diff() {
 #[tokio::test]
 async fn test_tui_review_base_flag_validates_ref() {
     let mut ctx = setup_ctx_with_responses(vec![vec![
-        "data: {\"choices\":[{\"delta\":{\"content\":\"Reviewed\"},\"finish_reason\":\"stop\"}]}".to_string(),
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Reviewed\"},\"finish_reason\":\"stop\"}]}"
+            .to_string(),
     ]]);
     let temp = tempfile::tempdir().unwrap();
     init_git_repo(temp.path());
@@ -2869,7 +2871,8 @@ async fn test_tui_review_drops_pending_patch_silently() {
 async fn test_tui_review_files_flag_uses_context_assembler() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx_with_responses(vec![vec![
-        "data: {\"choices\":[{\"delta\":{\"content\":\"Reviewed\"},\"finish_reason\":\"stop\"}]}".to_string(),
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Reviewed\"},\"finish_reason\":\"stop\"}]}"
+            .to_string(),
     ]]);
     let temp = tempfile::tempdir().unwrap();
     let src_dir = temp.path().join("src");

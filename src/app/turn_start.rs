@@ -46,7 +46,10 @@ impl TuiMode {
             .unwrap_or(CODER_SYSTEM_PROMPT)
     }
 
-    pub(super) fn try_assemble_context(&mut self, scope_instruction: &str) -> Result<AssembledContext> {
+    pub(super) fn try_assemble_context(
+        &mut self,
+        scope_instruction: &str,
+    ) -> Result<AssembledContext> {
         let assembler = ContextAssembler::default();
         let operator = ToolOperator::new(self.working_dir.clone());
         let scope_instruction_for_task = scope_instruction.to_string();

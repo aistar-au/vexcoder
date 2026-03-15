@@ -70,8 +70,8 @@ use self::scroll::{input_rows_for_buffer, RenderGuard};
 use self::util::{
     builtin_slash_command_names, capability_for_tool_name, format_inline_block, kebab_to_scope,
     list_recent_task_entries, new_task_id, parse_generate_tests_args, parse_review_args,
-    resolve_history_line_cap, resolve_repo_label, run_validation_suite_capture, sanitize_task_label,
-    scope_to_label, shell_command_request, summarize_tool_outcome,
+    resolve_history_line_cap, resolve_repo_label, run_validation_suite_capture,
+    sanitize_task_label, scope_to_label, shell_command_request, summarize_tool_outcome,
 };
 pub use self::util::{capability_to_kebab, kebab_to_capability};
 
