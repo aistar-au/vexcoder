@@ -1,0 +1,66 @@
+root ::= ws tool_call_array ws
+
+tool_call_array ::= "[" ws tool_call (ws "," ws tool_call)* ws "]" | tool_call
+
+tool_call ::= "{" ws "\"name\"" ws ":" ws tool_name ws "," ws "\"arguments\"" ws ":" ws json_object ws "}"
+
+# id is NOT included in the grammar — it is injected by the runtime normalization layer (PI-10).
+
+tool_name ::= "\"read_file\""
+            | "\"write_file\""
+            | "\"apply_patch\""
+            | "\"run_command\""
+            | "\"search_files\""
+            | "\"list_dir\""
+            | "\"glob_files\""
+            | mcp_tool
+
+mcp_tool ::= "\"mcp." server_name "." tool_segment "\""
+
+server_name ::= lower server_rest*
+server_rest ::= lower | digit | "_" | "-"
+
+tool_segment ::= lower tool_rest*
+tool_rest ::= lower | digit | "_"
+
+json_value ::= json_object
+             | json_array
+             | json_string
+             | json_number
+             | "true"
+             | "false"
+             | "null"
+
+json_object ::= "{" ws "}"
+              | "{" ws json_member (ws "," ws json_member)* ws "}"
+
+json_member ::= json_string ws ":" ws json_value
+
+json_array ::= "[" ws "]"
+             | "[" ws json_value (ws "," ws json_value)* ws "]"
+
+json_string ::= "\"" json_char* "\""
+json_char ::= json_safe_char | escape
+
+json_safe_char ::= lower | upper | digit | "_" | "-" | "." | "/" | ":" | " " | "[" | "]" | "{" | "}" | "," | "@" | "#" | "+" | "="
+
+escape ::= "\\\"" | "\\\\" | "\\/" | "\\b" | "\\f" | "\\n" | "\\r" | "\\t"
+         | "\\u" hex hex hex hex
+
+json_number ::= "-"? int frac? exp?
+int ::= "0" | onenine digits?
+frac ::= "." digits
+exp ::= ("e" | "E") ("+" | "-")? digits
+
+digits ::= digit+
+digit ::= "0" | onenine
+onenine ::= "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+# Lowercase-only hex is intentional for constrained decoding; see §5 note on json_safe_char.
+# Standard JSON allows uppercase A-F in \uXXXX escapes, but the grammar restricts to
+# lowercase to limit the local-model output surface. PI-10 normalization accepts both cases.
+hex ::= digit | "a" | "b" | "c" | "d" | "e" | "f"
+
+lower ::= "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z"
+upper ::= "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z"
+
+ws ::= (" " | "\n" | "\r" | "\t")*

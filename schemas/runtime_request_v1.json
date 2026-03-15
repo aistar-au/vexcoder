@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vexcoder.io/schemas/runtime_request_v1.json",
+  "title": "RuntimeRequest v1",
+  "$defs": {
+    "scope": {
+      "type": "string",
+      "enum": ["once", "session"]
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "input"],
+      "properties": {
+        "type": { "const": "submit_input" },
+        "task_id": { "type": ["string", "null"] },
+        "input": { "type": "string", "minLength": 1 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "task_id"],
+      "properties": {
+        "type": { "const": "interrupt" },
+        "task_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "task_id", "capability", "scope"],
+      "properties": {
+        "type": { "const": "approve_capability" },
+        "task_id": { "type": "string", "minLength": 1 },
+        "capability": { "type": "string", "minLength": 1 },
+        "scope": { "$ref": "#/$defs/scope" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "task_id", "capability"],
+      "properties": {
+        "type": { "const": "deny_capability" },
+        "task_id": { "type": "string", "minLength": 1 },
+        "capability": { "type": "string", "minLength": 1 }
+      }
+    }
+  ]
+}
