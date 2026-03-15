@@ -189,6 +189,7 @@ vexcoder/ (standalone view)
 | `src/app/layout.rs` | Layout-state and command-routing helper methods extracted from app facade under ADR-028 phase 4. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/layout.rs> |
 | `src/app/model_update.rs` | Model-update handler methods extracted from app facade under ADR-028 phase 5. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/model_update.rs> |
 | `src/app/overlay.rs` | Overlay and approval handler methods extracted from app facade under ADR-028 phase 2. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/overlay.rs> |
+| `src/app/runtime_build.rs` | Runtime-construction functions `build_runtime` and `build_runtime_with_resume` extracted from app facade under ADR-028 phase 6. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/runtime_build.rs> |
 | `src/app/scroll.rs` | Viewport and history scroll methods extracted from app facade under ADR-028 phase 2. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/scroll.rs> |
 | `src/app/shell.rs` | Bang-command approval and command-session spawn methods extracted from app facade under ADR-028 phase 3. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/shell.rs> |
 | `src/app/tests.rs` | App-level unit and integration tests extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests.rs> |
