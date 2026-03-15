@@ -380,9 +380,9 @@ fn estimate_char_count(messages: &[crate::types::ApiMessage]) -> usize {
                         .iter()
                         .map(|block| match block {
                             ContentBlock::Text { text, .. } => text.len(),
-                            ContentBlock::ToolUse { id, name, input } => {
-                                id.len() + name.len() + input.to_string().len()
-                            }
+                            ContentBlock::ToolUse {
+                                id, name, input, ..
+                            } => id.len() + name.len() + input.to_string().len(),
                             ContentBlock::ToolResult {
                                 tool_use_id,
                                 content,

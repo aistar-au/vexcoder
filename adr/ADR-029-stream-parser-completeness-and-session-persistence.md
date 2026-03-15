@@ -78,21 +78,43 @@ that the API executes internally. `WebSearchToolResult` carries the results
 of such invocations. `citations` on `Text` captures citation metadata that
 the API may attach to text blocks when citations are enabled.
 
+Additionally, the existing `ToolUse` variant gains optional parser metadata so
+chat-completions tool-call chunks no longer lose their type discriminator or
+choice index during normalization:
+
+```rust
+ToolUse {
+    id: String,
+    name: String,
+    input: serde_json::Value,
+    metadata: Option<ToolUseMetadata>,
+}
+
+pub struct ToolUseMetadata {
+    pub call_type: Option<String>,
+    pub choice_index: Option<usize>,
+}
+```
+
 Callers that do not use these features may ignore the variants; the runtime
 is not required to display them in the TUI by this ADR.
 
 ### 3. Expand `Delta`
 
-Add two optional fields to the existing `Delta` struct:
+Add three optional fields to the existing `Delta` struct:
 
 ```rust
 pub thinking: Option<String>,
 pub signature: Option<String>,
+pub choice_index: Option<usize>,
 ```
 
 These carry the incremental content for `thinking_delta` and `signature_delta`
-delta types. The `delta_type` field already records the type tag; the new
-fields provide the matching payload slots.
+delta types. `choice_index` preserves the originating chat-completions choice
+number when the parser normalizes a `choices[]` chunk into unified text or
+tool-argument delta events. The `delta_type` field already records the type
+tag; the new fields provide the matching payload slots and the source-choice
+anchor.
 
 ### 4. Expand `ApiUsage`
 
@@ -112,6 +134,7 @@ pub struct ApiUsage {
     // Extended usage metadata
     pub service_tier: Option<String>,
     pub web_search_requests: Option<u64>,
+    pub inference_geo: Option<String>,
     // Detailed token breakdowns (chat completions)
     pub prompt_tokens_details: Option<PromptTokenDetails>,
     pub completion_tokens_details: Option<CompletionTokenDetails>,
@@ -137,7 +160,8 @@ via serde aliases. `total_tokens` captures the chat-completions total.
 
 `cache_creation` captures the messages v1 cache-creation breakdown object
 (ephemeral durations). `service_tier` and `web_search_requests` are
-extended-usage metadata from the messages v1 protocol. `prompt_tokens_details`
+extended-usage metadata from the messages v1 protocol. `inference_geo`
+preserves the documented model-execution geography hint. `prompt_tokens_details`
 and `completion_tokens_details` carry the chat completions token-detail
 breakdowns (cached tokens, reasoning tokens, audio tokens, prediction tokens).
 
@@ -173,7 +197,8 @@ The `MessageDelta` struct itself contains only `stop_reason` and
 ### 5a. Expand `MessageStartData`
 
 The documented `message_start` payload includes a full `Message` object.
-`MessageStartData` is expanded to capture all documented fields:
+`MessageStartData` is expanded to capture all documented fields, plus optional
+normalized stream metadata used by chat-compat chunks:
 
 ```rust
 pub struct MessageStartData {
@@ -185,6 +210,7 @@ pub struct MessageStartData {
     pub stop_reason: Option<String>,
     pub stop_sequence: Option<String>,
     pub usage: Option<ApiUsage>,
+    pub metadata: Option<StreamChunkMetadata>,
 }
 ```
 
@@ -199,8 +225,35 @@ full documented chat completions streaming chunk surface:
 - `ChatCompatDelta`: `role`, `content`, `refusal`, `tool_calls`
 - `ChatCompatToolCallDelta`: `index`, `id`, `type`, `function`
 
-Fields not yet consumed by the conversion logic are retained so serde does
-not silently drop documented values.
+The normalization layer must also retain those values when it emits unified
+events:
+
+- top-level chunk metadata (`object`, `created`, `system_fingerprint`,
+  `service_tier`) is preserved in `MessageStartData.metadata` on the synthetic
+  start event and in `MessageDelta.metadata` when emitted later in the stream;
+- `choices[].index` is preserved on `Delta.choice_index`,
+  `ToolUseMetadata.choice_index`, and `MessageDelta.metadata.choice_index`;
+- `choices[].delta.role` seeds the synthetic `MessageStart` role and is
+  retained on `MessageDelta.role` when a later message-delta event is emitted;
+- `choices[].delta.refusal` is preserved on `MessageDelta.refusal`;
+- `choices[].logprobs` is preserved on `MessageDelta.metadata.logprobs`;
+- `tool_calls[].type` is preserved on `ToolUseMetadata.call_type`;
+- final usage-only chunks keep `usage` even when `choices` is empty, and the
+  top-level `service_tier` must be copied into `ApiUsage.service_tier` when the
+  usage payload omits it.
+
+Supporting metadata struct:
+
+```rust
+pub struct StreamChunkMetadata {
+    pub object: Option<String>,
+    pub created: Option<u64>,
+    pub system_fingerprint: Option<String>,
+    pub service_tier: Option<String>,
+    pub choice_index: Option<usize>,
+    pub logprobs: Option<serde_json::Value>,
+}
+```
 
 ### 6. Add `ApiStreamError`
 

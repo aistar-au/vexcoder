@@ -26,6 +26,8 @@ pub enum ContentBlock {
         name: String,
         #[serde(default = "default_json_object")]
         input: serde_json::Value,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        metadata: Option<ToolUseMetadata>,
     },
     ToolResult {
         tool_use_id: String,
@@ -55,6 +57,30 @@ pub enum ContentBlock {
 
 fn default_json_object() -> serde_json::Value {
     serde_json::Value::Object(serde_json::Map::new())
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct StreamChunkMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_fingerprint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub choice_index: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub logprobs: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ToolUseMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub call_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub choice_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -101,6 +127,8 @@ pub struct Delta {
     pub thinking: Option<String>,
     #[serde(default)]
     pub signature: Option<String>,
+    #[serde(default)]
+    pub choice_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -118,6 +146,8 @@ pub struct MessageStartData {
     pub stop_sequence: Option<String>,
     #[serde(default)]
     pub usage: Option<ApiUsage>,
+    #[serde(default)]
+    pub metadata: Option<StreamChunkMetadata>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -125,6 +155,12 @@ pub struct MessageDelta {
     pub stop_reason: Option<String>,
     #[serde(default)]
     pub stop_sequence: Option<String>,
+    #[serde(default)]
+    pub role: Option<String>,
+    #[serde(default)]
+    pub refusal: Option<String>,
+    #[serde(default)]
+    pub metadata: Option<StreamChunkMetadata>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -148,6 +184,8 @@ pub struct ApiUsage {
     pub service_tier: Option<String>,
     #[serde(default)]
     pub web_search_requests: Option<u64>,
+    #[serde(default)]
+    pub inference_geo: Option<String>,
     // Detailed token breakdowns (chat completions)
     #[serde(default)]
     pub prompt_tokens_details: Option<PromptTokenDetails>,
@@ -258,12 +296,13 @@ mod tests {
 
     #[test]
     fn test_api_usage_cache_fields_deserialise() {
-        let json = r#"{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":200,"cache_read_input_tokens":800}"#;
+        let json = r#"{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":200,"cache_read_input_tokens":800,"inference_geo":"au"}"#;
         let usage: ApiUsage = serde_json::from_str(json).unwrap();
         assert_eq!(usage.input_tokens, Some(100));
         assert_eq!(usage.output_tokens, Some(50));
         assert_eq!(usage.cache_creation_input_tokens, Some(200));
         assert_eq!(usage.cache_read_input_tokens, Some(800));
+        assert_eq!(usage.inference_geo.as_deref(), Some("au"));
         assert!(usage.total_tokens.is_none());
     }
 
@@ -280,10 +319,15 @@ mod tests {
 
     #[test]
     fn test_message_delta_stop_sequence_deserialises() {
-        let json = r#"{"stop_reason":"stop_sequence","stop_sequence":"\n\nHuman:"}"#;
+        let json = r#"{"stop_reason":"stop_sequence","stop_sequence":"\n\nHuman:","role":"assistant","refusal":"no","metadata":{"choice_index":2,"logprobs":{"content":[]}}}"#;
         let delta: MessageDelta = serde_json::from_str(json).unwrap();
         assert_eq!(delta.stop_reason.as_deref(), Some("stop_sequence"));
         assert_eq!(delta.stop_sequence.as_deref(), Some("\n\nHuman:"));
+        assert_eq!(delta.role.as_deref(), Some("assistant"));
+        assert_eq!(delta.refusal.as_deref(), Some("no"));
+        let metadata = delta.metadata.expect("metadata should be present");
+        assert_eq!(metadata.choice_index, Some(2));
+        assert!(metadata.logprobs.is_some());
     }
 
     #[test]
@@ -309,7 +353,8 @@ mod tests {
                 "id":"msg_01XY","type":"message","role":"assistant",
                 "content":[],"model":"model-name-20241022",
                 "stop_reason":null,"stop_sequence":null,
-                "usage":{"input_tokens":25,"output_tokens":1}
+                "usage":{"input_tokens":25,"output_tokens":1},
+                "metadata":{"object":"chat.completion.chunk","created":1741730100,"system_fingerprint":"fp_123","service_tier":"standard"}
             }
         }"#;
         let evt: StreamEvent = serde_json::from_str(json).unwrap();
@@ -326,6 +371,11 @@ mod tests {
                 let usage = message.usage.expect("usage must be present");
                 assert_eq!(usage.input_tokens, Some(25));
                 assert_eq!(usage.output_tokens, Some(1));
+                let metadata = message.metadata.expect("metadata must be present");
+                assert_eq!(metadata.object.as_deref(), Some("chat.completion.chunk"));
+                assert_eq!(metadata.created, Some(1741730100));
+                assert_eq!(metadata.system_fingerprint.as_deref(), Some("fp_123"));
+                assert_eq!(metadata.service_tier.as_deref(), Some("standard"));
             }
             other => panic!("expected MessageStart variant, got {:?}", other),
         }
@@ -380,13 +430,14 @@ mod tests {
         let json = r#"{
             "input_tokens":100,"output_tokens":50,
             "cache_creation_input_tokens":200,"cache_read_input_tokens":800,
-            "service_tier":"standard","web_search_requests":3,
+            "service_tier":"standard","web_search_requests":3,"inference_geo":"au",
             "cache_creation":{"type":"ephemeral","duration":"5m"}
         }"#;
         let usage: ApiUsage = serde_json::from_str(json).unwrap();
         assert_eq!(usage.input_tokens, Some(100));
         assert_eq!(usage.service_tier.as_deref(), Some("standard"));
         assert_eq!(usage.web_search_requests, Some(3));
+        assert_eq!(usage.inference_geo.as_deref(), Some("au"));
         assert!(usage.cache_creation.is_some());
     }
 
@@ -407,5 +458,22 @@ mod tests {
         assert_eq!(completion_details.reasoning_tokens, Some(10));
         assert_eq!(completion_details.accepted_prediction_tokens, Some(5));
         assert_eq!(completion_details.rejected_prediction_tokens, Some(2));
+    }
+
+    #[test]
+    fn test_tool_use_metadata_serialises_when_present() {
+        let block = ContentBlock::ToolUse {
+            id: "call_abc".into(),
+            name: "read_file".into(),
+            input: serde_json::json!({"path":"src/lib.rs"}),
+            metadata: Some(ToolUseMetadata {
+                call_type: Some("function".into()),
+                choice_index: Some(1),
+            }),
+        };
+
+        let json = serde_json::to_value(&block).unwrap();
+        assert_eq!(json["metadata"]["call_type"], "function");
+        assert_eq!(json["metadata"]["choice_index"], 1);
     }
 }

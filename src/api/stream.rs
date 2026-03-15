@@ -1,5 +1,8 @@
 use super::logging::emit_sse_parse_error;
-use crate::types::{ApiUsage, ContentBlock, Delta, MessageDelta, StreamEvent};
+use crate::types::{
+    ApiUsage, ContentBlock, Delta, MessageDelta, MessageStartData, StreamChunkMetadata,
+    StreamEvent, ToolUseMetadata,
+};
 use anyhow::Result;
 use serde::Deserialize;
 
@@ -7,6 +10,7 @@ use serde::Deserialize;
 pub struct StreamParser {
     buffer: Vec<u8>,
     chat_compat_tools: Vec<ChatCompatToolState>,
+    chat_compat_message_started: bool,
 }
 
 #[derive(Default, Clone)]
@@ -168,14 +172,28 @@ impl StreamParser {
             return Some(events);
         }
 
-        let chunk = serde_json::from_str::<ChatCompatChunk>(json_data).ok()?;
+        let mut chunk = serde_json::from_str::<ChatCompatChunk>(json_data).ok()?;
         let mut events = Vec::new();
+        self.emit_chat_compat_message_start(&chunk, &mut events);
 
-        if let Some(usage) = chunk.usage {
+        if let Some(mut usage) = chunk.usage.take() {
+            if usage.service_tier.is_none() {
+                usage.service_tier = chunk.service_tier.clone();
+            }
             events.push(StreamEvent::MessageDelta {
                 delta: MessageDelta {
                     stop_reason: None,
                     stop_sequence: None,
+                    role: None,
+                    refusal: None,
+                    metadata: self.chat_compat_metadata(
+                        chunk.object.clone(),
+                        chunk.created,
+                        chunk.system_fingerprint.clone(),
+                        chunk.service_tier.clone(),
+                        None,
+                        None,
+                    ),
                 },
                 usage: Some(usage),
             });
@@ -186,7 +204,20 @@ impl StreamParser {
         }
 
         for choice in chunk.choices {
-            if let Some(content) = choice.delta.content {
+            let ChatCompatChoice {
+                index: choice_index,
+                delta,
+                finish_reason,
+                logprobs,
+            } = choice;
+            let ChatCompatDelta {
+                role,
+                content,
+                refusal,
+                tool_calls,
+            } = delta;
+
+            if let Some(content) = content {
                 events.push(StreamEvent::ContentBlockDelta {
                     index: 0,
                     delta: Delta {
@@ -195,17 +226,38 @@ impl StreamParser {
                         partial_json: None,
                         thinking: None,
                         signature: None,
+                        choice_index,
                     },
                 });
             }
 
-            if let Some(tool_calls) = choice.delta.tool_calls {
+            if let Some(tool_calls) = tool_calls {
                 for tool_call in tool_calls {
-                    self.apply_chat_compat_tool_delta(tool_call, &mut events);
+                    self.apply_chat_compat_tool_delta(choice_index, tool_call, &mut events);
                 }
             }
 
-            if choice.finish_reason.is_some() {
+            if refusal.is_some() || finish_reason.is_some() || logprobs.is_some() {
+                events.push(StreamEvent::MessageDelta {
+                    delta: MessageDelta {
+                        stop_reason: finish_reason.clone(),
+                        stop_sequence: None,
+                        role,
+                        refusal,
+                        metadata: self.chat_compat_metadata(
+                            chunk.object.clone(),
+                            chunk.created,
+                            chunk.system_fingerprint.clone(),
+                            chunk.service_tier.clone(),
+                            choice_index,
+                            logprobs,
+                        ),
+                    },
+                    usage: None,
+                });
+            }
+
+            if finish_reason.is_some() {
                 self.close_chat_compat_tool_blocks(&mut events);
             }
         }
@@ -213,14 +265,85 @@ impl StreamParser {
         Some(events)
     }
 
+    fn emit_chat_compat_message_start(
+        &mut self,
+        chunk: &ChatCompatChunk,
+        events: &mut Vec<StreamEvent>,
+    ) {
+        if self.chat_compat_message_started {
+            return;
+        }
+
+        let role = chunk
+            .choices
+            .iter()
+            .find_map(|choice| choice.delta.role.clone());
+        let metadata = self.chat_compat_metadata(
+            chunk.object.clone(),
+            chunk.created,
+            chunk.system_fingerprint.clone(),
+            chunk.service_tier.clone(),
+            None,
+            None,
+        );
+        let has_message_fields =
+            chunk.id.is_some() || chunk.model.is_some() || role.is_some() || metadata.is_some();
+        if !has_message_fields {
+            return;
+        }
+
+        events.push(StreamEvent::MessageStart {
+            message: MessageStartData {
+                id: chunk.id.clone().unwrap_or_default(),
+                message_type: None,
+                role: role.unwrap_or_else(|| "assistant".to_string()),
+                model: chunk.model.clone().unwrap_or_default(),
+                content: None,
+                stop_reason: None,
+                stop_sequence: None,
+                usage: None,
+                metadata,
+            },
+        });
+        self.chat_compat_message_started = true;
+    }
+
+    fn chat_compat_metadata(
+        &self,
+        object: Option<String>,
+        created: Option<u64>,
+        system_fingerprint: Option<String>,
+        service_tier: Option<String>,
+        choice_index: Option<usize>,
+        logprobs: Option<serde_json::Value>,
+    ) -> Option<StreamChunkMetadata> {
+        let metadata = StreamChunkMetadata {
+            object,
+            created,
+            system_fingerprint,
+            service_tier,
+            choice_index,
+            logprobs,
+        };
+        (metadata.object.is_some()
+            || metadata.created.is_some()
+            || metadata.system_fingerprint.is_some()
+            || metadata.service_tier.is_some()
+            || metadata.choice_index.is_some()
+            || metadata.logprobs.is_some())
+        .then_some(metadata)
+    }
+
     fn apply_chat_compat_tool_delta(
         &mut self,
+        choice_index: Option<usize>,
         tool_call: ChatCompatToolCallDelta,
         events: &mut Vec<StreamEvent>,
     ) {
         let block_index = tool_call.index.unwrap_or(0) + 1;
         self.ensure_chat_compat_tool_state(block_index);
         let state = &mut self.chat_compat_tools[block_index];
+        let call_type = tool_call.call_type.clone();
 
         if let Some(id) = tool_call.id {
             if !id.is_empty() {
@@ -251,6 +374,13 @@ impl StreamParser {
                     id,
                     name: state.name.clone(),
                     input: serde_json::Value::Object(serde_json::Map::new()),
+                    metadata: Some(ToolUseMetadata {
+                        call_type,
+                        choice_index,
+                    })
+                    .filter(|metadata| {
+                        metadata.call_type.is_some() || metadata.choice_index.is_some()
+                    }),
                 },
             });
             state.started = true;
@@ -266,6 +396,7 @@ impl StreamParser {
                     partial_json: Some(partial_json),
                     thinking: None,
                     signature: None,
+                    choice_index,
                 },
             });
         }
@@ -343,6 +474,62 @@ mod tests {
                 assert_eq!(delta.stop_reason.as_deref(), Some("end_turn"));
                 let usage = usage.as_ref().expect("top-level usage must be present");
                 assert_eq!(usage.output_tokens, Some(15));
+            }
+            other => panic!("expected MessageDelta event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_process_chat_compat_emits_message_start_metadata() {
+        let mut parser = StreamParser::new();
+        let events = parser
+            .process(
+                br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1741730100,"model":"model-name","system_fingerprint":"fp_123","service_tier":"standard","choices":[{"index":0,"delta":{"role":"assistant","content":"hello"},"finish_reason":null}]}
+
+"#,
+            )
+            .unwrap();
+
+        assert_eq!(events.len(), 2);
+        match &events[0] {
+            StreamEvent::MessageStart { message } => {
+                assert_eq!(message.id, "chatcmpl-1");
+                assert_eq!(message.role, "assistant");
+                assert_eq!(message.model, "model-name");
+                let metadata = message
+                    .metadata
+                    .as_ref()
+                    .expect("metadata should be present");
+                assert_eq!(metadata.object.as_deref(), Some("chat.completion.chunk"));
+                assert_eq!(metadata.created, Some(1741730100));
+                assert_eq!(metadata.system_fingerprint.as_deref(), Some("fp_123"));
+                assert_eq!(metadata.service_tier.as_deref(), Some("standard"));
+            }
+            other => panic!("expected MessageStart event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_process_chat_compat_emits_refusal_logprobs_and_choice_index() {
+        let mut parser = StreamParser::new();
+        let events = parser
+            .process(
+                br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":2,"delta":{"role":"assistant","refusal":"cannot comply"},"logprobs":{"content":[]},"finish_reason":"stop"}]}
+
+"#,
+            )
+            .unwrap();
+
+        assert_eq!(events.len(), 2);
+        match &events[1] {
+            StreamEvent::MessageDelta { delta, usage } => {
+                assert!(usage.is_none());
+                assert_eq!(delta.stop_reason.as_deref(), Some("stop"));
+                assert_eq!(delta.role.as_deref(), Some("assistant"));
+                assert_eq!(delta.refusal.as_deref(), Some("cannot comply"));
+                let metadata = delta.metadata.as_ref().expect("metadata should be present");
+                assert_eq!(metadata.choice_index, Some(2));
+                assert!(metadata.logprobs.is_some());
             }
             other => panic!("expected MessageDelta event, got {other:?}"),
         }

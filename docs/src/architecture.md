@@ -14,6 +14,23 @@ Most interactive application coordination still lives in `src/app.rs`. The runti
 - `src/batch_mode.rs` runs the same runtime headlessly for `vex exec` and writes JSONL or text output.
 - `src/runtime/` contains the reusable runtime machinery: context assembly, the edit loop, command and sandbox plumbing, project instructions, task state, and validation.
 
+## Streaming protocol coverage
+
+The shared SSE parser in `src/api/stream.rs` and the normalized type surface in
+`src/types/api_types.rs` preserve documented streaming values from both
+`messages-v1` and `chat-compat` backends.
+
+- heartbeats and structured stream errors
+- text, input-json, thinking, and signature deltas
+- citations, server-tool blocks, and web-search tool results
+- normalized usage totals plus cache, geography, and token-detail metadata
+- chat-compat chunk metadata such as service tier, system fingerprint, refusal
+  text, logprobs, choice indexes, and tool-call type
+
+Not every metadata field is rendered in the interactive transcript today, but
+the parser keeps those values in the normalized event surface instead of
+dropping them during protocol conversion.
+
 ## Ongoing boundary work
 
 The long-term architecture work is tracked in the ADR set under `adr/`.

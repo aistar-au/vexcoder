@@ -491,7 +491,9 @@ fn append_chat_compat_message(out: &mut Vec<Value>, message: &ApiMessage) {
             for block in blocks {
                 match block {
                     ContentBlock::Text { text, .. } => content.push_str(text),
-                    ContentBlock::ToolUse { id, name, input } => {
+                    ContentBlock::ToolUse {
+                        id, name, input, ..
+                    } => {
                         tool_calls.push(json!({
                             "id": id,
                             "type": "function",

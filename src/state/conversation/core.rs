@@ -114,7 +114,9 @@ impl ConversationManager {
                                         );
                                         deferred_text_block_indices.insert(index);
                                     }
-                                    ContentBlock::ToolUse { id, name, input } => {
+                                    ContentBlock::ToolUse {
+                                        id, name, input, ..
+                                    } => {
                                         self.flush_deferred_thinking_blocks(
                                             &mut deferred_text_block_indices,
                                             stream_delta_tx,
@@ -322,12 +324,16 @@ impl ConversationManager {
                             id: format!("toolu_tagged_{rounds}_{index}"),
                             name: call.name,
                             input: call.input,
+                            metadata: None,
                         })
                         .collect();
                     if use_structured_blocks {
                         let fallback_start_index = self.current_turn_blocks.len();
                         for (offset, block) in tool_use_blocks.iter().enumerate() {
-                            if let ContentBlock::ToolUse { id, name, input } = block {
+                            if let ContentBlock::ToolUse {
+                                id, name, input, ..
+                            } = block
+                            {
                                 self.upsert_turn_block(
                                     fallback_start_index + offset,
                                     StreamBlock::ToolCall {
@@ -473,7 +479,10 @@ impl ConversationManager {
             let mut tool_result_blocks = Vec::new();
             let mut text_protocol_tool_results = Vec::new();
             for block in tool_use_blocks {
-                if let ContentBlock::ToolUse { id, name, input } = block {
+                if let ContentBlock::ToolUse {
+                    id, name, input, ..
+                } = block
+                {
                     if let Some(clarification) = missing_mutating_location_prompt(&name, &input) {
                         if use_structured_blocks {
                             self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
