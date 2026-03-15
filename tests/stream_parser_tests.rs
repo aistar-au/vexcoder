@@ -181,7 +181,9 @@ fn test_chat_compat_state_reset_after_done() {
 
 "#;
     let events2 = parser.process(chunk2).expect("second message");
-    let has_message_start = events2.iter().any(|e| matches!(e, StreamEvent::MessageStart { .. }));
+    let has_message_start = events2
+        .iter()
+        .any(|e| matches!(e, StreamEvent::MessageStart { .. }));
     assert!(
         has_message_start,
         "second message should emit MessageStart after [DONE]"
