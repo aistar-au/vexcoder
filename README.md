@@ -17,7 +17,6 @@ mdbook serve docs
 - [Installation — macOS, Linux, Windows](docs/src/installation/index.md)
 - [Configuration](docs/src/configuration.md)
 - [CLI and TUI Commands](docs/src/commands.md)
-- [Migration Guide](docs/src/migration.md)
 
 Architecture records live under [`adr/`](adr/ADR-README.md). They are kept in
 the repository for design history, but are not part of the published user

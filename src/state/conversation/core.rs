@@ -114,7 +114,9 @@ impl ConversationManager {
                                         );
                                         deferred_text_block_indices.insert(index);
                                     }
-                                    ContentBlock::ToolUse { id, name, input } => {
+                                    ContentBlock::ToolUse {
+                                        id, name, input, ..
+                                    } => {
                                         self.flush_deferred_thinking_blocks(
                                             &mut deferred_text_block_indices,
                                             stream_delta_tx,
@@ -131,6 +133,10 @@ impl ConversationManager {
                                         );
                                     }
                                     ContentBlock::ToolResult { .. } => {}
+                                    ContentBlock::Thinking { .. }
+                                    | ContentBlock::RedactedThinking { .. } => {}
+                                    ContentBlock::ServerToolUse { .. }
+                                    | ContentBlock::WebSearchToolResult { .. } => {}
                                 }
                             } else if stream_server_events {
                                 let event_label = match &content_block {
@@ -140,6 +146,18 @@ impl ConversationManager {
                                     }
                                     ContentBlock::ToolResult { .. } => {
                                         format!("\n* Event: tool_result_block#{index}\n")
+                                    }
+                                    ContentBlock::Thinking { .. } => {
+                                        "\n* Event: thinking_block\n".to_string()
+                                    }
+                                    ContentBlock::RedactedThinking { .. } => {
+                                        "\n* Event: redacted_thinking_block\n".to_string()
+                                    }
+                                    ContentBlock::ServerToolUse { name, .. } => {
+                                        format!("\n* Event: server_tool_use({name})\n")
+                                    }
+                                    ContentBlock::WebSearchToolResult { .. } => {
+                                        "\n* Event: web_search_tool_result\n".to_string()
                                     }
                                 };
                                 emit_text_update(stream_delta_tx, event_label);
@@ -249,8 +267,8 @@ impl ConversationManager {
                                 );
                             }
                         }
-                        StreamEvent::MessageDelta { delta } => {
-                            accumulate_usage(&mut turn_tokens, delta.usage.as_ref());
+                        StreamEvent::MessageDelta { delta, usage } => {
+                            accumulate_usage(&mut turn_tokens, usage.as_ref());
                             if !use_structured_blocks && stream_server_events {
                                 let stop_reason =
                                     delta.stop_reason.unwrap_or_else(|| "none".to_string());
@@ -265,6 +283,15 @@ impl ConversationManager {
                                 emit_text_update(
                                     stream_delta_tx,
                                     "\n* Event: message_stop\n".to_string(),
+                                );
+                            }
+                        }
+                        StreamEvent::Ping => {}
+                        StreamEvent::Error { error } => {
+                            if !use_structured_blocks && stream_server_events {
+                                emit_text_update(
+                                    stream_delta_tx,
+                                    format!("\n* Event: stream_error type={}\n", error.error_type),
                                 );
                             }
                         }
@@ -297,12 +324,16 @@ impl ConversationManager {
                             id: format!("toolu_tagged_{rounds}_{index}"),
                             name: call.name,
                             input: call.input,
+                            metadata: None,
                         })
                         .collect();
                     if use_structured_blocks {
                         let fallback_start_index = self.current_turn_blocks.len();
                         for (offset, block) in tool_use_blocks.iter().enumerate() {
-                            if let ContentBlock::ToolUse { id, name, input } = block {
+                            if let ContentBlock::ToolUse {
+                                id, name, input, ..
+                            } = block
+                            {
                                 self.upsert_turn_block(
                                     fallback_start_index + offset,
                                     StreamBlock::ToolCall {
@@ -388,6 +419,7 @@ impl ConversationManager {
                             &assistant_text_for_history,
                             limits.max_assistant_history_chars,
                         ),
+                        citations: None,
                     });
                 }
                 assistant_content_blocks.extend(tool_use_blocks.clone());
@@ -447,7 +479,10 @@ impl ConversationManager {
             let mut tool_result_blocks = Vec::new();
             let mut text_protocol_tool_results = Vec::new();
             for block in tool_use_blocks {
-                if let ContentBlock::ToolUse { id, name, input } = block {
+                if let ContentBlock::ToolUse {
+                    id, name, input, ..
+                } = block
+                {
                     if let Some(clarification) = missing_mutating_location_prompt(&name, &input) {
                         if use_structured_blocks {
                             self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);

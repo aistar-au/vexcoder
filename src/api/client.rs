@@ -490,8 +490,10 @@ fn append_chat_compat_message(out: &mut Vec<Value>, message: &ApiMessage) {
 
             for block in blocks {
                 match block {
-                    ContentBlock::Text { text } => content.push_str(text),
-                    ContentBlock::ToolUse { id, name, input } => {
+                    ContentBlock::Text { text, .. } => content.push_str(text),
+                    ContentBlock::ToolUse {
+                        id, name, input, ..
+                    } => {
                         tool_calls.push(json!({
                             "id": id,
                             "type": "function",
@@ -501,7 +503,11 @@ fn append_chat_compat_message(out: &mut Vec<Value>, message: &ApiMessage) {
                             }
                         }));
                     }
-                    ContentBlock::ToolResult { .. } => {}
+                    ContentBlock::ToolResult { .. }
+                    | ContentBlock::Thinking { .. }
+                    | ContentBlock::RedactedThinking { .. }
+                    | ContentBlock::ServerToolUse { .. }
+                    | ContentBlock::WebSearchToolResult { .. } => {}
                 }
             }
 
@@ -533,14 +539,18 @@ fn append_chat_compat_message(out: &mut Vec<Value>, message: &ApiMessage) {
                         }));
                         pushed = true;
                     }
-                    ContentBlock::Text { text } => {
+                    ContentBlock::Text { text, .. } => {
                         out.push(json!({
                             "role": role,
                             "content": text
                         }));
                         pushed = true;
                     }
-                    ContentBlock::ToolUse { .. } => {}
+                    ContentBlock::ToolUse { .. }
+                    | ContentBlock::Thinking { .. }
+                    | ContentBlock::RedactedThinking { .. }
+                    | ContentBlock::ServerToolUse { .. }
+                    | ContentBlock::WebSearchToolResult { .. } => {}
                 }
             }
 

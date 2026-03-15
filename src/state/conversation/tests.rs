@@ -76,6 +76,7 @@ fn test_read_only_tool_round_helpers() {
         id: "tool_1".to_string(),
         name: "read_file".to_string(),
         input: json!({"path":"src/app/mod.rs"}),
+        metadata: None,
     }];
     assert!(is_read_only_tool_round(&read_round));
 
@@ -83,6 +84,7 @@ fn test_read_only_tool_round_helpers() {
         id: "tool_git".to_string(),
         name: "git_diff".to_string(),
         input: json!({}),
+        metadata: None,
     }];
     assert!(is_read_only_tool_round(&git_read_round));
 
@@ -90,6 +92,7 @@ fn test_read_only_tool_round_helpers() {
         id: "tool_2".to_string(),
         name: "write_file".to_string(),
         input: json!({"path":"src/app/mod.rs","content":"x"}),
+        metadata: None,
     }];
     assert!(!is_read_only_tool_round(&write_round));
 
@@ -101,6 +104,7 @@ fn test_read_only_tool_round_helpers() {
         id: "tool_3".to_string(),
         name: "read_file".to_string(),
         input: json!({"path":"src/state/conversation.rs"}),
+        metadata: None,
     }];
     let sig_c = tool_round_signature(&changed_read_round);
     assert_ne!(sig_a, sig_c);
@@ -199,10 +203,13 @@ data: {"type": "message_stop"}"#.to_string(),
     assert_eq!(messages[1].role, "assistant");
     if let Content::Blocks(blocks) = &messages[1].content {
         assert_eq!(blocks.len(), 2);
-        if let ContentBlock::Text { text } = &blocks[0] {
+        if let ContentBlock::Text { text, .. } = &blocks[0] {
             assert!(text.contains("Okay, I can help with that."));
         }
-        if let ContentBlock::ToolUse { id: _, name, input } = &blocks[1] {
+        if let ContentBlock::ToolUse {
+            id: _, name, input, ..
+        } = &blocks[1]
+        {
             assert_eq!(name, "read_file");
             assert_eq!(input, &json!({ "path": "file.txt" }));
         }
@@ -229,7 +236,7 @@ data: {"type": "message_stop"}"#.to_string(),
     assert_eq!(messages[3].role, "assistant");
     if let Content::Blocks(blocks) = &messages[3].content {
         assert_eq!(blocks.len(), 1);
-        if let ContentBlock::Text { text } = &blocks[0] {
+        if let ContentBlock::Text { text, .. } = &blocks[0] {
             assert!(text.contains("The content of file.txt is 'Hello from file.txt'"));
         }
     }
@@ -2094,6 +2101,7 @@ fn test_prune_message_history_skips_leading_tool_result_user_message() {
                 id: "tool_1".to_string(),
                 name: "read_file".to_string(),
                 input: json!({"path":"src/lib.rs"}),
+                metadata: None,
             }]),
         },
         ApiMessage {

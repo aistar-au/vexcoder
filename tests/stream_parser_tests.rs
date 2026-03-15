@@ -62,7 +62,9 @@ fn test_tool_use_start_without_input_is_accepted() {
         } => {
             assert_eq!(*index, 1);
             match content_block {
-                ContentBlock::ToolUse { id, name, input } => {
+                ContentBlock::ToolUse {
+                    id, name, input, ..
+                } => {
                     assert_eq!(id, "toolu_123");
                     assert_eq!(name, "write_file");
                     assert_eq!(input, &serde_json::json!({}));
@@ -84,11 +86,20 @@ fn test_chat_compat_tool_call_stream_maps_to_unified_events() {
     let events1 = parser
         .process(chunk1)
         .expect("chat-compat content delta should parse");
-    assert_eq!(events1.len(), 1);
+    assert_eq!(events1.len(), 2);
     match &events1[0] {
+        StreamEvent::MessageStart { message } => {
+            assert_eq!(message.id, "chatcmpl-1");
+            assert_eq!(message.role, "assistant");
+            assert!(message.metadata.is_some());
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+    match &events1[1] {
         StreamEvent::ContentBlockDelta { index, delta } => {
             assert_eq!(*index, 0);
             assert_eq!(delta.text.as_deref(), Some("Reading file now. "));
+            assert_eq!(delta.choice_index, Some(0));
         }
         other => panic!("unexpected event: {other:?}"),
     }
@@ -99,7 +110,7 @@ fn test_chat_compat_tool_call_stream_maps_to_unified_events() {
     let events2 = parser
         .process(chunk2)
         .expect("chat-compat tool call delta should parse");
-    assert_eq!(events2.len(), 3);
+    assert_eq!(events2.len(), 4);
 
     match &events2[0] {
         StreamEvent::ContentBlockStart {
@@ -108,9 +119,14 @@ fn test_chat_compat_tool_call_stream_maps_to_unified_events() {
         } => {
             assert_eq!(*index, 1);
             match content_block {
-                ContentBlock::ToolUse { id, name, .. } => {
+                ContentBlock::ToolUse {
+                    id, name, metadata, ..
+                } => {
                     assert_eq!(id, "call_abc");
                     assert_eq!(name, "read_file");
+                    let metadata = metadata.as_ref().expect("tool metadata should be present");
+                    assert_eq!(metadata.call_type.as_deref(), Some("function"));
+                    assert_eq!(metadata.choice_index, Some(0));
                 }
                 other => panic!("unexpected block: {other:?}"),
             }
@@ -122,11 +138,22 @@ fn test_chat_compat_tool_call_stream_maps_to_unified_events() {
         StreamEvent::ContentBlockDelta { index, delta } => {
             assert_eq!(*index, 1);
             assert_eq!(delta.partial_json.as_deref(), Some("{\"path\":\"cal.rs\"}"));
+            assert_eq!(delta.choice_index, Some(0));
         }
         other => panic!("unexpected event: {other:?}"),
     }
 
     match &events2[2] {
+        StreamEvent::MessageDelta { delta, usage } => {
+            assert!(usage.is_none());
+            assert_eq!(delta.stop_reason.as_deref(), Some("tool_calls"));
+            let metadata = delta.metadata.as_ref().expect("metadata should be present");
+            assert_eq!(metadata.choice_index, Some(0));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    match &events2[3] {
         StreamEvent::ContentBlockStop { index } => assert_eq!(*index, 1),
         other => panic!("unexpected event: {other:?}"),
     }
