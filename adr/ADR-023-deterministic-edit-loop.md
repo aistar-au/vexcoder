@@ -713,6 +713,31 @@ When checking a box above, append an evidence block under this section:
     - `/commands` renders from the live `SLASH_COMMANDS` registration table.
     - `/help` remains an alias to the same handler, and the anchor tests verify neither path starts a model turn.
 
+### Milestone-1 validation gate - ADR-023 command-surface regression pass
+- Dispatcher: coding agent
+- Branch: `dispatcher/vexcoder-adr-022-m1-validation-gate`
+- Base: `origin/main` @ `feb8d4db161a0a72bf5134a6d88e187a576190d5`
+- Scope:
+    - validate the completed ADR-023 command surface against the ADR-022 milestone-1 gate
+    - confirm `/review` and `/plan` stay single-turn, read-only commands
+    - confirm `/context`, `/commands`, and `/help` remain zero-turn paths
+- Validation:
+    - `cargo test --all-targets` : pass
+    - `make gate-fast` : pass
+    - `check_no_alternate_routing.sh` : pass
+    - `check_forbidden_imports.sh` : pass
+    - `check_forbidden_names.sh` : pass
+    - `cargo test test_tui_review_ --all-targets` : pass
+    - `cargo test test_tui_plan_ --all-targets` : pass
+    - `cargo test test_tui_context_ --all-targets` : pass
+    - `cargo test test_tui_commands_ --all-targets` : pass
+    - `cargo test test_tui_help_is_alias_for_commands --all-targets` : pass
+    - `cargo test test_commands_output_does_not_call_start_turn --all-targets` : pass
+- Notes:
+    - `/review` continues to assemble diff or file context, silently drops any `PendingPatch`, and never starts an `EditLoop`.
+    - `/plan` continues to assemble scope context, produce a single read-only planning turn, and silently drops any `PendingPatch`.
+    - `/context`, `/commands`, and `/help` all remain non-model-turn transcript renders, so the milestone gate found no zero-turn regressions after the EL-12/EL-13 closeout and stream-parser follow-up merges.
+
 ---
 
 ## Task sequence and anchor tests
