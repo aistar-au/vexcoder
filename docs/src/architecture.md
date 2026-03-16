@@ -2,7 +2,7 @@
 
 VexCoder currently has two operator-facing surfaces in the source tree:
 
-- the interactive terminal UI started by `src/bin/vex.rs`
+- the interactive CLI UI started by `src/bin/vex.rs`
 - the non-interactive batch runner in `src/batch_mode.rs`
 
 Most interactive application coordination still lives in `src/app.rs`. The runtime core lives under `src/runtime/`, including context assembly, the edit loop, command execution, validation, and task state.
