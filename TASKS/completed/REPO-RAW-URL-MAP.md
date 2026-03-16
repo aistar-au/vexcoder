@@ -44,7 +44,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 33 | `adr/ADR-026-localapiserver-transport-binding.md` | ~753 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-026-localapiserver-transport-binding.md> |
 | 34 | `adr/ADR-027-full-screen-tui-command-session-capture.md` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-027-full-screen-tui-command-session-capture.md> |
 | 35 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | ~309 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-028-application-facade-and-transport-boundaries.md> |
-| 36 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | ~524 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-029-stream-parser-completeness-and-session-persistence.md> |
+| 36 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | ~525 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-029-stream-parser-completeness-and-session-persistence.md> |
 | 37 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | ~413 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md> |
 | 38 | `adr/ADR-README.md` | ~57 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 39 | `adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
