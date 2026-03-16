@@ -1534,7 +1534,9 @@ mod tests {
         let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
 
         mode.on_user_input("review src/local_api.rs".to_string(), &mut ctx);
-        let _: RuntimeEnvelope = serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        let start: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        assert!(matches!(start.event, RuntimeEvent::TurnStart { .. }));
         mode.on_model_update(UiUpdate::Error("stream failed".to_string()), &mut ctx);
 
         let error: RuntimeEnvelope =
