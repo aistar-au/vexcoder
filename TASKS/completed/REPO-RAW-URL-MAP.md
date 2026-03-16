@@ -17,7 +17,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 6 | `.github/workflows/docs-build.yml` | ~46 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/docs-build.yml> |
 | 7 | `.github/workflows/release.yml` | ~229 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/release.yml> |
 | 8 | `.gitignore` | ~36 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitignore> |
-| 9 | `AGENTS.md` | ~167 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/AGENTS.md> |
+| 9 | `AGENTS.md` | ~175 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/AGENTS.md> |
 | 10 | `CONTRIBUTING.md` | ~249 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
 | 11 | `Cargo.lock` | ~2867 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.lock> |
 | 12 | `Cargo.toml` | ~54 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.toml> |
@@ -121,7 +121,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 110 | `src/export.rs` | ~207 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/export.rs> |
 | 111 | `src/git_hooks.rs` | ~277 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/git_hooks.rs> |
 | 112 | `src/lib.rs` | ~27 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/lib.rs> |
-| 113 | `src/local_api.rs` | ~1201 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/local_api.rs> |
+| 113 | `src/local_api.rs` | ~1608 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/local_api.rs> |
 | 114 | `src/prompts.rs` | ~184 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/prompts.rs> |
 | 115 | `src/prompts/coder_system.txt` | ~6 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/prompts/coder_system.txt> |
 | 116 | `src/prompts/edit_template.txt` | ~8 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/prompts/edit_template.txt> |

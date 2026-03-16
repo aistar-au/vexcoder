@@ -1289,7 +1289,11 @@ mod tests {
         std::fs::create_dir_all(repo_root.join(".vex")).unwrap();
         std::fs::create_dir_all(repo_root.join(".git")).unwrap();
         std::fs::create_dir_all(&cwd).unwrap();
-        std::fs::write(repo_root.join(".vex/config.toml"), "[api]\nvpn_trust = true\n").unwrap();
+        std::fs::write(
+            repo_root.join(".vex/config.toml"),
+            "[api]\nvpn_trust = true\n",
+        )
+        .unwrap();
 
         let error = Config::load_for_tests(&cwd, None, None).unwrap_err();
         assert!(
