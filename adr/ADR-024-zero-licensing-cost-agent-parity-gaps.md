@@ -1535,9 +1535,9 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-07** | `/mcp show <server>` — renders full-namespace tool names for named server | [ ] |
 | **PI-08** | `/plan` and `/context` — see ADR-023 EL-11/EL-12 (tracked there; listed here for cross-ref) | [ ] |
 | **PI-09** | Canonical runtime JSON handoff types in `src/runtime/json_handoff.rs`, including `RuntimeRequest`, `RuntimeEnvelope`, `RuntimeEvent`, `TokenUsageEnvelope`, `ValidationOutputEnvelope`, and `grammars/tool_call.gbnf` | [x] |
-| **PI-10** | Normalization layer from provider/native stream updates into canonical runtime envelopes; runtime owns `ToolCall.id`; provider ids do not cross the canonical boundary | [ ] |
+| **PI-10** | Normalization layer from provider/native stream updates into canonical runtime envelopes; runtime owns `ToolCall.id`; provider ids do not cross the canonical boundary | [x] |
 | **PI-11** | `schemas/runtime_envelope_v1.json` and `schemas/runtime_request_v1.json`, including MCP tool-name namespace validation and approval request variants | [x] |
-| **PI-12** | Serde round-trip, schema parity, grammar parity, and BatchMode-derivation tests for the canonical envelope stream | [ ] |
+| **PI-12** | Serde round-trip, schema parity, grammar parity, and BatchMode-derivation tests for the canonical envelope stream | [x] |
 | **PI-13** | `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [ ] |
 | **PI-14** | `GET /v1/schema` serving the ADR-025 schema bundle; exempt from envelope validation | [ ] |
 | **PI-15** | Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, explicit loopback detection (`127.0.0.0/8`, `::1`, `localhost` resolving only to loopback), minimum TLS version 1.2 with 1.3 preferred, private-network certificate support (self-signed/internal-CA/public-CA), `tls_cert`/`tls_key` PEM and key-match validation, `tls_ca_cert` operator trust-bundle support, explicit `tls_skip_verify` rejection, reserved `vpn_trust` config guard, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` HTTP-vs-Unix split, config guards, and repo-local secret rejection | [ ] |

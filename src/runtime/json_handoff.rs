@@ -567,8 +567,9 @@ fn runtime_approval_request_event(request: &ToolApprovalRequest) -> RuntimeEvent
 fn capability_name_for_tool(tool_name: &str) -> Option<&'static str> {
     match tool_name {
         "read_file" | "list_files" | "list_directory" | "search" | "search_files"
-        | "search_content" | "find_files" | "git_status" | "git_diff" | "git_log"
-        | "git_show" => Some("read-file"),
+        | "search_content" | "find_files" | "git_status" | "git_diff" | "git_log" | "git_show" => {
+            Some("read-file")
+        }
         "write_file" | "edit_file" | "rename_file" => Some("write-file"),
         "apply_patch" | "git_add" | "git_commit" => Some("apply-patch"),
         "run_command" => Some("run-command"),
@@ -688,7 +689,11 @@ mod tests {
             .expect("tool call envelope");
 
         let runtime_call_id = match &tool_call.event {
-            RuntimeEvent::ToolCall { id, name, arguments } => {
+            RuntimeEvent::ToolCall {
+                id,
+                name,
+                arguments,
+            } => {
                 assert_ne!(id, "provider-call-1");
                 assert_runtime_tool_id(id);
                 assert_eq!(name, "write_file");
@@ -817,14 +822,12 @@ mod tests {
         let mut envelopes = Vec::new();
 
         envelopes.push(normalizer.start_turn(1, Some("inspect src/main.rs".to_string())));
-        envelopes.extend(normalizer.normalize_ui_update(
-            &UiUpdate::StreamDelta("hello ".to_string()),
-            None,
-        ));
-        envelopes.extend(normalizer.normalize_ui_update(
-            &UiUpdate::StreamDelta("world".to_string()),
-            None,
-        ));
+        envelopes.extend(
+            normalizer.normalize_ui_update(&UiUpdate::StreamDelta("hello ".to_string()), None),
+        );
+        envelopes.extend(
+            normalizer.normalize_ui_update(&UiUpdate::StreamDelta("world".to_string()), None),
+        );
         envelopes.extend(normalizer.normalize_stream_block(&StreamBlock::ToolCall {
             id: "provider-1".to_string(),
             name: "git_commit".to_string(),
@@ -917,7 +920,10 @@ mod tests {
         assert_eq!(derived.turns[0].tokens.input, 10);
         assert_eq!(derived.turns[0].tokens.output, 5);
         assert_eq!(derived.turns[1].response, "fallback");
-        assert_eq!(derived.turns[1].changed_files, vec!["src/second.rs".to_string()]);
+        assert_eq!(
+            derived.turns[1].changed_files,
+            vec!["src/second.rs".to_string()]
+        );
         assert_eq!(
             derived.summary.expect("summary").status,
             "completed".to_string()
@@ -952,7 +958,13 @@ mod tests {
             TurnEndContext::default(),
         );
         assert_eq!(terminal.len(), 2);
-        assert!(matches!(terminal[0].event, RuntimeEvent::Error { recoverable: false, .. }));
+        assert!(matches!(
+            terminal[0].event,
+            RuntimeEvent::Error {
+                recoverable: false,
+                ..
+            }
+        ));
         assert!(matches!(
             terminal[1].event,
             RuntimeEvent::TurnEnd { ref status, .. } if status == "failed"
