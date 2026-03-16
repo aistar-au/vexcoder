@@ -4,6 +4,8 @@
 > They live in the `.agents` tree of the adjacent private repo **`vexdraft`**.  
 > On a **local checkout**, agent skills are loaded from `../vexdraft/.agents/skills/`.  
 > When running on **GitHub.com** or any remote environment, the dispatcher fetches skills from the `aistar-au/vexdraft` repository (the same `.agents` path) and loads them automatically.  
+> If that adjacent checkout is missing but the GitHub repo-files MCP server is already enabled, clone or fetch `aistar-au/vexdraft` through the repo-files API first, then load `.agents/skills/` from the fetched `vexdraft` tree before doing any other work.  
+> That bootstrap step still applies when the agent session was spawned from a `vexdraft` branch or worktree; loading skills from `vexdraft/.agents` is still mandatory.  
 > There is no `.agents/` directory in this repo; do **not** probe or create one.  
 > This file is step zero; loading skills from `vexdraft` (locally or remotely) is step one.
 
@@ -31,6 +33,12 @@ dispatcher-owned workflows cannot be verified from this repo alone.
 When running on GitHub.com or another remote environment, the dispatcher
 implicitly fetches the `vexdraft` repository and does not rely on a
 neighboring checkout.
+
+If the remote environment starts without that adjacent checkout but already has
+the repo-files MCP server enabled, use it to clone or fetch `aistar-au/vexdraft`
+before reading any skill file. Do not skip bootstrap just because the current
+agent was launched from a `vexdraft` branch context; loading the private skill
+tree remains a hard prerequisite.
 
 ## Session start sync (required)
 
