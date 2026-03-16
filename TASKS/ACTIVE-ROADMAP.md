@@ -14,7 +14,7 @@ Current task-dispatch dependency state:
 | `ADR-022` | Proposed | Free/open roadmap target and config/interface decision surface. |
 | `ADR-023` | Locked | `EL-08` through `EL-13` are now on `main`. The ADR-023 implementation track is complete; milestone-1 validation has passed and the post-gate ADR-025 Phase I work is now active. |
 | `ADR-024` | Proposed | Parity-gap inventory, command surface, and deferred work. |
-| `ADR-025` | Proposed | Phase I kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) are now implemented on the active dispatcher branch; ADR-026 is the next dependency-sequenced transport batch after ADR-024 reconciliation. |
+| `ADR-025` | Proposed | Phase I kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) are now implemented on the active dispatcher branch; ADR-026 `PI-13` and `PI-14` are now implemented, and `PI-15` is the next dependency-sequenced transport/security batch. |
 | `ADR-026` | Proposed | `PI-13` and `PI-14` are now implemented on the active dispatcher branch; `PI-15` is the next dependency-sequenced transport/security batch. |
 | `ADR-027` | Accepted | Defines the current full-screen TUI with command-session capture; supersedes the ADR-018/019 path. |
 | `ADR-028` | Proposed | Defines the application facade and transport boundary that later CLI and LocalApiServer refactors must follow. |
