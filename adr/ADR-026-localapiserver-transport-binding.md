@@ -677,7 +677,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
   - Added Unix-socket transport with stale-socket cleanup, `0600` permissions, and clean-shutdown removal while keeping HTTP and Unix auth rules split under `transport = "both"`.
 
 ### [PI-16] - Transport validation coverage
-- Dispatcher: `copilot/debug-update-documentation`
+- Dispatcher: `work/pr-108`
 - Commit: `962ed933d8e0ab3b705ad14f9902db9654d28117`
 - Files changed:
   - `src/local_api.rs` (+269 -10)
