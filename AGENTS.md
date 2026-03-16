@@ -114,8 +114,8 @@ for the broader open-ADR list.
 | ADR-022 | Proposed, with 2026-03-13 amendment | Sets the free/open roadmap target that the private dispatcher skills are validating against. |
 | ADR-023 | Locked | `EL-08` through `EL-13` are now on `main`. The ADR-023 implementation track is complete; milestone-1 validation has passed and the post-gate ADR-025 Phase I work is now active. |
 | ADR-024 | Proposed | Defines gap work around layered config, MCP, skills, export, and related parity surface. |
-| ADR-025 | Proposed | Phase I kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) are now implemented on the active dispatcher branch; ADR-026 `PI-13` and `PI-14` are now implemented, and `PI-15` is the next dependency-sequenced transport/security batch. |
-| ADR-026 | Proposed | Follows ADR-025 closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); `PI-13` and `PI-14` are now implemented on the active dispatcher branch, and `PI-15` is the next dependency-sequenced transport/security batch. |
+| ADR-025 | Proposed | Phase I kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) are now implemented on the active dispatcher branch; ADR-026 `PI-13` through `PI-15` are now implemented, and `PI-16` is the next dependency-sequenced validation batch. |
+| ADR-026 | Proposed | Follows ADR-025 closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); `PI-13` through `PI-15` are now implemented on the active dispatcher branch, and `PI-16` is the next dependency-sequenced validation batch. |
 | ADR-027 | Accepted | Full-screen TUI with command-session capture, concurrent validation, and current follow-up limits. Supersedes ADR-018 and ADR-019. |
 | ADR-028 | Proposed | Defines the application facade and transport boundary so future CLI and LocalApiServer work does not extend `src/app.rs` or `src/bin/vex.rs` as permanent convergence points. |
 | ADR-029 | Proposed | Defines stream parser completeness across `messages-v1` and `chat-compat`, including metadata retention for usage, chunk, choice, and tool-call fields plus task-state plan/note/cache persistence. |

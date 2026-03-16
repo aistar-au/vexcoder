@@ -617,7 +617,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
 |----|------|--------|
 | **PI-13** | Implement `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [x] |
 | **PI-14** | Implement `GET /v1/schema` serving ADR-025 schema bundle; exempt from envelope validation | [x] |
-| **PI-15** | Add Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, explicit loopback detection (`127.0.0.0/8`, `::1`, `localhost` resolving only to loopback), minimum TLS version 1.2 with 1.3 preferred, private-network certificate support (self-signed/internal-CA/public-CA), `tls_cert`/`tls_key` PEM and key-match validation, `tls_ca_cert` operator trust-bundle support, explicit `tls_skip_verify` rejection, reserved `vpn_trust` config guard, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` HTTP-vs-Unix split, config guards, and repo-local secret rejection | [ ] |
+| **PI-15** | Add Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, explicit loopback detection (`127.0.0.0/8`, `::1`, `localhost` resolving only to loopback), minimum TLS version 1.2 with 1.3 preferred, private-network certificate support (self-signed/internal-CA/public-CA), `tls_cert`/`tls_key` PEM and key-match validation, `tls_ca_cert` operator trust-bundle support, explicit `tls_skip_verify` rejection, reserved `vpn_trust` config guard, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` HTTP-vs-Unix split, config guards, and repo-local secret rejection | [x] |
 | **PI-16** | Add integration tests for SSE stream order, SSE keepalive emission, auth failures (`401` for missing/invalid token), loopback classification (`127.0.0.1`, other `127/8`, `::1`, and `localhost`), non-loopback-without-TLS rejection, TLS 1.2 minimum enforcement, `tls_cert`/`tls_key` mismatch rejection, `tls_skip_verify=true` rejection, `vpn_trust=true` rejection until a dedicated ADR exists, schema validation, mid-stream runtime error, `MaxTurnsReached` sequence, `POST /v1/interrupt` with unknown task id returns `404`, `POST /v1/approve` with unknown task id returns `404` and with no pending approval returns `409`, and reconnect/new-turn behavior | [ ] |
 
 ### [PI-13] - HTTP transport adapter
@@ -652,6 +652,29 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
 - Notes:
   - Added `GET /v1/schema` to serve the versioned ADR-025 request and envelope schema bundle as pre-flight metadata rather than a runtime envelope.
   - Added focused local API tests covering health, schema, approval projection, and interrupt-to-cancelled turn behavior.
+
+### [PI-15] - Transport security and Unix socket binding
+- Dispatcher: `dispatcher/vexcoder-adr-026-phase-2-pi-15`
+- Commit: `039148d1e5edef373661a0b89ea642f285388c40`
+- Files changed:
+  - `src/local_api.rs` (+527 -11)
+  - `src/config.rs` (+309 -1)
+  - `src/bin/vex.rs` (+15 -6)
+  - `Cargo.toml` (+15 -0)
+  - `Cargo.lock` (+295 -0)
+  - `src/api/client.rs` (+3 -0)
+  - `src/app/tests.rs` (+2 -0)
+  - `src/batch_mode.rs` (+4 -0)
+  - `tests/integration_test.rs` (+3 -0)
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+  - Added layered `api.*` config parsing for `transport`, `host`, `port`, `socket`, bearer token, TLS material, and the reserved Phase I guards.
+  - Added HTTP bearer-auth enforcement, strict loopback detection, TLS-required non-loopback TCP startup validation, and TLS PEM/key-pair validation for the LocalApiServer HTTP surface.
+  - Added Unix-socket transport with stale-socket cleanup, `0600` permissions, and clean-shutdown removal while keeping HTTP and Unix auth rules split under `transport = "both"`.
 
 ---
 

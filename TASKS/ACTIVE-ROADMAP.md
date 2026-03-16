@@ -14,8 +14,8 @@ Current task-dispatch dependency state:
 | `ADR-022` | Proposed | Free/open roadmap target and config/interface decision surface. |
 | `ADR-023` | Locked | `EL-08` through `EL-13` are now on `main`. The ADR-023 implementation track is complete; milestone-1 validation has passed and the post-gate ADR-025 Phase I work is now active. |
 | `ADR-024` | Proposed | Parity-gap inventory, command surface, and deferred work. |
-| `ADR-025` | Proposed | Phase I kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) are now implemented on the active dispatcher branch; ADR-026 `PI-13` and `PI-14` are now implemented, and `PI-15` is the next dependency-sequenced transport/security batch. |
-| `ADR-026` | Proposed | `PI-13` and `PI-14` are now implemented on the active dispatcher branch; `PI-15` is the next dependency-sequenced transport/security batch. |
+| `ADR-025` | Proposed | Phase I kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) are now implemented on the active dispatcher branch; ADR-026 `PI-13` through `PI-15` are now implemented, and `PI-16` is the next dependency-sequenced validation batch. |
+| `ADR-026` | Proposed | `PI-13` through `PI-15` are now implemented on the active dispatcher branch; `PI-16` is the next dependency-sequenced validation batch. |
 | `ADR-027` | Accepted | Defines the current full-screen TUI with command-session capture; supersedes the ADR-018/019 path. |
 | `ADR-028` | Proposed | Defines the application facade and transport boundary that later CLI and LocalApiServer refactors must follow. |
 | `ADR-029` | Proposed | Extends the active ADR set with stream-parser completeness and session-persistence follow-up work without changing the milestone-1 gate result. |
@@ -34,12 +34,12 @@ documented dependencies.
 
 ## Current Next Dispatcher Batch
 
-The next dispatcher batch is ADR-026 Phase I transport/security follow-up (`PI-15`).
+The next dispatcher batch is ADR-026 Phase I transport validation follow-up (`PI-16`).
 
 - Milestone-1 validation remains the recorded Phase I gate result in `adr/ADR-022-free-open-coding-agent-roadmap.md`.
 - ADR-025 now has the canonical runtime handoff types, schemas, normalization layer, and BatchMode parity tests on the active dispatcher branch.
-- ADR-026 now has the loopback HTTP transport adapter and schema bundle endpoint on the active dispatcher branch.
-- Keep `PI-15` sequenced immediately after `PI-13` and `PI-14`, then keep `PI-16` last.
+- ADR-026 now has the loopback HTTP transport adapter, schema bundle endpoint, and PI-15 transport/security guards on the active dispatcher branch.
+- Keep `PI-16` as the remaining Phase I validation batch after the implemented `PI-13` through `PI-15` work.
 - Treat ADR-028 as the boundary ADR for the post-gate CLI and LocalApiServer work, while ADR-029 remains an active stream/parser and persistence follow-up ADR and ADR-030 defines the task-state/orchestrator control-flow contract that downstream work must preserve.
 
 ## Other Open ADRs Tracked In This Repo
