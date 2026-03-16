@@ -1,6 +1,6 @@
 # Installation
 
-VexCoder is distributed as a single statically-linked binary. You can build it from source or download a pre-built archive from GitHub Releases.
+VexCoder is distributed as a single statically-linked binary. You can build it from source or download a pre-built archive from the project release page.
 
 ## Choose your path
 
@@ -10,7 +10,7 @@ VexCoder is distributed as a single statically-linked binary. You can build it f
 
 ## Download a pre-built release
 
-Pre-built archives are attached to each [GitHub Release](https://github.com/aistar-au/vexcoder/releases).
+Pre-built archives are attached to each [project release](https://github.com/aistar-au/vexcoder/releases).
 
 **macOS / Linux:**
 

@@ -1,6 +1,6 @@
 # VexCoder
 
-Terminal-first coding assistant CLI app, implemented in Rust.
+Interactive coding assistant CLI, implemented in Rust.
 
 ## Documentation
 

@@ -55,7 +55,7 @@ cargo --version
 
 ## Step 3 — (Optional) Add the musl target for static builds
 
-The GitHub Releases Linux binary is compiled against musl for maximum portability. If you want to produce the same fully static binary:
+The published Linux binary is compiled against musl for maximum portability. If you want to produce the same fully static binary:
 
 ```bash
 # Install musl toolchain (Debian/Ubuntu)

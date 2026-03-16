@@ -19,7 +19,7 @@ Install via winget:
 winget install --id Microsoft.PowerShell --source winget
 ```
 
-Or download the MSI installer from the [PowerShell GitHub releases page](https://github.com/PowerShell/PowerShell/releases).
+Or download the MSI installer from the [official release page](https://github.com/PowerShell/PowerShell/releases).
 
 Open a new PowerShell 7 window (`pwsh.exe`) for all remaining steps.
 
@@ -129,7 +129,7 @@ $env:VEX_MODEL_URL = "http://localhost:8000/v1/messages"
 
 ## Step 7 — (Optional) Build a release archive
 
-To produce the same `.zip` archive used by GitHub Releases, install the Visual Studio Build Tools C++ workload (Step 2) and run:
+To produce the same `.zip` archive used for published releases, install the Visual Studio Build Tools C++ workload (Step 2) and run:
 
 ```powershell
 .\scripts\release.ps1 -Version v0.1.0-alpha.1 -Target x86_64-pc-windows-msvc -RunGate

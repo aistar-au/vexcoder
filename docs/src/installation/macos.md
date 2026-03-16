@@ -124,7 +124,7 @@ vex
 
 ## Step 7 — (Optional) Build a release archive
 
-To produce the same `.tar.gz` archive used by GitHub Releases:
+To produce the same `.tar.gz` archive used for published releases:
 
 ```bash
 ./scripts/release.sh v0.1.0-alpha.1 x86_64-apple-darwin
