@@ -13,29 +13,41 @@ use crate::runtime::UiUpdate;
 use crate::session_notes::build_api_client_with_notes;
 use crate::state::{ConversationManager, TurnToolPolicy};
 use crate::tools::ToolOperator;
-use anyhow::{anyhow, Context, Result};
-use axum::extract::State;
-use axum::http::StatusCode;
+use anyhow::{anyhow, bail, Context, Result};
+use axum::extract::{Request, State};
+use axum::http::header::{AUTHORIZATION, STRICT_TRANSPORT_SECURITY};
+use axum::http::{HeaderValue, StatusCode};
+use axum::middleware::{self, Next};
 use axum::response::sse::{Event, Sse};
 use axum::response::IntoResponse;
+use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper_util::server::conn::auto::Builder as HyperConnectionBuilder;
+use hyper_util::service::TowerToHyperService;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::Infallible;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::io::BufReader;
+use std::net::ToSocketAddrs;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex as AsyncMutex;
+use tokio::task::JoinSet;
+use tokio_rustls::TlsAcceptor;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 
-pub const DEFAULT_LOCAL_API_HOST: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 pub const DEFAULT_LOCAL_API_PORT: u16 = 6274;
+
+const HSTS_HEADER_VALUE: &str = "max-age=31536000";
 
 #[derive(Clone)]
 pub struct LocalApiState {
@@ -61,6 +73,32 @@ struct PendingApproval {
     capability: String,
     scope: String,
     response_tx: tokio::sync::oneshot::Sender<bool>,
+}
+
+#[derive(Clone, Debug)]
+struct HttpSurfaceSettings {
+    bearer_token: Arc<str>,
+    hsts_enabled: bool,
+}
+
+#[derive(Debug)]
+struct ResolvedServeConfig {
+    http: Option<ResolvedHttpSurface>,
+    unix: Option<ResolvedUnixSurface>,
+}
+
+#[derive(Debug)]
+struct ResolvedHttpSurface {
+    bind_addr: String,
+    port: u16,
+    auth: HttpSurfaceSettings,
+    tls: Option<Arc<rustls::ServerConfig>>,
+}
+
+#[derive(Debug)]
+#[cfg_attr(not(unix), allow(dead_code))]
+struct ResolvedUnixSurface {
+    socket_path: PathBuf,
 }
 
 enum FrontendCommand {
@@ -250,7 +288,10 @@ impl LocalApiState {
 }
 
 pub fn build_router(config: Config) -> Router {
-    let state = LocalApiState::new(config);
+    build_router_with_state(LocalApiState::new(config))
+}
+
+fn build_router_with_state(state: LocalApiState) -> Router {
     Router::new()
         .route("/v1/health", get(health_handler))
         .route("/v1/schema", get(schema_handler))
@@ -260,13 +301,437 @@ pub fn build_router(config: Config) -> Router {
         .with_state(state)
 }
 
-pub async fn serve_local_api(config: Config, host: IpAddr, port: u16) -> Result<()> {
-    let listener = tokio::net::TcpListener::bind(SocketAddr::new(host, port))
+fn build_http_router(state: LocalApiState, auth: HttpSurfaceSettings) -> Router {
+    let expected_header = Arc::<str>::from(format!("Bearer {}", auth.bearer_token));
+    let hsts_enabled = auth.hsts_enabled;
+    build_router_with_state(state).layer(middleware::from_fn(move |request, next| {
+        let expected_header = Arc::clone(&expected_header);
+        async move { authorize_http_request(request, next, expected_header, hsts_enabled).await }
+    }))
+}
+
+async fn authorize_http_request(
+    request: Request,
+    next: Next,
+    expected_header: Arc<str>,
+    hsts_enabled: bool,
+) -> Response {
+    let provided = request
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim);
+    if provided != Some(expected_header.as_ref()) {
+        return unauthorized_response();
+    }
+
+    let mut response = next.run(request).await;
+    if hsts_enabled {
+        response.headers_mut().insert(
+            STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static(HSTS_HEADER_VALUE),
+        );
+    }
+    response
+}
+
+fn unauthorized_response() -> Response {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(ControlResponse {
+            ok: false,
+            reason: Some("unauthorized"),
+        }),
+    )
+        .into_response()
+}
+
+pub async fn serve_local_api(
+    config: Config,
+    host_override: Option<String>,
+    port_override: Option<u16>,
+) -> Result<()> {
+    let resolved = resolve_serve_config(&config, host_override, port_override)?;
+    let state = LocalApiState::new(config);
+    let shutdown = CancellationToken::new();
+    let shutdown_signal = shutdown.clone();
+    let signal_task = tokio::spawn(async move {
+        if tokio::signal::ctrl_c().await.is_ok() {
+            shutdown_signal.cancel();
+        }
+    });
+    let mut servers = JoinSet::new();
+
+    if let Some(http) = resolved.http {
+        let router = build_http_router(state.clone(), http.auth.clone());
+        servers.spawn(run_http_surface(router, http, shutdown.clone()));
+    }
+    if let Some(unix) = resolved.unix {
+        #[cfg(unix)]
+        {
+            let router = build_router_with_state(state.clone());
+            servers.spawn(run_unix_surface(router, unix, shutdown.clone()));
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = unix;
+            bail!("Unix-socket transport is only supported on macOS and Linux");
+        }
+    }
+
+    let mut first_error: Option<anyhow::Error> = None;
+    while let Some(result) = servers.join_next().await {
+        match result {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => {
+                first_error = Some(error);
+                shutdown.cancel();
+                break;
+            }
+            Err(error) => {
+                first_error = Some(anyhow!("LocalApiServer task join error: {error}"));
+                shutdown.cancel();
+                break;
+            }
+        }
+    }
+
+    shutdown.cancel();
+    while let Some(result) = servers.join_next().await {
+        if let Ok(Err(error)) = result {
+            first_error.get_or_insert(error);
+        }
+    }
+    signal_task.abort();
+
+    if let Some(error) = first_error {
+        return Err(error);
+    }
+    Ok(())
+}
+
+fn resolve_serve_config(
+    config: &Config,
+    host_override: Option<String>,
+    port_override: Option<u16>,
+) -> Result<ResolvedServeConfig> {
+    if config.api.tls_skip_verify {
+        bail!("api.tls_skip_verify must remain false in Phase I");
+    }
+    if config.api.vpn_trust {
+        bail!("api.vpn_trust must remain false until a dedicated ADR exists");
+    }
+
+    let mut resolved = ResolvedServeConfig {
+        http: None,
+        unix: None,
+    };
+    let transport = config.api.transport;
+
+    if transport.http_enabled() {
+        let bind_addr = host_override.unwrap_or_else(|| config.api.host.clone());
+        let port = port_override.unwrap_or(config.api.port);
+        let bearer_token = config
+            .api
+            .key
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| {
+                anyhow!("LocalApiServer HTTP transport requires VEX_API_KEY or api.key")
+            })?;
+        let is_loopback = is_strict_loopback_host(&bind_addr, port)?;
+        let tls = build_http_tls_config(config, is_loopback)?;
+        resolved.http = Some(ResolvedHttpSurface {
+            bind_addr,
+            port,
+            auth: HttpSurfaceSettings {
+                bearer_token: Arc::<str>::from(bearer_token),
+                hsts_enabled: tls.is_some(),
+            },
+            tls,
+        });
+    }
+
+    if transport.unix_enabled() {
+        #[cfg(unix)]
+        {
+            resolved.unix = Some(ResolvedUnixSurface {
+                socket_path: config
+                    .api
+                    .socket
+                    .clone()
+                    .unwrap_or_else(default_unix_socket_path),
+            });
+        }
+        #[cfg(not(unix))]
+        {
+            bail!("Unix-socket transport is only supported on macOS and Linux");
+        }
+    }
+
+    Ok(resolved)
+}
+
+async fn run_http_surface(
+    router: Router,
+    surface: ResolvedHttpSurface,
+    shutdown: CancellationToken,
+) -> Result<()> {
+    let listener = tokio::net::TcpListener::bind((surface.bind_addr.as_str(), surface.port))
         .await
-        .with_context(|| format!("failed to bind LocalApiServer on {host}:{port}"))?;
-    axum::serve(listener, build_router(config))
+        .with_context(|| {
+            format!(
+                "failed to bind LocalApiServer on {}:{}",
+                surface.bind_addr, surface.port
+            )
+        })?;
+
+    match surface.tls {
+        Some(tls_config) => serve_tls_listener(listener, router, tls_config, shutdown).await,
+        None => axum::serve(listener, router)
+            .with_graceful_shutdown(async move {
+                shutdown.cancelled().await;
+            })
+            .await
+            .context("LocalApiServer exited with an error"),
+    }
+}
+
+async fn serve_tls_listener(
+    listener: tokio::net::TcpListener,
+    router: Router,
+    tls_config: Arc<rustls::ServerConfig>,
+    shutdown: CancellationToken,
+) -> Result<()> {
+    let acceptor = TlsAcceptor::from(tls_config);
+    loop {
+        tokio::select! {
+            _ = shutdown.cancelled() => return Ok(()),
+            accepted = listener.accept() => {
+                let (stream, _) = accepted.context("failed to accept LocalApiServer TLS connection")?;
+                let acceptor = acceptor.clone();
+                let service = TowerToHyperService::new(router.clone());
+                let shutdown = shutdown.clone();
+                tokio::spawn(async move {
+                    let tls_stream = match acceptor.accept(stream).await {
+                        Ok(stream) => stream,
+                        Err(error) => {
+                            eprintln!("[local api] tls accept failed: {error}");
+                            return;
+                        }
+                    };
+                    let io = TokioIo::new(tls_stream);
+                    let builder = HyperConnectionBuilder::new(TokioExecutor::new());
+                    let connection = builder.serve_connection(io, service);
+                    tokio::select! {
+                        _ = shutdown.cancelled() => {}
+                        result = connection => {
+                            if let Err(error) = result {
+                                eprintln!("[local api] tls connection error: {error}");
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    }
+}
+
+fn is_strict_loopback_host(host: &str, port: u16) -> Result<bool> {
+    let normalized = host.trim().to_ascii_lowercase();
+    if let Ok(addr) = normalized.parse::<std::net::IpAddr>() {
+        return Ok(addr.is_loopback());
+    }
+    if normalized != "localhost" {
+        return Ok(false);
+    }
+
+    let addrs = (host, port)
+        .to_socket_addrs()
+        .with_context(|| format!("failed to resolve LocalApiServer host '{host}'"))?
+        .collect::<Vec<_>>();
+    if addrs.is_empty() {
+        bail!("failed to resolve LocalApiServer host '{host}'");
+    }
+    Ok(addrs.iter().all(|addr| addr.ip().is_loopback()))
+}
+
+fn build_http_tls_config(
+    config: &Config,
+    is_loopback: bool,
+) -> Result<Option<Arc<rustls::ServerConfig>>> {
+    if let Some(ca_path) = config.api.tls_ca_cert.as_deref() {
+        validate_pem_certificates(ca_path)
+            .with_context(|| format!("invalid api.tls_ca_cert '{}'", ca_path.display()))?;
+    }
+
+    let cert_path = config.api.tls_cert.as_deref();
+    let key_path = config.api.tls_key.as_deref();
+    let tls_requested = cert_path.is_some() || key_path.is_some();
+
+    if !is_loopback && !tls_requested {
+        bail!("LocalApiServer non-loopback HTTP bind requires both api.tls_cert and api.tls_key");
+    }
+    if !tls_requested {
+        return Ok(None);
+    }
+
+    let cert_path =
+        cert_path.ok_or_else(|| anyhow!("api.tls_cert is required when TLS is enabled"))?;
+    let key_path =
+        key_path.ok_or_else(|| anyhow!("api.tls_key is required when TLS is enabled"))?;
+    let cert_chain = load_pem_certificates(cert_path)
+        .with_context(|| format!("invalid api.tls_cert '{}'", cert_path.display()))?;
+    let private_key = load_private_key(key_path)
+        .with_context(|| format!("invalid api.tls_key '{}'", key_path.display()))?;
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let mut tls_config = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(cert_chain, private_key)
+        .context(
+            "api.tls_cert and api.tls_key must form a matching certificate/private-key pair",
+        )?;
+    tls_config.alpn_protocols = vec![b"http/1.1".to_vec()];
+    Ok(Some(Arc::new(tls_config)))
+}
+
+fn load_pem_certificates(path: &Path) -> Result<Vec<CertificateDer<'static>>> {
+    let file = std::fs::File::open(path)
+        .with_context(|| format!("failed to read PEM certificates from '{}'", path.display()))?;
+    let mut reader = BufReader::new(file);
+    let certificates = rustls_pemfile::certs(&mut reader)
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .with_context(|| format!("failed to parse PEM certificates from '{}'", path.display()))?;
+    if certificates.is_empty() {
+        bail!("no PEM certificates found in '{}'", path.display());
+    }
+    Ok(certificates)
+}
+
+fn validate_pem_certificates(path: &Path) -> Result<()> {
+    let _ = load_pem_certificates(path)?;
+    Ok(())
+}
+
+fn load_private_key(path: &Path) -> Result<PrivateKeyDer<'static>> {
+    let pkcs8 = load_first_private_key(path, PrivateKeyFormat::Pkcs8)?;
+    if let Some(key) = pkcs8 {
+        return Ok(key);
+    }
+
+    let sec1 = load_first_private_key(path, PrivateKeyFormat::Sec1)?;
+    if let Some(key) = sec1 {
+        return Ok(key);
+    }
+
+    let rsa = load_first_private_key(path, PrivateKeyFormat::Rsa)?;
+    if let Some(key) = rsa {
+        return Ok(key);
+    }
+
+    bail!("no supported PEM private key found in '{}'", path.display())
+}
+
+enum PrivateKeyFormat {
+    Pkcs8,
+    Sec1,
+    Rsa,
+}
+
+fn load_first_private_key(
+    path: &Path,
+    format: PrivateKeyFormat,
+) -> Result<Option<PrivateKeyDer<'static>>> {
+    let file = std::fs::File::open(path)
+        .with_context(|| format!("failed to read PEM private key from '{}'", path.display()))?;
+    let mut reader = BufReader::new(file);
+    let key = match format {
+        PrivateKeyFormat::Pkcs8 => rustls_pemfile::pkcs8_private_keys(&mut reader)
+            .next()
+            .transpose()?
+            .map(Into::into),
+        PrivateKeyFormat::Sec1 => rustls_pemfile::ec_private_keys(&mut reader)
+            .next()
+            .transpose()?
+            .map(Into::into),
+        PrivateKeyFormat::Rsa => rustls_pemfile::rsa_private_keys(&mut reader)
+            .next()
+            .transpose()?
+            .map(Into::into),
+    };
+    Ok(key)
+}
+
+#[cfg(unix)]
+fn default_unix_socket_path() -> PathBuf {
+    std::env::var_os("XDG_RUNTIME_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/tmp"))
+        .join("vexcoder.sock")
+}
+
+#[cfg(unix)]
+async fn run_unix_surface(
+    router: Router,
+    surface: ResolvedUnixSurface,
+    shutdown: CancellationToken,
+) -> Result<()> {
+    let listener = bind_unix_listener(&surface.socket_path)?;
+    let cleanup_path = surface.socket_path.clone();
+    let result = axum::serve(listener, router)
+        .with_graceful_shutdown(async move {
+            shutdown.cancelled().await;
+        })
         .await
-        .context("LocalApiServer exited with an error")
+        .context("LocalApiServer unix socket exited with an error");
+    remove_unix_socket(&cleanup_path)?;
+    result
+}
+
+#[cfg(unix)]
+fn bind_unix_listener(path: &Path) -> Result<tokio::net::UnixListener> {
+    if path.exists() {
+        let metadata = std::fs::symlink_metadata(path)
+            .with_context(|| format!("failed to inspect unix socket '{}'", path.display()))?;
+        if metadata.file_type().is_socket() {
+            std::fs::remove_file(path).with_context(|| {
+                format!("failed to remove stale unix socket '{}'", path.display())
+            })?;
+        } else {
+            bail!(
+                "refusing to replace non-socket path '{}'; configure api.socket to a unix socket path",
+                path.display()
+            );
+        }
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "failed to create unix socket parent directory '{}'",
+                parent.display()
+            )
+        })?;
+    }
+
+    let listener = tokio::net::UnixListener::bind(path)
+        .with_context(|| format!("failed to bind unix socket '{}'", path.display()))?;
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).with_context(|| {
+        format!(
+            "failed to apply 0600 permissions to unix socket '{}'",
+            path.display()
+        )
+    })?;
+    Ok(listener)
+}
+
+#[cfg(unix)]
+fn remove_unix_socket(path: &Path) -> Result<()> {
+    if path.exists() {
+        std::fs::remove_file(path)
+            .with_context(|| format!("failed to remove unix socket '{}'", path.display()))?;
+    }
+    Ok(())
 }
 
 async fn health_handler() -> Json<HealthResponse> {
@@ -549,6 +1014,7 @@ mod tests {
     use super::*;
     use crate::api::mock_client::MockApiClient;
     use axum::body::Body;
+    use axum::http::header::AUTHORIZATION;
     use axum::http::Request;
     use tower::ServiceExt;
 
@@ -580,6 +1046,56 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_http_router_requires_bearer_token() {
+        let mut config = Config::default_for_tui();
+        config.api.key = Some("token-123".to_string());
+        let router = build_http_router(
+            LocalApiState::new(config),
+            HttpSurfaceSettings {
+                bearer_token: Arc::<str>::from("token-123"),
+                hsts_enabled: false,
+            },
+        );
+
+        let unauthorized = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+
+        let authorized = router
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/health")
+                    .header(AUTHORIZATION, "Bearer token-123")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(authorized.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_resolve_serve_config_rejects_non_loopback_without_tls() {
+        let mut config = Config::default_for_tui();
+        config.api.host = "192.168.1.20".to_string();
+        config.api.key = Some("token-123".to_string());
+
+        let error = resolve_serve_config(&config, None, None).unwrap_err();
+        assert!(
+            format!("{error:#}").contains("requires both api.tls_cert and api.tls_key"),
+            "unexpected error: {error:#}"
+        );
     }
 
     #[tokio::test]

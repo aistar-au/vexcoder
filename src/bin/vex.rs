@@ -4,7 +4,6 @@ use clap_complete::Shell;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::widgets::Clear;
 use std::io::IsTerminal;
-use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
@@ -110,12 +109,12 @@ enum Commands {
         #[arg(long)]
         force: bool,
     },
-    /// Run the local HTTP transport adapter.
+    /// Run the local API transport adapter.
     Serve {
-        #[arg(long, default_value = "127.0.0.1")]
-        host: IpAddr,
-        #[arg(long, default_value_t = vexcoder::local_api::DEFAULT_LOCAL_API_PORT)]
-        port: u16,
+        #[arg(long)]
+        host: Option<String>,
+        #[arg(long)]
+        port: Option<u16>,
     },
 }
 
@@ -679,6 +678,11 @@ const INIT_CONFIG_TEMPLATE: &str = concat!(
     "# port = 6274\n",
     "# socket = \"\"\n",
     "# key = \"${VEX_API_KEY}\"\n",
+    "# tls_cert = \"\"\n",
+    "# tls_key = \"\"\n",
+    "# tls_ca_cert = \"\"\n",
+    "# tls_skip_verify = false\n",
+    "# vpn_trust = false\n",
     "\n",
     "# user config only:\n",
     "# [[hooks]]\n",
@@ -735,6 +739,11 @@ const INIT_CONFIG_NORMATIVE_KEYS: &[&str] = &[
     "api.port",
     "api.socket",
     "api.key",
+    "api.tls_cert",
+    "api.tls_key",
+    "api.tls_ca_cert",
+    "api.tls_skip_verify",
+    "api.vpn_trust",
     "hooks",
     "hooks.event",
     "hooks.tool",
