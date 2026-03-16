@@ -4,6 +4,7 @@ use clap_complete::Shell;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::widgets::Clear;
 use std::io::IsTerminal;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
@@ -108,6 +109,13 @@ enum Commands {
         output: Option<PathBuf>,
         #[arg(long)]
         force: bool,
+    },
+    /// Run the local HTTP transport adapter.
+    Serve {
+        #[arg(long, default_value = "127.0.0.1")]
+        host: IpAddr,
+        #[arg(long, default_value_t = vexcoder::local_api::DEFAULT_LOCAL_API_PORT)]
+        port: u16,
     },
 }
 
@@ -1136,6 +1144,12 @@ async fn main() -> Result<ExitCode> {
             if write_export_output(&rendered, output.as_deref(), force)?.is_none() {
                 print!("{rendered}");
             }
+            return Ok(ExitCode::SUCCESS);
+        }
+        Some(Commands::Serve { host, port }) => {
+            let config = Config::load()?;
+            config.validate()?;
+            vexcoder::local_api::serve_local_api(config, host, port).await?;
             return Ok(ExitCode::SUCCESS);
         }
         None => {}

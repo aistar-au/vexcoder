@@ -7,6 +7,7 @@ pub mod doctor;
 pub mod edit_diff;
 pub mod export;
 pub mod git_hooks;
+pub mod local_api;
 pub mod prompts;
 pub mod runtime;
 pub(crate) mod session_notes;

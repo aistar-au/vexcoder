@@ -293,13 +293,29 @@ impl RuntimeEnvelopeNormalizer {
         ]
     }
 
+    pub fn emit_cancelled(&mut self, terminal: TurnEndContext) -> Vec<RuntimeEnvelope> {
+        self.finish_turn_with_status("cancelled", terminal)
+    }
+
+    pub fn emit_event(&mut self, event: RuntimeEvent) -> RuntimeEnvelope {
+        self.next_envelope(event)
+    }
+
     fn complete_turn(&mut self, terminal: TurnEndContext) -> Vec<RuntimeEnvelope> {
+        self.finish_turn_with_status("completed", terminal)
+    }
+
+    fn finish_turn_with_status(
+        &mut self,
+        status: &str,
+        terminal: TurnEndContext,
+    ) -> Vec<RuntimeEnvelope> {
         vec![
             self.next_envelope(RuntimeEvent::AssistantMessage {
                 content: self.assistant_text.clone(),
             }),
             self.next_envelope(RuntimeEvent::TurnEnd {
-                status: "completed".to_string(),
+                status: status.to_string(),
                 usage: terminal.usage,
                 changed_files: self.resolve_changed_files(terminal.changed_files),
             }),
@@ -555,7 +571,7 @@ fn turn_tokens_from_usage(usage: &TokenUsageEnvelope) -> TurnTokens {
     }
 }
 
-fn runtime_approval_request_event(request: &ToolApprovalRequest) -> RuntimeEvent {
+pub fn runtime_approval_request_event(request: &ToolApprovalRequest) -> RuntimeEvent {
     let capability = capability_name_for_tool(&request.tool_name).unwrap_or("unknown");
     RuntimeEvent::ApprovalRequest {
         capability: capability.to_string(),
