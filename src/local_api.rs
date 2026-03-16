@@ -33,6 +33,8 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::io::BufReader;
 use std::net::ToSocketAddrs;
+#[cfg(unix)]
+use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
