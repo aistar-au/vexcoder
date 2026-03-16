@@ -54,4 +54,4 @@ dispatch-facing active set:
 
 ## Repo-Local Task Manifests
 
-- `TASKS/PJ-03-memory-notes.md` — `ADR-024` Gap 16, depends on `PA-01`, describes the `/memory` command surface and session-note injection requirements.
+- `TASKS/PJ-03-memory-notes-injection.md` — `ADR-024` Gap 16, depends on `PA-01`, describes the `/memory` command surface and session-note injection requirements.

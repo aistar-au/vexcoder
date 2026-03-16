@@ -10,7 +10,7 @@ Whole-repo tracked file map: `TASKS/completed/REPO-RAW-URL-MAP.md`.
 | Manifest | ADR source | Depends on | Scope |
 | :--- | :--- | :--- | :--- |
 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | `ADR-025` PI-10, PI-12 | `PI-09`, `PI-11` | Normalization layer and serde/schema/grammar/BatchMode test coverage. |
-| `TASKS/PJ-03-memory-notes.md` | `ADR-024` Gap 16 | `PA-01` | `/memory`, `/memory add`, `/memory clear`, and session-note injection. |
+| `TASKS/PJ-03-memory-notes-injection.md` | `ADR-024` Gap 16 | `PA-01` | `/memory`, `/memory add`, `/memory clear`, and session-note injection. |
 
 ## Open ADR Dispatch Sources
 
