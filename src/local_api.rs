@@ -1016,7 +1016,9 @@ mod tests {
     use super::*;
     use crate::api::mock_client::MockApiClient;
     use axum::body::Body;
+    use axum::body::to_bytes;
     use axum::http::header::AUTHORIZATION;
+    use axum::http::header::CONTENT_TYPE;
     use axum::http::Request;
     use tower::ServiceExt;
 
@@ -1085,6 +1087,128 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(authorized.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_interrupt_handler_returns_not_found_for_unknown_task() {
+        let mut config = Config::default_for_tui();
+        config.api.key = Some("token-123".to_string());
+        let router = build_http_router(
+            LocalApiState::new(config),
+            HttpSurfaceSettings {
+                bearer_token: Arc::<str>::from("token-123"),
+                hsts_enabled: false,
+            },
+        );
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/interrupt")
+                    .header(AUTHORIZATION, "Bearer token-123")
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        r#"{"type":"interrupt","task_id":"missing-task"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let payload: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
+        assert_eq!(payload.get("reason"), Some(&Value::String("task_not_found".to_string())));
+    }
+
+    #[tokio::test]
+    async fn test_approve_handler_returns_not_found_for_unknown_task() {
+        let mut config = Config::default_for_tui();
+        config.api.key = Some("token-123".to_string());
+        let router = build_http_router(
+            LocalApiState::new(config),
+            HttpSurfaceSettings {
+                bearer_token: Arc::<str>::from("token-123"),
+                hsts_enabled: false,
+            },
+        );
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/approve")
+                    .header(AUTHORIZATION, "Bearer token-123")
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        r#"{"type":"approve_capability","task_id":"missing-task","capability":"run_command","scope":"once"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let payload: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
+        assert_eq!(payload.get("reason"), Some(&Value::String("task_not_found".to_string())));
+    }
+
+    #[tokio::test]
+    async fn test_approve_handler_returns_conflict_without_pending_approval() {
+        let mut config = Config::default_for_tui();
+        config.api.key = Some("token-123".to_string());
+        let state = LocalApiState::new(config);
+        let task_id = "task-approval-409".to_string();
+        let (interrupt_tx, _interrupt_rx) = mpsc::unbounded_channel();
+        let (envelope_tx, _envelope_rx) = mpsc::unbounded_channel();
+        let quit = Arc::new(AtomicBool::new(false));
+        let shared = Arc::new(Mutex::new(LocalApiTaskShared {
+            normalizer: RuntimeEnvelopeNormalizer::new(task_id.clone()),
+            envelope_tx,
+            pending_approval: None,
+            quit,
+            turn_in_progress: false,
+            interrupted: false,
+        }));
+        state.tasks.lock().await.insert(
+            task_id.clone(),
+            ActiveTask {
+                interrupt_tx,
+                shared,
+            },
+        );
+        let router = build_http_router(
+            state,
+            HttpSurfaceSettings {
+                bearer_token: Arc::<str>::from("token-123"),
+                hsts_enabled: false,
+            },
+        );
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/approve")
+                    .header(AUTHORIZATION, "Bearer token-123")
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(Body::from(format!(
+                        r#"{{"type":"approve_capability","task_id":"{task_id}","capability":"run_command","scope":"once"}}"#,
+                    )))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let payload: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
+        assert_eq!(payload.get("reason"), Some(&Value::String("no_pending_approval".to_string())));
     }
 
     #[test]
@@ -1197,5 +1321,31 @@ mod tests {
             resolved.event,
             RuntimeEvent::ApprovalResolved { approved: true, .. }
         ));
+    }
+
+    #[test]
+    fn test_resolve_serve_config_accepts_ipv4_loopback_aliases_without_tls() {
+        let mut config = Config::default_for_tui();
+        config.api.host = "127.42.0.7".to_string();
+        config.api.key = Some("token-123".to_string());
+
+        let resolved = resolve_serve_config(&config, None, None).unwrap();
+        let http = resolved.http.expect("http surface should be present");
+        assert_eq!(http.bind_addr, "127.42.0.7");
+        assert!(http.tls.is_none());
+    }
+
+    #[test]
+    fn test_resolve_serve_config_rejects_vpn_trust_true() {
+        let mut config = Config::default_for_tui();
+        config.api.host = "127.0.0.1".to_string();
+        config.api.key = Some("token-123".to_string());
+        config.api.vpn_trust = true;
+
+        let error = resolve_serve_config(&config, None, None).unwrap_err();
+        assert!(
+            format!("{error:#}").contains("api.vpn_trust must remain false"),
+            "unexpected error: {error:#}"
+        );
     }
 }

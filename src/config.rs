@@ -1281,6 +1281,24 @@ mod tests {
     }
 
     #[test]
+    fn test_api_vpn_trust_true_is_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo_root = temp.path().join("repo");
+        let cwd = repo_root.join("nested/project");
+
+        std::fs::create_dir_all(repo_root.join(".vex")).unwrap();
+        std::fs::create_dir_all(repo_root.join(".git")).unwrap();
+        std::fs::create_dir_all(&cwd).unwrap();
+        std::fs::write(repo_root.join(".vex/config.toml"), "[api]\nvpn_trust = true\n").unwrap();
+
+        let error = Config::load_for_tests(&cwd, None, None).unwrap_err();
+        assert!(
+            format!("{error:#}").contains("vpn_trust"),
+            "unexpected error: {error:#}"
+        );
+    }
+
+    #[test]
     fn test_invalid_model_backend_error_lists_remote_alias() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         std::env::set_var("VEX_MODEL_BACKEND", "legacy-value");
