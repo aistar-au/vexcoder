@@ -44,7 +44,8 @@ ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
   -> ADR-025 PI-10 + PI-12 (implemented in the current tree)
   -> ADR-026 PI-13 + PI-14 (implemented in the current tree)
   -> PI-15 implemented in the current tree
-  -> PI-16 last
+  -> PI-16 implemented in the current tree
+  -> ADR-028 next
 ```
 
 ADR-025 and ADR-026 are the first post-gate Phase I dispatch track. ADR-028 is
@@ -54,13 +55,12 @@ passed milestone-1 gate or ADR-025 sequencing.
 
 ## Current Next Dispatcher Batch
 
-The next dispatcher batch is ADR-026 Phase I transport validation follow-up (`PI-16`).
+The next dispatcher batch is ADR-028 application-facade and transport-boundary follow-up.
 
 - Milestone-1 validation is complete; use the recorded gate result in ADR-022 as the Phase I entry condition.
 - ADR-025 now has the completed kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) work in the current tree.
-- ADR-026 now has `PI-13` through `PI-15` implemented in the current tree.
-- Keep ADR-026 sequenced with `PI-16` as the remaining validation batch.
-- Treat ADR-028 as the boundary ADR for the post-gate Phase I work, not as the next immediate implementation batch.
+- ADR-026 now has `PI-13` through `PI-16` implemented in the current tree.
+- Treat ADR-028 as the next dependency-sequenced follow-up ADR for the post-gate Phase I work.
 - Treat ADR-030 as the control-flow ADR for the post-gate runtime work: provider events normalize into canonical runtime events, task state owns truth, and orchestrator decisions remain runtime-owned.
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
@@ -76,6 +76,6 @@ capture behavior.
 - ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
   `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`; `PK-08`, the ADR-027 follow-up,
   and the full ADR-023 implementation track (`EL-01` through `EL-13`) are now
-  on `main`. Milestone-1 validation passed on `2026-03-15`; ADR-026 `PI-13` and
-  `PI-15` are now implemented in the current tree, with `PI-16`
-  and ADR-028 remaining dependency-sequenced follow-ups.
+  on `main`. Milestone-1 validation passed on `2026-03-15`; ADR-026 `PI-13`
+  through `PI-16` are now implemented in the current tree, with ADR-028
+  remaining the next dependency-sequenced follow-up.
