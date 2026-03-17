@@ -1,6 +1,6 @@
 # ADR-030: Runtime Task State and Orchestrator Control Flow
 
-- **Status:** Proposed
+- **Status:** Active — invariant violations patched 2026-03-17
 - **Date:** 2026-03-16
 - **Deciders:** Maintainers
 - **Depends on:** ADR-023, ADR-025, ADR-027, ADR-028, ADR-029
@@ -404,10 +404,42 @@ Coverage should prove at least:
 6. max-turn and approval pauses are represented in task state and respected by
    the orchestrator
 
+## Invariant violations fixed 2026-03-17
+
+Two implementation gaps found in branch review violated invariants defined in
+this ADR.  Both are patched and recorded here for traceability.
+
+### Invariant 1 violation — provider events treated as protocol truth
+
+`should_prefer_chat_compat_wire_protocol()` inspected the URL suffix and
+silently overrode the explicit `MessagesV1` protocol config for any URL
+ending in `/messages`.  This made a provider-URL heuristic (effectively a
+provider-native artefact) control the runtime wire protocol — a violation
+of the principle that provider-native values must not determine runtime truth.
+
+The fix limits the heuristic to bare `/v1` base URLs only.  Explicit `/messages`
+path suffixes are treated as authoritative MessagesV1 declarations.
+
+### Invariant 6 violation — UI did not observe canonical task state for in-flight steps
+
+`task_activity_rows()` derived its display from `current_turn_tool_invocations`
+(completed tool results) but ignored `pending_turn_tool_calls` (in-flight tool
+calls recorded in task state).  The activity pane therefore showed a blank or
+stale view while a tool was executing — the UI was not continuously reflecting
+task state as required by this ADR.
+
+The fix includes in-flight tool calls from `pending_turn_tool_calls` in the
+activity row derivation, ensuring the orchestration view remains accurate from
+tool-call start through tool-result receipt.  The row set is capped at 6 for
+display stability.
+
+---
+
 ## References
 
 - ADR-023 — deterministic edit loop
 - ADR-025 — runtime JSON handoff contract
 - ADR-027 — full-screen TUI command session capture / managed command sessions
-- ADR-028 — application facade and transport boundaries
+- ADR-028 — application facade and transport boundaries (debug fixes recorded there)
 - ADR-029 — stream parser completeness and session persistence
+- `../vexdraft/scripts/commit-debug.py` — authoritative cross-repo debug commit tooling

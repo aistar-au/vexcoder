@@ -224,24 +224,17 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     }
     frame.render_widget(Paragraph::new(Text::from(header_lines)), layout.header);
 
+    // Pipeline activity pane — renders each orchestration step as a styled
+    // drop-down row (max 6 lines from task_activity_rows).  Prefixes:
+    //   [ok]  green   — completed step
+    //   [!]   red     — failed/error step
+    //   [->]  cyan    — in-flight step (tool call awaiting result)
+    //   [?]   yellow  — approval request
+    //   >     dim     — current user input echo
     let activity_text: Vec<Line> = state
         .activity_rows
         .iter()
-        .map(|row| {
-            // Add status markers based on content
-            let styled = if row.starts_with("[ok]") {
-                Line::styled(row.to_string(), Style::default().fg(Color::Green))
-            } else if row.starts_with("[!]") {
-                Line::styled(row.to_string(), Style::default().fg(Color::Red))
-            } else if row.starts_with("[->]") {
-                Line::styled(row.to_string(), Style::default().fg(Color::Cyan))
-            } else if row.starts_with("[?]") {
-                Line::styled(row.to_string(), Style::default().fg(Color::Yellow))
-            } else {
-                Line::from(row.to_string())
-            };
-            styled
-        })
+        .map(|row| pipeline_activity_line(row))
         .collect();
     let activity_title = if state
         .activity_rows
@@ -249,15 +242,24 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
         .map(|row| row.starts_with("command:"))
         .unwrap_or(false)
     {
-        "Command Session"
+        "Session"
+    } else if state
+        .activity_rows
+        .iter()
+        .any(|row| row.starts_with("[->]"))
+    {
+        "Orchestrating"
     } else {
-        "Activity"
+        "Steps"
     };
     frame.render_widget(
         Paragraph::new(Text::from(activity_text)).block(
-            Block::default()
-                .borders(Borders::NONE)
-                .title(activity_title),
+            Block::default().borders(Borders::NONE).title(Span::styled(
+                activity_title,
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD),
+            )),
         ),
         layout.activity,
     );
@@ -267,10 +269,14 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
         .iter()
         .map(|row| Line::from(row.to_string()))
         .collect();
+    let output_scroll = output_lines
+        .len()
+        .saturating_sub(layout.output.height.max(1) as usize) as u16;
 
     frame.render_widget(
         Paragraph::new(Text::from(output_lines))
             .block(Block::default().borders(Borders::NONE).title("Output"))
+            .scroll((output_scroll, 0))
             .wrap(Wrap { trim: false }),
         layout.output,
     );
@@ -434,6 +440,73 @@ fn centered_modal_area(size: Rect, preferred_height: u16) -> Rect {
     Rect::new(x, y, width, height)
 }
 
+/// Render a single pipeline activity row with prefix-based colour coding.
+/// Matches the prefixes produced by `task_activity_rows()`:
+///   `[ok]`  → green   (completed step)
+///   `[!]`   → red     (failed/error step)
+///   `[->]`  → cyan    (in-flight orchestration step)
+///   `[?]`   → yellow  (approval request)
+///   `> …`   → dim gray (user prompt echo)
+fn pipeline_activity_line(row: &str) -> Line<'static> {
+    if let Some(rest) = row.strip_prefix("[ok]") {
+        Line::from(vec![
+            Span::styled(
+                "[ok]",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(rest.to_string(), Style::default().fg(Color::Green)),
+        ])
+    } else if let Some(rest) = row.strip_prefix("[!]") {
+        Line::from(vec![
+            Span::styled(
+                "[!] ",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(rest.to_string(), Style::default().fg(Color::Red)),
+        ])
+    } else if let Some(rest) = row.strip_prefix("[->]") {
+        Line::from(vec![
+            Span::styled(
+                "[->]",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(rest.to_string(), Style::default().fg(Color::Cyan)),
+        ])
+    } else if let Some(rest) = row.strip_prefix("[?]") {
+        Line::from(vec![
+            Span::styled(
+                "[?] ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(rest.to_string(), Style::default().fg(Color::Yellow)),
+        ])
+    } else if let Some(rest) = row.strip_prefix("> ") {
+        Line::from(vec![
+            Span::styled(
+                "> ",
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM),
+            ),
+            Span::styled(
+                rest.to_string(),
+                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+            ),
+        ])
+    } else {
+        Line::from(Span::styled(
+            row.to_string(),
+            Style::default().fg(Color::Gray),
+        ))
+    }
+}
+
 fn truncate_line(input: &str, width: usize) -> String {
     let width = width.max(1);
     let mut out = String::new();
@@ -573,6 +646,42 @@ mod tests {
         assert!(
             flat.contains("[y/n/s]"),
             "approval choices must appear in rendered output"
+        );
+    }
+
+    #[test]
+    fn task_layout_renders_orchestrating_title_for_pending_steps() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = crate::app::TaskLayoutState {
+            task_id: "task-002".into(),
+            status_line: "Running".into(),
+            activity_rows: vec![
+                "[ok] read_file: ok".into(),
+                "[->] validate: running…".into(),
+            ],
+            output_rows: vec!["streamed output".into()],
+            changed_files: vec![],
+            pending_approval: None,
+            input_hint: "> ".into(),
+        };
+
+        terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+
+        let rendered = terminal.backend().buffer().clone();
+        let flat = rendered
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<Vec<_>>()
+            .join("");
+        assert!(
+            flat.contains("Orchestrating"),
+            "pending steps should switch the activity title"
+        );
+        assert!(
+            flat.contains("validate: running…"),
+            "pending steps should remain visible in the activity pane"
         );
     }
 }

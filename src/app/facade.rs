@@ -1,5 +1,6 @@
 use super::*;
 use crate::api::ApiClient;
+use crate::local_api::serve_local_api;
 use crate::runtime::frontend::FrontendAdapter;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -67,4 +68,29 @@ where
     let (mut runtime, mut ctx, bootstrap) = build_facade_runtime(config, mode)?;
     runtime.run(frontend, &mut ctx).await;
     Ok(bootstrap)
+}
+
+pub async fn run_tui_session<F>(
+    config: Config,
+    resume_state: Option<TaskState>,
+    frontend: &mut F,
+) -> AppResult<()>
+where
+    F: FrontendAdapter<TuiMode>,
+{
+    let (mut runtime, mut ctx) = match resume_state {
+        Some(state) => build_runtime_with_resume(config, state)?,
+        None => build_runtime(config)?,
+    };
+    runtime.run(frontend, &mut ctx).await;
+    Ok(())
+}
+
+pub async fn serve_facade_local_api(
+    config: Config,
+    host: Option<String>,
+    port: Option<u16>,
+) -> AppResult<()> {
+    serve_local_api(config, host, port).await?;
+    Ok(())
 }

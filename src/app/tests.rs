@@ -238,6 +238,92 @@ fn test_stream_delta_hides_incomplete_tool_tag_suffix() {
 }
 
 #[test]
+fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("hi".to_string(), &mut ctx);
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.activity_rows, vec!["> hi".to_string()]);
+    assert_eq!(
+        state.output_rows,
+        vec!["[awaiting model response]".to_string()]
+    );
+}
+
+#[test]
+fn test_task_layout_state_routes_streamed_response_to_output_pane() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("hi".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamDelta("hello from model".to_string()),
+        &mut ctx,
+    );
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.activity_rows, vec!["> hi".to_string()]);
+    assert_eq!(state.output_rows, vec!["hello from model".to_string()]);
+}
+
+#[test]
+fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("ship the fix".to_string(), &mut ctx);
+    mode.current_turn_tool_invocations = vec![
+        ToolInvocationSummary {
+            name: "read_file".to_string(),
+            outcome: "ok".to_string(),
+        },
+        ToolInvocationSummary {
+            name: "edit_file".to_string(),
+            outcome: "ok".to_string(),
+        },
+        ToolInvocationSummary {
+            name: "run_command".to_string(),
+            outcome: "ok".to_string(),
+        },
+        ToolInvocationSummary {
+            name: "write_file".to_string(),
+            outcome: "ok".to_string(),
+        },
+        ToolInvocationSummary {
+            name: "apply_patch".to_string(),
+            outcome: "ok".to_string(),
+        },
+    ];
+    mode.pending_turn_tool_calls.insert(
+        "tool-1".to_string(),
+        PendingTurnToolCall {
+            name: "validate".to_string(),
+            input: serde_json::json!({}),
+        },
+    );
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(
+        state.activity_rows.len(),
+        6,
+        "activity pane should clamp to six rows"
+    );
+    assert_eq!(
+        state.activity_rows,
+        vec![
+            "[ok] read_file: ok".to_string(),
+            "[ok] edit_file: ok".to_string(),
+            "[ok] run_command: ok".to_string(),
+            "[ok] write_file: ok".to_string(),
+            "[ok] apply_patch: ok".to_string(),
+            "[->] validate: running…".to_string(),
+        ]
+    );
+}
+
+#[test]
 fn test_transcript_does_not_exceed_cap_after_n_turns() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     std::env::set_var(MAX_HISTORY_LINES_ENV, "10");
