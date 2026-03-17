@@ -4,7 +4,10 @@ use crossterm::{
     cursor::Show,
     event::{DisableBracketedPaste, EnableBracketedPaste},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen,
+        LeaveAlternateScreen,
+    },
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io::{self, IsTerminal, Stdout};
@@ -34,7 +37,12 @@ fn enter_full_screen_mode() -> Result<()> {
     }
 
     enable_raw_mode()?;
-    execute!(io::stdout(), EnableBracketedPaste)?;
+    // EnterAlternateScreen isolates TUI rendering from the main terminal
+    // buffer.  Without it, ratatui renders to the primary buffer using cursor
+    // positioning that overwrites content without adding to terminal scrollback
+    // history.  LeaveAlternateScreen in restore() returns the user to the
+    // pre-session terminal state cleanly.
+    execute!(io::stdout(), EnterAlternateScreen, EnableBracketedPaste)?;
     Ok(())
 }
 
@@ -57,6 +65,7 @@ pub fn restore() -> Result<()> {
     let _ = execute!(
         io::stdout(),
         DisableBracketedPaste,
+        LeaveAlternateScreen,
         Show,
         MoveToColumn(0),
         Clear(ClearType::CurrentLine)

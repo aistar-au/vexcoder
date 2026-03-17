@@ -1,7 +1,7 @@
 # ADR-028: Application facade and transport boundaries
 
 **Date:** 2026-03-15
-**Status:** Proposed
+**Status:** Active — Phase 1 and Phase 2 debug-committed 2026-03-17
 **Deciders:** Core maintainer
 **Location:** `adr/ADR-028-application-facade-and-transport-boundaries.md`
 **Amends:** ADR-018, ADR-019, and follow-up runtime/TUI cutover ADRs
@@ -300,6 +300,78 @@ Where older ADRs blur distinctions, update them to reflect:
 
 ---
 
+## Debug fixes recorded 2026-03-17
+
+Three bugs surfaced during review of the Phase 1 / Phase 2 branch series
+(`dispatcher/vexcoder-adr-028-phase1-facade-skeleton`,
+`dispatcher/vexcoder-adr-028-phase2-tui-latency-facade`).  Each is patched
+in the debug commit on this date and recorded here for traceability.
+
+### Bug 1 — llama.cpp ChatCompat protocol confusion
+
+**Location:** `src/api/client.rs` — `should_prefer_chat_compat_wire_protocol()`
+
+**Root cause:** The heuristic returned `true` for any URL ending in `/messages`,
+including `http://localhost:8000/v1/messages`.  This is the Anthropic Messages
+V1 endpoint served by llama.cpp in Anthropic-compat mode.  The heuristic
+then overwrote the explicit `MessagesV1` config and switched the request to
+`/v1/chat/completions`, causing a wire-format mismatch: the server emitted
+`content_block_delta` SSE events while the client expected OpenAI
+`choices[].delta` chunks.  The symptom appeared in `llama-verbose-logs.txt`
+as repeated `Parsing chat message` callbacks containing Anthropic-format SSE.
+
+**Fix:** The function now only returns `true` for bare `/v1` base URLs —
+i.e., `normalized.ends_with("/v1") && !normalized.ends_with("/v1/messages")`.
+An explicit `/messages` path is conclusive evidence of a MessagesV1 endpoint
+and must never be auto-switched to ChatCompat.
+
+**Tests added:**
+- `test_local_messages_endpoint_keeps_messages_v1_wire_protocol`
+- `test_local_bare_v1_endpoint_prefers_chat_compat_wire_protocol`
+
+### Bug 2 — TUI output goes to buffer, no terminal scrollable history
+
+**Location:** `src/terminal.rs`
+
+**Root cause:** `enter_full_screen_mode()` called `enable_raw_mode()` and
+`EnableBracketedPaste` but did not call `EnterAlternateScreen`.  Without
+alternate screen, ratatui's `CrosstermBackend` renders to the primary terminal
+buffer using cursor-positioning escape codes that overwrite the same screen
+lines on every frame.  Content is never scrolled into terminal history, so
+PageUp in the host terminal shows only the last rendered frame, not the
+session history.
+
+**Fix:** `enter_full_screen_mode()` now executes `EnterAlternateScreen` before
+`EnableBracketedPaste`.  `restore()` now executes `LeaveAlternateScreen` before
+`Show`, cleanly returning the user to their pre-session terminal state.
+
+### Bug 3 — Orchestrator activity pane does not show live steps
+
+**Location:** `src/app/layout.rs` (`task_activity_rows`), `src/ui/render.rs`
+(`render_task_layout`, `pipeline_activity_line`)
+
+**Root cause:** `task_activity_rows()` only iterated `current_turn_tool_invocations`
+(completed calls).  In-flight tool calls stored in `pending_turn_tool_calls`
+were invisible: the activity pane went blank while a tool was executing.  The
+row list was also uncapped (up to 8 fallback history lines with no upper bound
+during active turns).  `render_task_layout` rendered activity rows as
+monochrome `Line::from` strings with no structured prefix styling.
+
+**Fix:**
+- `task_activity_rows()` now appends in-flight calls from
+  `pending_turn_tool_calls` with `[->] name: running…` prefix.
+- The list is capped at `MAX_ACTIVITY_ROWS = 6` for a stable 6-line pipeline
+  dropdown appearance.
+- Completed calls use `[ok]` / `[!]` prefixes matching existing render colours.
+- Added `pipeline_activity_line()` helper that splits each row into a bold
+  coloured prefix `Span` and a body `Span`, giving the orchestration view a
+  structured live-pipeline appearance without copying proprietary CLI tool
+  names or logos.
+- `render_task_layout` activity title now reflects state: "Orchestrating" when
+  in-flight steps exist, "Steps" otherwise.
+
+---
+
 ## References
 
 - `adr/completed/ADR-006-runtime-mode-contracts.md` — runtime seam contracts
@@ -307,3 +379,4 @@ Where older ADRs blur distinctions, update them to reflect:
 - `adr/ADR-025-runtime-json-handoff-contract.md` — canonical runtime JSON contract
 - `adr/ADR-026-localapiserver-transport-binding.md` — LocalApiServer transport binding
 - `adr/ADR-027-full-screen-tui-command-session-capture.md` — current full-screen TUI and command-session capture behavior
+- `scripts/debug-commit.py` — read-and-explain debug commit script introduced with this patch

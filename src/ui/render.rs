@@ -224,24 +224,17 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     }
     frame.render_widget(Paragraph::new(Text::from(header_lines)), layout.header);
 
+    // Pipeline activity pane — renders each orchestration step as a styled
+    // drop-down row (max 6 lines from task_activity_rows).  Prefixes:
+    //   [ok]  green   — completed step
+    //   [!]   red     — failed/error step
+    //   [->]  cyan    — in-flight step (tool call awaiting result)
+    //   [?]   yellow  — approval request
+    //   >     dim     — current user input echo
     let activity_text: Vec<Line> = state
         .activity_rows
         .iter()
-        .map(|row| {
-            // Add status markers based on content
-            let styled = if row.starts_with("[ok]") {
-                Line::styled(row.to_string(), Style::default().fg(Color::Green))
-            } else if row.starts_with("[!]") {
-                Line::styled(row.to_string(), Style::default().fg(Color::Red))
-            } else if row.starts_with("[->]") {
-                Line::styled(row.to_string(), Style::default().fg(Color::Cyan))
-            } else if row.starts_with("[?]") {
-                Line::styled(row.to_string(), Style::default().fg(Color::Yellow))
-            } else {
-                Line::from(row.to_string())
-            };
-            styled
-        })
+        .map(|row| pipeline_activity_line(row))
         .collect();
     let activity_title = if state
         .activity_rows
@@ -249,15 +242,26 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
         .map(|row| row.starts_with("command:"))
         .unwrap_or(false)
     {
-        "Command Session"
+        "Session"
+    } else if state
+        .activity_rows
+        .iter()
+        .any(|row| row.starts_with("[->]"))
+    {
+        "Orchestrating"
     } else {
-        "Activity"
+        "Steps"
     };
     frame.render_widget(
         Paragraph::new(Text::from(activity_text)).block(
             Block::default()
                 .borders(Borders::NONE)
-                .title(activity_title),
+                .title(Span::styled(
+                    activity_title,
+                    Style::default()
+                        .fg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                )),
         ),
         layout.activity,
     );
@@ -436,6 +440,47 @@ fn centered_modal_area(size: Rect, preferred_height: u16) -> Rect {
     let x = size.x + (size.width.saturating_sub(width)) / 2;
     let y = size.y + (size.height.saturating_sub(height)) / 2;
     Rect::new(x, y, width, height)
+}
+
+/// Render a single pipeline activity row with prefix-based colour coding.
+/// Matches the prefixes produced by `task_activity_rows()`:
+///   `[ok]`  → green   (completed step)
+///   `[!]`   → red     (failed/error step)
+///   `[->]`  → cyan    (in-flight orchestration step)
+///   `[?]`   → yellow  (approval request)
+///   `> …`   → dim gray (user prompt echo)
+fn pipeline_activity_line(row: &str) -> Line<'static> {
+    if let Some(rest) = row.strip_prefix("[ok]") {
+        Line::from(vec![
+            Span::styled("[ok]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(rest.to_string(), Style::default().fg(Color::Green)),
+        ])
+    } else if let Some(rest) = row.strip_prefix("[!]") {
+        Line::from(vec![
+            Span::styled("[!] ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::styled(rest.to_string(), Style::default().fg(Color::Red)),
+        ])
+    } else if let Some(rest) = row.strip_prefix("[->]") {
+        Line::from(vec![
+            Span::styled("[->]", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(rest.to_string(), Style::default().fg(Color::Cyan)),
+        ])
+    } else if let Some(rest) = row.strip_prefix("[?]") {
+        Line::from(vec![
+            Span::styled("[?] ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(rest.to_string(), Style::default().fg(Color::Yellow)),
+        ])
+    } else if let Some(rest) = row.strip_prefix("> ") {
+        Line::from(vec![
+            Span::styled("> ", Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM)),
+            Span::styled(rest.to_string(), Style::default().fg(Color::Gray).add_modifier(Modifier::DIM)),
+        ])
+    } else {
+        Line::from(Span::styled(
+            row.to_string(),
+            Style::default().fg(Color::Gray),
+        ))
+    }
 }
 
 fn truncate_line(input: &str, width: usize) -> String {

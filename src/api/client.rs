@@ -472,7 +472,10 @@ fn adapt_to_chat_compat_url(api_url: &str) -> String {
 
 fn should_prefer_chat_compat_wire_protocol(api_url: &str) -> bool {
     let normalized = api_url.trim_end_matches('/');
-    normalized.ends_with("/messages") || normalized.ends_with("/v1")
+    // A URL ending in /messages explicitly targets the Anthropic Messages V1
+    // endpoint — do NOT switch those to ChatCompat.  Only bare /v1 base URLs
+    // are ambiguous enough to warrant the ChatCompat heuristic.
+    normalized.ends_with("/v1") && !normalized.ends_with("/v1/messages")
 }
 
 fn chat_compat_messages(messages: &[ApiMessage], system_prompt: &str) -> Vec<Value> {
@@ -852,11 +855,48 @@ mod tests {
     }
 
     #[test]
-    fn test_local_messages_endpoint_prefers_chat_compat_wire_protocol() {
+    fn test_local_messages_endpoint_keeps_messages_v1_wire_protocol() {
+        // A URL ending in /v1/messages explicitly targets the Anthropic
+        // Messages V1 endpoint (e.g. llama.cpp in Anthropic-compat mode).
+        // It must NOT be auto-switched to ChatCompat — that caused the
+        // llama.cpp "conversion" bug (content_block_delta vs choices[].delta).
         let config = crate::config::Config {
             model_token: None,
             model_name: "local/llama.cpp".to_string(),
             model_url: "http://localhost:8000/v1/messages".to_string(),
+            working_dir: std::path::PathBuf::from("."),
+            model_backend: ModelBackendKind::LocalRuntime,
+            model_protocol: ModelProtocol::MessagesV1,
+            tool_call_mode: ToolCallMode::TaggedFallback,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                ModelBackendKind::LocalRuntime,
+            ),
+            max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
+            api: crate::config::ApiConfig::default(),
+            hooks: Vec::new(),
+        };
+
+        let client = ApiClient::new(&config).expect("client should build");
+        assert_eq!(client.api_protocol(), ApiProtocol::MessagesV1);
+        assert_eq!(
+            client.request_url(),
+            "http://localhost:8000/v1/messages"
+        );
+        assert_eq!(client.protocol(), ModelProtocol::MessagesV1);
+    }
+
+    #[test]
+    fn test_local_bare_v1_endpoint_prefers_chat_compat_wire_protocol() {
+        // A bare /v1 base URL on a local endpoint is ambiguous.  The heuristic
+        // still switches those to ChatCompat because many local servers only
+        // expose the OpenAI-compatible /v1/chat/completions surface.
+        let config = crate::config::Config {
+            model_token: None,
+            model_name: "local/llama.cpp".to_string(),
+            model_url: "http://localhost:8000/v1".to_string(),
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,

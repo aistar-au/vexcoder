@@ -24,20 +24,39 @@ impl TuiMode {
     }
 
     fn task_activity_rows(&self) -> Vec<String> {
+        const MAX_ACTIVITY_ROWS: usize = 6;
+
         if let Some(rows) = self.command_session_rows() {
-            return rows;
+            return rows.into_iter().rev().take(MAX_ACTIVITY_ROWS).rev().collect();
         }
 
         let mut rows = Vec::new();
+
+        // Prompt prefix for the current turn input.
         if !self.current_turn_input.trim().is_empty() {
             rows.push(format!("> {}", self.current_turn_input));
         }
 
+        // Completed tool invocations — prefixed to match render_task_layout
+        // style markers ([ok] / [!]).
         for invocation in &self.current_turn_tool_invocations {
-            rows.push(format!(
-                "[tool] {}: {}",
-                invocation.name, invocation.outcome
-            ));
+            let prefix = if invocation.outcome.starts_with("error")
+                || invocation.outcome.starts_with("failed")
+                || invocation.outcome.starts_with("Error")
+            {
+                "[!]"
+            } else {
+                "[ok]"
+            };
+            rows.push(format!("{prefix} {}: {}", invocation.name, invocation.outcome));
+        }
+
+        // In-flight tool calls (model sent the call, result not yet received).
+        // These are shown with the [->] running marker so the user can see the
+        // orchestrator is still active — without this, the activity pane goes
+        // blank while a long-running tool is executing.
+        for pending in self.pending_turn_tool_calls.values() {
+            rows.push(format!("[->] {}: running…", pending.name));
         }
 
         if rows.is_empty() {
@@ -47,7 +66,7 @@ impl TuiMode {
                 .iter()
                 .rev()
                 .filter(|line| !line.trim().is_empty())
-                .take(8)
+                .take(MAX_ACTIVITY_ROWS)
                 .cloned()
                 .collect::<Vec<_>>()
                 .into_iter()
@@ -55,7 +74,10 @@ impl TuiMode {
                 .collect();
         }
 
-        rows
+        // Clamp to the most-recent MAX_ACTIVITY_ROWS lines for a stable
+        // 6-line dropdown appearance — older completed steps scroll off the
+        // top naturally.
+        rows.into_iter().rev().take(MAX_ACTIVITY_ROWS).rev().collect()
     }
 
     fn task_output_rows(&self) -> Vec<String> {
