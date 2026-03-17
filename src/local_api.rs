@@ -18,7 +18,7 @@ use axum::extract::{Request, State};
 use axum::http::header::{AUTHORIZATION, STRICT_TRANSPORT_SECURITY};
 use axum::http::{HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
-use axum::response::sse::{Event, Sse};
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::response::Response;
 use axum::routing::{get, post};
@@ -38,7 +38,7 @@ use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::task::JoinSet;
@@ -50,6 +50,8 @@ use tokio_util::sync::CancellationToken;
 pub const DEFAULT_LOCAL_API_PORT: u16 = 6274;
 
 const HSTS_HEADER_VALUE: &str = "max-age=31536000";
+const SSE_KEEPALIVE_TEXT: &str = "keepalive";
+const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 
 #[derive(Clone)]
 pub struct LocalApiState {
@@ -795,14 +797,24 @@ async fn turns_handler(
 
     spawn_local_api_task(state.clone(), task_id, input, shared, interrupt_rx);
 
-    let stream = UnboundedReceiverStream::new(envelope_rx)
-        .map(|payload| Ok::<Event, Infallible>(Event::default().event("runtime").data(payload)));
-
     Ok((
         StatusCode::OK,
         [(axum::http::header::CACHE_CONTROL, "no-cache")],
-        Sse::new(stream),
+        runtime_sse_response(envelope_rx, SSE_KEEPALIVE_INTERVAL),
     ))
+}
+
+fn runtime_sse_response(
+    envelope_rx: mpsc::UnboundedReceiver<String>,
+    keepalive_interval: Duration,
+) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
+    let stream = UnboundedReceiverStream::new(envelope_rx)
+        .map(|payload| Ok::<Event, Infallible>(Event::default().event("runtime").data(payload)));
+    Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(keepalive_interval)
+            .text(SSE_KEEPALIVE_TEXT),
+    )
 }
 
 async fn interrupt_handler(
@@ -1015,11 +1027,12 @@ fn internal_error(_: serde_json::Error) -> (StatusCode, Json<ControlResponse>) {
 mod tests {
     use super::*;
     use crate::api::mock_client::MockApiClient;
-    use axum::body::Body;
     use axum::body::to_bytes;
+    use axum::body::Body;
     use axum::http::header::AUTHORIZATION;
     use axum::http::header::CONTENT_TYPE;
     use axum::http::Request;
+    use tokio::time::timeout;
     use tower::ServiceExt;
 
     #[tokio::test]
@@ -1090,6 +1103,108 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_http_router_rejects_invalid_bearer_token() {
+        let mut config = Config::default_for_tui();
+        config.api.key = Some("token-123".to_string());
+        let router = build_http_router(
+            LocalApiState::new(config),
+            HttpSurfaceSettings {
+                bearer_token: Arc::<str>::from("token-123"),
+                hsts_enabled: false,
+            },
+        );
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/health")
+                    .header(AUTHORIZATION, "Bearer wrong-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let payload: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
+        assert_eq!(
+            payload.get("reason"),
+            Some(&Value::String("unauthorized".to_string()))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_runtime_sse_response_emits_keepalive_comment() {
+        #[derive(Clone)]
+        struct TestSseState {
+            _sender: mpsc::UnboundedSender<String>,
+            receiver: Arc<AsyncMutex<Option<mpsc::UnboundedReceiver<String>>>>,
+        }
+
+        async fn keepalive_handler(State(state): State<TestSseState>) -> impl IntoResponse {
+            let receiver = state
+                .receiver
+                .lock()
+                .await
+                .take()
+                .expect("single keepalive request");
+            runtime_sse_response(receiver, Duration::from_millis(20))
+        }
+
+        let (sender, receiver) = mpsc::unbounded_channel::<String>();
+        let state = TestSseState {
+            _sender: sender,
+            receiver: Arc::new(AsyncMutex::new(Some(receiver))),
+        };
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new()
+                    .route("/", get(keepalive_handler))
+                    .with_state(state),
+            )
+            .await
+            .unwrap();
+        });
+
+        let response = reqwest::get(format!("http://{addr}/")).await.unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+
+        let mut stream = response.bytes_stream();
+        let mut frame = Vec::new();
+        for _ in 0..8 {
+            let chunk = timeout(
+                Duration::from_secs(1),
+                futures::StreamExt::next(&mut stream),
+            )
+            .await
+            .expect("keepalive chunk timed out")
+            .expect("stream ended unexpectedly")
+            .unwrap();
+            frame.extend_from_slice(&chunk);
+
+            if frame.windows(2).any(|window| window == b"\n\n")
+                || frame.windows(4).any(|window| window == b"\r\n\r\n")
+            {
+                break;
+            }
+        }
+        let payload = String::from_utf8_lossy(&frame);
+        assert!(
+            payload.contains(": keepalive"),
+            "expected SSE keepalive comment, got {payload:?}"
+        );
+
+        server.abort();
+    }
+
+    #[tokio::test]
     async fn test_interrupt_handler_returns_not_found_for_unknown_task() {
         let mut config = Config::default_for_tui();
         config.api.key = Some("token-123".to_string());
@@ -1120,7 +1235,10 @@ mod tests {
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let payload: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
-        assert_eq!(payload.get("reason"), Some(&Value::String("task_not_found".to_string())));
+        assert_eq!(
+            payload.get("reason"),
+            Some(&Value::String("task_not_found".to_string()))
+        );
     }
 
     #[tokio::test]
@@ -1154,7 +1272,10 @@ mod tests {
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let payload: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
-        assert_eq!(payload.get("reason"), Some(&Value::String("task_not_found".to_string())));
+        assert_eq!(
+            payload.get("reason"),
+            Some(&Value::String("task_not_found".to_string()))
+        );
     }
 
     #[tokio::test]
@@ -1208,7 +1329,40 @@ mod tests {
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let payload: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
-        assert_eq!(payload.get("reason"), Some(&Value::String("no_pending_approval".to_string())));
+        assert_eq!(
+            payload.get("reason"),
+            Some(&Value::String("no_pending_approval".to_string()))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_turns_endpoint_rejects_schema_invalid_request() {
+        let mut config = Config::default_for_tui();
+        config.api.key = Some("token-123".to_string());
+        let router = build_http_router(
+            LocalApiState::new(config),
+            HttpSurfaceSettings {
+                bearer_token: Arc::<str>::from("token-123"),
+                hsts_enabled: false,
+            },
+        );
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/turns")
+                    .header(AUTHORIZATION, "Bearer token-123")
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        r#"{"type":"submit_input","task_id":"task-only"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     #[test]
@@ -1323,6 +1477,97 @@ mod tests {
         ));
     }
 
+    #[tokio::test]
+    async fn test_local_api_mode_emits_stream_sequence_in_order() {
+        let (envelope_tx, mut envelope_rx) = mpsc::unbounded_channel();
+        let quit = Arc::new(AtomicBool::new(false));
+        let shared = Arc::new(Mutex::new(LocalApiTaskShared {
+            normalizer: RuntimeEnvelopeNormalizer::new("task-seq"),
+            envelope_tx,
+            pending_approval: None,
+            quit,
+            turn_in_progress: false,
+            interrupted: false,
+        }));
+        let mut mode = LocalApiMode::new(Arc::clone(&shared));
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+        let conversation =
+            ConversationManager::new(client, ToolOperator::new(std::env::temp_dir()));
+        let (update_tx, _update_rx) = mpsc::unbounded_channel();
+        let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
+
+        mode.on_user_input("review src/local_api.rs".to_string(), &mut ctx);
+        mode.on_model_update(UiUpdate::StreamDelta("working".to_string()), &mut ctx);
+        mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+
+        let envelopes = [
+            serde_json::from_str::<RuntimeEnvelope>(&envelope_rx.recv().await.unwrap()).unwrap(),
+            serde_json::from_str::<RuntimeEnvelope>(&envelope_rx.recv().await.unwrap()).unwrap(),
+            serde_json::from_str::<RuntimeEnvelope>(&envelope_rx.recv().await.unwrap()).unwrap(),
+            serde_json::from_str::<RuntimeEnvelope>(&envelope_rx.recv().await.unwrap()).unwrap(),
+        ];
+
+        let seqs: Vec<u64> = envelopes.iter().map(|envelope| envelope.seq).collect();
+        assert_eq!(seqs, vec![1, 2, 3, 4]);
+        assert!(matches!(envelopes[0].event, RuntimeEvent::TurnStart { .. }));
+        assert!(matches!(
+            envelopes[1].event,
+            RuntimeEvent::AssistantDelta { .. }
+        ));
+        assert!(matches!(
+            envelopes[2].event,
+            RuntimeEvent::AssistantMessage { .. }
+        ));
+        assert!(matches!(
+            envelopes[3].event,
+            RuntimeEvent::TurnEnd { ref status, .. } if status == "completed"
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_local_api_mode_error_emits_failed_turn_end() {
+        let (envelope_tx, mut envelope_rx) = mpsc::unbounded_channel();
+        let quit = Arc::new(AtomicBool::new(false));
+        let shared = Arc::new(Mutex::new(LocalApiTaskShared {
+            normalizer: RuntimeEnvelopeNormalizer::new("task-error"),
+            envelope_tx,
+            pending_approval: None,
+            quit,
+            turn_in_progress: false,
+            interrupted: false,
+        }));
+        let mut mode = LocalApiMode::new(Arc::clone(&shared));
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+        let conversation =
+            ConversationManager::new(client, ToolOperator::new(std::env::temp_dir()));
+        let (update_tx, _update_rx) = mpsc::unbounded_channel();
+        let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
+
+        mode.on_user_input("review src/local_api.rs".to_string(), &mut ctx);
+        let start: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        assert!(matches!(start.event, RuntimeEvent::TurnStart { .. }));
+        mode.on_model_update(UiUpdate::Error("stream failed".to_string()), &mut ctx);
+
+        let error: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        let terminal: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+
+        assert!(matches!(
+            error.event,
+            RuntimeEvent::Error {
+                ref code,
+                ref message,
+                recoverable: false,
+            } if code == "runtime_error" && message == "stream failed"
+        ));
+        assert!(matches!(
+            terminal.event,
+            RuntimeEvent::TurnEnd { ref status, .. } if status == "failed"
+        ));
+    }
+
     #[test]
     fn test_resolve_serve_config_accepts_ipv4_loopback_aliases_without_tls() {
         let mut config = Config::default_for_tui();
@@ -1332,6 +1577,34 @@ mod tests {
         let resolved = resolve_serve_config(&config, None, None).unwrap();
         let http = resolved.http.expect("http surface should be present");
         assert_eq!(http.bind_addr, "127.42.0.7");
+        assert!(http.tls.is_none());
+    }
+
+    #[test]
+    fn test_resolve_serve_config_accepts_ipv6_loopback_without_tls() {
+        let mut config = Config::default_for_tui();
+        config.api.host = "::1".to_string();
+        config.api.key = Some("token-123".to_string());
+
+        let resolved = resolve_serve_config(&config, None, None).unwrap();
+        let http = resolved.http.expect("http surface should be present");
+        assert_eq!(http.bind_addr, "::1");
+        assert!(http.tls.is_none());
+    }
+
+    #[test]
+    fn test_resolve_serve_config_accepts_localhost_without_tls() {
+        let mut config = Config::default_for_tui();
+        config.api.host = "localhost".to_string();
+        config.api.key = Some("token-123".to_string());
+
+        if !is_strict_loopback_host("localhost", DEFAULT_LOCAL_API_PORT).unwrap() {
+            return;
+        }
+
+        let resolved = resolve_serve_config(&config, None, None).unwrap();
+        let http = resolved.http.expect("http surface should be present");
+        assert_eq!(http.bind_addr, "localhost");
         assert!(http.tls.is_none());
     }
 
