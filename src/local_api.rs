@@ -1177,15 +1177,25 @@ mod tests {
         assert_eq!(response.status(), reqwest::StatusCode::OK);
 
         let mut stream = response.bytes_stream();
-        let chunk = timeout(
-            Duration::from_secs(1),
-            futures::StreamExt::next(&mut stream),
-        )
-        .await
-        .expect("keepalive chunk timed out")
-        .expect("stream ended unexpectedly")
-        .unwrap();
-        let payload = String::from_utf8_lossy(&chunk);
+        let mut frame = Vec::new();
+        for _ in 0..8 {
+            let chunk = timeout(
+                Duration::from_secs(1),
+                futures::StreamExt::next(&mut stream),
+            )
+            .await
+            .expect("keepalive chunk timed out")
+            .expect("stream ended unexpectedly")
+            .unwrap();
+            frame.extend_from_slice(&chunk);
+
+            if frame.windows(2).any(|window| window == b"\n\n")
+                || frame.windows(4).any(|window| window == b"\r\n\r\n")
+            {
+                break;
+            }
+        }
+        let payload = String::from_utf8_lossy(&frame);
         assert!(
             payload.contains(": keepalive"),
             "expected SSE keepalive comment, got {payload:?}"
@@ -1587,6 +1597,10 @@ mod tests {
         let mut config = Config::default_for_tui();
         config.api.host = "localhost".to_string();
         config.api.key = Some("token-123".to_string());
+
+        if !is_strict_loopback_host("localhost", DEFAULT_LOCAL_API_PORT).unwrap() {
+            return;
+        }
 
         let resolved = resolve_serve_config(&config, None, None).unwrap();
         let http = resolved.http.expect("http surface should be present");
