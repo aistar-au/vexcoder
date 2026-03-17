@@ -1,9 +1,10 @@
 use anyhow::Result;
 use crossterm::{
+    cursor::MoveToColumn,
     cursor::Show,
     event::{DisableBracketedPaste, EnableBracketedPaste},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io::{self, IsTerminal, Stdout};
@@ -33,7 +34,7 @@ fn enter_full_screen_mode() -> Result<()> {
     }
 
     enable_raw_mode()?;
-    execute!(io::stdout(), EnterAlternateScreen, EnableBracketedPaste)?;
+    execute!(io::stdout(), EnableBracketedPaste)?;
     Ok(())
 }
 
@@ -55,10 +56,12 @@ pub fn restore() -> Result<()> {
     let _ = disable_raw_mode();
     let _ = execute!(
         io::stdout(),
-        LeaveAlternateScreen,
         DisableBracketedPaste,
-        Show
+        Show,
+        MoveToColumn(0),
+        Clear(ClearType::CurrentLine)
     );
+    println!();
     Ok(())
 }
 
