@@ -1,4 +1,6 @@
+#[cfg(test)]
 use crate::api::ApiClient;
+use crate::app::execute_facade_runtime;
 use crate::config::Config;
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::frontend::{FrontendAdapter, UserInputEvent};
@@ -7,11 +9,11 @@ use crate::runtime::json_handoff::{
     RuntimeRequest, TurnEndContext,
 };
 use crate::runtime::mode::RuntimeMode;
-use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
-use crate::runtime::r#loop::Runtime;
 use crate::runtime::UiUpdate;
-use crate::session_notes::build_api_client_with_notes;
-use crate::state::{ConversationManager, TurnToolPolicy};
+#[cfg(test)]
+use crate::state::ConversationManager;
+use crate::state::TurnToolPolicy;
+#[cfg(test)]
 use crate::tools::ToolOperator;
 use anyhow::{anyhow, bail, Context, Result};
 use axum::extract::{Request, State};
@@ -925,11 +927,6 @@ async fn run_local_api_task(
     shared: Arc<Mutex<LocalApiTaskShared>>,
     interrupt_rx: mpsc::UnboundedReceiver<FrontendCommand>,
 ) -> Result<()> {
-    let client = build_local_api_client(&config)?;
-    let operator = ToolOperator::new(config.working_dir.clone());
-    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone());
-    let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
-    let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
     let mode = LocalApiMode::new(Arc::clone(&shared));
     let quit = shared
         .lock()
@@ -937,42 +934,18 @@ async fn run_local_api_task(
         .quit
         .clone();
     let mut frontend = LocalApiFrontend::new(input, interrupt_rx, quit);
-    let mut runtime = Runtime::new(mode, update_rx);
-    runtime.run(&mut frontend, &mut ctx).await;
+    if let Some(warning) = execute_facade_runtime(&config, mode, &mut frontend)
+        .await?
+        .notes_warning
+    {
+        eprintln!("{warning}");
+    }
     if !frontend.should_quit() {
         return Err(anyhow!(
             "local api runtime exited before signalling completion for {task_id}"
         ));
     }
     Ok(())
-}
-
-fn build_local_api_client(config: &Config) -> Result<ApiClient> {
-    let instructions = match load_project_instructions(
-        &config.working_dir,
-        config.max_project_instructions_tokens,
-    ) {
-        LoadResult::Loaded(project_instructions) => Some(project_instructions.content),
-        LoadResult::OverBudget {
-            path,
-            estimated_tokens,
-        } => {
-            eprintln!(
-                "[project instructions] {} skipped: estimated {} tokens exceeds budget of {}",
-                path.display(),
-                estimated_tokens,
-                config.max_project_instructions_tokens,
-            );
-            None
-        }
-        LoadResult::NotFound => None,
-    };
-
-    let (client, notes_warning) = build_api_client_with_notes(config)?;
-    if let Some(warning) = notes_warning {
-        eprintln!("{warning}");
-    }
-    Ok(client.with_project_instructions(instructions))
 }
 
 fn new_server_task_id() -> String {
