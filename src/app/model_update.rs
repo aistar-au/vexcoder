@@ -49,6 +49,9 @@ impl TuiMode {
                                 input: input.clone(),
                             },
                         );
+                        // Auto-advance timeline selection to the latest step.
+                        let total = self.timeline_entry_count();
+                        self.selected_timeline_index = total.saturating_sub(1);
                     }
                     StreamBlock::ToolResult {
                         tool_call_id,

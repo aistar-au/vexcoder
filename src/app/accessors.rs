@@ -99,4 +99,15 @@ impl TuiMode {
     pub fn set_history_content_width(&self, width: usize) {
         self.history_content_width.set(width.max(1));
     }
+
+    /// Total number of timeline entries available for selection.
+    pub(super) fn timeline_entry_count(&self) -> usize {
+        let mut count = 0;
+        if !self.current_turn_input.trim().is_empty() {
+            count += 1;
+        }
+        count += self.current_turn_tool_invocations.len();
+        count += self.pending_turn_tool_calls.len();
+        count.max(1)
+    }
 }

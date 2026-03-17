@@ -498,11 +498,44 @@ struct CommandSessionState {
     status: String,
 }
 
+/// Lifecycle state of a single orchestration step visible in the timeline.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StepLifecycle {
+    /// Tool call sent by the model, result not yet received.
+    Running,
+    /// Tool completed successfully.
+    Completed,
+    /// Tool completed with an error.
+    Failed,
+    /// Waiting for operator approval.
+    AwaitingApproval,
+    /// User prompt echo (not a tool step).
+    UserInput,
+    /// Active command session.
+    CommandSession,
+}
+
+/// A single row in the orchestration timeline, derived from canonical task state.
+#[derive(Clone, Debug)]
+pub struct TimelineEntry {
+    pub lifecycle: StepLifecycle,
+    pub label: String,
+    /// Detail text shown in the inspector/output pane when this entry is selected.
+    pub detail: String,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct TaskLayoutState {
     pub task_id: String,
     pub status_line: String,
+    /// Legacy string rows kept for backward-compatible rendering paths.
     pub activity_rows: Vec<String>,
+    /// Structured timeline entries derived from canonical task state.
+    pub timeline_entries: Vec<TimelineEntry>,
+    /// Index of the selected timeline entry (for inspector focus).
+    pub selected_step: usize,
+    /// Total number of steps (including those scrolled out of view).
+    pub total_steps: usize,
     pub output_rows: Vec<String>,
     pub pending_approval: Option<String>,
     pub input_hint: String,
@@ -541,6 +574,8 @@ pub struct TuiMode {
     current_turn_command_history: Vec<crate::runtime::CommandEvidence>,
     current_turn_tool_invocations: Vec<ToolInvocationSummary>,
     pending_turn_tool_calls: std::collections::HashMap<String, PendingTurnToolCall>,
+    /// Index of the currently selected timeline entry in the activity pane.
+    selected_timeline_index: usize,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }
@@ -586,6 +621,9 @@ impl RuntimeMode for TuiMode {
                     if target == ScrollTarget::Overlay {
                         self.apply_patch_overlay_scroll_action(action);
                     }
+                } else if target == ScrollTarget::Timeline {
+                    let total = self.timeline_entry_count();
+                    self.apply_timeline_scroll_action(action, total);
                 } else if target == ScrollTarget::History {
                     self.apply_history_scroll_action(action);
                 }
