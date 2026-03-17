@@ -101,7 +101,11 @@ impl TuiMode {
     }
 
     /// Total number of timeline entries available for selection.
+    /// Mirrors the entry count produced by `task_timeline_entries()`.
     pub(super) fn timeline_entry_count(&self) -> usize {
+        if !self.command_sessions.is_empty() {
+            return self.command_sessions.len().max(1);
+        }
         let mut count = 0;
         if !self.current_turn_input.trim().is_empty() {
             count += 1;

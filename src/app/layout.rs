@@ -78,7 +78,11 @@ impl TuiMode {
         }
 
         // In-flight tool calls from pending_turn_tool_calls (task-state owned).
-        for pending in self.pending_turn_tool_calls.values() {
+        // Sort by key for stable iteration order across frames.
+        let mut pending_keys: Vec<&String> = self.pending_turn_tool_calls.keys().collect();
+        pending_keys.sort();
+        for key in pending_keys {
+            let pending = &self.pending_turn_tool_calls[key];
             let input_preview = serde_json::to_string_pretty(&pending.input)
                 .unwrap_or_else(|_| pending.input.to_string());
             entries.push(TimelineEntry {
@@ -128,7 +132,11 @@ impl TuiMode {
         }
 
         // In-flight tool calls (model sent the call, result not yet received).
-        for pending in self.pending_turn_tool_calls.values() {
+        // Sort by key for stable order.
+        let mut pending_keys: Vec<&String> = self.pending_turn_tool_calls.keys().collect();
+        pending_keys.sort();
+        for key in &pending_keys {
+            let pending = &self.pending_turn_tool_calls[*key];
             rows.push(format!("[->] {}: running...", pending.name));
         }
 
