@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PYTHON_BIN=""
-if command -v python3 >/dev/null 2>&1; then
-  PYTHON_BIN="python3"
+PYTHON_BIN=()
+if command -v py >/dev/null 2>&1; then
+  PYTHON_BIN=(py -3)
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN=(python3)
 elif command -v python >/dev/null 2>&1; then
-  PYTHON_BIN="python"
+  PYTHON_BIN=(python)
 fi
 
 RG_BIN="${VEX_RG_BIN:-rg}"
@@ -18,7 +20,7 @@ if [[ "$RG_BIN" == *"/"* || "$RG_BIN" == *"\\"* ]]; then
 elif ! command -v "$RG_BIN" >/dev/null 2>&1; then
   if command -v rg.exe >/dev/null 2>&1; then
     RG_BIN="rg.exe"
-  elif [[ -n "$PYTHON_BIN" ]]; then
+  elif [[ ${#PYTHON_BIN[@]} -gt 0 ]]; then
     SCAN_BACKEND="python"
   else
     echo "FAIL: ripgrep executable not found (expected rg, rg.exe, or VEX_RG_BIN), and no python fallback is available" >&2
@@ -34,11 +36,11 @@ scan_targets() {
       --glob '!.git' \
       --glob '!.github/workflows/**' \
       --glob '!scripts/check_forbidden_names.sh' \
-      "$pattern" "$@"
+      "$pattern" "$@" | sed 's#\\#/#g'
     return
   fi
 
-  "$PYTHON_BIN" - "$pattern" "$@" <<'PY'
+  "${PYTHON_BIN[@]}" - "$pattern" "$@" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -73,11 +75,11 @@ PY
 
 scan_workflows() {
   if [[ "$SCAN_BACKEND" == "rg" ]]; then
-    "$RG_BIN" -n --hidden -i --glob '!.git' "$BRAND_PATTERN" .github/workflows/
+    "$RG_BIN" -n --hidden -i --glob '!.git' "$BRAND_PATTERN" .github/workflows/ | sed 's#\\#/#g'
     return
   fi
 
-  "$PYTHON_BIN" - "$BRAND_PATTERN" <<'PY'
+  "${PYTHON_BIN[@]}" - "$BRAND_PATTERN" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -107,8 +109,8 @@ PY
 scan_path_names() {
   local pattern="$1"
   shift
-  if [[ -n "$PYTHON_BIN" ]]; then
-    "$PYTHON_BIN" - "$pattern" "$@" <<'PY'
+  if [[ ${#PYTHON_BIN[@]} -gt 0 ]]; then
+    "${PYTHON_BIN[@]}" - "$pattern" "$@" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -138,7 +140,7 @@ PY
     if [[ ! -d "$path_root" ]]; then
       continue
     fi
-    if find "$path_root" -type f -print | "$RG_BIN" -n -i "$pattern"; then
+    if find "$path_root" -type f -print | "$RG_BIN" -n -i "$pattern" | sed 's#\\#/#g'; then
       matched=0
     fi
   done
@@ -167,6 +169,7 @@ brand_words=(
   $'\x63\x6c\x61\x75\x64\x65'
   $'\x61\x6e\x74\x68\x72\x6f\x70\x69\x63'
   $'\x67\x6f\x6f\x67\x6c\x65'
+  $'\x63\x6f\x64\x65\x78'
   $'\x6f\x70\x65\x6e\x61\x69'
   $'\x67\x70\x74'
   $'\x63\x6f\x70\x69\x6c\x6f\x74'

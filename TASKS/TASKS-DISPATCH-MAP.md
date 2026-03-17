@@ -10,7 +10,7 @@ Whole-repo tracked file map: `TASKS/completed/REPO-RAW-URL-MAP.md`.
 | Manifest | ADR source | Depends on | Scope |
 | :--- | :--- | :--- | :--- |
 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | `ADR-025` PI-10, PI-12 | `PI-09`, `PI-11` | Normalization layer and serde/schema/grammar/BatchMode test coverage. |
-| `TASKS/PJ-03-memory-notes.md` | `ADR-024` Gap 16 | `PA-01` | `/memory`, `/memory add`, `/memory clear`, and session-note injection. |
+| `TASKS/PJ-03-memory-notes-injection.md` | `ADR-024` Gap 16 | `PA-01` | `/memory`, `/memory add`, `/memory clear`, and session-note injection. |
 
 ## Open ADR Dispatch Sources
 
@@ -28,9 +28,9 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-025-runtime-json-handoff-contract.md` | Proposed |
 | `adr/ADR-026-localapiserver-transport-binding.md` | Proposed |
 | `adr/ADR-027-full-screen-tui-command-session-capture.md` | Accepted |
-| `adr/ADR-028-application-facade-and-transport-boundaries.md` | Proposed |
+| `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Proposed |
-| `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Proposed |
+| `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Active |
 
 ## Immediate Dependency Notes
 
@@ -41,27 +41,27 @@ EL-08 -> EL-09 -> EL-10 -> EL-11 -> EL-12 -> EL-13 (complete)
 Milestone-1 gate (passed 2026-03-15):
 ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
   -> ADR-025 PI-09 + PI-11 (kickoff complete)
-  -> PI-10 next after PI-09
-  -> PI-12 after PI-10 and PI-11
-  -> ADR-026 PI-13 + PI-14 (parallel) after PI-12 and ADR-024 reconciliation
-  -> PI-15 after PI-13 and PI-14
-  -> PI-16 last
+  -> ADR-025 PI-10 + PI-12 (implemented in the current tree)
+  -> ADR-026 PI-13 + PI-14 (implemented in the current tree)
+  -> PI-15 implemented in the current tree
+  -> PI-16 implemented in the current tree
+  -> ADR-028 active follow-up
 ```
 
 ADR-025 and ADR-026 are the first post-gate Phase I dispatch track. ADR-028 is
-the boundary ADR that later CLI and LocalApiServer refactors must respect.
+now active in the current tree and remains the boundary ADR that later CLI and
+LocalApiServer refactors must respect.
 ADR-029 and ADR-030 remain part of the active ADR set but do not supersede the
 passed milestone-1 gate or ADR-025 sequencing.
 
 ## Current Next Dispatcher Batch
 
-The next dispatcher batch is ADR-025 Phase I continuation (`PI-10`, then `PI-12`).
+The current dispatcher batch continues ADR-028 application-facade and transport-boundary follow-up.
 
 - Milestone-1 validation is complete; use the recorded gate result in ADR-022 as the Phase I entry condition.
-- `PI-09` and `PI-11` are now the completed kickoff entry work for ADR-025.
-- Keep `PI-10` sequenced after `PI-09`, and keep `PI-12` sequenced after both `PI-10` and `PI-11`.
-- Keep ADR-026 sequenced after ADR-025 closeout and ADR-024 reconciliation.
-- Treat ADR-028 as the boundary ADR for the post-gate Phase I work, not as the next immediate implementation batch.
+- ADR-025 now has the completed kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) work in the current tree.
+- ADR-026 now has `PI-13` through `PI-16` implemented in the current tree.
+- Treat ADR-028 as the active boundary/workstream for the post-gate Phase I follow-up work.
 - Treat ADR-030 as the control-flow ADR for the post-gate runtime work: provider events normalize into canonical runtime events, task state owns truth, and orchestrator decisions remain runtime-owned.
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
@@ -77,6 +77,6 @@ capture behavior.
 - ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
   `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`; `PK-08`, the ADR-027 follow-up,
   and the full ADR-023 implementation track (`EL-01` through `EL-13`) are now
-  on `main`. Milestone-1 validation passed on `2026-03-15`, so ADR-025 is now
-  the next dispatcher-owned implementation track, with ADR-026 and ADR-028
-  remaining dependency-sequenced follow-ups.
+  on `main`. Milestone-1 validation passed on `2026-03-15`; ADR-026 `PI-13`
+  through `PI-16` are now implemented in the current tree, with ADR-028
+  remaining the active facade-boundary follow-up.

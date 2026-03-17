@@ -1,5 +1,10 @@
 # ADR-025 Phase I Continuation: PI-10, then PI-12
 
+## Status update
+
+This batch is now implemented on `dispatcher/vexcoder-adr-025-phase-2-post-pr101`.
+The next dependency-sequenced batch is ADR-026 Phase I transport binding (`PI-13` and `PI-14` in parallel) after ADR-024 reconciliation.
+
 ## Context
 
 Milestone-1 validation passed on 2026-03-15 and is recorded in
@@ -160,8 +165,9 @@ Add targeted ADR-025 tests as part of PI-12. Run verification after each item.
 ## PR motivation framing
 
 - Milestone-1 validation has already passed and is recorded in ADR-022.
-- Roadmap and dispatch map now point to ADR-025 Phase I continuation as the
-  next batch.
+- With this branch, roadmap and dispatch map advance to ADR-026 Phase I
+  transport binding (`PI-13` and `PI-14` in parallel) after ADR-024
+  reconciliation.
 - This batch continues the post-gate Phase I track in documented dependency
   order.
 - PI-10 adds the normalization layer that maps provider/native stream updates

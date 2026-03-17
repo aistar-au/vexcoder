@@ -80,4 +80,3 @@ make gate-fast
 
 - [Configuration](configuration.md)
 - [CLI and TUI Commands](commands.md)
-- [Installation](installation/index.md)

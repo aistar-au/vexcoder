@@ -909,6 +909,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
+            api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
         };
 
@@ -936,6 +937,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
+            api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
         };
 
@@ -962,6 +964,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
+            api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
         };
 

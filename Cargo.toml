@@ -12,25 +12,43 @@ path = "src/bin/vex.rs"
 [dependencies]
 aho-corasick = "1"
 anyhow = "1"
+axum = { version = "0.8", features = ["http1", "json", "tokio"] }
 clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4" }
 bytes = "1"
 crossterm = "0.28"
 futures = "0.3"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = [
+  "http1",
+  "server-auto",
+  "service",
+  "tokio",
+] }
 ratatui = "0.29"
 reqwest = { version = "0.12", default-features = false, features = [
   "json",
   "stream",
   "rustls-tls",
 ] }
+rustls = { version = "0.23", default-features = false, features = [
+  "ring",
+  "std",
+  "tls12",
+] }
+rustls-pemfile = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
+tokio-rustls = "0.26"
+tokio-stream = "0.1"
 tokio-util = "0.7"
 toml = "0.8"
 unicode-width = "0.2"
 portable-pty = "0.9"
 tempfile = "3"
+x509-parser = "0.17"
 
 [dev-dependencies]
 filetime = "0.2"
+tower = "0.5"

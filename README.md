@@ -1,6 +1,6 @@
 # VexCoder
 
-Terminal-first coding assistant CLI app, implemented in Rust.
+Interactive coding assistant CLI, implemented in Rust.
 
 ## Documentation
 
@@ -14,7 +14,6 @@ mdbook serve docs
 - [Introduction](docs/src/introduction.md)
 - [Architecture Overview](docs/src/architecture.md)
 - [Quick Start](docs/src/quick-start.md)
-- [Installation — macOS, Linux, Windows](docs/src/installation/index.md)
 - [Configuration](docs/src/configuration.md)
 - [CLI and TUI Commands](docs/src/commands.md)
 

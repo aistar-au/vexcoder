@@ -71,9 +71,9 @@ review text:
 
 | Order | File | Why it is a dependency |
 | :--- | :--- | :--- |
-| 1 | `../vexdraft/.agents/skills/vex-local-bash/SKILL.md` (<https://raw.githubusercontent.com/aistar-au/vexdraft/refs/heads/main/.agents/skills/vex-local-bash/SKILL.md>) | Local drafting rules for summaries, findings, and PR motivation text. |
-| 2 | `../vexdraft/.agents/skills/vex-remote-contract/SKILL.md` (<https://raw.githubusercontent.com/aistar-au/vexdraft/refs/heads/main/.agents/skills/vex-remote-contract/SKILL.md>) | Cross-repo branch verification, raw URL validation, PR-body posting, and push/merge contract. |
-| 3 | `../vexdraft/.agents/skills/vex-rust-arch/SKILL.md` (<https://raw.githubusercontent.com/aistar-au/vexdraft/refs/heads/main/.agents/skills/vex-rust-arch/SKILL.md>) | Rust-specific architecture guidance when the task touches `src/**/*.rs`, `tests/**/*.rs`, or ADR-024 gaps. |
+| 1 | `../vexdraft/.agents/skills/vex-local-bash/SKILL.md` (<https://raw.githubusercontent.com/aistar-au/vexdraft/main/.agents/skills/vex-local-bash/SKILL.md>) | Local drafting rules for summaries, findings, and PR motivation text. |
+| 2 | `../vexdraft/.agents/skills/vex-remote-contract/SKILL.md` (<https://raw.githubusercontent.com/aistar-au/vexdraft/main/.agents/skills/vex-remote-contract/SKILL.md>) | Cross-repo branch verification, raw URL validation, PR-body posting, and push/merge contract. |
+| 3 | `../vexdraft/.agents/skills/vex-rust-arch/SKILL.md` (<https://raw.githubusercontent.com/aistar-au/vexdraft/main/.agents/skills/vex-rust-arch/SKILL.md>) | Rust-specific architecture guidance when the task touches `src/**/*.rs`, `tests/**/*.rs`, or ADR-024 gaps. |
 
 **Note:** In remote environments these same files are loaded from the
 `aistar-au/vexdraft` repository. Paths beginning with `../vexdraft/` refer to the
@@ -86,7 +86,7 @@ them:
 | Trigger | File | Purpose |
 | :--- | :--- | :--- |
 | ADR-024 parity or gap planning | `../vexdraft/.agents/skills/vex-remote-contract/references/adr-024-gap-map.md` (<https://github.com/aistar-au/vexdraft/blob/main/.agents/skills/vex-remote-contract/references/adr-024-gap-map.md>) | Gap inventory and dependency notes for ADR-024 work. |
-| Rust coding task needs expanded language rules | `../vexdraft/.agents/skills/vex-remote-contract/references/rust-rules.md` (<https://raw.githubusercontent.com/aistar-au/vexdraft/refs/heads/main/.agents/skills/vex-remote-contract/SKILL.md>) | Rust implementation constraints used by the dispatcher workflow. |
+| Rust coding task needs expanded language rules | `../vexdraft/.agents/skills/vex-remote-contract/references/rust-rules.md` (<https://raw.githubusercontent.com/aistar-au/vexdraft/main/.agents/skills/vex-remote-contract/references/rust-rules.md>) | Rust implementation constraints used by the dispatcher workflow. |
 
 ## Local repo sources
 
@@ -122,12 +122,12 @@ for the broader open-ADR list.
 | ADR-022 | Proposed, with 2026-03-13 amendment | Sets the free/open roadmap target that the private dispatcher skills are validating against. |
 | ADR-023 | Locked | `EL-08` through `EL-13` are now on `main`. The ADR-023 implementation track is complete; milestone-1 validation has passed and the post-gate ADR-025 Phase I work is now active. |
 | ADR-024 | Proposed | Defines gap work around layered config, MCP, skills, export, and related parity surface. |
-| ADR-025 | Proposed | Phase I kickoff landed with `PI-09` and `PI-11`; the next dependency-sequenced work is `PI-10`, followed by `PI-12`. |
-| ADR-026 | Proposed | Follows ADR-025 closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); implementation sequenced after `PI-12`. |
+| ADR-025 | Proposed | Phase I kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) are implemented in the current tree; ADR-026 `PI-13` through `PI-16` are implemented, and ADR-028 follow-up work now runs against the active facade boundary. |
+| ADR-026 | Proposed | Follows ADR-025 closeout and ADR-024 reconciliation (`PI-13` through `PI-16`); `PI-13` through `PI-16` are implemented in the current tree, and downstream work must now preserve the active ADR-028 facade boundary. |
 | ADR-027 | Accepted | Full-screen TUI with command-session capture, concurrent validation, and current follow-up limits. Supersedes ADR-018 and ADR-019. |
-| ADR-028 | Proposed | Defines the application facade and transport boundary so future CLI and LocalApiServer work does not extend `src/app.rs` or `src/bin/vex.rs` as permanent convergence points. |
+| ADR-028 | Active | Phase 1 facade extraction is in the current tree; remaining work continues to shrink `src/app.rs` and harden facade/transport seams. |
 | ADR-029 | Proposed | Defines stream parser completeness across `messages-v1` and `chat-compat`, including metadata retention for usage, chunk, choice, and tool-call fields plus task-state plan/note/cache persistence. |
-| ADR-030 | Proposed | Defines the task-state-owned orchestrator model so provider events normalize into runtime events, task state remains the source of truth, and command-session lifetime stays runtime-owned. |
+| ADR-030 | Active | Defines the task-state-owned orchestrator model so provider events normalize into runtime events, task state remains the source of truth, and command-session lifetime stays runtime-owned. |
 
 ## Verification baseline
 

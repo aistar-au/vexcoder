@@ -1363,6 +1363,7 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         max_memory_tokens: 2048,
         model_headers: reqwest::header::HeaderMap::new(),
         notes_path: Some(notes_path),
+        api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),
     };
 
@@ -2189,6 +2190,7 @@ fn test_build_runtime_with_resume_restores_task() {
         max_memory_tokens: 2048,
         model_headers: reqwest::header::HeaderMap::new(),
         notes_path: None,
+        api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),
     };
 

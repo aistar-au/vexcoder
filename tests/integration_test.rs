@@ -123,6 +123,7 @@ fn test_config_validation_rejects_local_model_for_remote_endpoint() {
         max_memory_tokens: 2048,
         model_headers: HeaderMap::new(),
         notes_path: None,
+        api: vexcoder::config::ApiConfig::default(),
         hooks: Vec::new(),
     };
     assert!(config.validate().is_err());
@@ -143,6 +144,7 @@ fn test_config_validation_allows_local_endpoint_without_token() {
         max_memory_tokens: 2048,
         model_headers: HeaderMap::new(),
         notes_path: None,
+        api: vexcoder::config::ApiConfig::default(),
         hooks: Vec::new(),
     };
     assert!(config.validate().is_ok());
@@ -402,6 +404,7 @@ async fn test_build_batch_runtime_succeeds_with_local_config() {
         max_memory_tokens: 2048,
         model_headers: HeaderMap::new(),
         notes_path: None,
+        api: vexcoder::config::ApiConfig::default(),
         hooks: Vec::new(),
     };
     let result = build_batch_runtime(&config, "test task".to_string(), BatchRunOpts::default());

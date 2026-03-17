@@ -10,6 +10,7 @@ All ADR files live under `adr/`.
 | Status | Meaning |
 | :--- | :--- |
 | **Proposed** | Under discussion and dispatchable |
+| **Active** | In progress in the current tree; follow-up phases or verification may still remain |
 | **Accepted** | In effect — code must conform |
 | **Superseded by ADR-XXX** | Replaced; retained for history |
 | **Locked** | Accepted and immutable — no further amendments without a new ADR |
@@ -29,9 +30,9 @@ All ADR files live under `adr/`.
 | [ADR-025](ADR-025-runtime-json-handoff-contract.md) | Runtime JSON handoff contract — trait-level event envelopes, JSON projection, and adapter-stable serialization | Proposed |
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding — scoped HTTP/Unix-socket API surface, SSE streaming, TLS boundary, auth model, and schema endpoint for runtime JSON handoff | Proposed |
 | [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI with command-session capture | Accepted |
-| [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Proposed |
+| [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active |
 | [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness and session persistence extensions | Proposed |
-| [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Proposed |
+| [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Active |
 
 ## Completed ADR Records
 

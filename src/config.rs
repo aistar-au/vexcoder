@@ -5,7 +5,10 @@ use std::path::{Path, PathBuf};
 
 use crate::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode};
 use crate::types::ModelProfile;
-use crate::util::is_local_endpoint_url;
+use crate::util::{is_local_endpoint_url, parse_bool_flag};
+
+const DEFAULT_LOCAL_API_HOST: &str = "127.0.0.1";
+const DEFAULT_LOCAL_API_PORT: u16 = 6274;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -37,6 +40,56 @@ pub struct HookConfig {
     pub on_fail: HookOnFail,
 }
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ApiTransport {
+    #[default]
+    Http,
+    Unix,
+    Both,
+}
+
+impl ApiTransport {
+    pub fn http_enabled(self) -> bool {
+        matches!(self, Self::Http | Self::Both)
+    }
+
+    pub fn unix_enabled(self) -> bool {
+        matches!(self, Self::Unix | Self::Both)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ApiConfig {
+    pub transport: ApiTransport,
+    pub host: String,
+    pub port: u16,
+    pub socket: Option<PathBuf>,
+    pub key: Option<String>,
+    pub tls_cert: Option<PathBuf>,
+    pub tls_key: Option<PathBuf>,
+    pub tls_ca_cert: Option<PathBuf>,
+    pub tls_skip_verify: bool,
+    pub vpn_trust: bool,
+}
+
+impl Default for ApiConfig {
+    fn default() -> Self {
+        Self {
+            transport: ApiTransport::Http,
+            host: DEFAULT_LOCAL_API_HOST.to_string(),
+            port: DEFAULT_LOCAL_API_PORT,
+            socket: None,
+            key: None,
+            tls_cert: None,
+            tls_key: None,
+            tls_ca_cert: None,
+            tls_skip_verify: false,
+            vpn_trust: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub model_token: Option<String>,
@@ -56,6 +109,7 @@ pub struct Config {
     #[serde(skip)]
     pub model_headers: HeaderMap,
     pub notes_path: Option<PathBuf>,
+    pub api: ApiConfig,
     #[serde(default)]
     pub hooks: Vec<HookConfig>,
 }
@@ -92,7 +146,23 @@ struct ConfigLayer {
     max_project_instructions_tokens: Option<usize>,
     max_memory_tokens: Option<usize>,
     notes_path: Option<PathBuf>,
+    api: Option<ApiConfigLayer>,
     hooks: Option<Vec<HookConfig>>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct ApiConfigLayer {
+    transport: Option<String>,
+    host: Option<String>,
+    port: Option<u16>,
+    socket: Option<PathBuf>,
+    key: Option<String>,
+    tls_cert: Option<PathBuf>,
+    tls_key: Option<PathBuf>,
+    tls_ca_cert: Option<PathBuf>,
+    tls_skip_verify: Option<bool>,
+    vpn_trust: Option<bool>,
 }
 
 #[derive(Debug, Default)]
@@ -174,6 +244,18 @@ impl Config {
             );
         }
 
+        if repo_layer
+            .as_ref()
+            .and_then(|layer| layer.api.as_ref())
+            .and_then(|api| api.key.as_ref())
+            .is_some()
+        {
+            bail!(
+                "'api.key' found in repo-local config '{}': api secrets must not appear in repo-local config",
+                repo_cfg.unwrap_or(Path::new("<unknown>")).display()
+            );
+        }
+
         // Env layer is parsed separately so errors name the env var, not a file.
         let (env_layer, env_token) = read_env_layer()?;
 
@@ -212,6 +294,7 @@ impl Config {
             max_memory_tokens: 2048,
             model_headers: HeaderMap::new(),
             notes_path: None,
+            api: ApiConfig::default(),
             hooks: Vec::new(),
         }
     }
@@ -331,7 +414,30 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
             .or(base.max_project_instructions_tokens),
         max_memory_tokens: over.max_memory_tokens.or(base.max_memory_tokens),
         notes_path: over.notes_path.or(base.notes_path),
+        api: apply_api_over(base.api, over.api),
         hooks: over.hooks.or(base.hooks),
+    }
+}
+
+fn apply_api_over(
+    base: Option<ApiConfigLayer>,
+    over: Option<ApiConfigLayer>,
+) -> Option<ApiConfigLayer> {
+    match (base, over) {
+        (None, None) => None,
+        (Some(layer), None) | (None, Some(layer)) => Some(layer),
+        (Some(base), Some(over)) => Some(ApiConfigLayer {
+            transport: over.transport.or(base.transport),
+            host: over.host.or(base.host),
+            port: over.port.or(base.port),
+            socket: over.socket.or(base.socket),
+            key: over.key.or(base.key),
+            tls_cert: over.tls_cert.or(base.tls_cert),
+            tls_key: over.tls_key.or(base.tls_key),
+            tls_ca_cert: over.tls_ca_cert.or(base.tls_ca_cert),
+            tls_skip_verify: over.tls_skip_verify.or(base.tls_skip_verify),
+            vpn_trust: over.vpn_trust.or(base.vpn_trust),
+        }),
     }
 }
 
@@ -399,6 +505,40 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         .ok()
         .and_then(|value| value.trim().parse::<usize>().ok())
         .filter(|budget| *budget > 0);
+    let api_transport = match std::env::var("VEX_API_TRANSPORT") {
+        Ok(v) if !v.trim().is_empty() => {
+            if parse_api_transport(v.clone()).is_none() {
+                bail!(
+                    "Invalid VEX_API_TRANSPORT '{}': expected one of http, unix, both",
+                    v
+                );
+            }
+            Some(v)
+        }
+        _ => None,
+    };
+    let api_port =
+        match std::env::var("VEX_API_PORT") {
+            Ok(v) if !v.trim().is_empty() => Some(v.trim().parse::<u16>().with_context(|| {
+                format!("Invalid VEX_API_PORT '{}': expected integer 1-65535", v)
+            })?),
+            _ => None,
+        };
+    let api_tls_skip_verify = match std::env::var("VEX_API_TLS_SKIP_VERIFY") {
+        Ok(v) if !v.trim().is_empty() => parse_bool_flag(v.clone()).ok_or_else(|| {
+            anyhow::anyhow!(
+                "Invalid VEX_API_TLS_SKIP_VERIFY '{}': expected true/false/1/0",
+                v
+            )
+        })?,
+        _ => false,
+    };
+    let api_vpn_trust = match std::env::var("VEX_API_VPN_TRUST") {
+        Ok(v) if !v.trim().is_empty() => parse_bool_flag(v.clone()).ok_or_else(|| {
+            anyhow::anyhow!("Invalid VEX_API_VPN_TRUST '{}': expected true/false/1/0", v)
+        })?,
+        _ => false,
+    };
 
     let layer = ConfigLayer {
         model_name: std::env::var("VEX_MODEL_NAME")
@@ -422,6 +562,40 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         max_project_instructions_tokens,
         max_memory_tokens,
         notes_path: None,
+        api: Some(ApiConfigLayer {
+            transport: api_transport,
+            host: std::env::var("VEX_API_HOST")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty()),
+            port: api_port,
+            socket: std::env::var("VEX_API_SOCKET")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from),
+            key: std::env::var("VEX_API_KEY")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty()),
+            tls_cert: std::env::var("VEX_API_TLS_CERT")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from),
+            tls_key: std::env::var("VEX_API_TLS_KEY")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from),
+            tls_ca_cert: std::env::var("VEX_API_TLS_CA_CERT")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from),
+            tls_skip_verify: Some(api_tls_skip_verify),
+            vpn_trust: Some(api_vpn_trust),
+        }),
         hooks: None,
     };
 
@@ -488,6 +662,29 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
                  tagged-fallback, tagged_fallback, fallback, tagged",
                 path.display(),
                 s
+            );
+        }
+    }
+    if let Some(ref api) = layer.api {
+        if let Some(ref transport) = api.transport {
+            if parse_api_transport(transport.clone()).is_none() {
+                bail!(
+                    "config file '{}': invalid api.transport '{}': expected one of http, unix, both",
+                    path.display(),
+                    transport
+                );
+            }
+        }
+        if api.tls_skip_verify.unwrap_or(false) {
+            bail!(
+                "config file '{}': api.tls_skip_verify must remain false in Phase I",
+                path.display()
+            );
+        }
+        if api.vpn_trust.unwrap_or(false) {
+            bail!(
+                "config file '{}': api.vpn_trust must remain false until a dedicated ADR exists",
+                path.display()
             );
         }
     }
@@ -626,6 +823,7 @@ fn resolve_config(
     };
     let max_project_instructions_tokens = merged.max_project_instructions_tokens.unwrap_or(4096);
     let max_memory_tokens = merged.max_memory_tokens.unwrap_or(2048);
+    let api = resolve_api_config(merged.api)?;
 
     Ok(Config {
         model_token: env_token,
@@ -640,8 +838,48 @@ fn resolve_config(
         max_memory_tokens,
         model_headers: parse_model_headers_json()?,
         notes_path: merged.notes_path.map(expand_home),
+        api,
         hooks: merged.hooks.unwrap_or_default(),
     })
+}
+
+fn resolve_api_config(layer: Option<ApiConfigLayer>) -> Result<ApiConfig> {
+    let layer = layer.unwrap_or_default();
+    Ok(ApiConfig {
+        transport: layer
+            .transport
+            .and_then(parse_api_transport)
+            .unwrap_or(ApiTransport::Http),
+        host: layer
+            .host
+            .unwrap_or_else(|| DEFAULT_LOCAL_API_HOST.to_string()),
+        port: layer.port.unwrap_or(DEFAULT_LOCAL_API_PORT),
+        socket: layer.socket.map(expand_home),
+        key: resolve_secret_reference(layer.key),
+        tls_cert: layer.tls_cert.map(expand_home),
+        tls_key: layer.tls_key.map(expand_home),
+        tls_ca_cert: layer.tls_ca_cert.map(expand_home),
+        tls_skip_verify: layer.tls_skip_verify.unwrap_or(false),
+        vpn_trust: layer.vpn_trust.unwrap_or(false),
+    })
+}
+
+fn resolve_secret_reference(value: Option<String>) -> Option<String> {
+    let value = value?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if let Some(name) = trimmed
+        .strip_prefix("${")
+        .and_then(|rest| rest.strip_suffix('}'))
+    {
+        return std::env::var(name)
+            .ok()
+            .map(|env| env.trim().to_string())
+            .filter(|env| !env.is_empty());
+    }
+    Some(trimmed.to_string())
 }
 
 fn resolve_working_dir(working_dir: Option<PathBuf>, fallback_cwd: &Path) -> PathBuf {
@@ -789,6 +1027,15 @@ fn parse_tool_call_mode(value: String) -> Option<ToolCallMode> {
         "tagged-fallback" | "tagged_fallback" | "fallback" | "tagged" => {
             Some(ToolCallMode::TaggedFallback)
         }
+        _ => None,
+    }
+}
+
+fn parse_api_transport(value: String) -> Option<ApiTransport> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "http" => Some(ApiTransport::Http),
+        "unix" => Some(ApiTransport::Unix),
+        "both" => Some(ApiTransport::Both),
         _ => None,
     }
 }
@@ -970,6 +1217,89 @@ mod tests {
         std::env::remove_var("VEX_MODEL_URL");
         std::env::remove_var("VEX_MODEL_NAME");
         std::env::remove_var("VEX_MODEL_PROTOCOL");
+    }
+
+    #[test]
+    fn test_repo_local_api_key_is_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo_root = temp.path().join("repo");
+        let cwd = repo_root.join("nested/project");
+
+        std::fs::create_dir_all(repo_root.join(".vex")).unwrap();
+        std::fs::create_dir_all(repo_root.join(".git")).unwrap();
+        std::fs::create_dir_all(&cwd).unwrap();
+        std::fs::write(
+            repo_root.join(".vex/config.toml"),
+            "[api]\nkey = \"literal-secret\"\n",
+        )
+        .unwrap();
+
+        let error = Config::load_for_tests(&cwd, None, None).unwrap_err();
+        assert!(
+            format!("{error:#}").contains("api.key"),
+            "unexpected error: {error:#}"
+        );
+    }
+
+    #[test]
+    fn test_user_api_key_env_reference_resolves() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _api_key = EnvRestore::capture("VEX_API_KEY");
+        std::env::set_var("VEX_API_KEY", "resolved-secret");
+
+        let temp = tempfile::tempdir().unwrap();
+        let cwd = temp.path().join("repo");
+        let user_cfg = temp.path().join("user.toml");
+        std::fs::create_dir_all(cwd.join(".git")).unwrap();
+        std::fs::create_dir_all(&cwd).unwrap();
+        std::fs::write(&user_cfg, "[api]\nkey = \"${VEX_API_KEY}\"\n").unwrap();
+
+        let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap();
+        assert_eq!(cfg.api.key.as_deref(), Some("resolved-secret"));
+    }
+
+    #[test]
+    fn test_api_tls_skip_verify_true_is_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo_root = temp.path().join("repo");
+        let cwd = repo_root.join("nested/project");
+
+        std::fs::create_dir_all(repo_root.join(".vex")).unwrap();
+        std::fs::create_dir_all(repo_root.join(".git")).unwrap();
+        std::fs::create_dir_all(&cwd).unwrap();
+        std::fs::write(
+            repo_root.join(".vex/config.toml"),
+            "[api]\ntls_skip_verify = true\n",
+        )
+        .unwrap();
+
+        let error = Config::load_for_tests(&cwd, None, None).unwrap_err();
+        assert!(
+            format!("{error:#}").contains("tls_skip_verify"),
+            "unexpected error: {error:#}"
+        );
+    }
+
+    #[test]
+    fn test_api_vpn_trust_true_is_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo_root = temp.path().join("repo");
+        let cwd = repo_root.join("nested/project");
+
+        std::fs::create_dir_all(repo_root.join(".vex")).unwrap();
+        std::fs::create_dir_all(repo_root.join(".git")).unwrap();
+        std::fs::create_dir_all(&cwd).unwrap();
+        std::fs::write(
+            repo_root.join(".vex/config.toml"),
+            "[api]\nvpn_trust = true\n",
+        )
+        .unwrap();
+
+        let error = Config::load_for_tests(&cwd, None, None).unwrap_err();
+        assert!(
+            format!("{error:#}").contains("vpn_trust"),
+            "unexpected error: {error:#}"
+        );
     }
 
     #[test]

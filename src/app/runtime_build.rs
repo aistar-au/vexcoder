@@ -1,44 +1,13 @@
 use super::*;
 
 pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext)> {
-    let (instructions_text, instructions_path) = match load_project_instructions(
-        &config.working_dir,
-        config.max_project_instructions_tokens,
-    ) {
-        LoadResult::Loaded(project_instructions) => {
-            let display = project_instructions.path.to_string_lossy().into_owned();
-            (Some(project_instructions.content), Some(display))
-        }
-        LoadResult::OverBudget {
-            path,
-            estimated_tokens,
-        } => {
-            eprintln!(
-                "[project instructions] {} skipped: estimated {} tokens exceeds budget of {}",
-                path.display(),
-                estimated_tokens,
-                config.max_project_instructions_tokens,
-            );
-            (None, None)
-        }
-        LoadResult::NotFound => (None, None),
-    };
-
-    let (client, notes_warning) = build_api_client_with_notes(&config)?;
-    let client = client.with_project_instructions(instructions_text);
-    let operator = ToolOperator::new(config.working_dir.clone());
-    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone());
-
-    let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
-    let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
-
-    let mut mode = TuiMode::new_with_config(config.notes_path.clone(), config);
-    mode.instructions_path = instructions_path;
-    mode.current_task.instructions_path = mode.instructions_path.clone();
-    if let Some(warning) = notes_warning {
-        mode.push_history_line(warning);
+    let mode = TuiMode::new_with_config(config.notes_path.clone(), config.clone());
+    let (mut runtime, ctx, bootstrap) = build_facade_runtime(&config, mode)?;
+    runtime.mode.instructions_path = bootstrap.instructions_path;
+    runtime.mode.current_task.instructions_path = runtime.mode.instructions_path.clone();
+    if let Some(warning) = bootstrap.notes_warning {
+        runtime.mode.push_history_line(warning);
     }
-    let runtime = Runtime::new(mode, update_rx);
     Ok((runtime, ctx))
 }
 

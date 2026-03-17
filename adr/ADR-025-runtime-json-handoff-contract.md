@@ -452,9 +452,9 @@ The grammar constrains the **shape of the runtime tool-call JSON contract** at t
 | ID | Task | Status |
 |----|------|--------|
 | **PI-09** | Add `src/runtime/json_handoff.rs` with `RuntimeRequest` (including `ApproveCapability` and `DenyCapability`), `RuntimeEnvelope`, `RuntimeEvent` (including `MaxTurnsReached`), `TokenUsageEnvelope`, `ValidationOutputEnvelope`, and `grammars/tool_call.gbnf` | [x] |
-| **PI-10** | Add normalization layer from provider/native stream updates into canonical runtime envelopes; runtime injects `ToolCall.id`; provider ids are discarded at normalization boundary; include `UiUpdate::ToolApprovalRequest` → `ApprovalRequest` mapping; include `ApproveCapability`/`DenyCapability` → `ApprovalResolved` mapping; include `StreamBlockStart/Delta/Complete` explicit no-project rule | [ ] |
+| **PI-10** | Add normalization layer from provider/native stream updates into canonical runtime envelopes; runtime injects `ToolCall.id`; provider ids are discarded at normalization boundary; include `UiUpdate::ToolApprovalRequest` → `ApprovalRequest` mapping; include `ApproveCapability`/`DenyCapability` → `ApprovalResolved` mapping; include `StreamBlockStart/Delta/Complete` explicit no-project rule | [x] |
 | **PI-11** | Add `schemas/runtime_envelope_v1.json` and `schemas/runtime_request_v1.json`, including `MaxTurnsReached` event, `ApproveCapability`/`DenyCapability` request variants, `tool_name` via `$ref` in `tool_result` (not inlined), and MCP namespace validation for `ToolCall.name` | [x] |
-| **PI-12** | Add serde round-trip tests, schema parity tests, grammar parity tests, and BatchMode derivation tests. Tests must prove: first envelope of every turn has `seq == 1`; `TurnRecord` + `SummaryRecord` replay from canonical envelopes matches the existing JSONL shape modulo JSON field ordering; `TurnRecord.response` uses `AssistantMessage.content` when present and falls back to concatenated `AssistantDelta.text`; `TurnRecord.changed_files` matches `turn_end.changed_files`; `SummaryRecord.status` matches final `turn_end.status`; recoverable vs non-recoverable `error` envelopes follow the ordering rules in this ADR; `MaxTurnsReached` is always followed by `TurnEnd { status: "failed" }` | [ ] |
+| **PI-12** | Add serde round-trip tests, schema parity tests, grammar parity tests, and BatchMode derivation tests. Tests must prove: first envelope of every turn has `seq == 1`; `TurnRecord` + `SummaryRecord` replay from canonical envelopes matches the existing JSONL shape modulo JSON field ordering; `TurnRecord.response` uses `AssistantMessage.content` when present and falls back to concatenated `AssistantDelta.text`; `TurnRecord.changed_files` matches `turn_end.changed_files`; `SummaryRecord.status` matches final `turn_end.status`; recoverable vs non-recoverable `error` envelopes follow the ordering rules in this ADR; `MaxTurnsReached` is always followed by `TurnEnd { status: "failed" }` | [x] |
 
 ---
 
@@ -510,6 +510,38 @@ When checking any PI-09…PI-12 box, append an evidence block:
 - Notes:
   - Added the versioned ADR-025 schema assets, including `MaxTurnsReached`, approval request variants, and MCP namespace validation for canonical tool names.
   - Leaves PI-12 schema/serde/grammar parity enforcement and BatchMode-derivation coverage sequenced behind PI-10.
+
+### [PI-10] - Runtime envelope normalization layer
+- Dispatcher: `dispatcher/vexcoder-adr-025-phase-2-post-pr101`
+- Commit: `c9a4b2e19cf87abb357617d8bdd3589e693bb7e7`
+- Files changed:
+  - `src/runtime/json_handoff.rs` (+810 -0)
+- Validation:
+  - `cargo test runtime::json_handoff -- --nocapture` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+  - `bash scripts/check_forbidden_names.sh` : pass
+  - `cargo test --all-targets` : fail on local Windows shell due existing forbidden-name integration tests invoking missing `python` alias
+  - `make gate-fast` : unavailable in local PowerShell shell (`make` missing)
+- Notes:
+  - Added a reusable normalization state machine that maps provider-native `ContentBlock` and runtime-native `StreamBlock` updates into canonical `RuntimeEnvelope` events.
+  - Runtime-generated `ToolCall.id` values now discard provider ids, approval requests normalize into canonical capability/scope fields, and runtime approval decisions project into `ApprovalResolved` events.
+
+### [PI-12] - Runtime handoff parity and BatchMode replay tests
+- Dispatcher: `dispatcher/vexcoder-adr-025-phase-2-post-pr101`
+- Commit: `c9a4b2e19cf87abb357617d8bdd3589e693bb7e7`
+- Files changed:
+  - `src/runtime/json_handoff.rs` (+810 -0)
+- Validation:
+  - `cargo test runtime::json_handoff -- --nocapture` : pass
+  - `bash scripts/check_no_alternate_routing.sh` : pass
+  - `bash scripts/check_forbidden_imports.sh` : pass
+  - `bash scripts/check_forbidden_names.sh` : pass
+  - `cargo test --all-targets` : fail on local Windows shell due existing forbidden-name integration tests invoking missing `python` alias
+  - `make gate-fast` : unavailable in local PowerShell shell (`make` missing)
+- Notes:
+  - Added serde round-trip, error-ordering, max-turn terminal-sequence, and BatchMode-derivation coverage for the canonical runtime handoff layer.
+  - The new derivation helper proves `AssistantMessage` precedence, `AssistantDelta` fallback, turn-level `seq` reset, and summary/status parity against the existing JSONL evidence shape.
 
 ## Compliance notes for agents
 
