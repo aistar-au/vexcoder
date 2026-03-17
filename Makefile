@@ -18,7 +18,11 @@
 #   rust    rustup (stable toolchain)
 # ==============================================================================
 
+ifeq ($(OS),Windows_NT)
+SHELL := C:/Program Files/Git/bin/bash.exe
+else
 SHELL := bash
+endif
 .SHELLFLAGS := -euo pipefail -c
 
 .PHONY: help \

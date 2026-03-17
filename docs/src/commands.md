@@ -6,9 +6,9 @@ This page documents the commands and flags implemented in the current binary.
 
 ### `vex`
 
-Starts the interactive terminal UI in the alternate screen buffer. The managed
-session takes over the full terminal while it runs, so pre-launch shell
-scrollback is hidden until the UI exits.
+Starts the interactive full-screen CLI UI in the alternate screen buffer. The
+managed session takes over the full-screen interface while it runs, so
+pre-launch shell scrollback is hidden until the UI exits.
 
 ### `vex --resume [task-id]`
 
@@ -195,7 +195,7 @@ session totals.
   - Runs a shell command immediately from the workspace without starting a model turn.
   - Uses the same `run_command` approval gate as tool calls.
   - Starts a captured command session inside the managed TUI instead of yielding
-    terminal control back to the parent shell.
+    control back to the parent CLI session.
   - The transcript records the command, PID, streamed output, and final
     `[command session exit: N]` status.
 

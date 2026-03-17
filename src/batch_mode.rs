@@ -821,6 +821,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: Some(notes_path.clone()),
+            api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
         };
 
@@ -1095,6 +1096,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: Some(notes_path),
+            api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
         };
 
@@ -1128,6 +1130,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
+            api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
         };
 
@@ -1156,6 +1159,7 @@ mod tests {
             max_memory_tokens: 2048,
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
+            api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
         };
         let resume_state = TaskState::new("task-batch-resume".to_string());

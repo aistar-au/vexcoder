@@ -109,6 +109,13 @@ enum Commands {
         #[arg(long)]
         force: bool,
     },
+    /// Run the local API transport adapter.
+    Serve {
+        #[arg(long)]
+        host: Option<String>,
+        #[arg(long)]
+        port: Option<u16>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -671,6 +678,11 @@ const INIT_CONFIG_TEMPLATE: &str = concat!(
     "# port = 6274\n",
     "# socket = \"\"\n",
     "# key = \"${VEX_API_KEY}\"\n",
+    "# tls_cert = \"\"\n",
+    "# tls_key = \"\"\n",
+    "# tls_ca_cert = \"\"\n",
+    "# tls_skip_verify = false\n",
+    "# vpn_trust = false\n",
     "\n",
     "# user config only:\n",
     "# [[hooks]]\n",
@@ -727,6 +739,11 @@ const INIT_CONFIG_NORMATIVE_KEYS: &[&str] = &[
     "api.port",
     "api.socket",
     "api.key",
+    "api.tls_cert",
+    "api.tls_key",
+    "api.tls_ca_cert",
+    "api.tls_skip_verify",
+    "api.vpn_trust",
     "hooks",
     "hooks.event",
     "hooks.tool",
@@ -1136,6 +1153,12 @@ async fn main() -> Result<ExitCode> {
             if write_export_output(&rendered, output.as_deref(), force)?.is_none() {
                 print!("{rendered}");
             }
+            return Ok(ExitCode::SUCCESS);
+        }
+        Some(Commands::Serve { host, port }) => {
+            let config = Config::load()?;
+            config.validate()?;
+            vexcoder::local_api::serve_local_api(config, host, port).await?;
             return Ok(ExitCode::SUCCESS);
         }
         None => {}

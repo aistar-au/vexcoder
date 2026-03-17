@@ -317,7 +317,8 @@ boundaries so a resumed task can recover the planning context without
 re-running the plan assembly.
 
 **`session_notes`** holds entries written by the `/memory` command or by the
-runtime's note-injection path (ADR-024 Gap 16, `TASKS/PJ-03-memory-notes.md`).
+runtime's note-injection path (ADR-024 Gap 16,
+`TASKS/PJ-03-memory-notes-injection.md`).
 Each note records the turn index at which it was created so a resumed session
 can present notes in context order.
 

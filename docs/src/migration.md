@@ -7,7 +7,6 @@ There is no separate migration workflow documented for normal installs. For
 current setup guidance, use the main docs instead:
 
 - [Quick Start](quick-start.md)
-- [Installation](installation/index.md)
 - [Configuration](configuration.md)
 - [CLI and TUI Commands](commands.md)
 

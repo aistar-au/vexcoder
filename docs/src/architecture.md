@@ -2,7 +2,7 @@
 
 VexCoder currently has two operator-facing surfaces in the source tree:
 
-- the interactive terminal UI started by `src/bin/vex.rs`
+- the interactive CLI UI started by `src/bin/vex.rs`
 - the non-interactive batch runner in `src/batch_mode.rs`
 
 Most interactive application coordination still lives in `src/app.rs`. The runtime core lives under `src/runtime/`, including context assembly, the edit loop, command execution, validation, and task state.
@@ -37,7 +37,7 @@ The long-term architecture work is tracked in the ADR set under `adr/`.
 
 - ADR-025 defines the canonical machine-readable runtime request and event contract.
 - ADR-026 defines the proposed `LocalApiServer` transport binding over that contract.
-- ADR-028 defines the next refactor boundary: shared application semantics should move behind a smaller application facade while `src/app.rs` remains the module root during transition, and future server transport code should live in `src/server.rs` plus focused `src/server/` submodules.
+- ADR-028 is now active in the current tree: phase-1 facade helpers live under `src/app/`, and follow-up work continues to shrink `src/app.rs` behind the facade boundary.
 - ADR-030 defines the runtime control-flow rule: provider events normalize into canonical runtime events, task state owns execution truth, and the orchestrator decides whether the task continues or stops.
 
 That means the current `src/app.rs`-centric layout is still the live implementation, but it is not intended to be the permanent shape for machine-readable runtime access or local server transports.
