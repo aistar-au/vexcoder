@@ -210,11 +210,19 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
     );
 }
 
-/// Render the four-region task-first layout
+/// Render the four-region task-first layout.
+///
+/// The activity pane uses structured `timeline_entries` when available,
+/// falling back to legacy `activity_rows` for backward compatibility.
+/// The selected timeline entry is highlighted and its detail is shown
+/// in the output/inspector pane.
 pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
+    use crate::app::StepLifecycle;
+
     let layout = split_four_region_layout(frame.area(), 2, 3);
     frame.render_widget(Clear, frame.area());
 
+    // --- Header ---
     let mut header_lines = vec![Line::from(state.status_line.clone())];
     if !state.changed_files.is_empty() {
         header_lines.push(Line::from(format!(
@@ -224,45 +232,108 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     }
     frame.render_widget(Paragraph::new(Text::from(header_lines)), layout.header);
 
-    // Pipeline activity pane — renders each orchestration step as a styled
-    // drop-down row (max 6 lines from task_activity_rows).  Prefixes:
-    //   [ok]  green   — completed step
-    //   [!]   red     — failed/error step
-    //   [->]  cyan    — in-flight step (tool call awaiting result)
-    //   [?]   yellow  — approval request
-    //   >     dim     — current user input echo
-    let activity_text: Vec<Line> = state
-        .activity_rows
-        .iter()
-        .map(|row| pipeline_activity_line(row))
-        .collect();
-    let activity_title = if state
-        .activity_rows
-        .first()
-        .map(|row| row.starts_with("command:"))
-        .unwrap_or(false)
-    {
-        "Session"
-    } else if state
-        .activity_rows
-        .iter()
-        .any(|row| row.starts_with("[->]"))
-    {
-        "Orchestrating"
+    // --- Activity / Timeline pane ---
+    let max_visible: usize = 6;
+
+    if !state.timeline_entries.is_empty() {
+        // Use structured timeline entries with selection highlighting.
+        let total = state.timeline_entries.len();
+        let selected = state.selected_step.min(total.saturating_sub(1));
+
+        // Compute the visible window: keep selected entry in view.
+        let window_start = if selected >= max_visible {
+            selected + 1 - max_visible
+        } else {
+            0
+        };
+        let window_end = (window_start + max_visible).min(total);
+
+        let activity_text: Vec<Line> = state.timeline_entries[window_start..window_end]
+            .iter()
+            .enumerate()
+            .map(|(i, entry)| {
+                let abs_index = window_start + i;
+                let is_selected = abs_index == selected;
+                render_timeline_entry(entry, is_selected)
+            })
+            .collect();
+
+        let activity_title = if state
+            .timeline_entries
+            .iter()
+            .any(|e| e.lifecycle == StepLifecycle::Running)
+        {
+            "Orchestrating"
+        } else if state
+            .timeline_entries
+            .iter()
+            .any(|e| e.lifecycle == StepLifecycle::CommandSession)
+        {
+            "Session"
+        } else {
+            "Steps"
+        };
+
+        // Show scroll indicator if total exceeds visible window.
+        let title_suffix = if total > max_visible {
+            format!(" ({}/{})", selected + 1, total)
+        } else {
+            String::new()
+        };
+
+        frame.render_widget(
+            Paragraph::new(Text::from(activity_text)).block(
+                Block::default().borders(Borders::NONE).title(Span::styled(
+                    format!("{activity_title}{title_suffix}"),
+                    Style::default()
+                        .fg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                )),
+            ),
+            layout.activity,
+        );
     } else {
-        "Steps"
+        // Fallback to legacy string-based activity rows.
+        let activity_text: Vec<Line> = state
+            .activity_rows
+            .iter()
+            .map(|row| pipeline_activity_line(row))
+            .collect();
+        let activity_title = if state
+            .activity_rows
+            .first()
+            .map(|row| row.starts_with("command:"))
+            .unwrap_or(false)
+        {
+            "Session"
+        } else if state
+            .activity_rows
+            .iter()
+            .any(|row| row.starts_with("[->]"))
+        {
+            "Orchestrating"
+        } else {
+            "Steps"
+        };
+        frame.render_widget(
+            Paragraph::new(Text::from(activity_text)).block(
+                Block::default().borders(Borders::NONE).title(Span::styled(
+                    activity_title,
+                    Style::default()
+                        .fg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                )),
+            ),
+            layout.activity,
+        );
+    }
+
+    // --- Output / Inspector pane ---
+    let output_title = if !state.timeline_entries.is_empty() {
+        "Inspector"
+    } else {
+        "Output"
     };
-    frame.render_widget(
-        Paragraph::new(Text::from(activity_text)).block(
-            Block::default().borders(Borders::NONE).title(Span::styled(
-                activity_title,
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            )),
-        ),
-        layout.activity,
-    );
 
     let output_lines: Vec<Line> = state
         .output_rows
@@ -275,16 +346,61 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
 
     frame.render_widget(
         Paragraph::new(Text::from(output_lines))
-            .block(Block::default().borders(Borders::NONE).title("Output"))
+            .block(Block::default().borders(Borders::NONE).title(output_title))
             .scroll((output_scroll, 0))
             .wrap(Wrap { trim: false }),
         layout.output,
     );
 
+    // --- Input pane ---
     frame.render_widget(
         Paragraph::new(state.input_hint.clone()).wrap(Wrap { trim: false }),
         layout.input,
     );
+}
+
+/// Render a single timeline entry with lifecycle-based colour coding
+/// and an optional selection indicator.
+fn render_timeline_entry(entry: &crate::app::TimelineEntry, is_selected: bool) -> Line<'static> {
+    use crate::app::StepLifecycle;
+
+    let (prefix, prefix_color) = match entry.lifecycle {
+        StepLifecycle::Completed => ("[ok]", Color::Green),
+        StepLifecycle::Failed => ("[!] ", Color::Red),
+        StepLifecycle::Running => ("[->]", Color::Cyan),
+        StepLifecycle::AwaitingApproval => ("[?] ", Color::Yellow),
+        StepLifecycle::UserInput => ("> ", Color::DarkGray),
+        StepLifecycle::CommandSession => ("[$$]", Color::Magenta),
+    };
+
+    let selector = if is_selected { "> " } else { "  " };
+    let body_style = if is_selected {
+        Style::default()
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(prefix_color)
+    };
+
+    Line::from(vec![
+        Span::styled(
+            selector.to_string(),
+            if is_selected {
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            },
+        ),
+        Span::styled(
+            prefix.to_string(),
+            Style::default()
+                .fg(prefix_color)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(format!(" {}", entry.label), body_style),
+    ])
 }
 
 pub fn render_overlay_modal(frame: &mut Frame<'_>, modal: OverlayModal<'_>) {
@@ -620,6 +736,13 @@ mod tests {
             task_id: "task-001".into(),
             status_line: "AwaitingApproval".into(),
             activity_rows: vec!["[?] ApplyPatch: src/main.rs".into()],
+            timeline_entries: vec![crate::app::TimelineEntry {
+                lifecycle: crate::app::StepLifecycle::AwaitingApproval,
+                label: "ApplyPatch: src/main.rs".into(),
+                detail: "Tool: ApplyPatch\nFile: src/main.rs".into(),
+            }],
+            selected_step: 0,
+            total_steps: 1,
             output_rows: vec![],
             changed_files: vec!["src/main.rs".into()],
             pending_approval: Some("ApplyPatch: src/main.rs".into()),
@@ -658,8 +781,22 @@ mod tests {
             status_line: "Running".into(),
             activity_rows: vec![
                 "[ok] read_file: ok".into(),
-                "[->] validate: running…".into(),
+                "[->] validate: running...".into(),
             ],
+            timeline_entries: vec![
+                crate::app::TimelineEntry {
+                    lifecycle: crate::app::StepLifecycle::Completed,
+                    label: "read_file: ok".into(),
+                    detail: "Tool: read_file\nOutcome: ok".into(),
+                },
+                crate::app::TimelineEntry {
+                    lifecycle: crate::app::StepLifecycle::Running,
+                    label: "validate: running...".into(),
+                    detail: "Tool: validate\nInput: ...".into(),
+                },
+            ],
+            selected_step: 1,
+            total_steps: 2,
             output_rows: vec!["streamed output".into()],
             changed_files: vec![],
             pending_approval: None,
@@ -680,7 +817,7 @@ mod tests {
             "pending steps should switch the activity title"
         );
         assert!(
-            flat.contains("validate: running…"),
+            flat.contains("validate: running"),
             "pending steps should remain visible in the activity pane"
         );
     }

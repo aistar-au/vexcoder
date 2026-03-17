@@ -38,6 +38,7 @@ impl TuiMode {
         self.current_turn_command_history.clear();
         self.current_turn_tool_invocations.clear();
         self.pending_turn_tool_calls.clear();
+        self.selected_timeline_index = 0;
     }
 
     pub(super) fn begin_turn_capture(&mut self, input: String) {

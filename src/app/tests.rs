@@ -318,7 +318,7 @@ fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
             "[ok] run_command: ok".to_string(),
             "[ok] write_file: ok".to_string(),
             "[ok] apply_patch: ok".to_string(),
-            "[->] validate: running…".to_string(),
+            "[->] validate: running...".to_string(),
         ]
     );
 }
