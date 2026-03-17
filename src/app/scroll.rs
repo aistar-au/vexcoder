@@ -123,7 +123,7 @@ impl TuiMode {
             ScrollAction::PageDown(step) => {
                 let max = total_entries.saturating_sub(1);
                 self.selected_timeline_index =
-                    (self.selected_timeline_index + step.max(1)).min(max);
+                    self.selected_timeline_index.saturating_add(step.max(1)).min(max);
             }
             ScrollAction::Home => self.apply_timeline_home(),
             ScrollAction::End => self.apply_timeline_end(total_entries),
