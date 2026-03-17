@@ -28,9 +28,9 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-025-runtime-json-handoff-contract.md` | Proposed |
 | `adr/ADR-026-localapiserver-transport-binding.md` | Proposed |
 | `adr/ADR-027-full-screen-tui-command-session-capture.md` | Accepted |
-| `adr/ADR-028-application-facade-and-transport-boundaries.md` | Proposed |
+| `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Proposed |
-| `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Proposed |
+| `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Active |
 
 ## Immediate Dependency Notes
 
@@ -45,22 +45,23 @@ ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
   -> ADR-026 PI-13 + PI-14 (implemented in the current tree)
   -> PI-15 implemented in the current tree
   -> PI-16 implemented in the current tree
-  -> ADR-028 next
+  -> ADR-028 active follow-up
 ```
 
 ADR-025 and ADR-026 are the first post-gate Phase I dispatch track. ADR-028 is
-the boundary ADR that later CLI and LocalApiServer refactors must respect.
+now active in the current tree and remains the boundary ADR that later CLI and
+LocalApiServer refactors must respect.
 ADR-029 and ADR-030 remain part of the active ADR set but do not supersede the
 passed milestone-1 gate or ADR-025 sequencing.
 
 ## Current Next Dispatcher Batch
 
-The next dispatcher batch is ADR-028 application-facade and transport-boundary follow-up.
+The current dispatcher batch continues ADR-028 application-facade and transport-boundary follow-up.
 
 - Milestone-1 validation is complete; use the recorded gate result in ADR-022 as the Phase I entry condition.
 - ADR-025 now has the completed kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) work in the current tree.
 - ADR-026 now has `PI-13` through `PI-16` implemented in the current tree.
-- Treat ADR-028 as the next dependency-sequenced follow-up ADR for the post-gate Phase I work.
+- Treat ADR-028 as the active boundary/workstream for the post-gate Phase I follow-up work.
 - Treat ADR-030 as the control-flow ADR for the post-gate runtime work: provider events normalize into canonical runtime events, task state owns truth, and orchestrator decisions remain runtime-owned.
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
@@ -78,4 +79,4 @@ capture behavior.
   and the full ADR-023 implementation track (`EL-01` through `EL-13`) are now
   on `main`. Milestone-1 validation passed on `2026-03-15`; ADR-026 `PI-13`
   through `PI-16` are now implemented in the current tree, with ADR-028
-  remaining the next dependency-sequenced follow-up.
+  remaining the active facade-boundary follow-up.

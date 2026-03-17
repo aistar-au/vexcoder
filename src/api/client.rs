@@ -881,10 +881,7 @@ mod tests {
 
         let client = ApiClient::new(&config).expect("client should build");
         assert_eq!(client.api_protocol(), ApiProtocol::MessagesV1);
-        assert_eq!(
-            client.request_url(),
-            "http://localhost:8000/v1/messages"
-        );
+        assert_eq!(client.request_url(), "http://localhost:8000/v1/messages");
         assert_eq!(client.protocol(), ModelProtocol::MessagesV1);
     }
 

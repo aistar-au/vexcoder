@@ -14,12 +14,12 @@ Current task-dispatch dependency state:
 | `ADR-022` | Proposed | Free/open roadmap target and config/interface decision surface. |
 | `ADR-023` | Locked | `EL-08` through `EL-13` are now on `main`. The ADR-023 implementation track is complete; milestone-1 validation has passed and the post-gate ADR-025 Phase I work is now active. |
 | `ADR-024` | Proposed | Parity-gap inventory, command surface, and deferred work. |
-| `ADR-025` | Proposed | Phase I kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) are implemented in the current tree; ADR-026 `PI-13` through `PI-16` are implemented, and ADR-028 is the next dependency-sequenced follow-up ADR. |
-| `ADR-026` | Proposed | `PI-13` through `PI-16` are implemented in the current tree; ADR-028 is the next dependency-sequenced follow-up ADR. |
+| `ADR-025` | Proposed | Phase I kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) are implemented in the current tree; ADR-026 `PI-13` through `PI-16` are implemented, and ADR-028 follow-up work now runs against the active facade boundary. |
+| `ADR-026` | Proposed | `PI-13` through `PI-16` are implemented in the current tree; downstream CLI and LocalApiServer changes must now preserve the active ADR-028 facade boundary. |
 | `ADR-027` | Accepted | Defines the current full-screen TUI with command-session capture; supersedes the ADR-018/019 path. |
-| `ADR-028` | Proposed | Defines the application facade and transport boundary that later CLI and LocalApiServer refactors must follow. |
+| `ADR-028` | Active | Phase 1 / Phase 2 facade extraction and 2026-03-17 debug fixes are in the current tree; remaining work continues to shrink `src/app.rs` and harden facade/transport seams. |
 | `ADR-029` | Proposed | Extends the active ADR set with stream-parser completeness and session-persistence follow-up work without changing the milestone-1 gate result. |
-| `ADR-030` | Proposed | Defines the task-state-owned orchestrator model so canonical runtime events update task state before continuation, completion, and command-session decisions are made. |
+| `ADR-030` | Active | Task-state-owned orchestration invariants and 2026-03-17 control-flow fixes are active requirements for downstream runtime work. |
 
 ADR-025, ADR-026, ADR-028, ADR-029, and ADR-030 are the active post-gate ADR set.
 
@@ -34,12 +34,13 @@ documented dependencies.
 
 ## Current Next Dispatcher Batch
 
-The next dispatcher batch is ADR-028 application-facade and transport-boundary follow-up.
+The current dispatcher batch continues ADR-028 application-facade and transport-boundary follow-up.
 
 - Milestone-1 validation remains the recorded Phase I gate result in `adr/ADR-022-free-open-coding-agent-roadmap.md`.
 - ADR-025 now has the canonical runtime handoff types, schemas, normalization layer, and BatchMode parity tests in the current tree.
 - ADR-026 now has the loopback HTTP transport adapter, schema bundle endpoint, transport/security guards, and PI-16 validation coverage in the current tree.
-- Treat ADR-028 as the next dependency-sequenced follow-up ADR for the post-gate CLI and LocalApiServer work, while ADR-029 remains an active stream/parser and persistence follow-up ADR and ADR-030 defines the task-state/orchestrator control-flow contract that downstream work must preserve.
+- ADR-028 now has its phase-1/phase-2 facade split and the 2026-03-17 debug fixes for localhost protocol routing, full-screen task activity visibility, and live orchestration rows in the current tree.
+- Continue shrinking `src/app.rs` behind the facade boundary while ADR-029 remains an active stream/parser and persistence follow-up ADR and ADR-030 defines the task-state/orchestrator control-flow contract that downstream work must preserve.
 
 ## Other Open ADRs Tracked In This Repo
 

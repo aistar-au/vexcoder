@@ -27,7 +27,12 @@ impl TuiMode {
         const MAX_ACTIVITY_ROWS: usize = 6;
 
         if let Some(rows) = self.command_session_rows() {
-            return rows.into_iter().rev().take(MAX_ACTIVITY_ROWS).rev().collect();
+            return rows
+                .into_iter()
+                .rev()
+                .take(MAX_ACTIVITY_ROWS)
+                .rev()
+                .collect();
         }
 
         let mut rows = Vec::new();
@@ -48,7 +53,10 @@ impl TuiMode {
             } else {
                 "[ok]"
             };
-            rows.push(format!("{prefix} {}: {}", invocation.name, invocation.outcome));
+            rows.push(format!(
+                "{prefix} {}: {}",
+                invocation.name, invocation.outcome
+            ));
         }
 
         // In-flight tool calls (model sent the call, result not yet received).
@@ -77,7 +85,11 @@ impl TuiMode {
         // Clamp to the most-recent MAX_ACTIVITY_ROWS lines for a stable
         // 6-line dropdown appearance — older completed steps scroll off the
         // top naturally.
-        rows.into_iter().rev().take(MAX_ACTIVITY_ROWS).rev().collect()
+        rows.into_iter()
+            .rev()
+            .take(MAX_ACTIVITY_ROWS)
+            .rev()
+            .collect()
     }
 
     fn task_output_rows(&self) -> Vec<String> {
