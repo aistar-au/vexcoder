@@ -14,7 +14,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 3 | `adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md` | ~414 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md> |
 | 4 | `adr/ADR-022-amendment-2026-03-03.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-03.md> |
 | 5 | `adr/ADR-022-amendment-2026-03-13.md` | ~71 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-13.md> |
-| 6 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | ~481 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-free-open-coding-agent-roadmap.md> |
+| 6 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | ~497 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-free-open-coding-agent-roadmap.md> |
 | 7 | `adr/ADR-023-deterministic-edit-loop.md` | ~793 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-023-deterministic-edit-loop.md> |
 | 8 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | ~2031 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md> |
 | 9 | `adr/ADR-025-runtime-json-handoff-contract.md` | ~913 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-025-runtime-json-handoff-contract.md> |

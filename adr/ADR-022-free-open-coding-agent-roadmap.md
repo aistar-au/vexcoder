@@ -446,6 +446,22 @@ fn approval_policy_is_capability_scoped() {
 Milestone-1 therefore closes as the ADR-022 validation gate for phases 1
 through 8 together with the completed ADR-023 command surface.
 
+## Dispatch and merge policy
+
+Roadmap phases define dependency order, not a requirement that all work for a
+phase be authored or reviewed serially on one branch.
+
+Parallel remote implementation is allowed when batches are either independent or
+explicitly stacked. A dependent batch may be pushed for review before its
+prerequisite lands, but merge order must still follow the roadmap dependency
+chain and leave `main` green after each landed batch.
+
+In other words:
+
+- phases are sequential in merge semantics;
+- batches may be parallel in development;
+- dependent branches must be rebased or reconciled before merge to `main`.
+
 ## Consequences
 
 ### Benefits
