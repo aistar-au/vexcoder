@@ -442,4 +442,4 @@ display stability.
 - ADR-027 — full-screen TUI command session capture / managed command sessions
 - ADR-028 — application facade and transport boundaries (debug fixes recorded there)
 - ADR-029 — stream parser completeness and session persistence
-- `scripts/debug-commit.py` — read-and-explain debug commit tooling
+- `../vexdraft/scripts/commit-debug.py` — authoritative cross-repo debug commit tooling

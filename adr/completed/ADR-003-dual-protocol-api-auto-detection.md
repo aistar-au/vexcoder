@@ -14,7 +14,7 @@
 
 1. **Remote API users** who connect to a hosted `messages-v1` endpoint (`/v1/messages`). This group uses hosted models and expects streaming SSE with `content_block_start` / `content_block_delta` events and native `tool_use` blocks.
 
-2. **Local model users** who run llama.cpp server, Ollama, or LM Studio locally. These tools expose a chat-completions-compatible `/v1/chat/completions` endpoint. This group cannot use the `messages-v1` protocol but wants the same agentic loop with local models.
+2. **Local model users** who run a local model server. These tools commonly expose either a `messages-v1` endpoint or a chat-compatible `/v1/chat/completions` endpoint. This group wants the same agentic loop with local models regardless of which wire format is configured.
 
 Requiring users to configure a protocol enum explicitly would create friction. Most users know their endpoint URL but do not necessarily know which wire protocol it speaks.
 
@@ -26,17 +26,17 @@ A tagged-text fallback (`<function=name><parameter=key>value</parameter></functi
 
 ## Decision
 
-Implement a single `ApiClient` that internally selects between the `messages-v1` and chat-completions protocol modes based on the endpoint URL, with a manual override via `VEX_API_PROTOCOL`.
+Implement a single `ApiClient` that supports both `messages-v1` and chat-compatible protocol modes, with explicit configuration taking precedence and URL adaptation limited to filling in the endpoint path that matches the configured protocol.
 
 **Protocol inference rules** (`infer_api_protocol()`):
 - URL contains `/chat/completions` → chat-completions protocol
 - URL ends with `/v1` → chat-completions protocol (base path convention)
 - Anything else → `messages-v1` (default)
 
-**URL adaptation** (chat-completions URL adaptation helper):
-- `/v1/messages` → `/v1/chat/completions`
-- `/v1` → `/v1/chat/completions`
-- Already correct → unchanged
+**URL adaptation**:
+- `messages-v1` mode maps `/v1` → `/v1/messages`
+- chat-compatible mode maps `/v1` → `/v1/chat/completions`
+- explicit `/messages` and `/chat/completions` URLs are preserved for their configured protocol
 
 **Stream parser** (`src/api/stream.rs`): attempts `messages-v1` SSE parse first; on failure attempts chat-completions chunk parse. Chat-completions tool calls are translated into the same `StreamEvent` enum used by the `messages-v1` path, so `ConversationManager` is protocol-agnostic above the stream layer.
 

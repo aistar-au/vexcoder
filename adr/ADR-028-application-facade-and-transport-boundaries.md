@@ -307,37 +307,36 @@ Three bugs surfaced during review of the Phase 1 / Phase 2 branch series
 `dispatcher/vexcoder-adr-028-phase2-tui-latency-facade`).  Each is patched
 in the debug commit on this date and recorded here for traceability.
 
-### Bug 1 — llama.cpp ChatCompat protocol confusion
+### Bug 1 — local protocol routing mismatch
 
 **Location:** `src/api/client.rs` — `should_prefer_chat_compat_wire_protocol()`
 
-**Root cause:** The heuristic returned `true` for any URL ending in `/messages`,
-including `http://localhost:8000/v1/messages`.  This is the Anthropic Messages
-V1 endpoint served by llama.cpp in Anthropic-compat mode.  The heuristic
-then overwrote the explicit `MessagesV1` config and switched the request to
-`/v1/chat/completions`, causing a wire-format mismatch: the server emitted
-`content_block_delta` SSE events while the client expected OpenAI
-`choices[].delta` chunks.  The symptom appeared in `llama-verbose-logs.txt`
-as repeated `Parsing chat message` callbacks containing Anthropic-format SSE.
+**Root cause:** The client mixed explicit protocol selection with URL heuristics.
+An explicit `messages-v1` configuration could still be redirected to the
+chat-compatible path, which made the wire contract harder to reason about and
+hid the real endpoint being used.
 
-**Fix:** The function now only returns `true` for bare `/v1` base URLs —
-i.e., `normalized.ends_with("/v1") && !normalized.ends_with("/v1/messages")`.
-An explicit `/messages` path is conclusive evidence of a MessagesV1 endpoint
-and must never be auto-switched to ChatCompat.
+**Fix:** Protocol selection now follows the configured protocol exactly.
+Explicit `messages-v1` requests use `/messages`; explicit chat-compatible
+requests use `/chat/completions`.  Bare `/v1` base URLs are only expanded into
+the matching endpoint path for the configured protocol.
 
 **Tests added:**
 - `test_local_messages_endpoint_keeps_messages_v1_wire_protocol`
-- `test_local_bare_v1_endpoint_prefers_chat_compat_wire_protocol`
+- `test_local_bare_v1_endpoint_resolves_messages_v1_url`
+- `test_local_bare_v1_endpoint_resolves_chat_compat_url`
 
-### Bug 2 — TUI output goes to buffer, no terminal scrollable history
+### Bug 2 — TUI must stay on the primary terminal surface
 
 **Location:** `src/terminal.rs`
 
-**Root cause:** `enter_full_screen_mode()` called `enable_raw_mode()` and
-`EnableBracketedPaste` but did not call `EnterAlternateScreen`.  Without
-alternate screen, ratatui's `CrosstermBackend` renders to the primary terminal
-buffer using cursor-positioning escape codes that overwrite the same screen
-lines on every frame.  Content is never scrolled into terminal history, so
+**Root cause:** The terminal lifecycle drifted away from the intended primary
+surface behaviour.  The TUI must remain in raw mode on the current terminal
+surface, not switch into a separate alternate buffer.
+
+**Fix:** `terminal.rs` now keeps rendering on the primary terminal surface,
+using raw mode and bracketed paste only, and restores the prompt cleanly on
+exit without a buffer switch.
 PageUp in the host terminal shows only the last rendered frame, not the
 session history.
 
@@ -379,4 +378,4 @@ monochrome `Line::from` strings with no structured prefix styling.
 - `adr/ADR-025-runtime-json-handoff-contract.md` — canonical runtime JSON contract
 - `adr/ADR-026-localapiserver-transport-binding.md` — LocalApiServer transport binding
 - `adr/ADR-027-full-screen-tui-command-session-capture.md` — current full-screen TUI and command-session capture behavior
-- `scripts/debug-commit.py` — read-and-explain debug commit script introduced with this patch
+- `../vexdraft/scripts/commit-debug.py` — authoritative cross-repo debug commit script

@@ -160,14 +160,6 @@ impl ApiClient {
     }
 
     fn api_protocol(&self) -> ApiProtocol {
-        if self.model_backend == ModelBackendKind::LocalRuntime
-            && self.is_local_endpoint()
-            && matches!(self.model_protocol, ModelProtocol::MessagesV1)
-            && should_prefer_chat_compat_wire_protocol(&self.api_url)
-        {
-            return ApiProtocol::ChatCompat;
-        }
-
         match self.model_protocol {
             ModelProtocol::MessagesV1 => ApiProtocol::MessagesV1,
             ModelProtocol::ChatCompat => ApiProtocol::ChatCompat,
@@ -356,7 +348,7 @@ impl ApiClient {
 
     fn request_url(&self) -> String {
         match self.api_protocol() {
-            ApiProtocol::MessagesV1 => self.api_url.clone(),
+            ApiProtocol::MessagesV1 => adapt_to_messages_v1_url(&self.api_url),
             ApiProtocol::ChatCompat => adapt_to_chat_compat_url(&self.api_url),
         }
     }
@@ -470,12 +462,18 @@ fn adapt_to_chat_compat_url(api_url: &str) -> String {
     normalized.to_string()
 }
 
-fn should_prefer_chat_compat_wire_protocol(api_url: &str) -> bool {
+fn adapt_to_messages_v1_url(api_url: &str) -> String {
     let normalized = api_url.trim_end_matches('/');
-    // A URL ending in /messages explicitly targets the Anthropic Messages V1
-    // endpoint — do NOT switch those to ChatCompat.  Only bare /v1 base URLs
-    // are ambiguous enough to warrant the ChatCompat heuristic.
-    normalized.ends_with("/v1") && !normalized.ends_with("/v1/messages")
+    if normalized.ends_with("/messages") {
+        return normalized.to_string();
+    }
+    if let Some(prefix) = normalized.strip_suffix("/chat/completions") {
+        return format!("{prefix}/messages");
+    }
+    if normalized.ends_with("/v1") {
+        return format!("{normalized}/messages");
+    }
+    normalized.to_string()
 }
 
 fn chat_compat_messages(messages: &[ApiMessage], system_prompt: &str) -> Vec<Value> {
@@ -856,13 +854,9 @@ mod tests {
 
     #[test]
     fn test_local_messages_endpoint_keeps_messages_v1_wire_protocol() {
-        // A URL ending in /v1/messages explicitly targets the Anthropic
-        // Messages V1 endpoint (e.g. llama.cpp in Anthropic-compat mode).
-        // It must NOT be auto-switched to ChatCompat — that caused the
-        // llama.cpp "conversion" bug (content_block_delta vs choices[].delta).
         let config = crate::config::Config {
             model_token: None,
-            model_name: "local/llama.cpp".to_string(),
+            model_name: "local/test-model".to_string(),
             model_url: "http://localhost:8000/v1/messages".to_string(),
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::LocalRuntime,
@@ -886,17 +880,41 @@ mod tests {
     }
 
     #[test]
-    fn test_local_bare_v1_endpoint_prefers_chat_compat_wire_protocol() {
-        // A bare /v1 base URL on a local endpoint is ambiguous.  The heuristic
-        // still switches those to ChatCompat because many local servers only
-        // expose the OpenAI-compatible /v1/chat/completions surface.
+    fn test_local_bare_v1_endpoint_resolves_messages_v1_url() {
         let config = crate::config::Config {
             model_token: None,
-            model_name: "local/llama.cpp".to_string(),
+            model_name: "local/test-model".to_string(),
             model_url: "http://localhost:8000/v1".to_string(),
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
+            tool_call_mode: ToolCallMode::TaggedFallback,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                ModelBackendKind::LocalRuntime,
+            ),
+            max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
+            api: crate::config::ApiConfig::default(),
+            hooks: Vec::new(),
+        };
+
+        let client = ApiClient::new(&config).expect("client should build");
+        assert_eq!(client.api_protocol(), ApiProtocol::MessagesV1);
+        assert_eq!(client.request_url(), "http://localhost:8000/v1/messages");
+        assert_eq!(client.protocol(), ModelProtocol::MessagesV1);
+    }
+
+    #[test]
+    fn test_local_bare_v1_endpoint_resolves_chat_compat_url() {
+        let config = crate::config::Config {
+            model_token: None,
+            model_name: "local/test-model".to_string(),
+            model_url: "http://localhost:8000/v1".to_string(),
+            working_dir: std::path::PathBuf::from("."),
+            model_backend: ModelBackendKind::LocalRuntime,
+            model_protocol: ModelProtocol::ChatCompat,
             tool_call_mode: ToolCallMode::TaggedFallback,
             model_profile: crate::types::ModelProfile::default_for_backend(
                 ModelBackendKind::LocalRuntime,
@@ -915,14 +933,14 @@ mod tests {
             client.request_url(),
             "http://localhost:8000/v1/chat/completions"
         );
-        assert_eq!(client.protocol(), ModelProtocol::MessagesV1);
+        assert_eq!(client.protocol(), ModelProtocol::ChatCompat);
     }
 
     #[test]
     fn test_remote_messages_endpoint_preserves_messages_wire_protocol() {
         let config = crate::config::Config {
             model_token: Some("test-key".to_string()),
-            model_name: "claude-test".to_string(),
+            model_name: "remote-test-model".to_string(),
             model_url: "https://model.example.internal/v1/messages".to_string(),
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::ApiServer,
@@ -1033,7 +1051,7 @@ mod tests {
         std::env::remove_var("VEX_STRUCTURED_TOOL_PROTOCOL");
         let config = crate::config::Config {
             model_token: None,
-            model_name: "local/llama.cpp".to_string(),
+            model_name: "local/test-model".to_string(),
             model_url: "http://localhost:8000/v1/messages".to_string(),
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::LocalRuntime,

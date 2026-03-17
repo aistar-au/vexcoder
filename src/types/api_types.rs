@@ -442,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn test_api_usage_openai_detail_breakdowns_deserialise() {
+    fn test_api_usage_chat_compat_detail_breakdowns_deserialise() {
         let json = r#"{
             "prompt_tokens":120,"completion_tokens":30,"total_tokens":150,
             "prompt_tokens_details":{"cached_tokens":80,"audio_tokens":0},
