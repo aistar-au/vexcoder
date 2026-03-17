@@ -7,7 +7,7 @@ use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
-use vexcoder::app::{build_runtime, build_runtime_with_resume, TuiMode};
+use vexcoder::app::{run_tui_session, serve_facade_local_api, TuiMode};
 use vexcoder::batch_mode::{run_batch, AutoApproveScope, BatchResult, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
 use vexcoder::doctor::run_doctor;
@@ -1158,7 +1158,7 @@ async fn main() -> Result<ExitCode> {
         Some(Commands::Serve { host, port }) => {
             let config = Config::load()?;
             config.validate()?;
-            vexcoder::local_api::serve_local_api(config, host, port).await?;
+            serve_facade_local_api(config, host, port).await?;
             return Ok(ExitCode::SUCCESS);
         }
         None => {}
@@ -1185,16 +1185,14 @@ async fn main() -> Result<ExitCode> {
 
     // PM-01: --resume startup flag.
     if let Some(state) = resume_state {
-        let (mut runtime, mut ctx) = build_runtime_with_resume(config, state)?;
         let mut frontend = ManagedTuiFrontend::new()?;
-        runtime.run(&mut frontend, &mut ctx).await;
+        run_tui_session(config, Some(state), &mut frontend).await?;
         return Ok(ExitCode::SUCCESS);
     }
 
     // Default: interactive TUI.
-    let (mut runtime, mut ctx) = build_runtime(config)?;
     let mut frontend = ManagedTuiFrontend::new()?;
-    runtime.run(&mut frontend, &mut ctx).await;
+    run_tui_session(config, None, &mut frontend).await?;
     Ok(ExitCode::SUCCESS)
 }
 

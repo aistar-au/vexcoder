@@ -238,6 +238,37 @@ fn test_stream_delta_hides_incomplete_tool_tag_suffix() {
 }
 
 #[test]
+fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("hi".to_string(), &mut ctx);
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.activity_rows, vec!["> hi".to_string()]);
+    assert_eq!(
+        state.output_rows,
+        vec!["[awaiting model response]".to_string()]
+    );
+}
+
+#[test]
+fn test_task_layout_state_routes_streamed_response_to_output_pane() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("hi".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamDelta("hello from model".to_string()),
+        &mut ctx,
+    );
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.activity_rows, vec!["> hi".to_string()]);
+    assert_eq!(state.output_rows, vec!["hello from model".to_string()]);
+}
+
+#[test]
 fn test_transcript_does_not_exceed_cap_after_n_turns() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     std::env::set_var(MAX_HISTORY_LINES_ENV, "10");

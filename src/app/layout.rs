@@ -23,6 +23,66 @@ impl TuiMode {
         Some(rows)
     }
 
+    fn task_activity_rows(&self) -> Vec<String> {
+        if let Some(rows) = self.command_session_rows() {
+            return rows;
+        }
+
+        let mut rows = Vec::new();
+        if !self.current_turn_input.trim().is_empty() {
+            rows.push(format!("> {}", self.current_turn_input));
+        }
+
+        for invocation in &self.current_turn_tool_invocations {
+            rows.push(format!(
+                "[tool] {}: {}",
+                invocation.name, invocation.outcome
+            ));
+        }
+
+        if rows.is_empty() {
+            return self
+                .history_state
+                .lines
+                .iter()
+                .rev()
+                .filter(|line| !line.trim().is_empty())
+                .take(8)
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect();
+        }
+
+        rows
+    }
+
+    fn task_output_rows(&self) -> Vec<String> {
+        if self.history_state.turn_in_progress {
+            let rows = self
+                .current_turn_response
+                .lines()
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>();
+            if rows.is_empty() {
+                return vec!["[awaiting model response]".to_string()];
+            }
+            return rows;
+        }
+
+        self.history_state
+            .lines
+            .iter()
+            .rev()
+            .take(24)
+            .cloned()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect()
+    }
+
     pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
         if !self.history_state.turn_in_progress && !self.overlay_active() {
             return None;
@@ -38,18 +98,7 @@ impl TuiMode {
             })
         };
 
-        let activity_rows = self.command_session_rows().unwrap_or_else(|| {
-            self.history_state
-                .lines
-                .iter()
-                .rev()
-                .take(8)
-                .cloned()
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect()
-        });
+        let activity_rows = self.task_activity_rows();
         let input_hint = if let Some(approval) = pending_approval.clone() {
             format!("{approval}\n[y/n/s] ")
         } else if self.command_session_active() {
@@ -61,7 +110,7 @@ impl TuiMode {
             task_id: self.current_task.id.clone(),
             status_line: self.status_line(),
             activity_rows,
-            output_rows: self.history_state.lines.clone(),
+            output_rows: self.task_output_rows(),
             pending_approval,
             input_hint,
             changed_files: self

@@ -267,10 +267,14 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
         .iter()
         .map(|row| Line::from(row.to_string()))
         .collect();
+    let output_scroll = output_lines
+        .len()
+        .saturating_sub(layout.output.height.max(1) as usize) as u16;
 
     frame.render_widget(
         Paragraph::new(Text::from(output_lines))
             .block(Block::default().borders(Borders::NONE).title("Output"))
+            .scroll((output_scroll, 0))
             .wrap(Wrap { trim: false }),
         layout.output,
     );
