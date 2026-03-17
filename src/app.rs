@@ -69,7 +69,8 @@ mod turn_start;
 pub(crate) mod util;
 pub use self::errors::{AppError, AppResult};
 pub use self::facade::{
-    build_facade_client, build_facade_runtime, execute_facade_runtime, FacadeBootstrap,
+    build_facade_client, build_facade_runtime, execute_facade_runtime, run_tui_session,
+    serve_facade_local_api, FacadeBootstrap,
 };
 pub use self::runtime_build::{build_runtime, build_runtime_with_resume};
 

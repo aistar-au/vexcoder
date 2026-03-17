@@ -74,7 +74,7 @@ Anchor tests alone do not give an agent enough context to understand *what* to i
 
 ### Single large AGENTS-style bootstrap file
 
-Popularised by llama.cpp and other AI-native projects. Works well for stable conventions but degrades for per-task context because the file grows unbounded. `vexcoder` uses `CONTRIBUTING.md` for stable workflow conventions and `TASKS/` for per-task ephemeral context — separating the two concerns.
+Popularised by local-model and other agent-native projects. Works well for stable conventions but degrades for per-task context because the file grows unbounded. `vexcoder` uses `CONTRIBUTING.md` for stable workflow conventions and `TASKS/` for per-task ephemeral context — separating the two concerns.
 
 ### Monorepo-style ADR for every decision
 

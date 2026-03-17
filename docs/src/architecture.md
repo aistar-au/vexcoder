@@ -37,7 +37,7 @@ The long-term architecture work is tracked in the ADR set under `adr/`.
 
 - ADR-025 defines the canonical machine-readable runtime request and event contract.
 - ADR-026 defines the proposed `LocalApiServer` transport binding over that contract.
-- ADR-028 is now active in the current tree: phase-1 facade helpers live under `src/app/`, and follow-up work continues to shrink `src/app.rs` behind the facade boundary.
+- ADR-028 is now active in the current tree: the facade helpers live under `src/app/`, the localhost `/v1/messages` protocol-routing fix is in place, and the full-screen activity pane now keeps live orchestration rows visible while follow-up work continues to shrink `src/app.rs` behind the facade boundary.
 - ADR-030 defines the runtime control-flow rule: provider events normalize into canonical runtime events, task state owns execution truth, and the orchestrator decides whether the task continues or stops.
 
 That means the current `src/app.rs`-centric layout is still the live implementation, but it is not intended to be the permanent shape for machine-readable runtime access or local server transports.

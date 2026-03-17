@@ -462,7 +462,7 @@ mod tests {
     }
 
     #[test]
-    fn test_process_anthropic_message_delta_top_level_usage() {
+    fn test_process_messages_v1_message_delta_top_level_usage() {
         let mut parser = StreamParser::new();
         let events = parser
             .process(

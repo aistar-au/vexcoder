@@ -348,7 +348,7 @@ impl ApiClient {
 
     fn request_url(&self) -> String {
         match self.api_protocol() {
-            ApiProtocol::MessagesV1 => self.api_url.clone(),
+            ApiProtocol::MessagesV1 => adapt_to_messages_v1_url(&self.api_url),
             ApiProtocol::ChatCompat => adapt_to_chat_compat_url(&self.api_url),
         }
     }
@@ -458,6 +458,20 @@ fn adapt_to_chat_compat_url(api_url: &str) -> String {
     }
     if normalized.ends_with("/v1") {
         return format!("{normalized}/chat/completions");
+    }
+    normalized.to_string()
+}
+
+fn adapt_to_messages_v1_url(api_url: &str) -> String {
+    let normalized = api_url.trim_end_matches('/');
+    if normalized.ends_with("/messages") {
+        return normalized.to_string();
+    }
+    if let Some(prefix) = normalized.strip_suffix("/chat/completions") {
+        return format!("{prefix}/messages");
+    }
+    if normalized.ends_with("/v1") {
+        return format!("{normalized}/messages");
     }
     normalized.to_string()
 }
@@ -839,6 +853,119 @@ mod tests {
     }
 
     #[test]
+    fn test_local_messages_endpoint_keeps_messages_v1_wire_protocol() {
+        let config = crate::config::Config {
+            model_token: None,
+            model_name: "local/test-model".to_string(),
+            model_url: "http://localhost:8000/v1/messages".to_string(),
+            working_dir: std::path::PathBuf::from("."),
+            model_backend: ModelBackendKind::LocalRuntime,
+            model_protocol: ModelProtocol::MessagesV1,
+            tool_call_mode: ToolCallMode::TaggedFallback,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                ModelBackendKind::LocalRuntime,
+            ),
+            max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
+            api: crate::config::ApiConfig::default(),
+            hooks: Vec::new(),
+        };
+
+        let client = ApiClient::new(&config).expect("client should build");
+        assert_eq!(client.api_protocol(), ApiProtocol::MessagesV1);
+        assert_eq!(client.request_url(), "http://localhost:8000/v1/messages");
+        assert_eq!(client.protocol(), ModelProtocol::MessagesV1);
+    }
+
+    #[test]
+    fn test_local_bare_v1_endpoint_resolves_messages_v1_url() {
+        let config = crate::config::Config {
+            model_token: None,
+            model_name: "local/test-model".to_string(),
+            model_url: "http://localhost:8000/v1".to_string(),
+            working_dir: std::path::PathBuf::from("."),
+            model_backend: ModelBackendKind::LocalRuntime,
+            model_protocol: ModelProtocol::MessagesV1,
+            tool_call_mode: ToolCallMode::TaggedFallback,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                ModelBackendKind::LocalRuntime,
+            ),
+            max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
+            api: crate::config::ApiConfig::default(),
+            hooks: Vec::new(),
+        };
+
+        let client = ApiClient::new(&config).expect("client should build");
+        assert_eq!(client.api_protocol(), ApiProtocol::MessagesV1);
+        assert_eq!(client.request_url(), "http://localhost:8000/v1/messages");
+        assert_eq!(client.protocol(), ModelProtocol::MessagesV1);
+    }
+
+    #[test]
+    fn test_local_bare_v1_endpoint_resolves_chat_compat_url() {
+        let config = crate::config::Config {
+            model_token: None,
+            model_name: "local/test-model".to_string(),
+            model_url: "http://localhost:8000/v1".to_string(),
+            working_dir: std::path::PathBuf::from("."),
+            model_backend: ModelBackendKind::LocalRuntime,
+            model_protocol: ModelProtocol::ChatCompat,
+            tool_call_mode: ToolCallMode::TaggedFallback,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                ModelBackendKind::LocalRuntime,
+            ),
+            max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
+            api: crate::config::ApiConfig::default(),
+            hooks: Vec::new(),
+        };
+
+        let client = ApiClient::new(&config).expect("client should build");
+        assert_eq!(client.api_protocol(), ApiProtocol::ChatCompat);
+        assert_eq!(
+            client.request_url(),
+            "http://localhost:8000/v1/chat/completions"
+        );
+        assert_eq!(client.protocol(), ModelProtocol::ChatCompat);
+    }
+
+    #[test]
+    fn test_remote_messages_endpoint_preserves_messages_wire_protocol() {
+        let config = crate::config::Config {
+            model_token: Some("test-key".to_string()),
+            model_name: "remote-test-model".to_string(),
+            model_url: "https://model.example.internal/v1/messages".to_string(),
+            working_dir: std::path::PathBuf::from("."),
+            model_backend: ModelBackendKind::ApiServer,
+            model_protocol: ModelProtocol::MessagesV1,
+            tool_call_mode: ToolCallMode::Structured,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                ModelBackendKind::ApiServer,
+            ),
+            max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
+            api: crate::config::ApiConfig::default(),
+            hooks: Vec::new(),
+        };
+
+        let client = ApiClient::new(&config).expect("client should build");
+        assert_eq!(client.api_protocol(), ApiProtocol::MessagesV1);
+        assert_eq!(
+            client.request_url(),
+            "https://model.example.internal/v1/messages"
+        );
+    }
+
+    #[test]
     fn test_chat_compat_url_adapter_from_messages_endpoint() {
         let adapted = adapt_to_chat_compat_url("http://localhost:8000/v1/messages");
         assert_eq!(adapted, "http://localhost:8000/v1/chat/completions");
@@ -924,7 +1051,7 @@ mod tests {
         std::env::remove_var("VEX_STRUCTURED_TOOL_PROTOCOL");
         let config = crate::config::Config {
             model_token: None,
-            model_name: "local/llama.cpp".to_string(),
+            model_name: "local/test-model".to_string(),
             model_url: "http://localhost:8000/v1/messages".to_string(),
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::LocalRuntime,
