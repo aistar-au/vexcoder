@@ -87,12 +87,12 @@ fn lifecycle_color(lifecycle: &StepLifecycle) -> u8 {
 
 fn lifecycle_prefix(lifecycle: &StepLifecycle) -> &'static str {
     match lifecycle {
-        StepLifecycle::Completed => "[ok]",
-        StepLifecycle::Failed => "[!]",
-        StepLifecycle::Running => "[->]",
-        StepLifecycle::AwaitingApproval => "[?]",
-        StepLifecycle::UserInput => ">",
-        StepLifecycle::CommandSession => "[$$]",
+        StepLifecycle::Completed => "\u{2605}",       // ★
+        StepLifecycle::Failed => "\u{2716}",           // ✖
+        StepLifecycle::Running => "\u{2726}",          // ✦
+        StepLifecycle::AwaitingApproval => "\u{2606}",  // ☆
+        StepLifecycle::UserInput => "\u{203a}",        // ›
+        StepLifecycle::CommandSession => "\u{25c6}",   // ◆
     }
 }
 
@@ -358,8 +358,10 @@ impl TaskDraw {
         // The status_line format is: "mode:X approval:Y history:N repo:R inst:I tokens:T"
         let parts = parse_status_parts(&state.status_line);
 
-        // Repo name — bold white.
+        // Star accent + repo name — bold white.
         set_bold(w);
+        set_fg(w, YELLOW);
+        let _ = write!(w, "\u{2605} "); // ★
         set_fg(w, WHITE);
         let _ = write!(w, "{}", parts.repo);
         reset_style(w);
@@ -510,18 +512,10 @@ impl TaskDraw {
             self.draw_timeline_entry(w, entry, is_selected, regions.cols);
         }
 
-        // Separator line between timeline and transcript.
+        // Separator line between timeline and transcript — star accent.
         let sep_row = regions.transcript_start.saturating_sub(1);
         if sep_row >= regions.timeline_start {
-            move_to(w, sep_row, 0);
-            clear_line(w);
-            set_dim(w);
-            set_fg(w, DIM_GRAY);
-            let sep_width = (regions.cols as usize).min(120);
-            for _ in 0..sep_width {
-                let _ = write!(w, "\u{2500}");
-            }
-            reset_style(w);
+            draw_star_separator(w, sep_row, regions.cols);
         }
     }
 
@@ -546,18 +540,10 @@ impl TaskDraw {
             }
         }
 
-        // Separator.
+        // Separator — star accent.
         let sep_row = regions.transcript_start.saturating_sub(1);
         if sep_row >= regions.timeline_start {
-            move_to(w, sep_row, 0);
-            clear_line(w);
-            set_dim(w);
-            set_fg(w, DIM_GRAY);
-            let sep_width = (regions.cols as usize).min(120);
-            for _ in 0..sep_width {
-                let _ = write!(w, "\u{2500}");
-            }
-            reset_style(w);
+            draw_star_separator(w, sep_row, regions.cols);
         }
     }
 
@@ -571,11 +557,11 @@ impl TaskDraw {
         let prefix = lifecycle_prefix(&entry.lifecycle);
         let color = lifecycle_color(&entry.lifecycle);
 
-        // Selection indicator.
+        // Selection indicator — star-themed pointer.
         if is_selected {
             set_bold(w);
-            set_fg(w, WHITE);
-            let _ = write!(w, " \u{25b6} ");
+            set_fg(w, YELLOW);
+            let _ = write!(w, " \u{2726} "); // ✦
         } else {
             let _ = write!(w, "   ");
         }
@@ -605,43 +591,43 @@ impl TaskDraw {
         if let Some(rest) = row.strip_prefix("[ok]") {
             set_bold(w);
             set_fg(w, GREEN);
-            let _ = write!(w, "   [ok]");
+            let _ = write!(w, "   \u{2605}"); // ★
             reset_style(w);
             set_fg(w, GRAY);
-            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(8));
+            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(6));
             let _ = write!(w, " {truncated}");
             reset_style(w);
         } else if let Some(rest) = row.strip_prefix("[!]") {
             set_bold(w);
             set_fg(w, RED);
-            let _ = write!(w, "   [!]");
+            let _ = write!(w, "   \u{2716}"); // ✖
             reset_style(w);
             set_fg(w, GRAY);
-            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(7));
+            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(6));
             let _ = write!(w, " {truncated}");
             reset_style(w);
         } else if let Some(rest) = row.strip_prefix("[->]") {
             set_bold(w);
             set_fg(w, CYAN);
-            let _ = write!(w, "   [->]");
+            let _ = write!(w, "   \u{2726}"); // ✦
             reset_style(w);
             set_fg(w, GRAY);
-            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(8));
+            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(6));
             let _ = write!(w, " {truncated}");
             reset_style(w);
         } else if let Some(rest) = row.strip_prefix("[?]") {
             set_bold(w);
             set_fg(w, YELLOW);
-            let _ = write!(w, "   [?]");
+            let _ = write!(w, "   \u{2606}"); // ☆
             reset_style(w);
             set_fg(w, GRAY);
-            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(7));
+            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(6));
             let _ = write!(w, " {truncated}");
             reset_style(w);
         } else if let Some(rest) = row.strip_prefix("> ") {
             set_dim(w);
             set_fg(w, DIM_GRAY);
-            let _ = write!(w, "   > ");
+            let _ = write!(w, "   \u{203a} "); // ›
             reset_style(w);
             set_dim(w);
             set_fg(w, GRAY);
@@ -743,20 +729,20 @@ impl TaskDraw {
     /// Render a single transcript line with semantic styling.
     fn draw_transcript_line<W: Write>(&self, w: &mut W, line: &str, cols: u16) {
         if let Some(rest) = line.strip_prefix("[ok] ") {
-            // Completed tool — green marker, white tool name.
+            // Completed tool — green star, white tool name.
             set_bold(w);
             set_fg(w, GREEN);
-            let _ = write!(w, " \u{2713} ");
+            let _ = write!(w, " \u{2605} "); // ★
             reset_style(w);
             set_fg(w, WHITE);
             let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
             let _ = write!(w, "{truncated}");
             reset_style(w);
         } else if let Some(rest) = line.strip_prefix("[!] ") {
-            // Failed tool — red marker, white tool name.
+            // Failed tool — red cross, white tool name.
             set_bold(w);
             set_fg(w, RED);
-            let _ = write!(w, " \u{2717} ");
+            let _ = write!(w, " \u{2716} "); // ✖
             reset_style(w);
             set_fg(w, WHITE);
             let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
@@ -770,11 +756,27 @@ impl TaskDraw {
             let _ = write!(w, "{truncated}");
             reset_style(w);
         } else if line.starts_with("--- ") && line.ends_with(" ---") {
-            // Section separator.
+            // Section separator — star-accented divider.
             set_dim(w);
             set_fg(w, DIM_GRAY);
-            let truncated = truncate_to_width(line, cols as usize);
-            let _ = write!(w, "{truncated}");
+            let _ = write!(w, " \u{2500}\u{2500}\u{2500} "); // ───
+            set_fg(w, YELLOW);
+            let _ = write!(w, "\u{2726}"); // ✦
+            set_fg(w, DIM_GRAY);
+            // Extract label from "--- label ---" format.
+            let label = line
+                .trim_start_matches('-')
+                .trim_end_matches('-')
+                .trim();
+            if !label.is_empty() {
+                let _ = write!(w, " {label} ");
+            } else {
+                let _ = write!(w, " ");
+            }
+            let remaining_width = (cols as usize).saturating_sub(8 + label.len());
+            for _ in 0..remaining_width.min(40) {
+                let _ = write!(w, "\u{2500}"); // ─
+            }
             reset_style(w);
         } else if line == "Turn completed." || line.starts_with("Type a prompt") {
             // Hint text — dimmed italic.
@@ -784,10 +786,10 @@ impl TaskDraw {
             let _ = write!(w, "{truncated}");
             reset_style(w);
         } else if line == "[awaiting model response]" {
-            // Awaiting indicator — pulsing cyan.
+            // Awaiting indicator — star-themed pulsing cyan.
             set_fg(w, CYAN);
             set_dim(w);
-            let _ = write!(w, " \u{2026} awaiting model response");
+            let _ = write!(w, " \u{2726} awaiting response"); // ✦
             reset_style(w);
         } else {
             // Regular transcript text.
@@ -868,9 +870,10 @@ impl TaskDraw {
                 reset_style(w);
             }
         } else {
-            // Regular composer.
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, "\u{276f} ");
+            // Regular composer — star-themed prompt.
+            set_bold(w);
+            set_fg(w, YELLOW);
+            let _ = write!(w, "\u{2726} "); // ✦
             reset_style(w);
 
             // Write hint lines.
@@ -1000,6 +1003,26 @@ fn parse_status_parts(status: &str) -> StatusParts {
 }
 
 // ── Utilities ───────────────────────────────────────────────────────
+
+/// Draw a star-accented separator line at the given row.
+fn draw_star_separator(w: &mut dyn Write, row: u16, cols: u16) {
+    move_to(w, row, 0);
+    clear_line(w);
+    set_dim(w);
+    set_fg(w, DIM_GRAY);
+    let sep_width = (cols as usize).min(120);
+    let star_pos = sep_width / 2;
+    for i in 0..sep_width {
+        if i == star_pos {
+            set_fg(w, YELLOW);
+            let _ = write!(w, "\u{2726}"); // ✦
+            set_fg(w, DIM_GRAY);
+        } else {
+            let _ = write!(w, "\u{2500}"); // ─
+        }
+    }
+    reset_style(w);
+}
 
 fn truncate_to_width(text: &str, max_width: usize) -> String {
     if display_width(text) <= max_width {
@@ -1207,8 +1230,8 @@ mod tests {
 
         let output = String::from_utf8_lossy(&buf);
         assert!(
-            output.contains("[ok]"),
-            "lifecycle changes must redraw the timeline row"
+            output.contains("\u{2605}"),
+            "lifecycle changes must redraw the timeline row with star marker"
         );
     }
 
@@ -1301,12 +1324,15 @@ mod tests {
         draw.draw(&mut buf, &state, 80, 24);
         let output = String::from_utf8_lossy(&buf);
 
-        // Check marks must be drawn.
+        // Star markers must be drawn.
         assert!(
-            output.contains("\u{2713}"),
-            "success check mark must be drawn"
+            output.contains("\u{2605}"),
+            "success star marker must be drawn"
         );
-        assert!(output.contains("\u{2717}"), "failure cross must be drawn");
+        assert!(
+            output.contains("\u{2716}"),
+            "failure cross marker must be drawn"
+        );
         assert!(
             output.contains("read_file"),
             "tool name must appear in output"
