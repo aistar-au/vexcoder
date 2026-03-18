@@ -8,18 +8,18 @@
 //! 2. **Text-only ANSI** — every visible pixel is a character cell written via
 //!    standard escape sequences. No alternate screen buffer, no intermediate
 //!    `Buffer` allocation per frame.
-//! 3. **Unlimited scrolling** — the output pane streams lines to the terminal
-//!    scrollback; old lines scroll off the top naturally instead of being
-//!    clipped to a fixed viewport.
+//! 3. **Viewport-managed output** — task output is shown in a fixed viewport
+//!    that follows the latest lines, while inspector-style content repaints
+//!    when selection or approval state changes.
 //! 4. **Minimal redraw** — only dirty regions (status bar, activity strip,
-//!    new output lines, input hint) are rewritten each frame. The output body
-//!    is append-only; previously written lines are never redrawn.
+//!    output body, input hint) are rewritten each frame.
 //!
 //! The public entry point is [`TaskDraw`] which is constructed once per task
 //! turn and called from the `FrontendAdapter::render` path when
 //! `task_layout_state()` returns `Some`.
 
 use crate::app::{StepLifecycle, TaskLayoutState, TimelineEntry};
+use crate::ui::input_metrics::{display_width, truncate_to_display_width};
 use std::io::Write;
 
 // ── ANSI escape helpers ─────────────────────────────────────────────
@@ -155,13 +155,19 @@ impl Regions {
 ///
 /// Constructed once when a task turn begins. Each call to [`draw`] emits
 /// only the ANSI sequences needed to update the terminal from the previous
-/// frame. The output body is append-only: new lines are written below the
-/// last output line and old lines scroll into terminal scrollback naturally.
+/// frame. Streaming output uses incremental redraw when it is safe to append,
+/// while selection-driven inspector content triggers a full viewport repaint.
 pub struct TaskDraw {
     /// Number of output body lines already flushed to the terminal.
     output_lines_flushed: usize,
+    /// Whether the previous frame reserved a changed-files row.
+    last_has_files: bool,
     /// Last rendered activity strip content (for dirty detection).
     last_activity_hash: u64,
+    /// Last rendered changed-files row.
+    last_files_hash: u64,
+    /// Last rendered output pane content.
+    last_output_hash: u64,
     /// Last rendered status line (for dirty detection).
     last_status_hash: u64,
     /// Last rendered input hint (for dirty detection).
@@ -177,7 +183,10 @@ impl TaskDraw {
     pub fn new() -> Self {
         Self {
             output_lines_flushed: 0,
+            last_has_files: false,
             last_activity_hash: 0,
+            last_files_hash: 0,
+            last_output_hash: 0,
             last_status_hash: 0,
             last_input_hash: 0,
             last_cols: 0,
@@ -189,7 +198,10 @@ impl TaskDraw {
     /// Reset for a new turn (keeps terminal state but resets line counters).
     pub fn reset(&mut self) {
         self.output_lines_flushed = 0;
+        self.last_has_files = false;
         self.last_activity_hash = 0;
+        self.last_files_hash = 0;
+        self.last_output_hash = 0;
         self.last_status_hash = 0;
         self.last_input_hash = 0;
         self.first_frame_done = false;
@@ -212,13 +224,16 @@ impl TaskDraw {
         }
 
         let size_changed = term_cols != self.last_cols || term_rows != self.last_rows;
+        let has_files = !state.changed_files.is_empty();
+        let layout_changed = has_files != self.last_has_files;
         self.last_cols = term_cols;
         self.last_rows = term_rows;
+        self.last_has_files = has_files;
 
-        let regions = Regions::compute(term_cols, term_rows, !state.changed_files.is_empty());
+        let regions = Regions::compute(term_cols, term_rows, has_files);
 
         // On first frame or terminal resize: full repaint.
-        if !self.first_frame_done || size_changed {
+        if !self.first_frame_done || size_changed || layout_changed {
             hide_cursor(w);
             self.draw_full(w, state, &regions);
             self.first_frame_done = true;
@@ -236,6 +251,15 @@ impl TaskDraw {
             self.last_status_hash = status_hash;
         }
 
+        // Changed files row.
+        let files_hash = self.compute_files_hash(state);
+        if files_hash != self.last_files_hash {
+            if let Some(files_row) = regions.files_row {
+                self.draw_files(w, state, files_row, regions.cols);
+            }
+            self.last_files_hash = files_hash;
+        }
+
         // Activity strip.
         let activity_hash = self.compute_activity_hash(state);
         if activity_hash != self.last_activity_hash {
@@ -243,8 +267,16 @@ impl TaskDraw {
             self.last_activity_hash = activity_hash;
         }
 
-        // Output body (append-only).
-        self.draw_output_incremental(w, state, &regions);
+        // Output body.
+        let output_hash = self.compute_output_hash(state);
+        if output_hash != self.last_output_hash {
+            if self.output_is_append_only(state) {
+                self.draw_output_incremental(w, state, &regions);
+            } else {
+                self.draw_output_full(w, state, &regions);
+            }
+            self.last_output_hash = output_hash;
+        }
 
         // Input hint.
         let input_hash = simple_hash(&state.input_hint);
@@ -272,13 +304,13 @@ impl TaskDraw {
         if let Some(files_row) = regions.files_row {
             self.draw_files(w, state, files_row, regions.cols);
         }
+        self.last_files_hash = self.compute_files_hash(state);
 
         self.draw_activity(w, state, regions);
         self.last_activity_hash = self.compute_activity_hash(state);
 
-        // Output: write all rows (reset flushed counter for full repaint).
-        self.output_lines_flushed = 0;
-        self.draw_output_incremental(w, state, regions);
+        self.draw_output_full(w, state, regions);
+        self.last_output_hash = self.compute_output_hash(state);
 
         self.draw_input(w, state, regions);
         self.last_input_hash = simple_hash(&state.input_hint);
@@ -319,6 +351,11 @@ impl TaskDraw {
     // ── Activity strip ──────────────────────────────────────────────
 
     fn draw_activity<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
+        if state.timeline_entries.is_empty() {
+            self.draw_activity_rows_fallback(w, state, regions);
+            return;
+        }
+
         let max_visible = ACTIVITY_ROWS;
         let total = state.timeline_entries.len();
         let selected = state.selected_step.min(total.saturating_sub(1));
@@ -361,6 +398,34 @@ impl TaskDraw {
         }
     }
 
+    fn draw_activity_rows_fallback<W: Write>(
+        &self,
+        w: &mut W,
+        state: &TaskLayoutState,
+        regions: &Regions,
+    ) {
+        move_to(w, regions.activity_start, 0);
+        clear_line(w);
+        set_bold(w);
+        set_fg(w, DIM_GRAY);
+        let _ = write!(w, "{}", self.activity_title(state));
+        reset_style(w);
+
+        for slot in 0..ACTIVITY_ROWS {
+            let row = regions.activity_start + 1 + slot as u16;
+            if row >= regions.output_start {
+                break;
+            }
+            move_to(w, row, 0);
+            clear_line(w);
+
+            let Some(activity_row) = state.activity_rows.get(slot) else {
+                continue;
+            };
+            self.draw_legacy_activity_row(w, activity_row, regions.cols);
+        }
+    }
+
     fn draw_timeline_entry<W: Write>(
         &self,
         w: &mut W,
@@ -395,15 +460,87 @@ impl TaskDraw {
         } else {
             set_fg(w, color);
         }
-        let used = 2 + prefix.len() + 1; // selector + prefix + space
+        let used = 2 + display_width(prefix) + 1; // selector + prefix + space
         let remaining = (cols as usize).saturating_sub(used);
         let truncated = truncate_to_width(&entry.label, remaining);
         let _ = write!(w, "{truncated}");
         reset_style(w);
     }
 
+    fn draw_legacy_activity_row<W: Write>(&self, w: &mut W, row: &str, cols: u16) {
+        if let Some(rest) = row.strip_prefix("[ok]") {
+            set_bold(w);
+            set_fg(w, GREEN);
+            let _ = write!(w, "[ok]");
+            reset_style(w);
+            set_fg(w, GREEN);
+            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(5));
+            let _ = write!(w, " {truncated}");
+            reset_style(w);
+        } else if let Some(rest) = row.strip_prefix("[!]") {
+            set_bold(w);
+            set_fg(w, RED);
+            let _ = write!(w, "[!]");
+            reset_style(w);
+            set_fg(w, RED);
+            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(4));
+            let _ = write!(w, " {truncated}");
+            reset_style(w);
+        } else if let Some(rest) = row.strip_prefix("[->]") {
+            set_bold(w);
+            set_fg(w, CYAN);
+            let _ = write!(w, "[->]");
+            reset_style(w);
+            set_fg(w, CYAN);
+            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(5));
+            let _ = write!(w, " {truncated}");
+            reset_style(w);
+        } else if let Some(rest) = row.strip_prefix("[?]") {
+            set_bold(w);
+            set_fg(w, YELLOW);
+            let _ = write!(w, "[?]");
+            reset_style(w);
+            set_fg(w, YELLOW);
+            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(4));
+            let _ = write!(w, " {truncated}");
+            reset_style(w);
+        } else if let Some(rest) = row.strip_prefix("> ") {
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, "> ");
+            reset_style(w);
+            set_dim(w);
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(2));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        } else {
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(row, cols as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        }
+    }
+
     fn activity_title(&self, state: &TaskLayoutState) -> &'static str {
-        if state
+        if state.timeline_entries.is_empty() {
+            if state
+                .activity_rows
+                .first()
+                .map(|row| row.starts_with("command:"))
+                .unwrap_or(false)
+            {
+                "Session"
+            } else if state
+                .activity_rows
+                .iter()
+                .any(|row| row.starts_with("[->]"))
+            {
+                "Orchestrating"
+            } else {
+                "Steps"
+            }
+        } else if state
             .timeline_entries
             .iter()
             .any(|e| e.lifecycle == StepLifecycle::Running)
@@ -421,17 +558,107 @@ impl TaskDraw {
     }
 
     fn compute_activity_hash(&self, state: &TaskLayoutState) -> u64 {
+        if state.timeline_entries.is_empty() {
+            let mut h = state.activity_rows.len() as u64;
+            for row in &state.activity_rows {
+                h = h.wrapping_mul(31).wrapping_add(simple_hash(row));
+            }
+            return h;
+        }
+
         let mut h: u64 = state.selected_step as u64;
         h = h
             .wrapping_mul(31)
             .wrapping_add(state.timeline_entries.len() as u64);
         for entry in &state.timeline_entries {
+            h = h
+                .wrapping_mul(31)
+                .wrapping_add(entry_lifecycle_id(&entry.lifecycle));
             h = h.wrapping_mul(31).wrapping_add(simple_hash(&entry.label));
         }
         h
     }
 
+    fn compute_files_hash(&self, state: &TaskLayoutState) -> u64 {
+        let mut h = state.changed_files.len() as u64;
+        for path in &state.changed_files {
+            h = h.wrapping_mul(31).wrapping_add(simple_hash(path));
+        }
+        h
+    }
+
+    fn compute_output_hash(&self, state: &TaskLayoutState) -> u64 {
+        let mut h = simple_hash(self.output_title(state));
+        h = h
+            .wrapping_mul(31)
+            .wrapping_add(state.output_rows.len() as u64);
+        for row in &state.output_rows {
+            h = h.wrapping_mul(31).wrapping_add(simple_hash(row));
+        }
+        h
+    }
+
+    fn output_is_append_only(&self, state: &TaskLayoutState) -> bool {
+        if state.pending_approval.is_some() {
+            return false;
+        }
+
+        if state.timeline_entries.is_empty() {
+            return true;
+        }
+
+        matches!(
+            state.timeline_entries.get(state.selected_step),
+            Some(entry) if entry.lifecycle == StepLifecycle::UserInput
+        )
+    }
+
+    fn output_title(&self, state: &TaskLayoutState) -> &'static str {
+        if !state.timeline_entries.is_empty() {
+            "Inspector"
+        } else {
+            "Output"
+        }
+    }
+
     // ── Output body (append-only) ───────────────────────────────────
+
+    fn draw_output_full<W: Write>(
+        &mut self,
+        w: &mut W,
+        state: &TaskLayoutState,
+        regions: &Regions,
+    ) {
+        let viewport_height = regions.output_rows.saturating_sub(1) as usize;
+
+        move_to(w, regions.output_start, 0);
+        clear_line(w);
+        set_bold(w);
+        set_fg(w, DIM_GRAY);
+        let _ = write!(w, "{}", self.output_title(state));
+        reset_style(w);
+
+        for vp_offset in 0..viewport_height {
+            let row = regions.output_start + 1 + vp_offset as u16;
+            move_to(w, row, 0);
+            clear_line(w);
+        }
+
+        let visible_start = state.output_rows.len().saturating_sub(viewport_height);
+        for (vp_offset, line) in state.output_rows.iter().skip(visible_start).enumerate() {
+            if vp_offset >= viewport_height {
+                break;
+            }
+            let row = regions.output_start + 1 + vp_offset as u16;
+            move_to(w, row, 0);
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(line, regions.cols as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        }
+
+        self.output_lines_flushed = state.output_rows.len();
+    }
 
     fn draw_output_incremental<W: Write>(
         &mut self,
@@ -450,12 +677,7 @@ impl TaskDraw {
             clear_line(w);
             set_bold(w);
             set_fg(w, DIM_GRAY);
-            let title = if !state.timeline_entries.is_empty() {
-                "Inspector"
-            } else {
-                "Output"
-            };
-            let _ = write!(w, "{title}");
+            let _ = write!(w, "{}", self.output_title(state));
             reset_style(w);
         }
 
@@ -573,16 +795,11 @@ impl Default for TaskDraw {
 
 // ── Utilities ───────────────────────────────────────────────────────
 
-fn truncate_to_width(text: &str, max_width: usize) -> &str {
-    if text.len() <= max_width {
-        return text;
+fn truncate_to_width(text: &str, max_width: usize) -> String {
+    if display_width(text) <= max_width {
+        return text.to_string();
     }
-    // Find the last valid char boundary at or before max_width.
-    let mut end = max_width.min(text.len());
-    while end > 0 && !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    &text[..end]
+    truncate_to_display_width(text, max_width)
 }
 
 fn simple_hash(s: &str) -> u64 {
@@ -591,6 +808,17 @@ fn simple_hash(s: &str) -> u64 {
         h = h.wrapping_mul(31).wrapping_add(b as u64);
     }
     h
+}
+
+fn entry_lifecycle_id(lifecycle: &StepLifecycle) -> u64 {
+    match lifecycle {
+        StepLifecycle::Completed => 1,
+        StepLifecycle::Failed => 2,
+        StepLifecycle::Running => 3,
+        StepLifecycle::AwaitingApproval => 4,
+        StepLifecycle::UserInput => 5,
+        StepLifecycle::CommandSession => 6,
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
@@ -728,10 +956,9 @@ mod tests {
         assert_eq!(truncate_to_width(text, 3), "hel");
         assert_eq!(truncate_to_width(text, 100), "hello");
 
-        let utf8 = "caf\u{00e9}"; // "café" where é is 2 bytes
-        let result = truncate_to_width(utf8, 4);
-        assert!(result.len() <= 4);
-        assert!(result.is_char_boundary(result.len()));
+        let wide = "界界a";
+        assert_eq!(truncate_to_width(wide, 4), "界界");
+        assert_eq!(truncate_to_width(wide, 5), "界界a");
     }
 
     #[test]
@@ -752,5 +979,108 @@ mod tests {
                 "prefix for {lc:?} must not end with a space: got {prefix:?}"
             );
         }
+    }
+
+    #[test]
+    fn lifecycle_only_changes_redraw_activity() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+
+        let running = make_state(
+            vec![TimelineEntry {
+                lifecycle: StepLifecycle::Running,
+                label: "tool: status".into(),
+                detail: String::new(),
+            }],
+            vec![],
+        );
+        draw.draw(&mut buf, &running, 80, 24);
+
+        buf.clear();
+        let completed = make_state(
+            vec![TimelineEntry {
+                lifecycle: StepLifecycle::Completed,
+                label: "tool: status".into(),
+                detail: String::new(),
+            }],
+            vec![],
+        );
+        draw.draw(&mut buf, &completed, 80, 24);
+
+        let output = String::from_utf8_lossy(&buf);
+        assert!(
+            output.contains("[ok]"),
+            "lifecycle changes must redraw the activity row"
+        );
+    }
+
+    #[test]
+    fn changing_selected_inspector_entry_redraws_output() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+
+        let first = TaskLayoutState {
+            task_id: "test-001".into(),
+            status_line: "mode:streaming approval:none".into(),
+            activity_rows: vec![],
+            timeline_entries: vec![
+                TimelineEntry {
+                    lifecycle: StepLifecycle::Completed,
+                    label: "read_file: ok".into(),
+                    detail: "Tool: read_file\nOutcome: ok".into(),
+                },
+                TimelineEntry {
+                    lifecycle: StepLifecycle::Completed,
+                    label: "check: ok".into(),
+                    detail: "Tool: check\nOutcome: ok".into(),
+                },
+            ],
+            selected_step: 0,
+            total_steps: 2,
+            output_rows: vec!["Tool: read_file".into(), "Outcome: ok".into()],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            changed_files: vec![],
+        };
+        draw.draw(&mut buf, &first, 80, 24);
+
+        buf.clear();
+        let second = TaskLayoutState {
+            selected_step: 1,
+            output_rows: vec!["Tool: check".into(), "Outcome: ok".into()],
+            ..first
+        };
+        draw.draw(&mut buf, &second, 80, 24);
+
+        let output = String::from_utf8_lossy(&buf);
+        assert!(
+            output.contains("Tool: check"),
+            "inspector changes must redraw output rows"
+        );
+    }
+
+    #[test]
+    fn fallback_activity_rows_render_without_timeline_entries() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = TaskLayoutState {
+            task_id: "test-001".into(),
+            status_line: "mode:streaming approval:none".into(),
+            activity_rows: vec!["[->] validate: running...".into(), "> ship it".into()],
+            timeline_entries: vec![],
+            selected_step: 0,
+            total_steps: 0,
+            output_rows: vec!["line 1".into()],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            changed_files: vec![],
+        };
+
+        draw.draw(&mut buf, &state, 80, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        assert!(output.contains("Orchestrating"));
+        assert!(output.contains("validate: running"));
+        assert!(output.contains("ship it"));
     }
 }
