@@ -14,22 +14,25 @@ four-region layout (header, activity trail, output pane, input pane). ADR-028
 established the application facade and transport boundary model. ADR-030
 defined the runtime as a task-state-owned orchestrator.
 
-The current implementation has reached the point where the activity pane
-reflects in-flight tool calls (ADR-030 invariant 6 fix), the pipeline
-activity rows are capped at six lines, and the rendering path uses structured
-prefix styling.
+The current implementation has reached the point where the adaptive timeline
+reflects in-flight tool calls (ADR-030 invariant 6 fix), the direct ANSI
+renderer owns a human-readable header plus transcript/composer path, and the
+task surface includes structured prefix styling, inline approval cards, and a
+cumulative context indicator in the header.
 
-The next step is a targeted UI overhaul that:
+The next step is the remaining alignment pass for that UI overhaul. The
+remaining ADR-031 scope:
 
 - extends the canonical runtime/timeline state to support selected-step
   identity and step lifecycle visibility;
 - derives UI-facing timeline rows from canonical task state rather than ad hoc
   activity-row assembly;
-- moves scroll ownership from transcript-only behavior to timeline/output
-  ownership using already-landed derivation and state;
-- formalizes the six-line inspector/dropdown interaction behavior;
-- removes obsolete fallback behaviors once the new state and rendering path
-  are proven.
+- aligns transcript/output semantics across `src/app/layout.rs`,
+  `src/ui/draw.rs`, and the fallback renderer paths;
+- removes obsolete fixed-row assumptions once the adaptive task surface is the
+  only live layout path;
+- replaces transient formatting/string-coupling where the renderer still
+  derives structured header fields from flattened status text.
 
 This work must preserve the runtime ownership model defined by ADR-030: the
 operator surface is a consumer of canonical runtime events and task-derived
@@ -40,40 +43,43 @@ state only. It must not become the source of truth for execution.
 Adopt a batched, task-state-first implementation strategy for the operator
 surface overhaul. The UI target is a timeline-driven task view where every
 visible row is derived from canonical task state, selection identity is
-runtime-visible, and scroll ownership moves from the transcript to the
-timeline/output pane pair.
+runtime-visible, the timeline/transcript/composer regions scale with terminal
+height, and header or composer content stays human-readable.
 
 ### Operator surface target
 
 The target layout retains the four-region structure from ADR-022 Phase 6:
 
 ```text
-+-------------------------------------+
-| Header: task-id | status | backend  |
-+-------------------------------------+
-| Timeline / Activity (6-line cap)    |
-|  [ok] read_file: README.md          |
-|  [->] validate: running...          |
-|  [?]  apply_patch: src/main.rs      |
-+-------------------------------------+
-| Output / Inspector Pane             |
-| (selected step detail or output)    |
-+-------------------------------------+
-| Input: [prompt]  [y/n/s]            |
-+-------------------------------------+
++--------------------------------------------------------+
+| Header: repo · status · files changed · active · ctx  |
++--------------------------------------------------------+
+| Changed files row (optional)                           |
++--------------------------------------------------------+
+| Timeline / Activity (adaptive height)                  |
+|  [ok] read_file: README.md                             |
+|  [->] validate: running...                             |
+|  [?]  apply_patch: src/main.rs                         |
++--------------------------------------------------------+
+| Transcript / Output area                               |
+| (flowing transcript, tool detail, or last-turn output) |
++--------------------------------------------------------+
+| Composer / Approval card                               |
++--------------------------------------------------------+
 ```
 
 Key changes from the current implementation:
 
 1. Timeline rows are derived from canonical task-state step lifecycle, not
    from completed-tool-invocation history alone.
-2. Selected-step identity is a runtime-visible concept: the UI can track which
-   timeline row is focused and display corresponding detail in the output pane.
-3. Scroll ownership moves to the timeline/output pair: the timeline scrolls
-   independently of the output pane, and the output pane shows content
-   appropriate to the selected timeline entry.
-4. The six-line activity cap becomes a formal inspector/dropdown: the visible
-   window into the full timeline, navigable by keyboard.
+2. Selected-step identity is a runtime-visible concept shared across the task
+   surface, even while the transcript/output contract continues to be aligned
+   across the direct ANSI and fallback renderers.
+3. Scroll ownership moves to the task surface: the timeline remains
+   independently navigable, while the transcript/output area redraws from the
+   same task-derived state.
+4. The visible timeline window scales with terminal height instead of
+   remaining fixed at six rows.
 
 ### Task-state-first rule for this ADR
 
