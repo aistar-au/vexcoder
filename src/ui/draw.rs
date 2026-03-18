@@ -62,6 +62,19 @@ fn show_cursor(w: &mut dyn Write) {
     let _ = write!(w, "{CSI}?25h");
 }
 
+// ── Spinner frames (braille animation for running steps) ────────────
+
+const SPINNER_FRAMES: &[&str] = &[
+    "\u{2846}", // ⡆
+    "\u{2807}", // ⠇
+    "\u{2803}", // ⠃
+    "\u{2819}", // ⠙
+    "\u{2838}", // ⠸
+    "\u{2830}", // ⠰
+    "\u{2860}", // ⡠
+    "\u{2844}", // ⡄
+];
+
 // ── Color palette ───────────────────────────────────────────────────
 
 const GREEN: u8 = 2;
@@ -119,6 +132,7 @@ struct Regions {
     transcript_rows: u16,
     composer_start: u16,
     composer_rows: u16,
+    status_bar_row: u16,
 }
 
 /// Minimum timeline rows (below this the timeline is hidden).
@@ -136,6 +150,9 @@ impl Regions {
         let files_row = if has_files { Some(1) } else { None };
         let header_height = if has_files { 2u16 } else { 1u16 };
 
+        // Reserve 1 row for status bar at the very bottom.
+        let status_bar_row = rows.saturating_sub(1);
+
         // Composer: scales from 1 to 3 rows based on terminal height.
         let composer_rows = if rows >= 30 {
             PREFERRED_COMPOSER_ROWS
@@ -147,7 +164,8 @@ impl Regions {
 
         let available = rows
             .saturating_sub(header_height)
-            .saturating_sub(composer_rows);
+            .saturating_sub(composer_rows)
+            .saturating_sub(1); // -1 for status bar
 
         // Timeline: adaptive height based on content and terminal size.
         // Uses up to MAX_TIMELINE_FRACTION of available space, but at least
@@ -174,6 +192,7 @@ impl Regions {
             transcript_rows,
             composer_start,
             composer_rows,
+            status_bar_row,
         }
     }
 }
@@ -205,6 +224,10 @@ pub struct TaskDraw {
     last_rows: u16,
     /// Whether the very first frame has been drawn.
     first_frame_done: bool,
+    /// Monotonic frame counter for spinner animation.
+    frame_counter: u64,
+    /// Whether the transcript is currently inside a code block.
+    in_code_block: bool,
 }
 
 impl TaskDraw {
@@ -220,6 +243,8 @@ impl TaskDraw {
             last_cols: 0,
             last_rows: 0,
             first_frame_done: false,
+            frame_counter: 0,
+            in_code_block: false,
         }
     }
 
@@ -233,6 +258,7 @@ impl TaskDraw {
         self.last_header_hash = 0;
         self.last_composer_hash = 0;
         self.first_frame_done = false;
+        self.in_code_block = false;
     }
 
     /// Draw the full operator workspace surface.
@@ -247,6 +273,7 @@ impl TaskDraw {
             return;
         }
 
+        self.frame_counter = self.frame_counter.wrapping_add(1);
         let size_changed = term_cols != self.last_cols || term_rows != self.last_rows;
         let has_files = !state.changed_files.is_empty();
         let layout_changed = has_files != self.last_has_files;
@@ -314,6 +341,9 @@ impl TaskDraw {
             self.last_composer_hash = composer_hash;
         }
 
+        // Status bar (always redraw — cheap single-line write).
+        self.draw_status_bar(w, state, &regions);
+
         // Park cursor on composer line.
         move_to(w, regions.composer_start, 0);
         show_cursor(w);
@@ -343,6 +373,8 @@ impl TaskDraw {
         self.draw_composer(w, state, regions);
         self.last_composer_hash = self.compute_composer_hash(state);
 
+        self.draw_status_bar(w, state, regions);
+
         // Park cursor.
         move_to(w, regions.composer_start, 0);
         show_cursor(w);
@@ -358,7 +390,9 @@ impl TaskDraw {
         // The status_line format is: "mode:X approval:Y history:N repo:R inst:I tokens:T"
         let parts = parse_status_parts(&state.status_line);
 
-        // Star accent + repo name — bold white.
+        // Left border accent + repo name — bold white.
+        set_fg(w, DIM_GRAY);
+        let _ = write!(w, "\u{2502} "); // │
         set_bold(w);
         set_fg(w, YELLOW);
         let _ = write!(w, "\u{2605} "); // ★
@@ -495,6 +529,12 @@ impl TaskDraw {
             0
         };
 
+        // Reserve first/last slot for scroll indicators when needed.
+        let above_count = window_start;
+        let below_count = total.saturating_sub(window_start + visible_slots);
+        let show_above = above_count > 0;
+        let show_below = below_count > 0;
+
         for slot in 0..visible_slots {
             let row = regions.timeline_start + slot as u16;
             if row >= regions.transcript_start {
@@ -503,7 +543,32 @@ impl TaskDraw {
             move_to(w, row, 0);
             clear_line(w);
 
-            let entry_index = window_start + slot;
+            // Scroll-up indicator on the first slot.
+            if slot == 0 && show_above {
+                set_dim(w);
+                set_fg(w, DIM_GRAY);
+                let _ = write!(w, "   \u{25b2} {above_count} more above"); // ▲
+                reset_style(w);
+                continue;
+            }
+
+            // Scroll-down indicator on the last slot.
+            if slot == visible_slots - 1 && show_below {
+                set_dim(w);
+                set_fg(w, DIM_GRAY);
+                let _ = write!(w, "   \u{25bc} {below_count} more below"); // ▼
+                reset_style(w);
+                continue;
+            }
+
+            // Adjust entry index for the consumed indicator slot.
+            let adjusted_start = if show_above {
+                window_start + 1 // first slot used by indicator
+            } else {
+                window_start
+            };
+            let display_slot = if show_above { slot - 1 } else { slot };
+            let entry_index = adjusted_start + display_slot;
             if entry_index >= total {
                 continue;
             }
@@ -554,7 +619,15 @@ impl TaskDraw {
         is_selected: bool,
         cols: u16,
     ) {
-        let prefix = lifecycle_prefix(&entry.lifecycle);
+        // For running entries, use animated spinner instead of static prefix.
+        let spinner_buf;
+        let prefix = if entry.lifecycle == StepLifecycle::Running {
+            let idx = (self.frame_counter as usize) % SPINNER_FRAMES.len();
+            spinner_buf = SPINNER_FRAMES[idx];
+            spinner_buf
+        } else {
+            lifecycle_prefix(&entry.lifecycle)
+        };
         let color = lifecycle_color(&entry.lifecycle);
 
         // Selection indicator — star-themed pointer.
@@ -607,9 +680,10 @@ impl TaskDraw {
             let _ = write!(w, " {truncated}");
             reset_style(w);
         } else if let Some(rest) = row.strip_prefix("[->]") {
+            let idx = (self.frame_counter as usize) % SPINNER_FRAMES.len();
             set_bold(w);
             set_fg(w, CYAN);
-            let _ = write!(w, "   \u{2726}"); // ✦
+            let _ = write!(w, "   {}", SPINNER_FRAMES[idx]);
             reset_style(w);
             set_fg(w, GRAY);
             let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(6));
@@ -660,8 +734,20 @@ impl TaskDraw {
             clear_line(w);
         }
 
+        // Reset code block state for full redraws.
+        self.in_code_block = false;
         let visible_start = state.output_rows.len().saturating_sub(viewport_height);
-        for (vp_offset, line) in state.output_rows.iter().skip(visible_start).enumerate() {
+        // Walk all lines from the start to track code block state correctly,
+        // but only render lines in the visible window.
+        for (i, line) in state.output_rows.iter().enumerate() {
+            if i < visible_start {
+                // Track code block state for lines above the viewport.
+                if line.starts_with("```") {
+                    self.in_code_block = !self.in_code_block;
+                }
+                continue;
+            }
+            let vp_offset = i - visible_start;
             if vp_offset >= viewport_height {
                 break;
             }
@@ -726,10 +812,10 @@ impl TaskDraw {
         self.output_lines_flushed = total_output;
     }
 
-    /// Render a single transcript line with semantic styling.
-    fn draw_transcript_line<W: Write>(&self, w: &mut W, line: &str, cols: u16) {
+    /// Render a single transcript line with semantic and markdown-aware styling.
+    fn draw_transcript_line(&mut self, w: &mut dyn Write, line: &str, cols: u16) {
+        // ── Tool status markers ────────────────────────────────────
         if let Some(rest) = line.strip_prefix("[ok] ") {
-            // Completed tool — green star, white tool name.
             set_bold(w);
             set_fg(w, GREEN);
             let _ = write!(w, " \u{2605} "); // ★
@@ -738,8 +824,9 @@ impl TaskDraw {
             let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
             let _ = write!(w, "{truncated}");
             reset_style(w);
-        } else if let Some(rest) = line.strip_prefix("[!] ") {
-            // Failed tool — red cross, white tool name.
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[!] ") {
             set_bold(w);
             set_fg(w, RED);
             let _ = write!(w, " \u{2716} "); // ✖
@@ -748,24 +835,127 @@ impl TaskDraw {
             let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
             let _ = write!(w, "{truncated}");
             reset_style(w);
-        } else if line.starts_with("    ") {
-            // Indented detail text — dimmed.
+            return;
+        }
+
+        // ── Code block fence detection ─────────────────────────────
+        if line.starts_with("```") {
+            self.in_code_block = !self.in_code_block;
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            if self.in_code_block {
+                // Opening fence — show language tag if present.
+                let lang = line.trim_start_matches('`').trim();
+                let _ = write!(w, " \u{2500}\u{2500} ");
+                if !lang.is_empty() {
+                    set_fg(w, BLUE);
+                    let _ = write!(w, "{lang} ");
+                    set_fg(w, DIM_GRAY);
+                }
+                let used = 4 + if lang.is_empty() {
+                    0
+                } else {
+                    display_width(lang) + 1
+                };
+                let remaining = (cols as usize).saturating_sub(used);
+                for _ in 0..remaining.min(60) {
+                    let _ = write!(w, "\u{2500}"); // ─
+                }
+            } else {
+                // Closing fence — thin rule.
+                let _ = write!(w, " ");
+                for _ in 0..(cols as usize).saturating_sub(1).min(60) {
+                    let _ = write!(w, "\u{2500}");
+                }
+            }
+            reset_style(w);
+            return;
+        }
+
+        // ── Inside code block — monospace with left bar ────────────
+        if self.in_code_block {
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, " \u{2502} "); // │
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(line, (cols as usize).saturating_sub(3));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+            return;
+        }
+
+        // ── Markdown headers ───────────────────────────────────────
+        if let Some(rest) = line.strip_prefix("### ") {
+            set_bold(w);
+            set_fg(w, YELLOW);
+            let _ = write!(w, " ");
+            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(1));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("## ") {
+            set_bold(w);
+            set_fg(w, YELLOW);
+            let _ = write!(w, " ");
+            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(1));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("# ") {
+            set_bold(w);
+            set_fg(w, WHITE);
+            let _ = write!(w, " ");
+            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(1));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+            return;
+        }
+
+        // ── Blockquotes ────────────────────────────────────────────
+        if let Some(rest) = line.strip_prefix("> ") {
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, " \u{2502} "); // │
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+            return;
+        }
+
+        // ── Bullet lists ───────────────────────────────────────────
+        if let Some(rest) = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")) {
+            set_fg(w, YELLOW);
+            let _ = write!(w, " \u{2022} "); // •
+            reset_style(w);
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+            return;
+        }
+
+        // ── Indented detail text ───────────────────────────────────
+        if line.starts_with("    ") {
             set_dim(w);
             set_fg(w, GRAY);
             let truncated = truncate_to_width(line, cols as usize);
             let _ = write!(w, "{truncated}");
             reset_style(w);
-        } else if line.starts_with("--- ") && line.ends_with(" ---") {
-            // Section separator — star-accented divider.
+            return;
+        }
+
+        // ── Section separator ──────────────────────────────────────
+        if line.starts_with("--- ") && line.ends_with(" ---") {
             set_dim(w);
             set_fg(w, DIM_GRAY);
             let _ = write!(w, " \u{2500}\u{2500}\u{2500} "); // ───
             set_fg(w, YELLOW);
             let _ = write!(w, "\u{2726}"); // ✦
             set_fg(w, DIM_GRAY);
-            // Extract label from "--- label ---" format, truncate to fit.
             let label = line.trim_start_matches('-').trim_end_matches('-').trim();
-            let prefix_used: usize = 5; // " ─── " + "✦"
+            let prefix_used: usize = 5;
             if !label.is_empty() {
                 let max_label = (cols as usize).saturating_sub(prefix_used + 4);
                 let safe_label = truncate_to_width(label, max_label);
@@ -773,35 +963,113 @@ impl TaskDraw {
                 let label_display_w = display_width(&safe_label);
                 let remaining = (cols as usize).saturating_sub(prefix_used + 2 + label_display_w);
                 for _ in 0..remaining.min(40) {
-                    let _ = write!(w, "\u{2500}"); // ─
+                    let _ = write!(w, "\u{2500}");
                 }
             } else {
                 let _ = write!(w, " ");
                 let remaining = (cols as usize).saturating_sub(prefix_used + 1);
                 for _ in 0..remaining.min(40) {
-                    let _ = write!(w, "\u{2500}"); // ─
+                    let _ = write!(w, "\u{2500}");
                 }
             }
             reset_style(w);
-        } else if line == "Turn completed." || line.starts_with("Type a prompt") {
-            // Hint text — dimmed italic.
+            return;
+        }
+
+        // ── Hint text ──────────────────────────────────────────────
+        if line == "Turn completed." || line.starts_with("Type a prompt") {
             set_dim(w);
             set_fg(w, DIM_GRAY);
             let truncated = truncate_to_width(line, cols as usize);
             let _ = write!(w, "{truncated}");
             reset_style(w);
-        } else if line == "[awaiting model response]" {
-            // Awaiting indicator — star-themed pulsing cyan.
+            return;
+        }
+
+        // ── Awaiting indicator ─────────────────────────────────────
+        if line == "[awaiting model response]" {
+            let idx = (self.frame_counter as usize) % SPINNER_FRAMES.len();
             set_fg(w, CYAN);
-            set_dim(w);
-            let _ = write!(w, " \u{2726} awaiting response"); // ✦
+            let _ = write!(w, " {} awaiting response", SPINNER_FRAMES[idx]);
             reset_style(w);
-        } else {
-            // Regular transcript text.
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(line, cols as usize);
+            return;
+        }
+
+        // ── Regular text with inline bold detection ────────────────
+        set_fg(w, GRAY);
+        self.draw_inline_markdown(w, line, cols);
+        reset_style(w);
+    }
+
+    /// Render inline markdown: **bold** and `code` spans.
+    fn draw_inline_markdown(&self, w: &mut dyn Write, line: &str, cols: u16) {
+        let max_w = cols as usize;
+        let mut used: usize = 0;
+        let mut chars = line.chars().peekable();
+        let mut buf = String::new();
+
+        while let Some(ch) = chars.next() {
+            if used >= max_w {
+                break;
+            }
+            if ch == '*' && chars.peek() == Some(&'*') {
+                // Flush buffer.
+                if !buf.is_empty() {
+                    let truncated = truncate_to_width(&buf, max_w.saturating_sub(used));
+                    let _ = write!(w, "{truncated}");
+                    used += display_width(&truncated);
+                    buf.clear();
+                }
+                chars.next(); // consume second *
+                              // Collect bold text until **
+                let mut bold = String::new();
+                while let Some(bc) = chars.next() {
+                    if bc == '*' && chars.peek() == Some(&'*') {
+                        chars.next();
+                        break;
+                    }
+                    bold.push(bc);
+                }
+                if !bold.is_empty() {
+                    set_bold(w);
+                    set_fg(w, WHITE);
+                    let truncated = truncate_to_width(&bold, max_w.saturating_sub(used));
+                    let _ = write!(w, "{truncated}");
+                    used += display_width(&truncated);
+                    reset_style(w);
+                    set_fg(w, GRAY);
+                }
+            } else if ch == '`' {
+                // Flush buffer.
+                if !buf.is_empty() {
+                    let truncated = truncate_to_width(&buf, max_w.saturating_sub(used));
+                    let _ = write!(w, "{truncated}");
+                    used += display_width(&truncated);
+                    buf.clear();
+                }
+                // Collect code span until `
+                let mut code = String::new();
+                for cc in chars.by_ref() {
+                    if cc == '`' {
+                        break;
+                    }
+                    code.push(cc);
+                }
+                if !code.is_empty() {
+                    set_fg(w, CYAN);
+                    let truncated = truncate_to_width(&code, max_w.saturating_sub(used));
+                    let _ = write!(w, "{truncated}");
+                    used += display_width(&truncated);
+                    set_fg(w, GRAY);
+                }
+            } else {
+                buf.push(ch);
+            }
+        }
+        // Flush remaining buffer.
+        if !buf.is_empty() {
+            let truncated = truncate_to_width(&buf, max_w.saturating_sub(used));
             let _ = write!(w, "{truncated}");
-            reset_style(w);
         }
     }
 
@@ -909,13 +1177,58 @@ impl TaskDraw {
         }
     }
 
+    // ── Status bar ──────────────────────────────────────────────────
+
+    fn draw_status_bar<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
+        move_to(w, regions.status_bar_row, 0);
+        clear_line(w);
+
+        // Background: full-width dim bar.
+        set_dim(w);
+        set_fg(w, DIM_GRAY);
+
+        // Left side: key hints.
+        let is_approval = state.pending_approval.is_some();
+        let hints = if is_approval {
+            " y approve  n deny  s approve all"
+        } else {
+            " Ctrl+C cancel  \u{2191}/\u{2193} scroll  Enter submit"
+        };
+        let _ = write!(w, "{hints}");
+
+        // Right side: task ID (right-aligned).
+        if !state.task_id.is_empty() {
+            let right_text = format!("task:{} ", state.task_id);
+            let right_len = display_width(&right_text);
+            let left_len = display_width(hints);
+            let gap = (regions.cols as usize).saturating_sub(left_len + right_len);
+            for _ in 0..gap {
+                let _ = write!(w, " ");
+            }
+            let _ = write!(w, "{right_text}");
+        }
+
+        reset_style(w);
+    }
+
     // ── Hash computation ────────────────────────────────────────────
 
     fn compute_timeline_hash(&self, state: &TaskLayoutState) -> u64 {
+        let has_running = state
+            .timeline_entries
+            .iter()
+            .any(|e| e.lifecycle == StepLifecycle::Running);
+        // Legacy activity rows with [->] also animate.
+        let has_running_legacy = state.activity_rows.iter().any(|r| r.starts_with("[->]"));
+
         if state.timeline_entries.is_empty() {
             let mut h = state.activity_rows.len() as u64;
             for row in &state.activity_rows {
                 h = h.wrapping_mul(31).wrapping_add(simple_hash(row));
+            }
+            // Include frame counter when running to force spinner redraws.
+            if has_running_legacy {
+                h = h.wrapping_mul(31).wrapping_add(self.frame_counter);
             }
             return h;
         }
@@ -929,6 +1242,10 @@ impl TaskDraw {
                 .wrapping_mul(31)
                 .wrapping_add(entry_lifecycle_id(&entry.lifecycle));
             h = h.wrapping_mul(31).wrapping_add(simple_hash(&entry.label));
+        }
+        // Include frame counter when running to force spinner redraws.
+        if has_running {
+            h = h.wrapping_mul(31).wrapping_add(self.frame_counter);
         }
         h
     }
