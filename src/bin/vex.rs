@@ -479,9 +479,11 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
         let input = self.editor.buffer().to_string();
         let cursor = self.editor.cursor();
 
-        if let Some(task_state) = mode.task_layout_state() {
+        if let Some(mut task_state) = mode.task_layout_state() {
             // Direct ANSI draw path — no ratatui buffer allocation.
             // Get terminal size from the ratatui terminal (already tracks it).
+            task_state.composer_text = input;
+            task_state.composer_cursor = cursor;
             let size = self.terminal.size().unwrap_or_default();
             let mut stdout = std::io::stdout();
             self.task_draw

@@ -18,7 +18,9 @@
 //! session and is called from the `FrontendAdapter::render` path.
 
 use crate::app::{StepLifecycle, TaskLayoutState, TimelineEntry};
-use crate::ui::input_metrics::{display_width, truncate_to_display_width};
+use crate::ui::input_metrics::{
+    cursor_row_col, display_width, truncate_to_display_width, wrap_input_lines,
+};
 use std::io::Write;
 
 // ── ANSI escape helpers ─────────────────────────────────────────────
@@ -344,8 +346,8 @@ impl TaskDraw {
         // Status bar (always redraw — cheap single-line write).
         self.draw_status_bar(w, state, &regions);
 
-        // Park cursor on composer line.
-        move_to(w, regions.composer_start, 0);
+        let (cursor_row, cursor_col) = composer_cursor_position(state, &regions);
+        move_to(w, cursor_row, cursor_col);
         show_cursor(w);
         let _ = w.flush();
     }
@@ -375,8 +377,8 @@ impl TaskDraw {
 
         self.draw_status_bar(w, state, regions);
 
-        // Park cursor.
-        move_to(w, regions.composer_start, 0);
+        let (cursor_row, cursor_col) = composer_cursor_position(state, regions);
+        move_to(w, cursor_row, cursor_col);
         show_cursor(w);
     }
 
@@ -1143,36 +1145,52 @@ impl TaskDraw {
                 reset_style(w);
             }
         } else {
-            // Regular composer — star-themed prompt.
-            set_bold(w);
-            set_fg(w, YELLOW);
-            let _ = write!(w, "\u{2726} "); // ✦
-            reset_style(w);
-
-            // Write hint lines.
+            let input_width = regions.cols.saturating_sub(2).max(1) as usize;
+            let input_lines = wrap_input_lines(&state.composer_text, input_width);
+            let (cursor_row, _) =
+                cursor_row_col(&state.composer_text, state.composer_cursor, input_width);
+            let window_start =
+                composer_window_start(cursor_row, regions.composer_rows.max(1) as usize);
             let hint_lines: Vec<&str> = state.input_hint.lines().collect();
-            if let Some(first) = hint_lines.first() {
-                if *first != "> " && !first.is_empty() {
-                    set_fg(w, GRAY);
-                    let truncated =
-                        truncate_to_width(first, (regions.cols as usize).saturating_sub(2));
-                    let _ = write!(w, "{truncated}");
-                    reset_style(w);
-                }
-            }
 
-            // Additional hint lines on subsequent rows.
-            for (i, line) in hint_lines.iter().skip(1).enumerate() {
-                let row = regions.composer_start + 1 + i as u16;
-                if row >= regions.rows || row >= regions.composer_start + regions.composer_rows {
+            for offset in 0..regions.composer_rows as usize {
+                let row = regions.composer_start + offset as u16;
+                if row >= regions.rows {
                     break;
                 }
                 move_to(w, row, 0);
-                set_fg(w, DIM_GRAY);
-                let _ = write!(w, "  ");
-                let truncated = truncate_to_width(line, (regions.cols as usize).saturating_sub(2));
-                let _ = write!(w, "{truncated}");
+
+                set_bold(w);
+                set_fg(w, YELLOW);
+                let _ = write!(w, "{}", if offset == 0 { "\u{2726} " } else { "  " });
                 reset_style(w);
+
+                let line_index = window_start + offset;
+                if let Some(line) = input_lines.get(line_index).filter(|line| !line.is_empty()) {
+                    set_fg(w, GRAY);
+                    let truncated = truncate_to_width(line, input_width);
+                    let _ = write!(w, "{truncated}");
+                    reset_style(w);
+                    continue;
+                }
+
+                let hint = if line_index == 0 {
+                    hint_lines
+                        .first()
+                        .copied()
+                        .filter(|line| *line != "> " && !line.is_empty())
+                } else {
+                    hint_lines
+                        .get(line_index)
+                        .copied()
+                        .filter(|line| !line.is_empty())
+                };
+                if let Some(hint) = hint {
+                    set_fg(w, DIM_GRAY);
+                    let truncated = truncate_to_width(hint, input_width);
+                    let _ = write!(w, "{truncated}");
+                    reset_style(w);
+                }
             }
         }
     }
@@ -1268,6 +1286,9 @@ impl TaskDraw {
 
     fn compute_composer_hash(&self, state: &TaskLayoutState) -> u64 {
         let mut h = simple_hash(&state.input_hint);
+        h = h
+            .wrapping_mul(31)
+            .wrapping_add(simple_hash(&state.composer_text));
         if let Some(ref approval) = state.pending_approval {
             h = h.wrapping_mul(31).wrapping_add(simple_hash(approval));
         }
@@ -1372,6 +1393,30 @@ fn entry_lifecycle_id(lifecycle: &StepLifecycle) -> u64 {
     }
 }
 
+fn composer_window_start(cursor_row: usize, visible_rows: usize) -> usize {
+    cursor_row
+        .saturating_add(1)
+        .saturating_sub(visible_rows.max(1))
+}
+
+fn composer_cursor_position(state: &TaskLayoutState, regions: &Regions) -> (u16, u16) {
+    if state.pending_approval.is_some() {
+        return (regions.composer_start, 0);
+    }
+
+    let input_width = regions.cols.saturating_sub(2).max(1) as usize;
+    let (cursor_row, cursor_col) =
+        cursor_row_col(&state.composer_text, state.composer_cursor, input_width);
+    let window_start = composer_window_start(cursor_row, regions.composer_rows.max(1) as usize);
+    let visible_row = cursor_row.saturating_sub(window_start) as u16;
+    let row = regions
+        .composer_start
+        .saturating_add(visible_row)
+        .min(regions.rows.saturating_sub(1));
+    let col = (2 + cursor_col as u16).min(regions.cols.saturating_sub(1));
+    (row, col)
+}
+
 // ── Tests ───────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -1390,6 +1435,8 @@ mod tests {
             output_rows: output.into_iter().map(|s| s.to_string()).collect(),
             pending_approval: None,
             input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
             changed_files: vec![],
         }
     }
@@ -1583,6 +1630,8 @@ mod tests {
             output_rows: vec!["Tool: read_file".into(), "Outcome: ok".into()],
             pending_approval: None,
             input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
             changed_files: vec![],
         };
         draw.draw(&mut buf, &first, 80, 24);
@@ -1616,6 +1665,8 @@ mod tests {
             output_rows: vec!["line 1".into()],
             pending_approval: None,
             input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
             changed_files: vec![],
         };
 
@@ -1685,6 +1736,8 @@ mod tests {
             ],
             pending_approval: None,
             input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
             changed_files: vec![],
         };
 
@@ -1754,6 +1807,8 @@ mod tests {
             output_rows: vec![],
             pending_approval: None,
             input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
             changed_files: vec!["src/main.rs".into()],
         };
 
@@ -1782,6 +1837,8 @@ mod tests {
             output_rows: vec![],
             pending_approval: Some("write_file: src/main.rs".into()),
             input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
             changed_files: vec![],
         };
 
@@ -1835,6 +1892,8 @@ mod tests {
             output_rows: vec![],
             pending_approval: None,
             input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
             changed_files: vec![],
         };
 
@@ -1867,6 +1926,8 @@ mod tests {
             output_rows: vec![],
             pending_approval: None,
             input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
             changed_files: vec![],
         };
 
@@ -1876,6 +1937,64 @@ mod tests {
         assert!(
             !output.contains("ctx"),
             "header must not show token indicator before any turns: got {output:?}"
+        );
+    }
+
+    #[test]
+    fn composer_renders_live_input_text() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = TaskLayoutState {
+            task_id: "test-001".into(),
+            status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+            activity_rows: vec![],
+            timeline_entries: vec![],
+            selected_step: 0,
+            total_steps: 0,
+            output_rows: vec![],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            composer_text: "hello fullscreen".into(),
+            composer_cursor: "hello fullscreen".len(),
+            changed_files: vec![],
+        };
+
+        draw.draw(&mut buf, &state, 80, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        assert!(
+            output.contains("hello fullscreen"),
+            "composer must render the live editor buffer"
+        );
+    }
+
+    #[test]
+    fn composer_hash_tracks_live_input_changes() {
+        let draw = TaskDraw::new();
+        let first = TaskLayoutState {
+            task_id: "test-001".into(),
+            status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+            activity_rows: vec![],
+            timeline_entries: vec![],
+            selected_step: 0,
+            total_steps: 0,
+            output_rows: vec![],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            composer_text: "first".into(),
+            composer_cursor: 5,
+            changed_files: vec![],
+        };
+        let second = TaskLayoutState {
+            composer_text: "second".into(),
+            composer_cursor: 6,
+            ..first.clone()
+        };
+
+        assert_ne!(
+            draw.compute_composer_hash(&first),
+            draw.compute_composer_hash(&second),
+            "composer hash must change when the live input buffer changes"
         );
     }
 }

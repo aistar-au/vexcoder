@@ -539,6 +539,10 @@ pub struct TaskLayoutState {
     pub output_rows: Vec<String>,
     pub pending_approval: Option<String>,
     pub input_hint: String,
+    /// Live composer buffer for the fullscreen task surface.
+    pub composer_text: String,
+    /// Cursor byte offset within `composer_text`.
+    pub composer_cursor: usize,
     pub changed_files: Vec<String>,
 }
 
