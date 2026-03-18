@@ -15,11 +15,12 @@ use vexcoder::export::{render_task_export, write_export_output, ExportFormat};
 use vexcoder::prompts::render_pr_summary_prompt;
 use vexcoder::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
 use vexcoder::runtime::{ContextAssembler, TaskState, TaskStatus};
+use vexcoder::ui::draw::TaskDraw;
 use vexcoder::ui::editor::{InputAction, InputEditor};
 use vexcoder::ui::layout::split_three_pane_layout;
 use vexcoder::ui::render::{
     history_content_width_for_area, input_visual_rows, render_input, render_messages,
-    render_overlay_modal_in_area, render_status_line, render_task_layout, OverlayModal,
+    render_overlay_modal_in_area, render_status_line, OverlayModal,
 };
 
 const STARTUP_NOISE_GUARD: Duration = Duration::from_secs(15);
@@ -202,6 +203,8 @@ struct ManagedTuiFrontend {
     quit: bool,
     editor: InputEditor,
     started_at: Instant,
+    /// Direct ANSI draw engine for the task-state control surface.
+    task_draw: TaskDraw,
 }
 
 impl ManagedTuiFrontend {
@@ -213,6 +216,7 @@ impl ManagedTuiFrontend {
             quit: false,
             editor: InputEditor::new(),
             started_at: Instant::now(),
+            task_draw: TaskDraw::new(),
         })
     }
 
@@ -305,6 +309,30 @@ impl ManagedTuiFrontend {
 
     fn map_regular_key(&mut self, key: KeyEvent) -> Option<UserInputEvent> {
         match key.code {
+            // Timeline navigation: Alt+Up / Alt+Down.
+            KeyCode::Up if key.modifiers.contains(KeyModifiers::ALT) => {
+                Some(UserInputEvent::Scroll {
+                    target: ScrollTarget::Timeline,
+                    action: ScrollAction::LineUp,
+                })
+            }
+            KeyCode::Down if key.modifiers.contains(KeyModifiers::ALT) => {
+                Some(UserInputEvent::Scroll {
+                    target: ScrollTarget::Timeline,
+                    action: ScrollAction::LineDown,
+                })
+            }
+            // Tab / Shift+Tab also navigate the timeline.
+            KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                Some(UserInputEvent::Scroll {
+                    target: ScrollTarget::Timeline,
+                    action: ScrollAction::LineUp,
+                })
+            }
+            KeyCode::Tab => Some(UserInputEvent::Scroll {
+                target: ScrollTarget::Timeline,
+                action: ScrollAction::LineDown,
+            }),
             KeyCode::PageUp => Some(UserInputEvent::Scroll {
                 target: ScrollTarget::History,
                 action: ScrollAction::PageUp(10),
@@ -451,11 +479,20 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
         let input = self.editor.buffer().to_string();
         let cursor = self.editor.cursor();
 
-        let _ = self.terminal.draw(|frame| {
-            let area = frame.area();
-            if let Some(task_state) = mode.task_layout_state() {
-                render_task_layout(frame, &task_state);
-            } else {
+        if let Some(task_state) = mode.task_layout_state() {
+            // Direct ANSI draw path — no ratatui buffer allocation.
+            // Get terminal size from the ratatui terminal (already tracks it).
+            let size = self.terminal.size().unwrap_or_default();
+            let mut stdout = std::io::stdout();
+            self.task_draw
+                .draw(&mut stdout, &task_state, size.width, size.height);
+        } else {
+            // Reset the direct-draw state when leaving task mode so the
+            // next turn starts with a clean slate.
+            self.task_draw.reset();
+
+            let _ = self.terminal.draw(|frame| {
+                let area = frame.area();
                 let input_width = area.width.saturating_sub(2).max(1) as usize;
                 let input_rows = input_visual_rows(&input, input_width).max(1) as u16;
                 let panes = split_three_pane_layout(area, input_rows);
@@ -504,8 +541,8 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                         },
                     );
                 }
-            }
-        });
+            });
+        }
     }
 
     fn should_quit(&self) -> bool {
