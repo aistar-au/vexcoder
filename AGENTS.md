@@ -163,9 +163,8 @@ rely on them:
 - `RuntimeContext` client accessors use `Arc::clone(&self.client)`. Turn
   cancellation remains per-turn via `child_token()` rather than reusing the
   root cancellation token.
-- For remote branch and commit operations in the dispatcher workflow, total
-  changed payload under 50 KB uses a single MCP `push_files` call; total
-  payload at or above 50 KB falls back to local `git push`.
+- MCP tools must not be used for write operations (push, commit, file
+  creation). All pushes use local `git push` directly.
 
 ## Dependency summary
 
