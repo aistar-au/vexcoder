@@ -1,22 +1,21 @@
-//! Direct ANSI draw engine for the task-state control surface.
+//! Adaptive ANSI draw engine for the operator workspace surface.
 //!
-//! This module bypasses ratatui's widget-buffering model and writes ANSI
-//! escape sequences directly to a `Write` sink. The design goals are:
+//! This module writes ANSI escape sequences directly to a `Write` sink,
+//! owning the full terminal for the entire session. The design goals are:
 //!
-//! 1. **Full-screen ownership** — while a turn is in progress the draw engine
-//!    owns the entire terminal; the prompt is never yielded between tool calls.
-//! 2. **Text-only ANSI** — every visible pixel is a character cell written via
-//!    standard escape sequences. No alternate screen buffer, no intermediate
-//!    `Buffer` allocation per frame.
-//! 3. **Viewport-managed output** — task output is shown in a fixed viewport
-//!    that follows the latest lines, while inspector-style content repaints
-//!    when selection or approval state changes.
-//! 4. **Minimal redraw** — only dirty regions (status bar, activity strip,
-//!    output body, input hint) are rewritten each frame.
+//! 1. **Persistent full-screen ownership** — the draw engine owns the
+//!    terminal at all times; the prompt is never yielded between tool
+//!    calls or after a turn completes.
+//! 2. **Flowing transcript** — tool calls, results, and model responses
+//!    stream vertically in a continuous log, not a fixed-height window.
+//! 3. **Adaptive layout** — the timeline, transcript, and composer areas
+//!    scale with the terminal dimensions rather than using fixed row counts.
+//! 4. **Human-readable status** — the header shows plain-language state
+//!    instead of machine-debug flags.
+//! 5. **Minimal redraw** — only dirty regions are rewritten each frame.
 //!
-//! The public entry point is [`TaskDraw`] which is constructed once per task
-//! turn and called from the `FrontendAdapter::render` path when
-//! `task_layout_state()` returns `Some`.
+//! The public entry point is [`TaskDraw`] which persists across the
+//! session and is called from the `FrontendAdapter::render` path.
 
 use crate::app::{StepLifecycle, TaskLayoutState, TimelineEntry};
 use crate::ui::input_metrics::{display_width, truncate_to_display_width};
@@ -63,7 +62,8 @@ fn show_cursor(w: &mut dyn Write) {
     let _ = write!(w, "{CSI}?25h");
 }
 
-// 256-color palette indices matching the ratatui scheme.
+// ── Color palette ───────────────────────────────────────────────────
+
 const GREEN: u8 = 2;
 const RED: u8 = 1;
 const CYAN: u8 = 6;
@@ -72,6 +72,7 @@ const MAGENTA: u8 = 5;
 const GRAY: u8 = 245;
 const DIM_GRAY: u8 = 240;
 const WHITE: u8 = 15;
+const BLUE: u8 = 4;
 
 fn lifecycle_color(lifecycle: &StepLifecycle) -> u8 {
     match lifecycle {
@@ -95,83 +96,110 @@ fn lifecycle_prefix(lifecycle: &StepLifecycle) -> &'static str {
     }
 }
 
-// ── Region geometry ─────────────────────────────────────────────────
+// ── Adaptive region geometry ────────────────────────────────────────
 
-/// Fixed-height regions within the terminal.
+/// Adaptive layout regions that scale with terminal dimensions.
 ///
 /// ```text
-/// row 0      ┌─ status bar ──────────────────┐  (1 row)
-/// row 1      ├─ changed files (optional) ─────┤  (0..1 rows)
-/// row 1..N   ├─ activity strip ───────────────┤  (ACTIVITY_ROWS rows)
-/// row N..M   │  output body (unlimited)       │  (remaining rows)
-/// row M      ├─ input hint ───────────────────┤  (INPUT_ROWS rows)
-/// row M+I    └────────────────────────────────┘
+/// row 0        ┌─ header (repo + status) ───────┐  (1 row)
+/// row 1        ├─ changed files (optional) ──────┤  (0..1 rows)
+/// row H..T     ├─ timeline (adaptive height) ────┤  (3..40% of rows)
+/// row T..C     │  transcript (remaining rows)    │  (fills remaining)
+/// row C..end   ├─ composer (adaptive) ───────────┤  (1..3 rows)
+///              └─────────────────────────────────┘
 /// ```
-const ACTIVITY_ROWS: usize = 6;
-const INPUT_ROWS: usize = 2;
-
 struct Regions {
     cols: u16,
     rows: u16,
-    status_row: u16,
+    header_row: u16,
     files_row: Option<u16>,
-    activity_start: u16,
-    output_start: u16,
-    output_rows: u16,
-    input_start: u16,
+    timeline_start: u16,
+    timeline_rows: u16,
+    transcript_start: u16,
+    transcript_rows: u16,
+    composer_start: u16,
+    composer_rows: u16,
 }
 
+/// Minimum timeline rows (below this the timeline is hidden).
+const MIN_TIMELINE_ROWS: u16 = 3;
+/// Maximum fraction of terminal for the timeline.
+const MAX_TIMELINE_FRACTION: f32 = 0.35;
+/// Minimum composer rows.
+const MIN_COMPOSER_ROWS: u16 = 1;
+/// Preferred composer rows (when space allows).
+const PREFERRED_COMPOSER_ROWS: u16 = 3;
+
 impl Regions {
-    fn compute(cols: u16, rows: u16, has_files: bool) -> Self {
-        let status_row = 0;
+    fn compute(cols: u16, rows: u16, has_files: bool, timeline_entry_count: usize) -> Self {
+        let header_row = 0;
         let files_row = if has_files { Some(1) } else { None };
-        let header_height = if has_files { 2 } else { 1 };
-        let activity_start = header_height;
-        let activity_height = ACTIVITY_ROWS as u16;
-        let input_height = INPUT_ROWS as u16;
-        let output_start = activity_start + activity_height;
-        let output_rows = rows
+        let header_height = if has_files { 2u16 } else { 1u16 };
+
+        // Composer: scales from 1 to 3 rows based on terminal height.
+        let composer_rows = if rows >= 30 {
+            PREFERRED_COMPOSER_ROWS
+        } else if rows >= 15 {
+            2
+        } else {
+            MIN_COMPOSER_ROWS
+        };
+
+        let available = rows
             .saturating_sub(header_height)
-            .saturating_sub(activity_height)
-            .saturating_sub(input_height);
-        let input_start = output_start + output_rows;
+            .saturating_sub(composer_rows);
+
+        // Timeline: adaptive height based on content and terminal size.
+        // Uses up to MAX_TIMELINE_FRACTION of available space, but at least
+        // MIN_TIMELINE_ROWS (with a title row).
+        let content_rows = (timeline_entry_count as u16).saturating_add(1); // +1 for title
+        let max_timeline = ((available as f32) * MAX_TIMELINE_FRACTION) as u16;
+        let timeline_rows = content_rows.min(max_timeline).max(MIN_TIMELINE_ROWS);
+
+        // Transcript: everything left after timeline.
+        let transcript_rows = available.saturating_sub(timeline_rows);
+
+        let timeline_start = header_height;
+        let transcript_start = timeline_start + timeline_rows;
+        let composer_start = transcript_start + transcript_rows;
 
         Regions {
             cols,
             rows,
-            status_row,
+            header_row,
             files_row,
-            activity_start,
-            output_start,
-            output_rows,
-            input_start,
+            timeline_start,
+            timeline_rows,
+            transcript_start,
+            transcript_rows,
+            composer_start,
+            composer_rows,
         }
     }
 }
 
 // ── TaskDraw ────────────────────────────────────────────────────────
 
-/// Persistent state for the direct-draw engine.
+/// Persistent state for the adaptive draw engine.
 ///
-/// Constructed once when a task turn begins. Each call to [`draw`] emits
-/// only the ANSI sequences needed to update the terminal from the previous
-/// frame. Streaming output uses incremental redraw when it is safe to append,
-/// while selection-driven inspector content triggers a full viewport repaint.
+/// Constructed once at session start and called from
+/// `FrontendAdapter::render`. Each call to [`draw`] emits only the ANSI
+/// sequences needed to update dirty regions from the previous frame.
 pub struct TaskDraw {
-    /// Number of output body lines already flushed to the terminal.
+    /// Number of transcript lines already flushed to the terminal.
     output_lines_flushed: usize,
     /// Whether the previous frame reserved a changed-files row.
     last_has_files: bool,
-    /// Last rendered activity strip content (for dirty detection).
-    last_activity_hash: u64,
+    /// Last rendered timeline content (for dirty detection).
+    last_timeline_hash: u64,
     /// Last rendered changed-files row.
     last_files_hash: u64,
-    /// Last rendered output pane content.
-    last_output_hash: u64,
-    /// Last rendered status line (for dirty detection).
-    last_status_hash: u64,
-    /// Last rendered input hint (for dirty detection).
-    last_input_hash: u64,
+    /// Last rendered transcript content.
+    last_transcript_hash: u64,
+    /// Last rendered header (for dirty detection).
+    last_header_hash: u64,
+    /// Last rendered composer (for dirty detection).
+    last_composer_hash: u64,
     /// Terminal dimensions at last draw.
     last_cols: u16,
     last_rows: u16,
@@ -184,11 +212,11 @@ impl TaskDraw {
         Self {
             output_lines_flushed: 0,
             last_has_files: false,
-            last_activity_hash: 0,
+            last_timeline_hash: 0,
             last_files_hash: 0,
-            last_output_hash: 0,
-            last_status_hash: 0,
-            last_input_hash: 0,
+            last_transcript_hash: 0,
+            last_header_hash: 0,
+            last_composer_hash: 0,
             last_cols: 0,
             last_rows: 0,
             first_frame_done: false,
@@ -199,19 +227,15 @@ impl TaskDraw {
     pub fn reset(&mut self) {
         self.output_lines_flushed = 0;
         self.last_has_files = false;
-        self.last_activity_hash = 0;
+        self.last_timeline_hash = 0;
         self.last_files_hash = 0;
-        self.last_output_hash = 0;
-        self.last_status_hash = 0;
-        self.last_input_hash = 0;
+        self.last_transcript_hash = 0;
+        self.last_header_hash = 0;
+        self.last_composer_hash = 0;
         self.first_frame_done = false;
     }
 
-    /// Draw the full task-state control surface.
-    ///
-    /// The caller must provide the current terminal dimensions. This method
-    /// writes ANSI escape sequences directly to `w` and flushes once at the
-    /// end. It never allocates an intermediate screen buffer.
+    /// Draw the full operator workspace surface.
     pub fn draw<W: Write>(
         &mut self,
         w: &mut W,
@@ -230,7 +254,12 @@ impl TaskDraw {
         self.last_rows = term_rows;
         self.last_has_files = has_files;
 
-        let regions = Regions::compute(term_cols, term_rows, has_files);
+        let regions = Regions::compute(
+            term_cols,
+            term_rows,
+            has_files,
+            state.timeline_entries.len(),
+        );
 
         // On first frame or terminal resize: full repaint.
         if !self.first_frame_done || size_changed || layout_changed {
@@ -244,11 +273,11 @@ impl TaskDraw {
         // Incremental update: only redraw dirty regions.
         hide_cursor(w);
 
-        // Status bar.
-        let status_hash = simple_hash(&state.status_line);
-        if status_hash != self.last_status_hash {
-            self.draw_status(w, state, &regions);
-            self.last_status_hash = status_hash;
+        // Header.
+        let header_hash = simple_hash(&state.status_line);
+        if header_hash != self.last_header_hash {
+            self.draw_header(w, state, &regions);
+            self.last_header_hash = header_hash;
         }
 
         // Changed files row.
@@ -260,33 +289,33 @@ impl TaskDraw {
             self.last_files_hash = files_hash;
         }
 
-        // Activity strip.
-        let activity_hash = self.compute_activity_hash(state);
-        if activity_hash != self.last_activity_hash {
-            self.draw_activity(w, state, &regions);
-            self.last_activity_hash = activity_hash;
+        // Timeline.
+        let timeline_hash = self.compute_timeline_hash(state);
+        if timeline_hash != self.last_timeline_hash {
+            self.draw_timeline(w, state, &regions);
+            self.last_timeline_hash = timeline_hash;
         }
 
-        // Output body.
-        let output_hash = self.compute_output_hash(state);
-        if output_hash != self.last_output_hash {
-            if self.output_is_append_only(state) {
-                self.draw_output_incremental(w, state, &regions);
+        // Transcript.
+        let transcript_hash = self.compute_transcript_hash(state);
+        if transcript_hash != self.last_transcript_hash {
+            if self.transcript_is_append_only(state) {
+                self.draw_transcript_incremental(w, state, &regions);
             } else {
-                self.draw_output_full(w, state, &regions);
+                self.draw_transcript_full(w, state, &regions);
             }
-            self.last_output_hash = output_hash;
+            self.last_transcript_hash = transcript_hash;
         }
 
-        // Input hint.
-        let input_hash = simple_hash(&state.input_hint);
-        if input_hash != self.last_input_hash {
-            self.draw_input(w, state, &regions);
-            self.last_input_hash = input_hash;
+        // Composer.
+        let composer_hash = self.compute_composer_hash(state);
+        if composer_hash != self.last_composer_hash {
+            self.draw_composer(w, state, &regions);
+            self.last_composer_hash = composer_hash;
         }
 
-        // Park cursor on input line.
-        move_to(w, regions.input_start, 0);
+        // Park cursor on composer line.
+        move_to(w, regions.composer_start, 0);
         show_cursor(w);
         let _ = w.flush();
     }
@@ -294,42 +323,124 @@ impl TaskDraw {
     // ── Full repaint ────────────────────────────────────────────────
 
     fn draw_full<W: Write>(&mut self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
-        // Clear screen.
         move_to(w, 0, 0);
         clear_to_end(w);
 
-        self.draw_status(w, state, regions);
-        self.last_status_hash = simple_hash(&state.status_line);
+        self.draw_header(w, state, regions);
+        self.last_header_hash = simple_hash(&state.status_line);
 
         if let Some(files_row) = regions.files_row {
             self.draw_files(w, state, files_row, regions.cols);
         }
         self.last_files_hash = self.compute_files_hash(state);
 
-        self.draw_activity(w, state, regions);
-        self.last_activity_hash = self.compute_activity_hash(state);
+        self.draw_timeline(w, state, regions);
+        self.last_timeline_hash = self.compute_timeline_hash(state);
 
-        self.draw_output_full(w, state, regions);
-        self.last_output_hash = self.compute_output_hash(state);
+        self.draw_transcript_full(w, state, regions);
+        self.last_transcript_hash = self.compute_transcript_hash(state);
 
-        self.draw_input(w, state, regions);
-        self.last_input_hash = simple_hash(&state.input_hint);
+        self.draw_composer(w, state, regions);
+        self.last_composer_hash = self.compute_composer_hash(state);
 
         // Park cursor.
-        move_to(w, regions.input_start, 0);
+        move_to(w, regions.composer_start, 0);
         show_cursor(w);
     }
 
-    // ── Status bar ──────────────────────────────────────────────────
+    // ── Header ──────────────────────────────────────────────────────
 
-    fn draw_status<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
-        move_to(w, regions.status_row, 0);
+    fn draw_header<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
+        move_to(w, regions.header_row, 0);
         clear_line(w);
-        set_dim(w);
-        set_fg(w, DIM_GRAY);
-        let truncated = truncate_to_width(&state.status_line, regions.cols as usize);
-        let _ = write!(w, "{truncated}");
+
+        // Parse the status line to extract human-readable components.
+        // The status_line format is: "mode:X approval:Y history:N repo:R inst:I"
+        let parts = parse_status_parts(&state.status_line);
+
+        // Repo name — bold white.
+        set_bold(w);
+        set_fg(w, WHITE);
+        let _ = write!(w, "{}", parts.repo);
         reset_style(w);
+
+        // Separator.
+        set_fg(w, DIM_GRAY);
+        let _ = write!(w, " \u{00b7} ");
+        reset_style(w);
+
+        // Mode — color-coded.
+        let (mode_label, mode_color) = match parts.mode.as_str() {
+            "streaming" => ("running", CYAN),
+            "command-session" => ("session", MAGENTA),
+            "overlay" => ("approval", YELLOW),
+            "cancelling" => ("cancelling", RED),
+            "quit-arm" => ("quit?", RED),
+            _ => ("ready", GREEN),
+        };
+        set_bold(w);
+        set_fg(w, mode_color);
+        let _ = write!(w, "{mode_label}");
+        reset_style(w);
+
+        // Changed files count (if any).
+        if !state.changed_files.is_empty() {
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, " \u{00b7} ");
+            reset_style(w);
+            set_fg(w, GRAY);
+            let _ = write!(
+                w,
+                "{} file{} changed",
+                state.changed_files.len(),
+                if state.changed_files.len() == 1 {
+                    ""
+                } else {
+                    "s"
+                }
+            );
+            reset_style(w);
+        }
+
+        // Timeline step count (if active).
+        if !state.timeline_entries.is_empty() {
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, " \u{00b7} ");
+            reset_style(w);
+            let running = state
+                .timeline_entries
+                .iter()
+                .filter(|e| e.lifecycle == StepLifecycle::Running)
+                .count();
+            let completed = state
+                .timeline_entries
+                .iter()
+                .filter(|e| e.lifecycle == StepLifecycle::Completed)
+                .count();
+            set_fg(w, GRAY);
+            if running > 0 {
+                let _ = write!(w, "{running} active");
+                if completed > 0 {
+                    let _ = write!(w, ", {completed} done");
+                }
+            } else if completed > 0 {
+                let _ = write!(
+                    w,
+                    "{completed} step{} done",
+                    if completed == 1 { "" } else { "s" }
+                );
+            }
+            reset_style(w);
+        }
+
+        // Instructions path (dimmed, right side info).
+        if parts.inst != "none" {
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, " \u{00b7} ");
+            set_dim(w);
+            let _ = write!(w, "{}", parts.inst);
+            reset_style(w);
+        }
     }
 
     // ── Changed files ───────────────────────────────────────────────
@@ -342,47 +453,35 @@ impl TaskDraw {
         }
         set_dim(w);
         set_fg(w, GRAY);
-        let files_text = format!("files: {}", state.changed_files.join(", "));
+        let files_text = format!("  {}", state.changed_files.join("  "));
         let truncated = truncate_to_width(&files_text, cols as usize);
         let _ = write!(w, "{truncated}");
         reset_style(w);
     }
 
-    // ── Activity strip ──────────────────────────────────────────────
+    // ── Timeline (adaptive height) ──────────────────────────────────
 
-    fn draw_activity<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
+    fn draw_timeline<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
+        let visible_slots = (regions.timeline_rows.saturating_sub(1)) as usize; // -1 for separator
+
         if state.timeline_entries.is_empty() {
-            self.draw_activity_rows_fallback(w, state, regions);
+            self.draw_timeline_fallback(w, state, regions);
             return;
         }
 
-        let max_visible = ACTIVITY_ROWS;
         let total = state.timeline_entries.len();
         let selected = state.selected_step.min(total.saturating_sub(1));
 
-        // Title line.
-        move_to(w, regions.activity_start, 0);
-        clear_line(w);
-        set_bold(w);
-        set_fg(w, DIM_GRAY);
-        let title = self.activity_title(state);
-        if total > max_visible {
-            let _ = write!(w, "{title} ({}/{})", selected + 1, total);
-        } else {
-            let _ = write!(w, "{title}");
-        }
-        reset_style(w);
-
-        // Visible window.
-        let window_start = if selected >= max_visible {
-            selected + 1 - max_visible
+        // Visible window: scroll to keep selected entry visible.
+        let window_start = if selected >= visible_slots {
+            selected + 1 - visible_slots
         } else {
             0
         };
 
-        for slot in 0..max_visible {
-            let row = regions.activity_start + 1 + slot as u16;
-            if row >= regions.output_start {
+        for slot in 0..visible_slots {
+            let row = regions.timeline_start + slot as u16;
+            if row >= regions.transcript_start {
                 break;
             }
             move_to(w, row, 0);
@@ -396,33 +495,55 @@ impl TaskDraw {
             let is_selected = entry_index == selected;
             self.draw_timeline_entry(w, entry, is_selected, regions.cols);
         }
+
+        // Separator line between timeline and transcript.
+        let sep_row = regions.transcript_start.saturating_sub(1);
+        if sep_row >= regions.timeline_start {
+            move_to(w, sep_row, 0);
+            clear_line(w);
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let sep_width = (regions.cols as usize).min(120);
+            for _ in 0..sep_width {
+                let _ = write!(w, "\u{2500}");
+            }
+            reset_style(w);
+        }
     }
 
-    fn draw_activity_rows_fallback<W: Write>(
+    fn draw_timeline_fallback<W: Write>(
         &self,
         w: &mut W,
         state: &TaskLayoutState,
         regions: &Regions,
     ) {
-        move_to(w, regions.activity_start, 0);
-        clear_line(w);
-        set_bold(w);
-        set_fg(w, DIM_GRAY);
-        let _ = write!(w, "{}", self.activity_title(state));
-        reset_style(w);
+        let visible_slots = (regions.timeline_rows.saturating_sub(1)) as usize;
 
-        for slot in 0..ACTIVITY_ROWS {
-            let row = regions.activity_start + 1 + slot as u16;
-            if row >= regions.output_start {
+        for slot in 0..visible_slots {
+            let row = regions.timeline_start + slot as u16;
+            if row >= regions.transcript_start {
                 break;
             }
             move_to(w, row, 0);
             clear_line(w);
 
-            let Some(activity_row) = state.activity_rows.get(slot) else {
-                continue;
-            };
-            self.draw_legacy_activity_row(w, activity_row, regions.cols);
+            if let Some(activity_row) = state.activity_rows.get(slot) {
+                self.draw_legacy_activity_row(w, activity_row, regions.cols);
+            }
+        }
+
+        // Separator.
+        let sep_row = regions.transcript_start.saturating_sub(1);
+        if sep_row >= regions.timeline_start {
+            move_to(w, sep_row, 0);
+            clear_line(w);
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let sep_width = (regions.cols as usize).min(120);
+            for _ in 0..sep_width {
+                let _ = write!(w, "\u{2500}");
+            }
+            reset_style(w);
         }
     }
 
@@ -440,10 +561,9 @@ impl TaskDraw {
         if is_selected {
             set_bold(w);
             set_fg(w, WHITE);
-            let _ = write!(w, "> ");
+            let _ = write!(w, " \u{25b6} ");
         } else {
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, "  ");
+            let _ = write!(w, "   ");
         }
 
         // Lifecycle prefix.
@@ -458,9 +578,9 @@ impl TaskDraw {
             set_bold(w);
             set_fg(w, WHITE);
         } else {
-            set_fg(w, color);
+            set_fg(w, GRAY);
         }
-        let used = 2 + display_width(prefix) + 1; // selector + prefix + space
+        let used = 3 + display_width(prefix) + 1; // selector(3) + prefix + space
         let remaining = (cols as usize).saturating_sub(used);
         let truncated = truncate_to_width(&entry.label, remaining);
         let _ = write!(w, "{truncated}");
@@ -471,93 +591,305 @@ impl TaskDraw {
         if let Some(rest) = row.strip_prefix("[ok]") {
             set_bold(w);
             set_fg(w, GREEN);
-            let _ = write!(w, "[ok]");
+            let _ = write!(w, "   [ok]");
             reset_style(w);
-            set_fg(w, GREEN);
-            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(5));
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(8));
             let _ = write!(w, " {truncated}");
             reset_style(w);
         } else if let Some(rest) = row.strip_prefix("[!]") {
             set_bold(w);
             set_fg(w, RED);
-            let _ = write!(w, "[!]");
+            let _ = write!(w, "   [!]");
             reset_style(w);
-            set_fg(w, RED);
-            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(4));
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(7));
             let _ = write!(w, " {truncated}");
             reset_style(w);
         } else if let Some(rest) = row.strip_prefix("[->]") {
             set_bold(w);
             set_fg(w, CYAN);
-            let _ = write!(w, "[->]");
+            let _ = write!(w, "   [->]");
             reset_style(w);
-            set_fg(w, CYAN);
-            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(5));
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(8));
             let _ = write!(w, " {truncated}");
             reset_style(w);
         } else if let Some(rest) = row.strip_prefix("[?]") {
             set_bold(w);
             set_fg(w, YELLOW);
-            let _ = write!(w, "[?]");
+            let _ = write!(w, "   [?]");
             reset_style(w);
-            set_fg(w, YELLOW);
-            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(4));
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(7));
             let _ = write!(w, " {truncated}");
             reset_style(w);
         } else if let Some(rest) = row.strip_prefix("> ") {
             set_dim(w);
             set_fg(w, DIM_GRAY);
-            let _ = write!(w, "> ");
+            let _ = write!(w, "   > ");
             reset_style(w);
             set_dim(w);
             set_fg(w, GRAY);
-            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(2));
+            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(5));
             let _ = write!(w, "{truncated}");
             reset_style(w);
         } else {
             set_fg(w, GRAY);
-            let truncated = truncate_to_width(row, cols as usize);
+            let _ = write!(w, "   ");
+            let truncated = truncate_to_width(row, (cols as usize).saturating_sub(3));
             let _ = write!(w, "{truncated}");
             reset_style(w);
         }
     }
 
-    fn activity_title(&self, state: &TaskLayoutState) -> &'static str {
-        if state.timeline_entries.is_empty() {
-            if state
-                .activity_rows
-                .first()
-                .map(|row| row.starts_with("command:"))
-                .unwrap_or(false)
-            {
-                "Session"
-            } else if state
-                .activity_rows
-                .iter()
-                .any(|row| row.starts_with("[->]"))
-            {
-                "Orchestrating"
-            } else {
-                "Steps"
+    // ── Transcript (flowing) ────────────────────────────────────────
+
+    fn draw_transcript_full<W: Write>(
+        &mut self,
+        w: &mut W,
+        state: &TaskLayoutState,
+        regions: &Regions,
+    ) {
+        let viewport_height = regions.transcript_rows as usize;
+
+        // Clear the transcript area.
+        for vp_offset in 0..viewport_height {
+            let row = regions.transcript_start + vp_offset as u16;
+            move_to(w, row, 0);
+            clear_line(w);
+        }
+
+        let visible_start = state.output_rows.len().saturating_sub(viewport_height);
+        for (vp_offset, line) in state.output_rows.iter().skip(visible_start).enumerate() {
+            if vp_offset >= viewport_height {
+                break;
             }
-        } else if state
-            .timeline_entries
-            .iter()
-            .any(|e| e.lifecycle == StepLifecycle::Running)
-        {
-            "Orchestrating"
-        } else if state
-            .timeline_entries
-            .iter()
-            .any(|e| e.lifecycle == StepLifecycle::CommandSession)
-        {
-            "Session"
+            let row = regions.transcript_start + vp_offset as u16;
+            move_to(w, row, 0);
+            self.draw_transcript_line(w, line, regions.cols);
+        }
+
+        self.output_lines_flushed = state.output_rows.len();
+    }
+
+    fn draw_transcript_incremental<W: Write>(
+        &mut self,
+        w: &mut W,
+        state: &TaskLayoutState,
+        regions: &Regions,
+    ) {
+        let total_output = state.output_rows.len();
+        if total_output <= self.output_lines_flushed {
+            return;
+        }
+
+        let viewport_height = regions.transcript_rows as usize;
+
+        let new_lines = &state.output_rows[self.output_lines_flushed..];
+        for (i, line) in new_lines.iter().enumerate() {
+            let line_index = self.output_lines_flushed + i;
+            let visible_start = total_output.saturating_sub(viewport_height);
+
+            if line_index < visible_start {
+                continue;
+            }
+
+            let viewport_offset = line_index - visible_start;
+            if viewport_offset >= viewport_height {
+                continue;
+            }
+
+            let row = regions.transcript_start + viewport_offset as u16;
+            move_to(w, row, 0);
+            clear_line(w);
+            self.draw_transcript_line(w, line, regions.cols);
+        }
+
+        // Scroll case: redraw entire visible window when lines shift up.
+        if total_output > viewport_height && self.output_lines_flushed > 0 {
+            let visible_start = total_output - viewport_height;
+            if visible_start > 0 {
+                for vp_offset in 0..viewport_height {
+                    let src_index = visible_start + vp_offset;
+                    if src_index >= total_output {
+                        break;
+                    }
+                    let row = regions.transcript_start + vp_offset as u16;
+                    move_to(w, row, 0);
+                    clear_line(w);
+                    self.draw_transcript_line(w, &state.output_rows[src_index], regions.cols);
+                }
+            }
+        }
+
+        self.output_lines_flushed = total_output;
+    }
+
+    /// Render a single transcript line with semantic styling.
+    fn draw_transcript_line<W: Write>(&self, w: &mut W, line: &str, cols: u16) {
+        if let Some(rest) = line.strip_prefix("[ok] ") {
+            // Completed tool — green marker, white tool name.
+            set_bold(w);
+            set_fg(w, GREEN);
+            let _ = write!(w, " \u{2713} ");
+            reset_style(w);
+            set_fg(w, WHITE);
+            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        } else if let Some(rest) = line.strip_prefix("[!] ") {
+            // Failed tool — red marker, white tool name.
+            set_bold(w);
+            set_fg(w, RED);
+            let _ = write!(w, " \u{2717} ");
+            reset_style(w);
+            set_fg(w, WHITE);
+            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        } else if line.starts_with("    ") {
+            // Indented detail text — dimmed.
+            set_dim(w);
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(line, cols as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        } else if line.starts_with("--- ") && line.ends_with(" ---") {
+            // Section separator.
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let truncated = truncate_to_width(line, cols as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        } else if line == "Turn completed." || line.starts_with("Type a prompt") {
+            // Hint text — dimmed italic.
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let truncated = truncate_to_width(line, cols as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        } else if line == "[awaiting model response]" {
+            // Awaiting indicator — pulsing cyan.
+            set_fg(w, CYAN);
+            set_dim(w);
+            let _ = write!(w, " \u{2026} awaiting model response");
+            reset_style(w);
         } else {
-            "Steps"
+            // Regular transcript text.
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(line, cols as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
         }
     }
 
-    fn compute_activity_hash(&self, state: &TaskLayoutState) -> u64 {
+    fn transcript_is_append_only(&self, state: &TaskLayoutState) -> bool {
+        if state.pending_approval.is_some() {
+            return false;
+        }
+
+        if state.timeline_entries.is_empty() {
+            return true;
+        }
+
+        matches!(
+            state.timeline_entries.get(state.selected_step),
+            Some(entry) if entry.lifecycle == StepLifecycle::UserInput
+        )
+    }
+
+    // ── Composer ────────────────────────────────────────────────────
+
+    fn draw_composer<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
+        // Clear composer area.
+        for i in 0..regions.composer_rows {
+            let row = regions.composer_start + i;
+            if row >= regions.rows {
+                break;
+            }
+            move_to(w, row, 0);
+            clear_line(w);
+        }
+
+        move_to(w, regions.composer_start, 0);
+
+        if let Some(ref approval) = state.pending_approval {
+            // Inline approval card.
+            set_bold(w);
+            set_fg(w, YELLOW);
+            let _ = write!(w, "\u{25cf} ");
+            reset_style(w);
+            set_fg(w, YELLOW);
+            let lines: Vec<&str> = approval.lines().collect();
+            let first = lines.first().copied().unwrap_or("");
+            let truncated = truncate_to_width(first, (regions.cols as usize).saturating_sub(2));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+
+            // Approval choices.
+            if regions.composer_start + 1 < regions.rows {
+                move_to(w, regions.composer_start + 1, 0);
+                set_fg(w, DIM_GRAY);
+                let _ = write!(w, "  ");
+                reset_style(w);
+                set_fg(w, GREEN);
+                set_bold(w);
+                let _ = write!(w, "y");
+                reset_style(w);
+                set_fg(w, DIM_GRAY);
+                let _ = write!(w, " approve  ");
+                set_fg(w, RED);
+                set_bold(w);
+                let _ = write!(w, "n");
+                reset_style(w);
+                set_fg(w, DIM_GRAY);
+                let _ = write!(w, " deny  ");
+                set_fg(w, BLUE);
+                set_bold(w);
+                let _ = write!(w, "s");
+                reset_style(w);
+                set_fg(w, DIM_GRAY);
+                let _ = write!(w, " approve all");
+                reset_style(w);
+            }
+        } else {
+            // Regular composer.
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, "\u{276f} ");
+            reset_style(w);
+
+            // Write hint lines.
+            let hint_lines: Vec<&str> = state.input_hint.lines().collect();
+            if let Some(first) = hint_lines.first() {
+                if *first != "> " && !first.is_empty() {
+                    set_fg(w, GRAY);
+                    let truncated =
+                        truncate_to_width(first, (regions.cols as usize).saturating_sub(2));
+                    let _ = write!(w, "{truncated}");
+                    reset_style(w);
+                }
+            }
+
+            // Additional hint lines on subsequent rows.
+            for (i, line) in hint_lines.iter().skip(1).enumerate() {
+                let row = regions.composer_start + 1 + i as u16;
+                if row >= regions.rows || row >= regions.composer_start + regions.composer_rows {
+                    break;
+                }
+                move_to(w, row, 0);
+                set_fg(w, DIM_GRAY);
+                let _ = write!(w, "  ");
+                let truncated = truncate_to_width(line, (regions.cols as usize).saturating_sub(2));
+                let _ = write!(w, "{truncated}");
+                reset_style(w);
+            }
+        }
+    }
+
+    // ── Hash computation ────────────────────────────────────────────
+
+    fn compute_timeline_hash(&self, state: &TaskLayoutState) -> u64 {
         if state.timeline_entries.is_empty() {
             let mut h = state.activity_rows.len() as u64;
             for row in &state.activity_rows {
@@ -587,237 +919,20 @@ impl TaskDraw {
         h
     }
 
-    fn compute_output_hash(&self, state: &TaskLayoutState) -> u64 {
-        let mut h = simple_hash(self.output_title(state));
-        h = h
-            .wrapping_mul(31)
-            .wrapping_add(state.output_rows.len() as u64);
+    fn compute_transcript_hash(&self, state: &TaskLayoutState) -> u64 {
+        let mut h: u64 = state.output_rows.len() as u64;
         for row in &state.output_rows {
             h = h.wrapping_mul(31).wrapping_add(simple_hash(row));
         }
         h
     }
 
-    fn output_is_append_only(&self, state: &TaskLayoutState) -> bool {
-        if state.pending_approval.is_some() {
-            return false;
-        }
-
-        if state.timeline_entries.is_empty() {
-            return true;
-        }
-
-        matches!(
-            state.timeline_entries.get(state.selected_step),
-            Some(entry) if entry.lifecycle == StepLifecycle::UserInput
-        )
-    }
-
-    fn output_title(&self, state: &TaskLayoutState) -> &'static str {
-        if !state.timeline_entries.is_empty() {
-            "Inspector"
-        } else {
-            "Output"
-        }
-    }
-
-    // ── Output body (append-only) ───────────────────────────────────
-
-    fn draw_output_full<W: Write>(
-        &mut self,
-        w: &mut W,
-        state: &TaskLayoutState,
-        regions: &Regions,
-    ) {
-        let viewport_height = regions.output_rows.saturating_sub(1) as usize;
-
-        move_to(w, regions.output_start, 0);
-        clear_line(w);
-        set_bold(w);
-        set_fg(w, DIM_GRAY);
-        let _ = write!(w, "{}", self.output_title(state));
-        reset_style(w);
-
-        for vp_offset in 0..viewport_height {
-            let row = regions.output_start + 1 + vp_offset as u16;
-            move_to(w, row, 0);
-            clear_line(w);
-        }
-
-        let visible_start = state.output_rows.len().saturating_sub(viewport_height);
-        for (vp_offset, line) in state.output_rows.iter().skip(visible_start).enumerate() {
-            if vp_offset >= viewport_height {
-                break;
-            }
-            let row = regions.output_start + 1 + vp_offset as u16;
-            move_to(w, row, 0);
-            self.draw_output_line(w, line, regions.cols);
-        }
-
-        self.output_lines_flushed = state.output_rows.len();
-    }
-
-    /// Render a single output line with paragraph-aware styling.
-    ///
-    /// Lines starting with `[ok]` or `[!]` get tool-result colors.
-    /// Lines starting with four spaces are indented detail text.
-    /// Separator lines (`---`) are dimmed.
-    fn draw_output_line<W: Write>(&self, w: &mut W, line: &str, cols: u16) {
-        if let Some(rest) = line.strip_prefix("[ok] ") {
-            set_bold(w);
-            set_fg(w, GREEN);
-            let _ = write!(w, "[ok] ");
-            reset_style(w);
-            set_fg(w, WHITE);
-            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(5));
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
-        } else if let Some(rest) = line.strip_prefix("[!] ") {
-            set_bold(w);
-            set_fg(w, RED);
-            let _ = write!(w, "[!] ");
-            reset_style(w);
-            set_fg(w, WHITE);
-            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(4));
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
-        } else if line.starts_with("    ") {
-            set_dim(w);
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(line, cols as usize);
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
-        } else if line.starts_with("--- ") && line.ends_with(" ---") {
-            set_dim(w);
-            set_fg(w, DIM_GRAY);
-            let truncated = truncate_to_width(line, cols as usize);
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
-        } else {
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(line, cols as usize);
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
-        }
-    }
-
-    fn draw_output_incremental<W: Write>(
-        &mut self,
-        w: &mut W,
-        state: &TaskLayoutState,
-        regions: &Regions,
-    ) {
-        let total_output = state.output_rows.len();
-        if total_output <= self.output_lines_flushed {
-            return;
-        }
-
-        // Title row for output pane (only on first output or when pane was just cleared).
-        if self.output_lines_flushed == 0 {
-            move_to(w, regions.output_start, 0);
-            clear_line(w);
-            set_bold(w);
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, "{}", self.output_title(state));
-            reset_style(w);
-        }
-
-        // Write new lines. We position within the output viewport area.
-        // The output viewport starts at output_start + 1 (after title row).
-        let viewport_height = regions.output_rows.saturating_sub(1) as usize; // minus title row
-
-        let new_lines = &state.output_rows[self.output_lines_flushed..];
-        for (i, line) in new_lines.iter().enumerate() {
-            let line_index = self.output_lines_flushed + i;
-            // Compute the row within the viewport. If lines exceed viewport,
-            // we scroll the viewport to show the latest lines.
-            let visible_start = total_output.saturating_sub(viewport_height);
-
-            if line_index < visible_start {
-                continue; // This line has scrolled above the viewport.
-            }
-
-            let viewport_offset = line_index - visible_start;
-            if viewport_offset >= viewport_height {
-                continue; // Shouldn't happen, but guard.
-            }
-
-            let row = regions.output_start + 1 + viewport_offset as u16;
-            move_to(w, row, 0);
-            clear_line(w);
-            self.draw_output_line(w, line, regions.cols);
-        }
-
-        // If output count exceeds viewport, we need to redraw the entire visible
-        // window since lines shift up. Only do this for the scroll case.
-        if total_output > viewport_height && self.output_lines_flushed > 0 {
-            let visible_start = total_output - viewport_height;
-            // Only need to redraw if some previously-flushed lines are now
-            // above the viewport (i.e., they shifted).
-            if visible_start > 0 {
-                for vp_offset in 0..viewport_height {
-                    let src_index = visible_start + vp_offset;
-                    if src_index >= total_output {
-                        break;
-                    }
-                    let row = regions.output_start + 1 + vp_offset as u16;
-                    move_to(w, row, 0);
-                    clear_line(w);
-                    self.draw_output_line(w, &state.output_rows[src_index], regions.cols);
-                }
-            }
-        }
-
-        self.output_lines_flushed = total_output;
-    }
-
-    // ── Input hint ──────────────────────────────────────────────────
-
-    fn draw_input<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
-        for i in 0..INPUT_ROWS as u16 {
-            let row = regions.input_start + i;
-            if row >= regions.rows {
-                break;
-            }
-            move_to(w, row, 0);
-            clear_line(w);
-        }
-
-        move_to(w, regions.input_start, 0);
-
+    fn compute_composer_hash(&self, state: &TaskLayoutState) -> u64 {
+        let mut h = simple_hash(&state.input_hint);
         if let Some(ref approval) = state.pending_approval {
-            set_bold(w);
-            set_fg(w, YELLOW);
-            // First line of approval context.
-            let lines: Vec<&str> = approval.lines().collect();
-            let first = lines.first().copied().unwrap_or("");
-            let truncated = truncate_to_width(first, regions.cols as usize);
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
-            // Second line: prompt.
-            if regions.input_start + 1 < regions.rows {
-                move_to(w, regions.input_start + 1, 0);
-                set_fg(w, YELLOW);
-                let _ = write!(w, "[y/n/s] ");
-                reset_style(w);
-            }
-        } else {
-            set_fg(w, GRAY);
-            // Write up to INPUT_ROWS lines of the input hint.
-            let hint_lines: Vec<&str> = state.input_hint.lines().collect();
-            for (i, line) in hint_lines.iter().take(INPUT_ROWS).enumerate() {
-                if i > 0 {
-                    let row = regions.input_start + i as u16;
-                    if row >= regions.rows {
-                        break;
-                    }
-                    move_to(w, row, 0);
-                }
-                let truncated = truncate_to_width(line, regions.cols as usize);
-                let _ = write!(w, "{truncated}");
-            }
-            reset_style(w);
+            h = h.wrapping_mul(31).wrapping_add(simple_hash(approval));
         }
+        h
     }
 }
 
@@ -825,6 +940,32 @@ impl Default for TaskDraw {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// ── Status line parsing ─────────────────────────────────────────────
+
+struct StatusParts {
+    mode: String,
+    repo: String,
+    inst: String,
+}
+
+fn parse_status_parts(status: &str) -> StatusParts {
+    let mut mode = String::from("ready");
+    let mut repo = String::from("vexcoder");
+    let mut inst = String::from("none");
+
+    for part in status.split_whitespace() {
+        if let Some(val) = part.strip_prefix("mode:") {
+            mode = val.to_string();
+        } else if let Some(val) = part.strip_prefix("repo:") {
+            repo = val.to_string();
+        } else if let Some(val) = part.strip_prefix("inst:") {
+            inst = val.to_string();
+        }
+    }
+
+    StatusParts { mode, repo, inst }
 }
 
 // ── Utilities ───────────────────────────────────────────────────────
@@ -865,7 +1006,7 @@ mod tests {
     fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState {
         TaskLayoutState {
             task_id: "test-001".into(),
-            status_line: "mode:streaming approval:none".into(),
+            status_line: "mode:streaming approval:none repo:vexcoder inst:AGENTS.md".into(),
             activity_rows: vec![],
             timeline_entries: entries,
             selected_step: 0,
@@ -893,13 +1034,9 @@ mod tests {
         draw.draw(&mut buf, &state, 80, 24);
         let output = String::from_utf8_lossy(&buf);
 
-        // Must contain ANSI escape sequences.
         assert!(output.contains("\x1b["), "output must contain ANSI escapes");
-        // Must contain the status line text.
-        assert!(
-            output.contains("mode:streaming"),
-            "status line must be drawn"
-        );
+        // Human-readable header must show repo name.
+        assert!(output.contains("vexcoder"), "header must show repo name");
         // Must contain the timeline entry.
         assert!(
             output.contains("read_file: running"),
@@ -923,11 +1060,9 @@ mod tests {
             vec!["output line"],
         );
 
-        // First draw: full.
         draw.draw(&mut buf, &state, 80, 24);
         let first_len = buf.len();
 
-        // Second draw with identical state: should write much less.
         buf.clear();
         draw.draw(&mut buf, &state, 80, 24);
         let second_len = buf.len();
@@ -974,7 +1109,6 @@ mod tests {
         let first_len = buf.len();
 
         buf.clear();
-        // Same state, different size -> full repaint.
         draw.draw(&mut buf, &state, 120, 30);
         let resize_len = buf.len();
 
@@ -997,7 +1131,6 @@ mod tests {
 
     #[test]
     fn lifecycle_prefixes_have_no_trailing_spaces() {
-        // Verify the PR #115 spacing fix is baked into the direct-draw engine.
         let lifecycles = [
             StepLifecycle::Completed,
             StepLifecycle::Failed,
@@ -1044,7 +1177,7 @@ mod tests {
         let output = String::from_utf8_lossy(&buf);
         assert!(
             output.contains("[ok]"),
-            "lifecycle changes must redraw the activity row"
+            "lifecycle changes must redraw the timeline row"
         );
     }
 
@@ -1055,7 +1188,7 @@ mod tests {
 
         let first = TaskLayoutState {
             task_id: "test-001".into(),
-            status_line: "mode:streaming approval:none".into(),
+            status_line: "mode:streaming approval:none repo:vexcoder inst:none".into(),
             activity_rows: vec![],
             timeline_entries: vec![
                 TimelineEntry {
@@ -1089,7 +1222,7 @@ mod tests {
         let output = String::from_utf8_lossy(&buf);
         assert!(
             output.contains("Tool: check"),
-            "inspector changes must redraw output rows"
+            "selection changes must redraw transcript"
         );
     }
 
@@ -1099,7 +1232,7 @@ mod tests {
         let mut draw = TaskDraw::new();
         let state = TaskLayoutState {
             task_id: "test-001".into(),
-            status_line: "mode:streaming approval:none".into(),
+            status_line: "mode:streaming approval:none repo:vexcoder inst:none".into(),
             activity_rows: vec!["[->] validate: running...".into(), "> ship it".into()],
             timeline_entries: vec![],
             selected_step: 0,
@@ -1113,7 +1246,6 @@ mod tests {
         draw.draw(&mut buf, &state, 80, 24);
         let output = String::from_utf8_lossy(&buf);
 
-        assert!(output.contains("Orchestrating"));
         assert!(output.contains("validate: running"));
         assert!(output.contains("ship it"));
     }
@@ -1138,9 +1270,12 @@ mod tests {
         draw.draw(&mut buf, &state, 80, 24);
         let output = String::from_utf8_lossy(&buf);
 
-        // Tool status markers must be drawn with appropriate ANSI colors.
-        assert!(output.contains("[ok]"), "success marker must be drawn");
-        assert!(output.contains("[!]"), "error marker must be drawn");
+        // Check marks must be drawn.
+        assert!(
+            output.contains("\u{2713}"),
+            "success check mark must be drawn"
+        );
+        assert!(output.contains("\u{2717}"), "failure cross must be drawn");
         assert!(
             output.contains("read_file"),
             "tool name must appear in output"
@@ -1157,7 +1292,7 @@ mod tests {
         let mut draw = TaskDraw::new();
         let state = TaskLayoutState {
             task_id: "test-001".into(),
-            status_line: "mode:ready approval:none".into(),
+            status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
             activity_rows: vec![],
             timeline_entries: vec![],
             selected_step: 0,
@@ -1179,5 +1314,116 @@ mod tests {
             output.contains("Type a prompt"),
             "welcome hint must be drawn on first frame"
         );
+    }
+
+    #[test]
+    fn adaptive_layout_scales_timeline_with_entries() {
+        let entries: Vec<TimelineEntry> = (0..20)
+            .map(|i| TimelineEntry {
+                lifecycle: StepLifecycle::Completed,
+                label: format!("step_{i}: done"),
+                detail: String::new(),
+            })
+            .collect();
+
+        let regions = Regions::compute(80, 40, false, entries.len());
+        // Timeline should grow beyond the old fixed 6 rows.
+        assert!(
+            regions.timeline_rows > 6,
+            "timeline must scale beyond 6 rows for 20 entries on a 40-row terminal"
+        );
+        // But not exceed 35% of available space.
+        let max_expected = ((40 - 1 - 3) as f32 * 0.35) as u16;
+        assert!(
+            regions.timeline_rows <= max_expected + 1,
+            "timeline must not exceed ~35% of available space"
+        );
+    }
+
+    #[test]
+    fn adaptive_composer_scales_with_terminal_height() {
+        let small = Regions::compute(80, 12, false, 0);
+        assert_eq!(small.composer_rows, 1, "small terminal gets 1-row composer");
+
+        let medium = Regions::compute(80, 20, false, 0);
+        assert_eq!(
+            medium.composer_rows, 2,
+            "medium terminal gets 2-row composer"
+        );
+
+        let large = Regions::compute(80, 40, false, 0);
+        assert_eq!(large.composer_rows, 3, "large terminal gets 3-row composer");
+    }
+
+    #[test]
+    fn human_readable_header_shows_running_state() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = TaskLayoutState {
+            task_id: "test-001".into(),
+            status_line: "mode:streaming approval:none repo:myrepo inst:AGENTS.md".into(),
+            activity_rows: vec![],
+            timeline_entries: vec![TimelineEntry {
+                lifecycle: StepLifecycle::Running,
+                label: "read_file: running".into(),
+                detail: String::new(),
+            }],
+            selected_step: 0,
+            total_steps: 1,
+            output_rows: vec![],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            changed_files: vec!["src/main.rs".into()],
+        };
+
+        draw.draw(&mut buf, &state, 100, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        assert!(output.contains("myrepo"), "header must show repo name");
+        assert!(output.contains("running"), "header must show running state");
+        assert!(
+            output.contains("1 file changed") || output.contains("1 active"),
+            "header must show file count or active count"
+        );
+    }
+
+    #[test]
+    fn inline_approval_renders_in_composer() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = TaskLayoutState {
+            task_id: "test-001".into(),
+            status_line: "mode:overlay approval:pending repo:vexcoder inst:none".into(),
+            activity_rows: vec![],
+            timeline_entries: vec![],
+            selected_step: 0,
+            total_steps: 0,
+            output_rows: vec![],
+            pending_approval: Some("write_file: src/main.rs".into()),
+            input_hint: "> ".into(),
+            changed_files: vec![],
+        };
+
+        draw.draw(&mut buf, &state, 80, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        assert!(
+            output.contains("write_file"),
+            "approval context must show in composer"
+        );
+        assert!(
+            output.contains("approve") || output.contains("deny"),
+            "approval choices must be visible"
+        );
+    }
+
+    #[test]
+    fn status_parts_parsing() {
+        let parts = parse_status_parts(
+            "mode:streaming approval:none history:11 repo:vexcoder inst:AGENTS.md",
+        );
+        assert_eq!(parts.mode, "streaming");
+        assert_eq!(parts.repo, "vexcoder");
+        assert_eq!(parts.inst, "AGENTS.md");
     }
 }
