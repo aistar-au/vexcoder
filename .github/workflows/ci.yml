@@ -118,9 +118,7 @@ jobs:
       - name: Build native Windows binary
         shell: pwsh
         run: |
-          $versionMatch = Select-String -Path Cargo.toml -Pattern '^version = "(.+)"'
-          $version = $versionMatch.Matches[0].Groups[1].Value
-          .\scripts\release.ps1 -Version "v$version" -Target x86_64-pc-windows-msvc -BuildOnly
+          .\scripts\release.ps1 -Target x86_64-pc-windows-msvc -BuildOnly
 
       - name: Upload native Windows binary
         uses: actions/upload-artifact@v4
@@ -136,6 +134,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install stable Rust
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Add Cargo bin to PATH
+        shell: pwsh
+        run: |
+          "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Download native Windows binary
         uses: actions/download-artifact@v4
         with:
@@ -145,6 +154,4 @@ jobs:
       - name: Run native Windows packaging smoke test
         shell: pwsh
         run: |
-          $versionMatch = Select-String -Path Cargo.toml -Pattern '^version = "(.+)"'
-          $version = $versionMatch.Matches[0].Groups[1].Value
-          .\scripts\release.ps1 -Version "v$version" -Target x86_64-pc-windows-msvc -PackageOnly
+          .\scripts\release.ps1 -Target x86_64-pc-windows-msvc -PackageOnly
