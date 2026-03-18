@@ -106,12 +106,29 @@ impl TuiMode {
         if !self.command_sessions.is_empty() {
             return self.command_sessions.len().max(1);
         }
+
+        // Use current turn data if available, otherwise fall back to last turn.
+        let (input_text, tool_count) = if self.history_state.turn_in_progress
+            || !self.current_turn_input.trim().is_empty()
+            || !self.current_turn_tool_invocations.is_empty()
+            || !self.pending_turn_tool_calls.is_empty()
+        {
+            (
+                &self.current_turn_input,
+                self.current_turn_tool_invocations.len() + self.pending_turn_tool_calls.len(),
+            )
+        } else {
+            (
+                &self.last_turn_input_display,
+                self.last_turn_tool_invocations.len(),
+            )
+        };
+
         let mut count = 0;
-        if !self.current_turn_input.trim().is_empty() {
+        if !input_text.trim().is_empty() {
             count += 1;
         }
-        count += self.current_turn_tool_invocations.len();
-        count += self.pending_turn_tool_calls.len();
+        count += tool_count;
         count.max(1)
     }
 }

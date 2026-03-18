@@ -129,7 +129,7 @@ for the broader open-ADR list.
 | ADR-028 | Active | Phase 1 / Phase 2 facade extraction and 2026-03-17 debug fixes are in the current tree; remaining work continues to shrink `src/app.rs` and harden facade/transport seams. |
 | ADR-029 | Proposed | Defines stream parser completeness across `messages-v1` and `chat-compat`, including metadata retention for usage, chunk, choice, and tool-call fields plus task-state plan/note/cache persistence. |
 | ADR-030 | Active | Defines the task-state-owned orchestrator model so provider events normalize into runtime events, task state remains the source of truth, and command-session lifetime stays runtime-owned. |
-| ADR-031 | Proposed | Defines the timeline-driven operator surface overhaul, merge-gated UI batch ordering, and task-state-first selection/inspector behavior layered on ADR-030. |
+| ADR-031 | Active | Defines the timeline-driven operator surface overhaul, merge-gated UI batch ordering, and task-state-first selection/inspector behavior layered on ADR-030. Batch A/B core implemented: persistent four-region layout, last-turn data preservation, enriched paragraph rendering in the output pane. |
 
 ## Verification baseline
 

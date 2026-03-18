@@ -28,6 +28,9 @@ impl TuiMode {
     /// Each entry carries lifecycle, label, and inspector detail so the
     /// renderer can highlight the selected step and show its content in
     /// the output/inspector pane.
+    ///
+    /// When no turn is in progress, entries are derived from the last
+    /// completed turn so the four-region layout remains populated.
     fn task_timeline_entries(&self) -> Vec<TimelineEntry> {
         let mut entries = Vec::new();
 
@@ -52,17 +55,37 @@ impl TuiMode {
             return entries;
         }
 
+        // Determine which turn data to display: current (in-progress) or
+        // last completed turn for persistent display.
+        let (input_text, tool_invocations, has_pending) = if self.history_state.turn_in_progress
+            || !self.current_turn_input.trim().is_empty()
+            || !self.current_turn_tool_invocations.is_empty()
+            || !self.pending_turn_tool_calls.is_empty()
+        {
+            (
+                &self.current_turn_input,
+                &self.current_turn_tool_invocations,
+                true,
+            )
+        } else {
+            (
+                &self.last_turn_input_display,
+                &self.last_turn_tool_invocations,
+                false,
+            )
+        };
+
         // User input echo.
-        if !self.current_turn_input.trim().is_empty() {
+        if !input_text.trim().is_empty() {
             entries.push(TimelineEntry {
                 lifecycle: StepLifecycle::UserInput,
-                label: self.current_turn_input.clone(),
-                detail: self.current_turn_input.clone(),
+                label: input_text.clone(),
+                detail: input_text.clone(),
             });
         }
 
         // Completed tool invocations — derived from canonical task state.
-        for invocation in &self.current_turn_tool_invocations {
+        for invocation in tool_invocations {
             let is_error = invocation.outcome.starts_with("error")
                 || invocation.outcome.starts_with("failed")
                 || invocation.outcome.starts_with("Error");
@@ -79,17 +102,19 @@ impl TuiMode {
 
         // In-flight tool calls from pending_turn_tool_calls (task-state owned).
         // Sort by key for stable iteration order across frames.
-        let mut pending_keys: Vec<&String> = self.pending_turn_tool_calls.keys().collect();
-        pending_keys.sort();
-        for key in pending_keys {
-            let pending = &self.pending_turn_tool_calls[key];
-            let input_preview = serde_json::to_string_pretty(&pending.input)
-                .unwrap_or_else(|_| pending.input.to_string());
-            entries.push(TimelineEntry {
-                lifecycle: StepLifecycle::Running,
-                label: format!("{}: running...", pending.name),
-                detail: format!("Tool: {}\nInput:\n{}", pending.name, input_preview),
-            });
+        if has_pending {
+            let mut pending_keys: Vec<&String> = self.pending_turn_tool_calls.keys().collect();
+            pending_keys.sort();
+            for key in pending_keys {
+                let pending = &self.pending_turn_tool_calls[key];
+                let input_preview = serde_json::to_string_pretty(&pending.input)
+                    .unwrap_or_else(|_| pending.input.to_string());
+                entries.push(TimelineEntry {
+                    lifecycle: StepLifecycle::Running,
+                    label: format!("{}: running...", pending.name),
+                    detail: format!("Tool: {}\nInput:\n{}", pending.name, input_preview),
+                });
+            }
         }
 
         entries
@@ -109,14 +134,38 @@ impl TuiMode {
 
         let mut rows = Vec::new();
 
-        // Prompt prefix for the current turn input.
-        if !self.current_turn_input.trim().is_empty() {
-            rows.push(format!("> {}", self.current_turn_input));
+        // Determine source: current turn or last completed turn.
+        let (input_text, tool_invocations) = if self.history_state.turn_in_progress
+            || !self.current_turn_input.trim().is_empty()
+            || !self.current_turn_tool_invocations.is_empty()
+            || !self.pending_turn_tool_calls.is_empty()
+        {
+            (
+                &self.current_turn_input,
+                &self.current_turn_tool_invocations,
+            )
+        } else if !self.last_turn_tool_invocations.is_empty()
+            || !self.last_turn_input_display.is_empty()
+        {
+            (
+                &self.last_turn_input_display,
+                &self.last_turn_tool_invocations,
+            )
+        } else {
+            (
+                &self.current_turn_input,
+                &self.current_turn_tool_invocations,
+            )
+        };
+
+        // Prompt prefix for the turn input.
+        if !input_text.trim().is_empty() {
+            rows.push(format!("> {}", input_text));
         }
 
         // Completed tool invocations — prefixed to match render_task_layout
         // style markers ([ok] / [!]).
-        for invocation in &self.current_turn_tool_invocations {
+        for invocation in tool_invocations {
             let prefix = if invocation.outcome.starts_with("error")
                 || invocation.outcome.starts_with("failed")
                 || invocation.outcome.starts_with("Error")
@@ -164,9 +213,15 @@ impl TuiMode {
             .collect()
     }
 
-    /// Derive output/inspector rows. When the timeline has a selected tool
-    /// step, the inspector detail for that step is shown; otherwise falls
-    /// back to current turn response or history tail.
+    /// Derive output/inspector rows for the output pane.
+    ///
+    /// Rendering strategy:
+    /// - During an active turn with timeline entries: inspector detail for the
+    ///   selected tool step, with streaming model response appended below.
+    /// - During an active turn without tool steps: streaming model response.
+    /// - After a completed turn: enriched paragraph view showing each tool
+    ///   invocation as a paragraph followed by the model response.
+    /// - Before any turn: welcome hint.
     fn task_output_rows(&self) -> Vec<String> {
         // If timeline has entries and a valid selection on a tool step
         // (not user input), show inspector detail.
@@ -205,22 +260,70 @@ impl TuiMode {
             return rows;
         }
 
-        self.history_state
-            .lines
-            .iter()
-            .rev()
-            .take(24)
-            .cloned()
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect()
+        // After turn completes: show enriched paragraph view with tool
+        // invocations and model response from the last completed turn.
+        if !self.last_turn_tool_invocations.is_empty() || !self.last_turn_response.is_empty() {
+            return self.enriched_paragraph_rows();
+        }
+
+        // No turn data yet — show a welcome hint.
+        vec![
+            "Type a prompt below to begin.".to_string(),
+            String::new(),
+            "The orchestrator will call tools and stream results here.".to_string(),
+        ]
+    }
+
+    /// Build enriched paragraph rows from the last completed turn.
+    ///
+    /// Each tool invocation is rendered as a short paragraph:
+    ///   tool_name outcome
+    ///
+    /// Followed by the model response text.
+    fn enriched_paragraph_rows(&self) -> Vec<String> {
+        let mut rows = Vec::new();
+
+        for invocation in &self.last_turn_tool_invocations {
+            if !rows.is_empty() {
+                rows.push(String::new());
+            }
+            let status = if invocation.outcome.starts_with("error")
+                || invocation.outcome.starts_with("failed")
+                || invocation.outcome.starts_with("Error")
+            {
+                "[!]"
+            } else {
+                "[ok]"
+            };
+            rows.push(format!("{} {}", status, invocation.name));
+            // Wrap outcome text as a paragraph.
+            for line in invocation.outcome.lines() {
+                rows.push(format!("    {}", line));
+            }
+        }
+
+        if !self.last_turn_response.is_empty() {
+            if !rows.is_empty() {
+                rows.push(String::new());
+            }
+            for line in self.last_turn_response.lines() {
+                rows.push(line.to_string());
+            }
+        }
+
+        if rows.is_empty() {
+            rows.push("Turn completed.".to_string());
+        }
+
+        rows
     }
 
     pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
-        if !self.history_state.turn_in_progress && !self.overlay_active() {
-            return None;
-        }
+        // Always return the four-region layout. The task-state control surface
+        // is persistent — it is never yielded back to the transcript-only
+        // three-pane view between tool calls or after a turn completes.
+        // This follows ADR-031: the operator surface derives from canonical
+        // task state and remains visible at all times.
 
         let pending_approval = if self.overlay_state.pending_patch_approval.is_some() {
             Some("ApplyPatch".to_string())
