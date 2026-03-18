@@ -14,6 +14,7 @@ impl TuiMode {
         self.last_assembled_context = None;
         self.read_only_turn_active = false;
         self.reset_turn_capture();
+        self.reset_last_turn_display();
     }
 
     pub(super) fn apply_resumed_task(&mut self, state: TaskState, ctx: &RuntimeContext) {
@@ -39,6 +40,12 @@ impl TuiMode {
         self.current_turn_tool_invocations.clear();
         self.pending_turn_tool_calls.clear();
         self.selected_timeline_index = 0;
+    }
+
+    pub(super) fn reset_last_turn_display(&mut self) {
+        self.last_turn_tool_invocations.clear();
+        self.last_turn_response.clear();
+        self.last_turn_input_display.clear();
     }
 
     pub(super) fn begin_turn_capture(&mut self, input: String) {
@@ -84,6 +91,11 @@ impl TuiMode {
             self.reset_turn_capture();
             return;
         }
+
+        // Preserve turn data for persistent display after the turn completes.
+        self.last_turn_tool_invocations = self.current_turn_tool_invocations.clone();
+        self.last_turn_response = self.current_turn_response.clone();
+        self.last_turn_input_display = self.current_turn_input.clone();
 
         let changed_files = self
             .current_turn_changed_files

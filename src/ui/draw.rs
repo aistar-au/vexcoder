@@ -651,13 +651,54 @@ impl TaskDraw {
             }
             let row = regions.output_start + 1 + vp_offset as u16;
             move_to(w, row, 0);
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(line, regions.cols as usize);
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
+            self.draw_output_line(w, line, regions.cols);
         }
 
         self.output_lines_flushed = state.output_rows.len();
+    }
+
+    /// Render a single output line with paragraph-aware styling.
+    ///
+    /// Lines starting with `[ok]` or `[!]` get tool-result colors.
+    /// Lines starting with four spaces are indented detail text.
+    /// Separator lines (`---`) are dimmed.
+    fn draw_output_line<W: Write>(&self, w: &mut W, line: &str, cols: u16) {
+        if let Some(rest) = line.strip_prefix("[ok] ") {
+            set_bold(w);
+            set_fg(w, GREEN);
+            let _ = write!(w, "[ok] ");
+            reset_style(w);
+            set_fg(w, WHITE);
+            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(5));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        } else if let Some(rest) = line.strip_prefix("[!] ") {
+            set_bold(w);
+            set_fg(w, RED);
+            let _ = write!(w, "[!] ");
+            reset_style(w);
+            set_fg(w, WHITE);
+            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(4));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        } else if line.starts_with("    ") {
+            set_dim(w);
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(line, cols as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        } else if line.starts_with("--- ") && line.ends_with(" ---") {
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let truncated = truncate_to_width(line, cols as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        } else {
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(line, cols as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        }
     }
 
     fn draw_output_incremental<W: Write>(
@@ -704,10 +745,7 @@ impl TaskDraw {
             let row = regions.output_start + 1 + viewport_offset as u16;
             move_to(w, row, 0);
             clear_line(w);
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(line, regions.cols as usize);
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
+            self.draw_output_line(w, line, regions.cols);
         }
 
         // If output count exceeds viewport, we need to redraw the entire visible
@@ -725,11 +763,7 @@ impl TaskDraw {
                     let row = regions.output_start + 1 + vp_offset as u16;
                     move_to(w, row, 0);
                     clear_line(w);
-                    set_fg(w, GRAY);
-                    let truncated =
-                        truncate_to_width(&state.output_rows[src_index], regions.cols as usize);
-                    let _ = write!(w, "{truncated}");
-                    reset_style(w);
+                    self.draw_output_line(w, &state.output_rows[src_index], regions.cols);
                 }
             }
         }
@@ -1082,5 +1116,68 @@ mod tests {
         assert!(output.contains("Orchestrating"));
         assert!(output.contains("validate: running"));
         assert!(output.contains("ship it"));
+    }
+
+    #[test]
+    fn enriched_paragraph_output_renders_tool_status_colors() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = make_state(
+            vec![],
+            vec![
+                "[ok] read_file",
+                "    README.md: 42 lines",
+                "",
+                "[!] write_file",
+                "    error: permission denied",
+                "",
+                "The file was read successfully.",
+            ],
+        );
+
+        draw.draw(&mut buf, &state, 80, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        // Tool status markers must be drawn with appropriate ANSI colors.
+        assert!(output.contains("[ok]"), "success marker must be drawn");
+        assert!(output.contains("[!]"), "error marker must be drawn");
+        assert!(
+            output.contains("read_file"),
+            "tool name must appear in output"
+        );
+        assert!(
+            output.contains("README.md"),
+            "indented detail must appear in output"
+        );
+    }
+
+    #[test]
+    fn persistent_layout_shows_welcome_hint_before_first_turn() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = TaskLayoutState {
+            task_id: "test-001".into(),
+            status_line: "mode:ready approval:none".into(),
+            activity_rows: vec![],
+            timeline_entries: vec![],
+            selected_step: 0,
+            total_steps: 0,
+            output_rows: vec![
+                "Type a prompt below to begin.".into(),
+                String::new(),
+                "The orchestrator will call tools and stream results here.".into(),
+            ],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            changed_files: vec![],
+        };
+
+        draw.draw(&mut buf, &state, 80, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        assert!(
+            output.contains("Type a prompt"),
+            "welcome hint must be drawn on first frame"
+        );
     }
 }

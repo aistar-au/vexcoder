@@ -576,6 +576,12 @@ pub struct TuiMode {
     pending_turn_tool_calls: std::collections::HashMap<String, PendingTurnToolCall>,
     /// Index of the currently selected timeline entry in the activity pane.
     selected_timeline_index: usize,
+    /// Last completed turn's tool invocations (kept for persistent display).
+    last_turn_tool_invocations: Vec<ToolInvocationSummary>,
+    /// Last completed turn's response text (kept for persistent display).
+    last_turn_response: String,
+    /// Last completed turn's input text (kept for persistent display).
+    last_turn_input_display: String,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }

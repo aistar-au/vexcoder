@@ -43,6 +43,9 @@ impl TuiMode {
             current_turn_tool_invocations: Vec::new(),
             pending_turn_tool_calls: std::collections::HashMap::new(),
             selected_timeline_index: 0,
+            last_turn_tool_invocations: Vec::new(),
+            last_turn_response: String::new(),
+            last_turn_input_display: String::new(),
             #[cfg(test)]
             last_turn_input: None,
         }
