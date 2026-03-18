@@ -524,59 +524,93 @@ impl TaskDraw {
         let total = state.timeline_entries.len();
         let selected = state.selected_step.min(total.saturating_sub(1));
 
-        // Visible window: scroll to keep selected entry visible.
-        let window_start = if selected >= visible_slots {
-            selected + 1 - visible_slots
+        // If everything fits, no indicators needed.
+        if total <= visible_slots {
+            for slot in 0..total {
+                let row = regions.timeline_start + slot as u16;
+                if row >= regions.transcript_start {
+                    break;
+                }
+                move_to(w, row, 0);
+                clear_line(w);
+                let entry = &state.timeline_entries[slot];
+                let is_selected = slot == selected;
+                self.draw_timeline_entry(w, entry, is_selected, regions.cols);
+            }
+            // Clear remaining slots.
+            for slot in total..visible_slots {
+                let row = regions.timeline_start + slot as u16;
+                if row >= regions.transcript_start {
+                    break;
+                }
+                move_to(w, row, 0);
+                clear_line(w);
+            }
         } else {
-            0
-        };
-
-        // Reserve first/last slot for scroll indicators when needed.
-        let above_count = window_start;
-        let below_count = total.saturating_sub(window_start + visible_slots);
-        let show_above = above_count > 0;
-        let show_below = below_count > 0;
-
-        for slot in 0..visible_slots {
-            let row = regions.timeline_start + slot as u16;
-            if row >= regions.transcript_start {
-                break;
-            }
-            move_to(w, row, 0);
-            clear_line(w);
-
-            // Scroll-up indicator on the first slot.
-            if slot == 0 && show_above {
-                set_dim(w);
-                set_fg(w, DIM_GRAY);
-                let _ = write!(w, "   \u{25b2} {above_count} more above"); // ▲
-                reset_style(w);
-                continue;
-            }
-
-            // Scroll-down indicator on the last slot.
-            if slot == visible_slots - 1 && show_below {
-                set_dim(w);
-                set_fg(w, DIM_GRAY);
-                let _ = write!(w, "   \u{25bc} {below_count} more below"); // ▼
-                reset_style(w);
-                continue;
-            }
-
-            // Adjust entry index for the consumed indicator slot.
-            let adjusted_start = if show_above {
-                window_start + 1 // first slot used by indicator
+            // Scrolling required. Pessimistically reserve 2 indicator slots,
+            // then reclaim if only one indicator is actually needed.
+            let mut entry_cap = visible_slots.saturating_sub(2);
+            let mut window_start = if selected >= entry_cap {
+                selected + 1 - entry_cap
             } else {
-                window_start
+                0
             };
-            let display_slot = if show_above { slot - 1 } else { slot };
-            let entry_index = adjusted_start + display_slot;
-            if entry_index >= total {
-                continue;
+            if window_start + entry_cap > total {
+                window_start = total.saturating_sub(entry_cap);
             }
-            let entry = &state.timeline_entries[entry_index];
-            let is_selected = entry_index == selected;
-            self.draw_timeline_entry(w, entry, is_selected, regions.cols);
+
+            let mut show_above = window_start > 0;
+            let mut show_below = window_start + entry_cap < total;
+
+            // Reclaim spare slot when only one indicator is needed.
+            if !show_above || !show_below {
+                entry_cap = visible_slots - show_above as usize - show_below as usize;
+                if selected >= window_start + entry_cap {
+                    window_start = selected + 1 - entry_cap;
+                }
+                if window_start + entry_cap > total {
+                    window_start = total.saturating_sub(entry_cap);
+                }
+                show_above = window_start > 0;
+                show_below = window_start + entry_cap < total;
+            }
+
+            let above_count = window_start;
+            let below_count = total.saturating_sub(window_start + entry_cap);
+
+            for slot in 0..visible_slots {
+                let row = regions.timeline_start + slot as u16;
+                if row >= regions.transcript_start {
+                    break;
+                }
+                move_to(w, row, 0);
+                clear_line(w);
+
+                if slot == 0 && show_above {
+                    set_dim(w);
+                    set_fg(w, DIM_GRAY);
+                    let _ = write!(w, "   \u{25b2} {above_count} more above"); // ▲
+                    reset_style(w);
+                    continue;
+                }
+
+                if slot == visible_slots - 1 && show_below {
+                    set_dim(w);
+                    set_fg(w, DIM_GRAY);
+                    let _ = write!(w, "   \u{25bc} {below_count} more below"); // ▼
+                    reset_style(w);
+                    continue;
+                }
+
+                let entry_slot = slot - show_above as usize;
+                let entry_index = window_start + entry_slot;
+                if entry_index >= total {
+                    continue;
+                }
+                let entry = &state.timeline_entries[entry_index];
+                let is_selected = entry_index == selected;
+                self.draw_timeline_entry(w, entry, is_selected, regions.cols);
+            }
         }
 
         // Separator line between timeline and transcript — star accent.
@@ -773,42 +807,26 @@ impl TaskDraw {
         }
 
         let viewport_height = regions.transcript_rows as usize;
+        let visible_start = total_output.saturating_sub(viewport_height);
 
-        let new_lines = &state.output_rows[self.output_lines_flushed..];
-        for (i, line) in new_lines.iter().enumerate() {
-            let line_index = self.output_lines_flushed + i;
-            let visible_start = total_output.saturating_sub(viewport_height);
-
-            if line_index < visible_start {
-                continue;
+        // Rebuild code-block state by scanning all lines before the viewport.
+        self.in_code_block = false;
+        for line in state.output_rows.iter().take(visible_start) {
+            if line.starts_with("```") {
+                self.in_code_block = !self.in_code_block;
             }
-
-            let viewport_offset = line_index - visible_start;
-            if viewport_offset >= viewport_height {
-                continue;
-            }
-
-            let row = regions.transcript_start + viewport_offset as u16;
-            move_to(w, row, 0);
-            clear_line(w);
-            self.draw_transcript_line(w, line, regions.cols);
         }
 
-        // Scroll case: redraw entire visible window when lines shift up.
-        if total_output > viewport_height && self.output_lines_flushed > 0 {
-            let visible_start = total_output - viewport_height;
-            if visible_start > 0 {
-                for vp_offset in 0..viewport_height {
-                    let src_index = visible_start + vp_offset;
-                    if src_index >= total_output {
-                        break;
-                    }
-                    let row = regions.transcript_start + vp_offset as u16;
-                    move_to(w, row, 0);
-                    clear_line(w);
-                    self.draw_transcript_line(w, &state.output_rows[src_index], regions.cols);
-                }
+        // Redraw the entire visible window so code-block state is consistent.
+        for vp_offset in 0..viewport_height {
+            let src_index = visible_start + vp_offset;
+            if src_index >= total_output {
+                break;
             }
+            let row = regions.transcript_start + vp_offset as u16;
+            move_to(w, row, 0);
+            clear_line(w);
+            self.draw_transcript_line(w, &state.output_rows[src_index], regions.cols);
         }
 
         self.output_lines_flushed = total_output;
