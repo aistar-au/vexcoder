@@ -1307,6 +1307,9 @@ impl TaskDraw {
         h = h
             .wrapping_mul(31)
             .wrapping_add(simple_hash(&state.composer_text));
+        h = h
+            .wrapping_mul(31)
+            .wrapping_add(state.composer_cursor as u64);
         if let Some(ref approval) = state.pending_approval {
             h = h.wrapping_mul(31).wrapping_add(simple_hash(approval));
         }
@@ -2013,6 +2016,35 @@ mod tests {
             draw.compute_composer_hash(&first),
             draw.compute_composer_hash(&second),
             "composer hash must change when the live input buffer changes"
+        );
+    }
+
+    #[test]
+    fn composer_hash_tracks_cursor_only_changes() {
+        let draw = TaskDraw::new();
+        let first = TaskLayoutState {
+            task_id: "test-001".into(),
+            status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+            activity_rows: vec![],
+            timeline_entries: vec![],
+            selected_step: 0,
+            total_steps: 0,
+            output_rows: vec![],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            composer_text: "same text".into(),
+            composer_cursor: 2,
+            changed_files: vec![],
+        };
+        let second = TaskLayoutState {
+            composer_cursor: 7,
+            ..first.clone()
+        };
+
+        assert_ne!(
+            draw.compute_composer_hash(&first),
+            draw.compute_composer_hash(&second),
+            "composer hash must change when the live cursor moves"
         );
     }
 }
