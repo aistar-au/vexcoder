@@ -355,7 +355,7 @@ impl TaskDraw {
         clear_line(w);
 
         // Parse the status line to extract human-readable components.
-        // The status_line format is: "mode:X approval:Y history:N repo:R inst:I"
+        // The status_line format is: "mode:X approval:Y history:N repo:R inst:I tokens:T"
         let parts = parse_status_parts(&state.status_line);
 
         // Repo name — bold white.
@@ -430,6 +430,20 @@ impl TaskDraw {
                     if completed == 1 { "" } else { "s" }
                 );
             }
+            reset_style(w);
+        }
+
+        // Context-window token counter — shown once at least one turn has
+        // completed and session tokens have been recorded.  Expressed as a
+        // compact "~1.2k ctx" indicator so the operator can see how much of
+        // the model context window has been consumed so far.
+        if parts.tokens > 0 {
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, " \u{00b7} ");
+            reset_style(w);
+            set_dim(w);
+            set_fg(w, BLUE);
+            let _ = write!(w, "~{:.1}k ctx", parts.tokens_k);
             reset_style(w);
         }
 
@@ -948,12 +962,17 @@ struct StatusParts {
     mode: String,
     repo: String,
     inst: String,
+    /// Cumulative session token count (0 when none have been recorded yet).
+    tokens: u64,
+    /// Pre-converted token count in thousands (computed once during parsing).
+    tokens_k: f64,
 }
 
 fn parse_status_parts(status: &str) -> StatusParts {
     let mut mode = String::from("ready");
     let mut repo = String::from("vexcoder");
     let mut inst = String::from("none");
+    let mut tokens: u64 = 0;
 
     for part in status.split_whitespace() {
         if let Some(val) = part.strip_prefix("mode:") {
@@ -962,10 +981,22 @@ fn parse_status_parts(status: &str) -> StatusParts {
             repo = val.to_string();
         } else if let Some(val) = part.strip_prefix("inst:") {
             inst = val.to_string();
+        } else if let Some(val) = part.strip_prefix("tokens:") {
+            // `tokens:N` is written by status_line() as a plain decimal integer.
+            // Any parse failure is treated as 0 (hides the indicator silently),
+            // which is safe because the token count is optional display-only data.
+            tokens = val.parse().unwrap_or(0);
         }
     }
 
-    StatusParts { mode, repo, inst }
+    let tokens_k = tokens as f64 / 1000.0;
+    StatusParts {
+        mode,
+        repo,
+        inst,
+        tokens,
+        tokens_k,
+    }
 }
 
 // ── Utilities ───────────────────────────────────────────────────────
@@ -1420,10 +1451,81 @@ mod tests {
     #[test]
     fn status_parts_parsing() {
         let parts = parse_status_parts(
-            "mode:streaming approval:none history:11 repo:vexcoder inst:AGENTS.md",
+            "mode:streaming approval:none history:11 repo:vexcoder inst:AGENTS.md tokens:0",
         );
         assert_eq!(parts.mode, "streaming");
         assert_eq!(parts.repo, "vexcoder");
         assert_eq!(parts.inst, "AGENTS.md");
+        assert_eq!(parts.tokens, 0);
+    }
+
+    #[test]
+    fn status_parts_parsing_with_tokens() {
+        let parts = parse_status_parts(
+            "mode:ready approval:none history:3 repo:myrepo inst:none tokens:4800",
+        );
+        assert_eq!(parts.tokens, 4800);
+        assert_eq!(parts.repo, "myrepo");
+        assert_eq!(parts.mode, "ready");
+    }
+
+    #[test]
+    fn header_shows_token_indicator_when_tokens_recorded() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = TaskLayoutState {
+            task_id: "test-001".into(),
+            // tokens:2500 — just over 2k so the label rounds to "~2.5k ctx"
+            status_line: "mode:ready approval:none history:2 repo:vexcoder inst:none tokens:2500"
+                .into(),
+            activity_rows: vec![],
+            timeline_entries: vec![],
+            selected_step: 0,
+            total_steps: 0,
+            output_rows: vec![],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            changed_files: vec![],
+        };
+
+        draw.draw(&mut buf, &state, 80, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        assert!(
+            output.contains("ctx"),
+            "header must show 'ctx' token indicator when tokens > 0: got {output:?}"
+        );
+        assert!(
+            output.contains("2.5"),
+            "header must show rounded token count: got {output:?}"
+        );
+    }
+
+    #[test]
+    fn header_hides_token_indicator_when_no_turns_completed() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = TaskLayoutState {
+            task_id: "test-001".into(),
+            // tokens:0 — no turns completed yet
+            status_line: "mode:ready approval:none history:0 repo:vexcoder inst:none tokens:0"
+                .into(),
+            activity_rows: vec![],
+            timeline_entries: vec![],
+            selected_step: 0,
+            total_steps: 0,
+            output_rows: vec![],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            changed_files: vec![],
+        };
+
+        draw.draw(&mut buf, &state, 80, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        assert!(
+            !output.contains("ctx"),
+            "header must not show token indicator before any turns: got {output:?}"
+        );
     }
 }
