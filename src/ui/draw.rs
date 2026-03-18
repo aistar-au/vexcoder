@@ -87,10 +87,10 @@ fn lifecycle_color(lifecycle: &StepLifecycle) -> u8 {
 
 fn lifecycle_prefix(lifecycle: &StepLifecycle) -> &'static str {
     match lifecycle {
-        StepLifecycle::Completed => "\u{2605}",       // ★
+        StepLifecycle::Completed => "\u{2605}",        // ★
         StepLifecycle::Failed => "\u{2716}",           // ✖
         StepLifecycle::Running => "\u{2726}",          // ✦
-        StepLifecycle::AwaitingApproval => "\u{2606}",  // ☆
+        StepLifecycle::AwaitingApproval => "\u{2606}", // ☆
         StepLifecycle::UserInput => "\u{203a}",        // ›
         StepLifecycle::CommandSession => "\u{25c6}",   // ◆
     }
@@ -764,10 +764,7 @@ impl TaskDraw {
             let _ = write!(w, "\u{2726}"); // ✦
             set_fg(w, DIM_GRAY);
             // Extract label from "--- label ---" format.
-            let label = line
-                .trim_start_matches('-')
-                .trim_end_matches('-')
-                .trim();
+            let label = line.trim_start_matches('-').trim_end_matches('-').trim();
             if !label.is_empty() {
                 let _ = write!(w, " {label} ");
             } else {
