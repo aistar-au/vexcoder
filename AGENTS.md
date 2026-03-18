@@ -108,12 +108,13 @@ the product-side constraints:
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Application/runtime/transport dependency boundary and `src/app.rs` decomposition plan. |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Stream parser completeness, normalized SSE metadata retention, and task-state session persistence extensions. |
 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Normative runtime control-flow ownership: provider events normalize into runtime events, task state owns truth, and the orchestrator owns continuation. |
+| `adr/ADR-031-operator-surface-ui-overhaul.md` | Operator-surface timeline overhaul, merge-gated UI batching, and task-state-first selection/inspector rules. |
 | `Makefile` | Local verification entry points and architecture gate wrappers. |
 
 ## Current cross-repo dependency state
 
 For dispatcher-owned workflow and skill routing, the current active ADR set is
-ADR-021 through ADR-030. `adr/ADR-README.md` remains the full source of truth
+ADR-021 through ADR-031. `adr/ADR-README.md` remains the full source of truth
 for the broader open-ADR list.
 
 | ADR | Current state | Dependency note |
@@ -128,6 +129,7 @@ for the broader open-ADR list.
 | ADR-028 | Active | Phase 1 / Phase 2 facade extraction and 2026-03-17 debug fixes are in the current tree; remaining work continues to shrink `src/app.rs` and harden facade/transport seams. |
 | ADR-029 | Proposed | Defines stream parser completeness across `messages-v1` and `chat-compat`, including metadata retention for usage, chunk, choice, and tool-call fields plus task-state plan/note/cache persistence. |
 | ADR-030 | Active | Defines the task-state-owned orchestrator model so provider events normalize into runtime events, task state remains the source of truth, and command-session lifetime stays runtime-owned. |
+| ADR-031 | Proposed | Defines the timeline-driven operator surface overhaul, merge-gated UI batch ordering, and task-state-first selection/inspector behavior layered on ADR-030. |
 
 ## Verification baseline
 

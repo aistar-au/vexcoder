@@ -366,10 +366,10 @@ fn render_timeline_entry(entry: &crate::app::TimelineEntry, is_selected: bool) -
 
     let (prefix, prefix_color) = match entry.lifecycle {
         StepLifecycle::Completed => ("[ok]", Color::Green),
-        StepLifecycle::Failed => ("[!] ", Color::Red),
+        StepLifecycle::Failed => ("[!]", Color::Red),
         StepLifecycle::Running => ("[->]", Color::Cyan),
-        StepLifecycle::AwaitingApproval => ("[?] ", Color::Yellow),
-        StepLifecycle::UserInput => ("> ", Color::DarkGray),
+        StepLifecycle::AwaitingApproval => ("[?]", Color::Yellow),
+        StepLifecycle::UserInput => (">", Color::DarkGray),
         StepLifecycle::CommandSession => ("[$$]", Color::Magenta),
     };
 
@@ -726,6 +726,40 @@ mod tests {
         assert_eq!(classify_diff_line("diff --git a b"), DiffLineKind::Header);
         assert_eq!(classify_diff_line("index 123..456"), DiffLineKind::Header);
         assert_eq!(classify_diff_line("@@ -1 +1 @@"), DiffLineKind::Header);
+    }
+
+    #[test]
+    fn render_timeline_entry_normalizes_prefix_spacing() {
+        let approval = render_timeline_entry(
+            &crate::app::TimelineEntry {
+                lifecycle: crate::app::StepLifecycle::AwaitingApproval,
+                label: "ApplyPatch: src/main.rs".into(),
+                detail: String::new(),
+            },
+            true,
+        );
+        let user_input = render_timeline_entry(
+            &crate::app::TimelineEntry {
+                lifecycle: crate::app::StepLifecycle::UserInput,
+                label: "ship it".into(),
+                detail: String::new(),
+            },
+            true,
+        );
+
+        let approval_text: String = approval
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        let user_input_text: String = user_input
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+
+        assert_eq!(approval_text, "> [?] ApplyPatch: src/main.rs");
+        assert_eq!(user_input_text, "> > ship it");
     }
 
     #[test]
