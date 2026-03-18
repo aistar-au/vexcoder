@@ -86,9 +86,7 @@ impl TuiMode {
 
         // Completed tool invocations — derived from canonical task state.
         for invocation in tool_invocations {
-            let is_error = invocation.outcome.starts_with("error")
-                || invocation.outcome.starts_with("failed")
-                || invocation.outcome.starts_with("Error");
+            let is_error = tool_outcome_prefix(&invocation.outcome) == "[!]";
             entries.push(TimelineEntry {
                 lifecycle: if is_error {
                     StepLifecycle::Failed
@@ -159,17 +157,11 @@ impl TuiMode {
         // Completed tool invocations — prefixed to match render_task_layout
         // style markers ([ok] / [!]).
         for invocation in tool_invocations {
-            let prefix = if invocation.outcome.starts_with("error")
-                || invocation.outcome.starts_with("failed")
-                || invocation.outcome.starts_with("Error")
-            {
-                "[!]"
-            } else {
-                "[ok]"
-            };
             rows.push(format!(
-                "{prefix} {}: {}",
-                invocation.name, invocation.outcome
+                "{} {}: {}",
+                tool_outcome_prefix(&invocation.outcome),
+                invocation.name,
+                invocation.outcome
             ));
         }
 
@@ -271,7 +263,7 @@ impl TuiMode {
         pending_keys.sort();
         for key in pending_keys {
             let pending = &self.pending_turn_tool_calls[key];
-            self.push_tool_paragraph(&mut rows, pending.name.as_str(), "running...");
+            self.push_tool_paragraph(&mut rows, pending.name.as_str(), RUNNING_OUTCOME);
         }
 
         if !self.current_turn_response.is_empty() {
@@ -293,18 +285,7 @@ impl TuiMode {
             rows.push(String::new());
         }
 
-        let status = if outcome.starts_with("error")
-            || outcome.starts_with("failed")
-            || outcome.starts_with("Error")
-        {
-            "[!]"
-        } else if outcome == "running..." {
-            "[->]"
-        } else {
-            "[ok]"
-        };
-
-        rows.push(format!("{status} {name}"));
+        rows.push(format!("{} {name}", tool_outcome_prefix(outcome)));
         for line in outcome.lines() {
             rows.push(format!("    {line}"));
         }
@@ -390,4 +371,25 @@ impl TuiMode {
             .map(|(spec, _)| matches!(spec.id, SlashCommandId::Edit | SlashCommandId::Fix))
             .unwrap_or(false)
     }
+}
+
+fn tool_outcome_prefix(outcome: &str) -> &'static str {
+    if outcome == RUNNING_OUTCOME {
+        return "[->]";
+    }
+
+    if starts_with_ascii_case_insensitive(outcome, "error")
+        || starts_with_ascii_case_insensitive(outcome, "failed")
+    {
+        "[!]"
+    } else {
+        "[ok]"
+    }
+}
+
+const RUNNING_OUTCOME: &str = "running...";
+
+fn starts_with_ascii_case_insensitive(text: &str, prefix: &str) -> bool {
+    text.get(..prefix.len())
+        .is_some_and(|candidate| candidate.eq_ignore_ascii_case(prefix))
 }

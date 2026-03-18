@@ -167,19 +167,25 @@ fn input_line_count(state: &TaskLayoutState) -> usize {
     }
 }
 
+const MIN_OUTPUT_VIEWPORT_ROWS: u16 = 8;
+const PREFERRED_ACTIVITY_FRACTION: u16 = 3;
+const MIN_ACTIVITY_REGION_ROWS: u16 = 3;
+
 fn activity_region_rows(state: &TaskLayoutState, available_rows: u16) -> u16 {
     if available_rows <= 1 {
         return available_rows;
     }
 
     let activity_items = state.timeline_entries.len().max(state.activity_rows.len()) as u16;
-    let min_output_rows = available_rows.clamp(1, 8);
-    let max_activity_rows = available_rows.saturating_sub(min_output_rows).max(1);
-    let preferred_rows = (available_rows / 3).max(3);
+    let reserved_output_rows = available_rows.clamp(1, MIN_OUTPUT_VIEWPORT_ROWS);
+    let max_activity_rows = available_rows.saturating_sub(reserved_output_rows).max(1);
+    // Let the activity strip expand to roughly a third of the available task
+    // surface while preserving most rows for the transcript pane.
+    let preferred_rows =
+        (available_rows / PREFERRED_ACTIVITY_FRACTION).max(MIN_ACTIVITY_REGION_ROWS);
     let desired_rows = activity_items
         .saturating_add(1)
-        .min(preferred_rows.max(2))
-        .max(2);
+        .clamp(2, preferred_rows.max(2));
 
     desired_rows.min(max_activity_rows).max(1)
 }
