@@ -1,29 +1,29 @@
 use super::*;
 
 impl TuiMode {
-    pub(super) fn mode_status_label(&self) -> &'static str {
+    fn human_mode_status(&self) -> &'static str {
         if self.overlay_active() {
-            "overlay"
+            "Waiting for approval"
         } else if self.command_session_active() {
-            "command-session"
+            "Command session running"
         } else if self.pending_quit {
-            "quit-arm"
+            "Confirm quit"
         } else if self.history_state.cancel_pending {
-            "cancelling"
+            "Cancelling turn"
         } else if self.history_state.turn_in_progress {
-            "streaming"
+            "Running"
         } else {
-            "ready"
+            "Ready"
         }
     }
 
-    pub(super) fn approval_status_label(&self) -> &'static str {
+    fn human_approval_status(&self) -> &'static str {
         if self.overlay_active() {
-            "pending"
+            "approval pending"
         } else if self.overlay_state.auto_approve_session {
-            "auto"
+            "auto-approve on"
         } else {
-            "none"
+            "approvals off"
         }
     }
 
@@ -31,9 +31,9 @@ impl TuiMode {
         let history_rows =
             history_visual_line_count(&self.history_state.lines, self.history_content_width.get());
         format!(
-            "mode:{} approval:{} history:{} repo:{} inst:{}",
-            self.mode_status_label(),
-            self.approval_status_label(),
+            "{} · {} · history {} · repo {} · instructions {}",
+            self.human_mode_status(),
+            self.human_approval_status(),
             history_rows,
             self.repo_label,
             self.instructions_path.as_deref().unwrap_or("none")

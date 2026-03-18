@@ -167,6 +167,7 @@ fn transcript_signature_hits(text: &str) -> usize {
     let lower = text.to_ascii_lowercase();
     let signatures = [
         "mode:ready approval:",
+        "ready · approvals",
         "view:scrolled",
         "view:following",
         "running tests/",
@@ -1379,7 +1380,7 @@ mod tests {
     #[test]
     fn transcript_detection_matches_following_view_dump() {
         let input =
-            "mode:ready approval:none history:9 view:scrolled\n1 | > list files\ntest result: ok.";
+            "Ready · approvals off · history 9 · repo vexcoder · instructions none\n1 | > list files\ntest result: ok.";
         assert!(looks_like_terminal_transcript(input));
     }
 

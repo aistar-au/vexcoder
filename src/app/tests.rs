@@ -269,7 +269,41 @@ fn test_task_layout_state_routes_streamed_response_to_output_pane() {
 }
 
 #[test]
-fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
+fn test_task_layout_state_shows_transcript_style_tool_progress() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("ship the fix".to_string(), &mut ctx);
+    mode.current_turn_tool_invocations = vec![ToolInvocationSummary {
+        name: "read_file".to_string(),
+        outcome: "ok".to_string(),
+    }];
+    mode.pending_turn_tool_calls.insert(
+        "tool-1".to_string(),
+        PendingTurnToolCall {
+            name: "validate".to_string(),
+            input: serde_json::json!({}),
+        },
+    );
+    mode.on_model_update(UiUpdate::StreamDelta("working on it".to_string()), &mut ctx);
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(
+        state.output_rows,
+        vec![
+            "[ok] read_file".to_string(),
+            "    ok".to_string(),
+            String::new(),
+            "[->] validate".to_string(),
+            "    running...".to_string(),
+            String::new(),
+            "working on it".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn test_task_layout_state_shows_pending_tool_call_without_capping_activity_rows() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
@@ -307,12 +341,13 @@ fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(
         state.activity_rows.len(),
-        6,
-        "activity pane should clamp to six rows"
+        7,
+        "activity pane should keep the full task history for the renderer"
     );
     assert_eq!(
         state.activity_rows,
         vec![
+            "> ship the fix".to_string(),
             "[ok] read_file: ok".to_string(),
             "[ok] edit_file: ok".to_string(),
             "[ok] run_command: ok".to_string(),
@@ -461,7 +496,7 @@ fn test_history_status_and_scroll_use_visual_rows() {
     };
 
     assert_eq!(mode.max_scroll_offset(), 2);
-    assert!(mode.status_line().contains("history:3"));
+    assert!(mode.status_line().contains("history 3"));
 }
 
 #[test]
@@ -694,20 +729,20 @@ fn header_stable_during_streaming() {
 
     let ready_status = mode.status_line();
     assert!(
-        ready_status.contains("mode:ready"),
-        "ready state must publish mode token"
+        ready_status.contains("Ready"),
+        "ready state must publish a human-readable status"
     );
     assert!(
-        ready_status.contains("approval:none"),
-        "ready state must publish approval token"
+        ready_status.contains("approvals off"),
+        "ready state must publish approval text"
     );
     assert!(
-        ready_status.contains("history:0"),
+        ready_status.contains("history 0"),
         "ready state must publish history count"
     );
     assert!(
-        ready_status.contains("repo:"),
-        "ready state must publish repo token"
+        ready_status.contains("repo "),
+        "ready state must publish repo label"
     );
     assert_eq!(
         render_pass_order(&mode).first(),
@@ -719,15 +754,15 @@ fn header_stable_during_streaming() {
     mode.on_model_update(UiUpdate::StreamDelta("assistant".to_string()), &mut ctx);
     let streaming_status = mode.status_line();
     assert!(
-        streaming_status.contains("mode:streaming"),
-        "streaming state must publish mode token"
+        streaming_status.contains("Running"),
+        "streaming state must publish a running label"
     );
     assert!(
-        streaming_status.contains("approval:none"),
-        "streaming state must preserve approval token"
+        streaming_status.contains("approvals off"),
+        "streaming state must preserve approval text"
     );
     assert!(
-        streaming_status.contains("history:2"),
+        streaming_status.contains("history 2"),
         "streaming state must keep compact history count"
     );
     assert_eq!(
@@ -747,12 +782,12 @@ fn header_stable_during_streaming() {
     );
     let overlay_status = mode.status_line();
     assert!(
-        overlay_status.contains("mode:overlay"),
-        "overlay state must publish overlay mode token"
+        overlay_status.contains("Waiting for approval"),
+        "overlay state must publish waiting status"
     );
     assert!(
-        overlay_status.contains("approval:pending"),
-        "overlay state must publish pending approval token"
+        overlay_status.contains("approval pending"),
+        "overlay state must publish pending approval text"
     );
     assert_eq!(
         render_pass_order(&mode).first(),

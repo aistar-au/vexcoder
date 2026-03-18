@@ -8,7 +8,7 @@
 //! 2. **Text-only ANSI** — every visible pixel is a character cell written via
 //!    standard escape sequences. No alternate screen buffer, no intermediate
 //!    `Buffer` allocation per frame.
-//! 3. **Viewport-managed output** — task output is shown in a fixed viewport
+//! 3. **Viewport-managed output** — task output is shown in a viewport
 //!    that follows the latest lines, while inspector-style content repaints
 //!    when selection or approval state changes.
 //! 4. **Minimal redraw** — only dirty regions (status bar, activity strip,
@@ -97,43 +97,47 @@ fn lifecycle_prefix(lifecycle: &StepLifecycle) -> &'static str {
 
 // ── Region geometry ─────────────────────────────────────────────────
 
-/// Fixed-height regions within the terminal.
+/// Dynamic regions within the terminal.
 ///
 /// ```text
 /// row 0      ┌─ status bar ──────────────────┐  (1 row)
 /// row 1      ├─ changed files (optional) ─────┤  (0..1 rows)
-/// row 1..N   ├─ activity strip ───────────────┤  (ACTIVITY_ROWS rows)
+/// row 1..N   ├─ activity strip ───────────────┤  (resizes with terminal/task state)
 /// row N..M   │  output body (unlimited)       │  (remaining rows)
-/// row M      ├─ input hint ───────────────────┤  (INPUT_ROWS rows)
+/// row M      ├─ input hint ───────────────────┤  (fits the current prompt/approval text)
 /// row M+I    └────────────────────────────────┘
 /// ```
-const ACTIVITY_ROWS: usize = 6;
-const INPUT_ROWS: usize = 2;
-
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Regions {
     cols: u16,
     rows: u16,
     status_row: u16,
     files_row: Option<u16>,
     activity_start: u16,
+    activity_rows: u16,
     output_start: u16,
     output_rows: u16,
     input_start: u16,
+    input_rows: u16,
 }
 
 impl Regions {
-    fn compute(cols: u16, rows: u16, has_files: bool) -> Self {
+    fn compute(cols: u16, rows: u16, state: &TaskLayoutState) -> Self {
+        let has_files = !state.changed_files.is_empty();
         let status_row = 0;
         let files_row = if has_files { Some(1) } else { None };
         let header_height = if has_files { 2 } else { 1 };
         let activity_start = header_height;
-        let activity_height = ACTIVITY_ROWS as u16;
-        let input_height = INPUT_ROWS as u16;
-        let output_start = activity_start + activity_height;
+        let reserved_rows = rows.saturating_sub(header_height);
+        let prompt_lines = input_line_count(state).max(1) as u16;
+        let max_input_rows = reserved_rows.saturating_sub(2).clamp(1, 6);
+        let input_rows = prompt_lines.min(max_input_rows).max(1);
+        let activity_rows = activity_region_rows(state, reserved_rows.saturating_sub(input_rows));
+        let output_start = activity_start + activity_rows;
         let output_rows = rows
             .saturating_sub(header_height)
-            .saturating_sub(activity_height)
-            .saturating_sub(input_height);
+            .saturating_sub(activity_rows)
+            .saturating_sub(input_rows);
         let input_start = output_start + output_rows;
 
         Regions {
@@ -142,11 +146,42 @@ impl Regions {
             status_row,
             files_row,
             activity_start,
+            activity_rows,
             output_start,
             output_rows,
             input_start,
+            input_rows,
         }
     }
+
+    fn activity_body_rows(&self) -> u16 {
+        self.activity_rows.saturating_sub(1)
+    }
+}
+
+fn input_line_count(state: &TaskLayoutState) -> usize {
+    if state.pending_approval.is_some() {
+        2
+    } else {
+        state.input_hint.lines().count().max(1)
+    }
+}
+
+fn activity_region_rows(state: &TaskLayoutState, available_rows: u16) -> u16 {
+    if available_rows <= 1 {
+        return available_rows;
+    }
+
+    let activity_items = state.timeline_entries.len().max(state.activity_rows.len()) as u16;
+    let min_output_rows = available_rows.clamp(1, 8);
+    let max_activity_rows = available_rows.saturating_sub(min_output_rows).max(1);
+    let preferred_rows = (available_rows / 3).max(3);
+    let desired_rows = activity_items
+        .saturating_add(1)
+        .min(preferred_rows.max(2))
+        .max(2);
+
+    desired_rows.min(max_activity_rows).max(1)
 }
 
 // ── TaskDraw ────────────────────────────────────────────────────────
@@ -160,8 +195,6 @@ impl Regions {
 pub struct TaskDraw {
     /// Number of output body lines already flushed to the terminal.
     output_lines_flushed: usize,
-    /// Whether the previous frame reserved a changed-files row.
-    last_has_files: bool,
     /// Last rendered activity strip content (for dirty detection).
     last_activity_hash: u64,
     /// Last rendered changed-files row.
@@ -172,9 +205,8 @@ pub struct TaskDraw {
     last_status_hash: u64,
     /// Last rendered input hint (for dirty detection).
     last_input_hash: u64,
-    /// Terminal dimensions at last draw.
-    last_cols: u16,
-    last_rows: u16,
+    /// Terminal geometry at last draw.
+    last_regions: Option<Regions>,
     /// Whether the very first frame has been drawn.
     first_frame_done: bool,
 }
@@ -183,14 +215,12 @@ impl TaskDraw {
     pub fn new() -> Self {
         Self {
             output_lines_flushed: 0,
-            last_has_files: false,
             last_activity_hash: 0,
             last_files_hash: 0,
             last_output_hash: 0,
             last_status_hash: 0,
             last_input_hash: 0,
-            last_cols: 0,
-            last_rows: 0,
+            last_regions: None,
             first_frame_done: false,
         }
     }
@@ -198,12 +228,12 @@ impl TaskDraw {
     /// Reset for a new turn (keeps terminal state but resets line counters).
     pub fn reset(&mut self) {
         self.output_lines_flushed = 0;
-        self.last_has_files = false;
         self.last_activity_hash = 0;
         self.last_files_hash = 0;
         self.last_output_hash = 0;
         self.last_status_hash = 0;
         self.last_input_hash = 0;
+        self.last_regions = None;
         self.first_frame_done = false;
     }
 
@@ -223,17 +253,12 @@ impl TaskDraw {
             return;
         }
 
-        let size_changed = term_cols != self.last_cols || term_rows != self.last_rows;
-        let has_files = !state.changed_files.is_empty();
-        let layout_changed = has_files != self.last_has_files;
-        self.last_cols = term_cols;
-        self.last_rows = term_rows;
-        self.last_has_files = has_files;
-
-        let regions = Regions::compute(term_cols, term_rows, has_files);
+        let regions = Regions::compute(term_cols, term_rows, state);
+        let layout_changed = self.last_regions != Some(regions);
+        self.last_regions = Some(regions);
 
         // On first frame or terminal resize: full repaint.
-        if !self.first_frame_done || size_changed || layout_changed {
+        if !self.first_frame_done || layout_changed {
             hide_cursor(w);
             self.draw_full(w, state, &regions);
             self.first_frame_done = true;
@@ -356,7 +381,7 @@ impl TaskDraw {
             return;
         }
 
-        let max_visible = ACTIVITY_ROWS;
+        let max_visible = regions.activity_body_rows().max(1) as usize;
         let total = state.timeline_entries.len();
         let selected = state.selected_step.min(total.saturating_sub(1));
 
@@ -411,7 +436,7 @@ impl TaskDraw {
         let _ = write!(w, "{}", self.activity_title(state));
         reset_style(w);
 
-        for slot in 0..ACTIVITY_ROWS {
+        for slot in 0..regions.activity_body_rows() as usize {
             let row = regions.activity_start + 1 + slot as u16;
             if row >= regions.output_start {
                 break;
@@ -614,11 +639,8 @@ impl TaskDraw {
     }
 
     fn output_title(&self, state: &TaskLayoutState) -> &'static str {
-        if !state.timeline_entries.is_empty() {
-            "Inspector"
-        } else {
-            "Output"
-        }
+        let _ = state;
+        "Transcript"
     }
 
     // ── Output body (append-only) ───────────────────────────────────
@@ -774,7 +796,7 @@ impl TaskDraw {
     // ── Input hint ──────────────────────────────────────────────────
 
     fn draw_input<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
-        for i in 0..INPUT_ROWS as u16 {
+        for i in 0..regions.input_rows {
             let row = regions.input_start + i;
             if row >= regions.rows {
                 break;
@@ -803,9 +825,13 @@ impl TaskDraw {
             }
         } else {
             set_fg(w, GRAY);
-            // Write up to INPUT_ROWS lines of the input hint.
+            // Write as many lines of the input hint as fit in the input region.
             let hint_lines: Vec<&str> = state.input_hint.lines().collect();
-            for (i, line) in hint_lines.iter().take(INPUT_ROWS).enumerate() {
+            for (i, line) in hint_lines
+                .iter()
+                .take(regions.input_rows as usize)
+                .enumerate()
+            {
                 if i > 0 {
                     let row = regions.input_start + i as u16;
                     if row >= regions.rows {
@@ -865,7 +891,8 @@ mod tests {
     fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState {
         TaskLayoutState {
             task_id: "test-001".into(),
-            status_line: "mode:streaming approval:none".into(),
+            status_line: "Running · approvals off · history 0 · repo vexcoder · instructions none"
+                .into(),
             activity_rows: vec![],
             timeline_entries: entries,
             selected_step: 0,
@@ -896,10 +923,7 @@ mod tests {
         // Must contain ANSI escape sequences.
         assert!(output.contains("\x1b["), "output must contain ANSI escapes");
         // Must contain the status line text.
-        assert!(
-            output.contains("mode:streaming"),
-            "status line must be drawn"
-        );
+        assert!(output.contains("Running"), "status line must be drawn");
         // Must contain the timeline entry.
         assert!(
             output.contains("read_file: running"),
@@ -1049,13 +1073,14 @@ mod tests {
     }
 
     #[test]
-    fn changing_selected_inspector_entry_redraws_output() {
+    fn changing_selected_transcript_content_redraws_output() {
         let mut buf = Vec::new();
         let mut draw = TaskDraw::new();
 
         let first = TaskLayoutState {
             task_id: "test-001".into(),
-            status_line: "mode:streaming approval:none".into(),
+            status_line: "Running · approvals off · history 0 · repo vexcoder · instructions none"
+                .into(),
             activity_rows: vec![],
             timeline_entries: vec![
                 TimelineEntry {
@@ -1089,7 +1114,7 @@ mod tests {
         let output = String::from_utf8_lossy(&buf);
         assert!(
             output.contains("Tool: check"),
-            "inspector changes must redraw output rows"
+            "transcript changes must redraw output rows"
         );
     }
 
@@ -1099,7 +1124,8 @@ mod tests {
         let mut draw = TaskDraw::new();
         let state = TaskLayoutState {
             task_id: "test-001".into(),
-            status_line: "mode:streaming approval:none".into(),
+            status_line: "Running · approvals off · history 0 · repo vexcoder · instructions none"
+                .into(),
             activity_rows: vec!["[->] validate: running...".into(), "> ship it".into()],
             timeline_entries: vec![],
             selected_step: 0,
@@ -1157,7 +1183,8 @@ mod tests {
         let mut draw = TaskDraw::new();
         let state = TaskLayoutState {
             task_id: "test-001".into(),
-            status_line: "mode:ready approval:none".into(),
+            status_line: "Ready · approvals off · history 0 · repo vexcoder · instructions none"
+                .into(),
             activity_rows: vec![],
             timeline_entries: vec![],
             selected_step: 0,
@@ -1178,6 +1205,40 @@ mod tests {
         assert!(
             output.contains("Type a prompt"),
             "welcome hint must be drawn on first frame"
+        );
+    }
+
+    #[test]
+    fn tall_terminal_shows_more_than_six_timeline_rows() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let entries = (1..=9)
+            .map(|i| TimelineEntry {
+                lifecycle: StepLifecycle::Completed,
+                label: format!("step-{i}: ok"),
+                detail: String::new(),
+            })
+            .collect::<Vec<_>>();
+        let state = TaskLayoutState {
+            task_id: "test-001".into(),
+            status_line: "Running · approvals off · history 0 · repo vexcoder · instructions none"
+                .into(),
+            activity_rows: vec![],
+            timeline_entries: entries,
+            selected_step: 0,
+            total_steps: 9,
+            output_rows: vec!["line 1".into()],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            changed_files: vec![],
+        };
+
+        draw.draw(&mut buf, &state, 100, 40);
+        let output = String::from_utf8_lossy(&buf);
+
+        assert!(
+            output.contains("step-7: ok"),
+            "tall terminals should render more than the old six-row activity window"
         );
     }
 }

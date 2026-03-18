@@ -121,15 +121,8 @@ impl TuiMode {
     }
 
     fn task_activity_rows(&self) -> Vec<String> {
-        const MAX_ACTIVITY_ROWS: usize = 6;
-
         if let Some(rows) = self.command_session_rows() {
-            return rows
-                .into_iter()
-                .rev()
-                .take(MAX_ACTIVITY_ROWS)
-                .rev()
-                .collect();
+            return rows;
         }
 
         let mut rows = Vec::new();
@@ -194,23 +187,12 @@ impl TuiMode {
                 .history_state
                 .lines
                 .iter()
-                .rev()
                 .filter(|line| !line.trim().is_empty())
-                .take(MAX_ACTIVITY_ROWS)
                 .cloned()
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
                 .collect();
         }
 
-        // Clamp to the most-recent MAX_ACTIVITY_ROWS lines for a stable
-        // 6-line dropdown appearance.
-        rows.into_iter()
-            .rev()
-            .take(MAX_ACTIVITY_ROWS)
-            .rev()
-            .collect()
+        rows
     }
 
     /// Derive output/inspector rows for the output pane.
@@ -223,41 +205,8 @@ impl TuiMode {
     ///   invocation as a paragraph followed by the model response.
     /// - Before any turn: welcome hint.
     fn task_output_rows(&self) -> Vec<String> {
-        // If timeline has entries and a valid selection on a tool step
-        // (not user input), show inspector detail.
-        let entries = self.task_timeline_entries();
-        if !entries.is_empty() {
-            let idx = self
-                .selected_timeline_index
-                .min(entries.len().saturating_sub(1));
-            if let Some(entry) = entries.get(idx) {
-                let is_tool_step = !matches!(entry.lifecycle, StepLifecycle::UserInput);
-                if is_tool_step && !entry.detail.is_empty() {
-                    let mut rows: Vec<String> =
-                        entry.detail.lines().map(ToOwned::to_owned).collect();
-                    // Append streaming model response below the inspector
-                    // detail when the turn is still in progress.
-                    if self.history_state.turn_in_progress && !self.current_turn_response.is_empty()
-                    {
-                        rows.push(String::new());
-                        rows.push("--- model response ---".to_string());
-                        rows.extend(self.current_turn_response.lines().map(ToOwned::to_owned));
-                    }
-                    return rows;
-                }
-            }
-        }
-
         if self.history_state.turn_in_progress {
-            let rows = self
-                .current_turn_response
-                .lines()
-                .map(ToOwned::to_owned)
-                .collect::<Vec<_>>();
-            if rows.is_empty() {
-                return vec!["[awaiting model response]".to_string()];
-            }
-            return rows;
+            return self.active_turn_transcript_rows();
         }
 
         // After turn completes: show enriched paragraph view with tool
@@ -284,22 +233,11 @@ impl TuiMode {
         let mut rows = Vec::new();
 
         for invocation in &self.last_turn_tool_invocations {
-            if !rows.is_empty() {
-                rows.push(String::new());
-            }
-            let status = if invocation.outcome.starts_with("error")
-                || invocation.outcome.starts_with("failed")
-                || invocation.outcome.starts_with("Error")
-            {
-                "[!]"
-            } else {
-                "[ok]"
-            };
-            rows.push(format!("{} {}", status, invocation.name));
-            // Wrap outcome text as a paragraph.
-            for line in invocation.outcome.lines() {
-                rows.push(format!("    {}", line));
-            }
+            self.push_tool_paragraph(
+                &mut rows,
+                invocation.name.as_str(),
+                invocation.outcome.as_str(),
+            );
         }
 
         if !self.last_turn_response.is_empty() {
@@ -316,6 +254,60 @@ impl TuiMode {
         }
 
         rows
+    }
+
+    fn active_turn_transcript_rows(&self) -> Vec<String> {
+        let mut rows = Vec::new();
+
+        for invocation in &self.current_turn_tool_invocations {
+            self.push_tool_paragraph(
+                &mut rows,
+                invocation.name.as_str(),
+                invocation.outcome.as_str(),
+            );
+        }
+
+        let mut pending_keys: Vec<&String> = self.pending_turn_tool_calls.keys().collect();
+        pending_keys.sort();
+        for key in pending_keys {
+            let pending = &self.pending_turn_tool_calls[key];
+            self.push_tool_paragraph(&mut rows, pending.name.as_str(), "running...");
+        }
+
+        if !self.current_turn_response.is_empty() {
+            if !rows.is_empty() {
+                rows.push(String::new());
+            }
+            rows.extend(self.current_turn_response.lines().map(ToOwned::to_owned));
+        }
+
+        if rows.is_empty() {
+            rows.push("[awaiting model response]".to_string());
+        }
+
+        rows
+    }
+
+    fn push_tool_paragraph(&self, rows: &mut Vec<String>, name: &str, outcome: &str) {
+        if !rows.is_empty() {
+            rows.push(String::new());
+        }
+
+        let status = if outcome.starts_with("error")
+            || outcome.starts_with("failed")
+            || outcome.starts_with("Error")
+        {
+            "[!]"
+        } else if outcome == "running..." {
+            "[->]"
+        } else {
+            "[ok]"
+        };
+
+        rows.push(format!("{status} {name}"));
+        for line in outcome.lines() {
+            rows.push(format!("    {line}"));
+        }
     }
 
     pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
