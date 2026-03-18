@@ -4,31 +4,64 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  VERSION=v0.1.0-alpha.1 TARGET=x86_64-unknown-linux-gnu make release
+  TARGET=x86_64-unknown-linux-gnu make release
+  TARGET=x86_64-unknown-linux-gnu bash scripts/release.sh
   bash scripts/release.sh <version> <target> [out_dir]
 
 Inputs:
-  VERSION / arg1   semver version or tag (for example v0.1.0-alpha.1)
+  VERSION / arg1   optional semver version or tag; defaults to the Cargo package tag
   TARGET  / arg2   Rust target triple to package
   OUT_DIR / arg3   output directory (default: dist)
   BUILD_TOOL       cargo or cross (default: cargo)
 USAGE
 }
 
-VERSION="${VERSION:-${1:-}}"
+normalize_version() {
+  local version="$1"
+  if [[ "${version}" != v* ]]; then
+    version="v${version}"
+  fi
+  printf '%s\n' "${version}"
+}
+
+derive_expected_version() {
+  local pkgid
+  pkgid="$(cargo pkgid --quiet 2>/dev/null)" || {
+    echo "FAIL: could not read the Cargo package version via 'cargo pkgid --quiet'" >&2
+    exit 1
+  }
+  printf 'v%s\n' "${pkgid##*@}"
+}
+
+VERSION_INPUT="${VERSION:-${1:-}}"
 TARGET="${TARGET:-${2:-}}"
 OUT_DIR="${OUT_DIR:-${3:-dist}}"
 BUILD_TOOL="${BUILD_TOOL:-cargo}"
-ARCHIVE_VERSION="${VERSION#v}"
-PACKAGE_DIR="vex-${ARCHIVE_VERSION}-${TARGET}"
 
-if [[ -z "${VERSION}" || -z "${TARGET}" ]]; then
+if [[ -z "${TARGET}" ]]; then
   usage
   exit 1
 fi
 
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "FAIL: cargo is required" >&2
+  exit 1
+fi
+
+EXPECTED_VERSION="$(derive_expected_version)"
+if [[ -n "${VERSION_INPUT}" ]]; then
+  VERSION="$(normalize_version "${VERSION_INPUT}")"
+else
+  VERSION="${EXPECTED_VERSION}"
+fi
+
 if [[ ! "${VERSION}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
-  echo "FAIL: VERSION must look like v0.1.0 or v0.1.0-alpha.1" >&2
+  echo "FAIL: VERSION must look like v0.1.0 or v0.1.0-alpha2" >&2
+  exit 1
+fi
+
+if [[ "${VERSION}" != "${EXPECTED_VERSION}" ]]; then
+  echo "FAIL: VERSION ${VERSION} does not match Cargo package tag ${EXPECTED_VERSION}" >&2
   exit 1
 fi
 
@@ -41,15 +74,13 @@ case "${BUILD_TOOL}" in
     ;;
 esac
 
-if ! command -v cargo >/dev/null 2>&1; then
-  echo "FAIL: cargo is required" >&2
-  exit 1
-fi
-
 if ! command -v "${BUILD_TOOL}" >/dev/null 2>&1; then
   echo "FAIL: ${BUILD_TOOL} is required" >&2
   exit 1
 fi
+
+ARCHIVE_VERSION="${VERSION#v}"
+PACKAGE_DIR="vex-${ARCHIVE_VERSION}-${TARGET}"
 
 case "${TARGET}" in
   *windows*)

@@ -26,11 +26,11 @@ $ErrorActionPreference = "Stop"
 function Show-Usage {
     @"
 Usage:
-  `$env:VERSION='v0.1.0-alpha.1'; `$env:TARGET='x86_64-pc-windows-msvc'; .\scripts\release.ps1
-  .\scripts\release.ps1 v0.1.0-alpha.1 x86_64-pc-windows-msvc [out_dir]
+  `$env:TARGET='x86_64-pc-windows-msvc'; .\scripts\release.ps1
+  .\scripts\release.ps1 v0.1.0-alpha2 x86_64-pc-windows-msvc [out_dir]
 
 Inputs:
-  VERSION / arg1   semver version or tag (for example v0.1.0-alpha.1)
+  VERSION / arg1   optional semver version or tag; defaults to the Cargo package tag
   TARGET  / arg2   Rust target triple to package
   OUT_DIR / arg3   output directory (default: dist)
   BUILD_TOOL       cargo or cross (default: cargo)
@@ -50,6 +50,36 @@ function Get-RequiredCommand {
     }
 
     return $command.Source
+}
+
+function Get-NormalizedReleaseTag {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $null
+    }
+
+    if ($Value.StartsWith("v")) {
+        return $Value
+    }
+
+    return "v$Value"
+}
+
+function Get-ExpectedReleaseTag {
+    param([Parameter(Mandatory = $true)][string]$CargoPath)
+
+    $pkgId = & $CargoPath pkgid --quiet
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pkgId)) {
+        throw "FAIL: could not read the Cargo package version via 'cargo pkgid --quiet'"
+    }
+
+    $atIndex = $pkgId.LastIndexOf("@")
+    if ($atIndex -lt 0 -or $atIndex -ge ($pkgId.Length - 1)) {
+        throw "FAIL: unexpected cargo pkgid output: $pkgId"
+    }
+
+    return "v" + $pkgId.Substring($atIndex + 1)
 }
 
 function Assert-ReleaseMode {
@@ -200,13 +230,9 @@ function Invoke-NativeGate {
     }
 }
 
-if ([string]::IsNullOrWhiteSpace($Version) -or [string]::IsNullOrWhiteSpace($Target)) {
+if ([string]::IsNullOrWhiteSpace($Target)) {
     Show-Usage
     exit 1
-}
-
-if ($Version -notmatch '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$') {
-    throw "FAIL: VERSION must look like v0.1.0 or v0.1.0-alpha.1"
 }
 
 Assert-ReleaseMode
@@ -217,7 +243,7 @@ if (Test-Path $cargoBin) {
 }
 
 $needsBuild = -not $GateOnly -and -not $PackageOnly
-$needsCargo = $RunGate -or $needsBuild
+$needsCargo = $true
 
 if ($needsBuild -and $BuildTool -notin @("cargo", "cross")) {
     throw "FAIL: BUILD_TOOL must be 'cargo' or 'cross' (got '$BuildTool')"
@@ -225,6 +251,23 @@ if ($needsBuild -and $BuildTool -notin @("cargo", "cross")) {
 
 if ($needsCargo) {
     $cargoPath = Get-RequiredCommand -Name "cargo"
+}
+
+$expectedVersion = Get-ExpectedReleaseTag -CargoPath $cargoPath
+$Version = Get-NormalizedReleaseTag -Value $Version
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $Version = $expectedVersion
+}
+
+if ($Version -notmatch '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$') {
+    throw "FAIL: VERSION must look like v0.1.0 or v0.1.0-alpha2"
+}
+
+if ($Version -ne $expectedVersion) {
+    throw "FAIL: VERSION $Version does not match Cargo package tag $expectedVersion"
+}
+
+if ($needsBuild) {
     $buildToolPath = if ($BuildTool -eq "cargo") { $cargoPath } else { Get-RequiredCommand -Name $BuildTool }
 }
 
