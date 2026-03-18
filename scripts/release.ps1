@@ -74,12 +74,21 @@ function Get-ExpectedReleaseTag {
         throw "FAIL: could not read the Cargo package version via 'cargo pkgid --quiet'"
     }
 
-    $atIndex = $pkgId.LastIndexOf("@")
-    if ($atIndex -lt 0 -or $atIndex -ge ($pkgId.Length - 1)) {
+    $fragment = $pkgId.Substring($pkgId.LastIndexOf("#") + 1)
+    if ([string]::IsNullOrWhiteSpace($fragment)) {
         throw "FAIL: unexpected cargo pkgid output: $pkgId"
     }
 
-    return "v" + $pkgId.Substring($atIndex + 1)
+    $atIndex = $fragment.LastIndexOf("@")
+    if ($atIndex -ge 0) {
+        $fragment = $fragment.Substring($atIndex + 1)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($fragment)) {
+        throw "FAIL: unexpected cargo pkgid output: $pkgId"
+    }
+
+    return "v" + $fragment
 }
 
 function Assert-ReleaseMode {

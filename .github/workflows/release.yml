@@ -79,7 +79,8 @@ jobs:
         run: |
           set -euo pipefail
           pkgid="$(cargo pkgid --quiet)"
-          expected_tag="v${pkgid##*@}"
+          pkg_fragment="${pkgid##*#}"
+          expected_tag="v${pkg_fragment##*@}"
           if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
             echo "FAIL: Git tag ${GITHUB_REF_NAME} does not match Cargo package tag ${expected_tag}" >&2
             exit 1

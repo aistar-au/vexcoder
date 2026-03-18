@@ -26,11 +26,13 @@ normalize_version() {
 
 derive_expected_version() {
   local pkgid
+  local pkg_fragment
   pkgid="$(cargo pkgid --quiet 2>/dev/null)" || {
     echo "FAIL: could not read the Cargo package version via 'cargo pkgid --quiet'" >&2
     exit 1
   }
-  printf 'v%s\n' "${pkgid##*@}"
+  pkg_fragment="${pkgid##*#}"
+  printf 'v%s\n' "${pkg_fragment##*@}"
 }
 
 VERSION_INPUT="${VERSION:-${1:-}}"
