@@ -27,7 +27,7 @@ function Show-Usage {
     @"
 Usage:
   `$env:TARGET='x86_64-pc-windows-msvc'; .\scripts\release.ps1
-  .\scripts\release.ps1 v0.1.0-alpha2 x86_64-pc-windows-msvc [out_dir]
+  .\scripts\release.ps1 -Version v0.1.0-alpha2 -Target x86_64-pc-windows-msvc -OutDir dist
 
 Inputs:
   VERSION / arg1   optional semver version or tag; defaults to the Cargo package tag

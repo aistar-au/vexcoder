@@ -6,7 +6,7 @@ usage() {
 Usage:
   TARGET=x86_64-unknown-linux-gnu make release
   TARGET=x86_64-unknown-linux-gnu bash scripts/release.sh
-  bash scripts/release.sh <version> <target> [out_dir]
+  VERSION=v0.1.0-alpha2 TARGET=x86_64-unknown-linux-gnu bash scripts/release.sh
 
 Inputs:
   VERSION / arg1   optional semver version or tag; defaults to the Cargo package tag
