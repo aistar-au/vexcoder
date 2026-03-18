@@ -2,6 +2,8 @@ name: release
 
 on:
   push:
+    branches:
+      - "dispatcher/**"
     tags:
       - "v*"
   workflow_dispatch:
@@ -71,17 +73,18 @@ jobs:
         shell: bash
         run: cargo install taplo-cli --version 0.8.1 --locked
 
-      - name: Resolve package version
-        id: version
-        shell: pwsh
+      - name: Verify tag matches Cargo package version
+        if: github.ref_type == 'tag'
+        shell: bash
         run: |
-          if ($env:GITHUB_REF_TYPE -eq 'tag') {
-            "value=$env:GITHUB_REF_NAME" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          } else {
-            $versionMatch = Select-String -Path Cargo.toml -Pattern '^version = "(.+)"'
-            $version = $versionMatch.Matches[0].Groups[1].Value
-            "value=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          }
+          set -euo pipefail
+          pkgid="$(cargo pkgid --quiet)"
+          pkg_fragment="${pkgid##*#}"
+          expected_tag="v${pkg_fragment##*@}"
+          if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
+            echo "FAIL: Git tag ${GITHUB_REF_NAME} does not match Cargo package tag ${expected_tag}" >&2
+            exit 1
+          fi
 
       - name: Run gate (Unix)
         if: runner.os != 'Windows'
@@ -92,7 +95,6 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         env:
-          VERSION: ${{ steps.version.outputs.value }}
           TARGET: ${{ matrix.target }}
           OUT_DIR: dist
           BUILD_TOOL: ${{ matrix.build_tool }}
@@ -102,11 +104,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          VERSION: ${{ steps.version.outputs.value }}
           TARGET: ${{ matrix.target }}
           OUT_DIR: dist
         run: |
-          .\scripts\release.ps1 -Version $env:VERSION -Target $env:TARGET -OutDir $env:OUT_DIR -RunGate
+          .\scripts\release.ps1 -Target $env:TARGET -OutDir $env:OUT_DIR -RunGate
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
@@ -120,6 +121,7 @@ jobs:
 
   sign:
     name: sign artifacts
+    if: startsWith(github.ref, 'refs/tags/')
     needs: build
     runs-on: ubuntu-24.04
     permissions:

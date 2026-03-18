@@ -63,7 +63,7 @@ help:
 	  "  test-single        run one test by name: make test-single T=test_fn_name" \
 	  "  gate               full gate: fmt + lint + arch + tests" \
 	  "  gate-fast          full gate (identical to gate)" \
-	  "  release            package one target: make release VERSION=v0.1.0-alpha.1 TARGET=x86_64-unknown-linux-gnu" \
+	  "  release            package one target: make release TARGET=x86_64-unknown-linux-gnu" \
 	  "  fix                rustfmt + taplo + renorm (all auto-fixable in one pass)" \
 	  "  clean              cargo clean"
 

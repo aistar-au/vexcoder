@@ -1,6 +1,6 @@
 # Contributing to vexcoder
 
-> **Version:** This workflow applies from `v0.1.0-alpha.1` onward.
+> **Version:** This workflow applies from `v0.1.0-alpha2` onward.
 > **Architecture decisions** live in [`adr/`](adr/ADR-README.md).
 > The ADRs explain *why* the project is structured this way. Read them before opening a PR.
 >
@@ -108,31 +108,31 @@ bash scripts/check_forbidden_imports.sh
 Package release changes on a dispatcher branch first and debug the packaging workflow there before opening a PR.
 
 ```bash
-git switch -c dispatcher/v0.1.0-alpha.1-packaging
+git switch -c dispatcher/v0.1.0-alpha2-packaging
 make gate
-make release VERSION=v0.1.0-alpha.1 TARGET=x86_64-unknown-linux-gnu
-git push -u origin dispatcher/v0.1.0-alpha.1-packaging
+make release TARGET=x86_64-unknown-linux-gnu
+git push -u origin dispatcher/v0.1.0-alpha2-packaging
 ```
 
 On Windows PowerShell 7, use the native packaging script instead of `make release`:
 
 ```powershell
-git switch -c dispatcher/v0.1.0-alpha.1-packaging
+git switch -c dispatcher/v0.1.0-alpha2-packaging
 $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
 cargo build --release --bin vex
-.\scripts\release.ps1 -Version v0.1.0-alpha.1 -Target x86_64-pc-windows-msvc -RunGate
-git push -u origin dispatcher/v0.1.0-alpha.1-packaging
+.\scripts\release.ps1 -Target x86_64-pc-windows-msvc -RunGate
+git push -u origin dispatcher/v0.1.0-alpha2-packaging
 ```
 
 Windows packaging is currently an unsigned alpha path. Platform trust warnings are expected until code signing lands; evaluate a compatible signing service only when the packaging ADR set explicitly requires it.
 
-Branch pushes to `.github/workflows/release.yml` upload packaging artifacts for review only. Once the branch workflow is green and the archives look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
+The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. Dispatcher branch pushes run `.github/workflows/release.yml` to upload packaging artifacts for review only. Once the branch workflow is green and the archives look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
 
 ```bash
 git switch main
 git pull --ff-only origin main
-git tag v0.1.0-alpha.1
-git push origin v0.1.0-alpha.1
+git tag v0.1.0-alpha2
+git push origin v0.1.0-alpha2
 ```
 
 Do not merge packaging work directly from a local debug session; keep the review and merge step explicit.
