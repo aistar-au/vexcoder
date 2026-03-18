@@ -11,6 +11,7 @@ Most interactive application coordination still lives in `src/app.rs`. The runti
 
 - `src/bin/vex.rs` parses CLI arguments, loads config, and routes startup into the interactive UI, batch mode, export, compatibility helpers, and other CLI paths.
 - `src/app.rs` owns the current interactive command surface, transcript state, approval prompts, and runtime-facing coordination for the full-screen TUI.
+- `src/ui/draw.rs` owns the direct ANSI task-surface renderer used while a task is active; it draws status, changed files, the six-row timeline window, the output or inspector pane, and the input hint without allocating a ratatui frame buffer per update.
 - `src/batch_mode.rs` runs the same runtime headlessly for `vex exec` and writes JSONL or text output.
 - `src/runtime/` contains the reusable runtime machinery: context assembly, the edit loop, command and sandbox plumbing, project instructions, task state, and validation.
 
@@ -39,5 +40,6 @@ The long-term architecture work is tracked in the ADR set under `adr/`.
 - ADR-026 defines the proposed `LocalApiServer` transport binding over that contract.
 - ADR-028 is now active in the current tree: the facade helpers live under `src/app/`, the localhost `/v1/messages` protocol-routing fix is in place, and the full-screen activity pane now keeps live orchestration rows visible while follow-up work continues to shrink `src/app.rs` behind the facade boundary.
 - ADR-030 defines the runtime control-flow rule: provider events normalize into canonical runtime events, task state owns execution truth, and the orchestrator decides whether the task continues or stops.
+- ADR-031 extends the active operator surface with timeline selection, inspector-driven output, direct ANSI task rendering during orchestration, and keyboard navigation for the six-row activity window.
 
 That means the current `src/app.rs`-centric layout is still the live implementation, but it is not intended to be the permanent shape for machine-readable runtime access or local server transports.

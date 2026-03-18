@@ -33,6 +33,7 @@ All ADR files live under `adr/`.
 | [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active |
 | [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness and session persistence extensions | Proposed |
 | [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Active |
+| [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Proposed |
 
 ## Completed ADR Records
 

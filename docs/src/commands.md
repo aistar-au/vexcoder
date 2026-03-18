@@ -6,9 +6,10 @@ This page documents the commands and flags implemented in the current binary.
 
 ### `vex`
 
-Starts the interactive full-screen CLI UI in the alternate screen buffer. The
-managed session takes over the full-screen interface while it runs, so
-pre-launch shell scrollback is hidden until the UI exits.
+Starts the interactive full-screen CLI UI. While a task is running, the task
+surface uses a direct ANSI renderer for the status line, changed-file row,
+timeline window, output or inspector pane, and input hint. Idle prompting and
+overlay modals still use the ratatui-backed path.
 
 ### `vex --resume [task-id]`
 
@@ -202,4 +203,6 @@ session totals.
 ## Keyboard notes
 
 - `Ctrl+C` requests cancellation for the active turn.
+- `Alt+Up` and `Alt+Down` move the selected entry in the six-row task timeline.
+- `Tab` and `Shift+Tab` also move timeline selection forward and backward while the task surface is active.
 - Pasted text is inserted into the input box during normal editing.

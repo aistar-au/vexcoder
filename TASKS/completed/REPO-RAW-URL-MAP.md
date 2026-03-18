@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 172
+- Total tracked files: 173
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -160,24 +160,25 @@ Canonical raw URL index for every tracked file in this repository.
 | 149 | `src/types/api_types.rs` | ~479 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/api_types.rs> |
 | 150 | `src/types/model_profile.rs` | ~169 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/model_profile.rs> |
 | 151 | `src/types.rs` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types.rs> |
-| 152 | `src/ui/editor.rs` | ~274 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/editor.rs> |
-| 153 | `src/ui/input_metrics.rs` | ~97 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/input_metrics.rs> |
-| 154 | `src/ui/layout.rs` | ~102 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/layout.rs> |
-| 155 | `src/ui/render.rs` | ~824 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render.rs> |
-| 156 | `src/ui.rs` | ~4 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui.rs> |
-| 157 | `src/usage.rs` | ~121 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/usage.rs> |
-| 158 | `src/util.rs` | ~61 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/util.rs> |
-| 159 | `src/workspace.rs` | ~44 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/workspace.rs> |
-| 160 | `TASKS/ACTIVE-ROADMAP.md` | ~57 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
-| 161 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~183 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
-| 162 | `TASKS/PE-01-batch-mode.md` | ~239 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PE-01-batch-mode.md> |
-| 163 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | ~192 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PI-10-PI-12-adr025-phase1-continuation.md> |
-| 164 | `TASKS/PJ-03-memory-notes-injection.md` | ~165 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes-injection.md> |
-| 165 | `TASKS/PJ-03-memory-notes.md` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes.md> |
-| 166 | `TASKS/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PL-01-pre-post-tool-hooks.md> |
-| 167 | `TASKS/TASKS-DISPATCH-MAP.md` | ~82 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
-| 168 | `tests/integration_test.rs` | ~416 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/integration_test.rs> |
-| 169 | `tests/layout_underflow_tests.rs` | ~47 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/layout_underflow_tests.rs> |
-| 170 | `tests/signal_handling_tests.rs` | ~79 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/signal_handling_tests.rs> |
-| 171 | `tests/stream_parser_tests.rs` | ~191 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/stream_parser_tests.rs> |
-| 172 | `tests/tool_operator_tests.rs` | ~276 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |
+| 152 | `src/ui/draw.rs` | ~756 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw.rs> |
+| 153 | `src/ui/editor.rs` | ~274 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/editor.rs> |
+| 154 | `src/ui/input_metrics.rs` | ~97 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/input_metrics.rs> |
+| 155 | `src/ui/layout.rs` | ~102 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/layout.rs> |
+| 156 | `src/ui/render.rs` | ~824 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render.rs> |
+| 157 | `src/ui.rs` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui.rs> |
+| 158 | `src/usage.rs` | ~121 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/usage.rs> |
+| 159 | `src/util.rs` | ~61 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/util.rs> |
+| 160 | `src/workspace.rs` | ~44 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/workspace.rs> |
+| 161 | `TASKS/ACTIVE-ROADMAP.md` | ~57 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
+| 162 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~184 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
+| 163 | `TASKS/PE-01-batch-mode.md` | ~239 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PE-01-batch-mode.md> |
+| 164 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | ~192 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PI-10-PI-12-adr025-phase1-continuation.md> |
+| 165 | `TASKS/PJ-03-memory-notes-injection.md` | ~165 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes-injection.md> |
+| 166 | `TASKS/PJ-03-memory-notes.md` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes.md> |
+| 167 | `TASKS/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PL-01-pre-post-tool-hooks.md> |
+| 168 | `TASKS/TASKS-DISPATCH-MAP.md` | ~82 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
+| 169 | `tests/integration_test.rs` | ~416 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/integration_test.rs> |
+| 170 | `tests/layout_underflow_tests.rs` | ~47 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/layout_underflow_tests.rs> |
+| 171 | `tests/signal_handling_tests.rs` | ~79 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/signal_handling_tests.rs> |
+| 172 | `tests/stream_parser_tests.rs` | ~191 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/stream_parser_tests.rs> |
+| 173 | `tests/tool_operator_tests.rs` | ~276 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |
