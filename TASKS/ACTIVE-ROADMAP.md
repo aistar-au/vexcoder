@@ -20,7 +20,7 @@ Current task-dispatch dependency state:
 | `ADR-028` | Active | Phase 1 / Phase 2 facade extraction and 2026-03-17 debug fixes are in the current tree; remaining work continues to shrink `src/app.rs` and harden facade/transport seams. |
 | `ADR-029` | Proposed | Extends the active ADR set with stream-parser completeness and session-persistence follow-up work without changing the milestone-1 gate result. |
 | `ADR-030` | Active | Task-state-owned orchestration invariants and 2026-03-17 control-flow fixes are active requirements for downstream runtime work. |
-| `ADR-031` | Proposed | Extends the operator surface overhaul with timeline-driven task view, selection-visible inspector behavior, and merge-gated UI batching on top of ADR-030 task-state ownership. |
+| `ADR-031` | Active | Extends the operator surface overhaul with adaptive timeline/transcript/composer behavior, task-state-visible selection, and merge-gated UI batching on top of ADR-030 task-state ownership. |
 
 ADR-025, ADR-026, ADR-028, ADR-029, ADR-030, and ADR-031 are the active post-gate ADR set.
 
@@ -41,7 +41,11 @@ The current dispatcher batch continues ADR-031 operator-surface follow-up on top
 - ADR-025 now has the canonical runtime handoff types, schemas, normalization layer, and BatchMode parity tests in the current tree.
 - ADR-026 now has the loopback HTTP transport adapter, schema bundle endpoint, transport/security guards, and PI-16 validation coverage in the current tree.
 - ADR-028 now has its phase-1/phase-2 facade split and the 2026-03-17 debug fixes for localhost protocol routing, full-screen task activity visibility, and live orchestration rows in the current tree.
-- ADR-031 now has its initial timeline-driven task view groundwork on `main`, including runtime-visible selection state, structured timeline derivation, and inspector-pane rendering for selected steps.
+- ADR-031 now has its adaptive task-surface groundwork on `main`, including runtime-visible selection state, structured timeline derivation, human-readable header rendering, flowing transcript styling, inline approval cards, and the cumulative `~N.Nk ctx` header indicator.
+- `src/app/layout.rs` and `src/ui/draw.rs` still describe the task surface with different region terms and output semantics; follow-up work should collapse those descriptions onto one adaptive timeline/transcript/composer contract.
+- Selected-step detail rendering and transcript-first active-turn rendering still share the same `TaskLayoutState` output channel; follow-up work should make that contract explicit across both renderers before more UI batches land.
+- `src/ui/draw.rs` still derives header fields by parsing the formatted `status_line` string; follow-up work should replace that string coupling with structured task-surface fields once the facade boundary exposes them.
+- Task 6: keep documentation refresh, descriptive PR motivation text, and brand-neutral agent-authored review prose in scope for later ADR-031 batches so UI-overhaul branches do not land with stale docs or third-party product wording in the review trail.
 - Continue shrinking `src/app.rs` behind the facade boundary while ADR-029 remains an active stream/parser and persistence follow-up ADR, ADR-030 defines the task-state/orchestrator control-flow contract that downstream work must preserve, and ADR-031 continues the operator-surface batching/polish follow-up.
 
 ## Other Open ADRs Tracked In This Repo

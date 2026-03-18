@@ -7,9 +7,11 @@ This page documents the commands and flags implemented in the current binary.
 ### `vex`
 
 Starts the interactive full-screen CLI UI. While a task is running, the task
-surface uses a direct ANSI renderer for the status line, changed-file row,
-timeline window, output or inspector pane, and input hint. Idle prompting and
-overlay modals still use the ratatui-backed path.
+surface uses a direct ANSI renderer for a human-readable header, optional
+changed-file row, adaptive timeline, transcript area, and adaptive composer.
+When completed turns record usage metadata, the header appends a compact
+`~N.Nk ctx` cumulative session indicator. Idle prompting and overlay modals
+still use the ratatui-backed path.
 
 ### `vex --resume [task-id]`
 
@@ -203,6 +205,7 @@ session totals.
 ## Keyboard notes
 
 - `Ctrl+C` requests cancellation for the active turn.
-- `Alt+Up` and `Alt+Down` move the selected entry in the six-row task timeline.
+- `Alt+Up` and `Alt+Down` move the selected entry in the adaptive task timeline.
 - `Tab` and `Shift+Tab` also move timeline selection forward and backward while the task surface is active.
+- The visible timeline window scales with terminal height instead of staying fixed at six rows.
 - Pasted text is inserted into the input box during normal editing.
