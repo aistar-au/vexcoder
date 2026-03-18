@@ -36,6 +36,7 @@ scan_targets() {
       --glob '!.git' \
       --glob '!.github/workflows/**' \
       --glob '!scripts/check_forbidden_names.sh' \
+      --glob '!TASKS/completed/REPO-RAW-URL-MAP.md' \
       "$pattern" "$@" | sed 's#\\#/#g'
     return
   fi
@@ -56,6 +57,8 @@ for root in roots:
     for path in paths:
         rel = path.as_posix()
         if rel == "scripts/check_forbidden_names.sh":
+            continue
+        if rel == "TASKS/completed/REPO-RAW-URL-MAP.md":
             continue
         if rel.startswith(".git/") or rel.startswith(".github/workflows/"):
             continue
@@ -159,6 +162,8 @@ PY
 #           Workflow files legitimately reference pinned third-party actions
 #           (actions/checkout, dtolnay/rust-toolchain, etc.) via `uses:` directives.
 #           Those are not disallowed in CI; they are disallowed in agent/skill surfaces.
+#           The generated raw URL map is also excluded because it must mechanically
+#           mirror tracked repository paths, including platform-mandated filenames.
 #   Pass 2 (BRAND_PATTERN): brand-name-only subset, *including* .github/workflows/**
 #           Ensures no proprietary assistant-brand names appear in workflow YAML even
 #           though action-reference patterns are excluded there.
