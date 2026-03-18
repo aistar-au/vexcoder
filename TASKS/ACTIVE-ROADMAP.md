@@ -20,8 +20,9 @@ Current task-dispatch dependency state:
 | `ADR-028` | Active | Phase 1 / Phase 2 facade extraction and 2026-03-17 debug fixes are in the current tree; remaining work continues to shrink `src/app.rs` and harden facade/transport seams. |
 | `ADR-029` | Proposed | Extends the active ADR set with stream-parser completeness and session-persistence follow-up work without changing the milestone-1 gate result. |
 | `ADR-030` | Active | Task-state-owned orchestration invariants and 2026-03-17 control-flow fixes are active requirements for downstream runtime work. |
+| `ADR-031` | Proposed | Extends the operator surface overhaul with timeline-driven task view, selection-visible inspector behavior, and merge-gated UI batching on top of ADR-030 task-state ownership. |
 
-ADR-025, ADR-026, ADR-028, ADR-029, and ADR-030 are the active post-gate ADR set.
+ADR-025, ADR-026, ADR-028, ADR-029, ADR-030, and ADR-031 are the active post-gate ADR set.
 
 ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
 `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`. `PK-08` (`vex branch` and
@@ -29,18 +30,19 @@ ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
 ADR-023 implementation track (`EL-01` through `EL-13`) are now on `main`.
 Milestone-1 validation passed on `2026-03-15` on branch
 `dispatcher/vexcoder-adr-022-m1-validation-gate`; the ADR-025, ADR-026,
-ADR-028, ADR-029, and ADR-030 post-gate work now remains sequenced only by their
+ADR-028, ADR-029, ADR-030, and ADR-031 post-gate work now remains sequenced only by their
 documented dependencies.
 
 ## Current Next Dispatcher Batch
 
-The current dispatcher batch continues ADR-028 application-facade and transport-boundary follow-up.
+The current dispatcher batch continues ADR-031 operator-surface follow-up on top of the active ADR-028 facade boundary.
 
 - Milestone-1 validation remains the recorded Phase I gate result in `adr/ADR-022-free-open-coding-agent-roadmap.md`.
 - ADR-025 now has the canonical runtime handoff types, schemas, normalization layer, and BatchMode parity tests in the current tree.
 - ADR-026 now has the loopback HTTP transport adapter, schema bundle endpoint, transport/security guards, and PI-16 validation coverage in the current tree.
 - ADR-028 now has its phase-1/phase-2 facade split and the 2026-03-17 debug fixes for localhost protocol routing, full-screen task activity visibility, and live orchestration rows in the current tree.
-- Continue shrinking `src/app.rs` behind the facade boundary while ADR-029 remains an active stream/parser and persistence follow-up ADR and ADR-030 defines the task-state/orchestrator control-flow contract that downstream work must preserve.
+- ADR-031 now has its initial timeline-driven task view groundwork on `main`, including runtime-visible selection state, structured timeline derivation, and inspector-pane rendering for selected steps.
+- Continue shrinking `src/app.rs` behind the facade boundary while ADR-029 remains an active stream/parser and persistence follow-up ADR, ADR-030 defines the task-state/orchestrator control-flow contract that downstream work must preserve, and ADR-031 continues the operator-surface batching/polish follow-up.
 
 ## Other Open ADRs Tracked In This Repo
 
