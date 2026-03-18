@@ -179,7 +179,7 @@ This field is present in the protocol when `stop_reason` is `"stop_sequence"`
 and carries the exact sequence that terminated the generation.
 
 **Critical wire-format fix:** The messages v1 `message_delta` event carries
-`usage` as a **top-level sibling** of `delta`, not nested inside the `delta`
+`usage` as a **top-level peer** of `delta`, not nested inside the `delta`
 object. The `StreamEvent::MessageDelta` variant must therefore carry `usage`
 at the variant level:
 

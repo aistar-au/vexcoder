@@ -332,7 +332,7 @@ mod tests {
 
     #[test]
     fn test_message_delta_event_top_level_usage_deserialises() {
-        // Messages v1 wire format: usage is a sibling of delta, not nested inside it
+        // Messages v1 wire format: usage is a peer of delta, not nested inside it
         let json = r#"{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":15}}"#;
         let evt: StreamEvent = serde_json::from_str(json).unwrap();
         match evt {
