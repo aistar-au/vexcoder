@@ -45,6 +45,7 @@ The current dispatcher batch continues ADR-031 operator-surface follow-up on top
 - `src/app/layout.rs` and `src/ui/draw.rs` still describe the task surface with different region terms and output semantics; follow-up work should collapse those descriptions onto one adaptive timeline/transcript/composer contract.
 - Selected-step detail rendering and transcript-first active-turn rendering still share the same `TaskLayoutState` output channel; follow-up work should make that contract explicit across both renderers before more UI batches land.
 - `src/ui/draw.rs` still derives header fields by parsing the formatted `status_line` string; follow-up work should replace that string coupling with structured task-surface fields once the facade boundary exposes them.
+- Task 6: keep documentation refresh, descriptive PR motivation text, and brand-neutral agent-authored review prose in scope for later ADR-031 batches so UI-overhaul branches do not land with stale docs or third-party product wording in the review trail.
 - Continue shrinking `src/app.rs` behind the facade boundary while ADR-029 remains an active stream/parser and persistence follow-up ADR, ADR-030 defines the task-state/orchestrator control-flow contract that downstream work must preserve, and ADR-031 continues the operator-surface batching/polish follow-up.
 
 ## Other Open ADRs Tracked In This Repo
