@@ -1,30 +1,76 @@
 use super::*;
 use std::io::Write;
 
+// ── Shared transcript rendering helpers ────────────────────────────
+
+/// Write a styled prefix icon followed by truncated content text.
+///
+/// This consolidates the repeated pattern:
+///   set_fg(icon_color) → write(icon) → reset → set_fg(text_color) → truncate+write → reset
+fn draw_icon_line(
+    w: &mut dyn Write,
+    icon_color: u8,
+    icon: &str,
+    text_color: u8,
+    text: &str,
+    cols: u16,
+    bold_icon: bool,
+) {
+    if bold_icon {
+        set_bold(w);
+    }
+    set_fg(w, icon_color);
+    let _ = write!(w, " {icon} ");
+    reset_style(w);
+    set_fg(w, text_color);
+    let truncated = truncate_to_width(
+        text,
+        (cols as usize).saturating_sub(display_width(icon) + 2),
+    );
+    let _ = write!(w, "{truncated}");
+    reset_style(w);
+}
+
+/// Write a left-bar prefixed line (used for code blocks and blockquotes).
+fn draw_bar_line(w: &mut dyn Write, text: &str, cols: u16, dim: bool) {
+    if dim {
+        set_dim(w);
+    }
+    set_fg(w, DIM_GRAY);
+    let _ = write!(w, " \u{2502} "); // │
+    set_fg(w, GRAY);
+    let truncated = truncate_to_width(text, (cols as usize).saturating_sub(3));
+    let _ = write!(w, "{truncated}");
+    reset_style(w);
+}
+
+/// Write a bold header line (used for markdown # headings).
+fn draw_heading(w: &mut dyn Write, text: &str, color: u8, cols: u16) {
+    set_bold(w);
+    set_fg(w, color);
+    let _ = write!(w, " ");
+    let truncated = truncate_to_width(text, (cols as usize).saturating_sub(1));
+    let _ = write!(w, "{truncated}");
+    reset_style(w);
+}
+
+/// Write a thin horizontal rule of `─` characters.
+fn draw_thin_rule(w: &mut dyn Write, width: usize, max: usize) {
+    for _ in 0..width.min(max) {
+        let _ = write!(w, "\u{2500}");
+    }
+}
+
 impl TaskDraw {
     /// Render a single transcript line with semantic and markdown-aware styling.
     pub(super) fn draw_transcript_line(&mut self, w: &mut dyn Write, line: &str, cols: u16) {
         // ── Tool status markers ────────────────────────────────────
         if let Some(rest) = line.strip_prefix("[ok] ") {
-            set_bold(w);
-            set_fg(w, GREEN);
-            let _ = write!(w, " \u{2605} "); // ★
-            reset_style(w);
-            set_fg(w, WHITE);
-            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
+            draw_icon_line(w, GREEN, "\u{2605}", WHITE, rest, cols, true);
             return;
         }
         if let Some(rest) = line.strip_prefix("[!] ") {
-            set_bold(w);
-            set_fg(w, RED);
-            let _ = write!(w, " \u{2716} "); // ✖
-            reset_style(w);
-            set_fg(w, WHITE);
-            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
+            draw_icon_line(w, RED, "\u{2716}", WHITE, rest, cols, true);
             return;
         }
 
@@ -34,7 +80,6 @@ impl TaskDraw {
             set_dim(w);
             set_fg(w, DIM_GRAY);
             if self.in_code_block {
-                // Opening fence — show language tag if present.
                 let lang = line.trim_start_matches('`').trim();
                 let _ = write!(w, " \u{2500}\u{2500} ");
                 if !lang.is_empty() {
@@ -47,16 +92,10 @@ impl TaskDraw {
                 } else {
                     display_width(lang) + 1
                 };
-                let remaining = (cols as usize).saturating_sub(used);
-                for _ in 0..remaining.min(60) {
-                    let _ = write!(w, "\u{2500}"); // ─
-                }
+                draw_thin_rule(w, (cols as usize).saturating_sub(used), 60);
             } else {
-                // Closing fence — thin rule.
                 let _ = write!(w, " ");
-                for _ in 0..(cols as usize).saturating_sub(1).min(60) {
-                    let _ = write!(w, "\u{2500}");
-                }
+                draw_thin_rule(w, (cols as usize).saturating_sub(1), 60);
             }
             reset_style(w);
             return;
@@ -64,89 +103,44 @@ impl TaskDraw {
 
         // ── Inside code block — monospace with left bar ────────────
         if self.in_code_block {
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{2502} "); // │
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(line, (cols as usize).saturating_sub(3));
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
+            draw_bar_line(w, line, cols, false);
             return;
         }
 
         // ── Markdown headers ───────────────────────────────────────
         if let Some(rest) = line.strip_prefix("### ") {
-            set_bold(w);
-            set_fg(w, YELLOW);
-            let _ = write!(w, " ");
-            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(1));
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
+            draw_heading(w, rest, YELLOW, cols);
             return;
         }
         if let Some(rest) = line.strip_prefix("## ") {
-            set_bold(w);
-            set_fg(w, YELLOW);
-            let _ = write!(w, " ");
-            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(1));
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
+            draw_heading(w, rest, YELLOW, cols);
             return;
         }
         if let Some(rest) = line.strip_prefix("# ") {
-            set_bold(w);
-            set_fg(w, WHITE);
-            let _ = write!(w, " ");
-            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(1));
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
+            draw_heading(w, rest, WHITE, cols);
             return;
         }
 
         // ── Blockquotes ────────────────────────────────────────────
         if let Some(rest) = line.strip_prefix("> ") {
-            set_dim(w);
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{2502} "); // │
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
+            draw_bar_line(w, rest, cols, true);
             return;
         }
 
         // ── Bullet lists ───────────────────────────────────────────
         if let Some(rest) = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")) {
-            // Task checklist items: - [x] or - [ ] patterns.
             if let Some(task_rest) = rest
                 .strip_prefix("[x] ")
                 .or_else(|| rest.strip_prefix("[X] "))
             {
-                set_fg(w, GREEN);
-                let _ = write!(w, " \u{2611} "); // ☑
-                reset_style(w);
-                set_fg(w, GRAY);
-                let truncated = truncate_to_width(task_rest, (cols as usize).saturating_sub(3));
-                let _ = write!(w, "{truncated}");
-                reset_style(w);
+                draw_icon_line(w, GREEN, "\u{2611}", GRAY, task_rest, cols, false);
                 return;
             }
             if let Some(task_rest) = rest.strip_prefix("[ ] ") {
-                set_fg(w, DIM_GRAY);
-                let _ = write!(w, " \u{2610} "); // ☐
-                reset_style(w);
-                set_fg(w, GRAY);
-                let truncated = truncate_to_width(task_rest, (cols as usize).saturating_sub(3));
-                let _ = write!(w, "{truncated}");
-                reset_style(w);
+                draw_icon_line(w, DIM_GRAY, "\u{2610}", GRAY, task_rest, cols, false);
                 return;
             }
-            set_fg(w, YELLOW);
-            let _ = write!(w, " \u{2022} "); // •
-            reset_style(w);
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
+            draw_icon_line(w, YELLOW, "\u{2022}", GRAY, rest, cols, false);
             return;
         }
 
@@ -167,11 +161,8 @@ impl TaskDraw {
         if is_horizontal_rule(line) {
             set_dim(w);
             set_fg(w, DIM_GRAY);
-            let rule_width = (cols as usize).min(80);
             let _ = write!(w, " ");
-            for _ in 0..rule_width.saturating_sub(1) {
-                let _ = write!(w, "\u{2500}"); // ─
-            }
+            draw_thin_rule(w, (cols as usize).saturating_sub(1), 80);
             reset_style(w);
             return;
         }
@@ -202,15 +193,11 @@ impl TaskDraw {
                 let _ = write!(w, " {safe_label} ");
                 let label_display_w = display_width(&safe_label);
                 let remaining = (cols as usize).saturating_sub(prefix_used + 2 + label_display_w);
-                for _ in 0..remaining.min(40) {
-                    let _ = write!(w, "\u{2500}");
-                }
+                draw_thin_rule(w, remaining, 40);
             } else {
                 let _ = write!(w, " ");
                 let remaining = (cols as usize).saturating_sub(prefix_used + 1);
-                for _ in 0..remaining.min(40) {
-                    let _ = write!(w, "\u{2500}");
-                }
+                draw_thin_rule(w, remaining, 40);
             }
             reset_style(w);
             return;
