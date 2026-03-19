@@ -31,6 +31,7 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Proposed |
 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Active |
+| `adr/ADR-031-operator-surface-ui-overhaul.md` | Active |
 
 ## Immediate Dependency Notes
 
@@ -56,13 +57,14 @@ passed milestone-1 gate or ADR-025 sequencing.
 
 ## Current Next Dispatcher Batch
 
-The current dispatcher batch continues ADR-028 application-facade and transport-boundary follow-up.
+The current dispatcher batch continues ADR-031 operator-surface overhaul and ADR-028 application-facade follow-up.
 
 - Milestone-1 validation is complete; use the recorded gate result in ADR-022 as the Phase I entry condition.
 - ADR-025 now has the completed kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) work in the current tree.
 - ADR-026 now has `PI-13` through `PI-16` implemented in the current tree.
 - Treat ADR-028 as the active boundary/workstream for the post-gate Phase I follow-up work.
 - Treat ADR-030 as the control-flow ADR for the post-gate runtime work: provider events normalize into canonical runtime events, task state owns truth, and orchestrator decisions remain runtime-owned.
+- Treat ADR-031 as the operator-surface overhaul ADR: adaptive timeline, transcript, and composer regions; progress indicators; enriched markdown rendering; scroll indicators; and inline approval cards.
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
 current reference for full-screen rendering and interactive command-session
