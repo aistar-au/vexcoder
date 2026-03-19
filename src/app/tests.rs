@@ -524,6 +524,48 @@ fn test_scrollback_commands_update_scroll_state() {
 }
 
 #[test]
+fn test_output_scroll_commands_use_bottom_anchored_prompt_surface() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("summarise the diff".to_string(), &mut ctx);
+    mode.on_model_update(UiUpdate::TranscriptLine("line-1".to_string()), &mut ctx);
+    mode.on_model_update(UiUpdate::TranscriptLine("line-2".to_string()), &mut ctx);
+    mode.on_model_update(UiUpdate::TranscriptLine("line-3".to_string()), &mut ctx);
+
+    mode.on_frontend_event(
+        UserInputEvent::Scroll {
+            target: ScrollTarget::Output,
+            action: ScrollAction::PageUp(2),
+        },
+        &mut ctx,
+    );
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.output_scroll_anchor, OutputScrollAnchor::Bottom);
+    assert_eq!(state.output_scroll_offset, 2);
+
+    mode.on_frontend_event(
+        UserInputEvent::Scroll {
+            target: ScrollTarget::Output,
+            action: ScrollAction::LineDown,
+        },
+        &mut ctx,
+    );
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.output_scroll_offset, 1);
+
+    mode.on_frontend_event(
+        UserInputEvent::Scroll {
+            target: ScrollTarget::Output,
+            action: ScrollAction::End,
+        },
+        &mut ctx,
+    );
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.output_scroll_offset, 0);
+}
+
+#[test]
 fn test_history_status_and_scroll_use_visual_rows() {
     let mode = TuiMode {
         history_state: HistoryState {

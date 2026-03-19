@@ -230,7 +230,7 @@ impl TuiMode {
     /// - After a completed turn: enriched paragraph view showing each tool
     ///   invocation as a paragraph followed by the model response.
     /// - Before any turn: welcome hint.
-    fn task_output_rows(&self) -> Vec<String> {
+    pub(super) fn task_output_view(&self) -> (String, Vec<String>, OutputScrollAnchor) {
         // If timeline has entries and a valid selection on a tool step
         // (not user input), show inspector detail.
         let entries = self.task_timeline_entries();
@@ -251,7 +251,7 @@ impl TuiMode {
                         rows.push("--- model response ---".to_string());
                         rows.extend(self.current_turn_response.lines().map(ToOwned::to_owned));
                     }
-                    return rows;
+                    return ("Inspector".to_string(), rows, OutputScrollAnchor::Top);
                 }
             }
         }
@@ -263,23 +263,35 @@ impl TuiMode {
                 .map(ToOwned::to_owned)
                 .collect::<Vec<_>>();
             if rows.is_empty() {
-                return vec!["[awaiting model response]".to_string()];
+                return (
+                    "Transcript".to_string(),
+                    vec!["[awaiting model response]".to_string()],
+                    OutputScrollAnchor::Bottom,
+                );
             }
-            return rows;
+            return ("Transcript".to_string(), rows, OutputScrollAnchor::Bottom);
         }
 
         // After turn completes: show enriched paragraph view with tool
         // invocations and model response from the last completed turn.
         if !self.last_turn_tool_invocations.is_empty() || !self.last_turn_response.is_empty() {
-            return self.enriched_paragraph_rows();
+            return (
+                "Transcript".to_string(),
+                self.enriched_paragraph_rows(),
+                OutputScrollAnchor::Bottom,
+            );
         }
 
         // No turn data yet — show a welcome hint.
-        vec![
-            "Type a prompt below to begin.".to_string(),
-            String::new(),
-            "The orchestrator will call tools and stream results here.".to_string(),
-        ]
+        (
+            "Transcript".to_string(),
+            vec![
+                "Type a prompt below to begin.".to_string(),
+                String::new(),
+                "The orchestrator will call tools and stream results here.".to_string(),
+            ],
+            OutputScrollAnchor::Bottom,
+        )
     }
 
     /// Build enriched paragraph rows from the last completed turn.
@@ -349,13 +361,18 @@ impl TuiMode {
         let selected_step = self
             .selected_timeline_index
             .min(total_steps.saturating_sub(1));
+        let (output_title, output_rows, output_scroll_anchor) = self.task_output_view();
+        let output_scroll_offset = match output_scroll_anchor {
+            OutputScrollAnchor::Bottom => self.transcript_scroll_offset,
+            OutputScrollAnchor::Top => self.inspector_scroll_offset,
+        };
 
         let input_hint = if let Some(approval) = pending_approval.clone() {
             format!("{approval}\n[y/n/s] ")
         } else if self.command_session_active() {
-            "[command session active \u{2014} Ctrl+C to cancel]".to_string()
+            "Prompt\nCommand session active. Ctrl+C cancels the running command.".to_string()
         } else {
-            "> ".to_string()
+            "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".to_string()
         };
         Some(TaskLayoutState {
             task_id: self.current_task.id.clone(),
@@ -364,7 +381,10 @@ impl TuiMode {
             timeline_entries,
             selected_step,
             total_steps,
-            output_rows: self.task_output_rows(),
+            output_title,
+            output_rows,
+            output_scroll_offset,
+            output_scroll_anchor,
             pending_approval,
             input_hint,
             composer_text: String::new(),

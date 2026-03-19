@@ -219,7 +219,20 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
 pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     use crate::app::StepLifecycle;
 
-    let layout = split_four_region_layout(frame.area(), 2, 3);
+    let preferred_input_rows = if frame.area().height >= 30 {
+        7
+    } else if frame.area().height >= 22 {
+        6
+    } else if frame.area().height >= 16 {
+        5
+    } else {
+        4
+    };
+    let input_rows = preferred_input_rows.max(input_visual_rows(
+        &state.composer_text,
+        frame.area().width.max(1) as usize,
+    ));
+    let layout = split_four_region_layout(frame.area(), 2, input_rows as u16);
     frame.render_widget(Clear, frame.area());
 
     // --- Header ---
@@ -329,24 +342,28 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     }
 
     // --- Output / Inspector pane ---
-    let output_title = if !state.timeline_entries.is_empty() {
-        "Inspector"
-    } else {
-        "Output"
-    };
-
     let output_lines: Vec<Line> = state
         .output_rows
         .iter()
         .map(|row| Line::from(row.to_string()))
         .collect();
-    let output_scroll = output_lines
-        .len()
-        .saturating_sub(layout.output.height.max(1) as usize) as u16;
+    let output_scroll = match state.output_scroll_anchor {
+        crate::app::OutputScrollAnchor::Bottom => output_lines
+            .len()
+            .saturating_sub(layout.output.height.max(1) as usize + state.output_scroll_offset)
+            as u16,
+        crate::app::OutputScrollAnchor::Top => {
+            state.output_scroll_offset.min(u16::MAX as usize) as u16
+        }
+    };
 
     frame.render_widget(
         Paragraph::new(Text::from(output_lines))
-            .block(Block::default().borders(Borders::NONE).title(output_title))
+            .block(
+                Block::default()
+                    .borders(Borders::NONE)
+                    .title(state.output_title.clone()),
+            )
             .scroll((output_scroll, 0))
             .wrap(Wrap { trim: false }),
         layout.output,
@@ -831,7 +848,10 @@ mod tests {
             }],
             selected_step: 0,
             total_steps: 1,
+            output_title: "Transcript".into(),
             output_rows: vec![],
+            output_scroll_offset: 0,
+            output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
             changed_files: vec!["src/main.rs".into()],
             pending_approval: Some("ApplyPatch: src/main.rs".into()),
             input_hint: "ApplyPatch: src/main.rs\n[y/n/s] ".into(),
@@ -892,7 +912,10 @@ mod tests {
             ],
             selected_step: 1,
             total_steps: 2,
+            output_title: "Inspector".into(),
             output_rows: vec!["streamed output".into()],
+            output_scroll_offset: 0,
+            output_scroll_anchor: crate::app::OutputScrollAnchor::Top,
             changed_files: vec![],
             pending_approval: None,
             input_hint: "> ".into(),

@@ -4,6 +4,7 @@ impl TuiMode {
     pub(super) fn on_model_update(&mut self, update: UiUpdate, ctx: &mut RuntimeContext) {
         match update {
             UiUpdate::TranscriptLine(line) => {
+                let previous_output_len = self.task_output_view().1.len();
                 if self.history_state.turn_in_progress {
                     if !self.current_turn_response.is_empty() {
                         self.current_turn_response.push('\n');
@@ -11,8 +12,10 @@ impl TuiMode {
                     self.current_turn_response.push_str(&line);
                 }
                 self.push_history_line(line);
+                self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
             UiUpdate::StreamDelta(text) => {
+                let previous_output_len = self.task_output_view().1.len();
                 if self.history_state.cancel_pending {
                     return;
                 }
@@ -36,6 +39,7 @@ impl TuiMode {
                 if self.history_state.auto_follow {
                     self.set_scroll_to_bottom();
                 }
+                self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
             UiUpdate::StreamBlockStart { index, block } => {
                 match &block {
@@ -56,6 +60,7 @@ impl TuiMode {
                         if self.timeline_follow_mode {
                             let total = self.timeline_entry_count();
                             self.selected_timeline_index = total.saturating_sub(1);
+                            self.inspector_scroll_offset = 0;
                         }
                     }
                     StreamBlock::ToolResult {
@@ -200,6 +205,8 @@ impl TuiMode {
                 } else {
                     self.clamp_scroll_offset();
                 }
+                self.transcript_scroll_offset = 0;
+                self.inspector_scroll_offset = 0;
             }
             UiUpdate::CommandSessionStarted {
                 session_id,
@@ -242,6 +249,8 @@ impl TuiMode {
                 } else {
                     self.clamp_scroll_offset();
                 }
+                self.transcript_scroll_offset = 0;
+                self.inspector_scroll_offset = 0;
             }
             UiUpdate::Error(msg) => {
                 self.command_sessions.clear();
@@ -255,6 +264,8 @@ impl TuiMode {
                 self.history_state.turn_in_progress = false;
                 self.history_state.active_assistant_index = None;
                 self.read_only_turn_active = false;
+                self.transcript_scroll_offset = 0;
+                self.inspector_scroll_offset = 0;
             }
         }
     }

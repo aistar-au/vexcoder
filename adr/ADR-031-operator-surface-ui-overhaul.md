@@ -20,6 +20,11 @@ renderer owns a human-readable header plus transcript/composer path, and the
 task surface includes structured prefix styling, inline approval cards, and a
 cumulative context indicator in the header.
 
+The active operator surface now also keeps transcript scroll anchored to the
+prompt edge and expands the composer into a larger multiline surface so slash
+commands, `@path` expansion, pasted blocks, and long prompts remain usable
+without dropping out of fullscreen task mode.
+
 The next step is the remaining alignment pass for that UI overhaul. The
 remaining ADR-031 scope:
 
@@ -77,9 +82,12 @@ Key changes from the current implementation:
    across the direct ANSI and fallback renderers.
 3. Scroll ownership moves to the task surface: the timeline remains
    independently navigable, while the transcript/output area redraws from the
-   same task-derived state.
+   same task-derived state and scrolls upward from the prompt edge.
 4. The visible timeline window scales with terminal height instead of
    remaining fixed at six rows.
+5. The composer becomes a larger multiline prompt surface with persistent
+   affordances for slash commands, `@path` expansion, pasted blocks, and
+   newline insertion.
 
 ### Task-state-first rule for this ADR
 
