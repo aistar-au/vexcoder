@@ -359,6 +359,8 @@ impl TuiMode {
             output_rows: self.task_output_rows(),
             pending_approval,
             input_hint,
+            composer_text: String::new(),
+            composer_cursor: 0,
             changed_files: self
                 .current_task
                 .changed_files

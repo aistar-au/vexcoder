@@ -353,10 +353,19 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     );
 
     // --- Input pane ---
-    frame.render_widget(
-        Paragraph::new(state.input_hint.clone()).wrap(Wrap { trim: false }),
-        layout.input,
-    );
+    if state.pending_approval.is_none() && !state.input_hint.starts_with('[') {
+        render_input(
+            frame,
+            layout.input,
+            &state.composer_text,
+            state.composer_cursor,
+        );
+    } else {
+        frame.render_widget(
+            Paragraph::new(state.input_hint.clone()).wrap(Wrap { trim: false }),
+            layout.input,
+        );
+    }
 }
 
 /// Render a single timeline entry with lifecycle-based colour coding
@@ -781,6 +790,8 @@ mod tests {
             changed_files: vec!["src/main.rs".into()],
             pending_approval: Some("ApplyPatch: src/main.rs".into()),
             input_hint: "ApplyPatch: src/main.rs\n[y/n/s] ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
         };
 
         terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -835,6 +846,8 @@ mod tests {
             changed_files: vec![],
             pending_approval: None,
             input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
         };
 
         terminal.draw(|f| render_task_layout(f, &state)).unwrap();

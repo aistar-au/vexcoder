@@ -173,7 +173,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 162 | `src/types/api_types.rs` | ~479 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/api_types.rs> |
 | 163 | `src/types/model_profile.rs` | ~169 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/model_profile.rs> |
 | 164 | `src/ui.rs` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui.rs> |
-| 165 | `src/ui/draw.rs` | ~1557 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw.rs> |
+| 165 | `src/ui/draw.rs` | ~2050 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw.rs> |
 | 166 | `src/ui/editor.rs` | ~274 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/editor.rs> |
 | 167 | `src/ui/input_metrics.rs` | ~97 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/input_metrics.rs> |
 | 168 | `src/ui/layout.rs` | ~102 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/layout.rs> |
