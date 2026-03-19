@@ -12,6 +12,7 @@ on:
 jobs:
   copilot-setup-steps:
     runs-on: ubuntu-latest
+    environment: copilot
     permissions:
       contents: read
     timeout-minutes: 10
@@ -19,12 +20,12 @@ jobs:
       - name: Bootstrap private skills from vexdraft
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.VEXDRAFT_READ_TOKEN }}
+          GH_TOKEN: ${{ secrets.COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
 
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "Missing repository secret: VEXDRAFT_READ_TOKEN"
+            echo "Missing Copilot environment secret: COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN"
             exit 1
           fi
 

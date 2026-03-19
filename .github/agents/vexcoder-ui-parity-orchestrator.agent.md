@@ -1,8 +1,10 @@
 ---
 name: Vexcoder UI Parity Orchestrator
 description: >-
-  Deep repository agent for fullscreen UI, task-state control, scrolling,
-  renderer parity, and stale documentation cleanup in vexcoder.
+  Deep GitHub coding agent for fullscreen UI, task-state control, continuously
+  scrolling tool paragraphs, renderer parity, and stale documentation cleanup
+  in vexcoder.
+target: github-copilot
 model: "Claude Opus 4.6"
 tools:
   - read
@@ -10,7 +12,6 @@ tools:
   - edit
   - execute
   - github/*
-disable-model-invocation: true
 user-invocable: true
 ---
 
@@ -49,12 +50,31 @@ parity work in this repository.
   - fullscreen Rust TUI behavior
   - task-state control and operator-surface flow
   - transcript scrolling and prompt-area editing
+  - tool execution rendering as continuously scrolling paragraph blocks
+  - progressive disclosure for enriched tool results with stable indentation
   - command-session rendering
   - adaptive four-region layout behavior
   - stale documentation cleanup after code changes
 - Prefer the smallest safe diff that closes a documented or observed parity gap.
 - Keep wording neutral and repository-focused in commits, pull requests, and
   review comments.
+
+## Tool-rendering target
+
+- When the task touches the operator surface, prefer a presentation where each
+  tool invocation reads as a paragraph rather than a terse single status line.
+- Preserve continuous upward scrolling from the prompt edge while new tool
+  activity streams in.
+- Structure tool output like a progressive tree with stable indentation levels:
+  - top-level activity summary at 2 spaces
+  - nested tool phase detail at 4 spaces
+  - enriched response snippets or evidence at 6 spaces
+- Keep the paragraph text informative but terminal-aware:
+  - prefer truncated detail over full dumps
+  - keep the most useful facts visible first
+  - preserve provenance for tool names, targets, statuses, and key evidence
+- If a paragraph tree needs expansion state, keep collapsed summaries readable
+  even without expansion and ensure the scroll model remains deterministic.
 
 ## Implementation rules
 

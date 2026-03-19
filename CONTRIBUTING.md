@@ -146,8 +146,8 @@ Repository-level background sessions can use the private skill tree from
 `vexcoder-ui-parity-orchestrator` profile.
 
 - The setup workflow syncs `vexdraft/.agents/skills/` into the background
-  session home directory and requires a repository secret named
-  `VEXDRAFT_READ_TOKEN`.
+  session home directory and reads the private-repo clone credential from the
+  platform environment secret referenced by the setup workflow.
 - The setup workflow only affects background sessions after it lands on the
   default branch. Manual workflow dispatch is still useful for validating the
   bootstrap steps on a feature branch before merge.
