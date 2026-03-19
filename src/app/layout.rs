@@ -34,7 +34,7 @@ impl TuiMode {
     fn task_timeline_entries(&self) -> Vec<TimelineEntry> {
         let mut entries = Vec::new();
 
-        // Command sessions get their own entries.
+        // Command sessions get their own entries with session identity.
         for session in &self.command_sessions {
             let detail = format!(
                 "command: {}\npid: {}\nstatus: {}",
@@ -46,9 +46,11 @@ impl TuiMode {
                 session.status,
             );
             entries.push(TimelineEntry {
+                step_id: session.id,
                 lifecycle: StepLifecycle::CommandSession,
                 label: format!("{}: {}", session.command, session.status),
                 detail,
+                session_id: Some(session.id),
             });
         }
         if !entries.is_empty() {
@@ -75,21 +77,25 @@ impl TuiMode {
             )
         };
 
-        // User input echo.
+        // User input echo — step_id 0 is reserved for the user input row.
         if !input_text.trim().is_empty() {
             entries.push(TimelineEntry {
+                step_id: 0,
                 lifecycle: StepLifecycle::UserInput,
                 label: input_text.clone(),
                 detail: input_text.clone(),
+                session_id: None,
             });
         }
 
-        // Completed tool invocations — derived from canonical task state.
+        // Completed tool invocations — step identity carried from the
+        // pending call that created them.
         for invocation in tool_invocations {
             let is_error = invocation.outcome.starts_with("error")
                 || invocation.outcome.starts_with("failed")
                 || invocation.outcome.starts_with("Error");
             entries.push(TimelineEntry {
+                step_id: invocation.step_id,
                 lifecycle: if is_error {
                     StepLifecycle::Failed
                 } else {
@@ -97,22 +103,24 @@ impl TuiMode {
                 },
                 label: format!("{}: {}", invocation.name, invocation.outcome),
                 detail: format!("Tool: {}\nOutcome: {}", invocation.name, invocation.outcome,),
+                session_id: None,
             });
         }
 
         // In-flight tool calls from pending_turn_tool_calls (task-state owned).
-        // Sort by key for stable iteration order across frames.
         if has_pending {
-            let mut pending_keys: Vec<&String> = self.pending_turn_tool_calls.keys().collect();
-            pending_keys.sort();
-            for key in pending_keys {
-                let pending = &self.pending_turn_tool_calls[key];
+            let mut pending_calls: Vec<&PendingTurnToolCall> =
+                self.pending_turn_tool_calls.values().collect();
+            pending_calls.sort_by_key(|pending| pending.step_id);
+            for pending in pending_calls {
                 let input_preview = serde_json::to_string_pretty(&pending.input)
                     .unwrap_or_else(|_| pending.input.to_string());
                 entries.push(TimelineEntry {
+                    step_id: pending.step_id,
                     lifecycle: StepLifecycle::Running,
                     label: format!("{}: running...", pending.name),
                     detail: format!("Tool: {}\nInput:\n{}", pending.name, input_preview),
+                    session_id: None,
                 });
             }
         }
@@ -367,6 +375,7 @@ impl TuiMode {
                 .iter()
                 .map(|path| path.to_string_lossy().into_owned())
                 .collect(),
+            follow_mode: self.timeline_follow_mode,
         })
     }
 

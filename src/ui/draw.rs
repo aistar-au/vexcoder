@@ -95,6 +95,7 @@ fn lifecycle_color(lifecycle: &StepLifecycle) -> u8 {
         StepLifecycle::Failed => RED,
         StepLifecycle::Running => CYAN,
         StepLifecycle::AwaitingApproval => YELLOW,
+        StepLifecycle::Approved => GREEN,
         StepLifecycle::UserInput => DIM_GRAY,
         StepLifecycle::CommandSession => MAGENTA,
     }
@@ -106,6 +107,7 @@ fn lifecycle_prefix(lifecycle: &StepLifecycle) -> &'static str {
         StepLifecycle::Failed => "\u{2716}",           // ✖
         StepLifecycle::Running => "\u{2726}",          // ✦
         StepLifecycle::AwaitingApproval => "\u{2606}", // ☆
+        StepLifecycle::Approved => "\u{2713}",         // ✓
         StepLifecycle::UserInput => "\u{203a}",        // ›
         StepLifecycle::CommandSession => "\u{25c6}",   // ◆
     }
@@ -1409,8 +1411,9 @@ fn entry_lifecycle_id(lifecycle: &StepLifecycle) -> u64 {
         StepLifecycle::Failed => 2,
         StepLifecycle::Running => 3,
         StepLifecycle::AwaitingApproval => 4,
-        StepLifecycle::UserInput => 5,
-        StepLifecycle::CommandSession => 6,
+        StepLifecycle::Approved => 5,
+        StepLifecycle::UserInput => 6,
+        StepLifecycle::CommandSession => 7,
     }
 }
 
@@ -1459,6 +1462,7 @@ mod tests {
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
+            follow_mode: true,
         }
     }
 
@@ -1468,9 +1472,11 @@ mod tests {
         let mut draw = TaskDraw::new();
         let state = make_state(
             vec![TimelineEntry {
+                step_id: 1,
                 lifecycle: StepLifecycle::Running,
                 label: "read_file: running...".into(),
                 detail: String::new(),
+                session_id: None,
             }],
             vec!["line 1", "line 2"],
         );
@@ -1497,9 +1503,11 @@ mod tests {
         let mut draw = TaskDraw::new();
         let state = make_state(
             vec![TimelineEntry {
+                step_id: 1,
                 lifecycle: StepLifecycle::Completed,
                 label: "read_file: ok".into(),
                 detail: String::new(),
+                session_id: None,
             }],
             vec!["output line"],
         );
@@ -1580,6 +1588,7 @@ mod tests {
             StepLifecycle::Failed,
             StepLifecycle::Running,
             StepLifecycle::AwaitingApproval,
+            StepLifecycle::Approved,
             StepLifecycle::UserInput,
             StepLifecycle::CommandSession,
         ];
@@ -1599,9 +1608,11 @@ mod tests {
 
         let running = make_state(
             vec![TimelineEntry {
+                step_id: 1,
                 lifecycle: StepLifecycle::Running,
                 label: "tool: status".into(),
                 detail: String::new(),
+                session_id: None,
             }],
             vec![],
         );
@@ -1610,9 +1621,11 @@ mod tests {
         buf.clear();
         let completed = make_state(
             vec![TimelineEntry {
+                step_id: 1,
                 lifecycle: StepLifecycle::Completed,
                 label: "tool: status".into(),
                 detail: String::new(),
+                session_id: None,
             }],
             vec![],
         );
@@ -1636,14 +1649,18 @@ mod tests {
             activity_rows: vec![],
             timeline_entries: vec![
                 TimelineEntry {
+                    step_id: 1,
                     lifecycle: StepLifecycle::Completed,
                     label: "read_file: ok".into(),
                     detail: "Tool: read_file\nOutcome: ok".into(),
+                    session_id: None,
                 },
                 TimelineEntry {
+                    step_id: 2,
                     lifecycle: StepLifecycle::Completed,
                     label: "check: ok".into(),
                     detail: "Tool: check\nOutcome: ok".into(),
+                    session_id: None,
                 },
             ],
             selected_step: 0,
@@ -1654,6 +1671,7 @@ mod tests {
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
+            follow_mode: true,
         };
         draw.draw(&mut buf, &first, 80, 24);
 
@@ -1689,6 +1707,7 @@ mod tests {
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
+            follow_mode: true,
         };
 
         draw.draw(&mut buf, &state, 80, 24);
@@ -1760,6 +1779,7 @@ mod tests {
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
+            follow_mode: true,
         };
 
         draw.draw(&mut buf, &state, 80, 24);
@@ -1775,9 +1795,11 @@ mod tests {
     fn adaptive_layout_scales_timeline_with_entries() {
         let entries: Vec<TimelineEntry> = (0..20)
             .map(|i| TimelineEntry {
+                step_id: i as u64,
                 lifecycle: StepLifecycle::Completed,
                 label: format!("step_{i}: done"),
                 detail: String::new(),
+                session_id: None,
             })
             .collect();
 
@@ -1819,9 +1841,11 @@ mod tests {
             status_line: "mode:streaming approval:none repo:myrepo inst:AGENTS.md".into(),
             activity_rows: vec![],
             timeline_entries: vec![TimelineEntry {
+                step_id: 1,
                 lifecycle: StepLifecycle::Running,
                 label: "read_file: running".into(),
                 detail: String::new(),
+                session_id: None,
             }],
             selected_step: 0,
             total_steps: 1,
@@ -1831,6 +1855,7 @@ mod tests {
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec!["src/main.rs".into()],
+            follow_mode: true,
         };
 
         draw.draw(&mut buf, &state, 100, 24);
@@ -1861,6 +1886,7 @@ mod tests {
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
+            follow_mode: true,
         };
 
         draw.draw(&mut buf, &state, 80, 24);
@@ -1916,6 +1942,7 @@ mod tests {
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
+            follow_mode: true,
         };
 
         draw.draw(&mut buf, &state, 80, 24);
@@ -1950,6 +1977,7 @@ mod tests {
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
+            follow_mode: true,
         };
 
         draw.draw(&mut buf, &state, 80, 24);
@@ -1978,6 +2006,7 @@ mod tests {
             composer_text: "hello fullscreen".into(),
             composer_cursor: "hello fullscreen".len(),
             changed_files: vec![],
+            follow_mode: true,
         };
 
         draw.draw(&mut buf, &state, 80, 24);
@@ -2005,6 +2034,7 @@ mod tests {
             composer_text: "first".into(),
             composer_cursor: 5,
             changed_files: vec![],
+            follow_mode: true,
         };
         let second = TaskLayoutState {
             composer_text: "second".into(),
@@ -2035,6 +2065,7 @@ mod tests {
             composer_text: "same text".into(),
             composer_cursor: 2,
             changed_files: vec![],
+            follow_mode: true,
         };
         let second = TaskLayoutState {
             composer_cursor: 7,

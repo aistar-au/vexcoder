@@ -40,6 +40,7 @@ impl TuiMode {
         self.current_turn_tool_invocations.clear();
         self.pending_turn_tool_calls.clear();
         self.selected_timeline_index = 0;
+        self.timeline_follow_mode = true;
     }
 
     pub(super) fn reset_last_turn_display(&mut self) {

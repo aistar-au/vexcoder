@@ -5,7 +5,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::runtime::{ApprovalScope, Capability};
-use crate::turn_evidence::TurnEvidenceState;
+use crate::turn_evidence::{normalize_tool_invocation_step_ids, TurnEvidenceState};
 
 pub type TaskId = String;
 
@@ -150,6 +150,8 @@ impl TaskState {
                 evidence.interrupted = true;
             }
         }
+
+        normalize_tool_invocation_step_ids(&mut state.turns);
 
         Ok(state)
     }
@@ -338,6 +340,45 @@ mod tests {
         assert!(loaded.session_notes.is_empty());
         assert!(loaded.context_compaction.is_empty());
         assert_eq!(loaded.cache_usage, CacheUsageStats::default());
+    }
+
+    #[test]
+    fn test_task_state_load_backfills_missing_tool_invocation_step_ids() {
+        let dir = TempDir::new().unwrap();
+        let legacy_json = r#"{
+            "id": "task-step-legacy",
+            "status": "Completed",
+            "active_grants": {},
+            "changed_files": [],
+            "command_history": [],
+            "conversation_snapshot": {"message_count": 0, "summary": ""},
+            "interrupted_sessions": [],
+            "turns": [
+                {
+                    "input": "hi",
+                    "response": "done",
+                    "changed_files": [],
+                    "command_history": [],
+                    "tool_invocations": [
+                        {"name": "read_file", "outcome": "ok"},
+                        {"step_id": 2, "name": "edit_file", "outcome": "ok"},
+                        {"step_id": 2, "name": "run_command", "outcome": "ok"}
+                    ],
+                    "tokens": {"input": 0, "output": 0}
+                }
+            ]
+        }"#;
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.path().join("task-step-legacy.json"), legacy_json).unwrap();
+
+        let loaded = TaskState::load(dir.path(), "task-step-legacy").expect("load failed");
+        let step_ids = loaded.turns[0]
+            .tool_invocations
+            .iter()
+            .map(|invocation| invocation.step_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(step_ids, vec![1, 2, 3]);
     }
 
     #[test]

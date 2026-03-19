@@ -378,6 +378,7 @@ fn render_timeline_entry(entry: &crate::app::TimelineEntry, is_selected: bool) -
         StepLifecycle::Failed => ("[!]", Color::Red),
         StepLifecycle::Running => ("[->]", Color::Cyan),
         StepLifecycle::AwaitingApproval => ("[?]", Color::Yellow),
+        StepLifecycle::Approved => ("[v]", Color::Green),
         StepLifecycle::UserInput => (">", Color::DarkGray),
         StepLifecycle::CommandSession => ("[$$]", Color::Magenta),
     };
@@ -741,17 +742,21 @@ mod tests {
     fn render_timeline_entry_normalizes_prefix_spacing() {
         let approval = render_timeline_entry(
             &crate::app::TimelineEntry {
+                step_id: 1,
                 lifecycle: crate::app::StepLifecycle::AwaitingApproval,
                 label: "ApplyPatch: src/main.rs".into(),
                 detail: String::new(),
+                session_id: None,
             },
             true,
         );
         let user_input = render_timeline_entry(
             &crate::app::TimelineEntry {
+                step_id: 0,
                 lifecycle: crate::app::StepLifecycle::UserInput,
                 label: "ship it".into(),
                 detail: String::new(),
+                session_id: None,
             },
             true,
         );
@@ -772,6 +777,44 @@ mod tests {
     }
 
     #[test]
+    fn render_timeline_entry_gives_approved_a_distinct_prefix() {
+        let approved = render_timeline_entry(
+            &crate::app::TimelineEntry {
+                step_id: 1,
+                lifecycle: crate::app::StepLifecycle::Approved,
+                label: "ApplyPatch: approved".into(),
+                detail: String::new(),
+                session_id: None,
+            },
+            false,
+        );
+        let completed = render_timeline_entry(
+            &crate::app::TimelineEntry {
+                step_id: 2,
+                lifecycle: crate::app::StepLifecycle::Completed,
+                label: "ApplyPatch: done".into(),
+                detail: String::new(),
+                session_id: None,
+            },
+            false,
+        );
+
+        let approved_text: String = approved
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        let completed_text: String = completed
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+
+        assert!(approved_text.starts_with("  [v]"));
+        assert!(completed_text.starts_with("  [ok]"));
+    }
+
+    #[test]
     fn test_changed_files_and_live_approval_prompt_render() {
         let backend = TestBackend::new(80, 24);
         let mut terminal = Terminal::new(backend).unwrap();
@@ -780,9 +823,11 @@ mod tests {
             status_line: "AwaitingApproval".into(),
             activity_rows: vec!["[?] ApplyPatch: src/main.rs".into()],
             timeline_entries: vec![crate::app::TimelineEntry {
+                step_id: 1,
                 lifecycle: crate::app::StepLifecycle::AwaitingApproval,
                 label: "ApplyPatch: src/main.rs".into(),
                 detail: "Tool: ApplyPatch\nFile: src/main.rs".into(),
+                session_id: None,
             }],
             selected_step: 0,
             total_steps: 1,
@@ -792,6 +837,7 @@ mod tests {
             input_hint: "ApplyPatch: src/main.rs\n[y/n/s] ".into(),
             composer_text: String::new(),
             composer_cursor: 0,
+            follow_mode: true,
         };
 
         terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -830,14 +876,18 @@ mod tests {
             ],
             timeline_entries: vec![
                 crate::app::TimelineEntry {
+                    step_id: 1,
                     lifecycle: crate::app::StepLifecycle::Completed,
                     label: "read_file: ok".into(),
                     detail: "Tool: read_file\nOutcome: ok".into(),
+                    session_id: None,
                 },
                 crate::app::TimelineEntry {
+                    step_id: 2,
                     lifecycle: crate::app::StepLifecycle::Running,
                     label: "validate: running...".into(),
                     detail: "Tool: validate\nInput: ...".into(),
+                    session_id: None,
                 },
             ],
             selected_step: 1,
@@ -848,6 +898,7 @@ mod tests {
             input_hint: "> ".into(),
             composer_text: String::new(),
             composer_cursor: 0,
+            follow_mode: true,
         };
 
         terminal.draw(|f| render_task_layout(f, &state)).unwrap();

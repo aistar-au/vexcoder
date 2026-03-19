@@ -153,6 +153,7 @@ mod tests {
             changed_files: vec!["src/lib.rs".to_string()],
             command_history: Vec::new(),
             tool_invocations: vec![ToolInvocationSummary {
+                step_id: 1,
                 name: "read_file".to_string(),
                 outcome: "ok".to_string(),
             }],
@@ -181,6 +182,7 @@ mod tests {
             changed_files: Vec::new(),
             command_history: Vec::new(),
             tool_invocations: vec![ToolInvocationSummary {
+                step_id: 1,
                 name: "apply_patch".to_string(),
                 outcome: "ok".to_string(),
             }],

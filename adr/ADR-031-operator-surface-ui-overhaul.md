@@ -249,7 +249,18 @@ remote branches, but merges must respect the dependency chain above.
 
 **Batch A — Canonical timeline/task-state extension**
 Adds the state the new UI needs: selected step identity, runtime-visible step
-lifecycle, command-session row identity. This is merge-gating.
+lifecycle, command-session row identity, and follow-mode ownership for timeline
+selection. In the current implementation track this means:
+
+- stable `step_id` values for timeline rows derived from pending/completed tool
+  calls;
+- explicit row identity for command-session entries;
+- runtime-visible `Approved` lifecycle state between operator approval and tool
+  completion;
+- task-surface follow mode so selection can stay pinned to the latest step
+  until the operator scrolls away.
+
+This is merge-gating.
 
 **Batch B — Derivation layer**
 Maps canonical runtime/task state into UI timeline rows and inspector content.

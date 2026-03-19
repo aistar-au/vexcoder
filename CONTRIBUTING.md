@@ -105,7 +105,7 @@ bash scripts/check_forbidden_imports.sh
 
 ## Release Packaging
 
-Package release changes on a dispatcher branch first and debug the packaging workflow there before opening a PR.
+Package release changes on a dispatcher branch first, verify them locally, and open the PR without waiting on a duplicate packaging workflow run.
 
 ```bash
 git switch -c dispatcher/v0.1.0-alpha2-packaging
@@ -126,7 +126,7 @@ git push -u origin dispatcher/v0.1.0-alpha2-packaging
 
 Windows packaging is currently an unsigned alpha path. Platform trust warnings are expected until code signing lands; evaluate a compatible signing service only when the packaging ADR set explicitly requires it.
 
-The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. Dispatcher branch pushes run `.github/workflows/release.yml` to upload packaging artifacts for review only. Once the branch workflow is green and the archives look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
+The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. `.github/workflows/release.yml` now runs only for tag pushes and manual dispatch so dispatcher branches do not duplicate the main PR checks. After the branch gates are green and the local packaging smoke checks look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
 
 ```bash
 git switch main
