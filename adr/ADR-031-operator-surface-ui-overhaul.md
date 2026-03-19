@@ -33,7 +33,7 @@ remaining ADR-031 scope:
 - derives UI-facing timeline rows from canonical task state rather than ad hoc
   activity-row assembly;
 - aligns transcript/output semantics across `src/app/layout.rs`,
-  `src/ui/draw.rs`, and the fallback renderer paths;
+  the `src/ui/draw/` module, and the fallback renderer paths;
 - removes obsolete fixed-row assumptions once the adaptive task surface is the
   only live layout path;
 - replaces transient formatting/string-coupling where the renderer still

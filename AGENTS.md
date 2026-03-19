@@ -71,9 +71,9 @@ review text:
 
 | Order | File | Why it is a dependency |
 | :--- | :--- | :--- |
-| 1 | `../vexdraft/.agents/skills/vex-local-bash/SKILL.md` (<https://raw.githubusercontent.com/aistar-au/vexdraft/main/.agents/skills/vex-local-bash/SKILL.md>) | Local drafting rules for summaries, findings, and PR motivation text. |
-| 2 | `../vexdraft/.agents/skills/vex-remote-contract/SKILL.md` (<https://raw.githubusercontent.com/aistar-au/vexdraft/main/.agents/skills/vex-remote-contract/SKILL.md>) | Cross-repo branch verification, raw URL validation, PR-body posting, and push/merge contract. |
-| 3 | `../vexdraft/.agents/skills/vex-rust-arch/SKILL.md` (<https://raw.githubusercontent.com/aistar-au/vexdraft/main/.agents/skills/vex-rust-arch/SKILL.md>) | Rust-specific architecture guidance when the task touches `src/**/*.rs`, `tests/**/*.rs`, or ADR-024 gaps. |
+| 1 | `../vexdraft/.agents/skills/vex-local-bash/SKILL.md` (<https://github.com/aistar-au/vexdraft/blob/main/.agents/skills/vex-local-bash/SKILL.md>) | Local drafting rules for summaries, findings, and PR motivation text. |
+| 2 | `../vexdraft/.agents/skills/vex-remote-contract/SKILL.md` (<https://github.com/aistar-au/vexdraft/blob/main/.agents/skills/vex-remote-contract/SKILL.md>) | Cross-repo branch verification, raw URL validation, PR-body posting, and push/merge contract. |
+| 3 | `../vexdraft/.agents/skills/vex-rust-arch/SKILL.md` (<https://github.com/aistar-au/vexdraft/blob/main/.agents/skills/vex-rust-arch/SKILL.md>) | Rust-specific architecture guidance when the task touches `src/**/*.rs`, `tests/**/*.rs`, or ADR-024 gaps. |
 
 **Note:** In remote environments these same files are loaded from the
 `aistar-au/vexdraft` repository. Paths beginning with `../vexdraft/` refer to the
@@ -86,7 +86,7 @@ them:
 | Trigger | File | Purpose |
 | :--- | :--- | :--- |
 | ADR-024 parity or gap planning | `../vexdraft/.agents/skills/vex-remote-contract/references/adr-024-gap-map.md` (<https://github.com/aistar-au/vexdraft/blob/main/.agents/skills/vex-remote-contract/references/adr-024-gap-map.md>) | Gap inventory and dependency notes for ADR-024 work. |
-| Rust coding task needs expanded language rules | `../vexdraft/.agents/skills/vex-remote-contract/references/rust-rules.md` (<https://raw.githubusercontent.com/aistar-au/vexdraft/main/.agents/skills/vex-remote-contract/references/rust-rules.md>) | Rust implementation constraints used by the dispatcher workflow. |
+| Rust coding task needs expanded language rules | `../vexdraft/.agents/skills/vex-remote-contract/references/rust-rules.md` (<https://github.com/aistar-au/vexdraft/blob/main/.agents/skills/vex-remote-contract/references/rust-rules.md>) | Rust implementation constraints used by the dispatcher workflow. |
 
 ## Local repo sources
 
