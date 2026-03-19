@@ -145,21 +145,26 @@ Repository-level background sessions can use the private skill tree from
 `aistar-au/vexdraft` through the repository setup workflow and the
 `vexcoder-ui-parity-orchestrator` profile.
 
-- The setup workflow syncs `vexdraft/.agents/skills/` into the background
-  session home directory and reads the private-repo clone credential from the
-  platform environment secret referenced by the setup workflow.
+- The setup workflow prewarms `vexdraft/.agents/skills/` into the background
+  session home directory when the private-repo clone credential is available in
+  the platform environment secret referenced by the setup workflow.
+- If that secret-backed sync is unavailable or incomplete, the remote agent
+  must fall back to the attached GitHub MCP repo access and load
+  `aistar-au/vexdraft/.agents/skills/` directly before work begins.
 - The setup workflow only affects background sessions after it lands on the
   default branch. Manual workflow dispatch is still useful for validating the
   bootstrap steps on a feature branch before merge.
-- The repository-level agent profile follows the branch you target. Use a
-  dispatcher branch as the `--base` argument when you want the remote session
-  to see branch-local agent changes.
+- The safest discovery path is `--repo aistar-au/vexcoder --base main` after
+  the agent profile is merged to the default branch. Once discovery is proven
+  there, use a dispatcher branch as the `--base` argument when you want the
+  remote session to see branch-local code changes.
 
 Start a UI parity session from the GitHub CLI with:
 
 ```bash
 gh agent-task create \
-  --base <dispatcher-branch> \
+  --repo aistar-au/vexcoder \
+  --base main \
   --custom-agent vexcoder-ui-parity-orchestrator \
   --follow \
   "Investigate the fullscreen UI, task-state control surface, scrolling, and stale docs."
