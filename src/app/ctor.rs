@@ -43,7 +43,7 @@ impl TuiMode {
             current_turn_tool_invocations: Vec::new(),
             pending_turn_tool_calls: std::collections::HashMap::new(),
             selected_timeline_index: 0,
-            next_step_id: 0,
+            next_step_id: 1,
             timeline_follow_mode: true,
             last_turn_tool_invocations: Vec::new(),
             last_turn_response: String::new(),
