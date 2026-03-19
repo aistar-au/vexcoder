@@ -184,6 +184,8 @@ vexcoder/ (standalone view)
 | `src/app/accessors.rs` | TuiMode status and read-only accessor methods extracted from app facade under ADR-028 phase 4. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/accessors.rs> |
 | `src/app/commands.rs` | Slash-command handler methods extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/commands.rs> |
 | `src/app/ctor.rs` | TuiMode construction methods extracted from app facade under ADR-028 phase 4. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/ctor.rs> |
+| `src/app/errors.rs` | AppError wrapper type and AppResult type alias for error handling. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/errors.rs> |
+| `src/app/facade.rs` | API client facade builder with project instructions and bootstrap configuration. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/facade.rs> |
 | `src/app/inline.rs` | Inline `@`-token file-expansion methods extracted from app facade under ADR-028 phase 3. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/inline.rs> |
 | `src/app/input.rs` | User-input and interrupt handler methods extracted from app facade under ADR-028 phase 5. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/input.rs> |
 | `src/app/layout.rs` | Layout-state and command-routing helper methods extracted from app facade under ADR-028 phase 4. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/layout.rs> |
@@ -198,9 +200,16 @@ vexcoder/ (standalone view)
 | `src/app/util.rs` | Module-level helper functions extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/util.rs> |
 | `src/batch_mode.rs` | Non-interactive batch runner for `vex exec`, including JSONL and text turn output. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode.rs> |
 | `src/config.rs` | Layered config loading and validation across environment, repo-local, user, and system sources. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
+| `src/custom_commands.rs` | Custom user-defined commands loaded from `.vex/commands` directory. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/custom_commands.rs> |
+| `src/doctor.rs` | Diagnostic checks for system configuration and health status. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/doctor.rs> |
 | `src/edit_diff.rs` | Edit preview diff/hunk formatting utilities. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/edit_diff.rs> |
+| `src/export.rs` | Task execution record export in JSONL or Markdown format. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/export.rs> |
 | `src/git_hooks.rs` | Git hook install/remove helpers and commit-trailer hook script. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/git_hooks.rs> |
+| `src/local_api.rs` | HTTP server implementation for local API with axum web framework. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/local_api.rs> |
+| `src/prompts.rs` | Prompt template loading and rendering for code generation tasks. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/prompts.rs> |
 | `src/runtime.rs` | Runtime module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime.rs> |
+| `src/runtime/approval.rs` | Capability-based approval policies for sandboxed operations. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/approval.rs> |
+| `src/runtime/backend.rs` | Model backend types and protocol abstractions for LLM integration. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/backend.rs> |
 | `src/runtime/command.rs` | Command execution: one-shot, streaming, PTY, and process group management. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/command.rs> |
 | `src/runtime/context.rs` | Async turn execution context, edit-turn driver, and conversation update forwarding. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context.rs> |
 | `src/runtime/context_assembler.rs` | Context assembly for model turns (file snapshots and prompt construction). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context_assembler.rs> |
@@ -210,6 +219,10 @@ vexcoder/ (standalone view)
 | `src/runtime/edit_loop.rs` | Task-completion edit loop: assemble→model→apply→validate→retry cycle. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/edit_loop.rs> |
 | `src/runtime/mode.rs` | Runtime mode trait defining input/update hooks. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/mode.rs> |
 | `src/runtime/policy.rs` | Output sanitization and tool-evidence policy helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/policy.rs> |
+| `src/runtime/project_instructions.rs` | Project-level instructions loading from `.vex/AGENTS.md` or `AGENTS.md` with token budget enforcement. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/project_instructions.rs> |
+| `src/runtime/sandbox.rs` | Command sandboxing trait and implementations with wrapper and probe methods. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/sandbox.rs> |
+| `src/runtime/task_state.rs` | Task execution state management with status tracking and evidence collection. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/task_state.rs> |
+| `src/runtime/text_util.rs` | UTF-8 aware text truncation utilities respecting byte boundaries. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/text_util.rs> |
 | `src/runtime/update.rs` | `UiUpdate` message types emitted from runtime to frontend. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/update.rs> |
 | `src/runtime/validation.rs` | Concurrent validation suite: command execution, retry formatting. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/validation.rs> |
 | `src/state.rs` | State module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state.rs> |
@@ -226,14 +239,20 @@ vexcoder/ (standalone view)
 | `src/tool_preview.rs` | Tool approval preview rendering and read-file snapshot summaries. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tool_preview.rs> |
 | `src/tools.rs` | Tools module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools.rs> |
 | `src/skills.rs` | Skills registry load/list/install/remove helpers for `.agents/skills`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/skills.rs> |
+| `src/session_notes.rs` | Session notes loading and resolution with memory token budget management. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/session_notes.rs> |
 | `src/tools/operator.rs` | Sandboxed file/git tool operator with path safety and literal search. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/operator.rs> |
+| `src/turn_evidence.rs` | Turn evidence recording: input, response, file changes, and command history. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/turn_evidence.rs> |
 | `src/types.rs` | Types module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types.rs> |
 | `src/types/api_types.rs` | API request/response content and streaming event structs/enums. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/api_types.rs> |
+| `src/types/model_profile.rs` | ModelProfile configuration for LLM models with system prompt and parameters. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/model_profile.rs> |
 | `src/ui.rs` | UI module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui.rs> |
+| `src/ui/draw.rs` | Adaptive ANSI draw engine for persistent full-screen operator workspace surface. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw.rs> |
+| `src/ui/editor.rs` | Text input editor with history, undo/redo stacks, and cursor management. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/editor.rs> |
 | `src/ui/input_metrics.rs` | Input editor row/width metrics for viewport-safe rendering. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/input_metrics.rs> |
 | `src/ui/layout.rs` | Ratatui pane layout splitting and geometry helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/layout.rs> |
 | `src/ui/render.rs` | Ratatui render functions for status, history, input, and overlays. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render.rs> |
 | `src/util.rs` | Shared utility functions (bool/env parsing and endpoint helpers). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/util.rs> |
+| `src/usage.rs` | Token usage tracking structures for turns and sessions. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/usage.rs> |
 | `src/workspace.rs` | Repo-root and workspace-relative path helpers for repo-scoped state. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/workspace.rs> |
 | `tests/integration_test.rs` | Integration tests for config validation behavior. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/integration_test.rs> |
 | `tests/layout_underflow_tests.rs` | TUI layout constraint and underflow regression tests. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/layout_underflow_tests.rs> |
