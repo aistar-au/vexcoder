@@ -296,29 +296,69 @@ impl TuiMode {
 
     /// Build enriched paragraph rows from the last completed turn.
     ///
-    /// Each tool invocation is rendered as a short paragraph:
-    ///   tool_name outcome
+    /// Each tool invocation is rendered as a paragraph tree with stable
+    /// indentation levels:
+    ///
+    /// ```text
+    /// [ok] tool_name: brief outcome summary       ← summary (2-space visual)
+    ///     detail line 1                            ← phase detail (4-space)
+    ///     detail line 2                            ← phase detail (4-space)
+    ///       evidence line 1                        ← evidence (6-space)
+    ///       ... N more lines                       ← truncation hint
+    /// ```
+    ///
+    /// The summary line is self-informative: it includes the tool name and
+    /// a compact extract from the outcome so the operator can scan without
+    /// expanding detail.  Phase-detail lines (4-space) show the first few
+    /// outcome lines.  Evidence lines (6-space) show remaining content,
+    /// truncated with a count when the output is long.
     ///
     /// Followed by the model response text.
     fn enriched_paragraph_rows(&self) -> Vec<String> {
+        /// Maximum outcome lines shown at phase-detail level (4-space indent).
+        const MAX_PHASE_LINES: usize = 4;
+        /// Maximum outcome lines shown at evidence level (6-space indent).
+        const MAX_EVIDENCE_LINES: usize = 3;
+
         let mut rows = Vec::new();
 
         for invocation in &self.last_turn_tool_invocations {
             if !rows.is_empty() {
                 rows.push(String::new());
             }
-            let status = if invocation.outcome.starts_with("error")
+            let is_error = invocation.outcome.starts_with("error")
                 || invocation.outcome.starts_with("failed")
-                || invocation.outcome.starts_with("Error")
-            {
-                "[!]"
+                || invocation.outcome.starts_with("Error");
+            let status = if is_error { "[!]" } else { "[ok]" };
+
+            let outcome_lines: Vec<&str> = invocation.outcome.lines().collect();
+            let first_line = outcome_lines.first().copied().unwrap_or("");
+
+            // Summary line: tool name + compact first-line extract.
+            if first_line.is_empty() {
+                rows.push(format!("{} {}", status, invocation.name));
             } else {
-                "[ok]"
-            };
-            rows.push(format!("{} {}", status, invocation.name));
-            // Wrap outcome text as a paragraph.
-            for line in invocation.outcome.lines() {
+                let brief = compact_outcome_summary(first_line);
+                rows.push(format!("{} {}: {}", status, invocation.name, brief));
+            }
+
+            // Phase detail (4-space): subsequent outcome lines up to the cap.
+            let detail_lines = &outcome_lines[1..outcome_lines.len().min(1 + MAX_PHASE_LINES)];
+            for line in detail_lines {
                 rows.push(format!("    {}", line));
+            }
+
+            // Evidence (6-space): remaining lines after phase detail, capped.
+            let evidence_start = 1 + MAX_PHASE_LINES;
+            if outcome_lines.len() > evidence_start {
+                let evidence_end = outcome_lines.len().min(evidence_start + MAX_EVIDENCE_LINES);
+                for line in &outcome_lines[evidence_start..evidence_end] {
+                    rows.push(format!("      {}", line));
+                }
+                let remaining = outcome_lines.len().saturating_sub(evidence_end);
+                if remaining > 0 {
+                    rows.push(format!("      \u{2026} {} more lines", remaining));
+                }
             }
         }
 
@@ -428,5 +468,59 @@ impl TuiMode {
         Self::registered_slash_command(input)
             .map(|(spec, _)| matches!(spec.id, SlashCommandId::Edit | SlashCommandId::Fix))
             .unwrap_or(false)
+    }
+}
+
+/// Produce a compact summary string from the first outcome line.
+///
+/// Truncates to at most 60 display characters so the summary line stays
+/// readable on typical terminal widths without wrapping.
+fn compact_outcome_summary(line: &str) -> String {
+    const MAX_SUMMARY_WIDTH: usize = 60;
+    let trimmed = line.trim();
+    if trimmed.len() <= MAX_SUMMARY_WIDTH {
+        return trimmed.to_string();
+    }
+    let mut end = MAX_SUMMARY_WIDTH;
+    // Snap to a word boundary when possible.
+    if let Some(space_pos) = trimmed[..end].rfind(' ') {
+        if space_pos > MAX_SUMMARY_WIDTH / 2 {
+            end = space_pos;
+        }
+    }
+    format!("{}\u{2026}", &trimmed[..end])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compact_outcome_summary;
+
+    #[test]
+    fn short_outcome_preserved() {
+        assert_eq!(compact_outcome_summary("ok"), "ok");
+        assert_eq!(compact_outcome_summary("42 lines"), "42 lines");
+    }
+
+    #[test]
+    fn long_outcome_truncated_at_word_boundary() {
+        let long = "this is a long outcome line that exceeds sixty characters and should be truncated at a word boundary";
+        let result = compact_outcome_summary(long);
+        assert!(
+            result.len() <= 65,
+            "truncated result must be compact: got {result:?}"
+        );
+        assert!(
+            result.ends_with('\u{2026}'),
+            "truncated result must end with ellipsis: got {result:?}"
+        );
+        assert!(
+            result.contains("this is a long"),
+            "truncated result must preserve the start: got {result:?}"
+        );
+    }
+
+    #[test]
+    fn whitespace_trimmed() {
+        assert_eq!(compact_outcome_summary("  ok  "), "ok");
     }
 }

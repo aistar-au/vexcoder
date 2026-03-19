@@ -167,7 +167,19 @@ impl TaskDraw {
             return;
         }
 
-        // ── Indented detail text ───────────────────────────────────
+        // ── Indented evidence text (6-space) ──────────────────────
+        // Must be checked before the 4-space handler since 6 spaces
+        // also starts with 4 spaces.
+        if line.starts_with("      ") {
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let truncated = truncate_to_width(line, cols as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+            return;
+        }
+
+        // ── Indented detail text (4-space) ────────────────────────
         if line.starts_with("    ") {
             set_dim(w);
             set_fg(w, GRAY);
