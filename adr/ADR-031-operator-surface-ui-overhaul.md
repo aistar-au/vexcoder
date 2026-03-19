@@ -23,7 +23,8 @@ cumulative context indicator in the header.
 The active operator surface now also keeps transcript scroll anchored to the
 prompt edge and expands the composer into a larger multiline surface so slash
 commands, `@path` expansion, pasted blocks, and long prompts remain usable
-without dropping out of fullscreen task mode.
+without dropping out of fullscreen task mode, including visual-row cursor
+navigation for wrapped prompt text.
 
 The next step is the remaining alignment pass for that UI overhaul. The
 remaining ADR-031 scope:
@@ -33,7 +34,7 @@ remaining ADR-031 scope:
 - derives UI-facing timeline rows from canonical task state rather than ad hoc
   activity-row assembly;
 - aligns transcript/output semantics across `src/app/layout.rs`,
-  `src/ui/draw.rs`, and the fallback renderer paths;
+  `src/ui/draw/`, and the fallback renderer paths;
 - removes obsolete fixed-row assumptions once the adaptive task surface is the
   only live layout path;
 - replaces transient formatting/string-coupling where the renderer still

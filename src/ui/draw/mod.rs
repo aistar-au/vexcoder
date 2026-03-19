@@ -26,7 +26,7 @@ mod tests;
 
 use crate::app::{OutputScrollAnchor, StepLifecycle, TaskLayoutState, TimelineEntry};
 use crate::ui::input_metrics::{
-    cursor_row_col, display_width, truncate_to_display_width, wrap_input_lines,
+    cursor_row_col, display_width, truncate_to_display_width, visual_window_start, wrap_input_lines,
 };
 use ansi::*;
 use regions::Regions;
@@ -766,7 +766,7 @@ impl TaskDraw {
             let (cursor_row, _) =
                 cursor_row_col(&state.composer_text, state.composer_cursor, input_width);
             let body_rows = regions.composer_rows.saturating_sub(1).max(1) as usize;
-            let window_start = composer_window_start(cursor_row, body_rows);
+            let window_start = visual_window_start(cursor_row, body_rows);
             let hint_lines: Vec<&str> = state.input_hint.lines().collect();
 
             set_bold(w);
@@ -1111,12 +1111,6 @@ fn entry_lifecycle_id(lifecycle: &StepLifecycle) -> u64 {
     }
 }
 
-fn composer_window_start(cursor_row: usize, visible_rows: usize) -> usize {
-    cursor_row
-        .saturating_add(1)
-        .saturating_sub(visible_rows.max(1))
-}
-
 fn composer_cursor_position(state: &TaskLayoutState, regions: &Regions) -> (u16, u16) {
     if state.pending_approval.is_some() {
         return (regions.composer_start, 0);
@@ -1126,7 +1120,7 @@ fn composer_cursor_position(state: &TaskLayoutState, regions: &Regions) -> (u16,
     let (cursor_row, cursor_col) =
         cursor_row_col(&state.composer_text, state.composer_cursor, input_width);
     let body_rows = regions.composer_rows.saturating_sub(1).max(1) as usize;
-    let window_start = composer_window_start(cursor_row, body_rows);
+    let window_start = visual_window_start(cursor_row, body_rows);
     let visible_row = cursor_row.saturating_sub(window_start) as u16;
     let row = regions
         .composer_start
