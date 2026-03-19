@@ -1,6 +1,8 @@
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
-use crate::ui::input_metrics::{cursor_byte_for_row_col, cursor_row_col, wrap_input_lines};
+use crate::ui::input_metrics::{
+    cursor_byte_for_row_col, cursor_row_col, visual_row_bounds, visual_row_count,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EditorSnapshot {
@@ -221,15 +223,37 @@ impl InputEditor {
     pub fn move_cursor_visual_down(&mut self, width: usize) -> bool {
         let width = width.max(1);
         let (row, col) = cursor_row_col(&self.input_state.buffer, self.input_state.cursor, width);
-        let last_row = wrap_input_lines(&self.input_state.buffer, width)
-            .len()
-            .saturating_sub(1);
+        let last_row = visual_row_count(&self.input_state.buffer, width).saturating_sub(1);
         if row >= last_row {
             return false;
         }
 
         self.input_state.cursor =
             cursor_byte_for_row_col(&self.input_state.buffer, row + 1, col, width);
+        true
+    }
+
+    pub fn move_cursor_visual_home(&mut self, width: usize) -> bool {
+        let width = width.max(1);
+        let (row, _) = cursor_row_col(&self.input_state.buffer, self.input_state.cursor, width);
+        let (start, _) = visual_row_bounds(&self.input_state.buffer, row, width);
+        if self.input_state.cursor == start {
+            return false;
+        }
+
+        self.input_state.cursor = start;
+        true
+    }
+
+    pub fn move_cursor_visual_end(&mut self, width: usize) -> bool {
+        let width = width.max(1);
+        let (row, _) = cursor_row_col(&self.input_state.buffer, self.input_state.cursor, width);
+        let (_, end) = visual_row_bounds(&self.input_state.buffer, row, width);
+        if self.input_state.cursor == end {
+            return false;
+        }
+
+        self.input_state.cursor = end;
         true
     }
 
@@ -305,7 +329,7 @@ impl Default for InputEditor {
 #[cfg(test)]
 mod tests {
     use super::InputEditor;
-    use crate::ui::input_metrics::cursor_row_col;
+    use crate::ui::input_metrics::{cursor_row_col, visual_row_bounds};
 
     #[test]
     fn visual_up_down_moves_within_multiline_prompt() {
@@ -358,5 +382,34 @@ mod tests {
 
         assert!(!editor.move_cursor_visual_up(80));
         assert_eq!(editor.input_state.cursor, 2);
+    }
+
+    #[test]
+    fn visual_home_end_stay_within_multiline_prompt_row() {
+        let mut editor = InputEditor::new();
+        editor.input_state.buffer = "alpha\nbeta\ngamma".to_string();
+        editor.input_state.cursor = "alpha\nbet".len();
+
+        assert!(editor.move_cursor_visual_home(80));
+        assert_eq!(editor.input_state.cursor, "alpha\n".len());
+
+        assert!(editor.move_cursor_visual_end(80));
+        assert_eq!(editor.input_state.cursor, "alpha\nbeta".len());
+    }
+
+    #[test]
+    fn visual_home_end_use_wrapped_rows_for_long_prompt_lines() {
+        let mut editor = InputEditor::new();
+        editor.input_state.buffer = "/plan @src/ui/draw/mod.rs with more context".to_string();
+        editor.input_state.cursor = editor.input_state.buffer.len();
+
+        let (row, _) = cursor_row_col(&editor.input_state.buffer, editor.cursor(), 12);
+        let (row_start, row_end) = visual_row_bounds(&editor.input_state.buffer, row, 12);
+
+        assert!(editor.move_cursor_visual_home(12));
+        assert_eq!(editor.input_state.cursor, row_start);
+
+        assert!(editor.move_cursor_visual_end(12));
+        assert_eq!(editor.input_state.cursor, row_end);
     }
 }

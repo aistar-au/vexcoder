@@ -66,6 +66,18 @@ pub fn cursor_row_col(input: &str, cursor_byte: usize, width: usize) -> (usize, 
     (row, col)
 }
 
+pub fn visual_row_count(input: &str, width: usize) -> usize {
+    visual_row_spans(input, width).len().max(1)
+}
+
+pub fn visual_row_bounds(input: &str, target_row: usize, width: usize) -> (usize, usize) {
+    let spans = visual_row_spans(input, width);
+    spans
+        .get(target_row)
+        .copied()
+        .unwrap_or_else(|| spans.last().copied().unwrap_or((0, 0)))
+}
+
 pub fn cursor_byte_for_row_col(
     input: &str,
     target_row: usize,
@@ -73,11 +85,7 @@ pub fn cursor_byte_for_row_col(
     width: usize,
 ) -> usize {
     let width = width.max(1);
-    let spans = visual_row_spans(input, width);
-    let (start, end) = spans
-        .get(target_row)
-        .copied()
-        .unwrap_or_else(|| spans.last().copied().unwrap_or((0, 0)));
+    let (start, end) = visual_row_bounds(input, target_row, width);
     if start >= end {
         return start.min(input.len());
     }
@@ -97,6 +105,12 @@ pub fn cursor_byte_for_row_col(
     }
 
     end
+}
+
+pub fn visual_window_start(cursor_row: usize, visible_rows: usize) -> usize {
+    cursor_row
+        .saturating_add(1)
+        .saturating_sub(visible_rows.max(1))
 }
 
 pub fn truncate_to_display_width(text: &str, max_width: usize) -> String {

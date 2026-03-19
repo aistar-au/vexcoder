@@ -368,6 +368,16 @@ impl ManagedTuiFrontend {
                     action: ScrollAction::End,
                 })
             }
+            KeyCode::Home if key.modifiers.is_empty() => {
+                self.editor
+                    .move_cursor_visual_home(self.editor_visual_width());
+                None
+            }
+            KeyCode::End if key.modifiers.is_empty() => {
+                self.editor
+                    .move_cursor_visual_end(self.editor_visual_width());
+                None
+            }
             KeyCode::Up if key.modifiers.is_empty() => {
                 if self
                     .editor
