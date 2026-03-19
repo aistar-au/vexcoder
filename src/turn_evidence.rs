@@ -1,7 +1,7 @@
 use crate::runtime::CommandEvidence;
 use crate::usage::TurnTokens;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TurnEvidenceRecord {
@@ -45,6 +45,23 @@ pub struct TurnEvidenceState {
     pub tool_invocations: Vec<ToolInvocationSummary>,
     #[serde(default)]
     pub tokens: TurnTokens,
+}
+
+pub fn normalize_tool_invocation_step_ids(turns: &mut [TurnEvidenceState]) {
+    let mut next_step_id = 1_u64;
+    let mut seen = HashSet::new();
+
+    for turn in turns {
+        for invocation in &mut turn.tool_invocations {
+            if invocation.step_id == 0 || !seen.insert(invocation.step_id) {
+                while !seen.insert(next_step_id) {
+                    next_step_id = next_step_id.saturating_add(1);
+                }
+                invocation.step_id = next_step_id;
+            }
+            next_step_id = next_step_id.max(invocation.step_id.saturating_add(1));
+        }
+    }
 }
 
 pub fn first_string_field<'a>(input: &'a serde_json::Value, keys: &[&str]) -> Option<&'a str> {
@@ -105,7 +122,10 @@ pub fn command_evidence_from_tool_result(name: &str, is_error: bool) -> Option<C
 
 #[cfg(test)]
 mod tests {
-    use super::{command_evidence_from_tool_result, note_changed_files_from_tool_call};
+    use super::{
+        command_evidence_from_tool_result, normalize_tool_invocation_step_ids,
+        note_changed_files_from_tool_call, ToolInvocationSummary, TurnEvidenceState,
+    };
     use std::collections::BTreeSet;
 
     #[test]
@@ -137,5 +157,48 @@ mod tests {
             command_evidence_from_tool_result("git_commit", false).expect("git evidence");
         assert_eq!(evidence.program, "git commit");
         assert_eq!(evidence.exit_code, Some(0));
+    }
+
+    #[test]
+    fn normalize_tool_invocation_step_ids_backfills_missing_and_duplicate_values() {
+        let mut turns = vec![
+            TurnEvidenceState {
+                input: "one".to_string(),
+                response: String::new(),
+                changed_files: Vec::new(),
+                command_history: Vec::new(),
+                tool_invocations: vec![
+                    ToolInvocationSummary {
+                        step_id: 0,
+                        name: "read_file".to_string(),
+                        outcome: "ok".to_string(),
+                    },
+                    ToolInvocationSummary {
+                        step_id: 2,
+                        name: "edit_file".to_string(),
+                        outcome: "ok".to_string(),
+                    },
+                ],
+                tokens: Default::default(),
+            },
+            TurnEvidenceState {
+                input: "two".to_string(),
+                response: String::new(),
+                changed_files: Vec::new(),
+                command_history: Vec::new(),
+                tool_invocations: vec![ToolInvocationSummary {
+                    step_id: 2,
+                    name: "run_command".to_string(),
+                    outcome: "ok".to_string(),
+                }],
+                tokens: Default::default(),
+            },
+        ];
+
+        normalize_tool_invocation_step_ids(&mut turns);
+
+        assert_eq!(turns[0].tool_invocations[0].step_id, 1);
+        assert_eq!(turns[0].tool_invocations[1].step_id, 2);
+        assert_eq!(turns[1].tool_invocations[0].step_id, 3);
     }
 }

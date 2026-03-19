@@ -96,10 +96,7 @@ impl TuiMode {
     pub(super) fn apply_timeline_down(&mut self, total_entries: usize) {
         let max = total_entries.saturating_sub(1);
         self.selected_timeline_index = (self.selected_timeline_index + 1).min(max);
-        // Re-enable follow mode when selection reaches the end.
-        if self.selected_timeline_index >= max {
-            self.timeline_follow_mode = true;
-        }
+        self.timeline_follow_mode = self.selected_timeline_index >= max;
     }
 
     /// Jump to the first timeline entry.
@@ -134,9 +131,7 @@ impl TuiMode {
                     .selected_timeline_index
                     .saturating_add(step.max(1))
                     .min(max);
-                if self.selected_timeline_index >= max {
-                    self.timeline_follow_mode = true;
-                }
+                self.timeline_follow_mode = self.selected_timeline_index >= max;
             }
             ScrollAction::Home => self.apply_timeline_home(),
             ScrollAction::End => self.apply_timeline_end(total_entries),

@@ -330,6 +330,73 @@ fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
 }
 
 #[test]
+fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("ship the fix".to_string(), &mut ctx);
+    mode.pending_turn_tool_calls.insert(
+        "z-tool".to_string(),
+        PendingTurnToolCall {
+            step_id: 4,
+            name: "validate".to_string(),
+            input: serde_json::json!({}),
+        },
+    );
+    mode.pending_turn_tool_calls.insert(
+        "a-tool".to_string(),
+        PendingTurnToolCall {
+            step_id: 3,
+            name: "edit_file".to_string(),
+            input: serde_json::json!({}),
+        },
+    );
+
+    let state = mode.task_layout_state().expect("task layout state");
+    let labels = state
+        .timeline_entries
+        .iter()
+        .skip(1)
+        .map(|entry| entry.label.clone())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        labels,
+        vec!["edit_file: running...", "validate: running..."]
+    );
+}
+
+#[test]
+fn test_timeline_down_disables_follow_mode_until_end() {
+    let mut mode = TuiMode::new();
+    mode.timeline_follow_mode = true;
+    mode.selected_timeline_index = 1;
+
+    mode.apply_timeline_down(5);
+
+    assert_eq!(mode.selected_timeline_index, 2);
+    assert!(!mode.timeline_follow_mode);
+
+    mode.apply_timeline_end(5);
+    assert!(mode.timeline_follow_mode);
+}
+
+#[test]
+fn test_timeline_page_down_disables_follow_mode_until_end() {
+    let mut mode = TuiMode::new();
+    mode.timeline_follow_mode = true;
+    mode.selected_timeline_index = 1;
+
+    mode.apply_timeline_scroll_action(ScrollAction::PageDown(2), 10);
+
+    assert_eq!(mode.selected_timeline_index, 3);
+    assert!(!mode.timeline_follow_mode);
+
+    mode.apply_timeline_scroll_action(ScrollAction::PageDown(10), 10);
+    assert!(mode.timeline_follow_mode);
+}
+
+#[test]
 fn test_transcript_does_not_exceed_cap_after_n_turns() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     std::env::set_var(MAX_HISTORY_LINES_ENV, "10");

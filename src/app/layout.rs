@@ -109,10 +109,10 @@ impl TuiMode {
 
         // In-flight tool calls from pending_turn_tool_calls (task-state owned).
         if has_pending {
-            let mut pending_keys: Vec<&String> = self.pending_turn_tool_calls.keys().collect();
-            pending_keys.sort();
-            for key in pending_keys {
-                let pending = &self.pending_turn_tool_calls[key];
+            let mut pending_calls: Vec<&PendingTurnToolCall> =
+                self.pending_turn_tool_calls.values().collect();
+            pending_calls.sort_by_key(|pending| pending.step_id);
+            for pending in pending_calls {
                 let input_preview = serde_json::to_string_pretty(&pending.input)
                     .unwrap_or_else(|_| pending.input.to_string());
                 entries.push(TimelineEntry {

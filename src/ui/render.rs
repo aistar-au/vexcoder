@@ -378,7 +378,7 @@ fn render_timeline_entry(entry: &crate::app::TimelineEntry, is_selected: bool) -
         StepLifecycle::Failed => ("[!]", Color::Red),
         StepLifecycle::Running => ("[->]", Color::Cyan),
         StepLifecycle::AwaitingApproval => ("[?]", Color::Yellow),
-        StepLifecycle::Approved => ("[ok]", Color::Green),
+        StepLifecycle::Approved => ("[v]", Color::Green),
         StepLifecycle::UserInput => (">", Color::DarkGray),
         StepLifecycle::CommandSession => ("[$$]", Color::Magenta),
     };
@@ -774,6 +774,44 @@ mod tests {
 
         assert_eq!(approval_text, "> [?] ApplyPatch: src/main.rs");
         assert_eq!(user_input_text, "> > ship it");
+    }
+
+    #[test]
+    fn render_timeline_entry_gives_approved_a_distinct_prefix() {
+        let approved = render_timeline_entry(
+            &crate::app::TimelineEntry {
+                step_id: 1,
+                lifecycle: crate::app::StepLifecycle::Approved,
+                label: "ApplyPatch: approved".into(),
+                detail: String::new(),
+                session_id: None,
+            },
+            false,
+        );
+        let completed = render_timeline_entry(
+            &crate::app::TimelineEntry {
+                step_id: 2,
+                lifecycle: crate::app::StepLifecycle::Completed,
+                label: "ApplyPatch: done".into(),
+                detail: String::new(),
+                session_id: None,
+            },
+            false,
+        );
+
+        let approved_text: String = approved
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        let completed_text: String = completed
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+
+        assert!(approved_text.starts_with("  [v]"));
+        assert!(completed_text.starts_with("  [ok]"));
     }
 
     #[test]
