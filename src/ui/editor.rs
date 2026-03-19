@@ -1,5 +1,7 @@
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
+use crate::ui::input_metrics::{cursor_byte_for_row_col, cursor_row_col, wrap_input_lines};
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EditorSnapshot {
     pub buffer: String,
@@ -204,6 +206,33 @@ impl InputEditor {
         }
     }
 
+    pub fn move_cursor_visual_up(&mut self, width: usize) -> bool {
+        let width = width.max(1);
+        let (row, col) = cursor_row_col(&self.input_state.buffer, self.input_state.cursor, width);
+        if row == 0 {
+            return false;
+        }
+
+        self.input_state.cursor =
+            cursor_byte_for_row_col(&self.input_state.buffer, row - 1, col, width);
+        true
+    }
+
+    pub fn move_cursor_visual_down(&mut self, width: usize) -> bool {
+        let width = width.max(1);
+        let (row, col) = cursor_row_col(&self.input_state.buffer, self.input_state.cursor, width);
+        let last_row = wrap_input_lines(&self.input_state.buffer, width)
+            .len()
+            .saturating_sub(1);
+        if row >= last_row {
+            return false;
+        }
+
+        self.input_state.cursor =
+            cursor_byte_for_row_col(&self.input_state.buffer, row + 1, col, width);
+        true
+    }
+
     pub fn apply_event(&mut self, event: Event) -> InputAction {
         match event {
             Event::Paste(text) => {
@@ -270,5 +299,64 @@ impl InputEditor {
 impl Default for InputEditor {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::InputEditor;
+    use crate::ui::input_metrics::cursor_row_col;
+
+    #[test]
+    fn visual_up_down_moves_within_multiline_prompt() {
+        let mut editor = InputEditor::new();
+        editor.input_state.buffer = "alpha\nbeta\ngamma".to_string();
+        editor.input_state.cursor = "alpha\nbeta\ngam".len();
+
+        assert!(editor.move_cursor_visual_up(80));
+        assert_eq!(
+            &editor.input_state.buffer[..editor.input_state.cursor],
+            "alpha\nbet"
+        );
+
+        assert!(editor.move_cursor_visual_down(80));
+        assert_eq!(
+            &editor.input_state.buffer[..editor.input_state.cursor],
+            "alpha\nbeta\ngam"
+        );
+    }
+
+    #[test]
+    fn visual_up_down_uses_wrapped_rows_for_long_prompt_lines() {
+        let mut editor = InputEditor::new();
+        editor.input_state.buffer = "/plan @src/ui/draw/mod.rs with more context".to_string();
+        editor.input_state.cursor = editor.input_state.buffer.len();
+
+        let (start_row, start_col) =
+            cursor_row_col(&editor.input_state.buffer, editor.cursor(), 12);
+        assert!(
+            start_row > 0,
+            "fixture must wrap to more than one visual row"
+        );
+
+        assert!(editor.move_cursor_visual_up(12));
+        let (up_row, up_col) = cursor_row_col(&editor.input_state.buffer, editor.cursor(), 12);
+        assert_eq!(up_row + 1, start_row);
+        assert_eq!(up_col, start_col.min(up_col.max(start_col)));
+
+        assert!(editor.move_cursor_visual_down(12));
+        let (down_row, down_col) = cursor_row_col(&editor.input_state.buffer, editor.cursor(), 12);
+        assert_eq!(down_row, start_row);
+        assert_eq!(down_col, start_col);
+    }
+
+    #[test]
+    fn visual_up_stops_at_first_prompt_row() {
+        let mut editor = InputEditor::new();
+        editor.input_state.buffer = "/help".to_string();
+        editor.input_state.cursor = 2;
+
+        assert!(!editor.move_cursor_visual_up(80));
+        assert_eq!(editor.input_state.cursor, 2);
     }
 }

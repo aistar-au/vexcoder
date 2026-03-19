@@ -11,7 +11,7 @@ Most interactive application coordination still lives in `src/app.rs`. The runti
 
 - `src/bin/vex.rs` parses CLI arguments, loads config, and routes startup into the interactive UI, batch mode, export, compatibility helpers, and other CLI paths.
 - `src/app.rs` owns the current interactive command surface, transcript state, approval prompts, and runtime-facing coordination for the full-screen TUI.
-- `src/ui/draw.rs` owns the direct ANSI task-surface renderer used while the fullscreen task surface is active; it draws a human-readable header, optional changed-files row, adaptive timeline, prompt-anchored transcript area, larger multiline composer, and cumulative context indicator without allocating a ratatui frame buffer per update.
+- `src/ui/draw/` owns the direct ANSI task-surface renderer used while the fullscreen task surface is active; it draws a human-readable header, optional changed-files row, adaptive timeline, prompt-anchored transcript area, larger multiline composer, and cumulative context indicator without allocating a ratatui frame buffer per update. The fullscreen composer keeps wrapped `/command`, `@path`, and pasted prompt text editable in place instead of forcing the operator out of task mode, while terminal selection and copy gestures stay with the terminal because the UI does not enable mouse capture.
 - `src/batch_mode.rs` runs the same runtime headlessly for `vex exec` and writes JSONL or text output.
 - `src/runtime/` contains the reusable runtime machinery: context assembly, the edit loop, command and sandbox plumbing, project instructions, task state, and validation.
 

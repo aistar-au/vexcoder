@@ -198,6 +198,10 @@ fn looks_like_terminal_transcript(text: &str) -> bool {
     signature_hits >= 2 || (signature_hits >= 1 && numbered_lines >= 2)
 }
 
+fn should_ignore_startup_paste_text(text: &str, within_startup_guard: bool) -> bool {
+    text.contains('\u{1b}') || (within_startup_guard && looks_like_terminal_transcript(text))
+}
+
 struct ManagedTuiFrontend {
     terminal: vexcoder::terminal::TerminalType,
     quit: bool,
@@ -234,15 +238,7 @@ impl ManagedTuiFrontend {
     }
 
     fn should_ignore_startup_paste(&self, text: &str) -> bool {
-        if text.contains('\u{1b}') || looks_like_terminal_transcript(text) {
-            return true;
-        }
-
-        if self.started_at.elapsed() > STARTUP_NOISE_GUARD {
-            return false;
-        }
-
-        text.lines().take(64).count() > 12
+        should_ignore_startup_paste_text(text, self.started_at.elapsed() <= STARTUP_NOISE_GUARD)
     }
 
     fn should_ignore_startup_submission(&self, text: &str) -> bool {
@@ -307,6 +303,13 @@ impl ManagedTuiFrontend {
         }
     }
 
+    fn editor_visual_width(&self) -> usize {
+        self.terminal
+            .size()
+            .map(|size| size.width.saturating_sub(2).max(1) as usize)
+            .unwrap_or(1)
+    }
+
     fn map_regular_key(&mut self, key: KeyEvent) -> Option<UserInputEvent> {
         match key.code {
             // Timeline navigation: Alt+Up / Alt+Down.
@@ -364,6 +367,28 @@ impl ManagedTuiFrontend {
                     target: ScrollTarget::Output,
                     action: ScrollAction::End,
                 })
+            }
+            KeyCode::Up if key.modifiers.is_empty() => {
+                if self
+                    .editor
+                    .move_cursor_visual_up(self.editor_visual_width())
+                {
+                    None
+                } else {
+                    let action = self.editor.apply_key(key);
+                    self.map_editor_action(action)
+                }
+            }
+            KeyCode::Down if key.modifiers.is_empty() => {
+                if self
+                    .editor
+                    .move_cursor_visual_down(self.editor_visual_width())
+                {
+                    None
+                } else {
+                    let action = self.editor.apply_key(key);
+                    self.map_editor_action(action)
+                }
             }
             _ => {
                 let action = self.editor.apply_key(key);
@@ -1247,7 +1272,8 @@ mod tests {
     use super::{
         emit_migrate_config_output, extract_init_template_keys, looks_like_terminal_transcript,
         prepare_pr_summary_prompt, resolve_resume_state, run_branch, run_pr_summary_with_batch,
-        Cli, Commands, MigrateCommands, SkillsCommands, INIT_CONFIG_NORMATIVE_KEYS,
+        should_ignore_startup_paste_text, Cli, Commands, MigrateCommands, SkillsCommands,
+        INIT_CONFIG_NORMATIVE_KEYS,
     };
     use clap::Parser;
     use clap_complete::Shell;
@@ -1397,6 +1423,28 @@ mod tests {
     fn transcript_detection_keeps_normal_prompt() {
         let input = "list files in this directory and summarize in one sentence";
         assert!(!looks_like_terminal_transcript(input));
+    }
+
+    #[test]
+    fn startup_paste_filter_keeps_large_normal_prompt_blocks() {
+        let input = (0..20)
+            .map(|idx| format!("line {idx}: plan the next edit"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            !should_ignore_startup_paste_text(&input, true),
+            "normal pasted prompt blocks must not be dropped during startup"
+        );
+    }
+
+    #[test]
+    fn startup_paste_filter_still_ignores_transcript_noise_during_startup() {
+        let input =
+            "mode:ready approval:none history:9 view:scrolled\n1 | > list files\ntest result: ok.";
+        assert!(
+            should_ignore_startup_paste_text(input, true),
+            "startup transcript dumps must still be ignored"
+        );
     }
 
     // -- PM-01 ----------------------------------------------------------------
