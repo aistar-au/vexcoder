@@ -26,6 +26,9 @@ pub struct SummaryRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ToolInvocationSummary {
+    /// Stable identity carried from [`PendingTurnToolCall`] on completion.
+    #[serde(default)]
+    pub step_id: u64,
     pub name: String,
     pub outcome: String,
 }

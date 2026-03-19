@@ -42,16 +42,21 @@ impl TuiMode {
                     StreamBlock::ToolCall {
                         id, name, input, ..
                     } => {
+                        let step_id = self.next_step_id;
+                        self.next_step_id += 1;
                         self.pending_turn_tool_calls.insert(
                             id.clone(),
                             PendingTurnToolCall {
+                                step_id,
                                 name: name.clone(),
                                 input: input.clone(),
                             },
                         );
-                        // Auto-advance timeline selection to the latest step.
-                        let total = self.timeline_entry_count();
-                        self.selected_timeline_index = total.saturating_sub(1);
+                        // Auto-advance timeline selection when follow mode is on.
+                        if self.timeline_follow_mode {
+                            let total = self.timeline_entry_count();
+                            self.selected_timeline_index = total.saturating_sub(1);
+                        }
                     }
                     StreamBlock::ToolResult {
                         tool_call_id,
@@ -73,6 +78,7 @@ impl TuiMode {
                             }
                             self.current_turn_tool_invocations
                                 .push(ToolInvocationSummary {
+                                    step_id: pending.step_id,
                                     name: pending.name,
                                     outcome: summarize_tool_outcome(output, *is_error).to_string(),
                                 });

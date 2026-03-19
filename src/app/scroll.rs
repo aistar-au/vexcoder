@@ -88,6 +88,7 @@ impl TuiMode {
     /// Move the selected timeline entry up by one step.
     pub(super) fn apply_timeline_up(&mut self) {
         self.selected_timeline_index = self.selected_timeline_index.saturating_sub(1);
+        self.timeline_follow_mode = false;
     }
 
     /// Move the selected timeline entry down by one step, clamped to the
@@ -95,16 +96,22 @@ impl TuiMode {
     pub(super) fn apply_timeline_down(&mut self, total_entries: usize) {
         let max = total_entries.saturating_sub(1);
         self.selected_timeline_index = (self.selected_timeline_index + 1).min(max);
+        // Re-enable follow mode when selection reaches the end.
+        if self.selected_timeline_index >= max {
+            self.timeline_follow_mode = true;
+        }
     }
 
     /// Jump to the first timeline entry.
     pub(super) fn apply_timeline_home(&mut self) {
         self.selected_timeline_index = 0;
+        self.timeline_follow_mode = false;
     }
 
     /// Jump to the last timeline entry.
     pub(super) fn apply_timeline_end(&mut self, total_entries: usize) {
         self.selected_timeline_index = total_entries.saturating_sub(1);
+        self.timeline_follow_mode = true;
     }
 
     /// Dispatch a scroll action to the timeline selection.
@@ -119,6 +126,7 @@ impl TuiMode {
             ScrollAction::PageUp(step) => {
                 self.selected_timeline_index =
                     self.selected_timeline_index.saturating_sub(step.max(1));
+                self.timeline_follow_mode = false;
             }
             ScrollAction::PageDown(step) => {
                 let max = total_entries.saturating_sub(1);
@@ -126,6 +134,9 @@ impl TuiMode {
                     .selected_timeline_index
                     .saturating_add(step.max(1))
                     .min(max);
+                if self.selected_timeline_index >= max {
+                    self.timeline_follow_mode = true;
+                }
             }
             ScrollAction::Home => self.apply_timeline_home(),
             ScrollAction::End => self.apply_timeline_end(total_entries),

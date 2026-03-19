@@ -106,6 +106,7 @@ struct PendingInlineCommand {
 
 #[derive(Clone)]
 struct PendingTurnToolCall {
+    step_id: u64,
     name: String,
     input: serde_json::Value,
 }
@@ -509,6 +510,8 @@ pub enum StepLifecycle {
     Failed,
     /// Waiting for operator approval.
     AwaitingApproval,
+    /// Operator approved the tool call; execution is proceeding.
+    Approved,
     /// User prompt echo (not a tool step).
     UserInput,
     /// Active command session.
@@ -518,10 +521,14 @@ pub enum StepLifecycle {
 /// A single row in the orchestration timeline, derived from canonical task state.
 #[derive(Clone, Debug)]
 pub struct TimelineEntry {
+    /// Monotonic identity that survives timeline re-derivation across frames.
+    pub step_id: u64,
     pub lifecycle: StepLifecycle,
     pub label: String,
     /// Detail text shown in the inspector/output pane when this entry is selected.
     pub detail: String,
+    /// Links command-session entries to their [`CommandSessionState`].
+    pub session_id: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -544,6 +551,8 @@ pub struct TaskLayoutState {
     /// Cursor byte offset within `composer_text`.
     pub composer_cursor: usize,
     pub changed_files: Vec<String>,
+    /// When true the timeline auto-advances to the latest entry.
+    pub follow_mode: bool,
 }
 
 pub struct TuiMode {
@@ -580,6 +589,11 @@ pub struct TuiMode {
     pending_turn_tool_calls: std::collections::HashMap<String, PendingTurnToolCall>,
     /// Index of the currently selected timeline entry in the activity pane.
     selected_timeline_index: usize,
+    /// Monotonic counter for stable [`TimelineEntry::step_id`] values.
+    next_step_id: u64,
+    /// When true, selection auto-advances to the latest timeline entry.
+    /// Set to false when the operator scrolls manually; reset on new turn.
+    timeline_follow_mode: bool,
     /// Last completed turn's tool invocations (kept for persistent display).
     last_turn_tool_invocations: Vec<ToolInvocationSummary>,
     /// Last completed turn's response text (kept for persistent display).

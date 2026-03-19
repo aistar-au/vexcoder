@@ -276,22 +276,27 @@ fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
     mode.on_user_input("ship the fix".to_string(), &mut ctx);
     mode.current_turn_tool_invocations = vec![
         ToolInvocationSummary {
+            step_id: 1,
             name: "read_file".to_string(),
             outcome: "ok".to_string(),
         },
         ToolInvocationSummary {
+            step_id: 2,
             name: "edit_file".to_string(),
             outcome: "ok".to_string(),
         },
         ToolInvocationSummary {
+            step_id: 3,
             name: "run_command".to_string(),
             outcome: "ok".to_string(),
         },
         ToolInvocationSummary {
+            step_id: 4,
             name: "write_file".to_string(),
             outcome: "ok".to_string(),
         },
         ToolInvocationSummary {
+            step_id: 5,
             name: "apply_patch".to_string(),
             outcome: "ok".to_string(),
         },
@@ -299,6 +304,7 @@ fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
     mode.pending_turn_tool_calls.insert(
         "tool-1".to_string(),
         PendingTurnToolCall {
+            step_id: 6,
             name: "validate".to_string(),
             input: serde_json::json!({}),
         },
