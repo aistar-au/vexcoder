@@ -52,6 +52,10 @@ fn set_dim(w: &mut dyn Write) {
     let _ = write!(w, "{CSI}2m");
 }
 
+fn set_italic(w: &mut dyn Write) {
+    let _ = write!(w, "{CSI}3m");
+}
+
 fn reset_style(w: &mut dyn Write) {
     let _ = write!(w, "{RESET}");
 }
@@ -88,6 +92,19 @@ const GRAY: u8 = 245;
 const DIM_GRAY: u8 = 240;
 const WHITE: u8 = 15;
 const BLUE: u8 = 4;
+
+// ── Progress bar frames (animated fill for running state) ───────────
+
+const PROGRESS_FRAMES: &[&str] = &[
+    "\u{2591}\u{2591}\u{2593}\u{2588}\u{2588}\u{2593}\u{2591}\u{2591}", // ░░▓██▓░░
+    "\u{2591}\u{2593}\u{2588}\u{2588}\u{2593}\u{2591}\u{2591}\u{2591}", // ░▓██▓░░░
+    "\u{2593}\u{2588}\u{2588}\u{2593}\u{2591}\u{2591}\u{2591}\u{2591}", // ▓██▓░░░░
+    "\u{2588}\u{2588}\u{2593}\u{2591}\u{2591}\u{2591}\u{2591}\u{2593}", // ██▓░░░░▓
+    "\u{2588}\u{2593}\u{2591}\u{2591}\u{2591}\u{2591}\u{2593}\u{2588}", // █▓░░░░▓█
+    "\u{2593}\u{2591}\u{2591}\u{2591}\u{2591}\u{2593}\u{2588}\u{2588}", // ▓░░░░▓██
+    "\u{2591}\u{2591}\u{2591}\u{2591}\u{2593}\u{2588}\u{2588}\u{2593}", // ░░░░▓██▓
+    "\u{2591}\u{2591}\u{2591}\u{2593}\u{2588}\u{2588}\u{2593}\u{2591}", // ░░░▓██▓░
+];
 
 fn lifecycle_color(lifecycle: &StepLifecycle) -> u8 {
     match lifecycle {
@@ -470,13 +487,19 @@ impl TaskDraw {
                 .iter()
                 .filter(|e| e.lifecycle == StepLifecycle::Completed)
                 .count();
-            set_fg(w, GRAY);
             if running > 0 {
+                // Animated progress indicator for running tasks.
+                let idx = (self.frame_counter as usize) % PROGRESS_FRAMES.len();
+                set_fg(w, CYAN);
+                let _ = write!(w, "{} ", PROGRESS_FRAMES[idx]);
+                reset_style(w);
+                set_fg(w, GRAY);
                 let _ = write!(w, "{running} active");
                 if completed > 0 {
                     let _ = write!(w, ", {completed} done");
                 }
             } else if completed > 0 {
+                set_fg(w, GRAY);
                 let _ = write!(
                     w,
                     "{completed} step{} done",
@@ -817,6 +840,19 @@ impl TaskDraw {
             self.draw_transcript_line(w, line, regions.cols);
         }
 
+        // Scroll position indicator — show when content exceeds viewport.
+        let total = state.output_rows.len();
+        if total > viewport_height && viewport_height > 0 {
+            draw_scroll_indicator(
+                w,
+                regions.transcript_start,
+                viewport_height,
+                visible_start,
+                total,
+                regions.cols,
+            );
+        }
+
         self.output_lines_flushed = state.output_rows.len();
     }
 
@@ -971,12 +1007,60 @@ impl TaskDraw {
 
         // ── Bullet lists ───────────────────────────────────────────
         if let Some(rest) = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")) {
+            // Task checklist items: - [x] or - [ ] patterns.
+            if let Some(task_rest) = rest.strip_prefix("[x] ").or_else(|| rest.strip_prefix("[X] "))
+            {
+                set_fg(w, GREEN);
+                let _ = write!(w, " \u{2611} "); // ☑
+                reset_style(w);
+                set_fg(w, GRAY);
+                let truncated = truncate_to_width(task_rest, (cols as usize).saturating_sub(3));
+                let _ = write!(w, "{truncated}");
+                reset_style(w);
+                return;
+            }
+            if let Some(task_rest) = rest.strip_prefix("[ ] ") {
+                set_fg(w, DIM_GRAY);
+                let _ = write!(w, " \u{2610} "); // ☐
+                reset_style(w);
+                set_fg(w, GRAY);
+                let truncated = truncate_to_width(task_rest, (cols as usize).saturating_sub(3));
+                let _ = write!(w, "{truncated}");
+                reset_style(w);
+                return;
+            }
             set_fg(w, YELLOW);
             let _ = write!(w, " \u{2022} "); // •
             reset_style(w);
             set_fg(w, GRAY);
             let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(3));
             let _ = write!(w, "{truncated}");
+            reset_style(w);
+            return;
+        }
+
+        // ── Numbered lists ─────────────────────────────────────────
+        if let Some(num_rest) = parse_numbered_list_item(line) {
+            set_fg(w, YELLOW);
+            let _ = write!(w, " {}", num_rest.0);
+            reset_style(w);
+            set_fg(w, GRAY);
+            let truncated =
+                truncate_to_width(num_rest.1, (cols as usize).saturating_sub(num_rest.2 + 1));
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+            return;
+        }
+
+        // ── Horizontal rules ───────────────────────────────────────
+        if is_horizontal_rule(line) {
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let rule_width = (cols as usize).min(80);
+            let _ = write!(w, " ");
+            for _ in 0..rule_width.saturating_sub(1) {
+                let _ = write!(w, "\u{2500}"); // ─
+            }
             reset_style(w);
             return;
         }
@@ -1046,7 +1130,7 @@ impl TaskDraw {
         reset_style(w);
     }
 
-    /// Render inline markdown: **bold** and `code` spans.
+    /// Render inline markdown: **bold**, *italic*, `code`, and ~~strikethrough~~ spans.
     fn draw_inline_markdown(&self, w: &mut dyn Write, line: &str, cols: u16) {
         let max_w = cols as usize;
         let mut used: usize = 0;
@@ -1079,6 +1163,62 @@ impl TaskDraw {
                     set_bold(w);
                     set_fg(w, WHITE);
                     let truncated = truncate_to_width(&bold, max_w.saturating_sub(used));
+                    let _ = write!(w, "{truncated}");
+                    used += display_width(&truncated);
+                    reset_style(w);
+                    set_fg(w, GRAY);
+                }
+            } else if ch == '*' || ch == '_' {
+                // Single delimiter italic — only if the next char is not a space.
+                let is_word_boundary = chars.peek().is_none_or(|c| c.is_whitespace());
+                if is_word_boundary {
+                    buf.push(ch);
+                    continue;
+                }
+                // Flush buffer.
+                if !buf.is_empty() {
+                    let truncated = truncate_to_width(&buf, max_w.saturating_sub(used));
+                    let _ = write!(w, "{truncated}");
+                    used += display_width(&truncated);
+                    buf.clear();
+                }
+                let mut italic = String::new();
+                for ic in chars.by_ref() {
+                    if ic == ch {
+                        break;
+                    }
+                    italic.push(ic);
+                }
+                if !italic.is_empty() {
+                    set_italic(w);
+                    set_fg(w, GRAY);
+                    let truncated = truncate_to_width(&italic, max_w.saturating_sub(used));
+                    let _ = write!(w, "{truncated}");
+                    used += display_width(&truncated);
+                    reset_style(w);
+                    set_fg(w, GRAY);
+                }
+            } else if ch == '~' && chars.peek() == Some(&'~') {
+                // Flush buffer.
+                if !buf.is_empty() {
+                    let truncated = truncate_to_width(&buf, max_w.saturating_sub(used));
+                    let _ = write!(w, "{truncated}");
+                    used += display_width(&truncated);
+                    buf.clear();
+                }
+                chars.next(); // consume second ~
+                let mut struck = String::new();
+                while let Some(sc) = chars.next() {
+                    if sc == '~' && chars.peek() == Some(&'~') {
+                        chars.next();
+                        break;
+                    }
+                    struck.push(sc);
+                }
+                if !struck.is_empty() {
+                    set_dim(w);
+                    set_fg(w, DIM_GRAY);
+                    let truncated = truncate_to_width(&struck, max_w.saturating_sub(used));
                     let _ = write!(w, "{truncated}");
                     used += display_width(&truncated);
                     reset_style(w);
@@ -1471,11 +1611,88 @@ fn draw_labeled_separator(w: &mut dyn Write, row: u16, cols: u16, label: &str) {
     reset_style(w);
 }
 
+/// Draw a thin scroll indicator on the right edge of the transcript area.
+///
+/// Uses Unicode block characters to show a thumb position proportional to
+/// the visible window within the total content. The indicator occupies the
+/// last column so it does not interfere with content rendering.
+fn draw_scroll_indicator(
+    w: &mut dyn Write,
+    start_row: u16,
+    viewport_height: usize,
+    visible_start: usize,
+    total_lines: usize,
+    cols: u16,
+) {
+    if viewport_height == 0 || total_lines == 0 || cols < 2 {
+        return;
+    }
+    let col = cols.saturating_sub(1);
+    let thumb_height = ((viewport_height as f64 / total_lines as f64) * viewport_height as f64)
+        .ceil()
+        .max(1.0) as usize;
+    let thumb_start = ((visible_start as f64 / total_lines as f64) * viewport_height as f64)
+        .round() as usize;
+
+    for vp_offset in 0..viewport_height {
+        let row = start_row + vp_offset as u16;
+        move_to(w, row, col);
+        if vp_offset >= thumb_start && vp_offset < thumb_start + thumb_height {
+            set_fg(w, GRAY);
+            let _ = write!(w, "\u{2588}"); // █ (thumb)
+        } else {
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, "\u{2591}"); // ░ (track)
+        }
+        reset_style(w);
+    }
+}
+
 fn truncate_to_width(text: &str, max_width: usize) -> String {
     if display_width(text) <= max_width {
         return text.to_string();
     }
     truncate_to_display_width(text, max_width)
+}
+
+/// Parse a numbered list item like "1. foo" or "12. bar".
+/// Returns (prefix_with_dot, rest_text, prefix_display_width).
+fn parse_numbered_list_item(line: &str) -> Option<(&str, &str, usize)> {
+    let bytes = line.as_bytes();
+    if bytes.is_empty() || !bytes[0].is_ascii_digit() {
+        return None;
+    }
+    // Find the dot-space after digits: "N. "
+    let mut i = 0;
+    while i < bytes.len() && bytes[i].is_ascii_digit() {
+        i += 1;
+    }
+    if i == 0 || i >= bytes.len().saturating_sub(1) {
+        return None;
+    }
+    if bytes[i] == b'.' && i + 1 < bytes.len() && bytes[i + 1] == b' ' {
+        let prefix = &line[..i + 2]; // e.g. "1. "
+        let rest = &line[i + 2..];
+        Some((prefix, rest, display_width(prefix)))
+    } else {
+        None
+    }
+}
+
+/// Check if a line is a markdown horizontal rule (---, ***, or ___).
+fn is_horizontal_rule(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.len() < 3 {
+        return false;
+    }
+    let ch = trimmed.as_bytes()[0];
+    if ch != b'-' && ch != b'*' && ch != b'_' {
+        return false;
+    }
+    // Must be at least 3 of the same character, optionally with spaces.
+    let count = trimmed.chars().filter(|c| *c as u8 == ch).count();
+    let space_count = trimmed.chars().filter(|c| *c == ' ').count();
+    count >= 3 && count + space_count == trimmed.len()
 }
 
 fn simple_hash(s: &str) -> u64 {
@@ -2220,5 +2437,191 @@ mod tests {
             draw.compute_composer_hash(&second),
             "composer hash must change when the live cursor moves"
         );
+    }
+
+    #[test]
+    fn numbered_list_items_are_parsed() {
+        let result = parse_numbered_list_item("1. First item");
+        assert!(result.is_some(), "must parse '1. First item'");
+        let (prefix, rest, _) = result.unwrap();
+        assert_eq!(prefix, "1. ");
+        assert_eq!(rest, "First item");
+
+        let result = parse_numbered_list_item("42. Large number");
+        assert!(result.is_some(), "must parse '42. Large number'");
+        let (prefix, rest, _) = result.unwrap();
+        assert_eq!(prefix, "42. ");
+        assert_eq!(rest, "Large number");
+
+        assert!(
+            parse_numbered_list_item("not a list").is_none(),
+            "must not parse plain text"
+        );
+        assert!(
+            parse_numbered_list_item("1.no space").is_none(),
+            "must not parse without space after dot"
+        );
+    }
+
+    #[test]
+    fn horizontal_rules_are_detected() {
+        assert!(is_horizontal_rule("---"), "three dashes");
+        assert!(is_horizontal_rule("***"), "three asterisks");
+        assert!(is_horizontal_rule("___"), "three underscores");
+        assert!(is_horizontal_rule("- - -"), "spaced dashes");
+        assert!(is_horizontal_rule("-----"), "many dashes");
+        assert!(!is_horizontal_rule("--"), "too few");
+        assert!(!is_horizontal_rule("abc"), "not a rule");
+        assert!(!is_horizontal_rule("---a"), "mixed characters");
+    }
+
+    #[test]
+    fn checklist_items_render_with_markers() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = make_state(
+            vec![],
+            vec![
+                "- [x] Completed task",
+                "- [ ] Pending task",
+                "- Regular bullet",
+            ],
+        );
+
+        draw.draw(&mut buf, &state, 80, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        assert!(
+            output.contains("\u{2611}"),
+            "checked item must show ballot box with check: {output}"
+        );
+        assert!(
+            output.contains("\u{2610}"),
+            "unchecked item must show empty ballot box: {output}"
+        );
+        assert!(
+            output.contains("Completed task"),
+            "checked task text must appear"
+        );
+        assert!(
+            output.contains("Pending task"),
+            "unchecked task text must appear"
+        );
+    }
+
+    #[test]
+    fn numbered_list_renders_in_transcript() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = make_state(vec![], vec!["1. First step", "2. Second step"]);
+
+        draw.draw(&mut buf, &state, 80, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        assert!(output.contains("1. "), "number prefix must be drawn");
+        assert!(
+            output.contains("First step"),
+            "list item text must be drawn"
+        );
+    }
+
+    #[test]
+    fn horizontal_rule_renders_in_transcript() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = make_state(vec![], vec!["Some text", "---", "More text"]);
+
+        draw.draw(&mut buf, &state, 80, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        // Horizontal rule draws thin rule characters.
+        assert!(
+            output.contains("\u{2500}"),
+            "horizontal rule must draw line characters"
+        );
+        assert!(output.contains("Some text"), "text before rule must appear");
+        assert!(output.contains("More text"), "text after rule must appear");
+    }
+
+    #[test]
+    fn progress_indicator_shown_for_running_tasks() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = make_state(
+            vec![TimelineEntry {
+                step_id: 1,
+                lifecycle: StepLifecycle::Running,
+                label: "build: running...".into(),
+                detail: String::new(),
+                session_id: None,
+            }],
+            vec![],
+        );
+
+        draw.draw(&mut buf, &state, 100, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        // Must contain at least one block-drawing character from the progress
+        // indicator animation.
+        let has_progress_char = output.contains('\u{2591}')
+            || output.contains('\u{2593}')
+            || output.contains('\u{2588}');
+        assert!(
+            has_progress_char,
+            "header must show progress indicator for running tasks"
+        );
+        assert!(
+            output.contains("1 active"),
+            "header must show active count"
+        );
+    }
+
+    #[test]
+    fn scroll_indicator_drawn_when_content_exceeds_viewport() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let mut state = make_state(vec![], vec![]);
+        // Create more output rows than will fit in the viewport.
+        state.output_rows = (0..50).map(|i| format!("long-output-{i}")).collect();
+
+        draw.draw(&mut buf, &state, 80, 16);
+        let output = String::from_utf8_lossy(&buf);
+
+        // Scroll indicator uses ░ (track) and █ (thumb) on the right edge.
+        let has_track = output.contains('\u{2591}');
+        let has_thumb = output.contains('\u{2588}');
+        assert!(
+            has_track || has_thumb,
+            "scroll indicator must appear when content exceeds viewport"
+        );
+    }
+
+    #[test]
+    fn inline_italic_renders_with_italic_escape() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = make_state(vec![], vec!["This has *italic* text"]);
+
+        draw.draw(&mut buf, &state, 80, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        // Italic text uses CSI 3m.
+        assert!(
+            output.contains("\x1b[3m"),
+            "italic text must use ANSI italic escape: {output}"
+        );
+        assert!(output.contains("italic"), "italic text must appear");
+    }
+
+    #[test]
+    fn inline_strikethrough_renders_as_dim() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let state = make_state(vec![], vec!["This has ~~struck~~ text"]);
+
+        draw.draw(&mut buf, &state, 80, 24);
+        let output = String::from_utf8_lossy(&buf);
+
+        assert!(output.contains("struck"), "struck text must appear");
     }
 }
