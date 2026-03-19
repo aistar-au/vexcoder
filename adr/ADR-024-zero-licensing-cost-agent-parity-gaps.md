@@ -239,11 +239,11 @@ Add `/model <name>` to `TuiMode::handle_slash_command`. The command updates `Run
 
 ### Gap 9 — Binary Distribution Pipeline and macOS Packaging
 
-**Sequencing:** branch-debug packaging lands on `dispatcher/**` first; prerelease and stable publishing happens from tags after the reviewed branch is merged. Package-manager tap automation remains deferred for the alpha packaging cut.
+**Sequencing:** package changes are verified locally and in the standard PR gates first; prerelease and stable publishing happens from tags after the reviewed branch is merged. Package-manager tap automation remains deferred for the alpha packaging cut.
 
 #### Phase G — Hosted release pipeline
 
-Add a `release.yml` CI workflow triggered on dispatcher branch pushes for packaging verification and on semver tags, including prerelease tags such as `v0.1.0-alpha2`. Branch pushes build the archives below and upload them as CI artifacts only. Tag pushes publish pre-built binaries for the following targets:
+Add a `release.yml` CI workflow triggered on semver tags, including prerelease tags such as `v0.1.0-alpha2`, with optional manual dispatch for operator reruns. Tag pushes publish pre-built binaries for the following targets:
 
 | Target | CI runner | Notes |
 | :--- | :--- | :--- |
@@ -1245,7 +1245,7 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 
 | Objective | Completion condition |
 | :--- | :--- |
-| Hosted release workflow | Branch pushes to `dispatcher/**` upload packaging artifacts; tagging `v*.*.*` or prerelease tags such as `v0.1.0-alpha2` publishes all five target archives |
+| Hosted release workflow | Tagging `v*.*.*` or prerelease tags such as `v0.1.0-alpha2` publishes all five target archives; manual dispatch remains available for operator reruns |
 | Checksums | `checksums.txt` with `sha256` published alongside archives |
 | Package-manager tap | Deferred for the alpha packaging cut; future repository dispatch updates the formula |
 
