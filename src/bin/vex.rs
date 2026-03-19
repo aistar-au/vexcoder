@@ -334,34 +334,34 @@ impl ManagedTuiFrontend {
                 action: ScrollAction::LineDown,
             }),
             KeyCode::PageUp => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::History,
+                target: ScrollTarget::Output,
                 action: ScrollAction::PageUp(10),
             }),
             KeyCode::PageDown => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::History,
+                target: ScrollTarget::Output,
                 action: ScrollAction::PageDown(10),
             }),
             KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::History,
+                    target: ScrollTarget::Output,
                     action: ScrollAction::LineUp,
                 })
             }
             KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::History,
+                    target: ScrollTarget::Output,
                     action: ScrollAction::LineDown,
                 })
             }
             KeyCode::Home if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::History,
+                    target: ScrollTarget::Output,
                     action: ScrollAction::Home,
                 })
             }
             KeyCode::End if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::History,
+                    target: ScrollTarget::Output,
                     action: ScrollAction::End,
                 })
             }
@@ -378,34 +378,34 @@ impl ManagedTuiFrontend {
                 Some(UserInputEvent::Interrupt)
             }
             KeyCode::PageUp => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::History,
+                target: ScrollTarget::Output,
                 action: ScrollAction::PageUp(10),
             }),
             KeyCode::PageDown => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::History,
+                target: ScrollTarget::Output,
                 action: ScrollAction::PageDown(10),
             }),
             KeyCode::Home if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::History,
+                    target: ScrollTarget::Output,
                     action: ScrollAction::Home,
                 })
             }
             KeyCode::End if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::History,
+                    target: ScrollTarget::Output,
                     action: ScrollAction::End,
                 })
             }
             KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::History,
+                    target: ScrollTarget::Output,
                     action: ScrollAction::LineUp,
                 })
             }
             KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::History,
+                    target: ScrollTarget::Output,
                     action: ScrollAction::LineDown,
                 })
             }

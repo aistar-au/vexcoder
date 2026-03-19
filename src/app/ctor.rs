@@ -45,6 +45,8 @@ impl TuiMode {
             selected_timeline_index: 0,
             next_step_id: 1,
             timeline_follow_mode: true,
+            transcript_scroll_offset: 0,
+            inspector_scroll_offset: 0,
             last_turn_tool_invocations: Vec::new(),
             last_turn_response: String::new(),
             last_turn_input_display: String::new(),

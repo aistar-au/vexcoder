@@ -8,10 +8,11 @@ This page documents the commands and flags implemented in the current binary.
 
 Starts the interactive full-screen CLI UI. While a task is running, the task
 surface uses a direct ANSI renderer for a human-readable header, optional
-changed-file row, adaptive timeline, transcript area, and adaptive composer.
-When completed turns record usage metadata, the header appends a compact
-`~N.Nk ctx` cumulative session indicator. Idle prompting and overlay modals
-still use the ratatui-backed path.
+changed-file row, adaptive timeline, prompt-anchored transcript area, and a
+larger multiline composer. When completed turns record usage metadata, the
+header appends a compact `~N.Nk ctx` cumulative session indicator. The prompt
+surface keeps `/` commands, `@path` expansion, pasted blocks, and multiline
+editing available in the same fullscreen layout.
 
 ### `vex --resume [task-id]`
 
@@ -208,4 +209,7 @@ session totals.
 - `Alt+Up` and `Alt+Down` move the selected entry in the adaptive task timeline.
 - `Tab` and `Shift+Tab` also move timeline selection forward and backward while the task surface is active.
 - The visible timeline window scales with terminal height instead of staying fixed at six rows.
-- Pasted text is inserted into the input box during normal editing.
+- `PageUp`, `PageDown`, `Ctrl+Up`, and `Ctrl+Down` scroll the transcript/output pane upward from the prompt edge instead of moving the cursor.
+- `Ctrl+Home` jumps to the oldest visible transcript content, and `Ctrl+End` returns to the live bottom edge.
+- `Shift+Enter` inserts a newline without submitting the turn.
+- Pasted text is inserted into the larger multiline prompt surface during normal editing.

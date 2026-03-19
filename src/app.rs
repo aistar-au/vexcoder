@@ -531,6 +531,16 @@ pub struct TimelineEntry {
     pub session_id: Option<u64>,
 }
 
+/// Scroll semantics for the output pane.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OutputScrollAnchor {
+    /// Scroll offsets count from the first visible row.
+    Top,
+    /// Scroll offsets count upward from the prompt/composer edge.
+    #[default]
+    Bottom,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct TaskLayoutState {
     pub task_id: String,
@@ -543,7 +553,12 @@ pub struct TaskLayoutState {
     pub selected_step: usize,
     /// Total number of steps (including those scrolled out of view).
     pub total_steps: usize,
+    /// Human-readable title for the output pane.
+    pub output_title: String,
     pub output_rows: Vec<String>,
+    /// Scroll amount for the output pane, interpreted using `output_scroll_anchor`.
+    pub output_scroll_offset: usize,
+    pub output_scroll_anchor: OutputScrollAnchor,
     pub pending_approval: Option<String>,
     pub input_hint: String,
     /// Live composer buffer for the fullscreen task surface.
@@ -594,6 +609,10 @@ pub struct TuiMode {
     /// When true, selection auto-advances to the latest timeline entry.
     /// Set to false when the operator scrolls manually; reset on new turn.
     timeline_follow_mode: bool,
+    /// Transcript scrollback measured upward from the composer edge.
+    transcript_scroll_offset: usize,
+    /// Inspector/detail scroll offset measured downward from the top.
+    inspector_scroll_offset: usize,
     /// Last completed turn's tool invocations (kept for persistent display).
     last_turn_tool_invocations: Vec<ToolInvocationSummary>,
     /// Last completed turn's response text (kept for persistent display).
@@ -648,6 +667,8 @@ impl RuntimeMode for TuiMode {
                 } else if target == ScrollTarget::Timeline {
                     let total = self.timeline_entry_count();
                     self.apply_timeline_scroll_action(action, total);
+                } else if target == ScrollTarget::Output {
+                    self.apply_output_scroll_action(action);
                 } else if target == ScrollTarget::History {
                     self.apply_history_scroll_action(action);
                 }

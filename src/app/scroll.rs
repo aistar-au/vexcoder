@@ -6,6 +6,32 @@ use crate::ui::render::input_visual_rows;
 use std::time::{Duration, Instant};
 
 impl TuiMode {
+    fn clamp_transcript_scroll_offset(&mut self, total_rows: usize) {
+        self.transcript_scroll_offset = self
+            .transcript_scroll_offset
+            .min(total_rows.saturating_sub(1));
+    }
+
+    fn clamp_inspector_scroll_offset(&mut self, total_rows: usize) {
+        self.inspector_scroll_offset = self
+            .inspector_scroll_offset
+            .min(total_rows.saturating_sub(1));
+    }
+
+    pub(super) fn preserve_transcript_scroll_on_growth(&mut self, previous_rows: usize) {
+        if self.transcript_scroll_offset == 0 {
+            return;
+        }
+
+        let (_, rows, anchor) = self.task_output_view();
+        if anchor == OutputScrollAnchor::Bottom && rows.len() > previous_rows {
+            self.transcript_scroll_offset = self
+                .transcript_scroll_offset
+                .saturating_add(rows.len() - previous_rows);
+        }
+        self.clamp_transcript_scroll_offset(rows.len());
+    }
+
     pub(super) fn push_history_line(&mut self, line: String) {
         self.history_state.lines.push(line);
         self.enforce_history_cap();
@@ -89,6 +115,7 @@ impl TuiMode {
     pub(super) fn apply_timeline_up(&mut self) {
         self.selected_timeline_index = self.selected_timeline_index.saturating_sub(1);
         self.timeline_follow_mode = false;
+        self.inspector_scroll_offset = 0;
     }
 
     /// Move the selected timeline entry down by one step, clamped to the
@@ -97,18 +124,21 @@ impl TuiMode {
         let max = total_entries.saturating_sub(1);
         self.selected_timeline_index = (self.selected_timeline_index + 1).min(max);
         self.timeline_follow_mode = self.selected_timeline_index >= max;
+        self.inspector_scroll_offset = 0;
     }
 
     /// Jump to the first timeline entry.
     pub(super) fn apply_timeline_home(&mut self) {
         self.selected_timeline_index = 0;
         self.timeline_follow_mode = false;
+        self.inspector_scroll_offset = 0;
     }
 
     /// Jump to the last timeline entry.
     pub(super) fn apply_timeline_end(&mut self, total_entries: usize) {
         self.selected_timeline_index = total_entries.saturating_sub(1);
         self.timeline_follow_mode = true;
+        self.inspector_scroll_offset = 0;
     }
 
     /// Dispatch a scroll action to the timeline selection.
@@ -124,6 +154,7 @@ impl TuiMode {
                 self.selected_timeline_index =
                     self.selected_timeline_index.saturating_sub(step.max(1));
                 self.timeline_follow_mode = false;
+                self.inspector_scroll_offset = 0;
             }
             ScrollAction::PageDown(step) => {
                 let max = total_entries.saturating_sub(1);
@@ -132,9 +163,67 @@ impl TuiMode {
                     .saturating_add(step.max(1))
                     .min(max);
                 self.timeline_follow_mode = self.selected_timeline_index >= max;
+                self.inspector_scroll_offset = 0;
             }
             ScrollAction::Home => self.apply_timeline_home(),
             ScrollAction::End => self.apply_timeline_end(total_entries),
+        }
+    }
+
+    pub(super) fn apply_output_scroll_action(&mut self, action: ScrollAction) {
+        let (_, rows, anchor) = self.task_output_view();
+        let total_rows = rows.len();
+
+        match anchor {
+            OutputScrollAnchor::Bottom => match action {
+                ScrollAction::LineUp => {
+                    self.transcript_scroll_offset = self.transcript_scroll_offset.saturating_add(1);
+                }
+                ScrollAction::LineDown => {
+                    self.transcript_scroll_offset = self.transcript_scroll_offset.saturating_sub(1);
+                }
+                ScrollAction::PageUp(step) => {
+                    self.transcript_scroll_offset =
+                        self.transcript_scroll_offset.saturating_add(step.max(1));
+                }
+                ScrollAction::PageDown(step) => {
+                    self.transcript_scroll_offset =
+                        self.transcript_scroll_offset.saturating_sub(step.max(1));
+                }
+                ScrollAction::Home => {
+                    self.transcript_scroll_offset = total_rows.saturating_sub(1);
+                }
+                ScrollAction::End => {
+                    self.transcript_scroll_offset = 0;
+                }
+            },
+            OutputScrollAnchor::Top => match action {
+                ScrollAction::LineUp => {
+                    self.inspector_scroll_offset = self.inspector_scroll_offset.saturating_sub(1);
+                }
+                ScrollAction::LineDown => {
+                    self.inspector_scroll_offset = self.inspector_scroll_offset.saturating_add(1);
+                }
+                ScrollAction::PageUp(step) => {
+                    self.inspector_scroll_offset =
+                        self.inspector_scroll_offset.saturating_sub(step.max(1));
+                }
+                ScrollAction::PageDown(step) => {
+                    self.inspector_scroll_offset =
+                        self.inspector_scroll_offset.saturating_add(step.max(1));
+                }
+                ScrollAction::Home => {
+                    self.inspector_scroll_offset = 0;
+                }
+                ScrollAction::End => {
+                    self.inspector_scroll_offset = total_rows.saturating_sub(1);
+                }
+            },
+        }
+
+        match anchor {
+            OutputScrollAnchor::Bottom => self.clamp_transcript_scroll_offset(total_rows),
+            OutputScrollAnchor::Top => self.clamp_inspector_scroll_offset(total_rows),
         }
     }
 }

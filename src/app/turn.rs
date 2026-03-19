@@ -10,6 +10,8 @@ impl TuiMode {
         self.history_state.active_assistant_index = None;
         self.history_state.scroll_offset = 0;
         self.history_state.auto_follow = true;
+        self.transcript_scroll_offset = 0;
+        self.inspector_scroll_offset = 0;
         self.active_stream_blocks.clear();
         self.last_assembled_context = None;
         self.read_only_turn_active = false;
@@ -41,6 +43,7 @@ impl TuiMode {
         self.pending_turn_tool_calls.clear();
         self.selected_timeline_index = 0;
         self.timeline_follow_mode = true;
+        self.inspector_scroll_offset = 0;
     }
 
     pub(super) fn reset_last_turn_display(&mut self) {
@@ -53,6 +56,7 @@ impl TuiMode {
         self.reset_turn_capture();
         self.current_turn_input = input;
         self.current_task.status = TaskStatus::Running;
+        self.transcript_scroll_offset = 0;
     }
 
     pub(super) fn begin_command_session(&mut self, command: String) -> u64 {
@@ -134,6 +138,8 @@ impl TuiMode {
         if let Err(error) = self.current_task.save(&dir) {
             self.push_history_line(format!("[state] save failed: {error}"));
         }
+        self.transcript_scroll_offset = 0;
+        self.inspector_scroll_offset = 0;
         self.reset_turn_capture();
     }
 

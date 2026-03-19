@@ -17,7 +17,7 @@
 //! The public entry point is [`TaskDraw`] which persists across the
 //! session and is called from the `FrontendAdapter::render` path.
 
-use crate::app::{StepLifecycle, TaskLayoutState, TimelineEntry};
+use crate::app::{OutputScrollAnchor, StepLifecycle, TaskLayoutState, TimelineEntry};
 use crate::ui::input_metrics::{
     cursor_row_col, display_width, truncate_to_display_width, wrap_input_lines,
 };
@@ -122,7 +122,7 @@ fn lifecycle_prefix(lifecycle: &StepLifecycle) -> &'static str {
 /// row 1        ├─ changed files (optional) ──────┤  (0..1 rows)
 /// row H..T     ├─ timeline (adaptive height) ────┤  (3..40% of rows)
 /// row T..C     │  transcript (remaining rows)    │  (fills remaining)
-/// row C..end   ├─ composer (adaptive) ───────────┤  (1..3 rows)
+/// row C..end   ├─ composer (adaptive) ───────────┤  (4..8 rows)
 ///              └─────────────────────────────────┘
 /// ```
 struct Regions {
@@ -141,12 +141,26 @@ struct Regions {
 
 /// Minimum timeline rows (below this the timeline is hidden).
 const MIN_TIMELINE_ROWS: u16 = 3;
+/// Minimum transcript rows reserved above the prompt surface.
+const MIN_TRANSCRIPT_ROWS: u16 = 2;
 /// Maximum fraction of terminal for the timeline.
 const MAX_TIMELINE_FRACTION: f32 = 0.35;
-/// Minimum composer rows.
-const MIN_COMPOSER_ROWS: u16 = 1;
-/// Preferred composer rows (when space allows).
-const PREFERRED_COMPOSER_ROWS: u16 = 3;
+/// Minimum fullscreen prompt rows (toolbar + multiline input).
+const MIN_COMPOSER_ROWS: u16 = 3;
+
+fn preferred_composer_rows(rows: u16) -> u16 {
+    if rows >= 36 {
+        8
+    } else if rows >= 28 {
+        7
+    } else if rows >= 22 {
+        6
+    } else if rows >= 16 {
+        5
+    } else {
+        4
+    }
+}
 
 impl Regions {
     fn compute(cols: u16, rows: u16, has_files: bool, timeline_entry_count: usize) -> Self {
@@ -157,19 +171,18 @@ impl Regions {
         // Reserve 1 row for status bar at the very bottom.
         let status_bar_row = rows.saturating_sub(1);
 
-        // Composer: scales from 1 to 3 rows based on terminal height.
-        let composer_rows = if rows >= 30 {
-            PREFERRED_COMPOSER_ROWS
-        } else if rows >= 15 {
-            2
-        } else {
-            MIN_COMPOSER_ROWS
-        };
+        // Composer: dedicate a larger bottom-docked prompt surface while
+        // preserving minimum room for timeline and transcript.
+        let available = rows.saturating_sub(header_height).saturating_sub(1);
+        let max_composer_rows = available
+            .saturating_sub(MIN_TIMELINE_ROWS)
+            .saturating_sub(MIN_TRANSCRIPT_ROWS)
+            .max(MIN_COMPOSER_ROWS);
+        let composer_rows = preferred_composer_rows(rows)
+            .max(MIN_COMPOSER_ROWS)
+            .min(max_composer_rows);
 
-        let available = rows
-            .saturating_sub(header_height)
-            .saturating_sub(composer_rows)
-            .saturating_sub(1); // -1 for status bar
+        let available = available.saturating_sub(composer_rows);
 
         // Timeline: adaptive height based on content and terminal size.
         // Uses up to MAX_TIMELINE_FRACTION of available space, but at least
@@ -473,6 +486,16 @@ impl TaskDraw {
             reset_style(w);
         }
 
+        if state.total_steps > 0 {
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, " \u{00b7} ");
+            reset_style(w);
+            set_dim(w);
+            set_fg(w, BLUE);
+            let _ = write!(w, "step {}/{}", state.selected_step + 1, state.total_steps);
+            reset_style(w);
+        }
+
         // Context-window token counter — shown once at least one turn has
         // completed and session tokens have been recorded.  Expressed as a
         // compact "~1.2k ctx" indicator so the operator can see how much of
@@ -618,7 +641,7 @@ impl TaskDraw {
         // Separator line between timeline and transcript — star accent.
         let sep_row = regions.transcript_start.saturating_sub(1);
         if sep_row >= regions.timeline_start {
-            draw_star_separator(w, sep_row, regions.cols);
+            draw_labeled_separator(w, sep_row, regions.cols, &state.output_title);
         }
     }
 
@@ -646,7 +669,7 @@ impl TaskDraw {
         // Separator — star accent.
         let sep_row = regions.transcript_start.saturating_sub(1);
         if sep_row >= regions.timeline_start {
-            draw_star_separator(w, sep_row, regions.cols);
+            draw_labeled_separator(w, sep_row, regions.cols, &state.output_title);
         }
     }
 
@@ -764,6 +787,7 @@ impl TaskDraw {
         regions: &Regions,
     ) {
         let viewport_height = regions.transcript_rows as usize;
+        let (visible_start, visible_end) = transcript_window(state, viewport_height);
 
         // Clear the transcript area.
         for vp_offset in 0..viewport_height {
@@ -774,7 +798,6 @@ impl TaskDraw {
 
         // Reset code block state for full redraws.
         self.in_code_block = false;
-        let visible_start = state.output_rows.len().saturating_sub(viewport_height);
         // Walk all lines from the start to track code block state correctly,
         // but only render lines in the visible window.
         for (i, line) in state.output_rows.iter().enumerate() {
@@ -786,7 +809,7 @@ impl TaskDraw {
                 continue;
             }
             let vp_offset = i - visible_start;
-            if vp_offset >= viewport_height {
+            if i >= visible_end || vp_offset >= viewport_height {
                 break;
             }
             let row = regions.transcript_start + vp_offset as u16;
@@ -809,7 +832,7 @@ impl TaskDraw {
         }
 
         let viewport_height = regions.transcript_rows as usize;
-        let visible_start = total_output.saturating_sub(viewport_height);
+        let (visible_start, visible_end) = transcript_window(state, viewport_height);
 
         // Rebuild code-block state by scanning all lines before the viewport.
         self.in_code_block = false;
@@ -822,7 +845,7 @@ impl TaskDraw {
         // Redraw the entire visible window so code-block state is consistent.
         for vp_offset in 0..viewport_height {
             let src_index = visible_start + vp_offset;
-            if src_index >= total_output {
+            if src_index >= visible_end || src_index >= total_output {
                 break;
             }
             let row = regions.transcript_start + vp_offset as u16;
@@ -1096,6 +1119,12 @@ impl TaskDraw {
     }
 
     fn transcript_is_append_only(&self, state: &TaskLayoutState) -> bool {
+        if state.output_scroll_anchor != OutputScrollAnchor::Bottom
+            || state.output_scroll_offset > 0
+        {
+            return false;
+        }
+
         if state.pending_approval.is_some() {
             return false;
         }
@@ -1126,85 +1155,80 @@ impl TaskDraw {
         move_to(w, regions.composer_start, 0);
 
         if let Some(ref approval) = state.pending_approval {
-            // Inline approval card.
             set_bold(w);
             set_fg(w, YELLOW);
-            let _ = write!(w, "\u{25cf} ");
+            let _ = write!(w, "Approval");
             reset_style(w);
-            set_fg(w, YELLOW);
-            let lines: Vec<&str> = approval.lines().collect();
-            let first = lines.first().copied().unwrap_or("");
-            let truncated = truncate_to_width(first, (regions.cols as usize).saturating_sub(2));
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let actions = "  y approve  n deny  s approve all";
+            let truncated = truncate_to_width(actions, regions.cols.saturating_sub(10) as usize);
             let _ = write!(w, "{truncated}");
             reset_style(w);
 
-            // Approval choices.
-            if regions.composer_start + 1 < regions.rows {
-                move_to(w, regions.composer_start + 1, 0);
-                set_fg(w, DIM_GRAY);
-                let _ = write!(w, "  ");
+            let lines: Vec<&str> = approval.lines().collect();
+            let body_width = regions.cols.saturating_sub(2).max(1) as usize;
+            for offset in 0..regions.composer_rows.saturating_sub(1) as usize {
+                let row = regions.composer_start + 1 + offset as u16;
+                if row >= regions.rows {
+                    break;
+                }
+                move_to(w, row, 0);
+                set_fg(w, YELLOW);
+                let _ = write!(w, "• ");
                 reset_style(w);
-                set_fg(w, GREEN);
-                set_bold(w);
-                let _ = write!(w, "y");
-                reset_style(w);
-                set_fg(w, DIM_GRAY);
-                let _ = write!(w, " approve  ");
-                set_fg(w, RED);
-                set_bold(w);
-                let _ = write!(w, "n");
-                reset_style(w);
-                set_fg(w, DIM_GRAY);
-                let _ = write!(w, " deny  ");
-                set_fg(w, BLUE);
-                set_bold(w);
-                let _ = write!(w, "s");
-                reset_style(w);
-                set_fg(w, DIM_GRAY);
-                let _ = write!(w, " approve all");
-                reset_style(w);
+                if let Some(line) = lines.get(offset).copied().filter(|line| !line.is_empty()) {
+                    set_fg(w, GRAY);
+                    let truncated = truncate_to_width(line, body_width);
+                    let _ = write!(w, "{truncated}");
+                    reset_style(w);
+                }
             }
         } else {
             let input_width = regions.cols.saturating_sub(2).max(1) as usize;
             let input_lines = wrap_input_lines(&state.composer_text, input_width);
             let (cursor_row, _) =
                 cursor_row_col(&state.composer_text, state.composer_cursor, input_width);
-            let window_start =
-                composer_window_start(cursor_row, regions.composer_rows.max(1) as usize);
+            let body_rows = regions.composer_rows.saturating_sub(1).max(1) as usize;
+            let window_start = composer_window_start(cursor_row, body_rows);
             let hint_lines: Vec<&str> = state.input_hint.lines().collect();
 
-            for offset in 0..regions.composer_rows as usize {
-                let row = regions.composer_start + offset as u16;
+            set_bold(w);
+            set_fg(w, WHITE);
+            let _ = write!(w, "Prompt");
+            reset_style(w);
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let chrome = "  / command  @ file  ! shell  paste block  Shift+Enter newline";
+            let truncated = truncate_to_width(chrome, regions.cols.saturating_sub(8) as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+
+            for offset in 0..body_rows {
+                let row = regions.composer_start + 1 + offset as u16;
                 if row >= regions.rows {
                     break;
                 }
                 move_to(w, row, 0);
 
-                set_bold(w);
-                set_fg(w, YELLOW);
-                let _ = write!(w, "{}", if offset == 0 { "\u{2726} " } else { "  " });
+                set_fg(w, CYAN);
+                let _ = write!(w, "{}", if offset == 0 { "› " } else { "  " });
                 reset_style(w);
 
                 let line_index = window_start + offset;
                 if let Some(line) = input_lines.get(line_index).filter(|line| !line.is_empty()) {
-                    set_fg(w, GRAY);
+                    set_fg(w, WHITE);
                     let truncated = truncate_to_width(line, input_width);
                     let _ = write!(w, "{truncated}");
                     reset_style(w);
                     continue;
                 }
 
-                let hint = if line_index == 0 {
-                    hint_lines
-                        .first()
-                        .copied()
-                        .filter(|line| *line != "> " && !line.is_empty())
-                } else {
-                    hint_lines
-                        .get(line_index)
-                        .copied()
-                        .filter(|line| !line.is_empty())
-                };
+                let hint = hint_lines
+                    .get(line_index + 1)
+                    .copied()
+                    .or_else(|| hint_lines.get(1).copied())
+                    .filter(|line| !line.is_empty());
                 if let Some(hint) = hint {
                     set_fg(w, DIM_GRAY);
                     let truncated = truncate_to_width(hint, input_width);
@@ -1230,13 +1254,25 @@ impl TaskDraw {
         let hints = if is_approval {
             " y approve  n deny  s approve all"
         } else {
-            " Ctrl+C cancel  \u{2191}/\u{2193} scroll  Enter submit"
+            " PgUp/PgDn transcript  Alt+\u{2191}/\u{2193} steps  Shift+Enter newline  Enter submit"
         };
         let _ = write!(w, "{hints}");
 
         // Right side: task ID (right-aligned).
         if !state.task_id.is_empty() {
-            let right_text = format!("task:{} ", state.task_id);
+            let scroll_state = if state.output_scroll_offset > 0 {
+                match state.output_scroll_anchor {
+                    OutputScrollAnchor::Bottom => {
+                        format!("scroll:+{}  ", state.output_scroll_offset)
+                    }
+                    OutputScrollAnchor::Top => {
+                        format!("detail:{}  ", state.output_scroll_offset + 1)
+                    }
+                }
+            } else {
+                String::new()
+            };
+            let right_text = format!("{scroll_state}task:{} ", state.task_id);
             let right_len = display_width(&right_text);
             let left_len = display_width(hints);
             let gap = (regions.cols as usize).saturating_sub(left_len + right_len);
@@ -1298,6 +1334,18 @@ impl TaskDraw {
 
     fn compute_transcript_hash(&self, state: &TaskLayoutState) -> u64 {
         let mut h: u64 = state.output_rows.len() as u64;
+        h = h
+            .wrapping_mul(31)
+            .wrapping_add(simple_hash(&state.output_title));
+        h = h
+            .wrapping_mul(31)
+            .wrapping_add(state.output_scroll_offset as u64);
+        h = h
+            .wrapping_mul(31)
+            .wrapping_add(match state.output_scroll_anchor {
+                OutputScrollAnchor::Top => 1,
+                OutputScrollAnchor::Bottom => 2,
+            });
         for row in &state.output_rows {
             h = h.wrapping_mul(31).wrapping_add(simple_hash(row));
         }
@@ -1370,22 +1418,55 @@ fn parse_status_parts(status: &str) -> StatusParts {
 
 // ── Utilities ───────────────────────────────────────────────────────
 
-/// Draw a star-accented separator line at the given row.
-fn draw_star_separator(w: &mut dyn Write, row: u16, cols: u16) {
+fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize, usize) {
+    let total = state.output_rows.len();
+    if viewport_height == 0 || total == 0 {
+        return (0, 0);
+    }
+
+    match state.output_scroll_anchor {
+        OutputScrollAnchor::Bottom => {
+            let max_offset = total.saturating_sub(viewport_height);
+            let offset = state.output_scroll_offset.min(max_offset);
+            let start = total.saturating_sub(viewport_height.saturating_add(offset));
+            let end = (start + viewport_height).min(total);
+            (start, end)
+        }
+        OutputScrollAnchor::Top => {
+            let start = state.output_scroll_offset.min(total.saturating_sub(1));
+            let end = (start + viewport_height).min(total);
+            (start, end)
+        }
+    }
+}
+
+/// Draw a labeled separator line at the given row.
+fn draw_labeled_separator(w: &mut dyn Write, row: u16, cols: u16, label: &str) {
     move_to(w, row, 0);
     clear_line(w);
     set_dim(w);
     set_fg(w, DIM_GRAY);
-    let sep_width = (cols as usize).min(120);
-    let star_pos = sep_width / 2;
-    for i in 0..sep_width {
-        if i == star_pos {
-            set_fg(w, YELLOW);
-            let _ = write!(w, "\u{2726}"); // ✦
-            set_fg(w, DIM_GRAY);
+    let safe_label = truncate_to_width(label, cols.saturating_sub(10) as usize);
+    let left_rule = 3.min(cols as usize);
+    for _ in 0..left_rule {
+        let _ = write!(w, "\u{2500}");
+    }
+    if !safe_label.is_empty() {
+        set_fg(w, BLUE);
+        let _ = write!(w, " {safe_label} ");
+        set_fg(w, DIM_GRAY);
+    } else {
+        let _ = write!(w, "\u{2500}");
+    }
+
+    let used = left_rule
+        + if safe_label.is_empty() {
+            1
         } else {
-            let _ = write!(w, "\u{2500}"); // ─
-        }
+            display_width(&safe_label) + 2
+        };
+    for _ in 0..(cols as usize).saturating_sub(used).min(120) {
+        let _ = write!(w, "\u{2500}");
     }
     reset_style(w);
 }
@@ -1431,10 +1512,12 @@ fn composer_cursor_position(state: &TaskLayoutState, regions: &Regions) -> (u16,
     let input_width = regions.cols.saturating_sub(2).max(1) as usize;
     let (cursor_row, cursor_col) =
         cursor_row_col(&state.composer_text, state.composer_cursor, input_width);
-    let window_start = composer_window_start(cursor_row, regions.composer_rows.max(1) as usize);
+    let body_rows = regions.composer_rows.saturating_sub(1).max(1) as usize;
+    let window_start = composer_window_start(cursor_row, body_rows);
     let visible_row = cursor_row.saturating_sub(window_start) as u16;
     let row = regions
         .composer_start
+        .saturating_add(1)
         .saturating_add(visible_row)
         .min(regions.rows.saturating_sub(1));
     let col = (2 + cursor_col as u16).min(regions.cols.saturating_sub(1));
@@ -1453,12 +1536,15 @@ mod tests {
             task_id: "test-001".into(),
             status_line: "mode:streaming approval:none repo:vexcoder inst:AGENTS.md".into(),
             activity_rows: vec![],
+            total_steps: entries.len(),
             timeline_entries: entries,
             selected_step: 0,
-            total_steps: 0,
+            output_title: "Transcript".into(),
             output_rows: output.into_iter().map(|s| s.to_string()).collect(),
+            output_scroll_offset: 0,
+            output_scroll_anchor: OutputScrollAnchor::Bottom,
             pending_approval: None,
-            input_hint: "> ".into(),
+            input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
@@ -1540,6 +1626,27 @@ mod tests {
 
         assert!(output.contains("line 2"), "new line 2 must be drawn");
         assert!(output.contains("line 3"), "new line 3 must be drawn");
+    }
+
+    #[test]
+    fn transcript_scroll_offset_renders_older_rows_from_prompt_edge() {
+        let mut buf = Vec::new();
+        let mut draw = TaskDraw::new();
+        let mut state = make_state(vec![], vec![]);
+        state.output_rows = (0..20).map(|i| format!("line-{i}")).collect();
+        state.output_scroll_offset = 2;
+
+        draw.draw(&mut buf, &state, 80, 12);
+        let output = String::from_utf8_lossy(&buf);
+
+        assert!(
+            output.contains("line-15"),
+            "older transcript rows must stay visible"
+        );
+        assert!(
+            !output.contains("line-19"),
+            "bottom-most rows must move out of view when scrolled upward"
+        );
     }
 
     #[test]
@@ -1665,9 +1772,12 @@ mod tests {
             ],
             selected_step: 0,
             total_steps: 2,
+            output_title: "Inspector".into(),
             output_rows: vec!["Tool: read_file".into(), "Outcome: ok".into()],
+            output_scroll_offset: 0,
+            output_scroll_anchor: OutputScrollAnchor::Top,
             pending_approval: None,
-            input_hint: "> ".into(),
+            input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
@@ -1701,9 +1811,12 @@ mod tests {
             timeline_entries: vec![],
             selected_step: 0,
             total_steps: 0,
+            output_title: "Transcript".into(),
             output_rows: vec!["line 1".into()],
+            output_scroll_offset: 0,
+            output_scroll_anchor: OutputScrollAnchor::Bottom,
             pending_approval: None,
-            input_hint: "> ".into(),
+            input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
@@ -1769,13 +1882,16 @@ mod tests {
             timeline_entries: vec![],
             selected_step: 0,
             total_steps: 0,
+            output_title: "Transcript".into(),
             output_rows: vec![
                 "Type a prompt below to begin.".into(),
                 String::new(),
                 "The orchestrator will call tools and stream results here.".into(),
             ],
+            output_scroll_offset: 0,
+            output_scroll_anchor: OutputScrollAnchor::Bottom,
             pending_approval: None,
-            input_hint: "> ".into(),
+            input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
@@ -1820,16 +1936,22 @@ mod tests {
     #[test]
     fn adaptive_composer_scales_with_terminal_height() {
         let small = Regions::compute(80, 12, false, 0);
-        assert_eq!(small.composer_rows, 1, "small terminal gets 1-row composer");
+        assert_eq!(
+            small.composer_rows, 4,
+            "small terminal keeps a usable multiline prompt surface"
+        );
 
         let medium = Regions::compute(80, 20, false, 0);
         assert_eq!(
-            medium.composer_rows, 2,
-            "medium terminal gets 2-row composer"
+            medium.composer_rows, 5,
+            "medium terminal gets a larger multiline prompt surface"
         );
 
         let large = Regions::compute(80, 40, false, 0);
-        assert_eq!(large.composer_rows, 3, "large terminal gets 3-row composer");
+        assert_eq!(
+            large.composer_rows, 8,
+            "large terminal gets an expanded prompt surface"
+        );
     }
 
     #[test]
@@ -1849,9 +1971,12 @@ mod tests {
             }],
             selected_step: 0,
             total_steps: 1,
+            output_title: "Transcript".into(),
             output_rows: vec![],
+            output_scroll_offset: 0,
+            output_scroll_anchor: OutputScrollAnchor::Bottom,
             pending_approval: None,
-            input_hint: "> ".into(),
+            input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec!["src/main.rs".into()],
@@ -1880,9 +2005,12 @@ mod tests {
             timeline_entries: vec![],
             selected_step: 0,
             total_steps: 0,
+            output_title: "Transcript".into(),
             output_rows: vec![],
+            output_scroll_offset: 0,
+            output_scroll_anchor: OutputScrollAnchor::Bottom,
             pending_approval: Some("write_file: src/main.rs".into()),
-            input_hint: "> ".into(),
+            input_hint: "Approval\n[y/n/s]".into(),
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
@@ -1936,9 +2064,12 @@ mod tests {
             timeline_entries: vec![],
             selected_step: 0,
             total_steps: 0,
+            output_title: "Transcript".into(),
             output_rows: vec![],
+            output_scroll_offset: 0,
+            output_scroll_anchor: OutputScrollAnchor::Bottom,
             pending_approval: None,
-            input_hint: "> ".into(),
+            input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
@@ -1971,9 +2102,12 @@ mod tests {
             timeline_entries: vec![],
             selected_step: 0,
             total_steps: 0,
+            output_title: "Transcript".into(),
             output_rows: vec![],
+            output_scroll_offset: 0,
+            output_scroll_anchor: OutputScrollAnchor::Bottom,
             pending_approval: None,
-            input_hint: "> ".into(),
+            input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
             composer_text: String::new(),
             composer_cursor: 0,
             changed_files: vec![],
@@ -2000,9 +2134,12 @@ mod tests {
             timeline_entries: vec![],
             selected_step: 0,
             total_steps: 0,
+            output_title: "Transcript".into(),
             output_rows: vec![],
+            output_scroll_offset: 0,
+            output_scroll_anchor: OutputScrollAnchor::Bottom,
             pending_approval: None,
-            input_hint: "> ".into(),
+            input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
             composer_text: "hello fullscreen".into(),
             composer_cursor: "hello fullscreen".len(),
             changed_files: vec![],
@@ -2028,9 +2165,12 @@ mod tests {
             timeline_entries: vec![],
             selected_step: 0,
             total_steps: 0,
+            output_title: "Transcript".into(),
             output_rows: vec![],
+            output_scroll_offset: 0,
+            output_scroll_anchor: OutputScrollAnchor::Bottom,
             pending_approval: None,
-            input_hint: "> ".into(),
+            input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
             composer_text: "first".into(),
             composer_cursor: 5,
             changed_files: vec![],
@@ -2059,9 +2199,12 @@ mod tests {
             timeline_entries: vec![],
             selected_step: 0,
             total_steps: 0,
+            output_title: "Transcript".into(),
             output_rows: vec![],
+            output_scroll_offset: 0,
+            output_scroll_anchor: OutputScrollAnchor::Bottom,
             pending_approval: None,
-            input_hint: "> ".into(),
+            input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
             composer_text: "same text".into(),
             composer_cursor: 2,
             changed_files: vec![],

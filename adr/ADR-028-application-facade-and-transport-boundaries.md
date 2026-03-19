@@ -326,23 +326,21 @@ the matching endpoint path for the configured protocol.
 - `test_local_bare_v1_endpoint_resolves_messages_v1_url`
 - `test_local_bare_v1_endpoint_resolves_chat_compat_url`
 
-### Bug 2 — TUI must stay on the primary terminal surface
+### Bug 2 — TUI must own the alternate-screen session surface
 
 **Location:** `src/terminal.rs`
 
-**Root cause:** The terminal lifecycle drifted away from the intended primary
-surface behaviour.  The TUI must remain in raw mode on the current terminal
-surface, not switch into a separate alternate buffer.
-
-**Fix:** `terminal.rs` now keeps rendering on the primary terminal surface,
-using raw mode and bracketed paste only, and restores the prompt cleanly on
-exit without a buffer switch.
-PageUp in the host terminal shows only the last rendered frame, not the
-session history.
+**Root cause:** The terminal lifecycle notes drifted into contradictory wording.
+The interactive task surface is a fullscreen session and therefore must own the
+alternate screen buffer consistently instead of mixing primary-surface wording
+with alternate-screen enter/leave calls.
 
 **Fix:** `enter_full_screen_mode()` now executes `EnterAlternateScreen` before
 `EnableBracketedPaste`.  `restore()` now executes `LeaveAlternateScreen` before
-`Show`, cleanly returning the user to their pre-session terminal state.
+`Show`, cleanly returning the user to their pre-session terminal state. The
+fullscreen task surface keeps its own transcript scroll model inside the
+session; host-terminal PageUp after exit shows the pre-session shell history,
+not the in-session transcript.
 
 ### Bug 3 — Orchestrator activity pane does not show live steps
 
