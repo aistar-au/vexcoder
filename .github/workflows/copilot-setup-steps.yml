@@ -1,0 +1,80 @@
+name: Copilot Setup Steps
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - name: Bootstrap private skills from vexdraft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.VEXDRAFT_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "Missing repository secret: VEXDRAFT_READ_TOKEN"
+            exit 1
+          fi
+
+          export HOME="${HOME:-/github/home}"
+          export COPILOT_HOME="${COPILOT_HOME:-$HOME/.copilot}"
+          TMP_ROOT="$(mktemp -d)"
+          SRC_REPO="$TMP_ROOT/vexdraft"
+          PRIMARY_DEST="$COPILOT_HOME/skills"
+          EXTRA_DEST=""
+
+          mkdir -p "$PRIMARY_DEST"
+          if [ -d /copilot ] && [ -w /copilot ]; then
+            EXTRA_DEST="/copilot/skills"
+            mkdir -p "$EXTRA_DEST"
+          fi
+
+          git clone --filter=blob:none --no-checkout \
+            "https://x-access-token:${GH_TOKEN}@github.com/aistar-au/vexdraft.git" \
+            "$SRC_REPO"
+          git -C "$SRC_REPO" sparse-checkout init --cone
+          git -C "$SRC_REPO" sparse-checkout set .agents/skills
+          git -C "$SRC_REPO" checkout
+
+          SKILLS_SRC="$SRC_REPO/.agents/skills"
+          if [ ! -d "$SKILLS_SRC" ]; then
+            echo "Missing private skill tree at $SKILLS_SRC"
+            exit 1
+          fi
+
+          rsync -a --delete "$SKILLS_SRC/" "$PRIMARY_DEST/"
+          if [ -n "$EXTRA_DEST" ]; then
+            rsync -a --delete "$SKILLS_SRC/" "$EXTRA_DEST/"
+          fi
+
+          for required in vex-local-bash vex-remote-contract vex-rust-arch; do
+            if [ ! -f "$PRIMARY_DEST/$required/SKILL.md" ]; then
+              echo "Missing required skill: $required"
+              exit 1
+            fi
+          done
+
+          {
+            echo "COPILOT_HOME=$COPILOT_HOME"
+            echo "VEXDRAFT_SKILLS_DIR=$PRIMARY_DEST"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify synchronized skill tree
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -d "${VEXDRAFT_SKILLS_DIR:?}"
+          find "$VEXDRAFT_SKILLS_DIR" -mindepth 2 -maxdepth 2 -name SKILL.md -print | sort
