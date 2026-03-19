@@ -308,11 +308,11 @@ fn enriched_paragraph_output_renders_tool_status_colors() {
     let state = make_state(
         vec![],
         vec![
-            "[ok] read_file",
+            "[ok] read_file: 42 lines",
             "    README.md: 42 lines",
             "",
-            "[!] write_file",
-            "    error: permission denied",
+            "[!] write_file: error: permission denied",
+            "    target: /etc/passwd",
             "",
             "The file was read successfully.",
         ],
@@ -333,12 +333,86 @@ fn enriched_paragraph_output_renders_tool_status_colors() {
         "tool name must appear in output"
     );
     assert!(
-        output.contains("read_file"),
-        "tool name must appear in output"
+        output.contains("42 lines"),
+        "summary outcome must appear on the status line"
     );
     assert!(
         output.contains("README.md"),
         "indented detail must appear in output"
+    );
+}
+
+#[test]
+fn six_space_evidence_renders_dimmer_than_four_space() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec![
+            "[ok] bash: exit code 0",
+            "    $ npm test",
+            "    All tests passed",
+            "      > stdout line 1",
+            "      > stdout line 2",
+        ],
+    );
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(output.contains("bash"), "tool name must appear in summary");
+    assert!(
+        output.contains("npm test"),
+        "4-space phase detail must be drawn"
+    );
+    assert!(
+        output.contains("stdout line 1"),
+        "6-space evidence must be drawn"
+    );
+    // The 6-space evidence uses DIM_GRAY (240) rather than GRAY (245).
+    // Both set_dim + set_fg(DIM_GRAY) for evidence vs set_dim + set_fg(GRAY) for detail.
+    // Count the DIM_GRAY (240) color codes — evidence lines add extra instances.
+    let dim_gray_count = output.matches("\x1b[38;5;240m").count();
+    assert!(
+        dim_gray_count >= 2,
+        "6-space evidence must use DIM_GRAY color: found {dim_gray_count} instances"
+    );
+}
+
+#[test]
+fn paragraph_tree_summary_includes_outcome_extract() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    // Simulate the enriched paragraph output format where summary includes
+    // tool name + compact outcome.
+    let state = make_state(
+        vec![],
+        vec![
+            "[ok] read_file: 42 lines read from src/main.rs",
+            "    content preview line 1",
+            "    content preview line 2",
+            "      evidence detail line",
+        ],
+    );
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("read_file"),
+        "tool name must appear in summary"
+    );
+    assert!(
+        output.contains("42 lines"),
+        "compact outcome extract must appear in summary"
+    );
+    assert!(
+        output.contains("content preview"),
+        "phase detail must appear"
+    );
+    assert!(
+        output.contains("evidence detail"),
+        "evidence text must appear"
     );
 }
 
