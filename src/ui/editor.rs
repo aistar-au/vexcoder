@@ -1,8 +1,6 @@
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
-use crate::ui::input_metrics::{
-    cursor_byte_for_row_col, cursor_row_col, visual_row_bounds, visual_row_count,
-};
+use crate::ui::input_metrics::{cursor_row_col, visual_layout, visual_row_bounds};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EditorSnapshot {
@@ -210,26 +208,28 @@ impl InputEditor {
 
     pub fn move_cursor_visual_up(&mut self, width: usize) -> bool {
         let width = width.max(1);
-        let (row, col) = cursor_row_col(&self.input_state.buffer, self.input_state.cursor, width);
+        let layout = visual_layout(&self.input_state.buffer, self.input_state.cursor, width);
+        let row = layout.cursor_row();
+        let col = layout.cursor_col();
         if row == 0 {
             return false;
         }
 
-        self.input_state.cursor =
-            cursor_byte_for_row_col(&self.input_state.buffer, row - 1, col, width);
+        self.input_state.cursor = layout.byte_for_row_col(&self.input_state.buffer, row - 1, col);
         true
     }
 
     pub fn move_cursor_visual_down(&mut self, width: usize) -> bool {
         let width = width.max(1);
-        let (row, col) = cursor_row_col(&self.input_state.buffer, self.input_state.cursor, width);
-        let last_row = visual_row_count(&self.input_state.buffer, width).saturating_sub(1);
+        let layout = visual_layout(&self.input_state.buffer, self.input_state.cursor, width);
+        let row = layout.cursor_row();
+        let col = layout.cursor_col();
+        let last_row = layout.row_count().saturating_sub(1);
         if row >= last_row {
             return false;
         }
 
-        self.input_state.cursor =
-            cursor_byte_for_row_col(&self.input_state.buffer, row + 1, col, width);
+        self.input_state.cursor = layout.byte_for_row_col(&self.input_state.buffer, row + 1, col);
         true
     }
 
@@ -329,7 +329,7 @@ impl Default for InputEditor {
 #[cfg(test)]
 mod tests {
     use super::InputEditor;
-    use crate::ui::input_metrics::{cursor_row_col, visual_row_bounds};
+    use crate::ui::input_metrics::{cursor_row_col, visual_layout, visual_row_bounds};
 
     #[test]
     fn visual_up_down_moves_within_multiline_prompt() {
@@ -411,5 +411,40 @@ mod tests {
 
         assert!(editor.move_cursor_visual_end(12));
         assert_eq!(editor.input_state.cursor, row_end);
+    }
+
+    #[test]
+    fn visual_layout_tracks_exact_wrap_boundary_as_empty_following_row() {
+        let layout = visual_layout("abcd", 4, 4);
+
+        assert_eq!(layout.cursor_row(), 1);
+        assert_eq!(layout.cursor_col(), 0);
+        assert_eq!(layout.row_count(), 2);
+        assert_eq!(layout.row_bounds(1), (4, 4));
+    }
+
+    #[test]
+    fn visual_home_end_do_not_jump_to_buffer_start_at_exact_wrap_boundary() {
+        let mut editor = InputEditor::new();
+        editor.input_state.buffer = "abcd".to_string();
+        editor.input_state.cursor = 4;
+
+        assert!(!editor.move_cursor_visual_home(4));
+        assert_eq!(editor.input_state.cursor, 4);
+
+        assert!(editor.move_cursor_visual_up(4));
+        assert_eq!(editor.input_state.cursor, 0);
+
+        assert!(editor.move_cursor_visual_down(4));
+        assert_eq!(editor.input_state.cursor, 4);
+    }
+
+    #[test]
+    fn visual_layout_treats_wrapped_row_start_as_current_row() {
+        let layout = visual_layout("abcdz", 4, 4);
+
+        assert_eq!(layout.cursor_row(), 1);
+        assert_eq!(layout.cursor_col(), 0);
+        assert_eq!(layout.row_bounds(1), (4, 5));
     }
 }
