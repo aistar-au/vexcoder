@@ -156,8 +156,5 @@ fn visual_row_spans(input: &str, width: usize) -> Vec<(usize, usize)> {
     }
 
     spans.push((row_start.min(input.len()), input.len()));
-    if spans.is_empty() {
-        spans.push((0, 0));
-    }
     spans
 }

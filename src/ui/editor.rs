@@ -342,7 +342,7 @@ mod tests {
         assert!(editor.move_cursor_visual_up(12));
         let (up_row, up_col) = cursor_row_col(&editor.input_state.buffer, editor.cursor(), 12);
         assert_eq!(up_row + 1, start_row);
-        assert_eq!(up_col, start_col.min(up_col.max(start_col)));
+        assert_eq!(up_col, start_col);
 
         assert!(editor.move_cursor_visual_down(12));
         let (down_row, down_col) = cursor_row_col(&editor.input_state.buffer, editor.cursor(), 12);
