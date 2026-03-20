@@ -162,6 +162,9 @@ custom agent profiles under `.github/agents/`.
   Branch-local profiles remain useful for repository content and follow-up
   promotion work, but the remote agent catalog itself is resolved from the
   default-branch profile set before the session starts.
+- On GitHub.com, the repository agent profile does not reliably pin the coding
+  model for hosted background sessions. Use the model picker in supported
+  GitHub entrypoints when it is available; otherwise expect GitHub to use Auto.
 
 Available profiles:
 

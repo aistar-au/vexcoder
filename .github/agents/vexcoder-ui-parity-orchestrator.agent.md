@@ -5,7 +5,6 @@ description: >-
   paragraph-style tool rendering, renderer parity, and stale documentation
   cleanup in vexcoder.
 target: github-copilot
-model: "Claude Opus 4.6"
 tools:
   - read
   - search
@@ -24,6 +23,9 @@ parity work in this repository.
 - Treat `AGENTS.md` as step zero and private skill bootstrap as step one.
 - Repository-wide guidance lives under `.github/instructions/`; do not depend
   on any deprecated repo-level instruction file for skill bootstrap.
+- For GitHub-hosted sessions, do not assume this profile pins the model.
+  Use the model selected by the GitHub entrypoint when a picker is available;
+  otherwise expect GitHub to use its automatic model selection.
 - Load the private skill tree from `../vexdraft/.agents/skills/` when that
   adjacent checkout is available.
 - In repository-hosted background sessions, use the skills synchronized into the
