@@ -28,8 +28,11 @@ applyTo: "**"
 - Read `AGENTS.md` first.
 - For local dispatcher sessions, bootstrap the private skill tree from
   `../vexdraft/.agents/skills/`.
-- For repository-hosted background sessions, use the synchronized skill tree
-  from the setup workflow or the repository API fallback before editing.
+- For repository-hosted background sessions, stay self-contained inside this
+  repository. Do not bootstrap, fetch, or depend on private skills or adjacent
+  repos before editing.
+- When present, read the repository-hosted agent instructions file under
+  `.github/` as part of the background-session contract.
 
 ### Pull request structure
 
@@ -71,9 +74,9 @@ gh agent-task view <session-id-or-pr> --log --follow
   behavior explicitly instead of silently changing the command.
 - Promote remote agent output onto a `dispatcher/vexcoder-...` branch before
   commit-debug, CI watch, and final PR preparation.
-- Run `vexdraft/scripts/commit-debug.py` with the configured Gemini 2.5 review
-  slot after pushing the dispatcher branch. Patch findings and rerun until the
-  review passes.
+- Run `vexdraft/scripts/commit-debug.py` with the configured review slot after
+  pushing the dispatcher branch. Patch findings and rerun until the review
+  passes.
 - After fixes land, outdate or minimize automated reviewer comments where
   possible, then reply with the fixing commit when a thread remains visible.
 - Keep PR bodies, review comments, and commit summaries free of proprietary

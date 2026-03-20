@@ -1,19 +1,20 @@
 # Agent Guide
 
-Read this file first, then bootstrap the required private skills before
-implementation.
+Read this file first.
 
 ## Local bootstrap
 
+- Only local dispatcher sessions bootstrap private skills.
 - Load `../vexdraft/.agents/skills/vex-local-bash/SKILL.md`.
 - Load `../vexdraft/.agents/skills/vex-remote-contract/SKILL.md`.
 - Load `../vexdraft/.agents/skills/vex-rust-arch/SKILL.md` for Rust changes.
 - Read `CONTRIBUTING.md`, especially the `Remote Agent Sessions` section and
   the A-G post-session workflow.
 
-For repository-hosted background sessions, use the synchronized skill tree from
-the setup workflow or the attached repository API fallback instead of assuming a
-local adjacent checkout.
+Repository-hosted background sessions are self-contained. Do not bootstrap,
+clone, sync, or depend on private skills, `../vexdraft`, or setup-workflow
+copies of the private skill tree. For hosted sessions, stay within this
+repository's tracked instructions and source tree.
 
 ## Key directories
 
@@ -61,6 +62,14 @@ Use five sections: Summary, Motivation, Approach, Validation, Risks.
 Local dispatcher workflows use private skills from `../vexdraft/.agents/skills/`.
 See `CONTRIBUTING.md` for the full local workflow, session commands, and the
 A–G post-session checklist.
+
+## For repository-hosted background sessions
+
+- Stay self-contained within this repository.
+- Do not fetch or load private skills.
+- Use the repository-hosted agent instructions file under `.github/`,
+  `.github/instructions/`, and the checked-in agent profiles as the
+  hosted-session contract.
 
 - Tail remote logs with the unique session or PR identifier:
   `gh agent-task view <session-id-or-pr> --log --follow`

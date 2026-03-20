@@ -5,6 +5,7 @@ description: >-
   paragraph-style tool rendering, renderer parity, workflow cleanup, and
   original free-license UI parity work in vexcoder.
 target: github-copilot
+model: "GPT-5.4"
 tools:
   - read
   - search
@@ -21,13 +22,12 @@ coding agent.
 
 - Read `AGENTS.md` first.
 - Read `CONTRIBUTING.md`, especially `Remote Agent Sessions`.
+- Read `.github/copilot-instructions.md`.
 - Read `.github/instructions/repository.instructions.md`.
 - Read the relevant ADRs and the source/test files directly involved in the
   task.
-- Load the private skill tree from `../vexdraft/.agents/skills/` when it is
-  available locally.
-- In repository-hosted background sessions, use the synchronized skill tree or
-  repository API bootstrap before improvising replacements.
+- Repository-hosted background sessions must stay self-contained. Do not
+  bootstrap, clone, sync, or depend on private skills or adjacent repos.
 
 ## Key source areas
 

@@ -91,9 +91,7 @@ impl TuiMode {
         // Completed tool invocations — step identity carried from the
         // pending call that created them.
         for invocation in tool_invocations {
-            let is_error = invocation.outcome.starts_with("error")
-                || invocation.outcome.starts_with("failed")
-                || invocation.outcome.starts_with("Error");
+            let is_error = tool_outcome_is_error(&invocation.outcome);
             entries.push(TimelineEntry {
                 step_id: invocation.step_id,
                 lifecycle: if is_error {
@@ -174,10 +172,7 @@ impl TuiMode {
         // Completed tool invocations — prefixed to match render_task_layout
         // style markers ([ok] / [!]).
         for invocation in tool_invocations {
-            let prefix = if invocation.outcome.starts_with("error")
-                || invocation.outcome.starts_with("failed")
-                || invocation.outcome.starts_with("Error")
-            {
+            let prefix = if tool_outcome_is_error(&invocation.outcome) {
                 "[!]"
             } else {
                 "[ok]"
@@ -325,9 +320,7 @@ impl TuiMode {
             if !rows.is_empty() {
                 rows.push(String::new());
             }
-            let is_error = invocation.outcome.starts_with("error")
-                || invocation.outcome.starts_with("failed")
-                || invocation.outcome.starts_with("Error");
+            let is_error = tool_outcome_is_error(&invocation.outcome);
             let status_label = if is_error { "failed" } else { "completed" };
             let scope = tool_scope_detail(&invocation.name);
             let outcome_lines: Vec<&str> = invocation
@@ -500,6 +493,15 @@ fn compact_outcome_summary(line: &str) -> String {
     format!("{}\u{2026}", &trimmed[..end])
 }
 
+fn tool_outcome_is_error(outcome: &str) -> bool {
+    let lowered = outcome.trim().to_ascii_lowercase();
+    lowered.starts_with("error")
+        || lowered.starts_with("failed")
+        || lowered.contains("denied")
+        || lowered.starts_with("cancelled")
+        || lowered.starts_with("canceled")
+}
+
 fn tool_scope_detail(tool_name: &str) -> String {
     builtin_tool_summaries()
         .into_iter()
@@ -510,7 +512,7 @@ fn tool_scope_detail(tool_name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{compact_outcome_summary, tool_scope_detail};
+    use super::{compact_outcome_summary, tool_outcome_is_error, tool_scope_detail};
 
     #[test]
     fn short_outcome_preserved() {
@@ -539,6 +541,14 @@ mod tests {
     #[test]
     fn whitespace_trimmed() {
         assert_eq!(compact_outcome_summary("  ok  "), "ok");
+    }
+
+    #[test]
+    fn error_outcome_classifier_treats_denials_as_failures() {
+        assert!(tool_outcome_is_error("permission denied"));
+        assert!(tool_outcome_is_error("cancelled by user"));
+        assert!(tool_outcome_is_error("canceled by user"));
+        assert!(!tool_outcome_is_error("ok"));
     }
 
     #[test]
