@@ -152,6 +152,290 @@ fn draw_tool_evidence_line(w: &mut dyn Write, text: &str, cols: u16) {
     reset_style(w);
 }
 
+fn draw_status_paragraph_header(
+    w: &mut dyn Write,
+    accent: u8,
+    marker: &str,
+    text: &str,
+    cols: u16,
+) {
+    set_bold(w);
+    set_fg(w, accent);
+    let _ = write!(w, "  {marker} ");
+    reset_style(w);
+    set_fg(w, WHITE);
+    let truncated = truncate_to_width(text, (cols as usize).saturating_sub(4));
+    let _ = write!(w, "{truncated}");
+    reset_style(w);
+}
+
+fn draw_prefixed_disclosure_line(
+    w: &mut dyn Write,
+    indent: &str,
+    marker: Option<&str>,
+    text: &str,
+    cols: u16,
+    accent: u8,
+    body: u8,
+    dim: bool,
+) {
+    if dim {
+        set_dim(w);
+    }
+    set_fg(w, accent);
+    let _ = write!(w, "{indent}");
+    if let Some(marker) = marker {
+        let _ = write!(w, "{marker}");
+    }
+    set_fg(w, body);
+    let used = display_width(indent) + marker.map(display_width).unwrap_or_default();
+    let truncated = truncate_to_width(text, (cols as usize).saturating_sub(used));
+    let _ = write!(w, "{truncated}");
+    reset_style(w);
+}
+fn draw_nested_bar_line(w: &mut dyn Write, indent: &str, text: &str, cols: u16, dim: bool) {
+    if dim {
+        set_dim(w);
+    }
+    set_fg(w, DIM_GRAY);
+    let _ = write!(w, "{indent}\u{2502} ");
+    set_fg(w, GRAY);
+    let used = display_width(indent) + 2;
+    let truncated = truncate_to_width(text, (cols as usize).saturating_sub(used));
+    let _ = write!(w, "{truncated}");
+    reset_style(w);
+}
+
+fn draw_nested_rule(w: &mut dyn Write, indent: &str, cols: u16) {
+    set_dim(w);
+    set_fg(w, DIM_GRAY);
+    let _ = write!(w, "{indent}");
+    draw_thin_rule(w, (cols as usize).saturating_sub(display_width(indent)), 80);
+    reset_style(w);
+}
+
+fn draw_json_line(w: &mut dyn Write, indent: &str, marker: Option<&str>, text: &str, cols: u16) {
+    set_dim(w);
+    set_fg(w, DIM_GRAY);
+    let _ = write!(w, "{indent}");
+    if let Some(marker) = marker {
+        let _ = write!(w, "{marker}");
+    }
+    let mut used = display_width(indent) + marker.map(display_width).unwrap_or_default();
+    let mut in_string = false;
+    let mut escape = false;
+    let chars: Vec<char> = text.chars().collect();
+    let mut index = 0;
+    while index < chars.len() && used < cols as usize {
+        let ch = chars[index];
+        let next = chars.get(index + 1).copied();
+        if in_string {
+            set_fg(w, GREEN);
+        } else {
+            match ch {
+                '{' | '}' | '[' | ']' | ':' | ',' => set_fg(w, DIM_GRAY),
+                't' | 'f' | 'n'
+                    if starts_with_literal(&chars[index..], &["true", "false", "null"]) =>
+                {
+                    set_fg(w, MAGENTA)
+                }
+                '-' | '0'..='9' => set_fg(w, YELLOW),
+                _ => set_fg(w, CYAN),
+            }
+        }
+        if ch == '"' && !escape {
+            if !in_string {
+                in_string = true;
+                if next == Some(':') {
+                    set_fg(w, CYAN);
+                } else {
+                    set_fg(w, GREEN);
+                }
+            } else {
+                set_fg(w, GREEN);
+            }
+        }
+        let ch_width = display_width(&ch.to_string());
+        if used + ch_width > cols as usize {
+            break;
+        }
+        let _ = write!(w, "{ch}");
+        used += ch_width;
+        if in_string && ch == '"' && !escape {
+            in_string = false;
+        }
+        escape = in_string && ch == '\\' && !escape;
+        if ch != '\\' {
+            escape = false;
+        }
+        index += 1;
+    }
+    reset_style(w);
+}
+
+fn starts_with_literal(chars: &[char], literals: &[&str]) -> bool {
+    literals.iter().any(|literal| {
+        literal
+            .chars()
+            .eq(chars.iter().copied().take(literal.len()))
+    })
+}
+
+fn looks_like_json_line(text: &str) -> bool {
+    let trimmed = text.trim_start();
+    trimmed.starts_with('{')
+        || trimmed.starts_with('[')
+        || trimmed.starts_with('}')
+        || trimmed.starts_with(']')
+        || trimmed.contains("\":")
+}
+
+fn diff_style(line: &str) -> Option<(u8, bool)> {
+    if line.starts_with('+') && !line.starts_with("+++") {
+        Some((GREEN, false))
+    } else if line.starts_with('-') && !line.starts_with("---") {
+        Some((RED, false))
+    } else if line.starts_with("@@")
+        || line.starts_with("diff --git")
+        || line.starts_with("index ")
+        || line.starts_with("+++ ")
+        || line.starts_with("--- ")
+    {
+        Some((CYAN, true))
+    } else {
+        None
+    }
+}
+
+fn parse_command_session_started(line: &str) -> Option<(String, Option<String>)> {
+    let rest = line.strip_prefix("[command session started")?;
+    let (meta, command) = rest.split_once("] ")?;
+    let pid = meta
+        .strip_prefix(" pid=")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    Some((command.to_string(), pid))
+}
+
+fn draw_nested_disclosure_line(
+    this: &mut TaskDraw,
+    w: &mut dyn Write,
+    text: &str,
+    cols: u16,
+    indent: &str,
+    marker: Option<&str>,
+    body: u8,
+    accent: u8,
+) {
+    let trimmed = text.trim_start();
+    if trimmed.starts_with("```") {
+        this.in_code_block = !this.in_code_block;
+        draw_prefixed_disclosure_line(w, indent, marker, trimmed, cols, accent, DIM_GRAY, true);
+        return;
+    }
+    if this.in_code_block {
+        let nested_indent = format!("{indent}{}", marker.unwrap_or_default());
+        draw_nested_bar_line(w, &nested_indent, text, cols, false);
+        return;
+    }
+    if let Some((color, bold)) = diff_style(trimmed) {
+        if bold {
+            set_bold(w);
+        }
+        draw_prefixed_disclosure_line(w, indent, marker, trimmed, cols, accent, color, true);
+        if bold {
+            reset_style(w);
+        }
+        return;
+    }
+    if looks_like_json_line(trimmed) {
+        draw_json_line(w, indent, marker, trimmed, cols);
+        return;
+    }
+    if let Some(rest) = trimmed.strip_prefix("> ") {
+        let nested_indent = format!("{indent}{}", marker.unwrap_or_default());
+        draw_nested_bar_line(w, &nested_indent, rest, cols, true);
+        return;
+    }
+    if is_horizontal_rule(trimmed) {
+        let nested_indent = format!("{indent}{}", marker.unwrap_or_default());
+        draw_nested_rule(w, &nested_indent, cols);
+        return;
+    }
+    if let Some(rest) = trimmed
+        .strip_prefix("- ")
+        .or_else(|| trimmed.strip_prefix("* "))
+    {
+        if let Some(task_rest) = rest
+            .strip_prefix("[x] ")
+            .or_else(|| rest.strip_prefix("[X] "))
+        {
+            draw_prefixed_disclosure_line(
+                w,
+                indent,
+                marker,
+                &format!("☑ {task_rest}"),
+                cols,
+                accent,
+                GREEN,
+                true,
+            );
+            return;
+        }
+        if let Some(task_rest) = rest.strip_prefix("[ ] ") {
+            draw_prefixed_disclosure_line(
+                w,
+                indent,
+                marker,
+                &format!("☐ {task_rest}"),
+                cols,
+                accent,
+                DIM_GRAY,
+                true,
+            );
+            return;
+        }
+        draw_prefixed_disclosure_line(
+            w,
+            indent,
+            marker,
+            &format!("• {rest}"),
+            cols,
+            accent,
+            body,
+            true,
+        );
+        return;
+    }
+    if let Some((prefix, rest, _)) = parse_numbered_list_item(trimmed) {
+        draw_prefixed_disclosure_line(
+            w,
+            indent,
+            marker,
+            &format!("{prefix}{rest}"),
+            cols,
+            accent,
+            body,
+            true,
+        );
+        return;
+    }
+    if let Some(rest) = trimmed.strip_prefix("### ") {
+        draw_prefixed_disclosure_line(w, indent, marker, rest, cols, accent, YELLOW, false);
+        return;
+    }
+    if let Some(rest) = trimmed.strip_prefix("## ") {
+        draw_prefixed_disclosure_line(w, indent, marker, rest, cols, accent, YELLOW, false);
+        return;
+    }
+    if let Some(rest) = trimmed.strip_prefix("# ") {
+        draw_prefixed_disclosure_line(w, indent, marker, rest, cols, accent, WHITE, false);
+        return;
+    }
+    draw_prefixed_disclosure_line(w, indent, marker, trimmed, cols, accent, body, true);
+}
+
 /// Write a thin horizontal rule of `─` characters.
 fn draw_thin_rule(w: &mut dyn Write, width: usize, max: usize) {
     for _ in 0..width.min(max) {
@@ -171,17 +455,95 @@ impl TaskDraw {
     ///       ✧ fn main() { … }                ← 6-space: evidence snippet
     /// ```
     pub(super) fn draw_transcript_line(&mut self, w: &mut dyn Write, line: &str, cols: u16) {
+        if let Some(rest) = line.strip_prefix("[turn] ") {
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, " ");
+            draw_thin_rule(w, 3, 3);
+            let _ = write!(w, " ");
+            reset_style(w);
+            draw_status_paragraph_header(w, YELLOW, "\u{2726}", rest, cols);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[thinking] ") {
+            draw_status_paragraph_header(w, BLUE, "\u{22ef}", rest, cols);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[thinking_detail] ") {
+            draw_prefixed_disclosure_line(w, "    ", None, rest, cols, BLUE, GRAY, true);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[approval] ") {
+            draw_status_paragraph_header(w, YELLOW, "\u{2753}", rest, cols);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[approval_detail] ") {
+            draw_prefixed_disclosure_line(w, "    ", None, rest, cols, YELLOW, GRAY, true);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[error] ") {
+            draw_status_paragraph_header(w, RED, "\u{2716}", rest, cols);
+            return;
+        }
+
         // ── Tool paragraph markers (2/4/6-space disclosure) ────────
         if let Some(rest) = line.strip_prefix("[tool] ") {
             draw_tool_paragraph_header(w, rest, cols);
             return;
         }
         if let Some(rest) = line.strip_prefix("[detail] ") {
-            draw_tool_detail_line(w, rest, cols);
+            draw_nested_disclosure_line(self, w, rest, cols, "    ", None, GRAY, DIM_GRAY);
             return;
         }
         if let Some(rest) = line.strip_prefix("[evidence] ") {
-            draw_tool_evidence_line(w, rest, cols);
+            draw_nested_disclosure_line(
+                self,
+                w,
+                rest,
+                cols,
+                "      ",
+                Some("\u{2727} "),
+                GRAY,
+                DIM_GRAY,
+            );
+            return;
+        }
+
+        if let Some((command, pid)) = parse_command_session_started(line) {
+            let summary = pid
+                .map(|pid| format!("command session \u{00b7} {command} \u{00b7} pid {pid}"))
+                .unwrap_or_else(|| format!("command session \u{00b7} {command} \u{00b7} running"));
+            draw_tool_paragraph_header(w, &summary, cols);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[command session exit: ") {
+            let exit = rest.trim_end_matches(']');
+            draw_tool_detail_line(w, &format!("Exit: {exit}"), cols);
+            return;
+        }
+        if line == "[command session cancelled]" {
+            draw_tool_detail_line(w, "Status: cancelled", cols);
+            return;
+        }
+        if line == "[command session cancellation requested]" {
+            draw_tool_detail_line(w, "Status: cancellation requested", cols);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[command session] error: ") {
+            draw_status_paragraph_header(w, RED, "\u{2716}", rest, cols);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[stderr] ") {
+            draw_prefixed_disclosure_line(
+                w,
+                "      ",
+                Some("\u{2727} "),
+                rest,
+                cols,
+                RED,
+                RED,
+                true,
+            );
             return;
         }
 

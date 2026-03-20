@@ -44,7 +44,6 @@ use crossterm::event::{Event, KeyCode, KeyModifiers};
 use std::cell::Cell;
 use std::io::Write;
 use std::path::PathBuf;
-#[cfg(test)]
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -613,12 +612,18 @@ pub struct TuiMode {
     transcript_scroll_offset: usize,
     /// Inspector/detail scroll offset measured downward from the top.
     inspector_scroll_offset: usize,
+    /// Wall-clock start instant for the active turn.
+    turn_started_at: Option<Instant>,
     /// Last completed turn's tool invocations (kept for persistent display).
     last_turn_tool_invocations: Vec<ToolInvocationSummary>,
     /// Last completed turn's response text (kept for persistent display).
     last_turn_response: String,
     /// Last completed turn's input text (kept for persistent display).
     last_turn_input_display: String,
+    /// Last completed or failed turn duration.
+    last_turn_duration: Option<Duration>,
+    /// Last visible terminal error for the task surface.
+    last_error_message: Option<String>,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }
