@@ -81,6 +81,7 @@ impl TuiMode {
             command,
             pid: None,
             status: "running".to_string(),
+            started_at: std::time::Instant::now(),
         });
         self.current_task.status = TaskStatus::Running;
     }

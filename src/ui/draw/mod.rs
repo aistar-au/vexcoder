@@ -1101,6 +1101,7 @@ fn simple_hash(s: &str) -> u64 {
 
 fn entry_lifecycle_id(lifecycle: &StepLifecycle) -> u64 {
     match lifecycle {
+        StepLifecycle::Queued => 0,
         StepLifecycle::Completed => 1,
         StepLifecycle::Failed => 2,
         StepLifecycle::Running => 3,
