@@ -185,15 +185,72 @@ repository-hosted agent instructions file under `.github/`.
   workflows, run `cargo fmt --check`, `cargo test --all-targets`, and
   `bash scripts/check_forbidden_names.sh` first. Run `make gate-fast` only if
   the runner image already has the required gate tools.
-- For one feature lane, open one comprehensive draft PR. Do not keep multiple
-  overlapping draft PRs for the same layout/render/test/doc workflow.
+- For one feature lane, keep one authoritative integration branch and one
+  final PR to `main`. Parallel hosted shard PRs are allowed only when each
+  shard has an explicit disjoint write set and all accepted commits are
+  promoted onto the shared integration branch before merge.
 
 Available profiles:
 
-- `vexcoder-ui-parity-orchestrator` for broad fullscreen UI, task-state, and
-  stale-doc work.
-- `vexcoder-ui-paragraph-renderer` for transcript drawing, paragraph rendering,
-  and enriched tool-detail layout work.
+- `vexcoder-ui-parity-orchestrator` for app-mode orchestration, fullscreen UI
+  flow, editor behavior, and final integration/conflict cleanup.
+- `vexcoder-ui-paragraph-renderer` for ANSI transcript drawing, paragraph
+  markers, disclosure styling, and transcript regression coverage.
+- `vexcoder-transcript-renderer-overhaul` for timeline rows, fallback renderer
+  parity, layout geometry, and task-state transcript surface work.
+
+### Parallel UI overhaul pattern
+
+Use this pattern when the UI lane is broad enough to justify concurrent
+repository-hosted sessions.
+
+1. Create and push one shared integration branch from the latest `origin/main`.
+2. Launch one hosted shard per disjoint write set from that shared base
+   branch.
+3. Require every hosted shard to report its base SHA, owned files,
+   code-bearing commit SHAs, and changed paths before promotion.
+4. Promote accepted shard commits onto the shared integration branch by
+   cherry-pick. Open only one final PR from that branch to `main`.
+5. If `main` moves during execution, refresh the shared integration branch
+   from the latest `origin/main`, cherry-pick finished shard commits onto it,
+   and relaunch only the shards whose owned files were invalidated.
+
+Recommended shard ownership for UI-overhaul work:
+
+- `vexcoder-ui-parity-orchestrator`
+  `src/app.rs`, `src/app/accessors.rs`, `src/app/model_update.rs`,
+  `src/app/turn.rs`, `src/ui/editor.rs`, and final workflow/doc cleanup only
+  when explicitly assigned.
+- `vexcoder-ui-paragraph-renderer`
+  `src/ui/draw/transcript.rs`, `src/ui/draw/ansi.rs`,
+  `src/ui/draw/tests.rs`, and closely related transcript helpers.
+- `vexcoder-transcript-renderer-overhaul`
+  `src/app/layout.rs`, `src/app/tests.rs`, `src/ui/render.rs`,
+  `src/ui/layout.rs`, `src/ui/draw/regions.rs`,
+  `tests/layout_underflow_tests.rs`, and related layout/timeline helpers.
+
+Example launch sequence:
+
+```bash
+git fetch origin --prune
+git switch -c coder/vexcoder-ui-overhaul origin/main
+git push -u origin coder/vexcoder-ui-overhaul
+
+gh agent-task create \
+  --base coder/vexcoder-ui-overhaul \
+  --custom-agent vexcoder-ui-parity-orchestrator \
+  "Shard: app orchestration. Own only src/app.rs, src/app/accessors.rs, src/app/model_update.rs, src/app/turn.rs, src/ui/editor.rs. Do not edit transcript or fallback-renderer files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping."
+
+gh agent-task create \
+  --base coder/vexcoder-ui-overhaul \
+  --custom-agent vexcoder-ui-paragraph-renderer \
+  "Shard: ANSI transcript renderer. Own only src/ui/draw/transcript.rs, src/ui/draw/ansi.rs, src/ui/draw/tests.rs, and transcript-local helpers. Do not edit app layout or fallback-renderer files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping."
+
+gh agent-task create \
+  --base coder/vexcoder-ui-overhaul \
+  --custom-agent vexcoder-transcript-renderer-overhaul \
+  "Shard: timeline rows and fallback renderer. Own only src/app/layout.rs, src/app/tests.rs, src/ui/render.rs, src/ui/layout.rs, src/ui/draw/regions.rs, tests/layout_underflow_tests.rs, and directly related helpers. Do not edit ANSI transcript files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping."
+```
 
 Start a UI parity session from the GitHub CLI with:
 
@@ -228,7 +285,17 @@ gh agent-task create \
   "Investigate paragraph-style tool rendering, transcript drawing, and stale docs."
 ```
 
-### Post-session workflow (mandatory steps A–G)
+Start a timeline/fallback-renderer session with:
+
+```bash
+gh agent-task create \
+  --base <coder-branch> \
+  --custom-agent vexcoder-transcript-renderer-overhaul \
+  --follow \
+  "Investigate task-state timeline rows, fallback renderer parity, layout geometry, and stale docs."
+```
+
+### Post-session workflow (mandatory steps A–H)
 
 After an agent session completes, the dispatcher must follow these steps in
 order.
@@ -241,6 +308,9 @@ order.
    `gh pr view <pr> --json headRefName,commits,statusCheckRollup`.
    If the hosted PR has only a planning commit or no file diff, treat it as
    draft-only evidence and do not present the change as implemented.
+   For parallel shards, cherry-pick them onto one shared integration branch in
+   a deterministic order, then resolve cross-shard conflicts there rather than
+   reopening multiple competing PRs to `main`.
 3. **C — Commit-debug loop**: run `vexdraft/scripts/commit-debug.py`, fix
    findings, push, and re-run until `PASS`.
 4. **D — Hide bot comments**: minimize automated reviewer bot comments via
@@ -251,6 +321,10 @@ order.
    any failures before merge.
 7. **G — Update documentation**: refresh CONTRIBUTING, architecture docs,
    commands docs, and the raw URL map for all changed files.
+8. **H — Handle main drift**: if `origin/main` advanced during the hosted
+   batch, refresh the shared integration branch from the new main head, repeat
+   the cherry-pick sequence there, and relaunch only the shards whose owned
+   files were invalidated by upstream changes.
 
 ---
 
