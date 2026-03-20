@@ -105,28 +105,28 @@ bash scripts/check_forbidden_imports.sh
 
 ## Release Packaging
 
-Package release changes on a dispatcher branch first, verify them locally, and open the PR without waiting on a duplicate packaging workflow run.
+Package release changes on a coder branch first, verify them locally, and open the PR without waiting on a duplicate packaging workflow run.
 
 ```bash
-git switch -c dispatcher/v0.1.0-alpha2-packaging
+git switch -c coder/v0.1.0-alpha2-packaging
 make gate
 make release TARGET=x86_64-unknown-linux-gnu
-git push -u origin dispatcher/v0.1.0-alpha2-packaging
+git push -u origin coder/v0.1.0-alpha2-packaging
 ```
 
 On Windows PowerShell 7, use the native packaging script instead of `make release`:
 
 ```powershell
-git switch -c dispatcher/v0.1.0-alpha2-packaging
+git switch -c coder/v0.1.0-alpha2-packaging
 $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
 cargo build --release --bin vex
 .\scripts\release.ps1 -Target x86_64-pc-windows-msvc -RunGate
-git push -u origin dispatcher/v0.1.0-alpha2-packaging
+git push -u origin coder/v0.1.0-alpha2-packaging
 ```
 
 Windows packaging is currently an unsigned alpha path. Platform trust warnings are expected until code signing lands; evaluate a compatible signing service only when the packaging ADR set explicitly requires it.
 
-The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. `.github/workflows/release.yml` now runs only for tag pushes and manual dispatch so dispatcher branches do not duplicate the main PR checks. After the branch gates are green and the local packaging smoke checks look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
+The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. `.github/workflows/release.yml` now runs only for tag pushes and manual dispatch so coder branches do not duplicate the main PR checks. After the branch gates are green and the local packaging smoke checks look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
 
 ```bash
 git switch main
@@ -160,7 +160,7 @@ repository-hosted agent instructions file under `.github/`.
   default branch. Manual workflow dispatch is still useful for validating the
   hosted-session bootstrap contract on a feature branch before merge.
 - The repository-level agent profile follows the branch you target. Use a
-  dispatcher branch as the `--base` argument when you want the remote session
+  coder branch as the `--base` argument when you want the remote session
   to see branch-local agent changes.
 - New or renamed custom agent profile files are only selectable through
   `gh agent-task --custom-agent` after they exist on the default branch.
@@ -199,7 +199,7 @@ Start a UI parity session from the GitHub CLI with:
 
 ```bash
 gh agent-task create \
-  --base <dispatcher-branch> \
+  --base <coder-branch> \
   --custom-agent vexcoder-ui-parity-orchestrator \
   --follow \
   "Investigate the fullscreen UI, task-state control surface, scrolling, and stale docs."
@@ -222,7 +222,7 @@ Start a paragraph-rendering session with:
 
 ```bash
 gh agent-task create \
-  --base <dispatcher-branch> \
+  --base <coder-branch> \
   --custom-agent vexcoder-ui-paragraph-renderer \
   --follow \
   "Investigate paragraph-style tool rendering, transcript drawing, and stale docs."
@@ -235,7 +235,7 @@ order.
 
 1. **A — Tail logs**: identify each concurrent session by its unique ID.
    Use `gh agent-task view <session-id> --log --follow`.
-2. **B — Create dispatcher branch**: create a `dispatcher/vexcoder-` branch
+2. **B — Create coder branch**: create a `coder/vexcoder-` branch
    from `origin/main` and cherry-pick the agent's commits.
    Inspect the hosted PR first with
    `gh pr view <pr> --json headRefName,commits,statusCheckRollup`.

@@ -92,12 +92,12 @@ A–G post-session checklist.
   `gh pr checks <pr> --watch`
 - If `rg` is unavailable, fall back to `git grep -n`, `grep -RIn`, or direct
   file reads and continue.
-- Promote remote agent output onto a `dispatcher/vexcoder-...` branch before
+- Promote remote agent output onto a `coder/vexcoder-...` branch before
   commit-debug, CI watch, and PR preparation.
-- If the hosted run opens a non-dispatcher branch or ends with only a planning
+- If the hosted run opens a non-coder branch or ends with only a planning
   commit and no file diff, treat it as draft-only evidence. Do not present the
   change as implemented until code-bearing commits are promoted onto a
-  dispatcher branch.
+  coder branch.
 - Keep the paragraph-renderer model pinned in the agent profile rather than
   passing a model flag at invocation time. If the hosting surface ignores the
   profile pin, record that behavior instead of silently changing the command.

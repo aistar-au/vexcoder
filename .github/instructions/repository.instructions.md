@@ -103,14 +103,14 @@ gh pr checks <pr> --watch
   workflows, start with `cargo fmt --check`, `cargo test --all-targets`, and
   `bash scripts/check_forbidden_names.sh`. Run `make gate-fast` only when the
   full toolchain is already present in the runner image.
-- Promote remote agent output onto a `dispatcher/vexcoder-...` branch before
+- Promote remote agent output onto a `coder/vexcoder-...` branch before
   commit-debug, CI watch, and final PR preparation.
-- If a hosted run opens a non-dispatcher branch or ends with only a planning
+- If a hosted run opens a non-coder branch or ends with only a planning
   commit and no file diff, treat it as draft-only evidence. Do not claim the
   implementation landed until code-bearing commits are promoted onto the
-  dispatcher branch.
+  coder branch.
 - Run `vexdraft/scripts/commit-debug.py` with the configured review slot after
-  pushing the dispatcher branch. Patch findings and rerun until the review
+  pushing the coder branch. Patch findings and rerun until the review
   passes.
 - After fixes land, outdate or minimize automated reviewer comments where
   possible, then reply with the fixing commit when a thread remains visible.
