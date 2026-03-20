@@ -343,7 +343,9 @@ impl TuiMode {
             }
 
             // Phase detail (4-space): subsequent outcome lines up to the cap.
-            let detail_lines = &outcome_lines[1..outcome_lines.len().min(1 + MAX_PHASE_LINES)];
+            let detail_lines = outcome_lines
+                .get(1..outcome_lines.len().min(1 + MAX_PHASE_LINES))
+                .unwrap_or(&[]);
             for line in detail_lines {
                 rows.push(format!("    {}", line));
             }
@@ -481,7 +483,7 @@ fn compact_outcome_summary(line: &str) -> String {
     if trimmed.len() <= MAX_SUMMARY_WIDTH {
         return trimmed.to_string();
     }
-    let mut end = MAX_SUMMARY_WIDTH;
+    let mut end = trimmed.floor_char_boundary(MAX_SUMMARY_WIDTH);
     // Snap to a word boundary when possible.
     if let Some(space_pos) = trimmed[..end].rfind(' ') {
         if space_pos > MAX_SUMMARY_WIDTH / 2 {
