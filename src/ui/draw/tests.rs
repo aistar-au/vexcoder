@@ -988,7 +988,10 @@ fn tool_detail_renders_at_four_space_indent() {
 fn tool_evidence_renders_at_six_space_indent_with_accent() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
-    let state = make_state(vec![], vec!["[evidence] fn main() { println!(\"hello\"); }"]);
+    let state = make_state(
+        vec![],
+        vec!["[evidence] fn main() { println!(\"hello\"); }"],
+    );
 
     draw.draw(&mut buf, &state, 80, 24);
     let output = String::from_utf8_lossy(&buf);
@@ -997,10 +1000,7 @@ fn tool_evidence_renders_at_six_space_indent_with_accent() {
         output.contains("\u{2727}"),
         "evidence line must show ✧ accent marker: {output}"
     );
-    assert!(
-        output.contains("fn main"),
-        "evidence content must appear"
-    );
+    assert!(output.contains("fn main"), "evidence content must appear");
 }
 
 #[test]
@@ -1050,10 +1050,7 @@ fn six_space_raw_indent_differentiates_from_four_space() {
     let mut draw = TaskDraw::new();
     let state = make_state(
         vec![],
-        vec![
-            "    four-space detail",
-            "      six-space evidence",
-        ],
+        vec!["    four-space detail", "      six-space evidence"],
     );
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -1073,5 +1070,8 @@ fn six_space_raw_indent_differentiates_from_four_space() {
     let six_idx = output.find("six-space").unwrap();
     // 6-space evidence text must appear at a different position confirming
     // it was rendered through a separate code path.
-    assert_ne!(four_idx, six_idx, "indent levels must be rendered separately");
+    assert_ne!(
+        four_idx, six_idx,
+        "indent levels must be rendered separately"
+    );
 }
