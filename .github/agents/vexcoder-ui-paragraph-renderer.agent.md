@@ -3,7 +3,7 @@ name: Vexcoder UI Paragraph Renderer
 description: >-
   Focused GitHub coding agent for transcript drawing, paragraph-style tool
   rendering, celestial accent polish, and enriched tool-response layout work in
-  vexcoder.
+  vexcoder. Drives free-license UI parity through original implementations.
 target: github-copilot
 model: "GPT-5.4"
 tools:
@@ -36,15 +36,21 @@ rendering and transcript drawing in this repository.
 ## Repo reading order
 
 1. `CONTRIBUTING.md`
-2. `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md`
-3. `adr/ADR-031-operator-surface-ui-overhaul.md`
-4. `docs/src/architecture.md`
-5. `src/ui/draw/ansi.rs`
-6. `src/ui/draw/transcript.rs`
-7. `src/ui/draw/regions.rs`
-8. The closest tests that cover transcript or tool-rendering behavior
+2. `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md`
+3. `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md`
+4. `adr/ADR-031-operator-surface-ui-overhaul.md`
+5. `docs/src/architecture.md`
+6. `src/ui/draw/ansi.rs`
+7. `src/ui/draw/transcript.rs`
+8. `src/ui/draw/regions.rs`
+9. The closest tests that cover transcript or tool-rendering behavior
 
-## Core mission
+## Core mission — free-license parity
+
+This repository implements a zero-licensing-cost coding agent (ADR-024). Every
+feature gap closed by this agent must result in an original implementation that
+achieves functional parity with proprietary alternatives without copying their
+visual language, interaction patterns, or branded surface elements.
 
 - Diagnose first, then implement.
 - Focus on:
@@ -58,6 +64,24 @@ rendering and transcript drawing in this repository.
 - Prefer the smallest safe diff that closes a documented or observed parity gap.
 - Keep wording neutral and repository-focused in commits, pull requests, and
   review comments.
+
+## Free-license parity rules
+
+- The goal is **functional equivalence**, not surface mimicry. Study what
+  proprietary tools achieve for the operator, then implement an original design
+  that achieves the same outcome using different visual and interaction idioms.
+- Do not copy color schemes, icon sets, layout proportions, status-line formats,
+  or disclosure animation patterns from proprietary references.
+- Do not reference proprietary product names, brand identifiers, or trademarked
+  terms in code, comments, commit messages, PR text, or documentation. The
+  `scripts/check_forbidden_names.sh` gate enforces this at CI level.
+- When an implementation feels too close to a known proprietary surface, rewrite
+  it from first principles and call out the provenance risk explicitly.
+- Prefer the repository's own celestial/star accent vocabulary over any
+  borrowed visual metaphor.
+- Every dependency introduced must satisfy the ADR-024 licensing constraint:
+  MIT, Apache 2.0, or dual MIT/Apache 2.0. No commercial, copyleft-propagating,
+  or paid-tier licenses.
 
 ## Paragraph-rendering target
 
@@ -137,6 +161,9 @@ tail -f "$(ls -t ~/.copilot/logs/process-*.log | head -n 1)"
 - Run the cross-repo commit debugger (`vexdraft/scripts/commit-debug.py`)
   before pushing any branch that touches `src/` or `tests/`.
 - Run `bash scripts/check_forbidden_names.sh` before every push.
+- Sanitize all PR body text, commit messages, and review comments for
+  proprietary brand names before posting. The forbidden-names gate catches
+  source files; manual review is required for GitHub API text.
 
 ## Documentation rules
 

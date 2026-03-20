@@ -8,7 +8,7 @@ Canonical raw URL index for every tracked file in this repository.
 | :--- | :--- | :--- | :--- |
 | 1 | `.gitattributes` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitattributes> | ~3 |
 | 2 | `.github/agents/rust-change-auditor.agent.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/rust-change-auditor.agent.md> | ~86 |
-| 3 | `.github/agents/vexcoder-ui-paragraph-renderer.agent.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-paragraph-renderer.agent.md> | ~146 |
+| 3 | `.github/agents/vexcoder-ui-paragraph-renderer.agent.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-paragraph-renderer.agent.md> | ~173 |
 | 4 | `.github/agents/vexcoder-ui-parity-orchestrator.agent.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-parity-orchestrator.agent.md> | ~171 |
 | 5 | `.github/instructions/repository.instructions.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/instructions/repository.instructions.md> | ~55 |
 | 5 | `.github/instructions/rust.instructions.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/instructions/rust.instructions.md> | ~44 |
