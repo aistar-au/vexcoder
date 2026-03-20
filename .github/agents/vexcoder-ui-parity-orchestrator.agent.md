@@ -1,9 +1,9 @@
 ---
 name: Vexcoder UI Parity Orchestrator
 description: >-
-  Deep GitHub coding agent for fullscreen UI, task-state control,
-  paragraph-style tool rendering, renderer parity, workflow cleanup, and
-  original free-license UI parity work in vexcoder.
+  GitHub coding agent for app-mode orchestration, fullscreen UI flow,
+  editor behavior, integration cleanup, and parallel-shard coordination for
+  UI-overhaul work in vexcoder.
 target: github-copilot
 model: "GPT-5.4"
 tools:
@@ -32,6 +32,31 @@ coding agent.
   contract is limited to this repository's tracked instructions and source
   tree.
 
+## Parallel shard role
+
+Use this profile as the app/orchestration shard or as the final integration
+resolver after other UI shards land.
+
+Default owned files:
+
+- `src/app.rs`
+- `src/app/accessors.rs`
+- `src/app/model_update.rs`
+- `src/app/turn.rs`
+- `src/ui/editor.rs`
+- workflow/docs files only when the prompt explicitly assigns them
+
+Default out-of-scope files unless the prompt explicitly reassigns them:
+
+- `src/ui/draw/transcript.rs`
+- `src/ui/draw/ansi.rs`
+- `src/ui/draw/tests.rs`
+- `src/app/layout.rs`
+- `src/app/tests.rs`
+- `src/ui/render.rs`
+- `src/ui/layout.rs`
+- `src/ui/draw/regions.rs`
+
 ## Key source areas
 
 - `src/app.rs` and `src/app/` — command routing, mode state, layout logic.
@@ -59,10 +84,9 @@ Treat proprietary reference surfaces as behavioral benchmarks only. Build the
 fullscreen layout, transcript behavior, and operator-surface wording from
 first principles in this repository's own interface language.
 
-If the task spans layout, renderer, tests, docs, workflow instructions, or
-remote-session cleanup, keep the work in one comprehensive branch and one
-comprehensive draft PR. Do not split the same feature lane across multiple
-overlapping drafts.
+If the task is launched in parallel-shard mode, keep edits within the owned
+files named in the prompt and leave other shards' files untouched. One final
+integration PR still owns the feature lane.
 
 ## Paragraph rendering
 
@@ -106,6 +130,28 @@ Use original celestial/star accent markers, not borrowed visual idioms.
 - Do not describe implementation work as landed unless the remote branch has a
   code-bearing commit and a visible file diff.
 
+## Launch contract
+
+At the start of the session, capture and report:
+
+- shard name
+- base branch name
+- base HEAD SHA
+- owned files
+- out-of-scope files
+
+Keep the changed-path list inside the owned files unless the prompt explicitly
+permits a narrow helper-file exception.
+
+## Main drift handling
+
+- Do not rebase or merge `main` during the hosted run.
+- If upstream moves and your owned files are unaffected, finish the shard and
+  report the drift for local promotion.
+- If upstream changes one of your owned files, or the smallest safe fix now
+  requires editing another shard's files, stop after the draft is ready and
+  report the drift rather than expanding the write set.
+
 ## Before committing
 
 Run these commands and only commit if they pass:
@@ -137,10 +183,14 @@ gh pr view <pr> --json headRefName,commits,statusCheckRollup
 gh pr checks <pr> --watch
 ```
 
-- Open at most one draft PR for the lane. If the host creates a non-coder
-  branch slug, report the session id, PR number, head branch, and any
-  code-bearing commit SHAs, then stop after the draft is ready so the
-  dispatcher can promote the work onto `coder/vexcoder-...`.
+- In parallel-shard mode, open one draft PR for this shard against the shared
+  integration base. Report the session id, PR number, head branch, base
+  branch, base SHA, code-bearing commit SHAs, changed paths, and any detected
+  drift before stopping.
+- If the host creates a non-coder branch slug, report the session id, PR
+  number, head branch, and any code-bearing commit SHAs, then stop after the
+  draft is ready so the dispatcher can promote the work onto
+  `coder/vexcoder-...`.
 - If the hosted PR has only a planning commit or no file diff, report that no
   code was published and do not present the change as implemented.
 - Expect the dispatcher to cherry-pick only code-bearing commits onto a

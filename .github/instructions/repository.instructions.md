@@ -21,7 +21,8 @@ applyTo: "**"
 - When one task spans layout, renderer, tests, docs, instructions, and review
   cleanup for the same feature lane, keep it in one comprehensive branch and
   one comprehensive draft PR. Do not split overlapping partial drafts for the
-  same lane.
+  same lane unless repository-hosted sessions are explicitly sharded with
+  disjoint file ownership and one shared integration branch.
 
 ### Bootstrap
 
@@ -105,10 +106,22 @@ gh pr checks <pr> --watch
   full toolchain is already present in the runner image.
 - Promote remote agent output onto a `coder/vexcoder-...` branch before
   commit-debug, CI watch, and final PR preparation.
+- For one feature lane that needs parallel hosted work, create one shared
+  `coder/vexcoder-...` integration branch from the latest `origin/main`, then
+  launch one hosted session per disjoint write set from that same base branch.
+- Each hosted shard prompt must name the shard, the owned files, the
+  out-of-scope files, and the integration branch it promotes into.
+- Each hosted shard must report the launch base SHA, the code-bearing commit
+  SHAs, and the changed-path list before handoff.
 - If a hosted run opens a non-coder branch or ends with only a planning
   commit and no file diff, treat it as draft-only evidence. Do not claim the
   implementation landed until code-bearing commits are promoted onto the
   coder branch.
+- If `main` moves while hosted shards are still running, do not require the
+  running hosted sessions to rebase in place. Refresh the shared integration
+  branch locally from the latest `origin/main`, cherry-pick completed shard
+  commits onto it, and relaunch only the shards whose owned files or required
+  upstream dependencies changed underneath them.
 - Run `vexdraft/scripts/commit-debug.py` with the configured review slot after
   pushing the coder branch. Patch findings and rerun until the review
   passes.

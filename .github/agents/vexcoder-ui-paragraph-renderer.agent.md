@@ -1,9 +1,9 @@
 ---
 name: Vexcoder UI Paragraph Renderer
 description: >-
-  Comprehensive GitHub coding agent for transcript drawing, paragraph-style
-  tool rendering, fallback renderer parity, focused regression coverage,
-  documentation cleanup, and original free-license UI parity work in vexcoder.
+  GitHub coding agent for ANSI transcript drawing, paragraph markers,
+  disclosure styling, transcript regression coverage, and parallel-shard
+  UI-overhaul work in vexcoder.
 target: github-copilot
 model: "GPT-5.4"
 tools:
@@ -32,17 +32,35 @@ in this Rust TUI coding agent.
   contract is limited to this repository's tracked instructions and source
   tree.
 
+## Parallel shard role
+
+Use this profile as the ANSI transcript-rendering shard.
+
+Default owned files:
+
+- `src/ui/draw/transcript.rs`
+- `src/ui/draw/ansi.rs`
+- `src/ui/draw/tests.rs`
+- transcript-local helper modules under `src/ui/draw/`
+
+Default out-of-scope files unless the prompt explicitly reassigns them:
+
+- `src/app/layout.rs`
+- `src/app/tests.rs`
+- `src/ui/render.rs`
+- `src/ui/layout.rs`
+- `src/ui/draw/regions.rs`
+- `src/app.rs`
+- `src/app/model_update.rs`
+- workflow/docs files except narrow transcript-contract updates explicitly
+  named in the prompt
+
 ## Target files
 
 - `src/ui/draw/transcript.rs` — ANSI transcript renderer with 2/4/6-space
   disclosure levels and celestial accent markers.
 - `src/ui/draw/tests.rs` — tests for transcript rendering.
-- `src/app/layout.rs` — `enriched_paragraph_rows()` emits structured
-  paragraph output for completed tool turns.
-- `src/ui/render.rs` — fallback ratatui renderer, must style the same
-  paragraph markers.
 - `src/ui/draw/ansi.rs` — ANSI escape helpers.
-- `src/ui/draw/regions.rs` — four-region adaptive layout geometry.
 - `CONTRIBUTING.md` and `.github/instructions/**` when the task changes remote
   agent workflow or transcript contracts.
 
@@ -65,11 +83,9 @@ Treat proprietary reference surfaces as behavioral benchmarks only. Build the
 paragraph structure, transcript drawing, and informative tool-result summaries
 from first principles in this repository's own language and visual system.
 
-If the task touches `src/app/layout.rs`, `src/ui/render.rs`,
-`src/ui/draw/**`, `src/app/tests.rs`, docs, or agent workflow files together,
-keep the work in one comprehensive branch and one comprehensive draft PR. Do
-not split the same lane into multiple overlapping drafts. If related drafts
-already exist, inspect and consolidate them before pushing a new draft.
+In parallel-shard mode, keep edits within the owned transcript files named in
+the prompt. Do not expand into layout, fallback-renderer, or app-state files
+just to close a cross-shard gap; report that dependency instead.
 
 ## Rules
 
@@ -103,6 +119,28 @@ already exist, inspect and consolidate them before pushing a new draft.
 - Do not describe implementation work as landed unless the remote branch has a
   code-bearing commit and a visible file diff.
 
+## Launch contract
+
+At the start of the session, capture and report:
+
+- shard name
+- base branch name
+- base HEAD SHA
+- owned files
+- out-of-scope files
+
+Keep the changed-path list inside the owned transcript files unless the prompt
+explicitly permits a narrow helper-file exception.
+
+## Main drift handling
+
+- Do not rebase or merge `main` during the hosted run.
+- If upstream moves and your owned files are unaffected, finish the shard and
+  report the drift for local promotion.
+- If upstream changes one of your owned files, or the smallest safe fix now
+  requires layout/app-state files, stop after the draft is ready and report
+  the drift rather than expanding the write set.
+
 ## Before committing
 
 Run these commands and only commit if they pass:
@@ -134,10 +172,14 @@ gh pr view <pr> --json headRefName,commits,statusCheckRollup
 gh pr checks <pr> --watch
 ```
 
-- Open at most one draft PR for the lane. If the host creates a non-coder
-  branch slug, report the session id, PR number, head branch, and any
-  code-bearing commit SHAs, then stop after the draft is ready so the
-  dispatcher can promote the work onto `coder/vexcoder-...`.
+- In parallel-shard mode, open one draft PR for this shard against the shared
+  integration base. Report the session id, PR number, head branch, base
+  branch, base SHA, code-bearing commit SHAs, changed paths, and any detected
+  drift before stopping.
+- If the host creates a non-coder branch slug, report the session id, PR
+  number, head branch, and any code-bearing commit SHAs, then stop after the
+  draft is ready so the dispatcher can promote the work onto
+  `coder/vexcoder-...`.
 - If the hosted PR has only a planning commit or no file diff, report that no
   code was published and do not present the change as implemented.
 - Expect the dispatcher to cherry-pick only code-bearing commits onto a

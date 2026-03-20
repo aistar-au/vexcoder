@@ -24,7 +24,7 @@ Ignore this section in repository-hosted background sessions.
 - Load `../vexdraft/.agents/skills/vex-remote-contract/SKILL.md`.
 - Load `../vexdraft/.agents/skills/vex-rust-arch/SKILL.md` for Rust changes.
 - Read `CONTRIBUTING.md`, especially the `Remote Agent Sessions` section and
-  the A-G post-session workflow.
+  the A-H post-session workflow.
 
 ## Key directories
 
@@ -42,7 +42,9 @@ Ignore this section in repository-hosted background sessions.
   `src/ui/draw/**`, `src/app/tests.rs`, `.github/agents/**`,
   `.github/instructions/**`, `CONTRIBUTING.md`, or workflow/docs files tied to
   the same feature lane, treat it as one comprehensive task. Do not split the
-  same lane across multiple overlapping draft branches or PRs.
+  same lane across multiple overlapping draft branches or PRs unless the lane
+  is intentionally sharded for repository-hosted sessions with explicit
+  disjoint file ownership and one shared integration branch.
 - Reuse or consolidate existing related draft PRs before starting a new one.
 - No proprietary brand names in code, comments, commits, or PR text.
 - Every new dependency must be MIT or Apache 2.0 licensed.
@@ -71,7 +73,7 @@ Use five sections: Summary, Motivation, Approach, Validation, Risks.
 
 Local dispatcher workflows use private skills from `../vexdraft/.agents/skills/`.
 See `CONTRIBUTING.md` for the full local workflow, session commands, and the
-A–G post-session checklist.
+A–H post-session checklist.
 
 ## For repository-hosted background sessions
 
@@ -94,10 +96,19 @@ A–G post-session checklist.
   file reads and continue.
 - Promote remote agent output onto a `coder/vexcoder-...` branch before
   commit-debug, CI watch, and PR preparation.
+- For parallel hosted work on one feature lane, use one shared
+  `coder/vexcoder-...` integration branch plus one hosted shard branch per
+  disjoint write set. Keep the final merge path to `main` on the shared
+  integration branch only.
 - If the hosted run opens a non-coder branch or ends with only a planning
   commit and no file diff, treat it as draft-only evidence. Do not present the
   change as implemented until code-bearing commits are promoted onto a
   coder branch.
+- If `main` moves while hosted shards are running, do not force the running
+  hosted sessions to rebase. Refresh the shared integration branch from the
+  latest `origin/main`, cherry-pick completed shard commits onto it, and
+  relaunch only the shards whose owned files were invalidated by upstream
+  changes.
 - Keep the paragraph-renderer model pinned in the agent profile rather than
   passing a model flag at invocation time. If the hosting surface ignores the
   profile pin, record that behavior instead of silently changing the command.
