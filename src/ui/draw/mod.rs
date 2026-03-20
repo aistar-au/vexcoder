@@ -8,8 +8,8 @@
 //!    calls or after a turn completes.
 //! 2. **Flowing transcript** — tool calls, results, and model responses
 //!    stream vertically in a continuous log, not a fixed-height window.
-//! 3. **Adaptive layout** — the timeline, transcript, and composer areas
-//!    scale with the terminal dimensions rather than using fixed row counts.
+//! 3. **Adaptive layout** — the transcript and composer areas scale with the
+//!    terminal dimensions rather than using fixed row counts.
 //! 4. **Human-readable status** — the header shows plain-language state
 //!    instead of machine-debug flags.
 //! 5. **Minimal redraw** — only dirty regions are rewritten each frame.
@@ -360,9 +360,12 @@ impl TaskDraw {
         reset_style(w);
     }
 
-    // ── Timeline (adaptive height) ──────────────────────────────────
+    // ── Timeline / activity pane ────────────────────────────────────
 
     fn draw_timeline<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
+        if regions.timeline_rows == 0 {
+            return;
+        }
         let visible_slots = (regions.timeline_rows.saturating_sub(1)) as usize; // -1 for separator
 
         if state.timeline_entries.is_empty() {
@@ -475,6 +478,9 @@ impl TaskDraw {
         state: &TaskLayoutState,
         regions: &Regions,
     ) {
+        if regions.timeline_rows == 0 {
+            return;
+        }
         let visible_slots = (regions.timeline_rows.saturating_sub(1)) as usize;
 
         for slot in 0..visible_slots {
@@ -611,7 +617,7 @@ impl TaskDraw {
         regions: &Regions,
     ) {
         let viewport_height = regions.transcript_rows as usize;
-        let (visible_start, visible_end) = transcript_window(state, viewport_height);
+        let (visible_start, visible_end, top_padding) = transcript_window(state, viewport_height);
 
         // Clear the transcript area.
         for vp_offset in 0..viewport_height {
@@ -636,7 +642,10 @@ impl TaskDraw {
             if i >= visible_end || vp_offset >= viewport_height {
                 break;
             }
-            let row = regions.transcript_start + vp_offset as u16;
+            let row = regions
+                .transcript_start
+                .saturating_add(top_padding as u16)
+                .saturating_add(vp_offset as u16);
             move_to(w, row, 0);
             self.draw_transcript_line(w, line, regions.cols);
         }
@@ -669,7 +678,7 @@ impl TaskDraw {
         }
 
         let viewport_height = regions.transcript_rows as usize;
-        let (visible_start, visible_end) = transcript_window(state, viewport_height);
+        let (visible_start, visible_end, top_padding) = transcript_window(state, viewport_height);
 
         // Rebuild code-block state by scanning all lines before the viewport.
         self.in_code_block = false;
@@ -679,15 +688,24 @@ impl TaskDraw {
             }
         }
 
-        // Redraw the entire visible window so code-block state is consistent.
+        // Redraw the entire viewport so code-block state and bottom anchoring
+        // stay consistent when short transcripts grow.
+        for vp_offset in 0..viewport_height {
+            let row = regions.transcript_start + vp_offset as u16;
+            move_to(w, row, 0);
+            clear_line(w);
+        }
+
         for vp_offset in 0..viewport_height {
             let src_index = visible_start + vp_offset;
             if src_index >= visible_end || src_index >= total_output {
                 break;
             }
-            let row = regions.transcript_start + vp_offset as u16;
+            let row = regions
+                .transcript_start
+                .saturating_add(top_padding as u16)
+                .saturating_add(vp_offset as u16);
             move_to(w, row, 0);
-            clear_line(w);
             self.draw_transcript_line(w, &state.output_rows[src_index], regions.cols);
         }
 
@@ -775,7 +793,7 @@ impl TaskDraw {
             reset_style(w);
             set_dim(w);
             set_fg(w, DIM_GRAY);
-            let chrome = "  / command  @ file  ! shell  paste block  Shift+Enter newline";
+            let chrome = "  / command  @ file  Shift+Enter newline";
             let truncated = truncate_to_width(chrome, regions.cols.saturating_sub(8) as usize);
             let _ = write!(w, "{truncated}");
             reset_style(w);
@@ -803,7 +821,6 @@ impl TaskDraw {
                 let hint = hint_lines
                     .get(line_index + 1)
                     .copied()
-                    .or_else(|| hint_lines.get(1).copied())
                     .filter(|line| !line.is_empty());
                 if let Some(hint) = hint {
                     set_fg(w, DIM_GRAY);
@@ -830,7 +847,7 @@ impl TaskDraw {
         let hints = if is_approval {
             " y approve  n deny  s approve all"
         } else {
-            " PgUp/PgDn transcript  Alt+\u{2191}/\u{2193} steps  Shift+Enter newline  Enter submit"
+            " PgUp/PgDn transcript  Shift+Enter newline  Enter submit"
         };
         let _ = write!(w, "{hints}");
 
@@ -994,10 +1011,10 @@ fn parse_status_parts(status: &str) -> StatusParts {
 
 // ── Utilities ───────────────────────────────────────────────────────
 
-fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize, usize) {
+fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize, usize, usize) {
     let total = state.output_rows.len();
     if viewport_height == 0 || total == 0 {
-        return (0, 0);
+        return (0, 0, 0);
     }
 
     match state.output_scroll_anchor {
@@ -1006,12 +1023,17 @@ fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize,
             let offset = state.output_scroll_offset.min(max_offset);
             let start = total.saturating_sub(viewport_height.saturating_add(offset));
             let end = (start + viewport_height).min(total);
-            (start, end)
+            let padding = if offset == 0 && total < viewport_height {
+                viewport_height - total
+            } else {
+                0
+            };
+            (start, end, padding)
         }
         OutputScrollAnchor::Top => {
             let start = state.output_scroll_offset.min(total.saturating_sub(1));
             let end = (start + viewport_height).min(total);
-            (start, end)
+            (start, end, 0)
         }
     }
 }

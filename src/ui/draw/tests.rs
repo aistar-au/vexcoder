@@ -44,14 +44,13 @@ fn first_draw_writes_full_screen() {
     assert!(output.contains("\x1b["), "output must contain ANSI escapes");
     // Human-readable header must show repo name.
     assert!(output.contains("vexcoder"), "header must show repo name");
-    // Must contain the timeline entry.
-    assert!(
-        output.contains("read_file: running"),
-        "timeline entry must be drawn"
-    );
     // Must contain output rows.
     assert!(output.contains("line 1"), "output row 1 must be drawn");
     assert!(output.contains("line 2"), "output row 2 must be drawn");
+    assert!(
+        !output.contains("read_file: running"),
+        "ANSI fullscreen surface must not reserve a top timeline pane"
+    );
 }
 
 #[test]
@@ -596,7 +595,7 @@ fn persistent_layout_shows_welcome_hint_before_first_turn() {
 }
 
 #[test]
-fn adaptive_layout_scales_timeline_with_entries() {
+fn transcript_owns_body_area_without_timeline_pane() {
     let entries: Vec<TimelineEntry> = (0..20)
         .map(|i| TimelineEntry {
             step_id: i as u64,
@@ -608,16 +607,18 @@ fn adaptive_layout_scales_timeline_with_entries() {
         .collect();
 
     let regions = Regions::compute(80, 40, false, entries.len());
-    // Timeline should grow beyond the old fixed 6 rows.
     assert!(
-        regions.timeline_rows > 6,
-        "timeline must scale beyond 6 rows for 20 entries on a 40-row terminal"
+        regions.timeline_rows == 0,
+        "ANSI fullscreen surface must not reserve transcript rows for a top timeline pane"
     );
-    // But not exceed 35% of available space.
-    let max_expected = ((40 - 1 - 3) as f32 * 0.35) as u16;
-    assert!(
-        regions.timeline_rows <= max_expected + 1,
-        "timeline must not exceed ~35% of available space"
+    assert_eq!(
+        regions.transcript_start, 1,
+        "transcript should begin immediately below the header when there is no files row"
+    );
+    assert_eq!(
+        regions.composer_start,
+        regions.transcript_start + regions.transcript_rows,
+        "composer should stay docked beneath the full-height transcript"
     );
 }
 
@@ -639,6 +640,57 @@ fn adaptive_composer_scales_with_terminal_height() {
     assert_eq!(
         large.composer_rows, 8,
         "large terminal gets an expanded prompt surface"
+    );
+}
+
+#[test]
+fn short_bottom_anchored_transcript_renders_against_prompt_edge() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["alpha", "beta"]);
+
+    draw.draw(&mut buf, &state, 40, 12);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("\x1b[6;1Halpha"),
+        "short transcript should render near the prompt edge instead of the top of the body: {output:?}"
+    );
+    assert!(
+        output.contains("\x1b[7;1Hbeta"),
+        "last transcript row should stay bottom anchored: {output:?}"
+    );
+}
+
+#[test]
+fn composer_hint_renders_without_duplicate_filler_rows() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec![]);
+
+    draw.draw(&mut buf, &state, 80, 12);
+    let output = String::from_utf8_lossy(&buf);
+    let hint = "Use `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.";
+
+    assert_eq!(
+        output.matches(hint).count(),
+        1,
+        "composer helper copy should render only once in the empty prompt surface"
+    );
+}
+
+#[test]
+fn default_prompt_footer_hides_step_navigation_hint() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec![]);
+
+    draw.draw(&mut buf, &state, 80, 12);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        !output.contains("steps"),
+        "default prompt footer should not advertise step navigation"
     );
 }
 
