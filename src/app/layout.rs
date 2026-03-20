@@ -99,7 +99,7 @@ impl TuiMode {
                 } else {
                     StepLifecycle::Completed
                 },
-                label: format!("{}: {}", invocation.name, invocation.outcome),
+                label: timeline_label_for_invocation(invocation),
                 detail: format!("Tool: {}\nOutcome: {}", invocation.name, invocation.outcome,),
                 session_id: None,
             });
@@ -641,6 +641,36 @@ fn append_tool_paragraph_rows(rows: &mut Vec<String>, invocations: &[ToolInvocat
     }
 }
 
+fn timeline_label_for_invocation(invocation: &ToolInvocationSummary) -> String {
+    let is_error = tool_outcome_is_error(&invocation.outcome);
+    let status_label = if is_error { "failed" } else { "completed" };
+    let first_line = invocation
+        .outcome
+        .lines()
+        .map(str::trim_end)
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or("");
+    let result_summary = if first_line.is_empty() {
+        status_label.to_string()
+    } else {
+        compact_outcome_summary(first_line)
+    };
+
+    if let Some(target_summary) = tool_target_summary(first_line) {
+        format!(
+            "{} · {} · {}",
+            invocation.name, target_summary, status_label
+        )
+    } else if result_summary == status_label {
+        format!("{} · {}", invocation.name, status_label)
+    } else {
+        format!(
+            "{} · {} · {}",
+            invocation.name, result_summary, status_label
+        )
+    }
+}
+
 fn format_duration_compact(duration: Duration) -> String {
     if duration.as_secs() >= 60 {
         format!(
@@ -734,8 +764,10 @@ fn first_pathish_token(text: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        compact_outcome_summary, tool_outcome_is_error, tool_scope_detail, tool_target_summary,
+        compact_outcome_summary, timeline_label_for_invocation, tool_outcome_is_error,
+        tool_scope_detail, tool_target_summary,
     };
+    use crate::app::ToolInvocationSummary;
 
     #[test]
     fn short_outcome_preserved() {
@@ -806,5 +838,33 @@ mod tests {
             Some("src/ui/render.rs".to_string())
         );
         assert_eq!(tool_target_summary("permission denied"), None);
+    }
+
+    #[test]
+    fn timeline_label_prefers_target_and_terminal_status() {
+        let invocation = ToolInvocationSummary {
+            step_id: 1,
+            name: "read_file".to_string(),
+            outcome: "42 lines read from src/main.rs\nfn main() {}".to_string(),
+        };
+
+        assert_eq!(
+            timeline_label_for_invocation(&invocation),
+            "read_file · src/main.rs · completed"
+        );
+    }
+
+    #[test]
+    fn timeline_label_compacts_multiline_failures_without_newlines() {
+        let invocation = ToolInvocationSummary {
+            step_id: 2,
+            name: "write_file".to_string(),
+            outcome: "error: permission denied while writing Cargo.toml\nretry with approval"
+                .to_string(),
+        };
+
+        let label = timeline_label_for_invocation(&invocation);
+        assert!(!label.contains('\n'));
+        assert_eq!(label, "write_file · Cargo.toml · failed");
     }
 }

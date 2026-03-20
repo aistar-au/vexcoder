@@ -45,3 +45,22 @@ fn test_four_region_layout_handles_small_terminal_sizes() {
         assert!(layout.output.y <= layout.input.y);
     }
 }
+
+#[test]
+fn test_four_region_layout_scales_activity_on_tall_terminals() {
+    let area = Rect::new(0, 0, 80, 40);
+    let layout = split_four_region_layout(area, 1, 8);
+
+    assert_rect_within(area, layout.header);
+    assert_rect_within(area, layout.activity);
+    assert_rect_within(area, layout.output);
+    assert_rect_within(area, layout.input);
+    assert!(
+        layout.activity.height > 6,
+        "activity pane should grow beyond the earlier fixed 6-row window"
+    );
+    assert!(
+        layout.output.height > layout.activity.height,
+        "output pane should remain the dominant region on tall terminals"
+    );
+}
