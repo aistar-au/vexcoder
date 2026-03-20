@@ -149,6 +149,12 @@ repository-hosted agent instructions file under `.github/`.
 - In `AGENTS.md`, hosted sessions must ignore the `Local bootstrap only`
   section and every `../vexdraft` reference.
 - Hosted sessions must not read any `SKILL.md` file.
+- Hosted sessions must use English only in agent-authored output.
+- Hosted sessions must use text-only verification and reporting. Do not create
+  screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots,
+  image artifacts, or temporary visual-surrogate files.
+- Hosted sessions must not create ad hoc temporary projects or files whose only
+  purpose is to simulate, capture, or restyle the UI for visual verification.
 - The setup workflow validates the hosted-session contract and must stay
   self-contained. It must not clone `vexdraft`, copy private skills into the
   background-session home directory, or depend on platform secrets just to make
@@ -189,6 +195,21 @@ repository-hosted agent instructions file under `.github/`.
   final PR to `main`. Parallel hosted shard PRs are allowed only when each
   shard has an explicit disjoint write set and all accepted commits are
   promoted onto the shared integration branch before merge.
+- Every `gh agent-task create` invocation must be followed immediately by an
+  explicit log tail with `gh agent-task view <session-id> --log --follow`.
+  Treat log tailing and violation triage as part of launch, not as an optional
+  post-launch observation step.
+
+Authoritative launch suffix for hosted prompts:
+
+- Use English only.
+- Do not read any `SKILL.md` file.
+- Do not bootstrap, inspect, or depend on private skills or adjacent repos.
+- Use text-only verification only.
+- Do not create screenshots, screen captures, pseudo-screenshots, parsed
+  terminal snapshots, image artifacts, or temporary visual-surrogate files.
+- Do not create ad hoc temporary projects or files whose only purpose is to
+  simulate, capture, or restyle the UI for visual verification.
 
 Available profiles:
 
@@ -239,17 +260,20 @@ git push -u origin coder/vexcoder-ui-overhaul
 gh agent-task create \
   --base coder/vexcoder-ui-overhaul \
   --custom-agent vexcoder-ui-parity-orchestrator \
-  "Shard: app orchestration. Own only src/app.rs, src/app/accessors.rs, src/app/model_update.rs, src/app/turn.rs, src/ui/editor.rs. Do not edit transcript or fallback-renderer files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping."
+  "Shard: app orchestration. Own only src/app.rs, src/app/accessors.rs, src/app/model_update.rs, src/app/turn.rs, src/ui/editor.rs. Do not edit transcript or fallback-renderer files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+gh agent-task view <session-id-from-create-output> --log --follow
 
 gh agent-task create \
   --base coder/vexcoder-ui-overhaul \
   --custom-agent vexcoder-ui-paragraph-renderer \
-  "Shard: ANSI transcript renderer. Own only src/ui/draw/transcript.rs, src/ui/draw/ansi.rs, src/ui/draw/tests.rs, and transcript-local helpers. Do not edit app layout or fallback-renderer files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping."
+  "Shard: ANSI transcript renderer. Own only src/ui/draw/transcript.rs, src/ui/draw/ansi.rs, src/ui/draw/tests.rs, and transcript-local helpers. Do not edit app layout or fallback-renderer files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+gh agent-task view <session-id-from-create-output> --log --follow
 
 gh agent-task create \
   --base coder/vexcoder-ui-overhaul \
   --custom-agent vexcoder-transcript-renderer-overhaul \
-  "Shard: timeline rows and fallback renderer. Own only src/app/layout.rs, src/app/tests.rs, src/ui/render.rs, src/ui/layout.rs, src/ui/draw/regions.rs, tests/layout_underflow_tests.rs, and directly related helpers. Do not edit ANSI transcript files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping."
+  "Shard: timeline rows and fallback renderer. Own only src/app/layout.rs, src/app/tests.rs, src/ui/render.rs, src/ui/layout.rs, src/ui/draw/regions.rs, tests/layout_underflow_tests.rs, and directly related helpers. Do not edit ANSI transcript files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+gh agent-task view <session-id-from-create-output> --log --follow
 ```
 
 Start a UI parity session from the GitHub CLI with:
@@ -258,14 +282,14 @@ Start a UI parity session from the GitHub CLI with:
 gh agent-task create \
   --base <coder-branch> \
   --custom-agent vexcoder-ui-parity-orchestrator \
-  --follow \
-  "Investigate the fullscreen UI, task-state control surface, scrolling, and stale docs."
+  "Investigate the fullscreen UI, task-state control surface, scrolling, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+gh agent-task view <session-id-from-create-output> --log --follow
 ```
 
 Tail an existing session with:
 
 ```bash
-gh agent-task view <session-id-or-pr> --log --follow
+gh agent-task view <session-id> --log --follow
 ```
 
 Prefer the unique session id when multiple hosted runs are active. List the
@@ -281,8 +305,8 @@ Start a paragraph-rendering session with:
 gh agent-task create \
   --base <coder-branch> \
   --custom-agent vexcoder-ui-paragraph-renderer \
-  --follow \
-  "Investigate paragraph-style tool rendering, transcript drawing, and stale docs."
+  "Investigate paragraph-style tool rendering, transcript drawing, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+gh agent-task view <session-id-from-create-output> --log --follow
 ```
 
 Start a timeline/fallback-renderer session with:
@@ -291,8 +315,8 @@ Start a timeline/fallback-renderer session with:
 gh agent-task create \
   --base <coder-branch> \
   --custom-agent vexcoder-transcript-renderer-overhaul \
-  --follow \
-  "Investigate task-state timeline rows, fallback renderer parity, layout geometry, and stale docs."
+  "Investigate task-state timeline rows, fallback renderer parity, layout geometry, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+gh agent-task view <session-id-from-create-output> --log --follow
 ```
 
 ### Post-session workflow (mandatory steps A–H)
@@ -300,8 +324,13 @@ gh agent-task create \
 After an agent session completes, the dispatcher must follow these steps in
 order.
 
-1. **A — Tail logs**: identify each concurrent session by its unique ID.
-   Use `gh agent-task view <session-id> --log --follow`.
+1. **A — Tail and debug logs**: identify each concurrent session by its unique
+   session ID immediately after launch and use
+   `gh agent-task view <session-id> --log --follow`. If the logs show private
+   skill bootstrap attempts, `SKILL.md` reads, non-English output, screenshot
+   or pseudo-screenshot plans, temporary visual artifacts, or ad hoc tool
+   installation, stop the run, record the violation, correct the prompt or
+   profile, and relaunch before promotion.
 2. **B — Create coder branch**: create a `coder/vexcoder-` branch
    from `origin/main` and cherry-pick the agent's commits.
    Inspect the hosted PR first with

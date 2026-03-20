@@ -9,6 +9,8 @@ applyTo: "**"
 - Use neutral engineering language throughout generated text.
 - Keep wording repository-focused, task-focused, and implementation-focused.
 - Prefer active voice and concrete nouns over vague abstractions.
+- In repository-hosted background sessions, use English only in agent-authored
+  output.
 
 ### Change philosophy
 
@@ -72,10 +74,11 @@ bash scripts/check_forbidden_names.sh
 gh agent-task list
 ```
 
-- Tail background-session logs with the unique session or PR identifier:
+- After every `gh agent-task create`, capture the new unique session id from
+  the launch output and immediately tail background-session logs with:
 
 ```sh
-gh agent-task view <session-id-or-pr> --log --follow
+gh agent-task view <session-id> --log --follow
 ```
 
 - Prefer the unique session id over the PR number when multiple hosted runs are
@@ -95,8 +98,18 @@ gh pr checks <pr> --watch
   `scripts/check_forbidden_names.sh` unless a literal path, URL, command, or
   quoted log line requires the exact string.
 - In a repository-hosted session, do not read any `SKILL.md` file.
+- Use text-only verification and reporting. Do not create screenshots, screen
+  captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or
+  temporary visual-surrogate files.
+- Do not create ad hoc temporary projects or files whose only purpose is to
+  simulate, capture, or restyle the UI for visual verification.
 - If `rg` is unavailable, fall back to `git grep -n`, `grep -RIn`, or direct
   file reads and continue.
+- If the tailed logs show private-skill bootstrap attempts, `SKILL.md` reads,
+  non-English output, screenshot or pseudo-screenshot plans, temporary visual
+  artifacts, or ad hoc tool installation, stop the run, record the violation,
+  correct the prompt or profile, and relaunch before treating the session as
+  valid.
 - If a hosted-run validation step fails only because the runner lacks a local
   tool that this repository does not provision, report the environment gap
   rather than installing ad hoc tooling in-session.

@@ -10,6 +10,12 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
 - In `AGENTS.md`, ignore the `Local bootstrap only` section and every
   `../vexdraft` reference. Those lines are for local dispatcher sessions only.
 - Do not read any `SKILL.md` file in a repository-hosted session.
+- Use English only in all agent-authored output.
+- Use text-only verification and reporting. Do not create screenshots, screen
+  captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or
+  temporary visual-surrogate files.
+- Do not create ad hoc temporary projects or files whose only purpose is to
+  simulate, capture, or restyle the UI for visual verification.
 - Keep one comprehensive draft branch and one comprehensive draft PR per
   feature lane.
 - Keep wording neutral and repository-focused.
@@ -40,7 +46,7 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
   `bash scripts/check_forbidden_names.sh` first. Run `make gate-fast` only if
   the required local tools are already present in the runner image. Do not try
   to install missing tools during the hosted session.
-- If the host opens a non-dispatcher branch, stop after the draft is ready and
+- If the host opens a non-coder branch, stop after the draft is ready and
   report the session id, PR number, head branch, and any code-bearing commit
   SHAs so the dispatcher can promote the diff.
 - If the hosted run finishes with only a planning commit or no file diff,
