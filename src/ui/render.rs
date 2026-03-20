@@ -340,7 +340,7 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     let output_lines: Vec<Line> = state
         .output_rows
         .iter()
-        .map(|row| Line::from(row.to_string()))
+        .map(|row| transcript_output_line(row))
         .collect();
     let output_scroll = match state.output_scroll_anchor {
         crate::app::OutputScrollAnchor::Bottom => output_lines
@@ -645,6 +645,40 @@ fn pipeline_activity_line(row: &str) -> Line<'static> {
     }
 }
 
+fn transcript_output_line(row: &str) -> Line<'static> {
+    if let Some(rest) = row.strip_prefix("[tool] ") {
+        Line::from(vec![
+            Span::styled(
+                "  ✦ ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(rest.to_string(), Style::default().fg(Color::White)),
+        ])
+    } else if let Some(rest) = row.strip_prefix("[detail] ") {
+        Line::from(Span::styled(
+            format!("    {rest}"),
+            Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+        ))
+    } else if let Some(rest) = row.strip_prefix("[evidence] ") {
+        Line::from(vec![
+            Span::styled(
+                "      ✧ ",
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM),
+            ),
+            Span::styled(
+                rest.to_string(),
+                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+            ),
+        ])
+    } else {
+        Line::from(row.to_string())
+    }
+}
+
 fn truncate_line(input: &str, width: usize) -> String {
     let width = width.max(1);
     let mut out = String::new();
@@ -935,6 +969,53 @@ mod tests {
         assert!(
             flat.contains("validate: running"),
             "pending steps should remain visible in the activity pane"
+        );
+    }
+
+    #[test]
+    fn task_layout_styles_structured_transcript_paragraph_markers() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = crate::app::TaskLayoutState {
+            task_id: "task-003".into(),
+            status_line: "Completed".into(),
+            activity_rows: vec![],
+            timeline_entries: vec![],
+            selected_step: 0,
+            total_steps: 0,
+            output_title: "Transcript".into(),
+            output_rows: vec![
+                "[tool] read_file · README.md · completed".into(),
+                "[detail] status: completed".into(),
+                "[detail] result: 42 lines".into(),
+                "[evidence] first snippet".into(),
+            ],
+            output_scroll_offset: 0,
+            output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
+            changed_files: vec![],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
+            follow_mode: true,
+        };
+
+        terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+
+        let rendered = terminal.backend().buffer().clone();
+        let flat = rendered
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<Vec<_>>()
+            .join("");
+        assert!(
+            flat.contains("✦") && flat.contains("✧"),
+            "structured transcript markers must render celestial accents"
+        );
+        assert!(
+            !flat.contains("[tool]") && !flat.contains("[evidence]"),
+            "structured transcript markers should not render as raw prefixes"
         );
     }
 }

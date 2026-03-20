@@ -302,17 +302,21 @@ fn fallback_activity_rows_render_without_timeline_entries() {
 }
 
 #[test]
-fn enriched_paragraph_output_renders_tool_status_colors() {
+fn enriched_paragraph_output_renders_structured_tool_markers() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
     let state = make_state(
         vec![],
         vec![
-            "[ok] read_file: 42 lines",
-            "    README.md: 42 lines",
+            "[tool] read_file · README.md · completed",
+            "[detail] status: completed",
+            "[detail] result: 42 lines",
+            "[evidence] README.md: 42 lines",
             "",
-            "[!] write_file: error: permission denied",
-            "    target: /etc/passwd",
+            "[tool] write_file · /etc/passwd · failed",
+            "[detail] status: failed",
+            "[detail] result: permission denied",
+            "[evidence] target: /etc/passwd",
             "",
             "The file was read successfully.",
         ],
@@ -321,12 +325,13 @@ fn enriched_paragraph_output_renders_tool_status_colors() {
     draw.draw(&mut buf, &state, 80, 24);
     let output = String::from_utf8_lossy(&buf);
 
-    // Star markers in the transcript area: both ★ and ✖ must be drawn
-    // (the ✖ marker only appears in transcript, not header, so it is
-    // sufficient to confirm transcript rendering is active).
     assert!(
-        output.contains("\u{2716}"),
-        "failure cross marker must be drawn in transcript"
+        output.contains("\u{2726}"),
+        "tool summary marker must be drawn in transcript"
+    );
+    assert!(
+        output.contains("\u{2727}"),
+        "evidence marker must be drawn in transcript"
     );
     assert!(
         output.contains("read_file"),
@@ -338,7 +343,7 @@ fn enriched_paragraph_output_renders_tool_status_colors() {
     );
     assert!(
         output.contains("README.md"),
-        "indented detail must appear in output"
+        "structured detail must appear in output"
     );
 }
 
@@ -349,11 +354,11 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
     let state = make_state(
         vec![],
         vec![
-            "[ok] bash: exit code 0",
-            "    $ npm test",
-            "    All tests passed",
-            "      > stdout line 1",
-            "      > stdout line 2",
+            "[tool] bash · cargo test · completed",
+            "[detail] status: completed",
+            "[detail] result: All tests passed",
+            "[evidence] > stdout line 1",
+            "[evidence] > stdout line 2",
         ],
     );
 
@@ -362,7 +367,7 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
 
     assert!(output.contains("bash"), "tool name must appear in summary");
     assert!(
-        output.contains("npm test"),
+        output.contains("All tests passed"),
         "4-space phase detail must be drawn"
     );
     assert!(
@@ -370,8 +375,6 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
         "6-space evidence must be drawn"
     );
     // The 6-space evidence uses DIM_GRAY (240) rather than GRAY (245).
-    // Both set_dim + set_fg(DIM_GRAY) for evidence vs set_dim + set_fg(GRAY) for detail.
-    // Count the DIM_GRAY (240) color codes — evidence lines add extra instances.
     let dim_gray_count = output.matches("\x1b[38;5;240m").count();
     assert!(
         dim_gray_count >= 2,
@@ -383,15 +386,14 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
 fn paragraph_tree_summary_includes_outcome_extract() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
-    // Simulate the enriched paragraph output format where summary includes
-    // tool name + compact outcome.
     let state = make_state(
         vec![],
         vec![
-            "[ok] read_file: 42 lines read from src/main.rs",
-            "    content preview line 1",
-            "    content preview line 2",
-            "      evidence detail line",
+            "[tool] read_file · 42 lines read from src/main.rs · completed",
+            "[detail] status: completed",
+            "[detail] result: 42 lines read from src/main.rs",
+            "[evidence] content preview line 1",
+            "[evidence] evidence detail line",
         ],
     );
 

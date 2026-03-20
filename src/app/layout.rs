@@ -300,11 +300,11 @@ impl TuiMode {
     /// indentation levels:
     ///
     /// ```text
-    /// [ok] tool_name: brief outcome summary       ← summary (2-space visual)
-    ///     detail line 1                            ← phase detail (4-space)
-    ///     detail line 2                            ← phase detail (4-space)
-    ///       evidence line 1                        ← evidence (6-space)
-    ///       ... N more lines                       ← truncation hint
+    /// [tool] tool_name · completed · result      ← summary (2-space visual)
+    /// [detail] status: completed                  ← phase detail (4-space)
+    /// [detail] result: brief outcome summary      ← phase detail (4-space)
+    /// [evidence] outcome line 1                   ← evidence (6-space)
+    /// [evidence] ... N more lines                 ← truncation hint
     /// ```
     ///
     /// The summary line is self-informative: it includes the tool name and
@@ -315,11 +315,6 @@ impl TuiMode {
     ///
     /// Followed by the model response text.
     fn enriched_paragraph_rows(&self) -> Vec<String> {
-        /// Maximum outcome lines shown at phase-detail level (4-space indent).
-        const MAX_PHASE_LINES: usize = 4;
-        /// Maximum outcome lines shown at evidence level (6-space indent).
-        const MAX_EVIDENCE_LINES: usize = 3;
-
         let mut rows = Vec::new();
 
         for invocation in &self.last_turn_tool_invocations {
@@ -329,37 +324,43 @@ impl TuiMode {
             let is_error = invocation.outcome.starts_with("error")
                 || invocation.outcome.starts_with("failed")
                 || invocation.outcome.starts_with("Error");
-            let status = if is_error { "[!]" } else { "[ok]" };
+            let status = if is_error { "failed" } else { "completed" };
 
-            let outcome_lines: Vec<&str> = invocation.outcome.lines().collect();
-            let first_line = outcome_lines.first().copied().unwrap_or("");
+            let outcome_lines: Vec<&str> = invocation
+                .outcome
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .collect();
+            let summary = compact_outcome_summary(
+                outcome_lines
+                    .first()
+                    .copied()
+                    .unwrap_or("no result details recorded"),
+            );
 
-            // Summary line: tool name + compact first-line extract.
-            if first_line.is_empty() {
-                rows.push(format!("{} {}", status, invocation.name));
-            } else {
-                let brief = compact_outcome_summary(first_line);
-                rows.push(format!("{} {}: {}", status, invocation.name, brief));
-            }
+            rows.push(format!(
+                "[tool] {} · {} · {}",
+                invocation.name, summary, status
+            ));
+            rows.push(format!("[detail] status: {status}"));
+            rows.push(format!("[detail] result: {summary}"));
 
-            // Phase detail (4-space): subsequent outcome lines up to the cap.
-            let detail_lines = outcome_lines
-                .get(1..outcome_lines.len().min(1 + MAX_PHASE_LINES))
-                .unwrap_or(&[]);
-            for line in detail_lines {
-                rows.push(format!("    {}", line));
-            }
-
-            // Evidence (6-space): remaining lines after phase detail, capped.
-            let evidence_start = 1 + MAX_PHASE_LINES;
-            if outcome_lines.len() > evidence_start {
-                let evidence_end = outcome_lines.len().min(evidence_start + MAX_EVIDENCE_LINES);
-                for line in &outcome_lines[evidence_start..evidence_end] {
-                    rows.push(format!("      {}", line));
+            match outcome_lines.len() {
+                0 | 1 => rows.push(format!("[evidence] {summary}")),
+                2 => {
+                    for line in outcome_lines.iter().take(2) {
+                        rows.push(format!("[evidence] {line}"));
+                    }
                 }
-                let remaining = outcome_lines.len().saturating_sub(evidence_end);
-                if remaining > 0 {
-                    rows.push(format!("      \u{2026} {} more lines", remaining));
+                _ => {
+                    for line in outcome_lines.iter().take(2) {
+                        rows.push(format!("[evidence] {line}"));
+                    }
+                    rows.push(format!(
+                        "[evidence] \u{2026} {} more lines",
+                        outcome_lines.len().saturating_sub(2)
+                    ));
                 }
             }
         }
@@ -495,7 +496,8 @@ fn compact_outcome_summary(line: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::compact_outcome_summary;
+    use super::{compact_outcome_summary, TuiMode};
+    use crate::turn_evidence::ToolInvocationSummary;
 
     #[test]
     fn short_outcome_preserved() {
@@ -524,5 +526,48 @@ mod tests {
     #[test]
     fn whitespace_trimmed() {
         assert_eq!(compact_outcome_summary("  ok  "), "ok");
+    }
+
+    #[test]
+    fn enriched_paragraph_rows_emit_structured_markers_with_four_lines_minimum() {
+        let mut mode = TuiMode::new();
+        mode.last_turn_tool_invocations = vec![ToolInvocationSummary {
+            step_id: 1,
+            name: "read_file".to_string(),
+            outcome: "42 lines read from src/main.rs".to_string(),
+        }];
+
+        let rows = mode.enriched_paragraph_rows();
+
+        assert_eq!(rows.len(), 4, "single-line outcomes should render four rows");
+        assert!(rows[0].starts_with("[tool] "), "summary row must use [tool]");
+        assert!(rows[1].starts_with("[detail] "), "detail row must use [detail]");
+        assert!(rows[2].starts_with("[detail] "), "second detail row must use [detail]");
+        assert!(
+            rows[3].starts_with("[evidence] "),
+            "evidence row must use [evidence]"
+        );
+    }
+
+    #[test]
+    fn enriched_paragraph_rows_cap_tool_paragraphs_at_six_rows() {
+        let mut mode = TuiMode::new();
+        mode.last_turn_tool_invocations = vec![ToolInvocationSummary {
+            step_id: 1,
+            name: "bash".to_string(),
+            outcome: [
+                "$ cargo test",
+                "running 3 tests",
+                "test alpha ... ok",
+                "test beta ... ok",
+                "test gamma ... ok",
+            ]
+            .join("\n"),
+        }];
+
+        let rows = mode.enriched_paragraph_rows();
+
+        assert_eq!(rows.len(), 6, "long outcomes should cap at six rows");
+        assert_eq!(rows.last().map(String::as_str), Some("[evidence] … 3 more lines"));
     }
 }
