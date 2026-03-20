@@ -33,16 +33,35 @@ pub struct FourRegionLayout {
     pub input: Rect,
 }
 
-pub fn split_four_region_layout(area: Rect, header_rows: u16, input_rows: u16) -> FourRegionLayout {
-    let header_rows = header_rows.clamp(1, 2);
-    let input_rows = input_rows.clamp(3, 8);
+const MAX_ACTIVITY_FRACTION: f32 = 0.35;
+
+pub fn split_four_region_layout(
+    area: Rect,
+    header_rows: u16,
+    input_rows: u16,
+    activity_entry_count: usize,
+) -> FourRegionLayout {
+    let header_rows = header_rows.clamp(1, 2).min(area.height);
+    let available = area.height.saturating_sub(header_rows);
+    let max_input_rows = available.saturating_sub(1).max(1);
+    let input_rows = input_rows.clamp(3, 8).min(max_input_rows);
+    let body_rows = area
+        .height
+        .saturating_sub(header_rows)
+        .saturating_sub(input_rows);
+    let max_activity_rows = ((body_rows as f32) * MAX_ACTIVITY_FRACTION) as u16;
+    let desired_activity_rows = (activity_entry_count as u16).saturating_add(1);
+    let activity_rows = desired_activity_rows
+        .min(max_activity_rows.max(1))
+        .min(body_rows);
+    let output_rows = body_rows.saturating_sub(activity_rows);
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(header_rows),
-            Constraint::Percentage(28),
-            Constraint::Min(1),
+            Constraint::Length(activity_rows),
+            Constraint::Length(output_rows),
             Constraint::Length(input_rows),
         ])
         .split(area);
@@ -85,7 +104,7 @@ mod tests {
     #[test]
     fn test_task_layout_four_regions_render_without_panic() {
         let area = Rect::new(0, 0, 80, 24);
-        let layout = split_four_region_layout(area, 1, 3);
+        let layout = split_four_region_layout(area, 1, 3, 6);
 
         // Verify four regions are created with expected constraints
         assert_eq!(layout.header.height, 1);
@@ -98,5 +117,21 @@ mod tests {
         assert_eq!(layout.activity.y, 1);
         assert_eq!(layout.output.y, 1 + layout.activity.height);
         assert_eq!(layout.input.y, layout.output.y + layout.output.height);
+    }
+
+    #[test]
+    fn four_region_layout_scales_activity_height_for_tall_terminal() {
+        let area = Rect::new(0, 0, 80, 40);
+        let layout = split_four_region_layout(area, 1, 8, 20);
+
+        assert!(
+            layout.activity.height > 6,
+            "activity pane should grow beyond the old six-row cap on tall terminals"
+        );
+        let max_expected = ((40 - 1 - 8) as f32 * MAX_ACTIVITY_FRACTION) as u16;
+        assert!(
+            layout.activity.height <= max_expected + 1,
+            "activity pane should stay within the adaptive size budget"
+        );
     }
 }

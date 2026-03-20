@@ -227,7 +227,12 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
         &state.composer_text,
         frame.area().width.max(1) as usize,
     ));
-    let layout = split_four_region_layout(frame.area(), 2, input_rows as u16);
+    let layout = split_four_region_layout(
+        frame.area(),
+        2,
+        input_rows as u16,
+        state.timeline_entries.len(),
+    );
     frame.render_widget(Clear, frame.area());
 
     // --- Header ---
@@ -241,7 +246,7 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     frame.render_widget(Paragraph::new(Text::from(header_lines)), layout.header);
 
     // --- Activity / Timeline pane ---
-    let max_visible: usize = 6;
+    let max_visible = layout.activity.height.saturating_sub(1).max(1) as usize;
 
     if !state.timeline_entries.is_empty() {
         // Use structured timeline entries with selection highlighting.
@@ -976,6 +981,53 @@ mod tests {
         assert!(
             flat.contains("validate: running"),
             "pending steps should remain visible in the activity pane"
+        );
+    }
+
+    #[test]
+    fn task_layout_scales_visible_timeline_window_on_tall_terminal() {
+        let backend = TestBackend::new(100, 40);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let entries = (0..20)
+            .map(|i| crate::app::TimelineEntry {
+                step_id: i as u64,
+                lifecycle: crate::app::StepLifecycle::Completed,
+                label: format!("step_{i}: done"),
+                detail: String::new(),
+                session_id: None,
+            })
+            .collect();
+        let state = crate::app::TaskLayoutState {
+            task_id: "task-003".into(),
+            status_line: "Running".into(),
+            activity_rows: vec![],
+            timeline_entries: entries,
+            selected_step: 15,
+            total_steps: 20,
+            output_title: "Transcript".into(),
+            output_rows: vec!["done".into()],
+            output_scroll_offset: 0,
+            output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
+            changed_files: vec![],
+            pending_approval: None,
+            input_hint: "Prompt".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
+            follow_mode: false,
+        };
+
+        terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+
+        let rendered = terminal.backend().buffer().clone();
+        let flat = rendered
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<Vec<_>>()
+            .join("");
+        assert!(
+            flat.contains("step_7: done"),
+            "tall terminals should keep earlier timeline entries visible beyond the old six-row cap"
         );
     }
 
