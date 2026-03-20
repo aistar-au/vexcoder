@@ -133,20 +133,22 @@ only touches docs, instructions, agent profiles, or workflows, run it only
 when `taplo` and the rest of the gate tooling are already installed in the
 runner image.
 
-## Post-session workflow
+## Post-session workflow (mandatory steps A–G)
 
-- Tail logs with the session or PR identifier:
+See `CONTRIBUTING.md` section "Post-session workflow (mandatory steps A–G)"
+for the authoritative specification. Summary:
 
-```bash
-gh agent-task view <session-id-or-pr> --log --follow
-```
+- **A** — Tail logs by session identifier to avoid mixing concurrent agents.
+- **B** — Create `dispatcher/vexcoder-<topic>` branch and cherry-pick commits.
+- **C** — Run `vexdraft/scripts/commit-debug.py`, patch findings, loop until PASS.
+- **D** — Hide bot reviewer comments via GraphQL `minimizeComment` with `OUTDATED`.
+- **E** — Sanitize PR body and comments for proprietary brand names.
+- **F** — Watch all CI jobs with `gh pr checks --watch`, fix failures before merge.
+- **G** — Update all stale documentation.
 
-- Open at most one draft PR for the lane. If the host creates a non-dispatcher
-  branch slug, report the identifier and stop after the draft is ready so the
-  dispatcher can promote the work onto `dispatcher/vexcoder-...`.
-- Expect the dispatcher to run `vexdraft/scripts/commit-debug.py`, patch
-  findings, sanitize PR text, outdate automated review comments after fixes,
-  watch CI, and refresh documentation before merge.
+Open at most one draft PR for the lane. If the host creates a non-dispatcher
+branch slug, report the identifier and stop after the draft is ready so the
+dispatcher can promote the work onto `dispatcher/vexcoder-...`.
 
 ## Pull requests
 

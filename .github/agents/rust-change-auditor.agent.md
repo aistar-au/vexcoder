@@ -96,6 +96,20 @@ Before posting any review comment, PR body, or inline annotation:
 - If an automated reviewer leaves branded language in its review, resolve the
   threads or dismiss the review before merge.
 
+## Post-session workflow (mandatory steps A–G)
+
+See `CONTRIBUTING.md` section "Post-session workflow (mandatory steps A–G)"
+for the authoritative specification. After any code-modifying session, the
+dispatcher must complete steps A through G in order:
+
+- **A** — Tail logs by session identifier to avoid mixing concurrent agents.
+- **B** — Create `dispatcher/vexcoder-<topic>` branch and cherry-pick commits.
+- **C** — Run `vexdraft/scripts/commit-debug.py`, patch findings, loop until PASS.
+- **D** — Hide bot reviewer comments via GraphQL `minimizeComment` with `OUTDATED`.
+- **E** — Sanitize PR body and comments for proprietary brand names.
+- **F** — Watch all CI jobs with `gh pr checks --watch`, fix failures before merge.
+- **G** — Update all stale documentation.
+
 ## Output expectations
 
 Every review or diagnosis must include:
