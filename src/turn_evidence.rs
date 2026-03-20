@@ -31,6 +31,8 @@ pub struct ToolInvocationSummary {
     pub step_id: u64,
     pub name: String,
     pub outcome: String,
+    #[serde(default)]
+    pub duration_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -172,11 +174,13 @@ mod tests {
                         step_id: 0,
                         name: "read_file".to_string(),
                         outcome: "ok".to_string(),
+                        duration_ms: None,
                     },
                     ToolInvocationSummary {
                         step_id: 2,
                         name: "edit_file".to_string(),
                         outcome: "ok".to_string(),
+                        duration_ms: None,
                     },
                 ],
                 tokens: Default::default(),
@@ -190,6 +194,7 @@ mod tests {
                     step_id: 2,
                     name: "run_command".to_string(),
                     outcome: "ok".to_string(),
+                    duration_ms: None,
                 }],
                 tokens: Default::default(),
             },

@@ -36,19 +36,27 @@ impl TuiMode {
 
         // Command sessions get their own entries with session identity.
         for session in &self.command_sessions {
+            let elapsed_ms = session
+                .started_at
+                .elapsed()
+                .as_millis()
+                .min(u128::from(u64::MAX)) as u64;
+            let pid = session
+                .pid
+                .map(|pid| pid.to_string())
+                .unwrap_or_else(|| "pending".to_string());
             let detail = format!(
-                "command: {}\npid: {}\nstatus: {}",
-                session.command,
-                session
-                    .pid
-                    .map(|pid| pid.to_string())
-                    .unwrap_or_else(|| "pending".to_string()),
+                "State: {}\nElapsed: {}\nSummary: command session for `{}`\nCommand: {}\nPID: {}",
                 session.status,
+                format_elapsed_ms(Some(elapsed_ms), true),
+                session.command,
+                session.command,
+                pid,
             );
             entries.push(TimelineEntry {
                 step_id: session.id,
                 lifecycle: StepLifecycle::CommandSession,
-                label: format!("{}: {}", session.command, session.status),
+                label: format!("command · {}", compact_outcome_summary(&session.command)),
                 detail,
                 session_id: Some(session.id),
             });
@@ -79,11 +87,34 @@ impl TuiMode {
 
         // User input echo — step_id 0 is reserved for the user input row.
         if !input_text.trim().is_empty() {
+            let state_label = if has_pending { "running" } else { "completed" };
             entries.push(TimelineEntry {
                 step_id: 0,
                 lifecycle: StepLifecycle::UserInput,
-                label: input_text.clone(),
-                detail: input_text.clone(),
+                label: compact_outcome_summary(input_text),
+                detail: format!(
+                    "State: {state_label}\nElapsed: {}\nSummary: prompt accepted for orchestration\nInput: {}",
+                    if has_pending {
+                        "in progress".to_string()
+                    } else {
+                        "waiting to start".to_string()
+                    },
+                    input_text
+                ),
+                session_id: None,
+            });
+        }
+
+        if has_pending
+            && self.current_turn_tool_invocations.is_empty()
+            && self.pending_turn_tool_calls.is_empty()
+            && self.current_turn_response.trim().is_empty()
+        {
+            entries.push(TimelineEntry {
+                step_id: 1,
+                lifecycle: StepLifecycle::Queued,
+                label: "orchestrator · waiting for first step".to_string(),
+                detail: "State: queued\nElapsed: waiting to start\nSummary: prompt accepted and queued for runtime work".to_string(),
                 session_id: None,
             });
         }
@@ -92,6 +123,22 @@ impl TuiMode {
         // pending call that created them.
         for invocation in tool_invocations {
             let is_error = tool_outcome_is_error(&invocation.outcome);
+            let status = if is_error { "failed" } else { "completed" };
+            let outcome_lines: Vec<&str> = invocation
+                .outcome
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .collect();
+            let first_line = outcome_lines.first().copied().unwrap_or("");
+            let result_summary = if first_line.is_empty() {
+                status.to_string()
+            } else {
+                compact_outcome_summary(first_line)
+            };
+            let scope = tool_scope_detail(&invocation.name);
+            let summary = tool_target_summary(first_line)
+                .unwrap_or_else(|| result_summary.clone());
             entries.push(TimelineEntry {
                 step_id: invocation.step_id,
                 lifecycle: if is_error {
@@ -99,8 +146,12 @@ impl TuiMode {
                 } else {
                     StepLifecycle::Completed
                 },
-                label: format!("{}: {}", invocation.name, invocation.outcome),
-                detail: format!("Tool: {}\nOutcome: {}", invocation.name, invocation.outcome,),
+                label: format!("{} · {}", invocation.name, summary),
+                detail: format!(
+                    "State: {status}\nDuration: {}\nSummary: {result_summary}\nScope: {scope}\nOutcome: {}",
+                    format_elapsed_ms(invocation.duration_ms, false),
+                    invocation.outcome
+                ),
                 session_id: None,
             });
         }
@@ -113,11 +164,27 @@ impl TuiMode {
             for pending in pending_calls {
                 let input_preview = serde_json::to_string_pretty(&pending.input)
                     .unwrap_or_else(|_| pending.input.to_string());
+                let summary = tool_target_from_input(&pending.input)
+                    .unwrap_or_else(|| "tool input captured".to_string());
+                let scope = tool_scope_detail(&pending.name);
                 entries.push(TimelineEntry {
                     step_id: pending.step_id,
                     lifecycle: StepLifecycle::Running,
-                    label: format!("{}: running...", pending.name),
-                    detail: format!("Tool: {}\nInput:\n{}", pending.name, input_preview),
+                    label: format!("{} · {}", pending.name, summary),
+                    detail: format!(
+                        "State: running\nElapsed: {}\nSummary: {summary}\nScope: {scope}\nInput:\n{}",
+                        format_elapsed_ms(
+                            Some(
+                                pending
+                                    .started_at
+                                    .elapsed()
+                                    .as_millis()
+                                    .min(u128::from(u64::MAX)) as u64,
+                            ),
+                            true
+                        ),
+                        input_preview
+                    ),
                     session_id: None,
                 });
             }
@@ -555,10 +622,38 @@ fn first_pathish_token(text: &str) -> Option<String> {
     })
 }
 
+fn tool_target_from_input(input: &serde_json::Value) -> Option<String> {
+    crate::turn_evidence::first_string_field(
+        input,
+        &[
+            "path",
+            "file_path",
+            "file",
+            "filename",
+            "old_path",
+            "new_path",
+            "from",
+            "to",
+            "command",
+        ],
+    )
+    .map(ToOwned::to_owned)
+}
+
+fn format_elapsed_ms(duration_ms: Option<u64>, running: bool) -> String {
+    match duration_ms {
+        Some(ms) if ms >= 1_000 => format!("{:.1}s", ms as f64 / 1_000.0),
+        Some(ms) => format!("{ms}ms"),
+        None if running => "live".to_string(),
+        None => "n/a".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        compact_outcome_summary, tool_outcome_is_error, tool_scope_detail, tool_target_summary,
+        compact_outcome_summary, format_elapsed_ms, tool_outcome_is_error, tool_scope_detail,
+        tool_target_from_input, tool_target_summary,
     };
 
     #[test]
@@ -630,5 +725,24 @@ mod tests {
             Some("src/ui/render.rs".to_string())
         );
         assert_eq!(tool_target_summary("permission denied"), None);
+    }
+
+    #[test]
+    fn target_from_input_prefers_path_fields() {
+        assert_eq!(
+            tool_target_from_input(&serde_json::json!({"path":"src/main.rs"})),
+            Some("src/main.rs".to_string())
+        );
+        assert_eq!(
+            tool_target_from_input(&serde_json::json!({"command":"cargo test"})),
+            Some("cargo test".to_string())
+        );
+    }
+
+    #[test]
+    fn elapsed_formatter_switches_between_ms_and_seconds() {
+        assert_eq!(format_elapsed_ms(Some(12), false), "12ms");
+        assert_eq!(format_elapsed_ms(Some(1_250), false), "1.2s");
+        assert_eq!(format_elapsed_ms(None, true), "live");
     }
 }

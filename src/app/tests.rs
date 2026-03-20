@@ -278,6 +278,7 @@ fn test_task_layout_state_emits_completed_tool_paragraph_markers() {
         step_id: 1,
         name: "read_file".to_string(),
         outcome: "42 lines read from src/main.rs\nfn main() {}".to_string(),
+        duration_ms: Some(9),
     }];
     mode.current_turn_response = "Done.".to_string();
     mode.commit_completed_turn(&ctx);
@@ -310,26 +311,31 @@ fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
             step_id: 1,
             name: "read_file".to_string(),
             outcome: "ok".to_string(),
+            duration_ms: Some(10),
         },
         ToolInvocationSummary {
             step_id: 2,
             name: "edit_file".to_string(),
             outcome: "ok".to_string(),
+            duration_ms: Some(12),
         },
         ToolInvocationSummary {
             step_id: 3,
             name: "run_command".to_string(),
             outcome: "ok".to_string(),
+            duration_ms: Some(30),
         },
         ToolInvocationSummary {
             step_id: 4,
             name: "write_file".to_string(),
             outcome: "ok".to_string(),
+            duration_ms: Some(14),
         },
         ToolInvocationSummary {
             step_id: 5,
             name: "apply_patch".to_string(),
             outcome: "ok".to_string(),
+            duration_ms: Some(22),
         },
     ];
     mode.pending_turn_tool_calls.insert(
@@ -338,6 +344,7 @@ fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
             step_id: 6,
             name: "validate".to_string(),
             input: serde_json::json!({}),
+            started_at: std::time::Instant::now(),
         },
     );
 
@@ -372,6 +379,7 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
             step_id: 4,
             name: "validate".to_string(),
             input: serde_json::json!({}),
+            started_at: std::time::Instant::now(),
         },
     );
     mode.pending_turn_tool_calls.insert(
@@ -380,6 +388,7 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
             step_id: 3,
             name: "edit_file".to_string(),
             input: serde_json::json!({}),
+            started_at: std::time::Instant::now(),
         },
     );
 

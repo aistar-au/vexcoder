@@ -109,6 +109,7 @@ struct PendingTurnToolCall {
     step_id: u64,
     name: String,
     input: serde_json::Value,
+    started_at: std::time::Instant,
 }
 
 struct PendingPatchApproval {
@@ -491,17 +492,20 @@ struct OverlayState {
     pending_memory_clear: bool,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 struct CommandSessionState {
     id: u64,
     command: String,
     pid: Option<u32>,
     status: String,
+    started_at: std::time::Instant,
 }
 
 /// Lifecycle state of a single orchestration step visible in the timeline.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StepLifecycle {
+    /// Step has been accepted by the runtime and is waiting for work to begin.
+    Queued,
     /// Tool call sent by the model, result not yet received.
     Running,
     /// Tool completed successfully.
