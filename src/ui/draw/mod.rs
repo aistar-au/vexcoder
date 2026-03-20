@@ -19,7 +19,7 @@
 
 mod ansi;
 mod regions;
-mod transcript;
+pub(crate) mod transcript;
 
 #[cfg(test)]
 mod tests;

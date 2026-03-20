@@ -110,13 +110,30 @@ impl TuiMode {
             let mut pending_calls: Vec<&PendingTurnToolCall> =
                 self.pending_turn_tool_calls.values().collect();
             pending_calls.sort_by_key(|pending| pending.step_id);
+            let awaiting_tool_name = self
+                .overlay_state
+                .pending_approval
+                .as_ref()
+                .map(|pending| pending.tool_name.as_str());
             for pending in pending_calls {
                 let input_preview = serde_json::to_string_pretty(&pending.input)
                     .unwrap_or_else(|_| pending.input.to_string());
                 entries.push(TimelineEntry {
                     step_id: pending.step_id,
-                    lifecycle: StepLifecycle::Running,
-                    label: format!("{}: running...", pending.name),
+                    lifecycle: if awaiting_tool_name == Some(pending.name.as_str()) {
+                        StepLifecycle::AwaitingApproval
+                    } else {
+                        StepLifecycle::Running
+                    },
+                    label: format!(
+                        "{}: {}",
+                        pending.name,
+                        if awaiting_tool_name == Some(pending.name.as_str()) {
+                            "awaiting approval"
+                        } else {
+                            "running..."
+                        }
+                    ),
                     detail: format!("Tool: {}\nInput:\n{}", pending.name, input_preview),
                     session_id: None,
                 });
@@ -251,12 +268,13 @@ impl TuiMode {
             }
         }
 
-        if self.history_state.turn_in_progress {
-            let rows = self
-                .current_turn_response
-                .lines()
-                .map(ToOwned::to_owned)
-                .collect::<Vec<_>>();
+        if self.history_state.turn_in_progress
+            || self.overlay_state.pending_approval.is_some()
+            || !self.active_stream_blocks.is_empty()
+            || !self.current_turn_tool_invocations.is_empty()
+            || self.last_error_message.is_some()
+        {
+            let rows = self.active_turn_rows();
             if rows.is_empty() {
                 return (
                     "Transcript".to_string(),
@@ -273,6 +291,14 @@ impl TuiMode {
             return (
                 "Transcript".to_string(),
                 self.enriched_paragraph_rows(),
+                OutputScrollAnchor::Bottom,
+            );
+        }
+
+        if let Some(message) = &self.last_error_message {
+            return (
+                "Transcript".to_string(),
+                vec![format!("[error] {message}")],
                 OutputScrollAnchor::Bottom,
             );
         }
@@ -312,63 +338,12 @@ impl TuiMode {
     ///
     /// Followed by the model response text.
     fn enriched_paragraph_rows(&self) -> Vec<String> {
-        /// Maximum evidence lines shown at 6-space disclosure level.
-        const MAX_EVIDENCE_LINES: usize = 2;
-
         let mut rows = Vec::new();
-
-        for invocation in &self.last_turn_tool_invocations {
-            if !rows.is_empty() {
-                rows.push(String::new());
-            }
-            let is_error = tool_outcome_is_error(&invocation.outcome);
-            let status_label = if is_error { "failed" } else { "completed" };
-            let scope = tool_scope_detail(&invocation.name);
-            let outcome_lines: Vec<&str> = invocation
-                .outcome
-                .lines()
-                .map(str::trim)
-                .filter(|line| !line.is_empty())
-                .collect();
-            let first_line = outcome_lines.first().copied().unwrap_or("");
-            let result_summary = if first_line.is_empty() {
-                status_label.to_string()
-            } else {
-                compact_outcome_summary(first_line)
-            };
-            let summary = if let Some(target_summary) = tool_target_summary(first_line) {
-                format!(
-                    "{} \u{00b7} {} \u{00b7} {}",
-                    invocation.name, target_summary, status_label
-                )
-            } else if result_summary == status_label {
-                format!("{} \u{00b7} {}", invocation.name, status_label)
-            } else {
-                format!(
-                    "{} \u{00b7} {} \u{00b7} {}",
-                    invocation.name, result_summary, status_label
-                )
-            };
-
-            rows.push(format!("[tool] {summary}"));
-            rows.push(format!("[detail] Scope: {scope}"));
-            rows.push(format!("[detail] Command: {}", invocation.name));
-            rows.push(format!("[detail] Result: {result_summary}"));
-
-            let mut evidence_lines = Vec::new();
-            if let Some(first_line) = outcome_lines.first() {
-                evidence_lines.push(format!("Outcome: {first_line}"));
-            }
-            for line in outcome_lines.iter().skip(1) {
-                evidence_lines.push((*line).to_string());
-            }
-            if evidence_lines.is_empty() {
-                evidence_lines.push(format!("Status note: tool step {status_label}."));
-            }
-            for line in evidence_lines.into_iter().take(MAX_EVIDENCE_LINES) {
-                rows.push(format!("[evidence] {line}"));
-            }
+        if let Some(boundary) = self.last_turn_boundary_summary() {
+            rows.push(format!("[turn] {boundary}"));
+            rows.push(String::new());
         }
+        append_tool_paragraph_rows(&mut rows, &self.last_turn_tool_invocations);
 
         if !self.last_turn_response.is_empty() {
             if !rows.is_empty() {
@@ -384,6 +359,135 @@ impl TuiMode {
         }
 
         rows
+    }
+
+    fn active_turn_rows(&self) -> Vec<String> {
+        let mut rows = Vec::new();
+
+        if let Some(pending) = self.overlay_state.pending_approval.as_ref() {
+            rows.push(format!("[approval] {} \u{00b7} pending", pending.tool_name));
+            let input_summary = compact_outcome_summary(&pending.input_preview.replace('\n', " "));
+            rows.push(format!("[approval_detail] Input: {input_summary}"));
+        }
+
+        let mut block_entries: Vec<(&usize, &StreamBlock)> =
+            self.active_stream_blocks.iter().collect();
+        block_entries.sort_by_key(|(index, _)| **index);
+        for (_, block) in block_entries {
+            if let StreamBlock::Thinking { content, collapsed } = block {
+                rows.push(format!(
+                    "[thinking] {}",
+                    if *collapsed {
+                        "thinking... \u{00b7} collapsed"
+                    } else {
+                        "thinking... \u{00b7} expanded"
+                    }
+                ));
+                if !*collapsed {
+                    for line in content.lines().filter(|line| !line.trim().is_empty()) {
+                        rows.push(format!("[thinking_detail] {line}"));
+                    }
+                }
+            }
+        }
+
+        if !self.current_turn_tool_invocations.is_empty() {
+            if !rows.is_empty() {
+                rows.push(String::new());
+            }
+            append_tool_paragraph_rows(&mut rows, &self.current_turn_tool_invocations);
+        }
+
+        let mut pending_calls: Vec<&PendingTurnToolCall> =
+            self.pending_turn_tool_calls.values().collect();
+        pending_calls.sort_by_key(|pending| pending.step_id);
+        for pending in pending_calls {
+            if !rows.is_empty() {
+                rows.push(String::new());
+            }
+            let awaiting = self
+                .overlay_state
+                .pending_approval
+                .as_ref()
+                .map(|approval| approval.tool_name == pending.name)
+                .unwrap_or(false);
+            rows.push(format!(
+                "[tool] {} \u{00b7} {}",
+                pending.name,
+                if awaiting {
+                    "awaiting approval"
+                } else {
+                    "running"
+                }
+            ));
+            rows.push(format!(
+                "[detail] Scope: {}",
+                tool_scope_detail(&pending.name)
+            ));
+            rows.push(format!("[detail] Command: {}", pending.name));
+            for line in serde_json::to_string_pretty(&pending.input)
+                .unwrap_or_else(|_| pending.input.to_string())
+                .lines()
+                .take(3)
+            {
+                rows.push(format!("[evidence] {line}"));
+            }
+        }
+
+        if !self.current_turn_response.is_empty() {
+            if !rows.is_empty() {
+                rows.push(String::new());
+            }
+            let mut response_rows = self
+                .current_turn_response
+                .lines()
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>();
+            if self.history_state.turn_in_progress
+                && !self.history_state.cancel_pending
+                && !response_rows.is_empty()
+            {
+                if let Some(last) = response_rows.last_mut() {
+                    last.push('▌');
+                }
+            }
+            rows.extend(response_rows);
+        }
+
+        if let Some(message) = &self.last_error_message {
+            if !rows.is_empty() {
+                rows.push(String::new());
+            }
+            rows.push(format!("[error] {message}"));
+        }
+
+        rows
+    }
+
+    fn last_turn_boundary_summary(&self) -> Option<String> {
+        let turn = self.current_task.turns.len();
+        if turn == 0
+            && self.last_turn_tool_invocations.is_empty()
+            && self.last_turn_response.is_empty()
+        {
+            return None;
+        }
+        let tool_count = self.last_turn_tool_invocations.len();
+        let files_changed = self
+            .current_task
+            .turns
+            .last()
+            .map(|turn| turn.changed_files.len())
+            .unwrap_or_default();
+        let duration = self
+            .last_turn_duration
+            .map(format_duration_compact)
+            .unwrap_or_else(|| "n/a".to_string());
+        Some(format!(
+            "Turn {turn} \u{00b7} {tool_count} tool{} \u{00b7} {files_changed} file{} changed \u{00b7} {duration}",
+            if tool_count == 1 { "" } else { "s" },
+            if files_changed == 1 { "" } else { "s" },
+        ))
     }
 
     pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
@@ -476,6 +580,78 @@ impl TuiMode {
         Self::registered_slash_command(input)
             .map(|(spec, _)| matches!(spec.id, SlashCommandId::Edit | SlashCommandId::Fix))
             .unwrap_or(false)
+    }
+}
+
+fn append_tool_paragraph_rows(rows: &mut Vec<String>, invocations: &[ToolInvocationSummary]) {
+    /// Maximum evidence lines shown at 6-space disclosure level.
+    const MAX_EVIDENCE_LINES: usize = 4;
+
+    for invocation in invocations {
+        if !rows.is_empty() && rows.last().is_some_and(|line| !line.is_empty()) {
+            rows.push(String::new());
+        }
+        let is_error = tool_outcome_is_error(&invocation.outcome);
+        let status_label = if is_error { "failed" } else { "completed" };
+        let scope = tool_scope_detail(&invocation.name);
+        let outcome_lines: Vec<&str> = invocation
+            .outcome
+            .lines()
+            .map(str::trim_end)
+            .filter(|line| !line.is_empty())
+            .collect();
+        let first_line = outcome_lines.first().copied().unwrap_or("");
+        let result_summary = if first_line.is_empty() {
+            status_label.to_string()
+        } else {
+            compact_outcome_summary(first_line)
+        };
+        let summary = if let Some(target_summary) = tool_target_summary(first_line) {
+            format!(
+                "{} \u{00b7} {} \u{00b7} {}",
+                invocation.name, target_summary, status_label
+            )
+        } else if result_summary == status_label {
+            format!("{} \u{00b7} {}", invocation.name, status_label)
+        } else {
+            format!(
+                "{} \u{00b7} {} \u{00b7} {}",
+                invocation.name, result_summary, status_label
+            )
+        };
+
+        rows.push(format!("[tool] {summary}"));
+        rows.push(format!("[detail] Scope: {scope}"));
+        rows.push(format!("[detail] Command: {}", invocation.name));
+        rows.push(format!("[detail] Result: {result_summary}"));
+
+        let mut evidence_lines = Vec::new();
+        if let Some(first_line) = outcome_lines.first() {
+            evidence_lines.push(format!("Outcome: {first_line}"));
+        }
+        for line in outcome_lines.iter().skip(1) {
+            evidence_lines.push((*line).to_string());
+        }
+        if evidence_lines.is_empty() {
+            evidence_lines.push(format!("Status note: tool step {status_label}."));
+        }
+        for line in evidence_lines.into_iter().take(MAX_EVIDENCE_LINES) {
+            rows.push(format!("[evidence] {line}"));
+        }
+    }
+}
+
+fn format_duration_compact(duration: Duration) -> String {
+    if duration.as_secs() >= 60 {
+        format!(
+            "{}m{:02}s",
+            duration.as_secs() / 60,
+            duration.as_secs() % 60
+        )
+    } else if duration.as_secs() > 0 {
+        format!("{:.1}s", duration.as_secs_f32())
+    } else {
+        format!("{}ms", duration.as_millis())
     }
 }
 

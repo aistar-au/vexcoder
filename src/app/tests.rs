@@ -253,6 +253,51 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
 }
 
 #[test]
+fn test_task_layout_state_surfaces_thinking_approval_and_cursor_rows() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("plan it".to_string(), &mut ctx);
+    mode.active_stream_blocks.insert(
+        0,
+        StreamBlock::Thinking {
+            content: "trace branch\ncollect evidence".to_string(),
+            collapsed: false,
+        },
+    );
+    mode.pending_turn_tool_calls.insert(
+        "tool-1".to_string(),
+        PendingTurnToolCall {
+            step_id: 1,
+            name: "read_file".to_string(),
+            input: serde_json::json!({"path":"src/main.rs"}),
+        },
+    );
+    let (response_tx, _response_rx) = tokio::sync::oneshot::channel::<bool>();
+    mode.overlay_state.pending_approval = Some(PendingApproval {
+        tool_name: "read_file".to_string(),
+        input_preview: "{\"path\":\"src/main.rs\"}".to_string(),
+        action: PendingApprovalAction::Tool(response_tx),
+    });
+    mode.current_turn_response = "streaming line".to_string();
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.output_rows[0], "[approval] read_file · pending");
+    assert!(state
+        .output_rows
+        .iter()
+        .any(|row| row == "[thinking] thinking... · expanded"));
+    assert!(state
+        .output_rows
+        .iter()
+        .any(|row| row == "[tool] read_file · awaiting approval"));
+    assert_eq!(
+        state.output_rows.last().expect("last row"),
+        "streaming line▌"
+    );
+}
+
+#[test]
 fn test_task_layout_state_routes_streamed_response_to_output_pane() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
@@ -265,7 +310,7 @@ fn test_task_layout_state_routes_streamed_response_to_output_pane() {
 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(state.activity_rows, vec!["> hi".to_string()]);
-    assert_eq!(state.output_rows, vec!["hello from model".to_string()]);
+    assert_eq!(state.output_rows, vec!["hello from model▌".to_string()]);
 }
 
 #[test]
@@ -285,7 +330,7 @@ fn test_task_layout_state_emits_completed_tool_paragraph_markers() {
 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(
-        state.output_rows[..6],
+        state.output_rows[2..8],
         [
             "[tool] read_file · src/main.rs · completed",
             "[detail] Scope: Read file content",
@@ -295,8 +340,13 @@ fn test_task_layout_state_emits_completed_tool_paragraph_markers() {
             "[evidence] fn main() {}",
         ]
     );
-    assert_eq!(state.output_rows[6], "");
-    assert_eq!(state.output_rows[7], "Done.");
+    assert!(
+        state.output_rows[0].starts_with("[turn] Turn 1 · 1 tool"),
+        "completed turn output must begin with a boundary summary"
+    );
+    assert_eq!(state.output_rows[1], "");
+    assert_eq!(state.output_rows[8], "");
+    assert_eq!(state.output_rows[9], "Done.");
 }
 
 #[test]
