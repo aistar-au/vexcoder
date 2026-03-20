@@ -64,71 +64,44 @@ fn draw_heading(w: &mut dyn Write, text: &str, color: u8, cols: u16) {
 ///   ✦ read_file src/main.rs
 /// ```
 fn draw_tool_paragraph_header(w: &mut dyn Write, text: &str, cols: u16) {
-    let segments: Vec<&str> = text.split(" \u{00b7} ").collect();
     set_bold(w);
     set_fg(w, CYAN);
     let _ = write!(w, "  \u{2726} "); // 2-space indent + ✦
     reset_style(w);
-    if let Some((status, leading)) = segments.split_last() {
-        if !leading.is_empty() && matches!(*status, "completed" | "failed" | "running") {
-            let available = (cols as usize).saturating_sub(4);
-            let leading_text = leading.join(" · ");
-            let full_text = format!("{leading_text} · {status}");
-            let truncated = truncate_to_width(&full_text, available);
-            if truncated != full_text {
-                set_fg(w, WHITE);
-                let _ = write!(w, "{truncated}");
-                reset_style(w);
-                return;
-            }
-
-            for (index, segment) in leading.iter().enumerate() {
-                if index > 0 {
-                    set_dim(w);
-                    set_fg(w, DIM_GRAY);
-                    let _ = write!(w, " \u{00b7} ");
-                    reset_style(w);
-                }
-                set_fg(w, if index == 0 { WHITE } else { GRAY });
-                let _ = write!(w, "{segment}");
-                reset_style(w);
-            }
-            set_dim(w);
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{00b7} ");
-            reset_style(w);
-            set_bold(w);
-            set_fg(
-                w,
-                match *status {
-                    "completed" => GREEN,
-                    "failed" => RED,
-                    "running" => CYAN,
-                    _ => WHITE,
-                },
-            );
-            let _ = write!(w, "{status}");
+    if let Some((leading, status)) = split_tool_summary(text) {
+        let available = (cols as usize).saturating_sub(4);
+        let leading_text = leading.join(" · ");
+        let full_text = format!("{leading_text} · {status}");
+        let truncated = truncate_to_width(&full_text, available);
+        if truncated != full_text {
+            set_fg(w, WHITE);
+            let _ = write!(w, "{truncated}");
             reset_style(w);
             return;
         }
+
+        for (index, segment) in leading.iter().enumerate() {
+            if index > 0 {
+                set_dim(w);
+                set_fg(w, DIM_GRAY);
+                let _ = write!(w, " \u{00b7} ");
+                reset_style(w);
+            }
+            set_fg(w, if index == 0 { WHITE } else { GRAY });
+            let _ = write!(w, "{segment}");
+            reset_style(w);
+        }
+        set_dim(w);
+        set_fg(w, DIM_GRAY);
+        let _ = write!(w, " \u{00b7} ");
+        reset_style(w);
+        set_bold(w);
+        set_fg(w, status_color(status).unwrap_or(WHITE));
+        let _ = write!(w, "{status}");
+        reset_style(w);
+        return;
     }
     set_fg(w, WHITE);
-    let truncated = truncate_to_width(text, (cols as usize).saturating_sub(4));
-    let _ = write!(w, "{truncated}");
-    reset_style(w);
-}
-
-/// Write a tool phase detail line at 4-space disclosure level.
-///
-/// Renders the detail text dimmed at the nested indent level:
-///
-/// ```text
-///     Status: completed, 42 lines
-/// ```
-fn draw_tool_detail_line(w: &mut dyn Write, text: &str, cols: u16) {
-    set_dim(w);
-    set_fg(w, GRAY);
-    let _ = write!(w, "    ");
     let truncated = truncate_to_width(text, (cols as usize).saturating_sub(4));
     let _ = write!(w, "{truncated}");
     reset_style(w);
@@ -143,15 +116,35 @@ fn draw_status_paragraph_header(
     marker: &str,
     text: &str,
     cols: u16,
+    body: u8,
 ) {
     set_bold(w);
     set_fg(w, accent);
     let _ = write!(w, "  {marker} ");
     reset_style(w);
-    set_fg(w, WHITE);
+    set_fg(w, body);
     let truncated = truncate_to_width(text, (cols as usize).saturating_sub(4));
     let _ = write!(w, "{truncated}");
     reset_style(w);
+}
+
+fn split_tool_summary(text: &str) -> Option<(Vec<&str>, &str)> {
+    let segments: Vec<&str> = text.split(" \u{00b7} ").collect();
+    let (status, leading) = segments.split_last()?;
+    if leading.is_empty() || status_color(status).is_none() {
+        return None;
+    }
+    Some((leading.to_vec(), *status))
+}
+
+fn status_color(status: &str) -> Option<u8> {
+    match status {
+        "completed" | "approved" => Some(GREEN),
+        "failed" | "cancelled" => Some(RED),
+        "running" => Some(CYAN),
+        "awaiting approval" | "cancellation requested" => Some(YELLOW),
+        _ => None,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -200,14 +193,76 @@ fn draw_nested_rule(w: &mut dyn Write, indent: &str, cols: u16) {
     reset_style(w);
 }
 
-fn draw_json_line(w: &mut dyn Write, indent: &str, marker: Option<&str>, text: &str, cols: u16) {
-    set_dim(w);
-    set_fg(w, DIM_GRAY);
+fn write_disclosure_prefix(
+    w: &mut dyn Write,
+    indent: &str,
+    marker: Option<&str>,
+    accent: u8,
+    dim: bool,
+) -> usize {
+    if dim {
+        set_dim(w);
+    }
+    set_fg(w, accent);
     let _ = write!(w, "{indent}");
     if let Some(marker) = marker {
         let _ = write!(w, "{marker}");
     }
-    let mut used = display_width(indent) + marker.map(display_width).unwrap_or_default();
+    display_width(indent) + marker.map(display_width).unwrap_or_default()
+}
+
+fn looks_like_field_label(label: &str) -> bool {
+    let trimmed = label.trim();
+    !trimmed.is_empty()
+        && display_width(trimmed) <= 24
+        && trimmed
+            .chars()
+            .all(|ch| ch.is_ascii_alphabetic() || ch == ' ' || ch == '/')
+}
+
+fn split_field_value(text: &str) -> Option<(&str, &str)> {
+    let (label, value) = text.split_once(": ")?;
+    looks_like_field_label(label).then_some((label.trim(), value))
+}
+
+fn field_label_color(label: &str) -> u8 {
+    match label {
+        "Scope" => CYAN,
+        "Command" => MAGENTA,
+        "Input" => YELLOW,
+        "Exit" => YELLOW,
+        "Status" | "Status note" => DIM_GRAY,
+        _ => WHITE,
+    }
+}
+
+fn field_value_color(label: &str, value: &str, default: u8) -> u8 {
+    let trimmed = value.trim();
+    if let Some(status) = status_color(trimmed) {
+        return status;
+    }
+    match label {
+        "Command" => MAGENTA,
+        "Scope" => CYAN,
+        "Input" => YELLOW,
+        "Exit" => match trimmed.parse::<i32>() {
+            Ok(0) => GREEN,
+            Ok(_) => RED,
+            Err(_) => default,
+        },
+        _ => default,
+    }
+}
+
+fn draw_field_label(w: &mut dyn Write, label: &str, used: &mut usize, cols: u16) {
+    let field = format!("{label}: ");
+    set_fg(w, field_label_color(label));
+    let truncated = truncate_to_width(&field, (cols as usize).saturating_sub(*used));
+    let _ = write!(w, "{truncated}");
+    *used += display_width(&truncated);
+}
+
+fn draw_json_tail(w: &mut dyn Write, text: &str, cols: u16, mut used: usize) {
     let mut in_string = false;
     let mut escape = false;
     let chars: Vec<char> = text.chars().collect();
@@ -256,6 +311,70 @@ fn draw_json_line(w: &mut dyn Write, indent: &str, marker: Option<&str>, text: &
         }
         index += 1;
     }
+}
+
+fn draw_json_line(w: &mut dyn Write, indent: &str, marker: Option<&str>, text: &str, cols: u16) {
+    let used = write_disclosure_prefix(w, indent, marker, DIM_GRAY, true);
+    draw_json_tail(w, text, cols, used);
+    reset_style(w);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_labeled_disclosure_line(
+    w: &mut dyn Write,
+    indent: &str,
+    marker: Option<&str>,
+    label: &str,
+    value: &str,
+    cols: u16,
+    accent: u8,
+    body: u8,
+    dim: bool,
+) {
+    let mut used = write_disclosure_prefix(w, indent, marker, accent, dim);
+    draw_field_label(w, label, &mut used, cols);
+    set_fg(w, field_value_color(label, value, body));
+    let truncated = truncate_to_width(value, (cols as usize).saturating_sub(used));
+    let _ = write!(w, "{truncated}");
+    reset_style(w);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_labeled_json_line(
+    w: &mut dyn Write,
+    indent: &str,
+    marker: Option<&str>,
+    label: &str,
+    value: &str,
+    cols: u16,
+    accent: u8,
+) {
+    let mut used = write_disclosure_prefix(w, indent, marker, accent, true);
+    draw_field_label(w, label, &mut used, cols);
+    draw_json_tail(w, value, cols, used);
+    reset_style(w);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_labeled_diff_line(
+    w: &mut dyn Write,
+    indent: &str,
+    marker: Option<&str>,
+    label: &str,
+    value: &str,
+    cols: u16,
+    accent: u8,
+    color: u8,
+    bold: bool,
+) {
+    let mut used = write_disclosure_prefix(w, indent, marker, accent, true);
+    draw_field_label(w, label, &mut used, cols);
+    if bold {
+        set_bold(w);
+    }
+    set_fg(w, color);
+    let truncated = truncate_to_width(value, (cols as usize).saturating_sub(used));
+    let _ = write!(w, "{truncated}");
     reset_style(w);
 }
 
@@ -324,6 +443,18 @@ fn draw_nested_disclosure_line(
     if this.in_code_block {
         let nested_indent = format!("{indent}{}", marker.unwrap_or_default());
         draw_nested_bar_line(w, &nested_indent, text, cols, false);
+        return;
+    }
+    if let Some((label, value)) = split_field_value(trimmed) {
+        if let Some((color, bold)) = diff_style(value) {
+            draw_labeled_diff_line(w, indent, marker, label, value, cols, accent, color, bold);
+            return;
+        }
+        if looks_like_json_line(value) {
+            draw_labeled_json_line(w, indent, marker, label, value, cols, accent);
+            return;
+        }
+        draw_labeled_disclosure_line(w, indent, marker, label, value, cols, accent, body, true);
         return;
     }
     if let Some((color, bold)) = diff_style(trimmed) {
@@ -449,11 +580,11 @@ impl TaskDraw {
             draw_thin_rule(w, 3, 3);
             let _ = write!(w, " ");
             reset_style(w);
-            draw_status_paragraph_header(w, YELLOW, "\u{2726}", rest, cols);
+            draw_status_paragraph_header(w, YELLOW, "\u{2726}", rest, cols, WHITE);
             return;
         }
         if let Some(rest) = line.strip_prefix("[thinking] ") {
-            draw_status_paragraph_header(w, BLUE, "\u{22ef}", rest, cols);
+            draw_status_paragraph_header(w, BLUE, "\u{22ef}", rest, cols, GRAY);
             return;
         }
         if let Some(rest) = line.strip_prefix("[thinking_detail] ") {
@@ -461,15 +592,15 @@ impl TaskDraw {
             return;
         }
         if let Some(rest) = line.strip_prefix("[approval] ") {
-            draw_status_paragraph_header(w, YELLOW, "\u{2753}", rest, cols);
+            draw_status_paragraph_header(w, YELLOW, "\u{2606}", rest, cols, YELLOW);
             return;
         }
         if let Some(rest) = line.strip_prefix("[approval_detail] ") {
-            draw_prefixed_disclosure_line(w, "    ", None, rest, cols, YELLOW, GRAY, true);
+            draw_nested_disclosure_line(self, w, rest, cols, "    ", None, GRAY, YELLOW);
             return;
         }
         if let Some(rest) = line.strip_prefix("[error] ") {
-            draw_status_paragraph_header(w, RED, "\u{2716}", rest, cols);
+            draw_status_paragraph_header(w, RED, "\u{2716}", rest, cols, RED);
             return;
         }
 
@@ -498,26 +629,56 @@ impl TaskDraw {
 
         if let Some((command, pid)) = parse_command_session_started(line) {
             let summary = pid
-                .map(|pid| format!("command session \u{00b7} {command} \u{00b7} pid {pid}"))
+                .map(|pid| {
+                    format!(
+                        "command session \u{00b7} {command} \u{00b7} pid {pid} \u{00b7} running"
+                    )
+                })
                 .unwrap_or_else(|| format!("command session \u{00b7} {command} \u{00b7} running"));
             draw_tool_paragraph_header(w, &summary, cols);
             return;
         }
         if let Some(rest) = line.strip_prefix("[command session exit: ") {
-            let exit = rest.trim_end_matches(']');
-            draw_tool_detail_line(w, &format!("Exit: {exit}"), cols);
+            draw_nested_disclosure_line(
+                self,
+                w,
+                &format!("Exit: {}", rest.trim_end_matches(']')),
+                cols,
+                "    ",
+                None,
+                GRAY,
+                MAGENTA,
+            );
             return;
         }
         if line == "[command session cancelled]" {
-            draw_tool_detail_line(w, "Status: cancelled", cols);
+            draw_nested_disclosure_line(
+                self,
+                w,
+                "Status: cancelled",
+                cols,
+                "    ",
+                None,
+                GRAY,
+                MAGENTA,
+            );
             return;
         }
         if line == "[command session cancellation requested]" {
-            draw_tool_detail_line(w, "Status: cancellation requested", cols);
+            draw_nested_disclosure_line(
+                self,
+                w,
+                "Status: cancellation requested",
+                cols,
+                "    ",
+                None,
+                GRAY,
+                MAGENTA,
+            );
             return;
         }
         if let Some(rest) = line.strip_prefix("[command session] error: ") {
-            draw_status_paragraph_header(w, RED, "\u{2716}", rest, cols);
+            draw_status_paragraph_header(w, RED, "\u{2716}", rest, cols, RED);
             return;
         }
         if let Some(rest) = line.strip_prefix("[stderr] ") {
@@ -706,6 +867,18 @@ impl TaskDraw {
         }
 
         // ── Regular text with inline bold detection ────────────────
+        if let Some(rest) = line.strip_suffix('▌') {
+            let max_text = (cols as usize).saturating_sub(1);
+            set_fg(w, GRAY);
+            self.draw_inline_markdown(w, rest, max_text as u16);
+            if cols > 0 {
+                set_bold(w);
+                set_fg(w, CYAN);
+                let _ = write!(w, "\u{258c}");
+            }
+            reset_style(w);
+            return;
+        }
         set_fg(w, GRAY);
         self.draw_inline_markdown(w, line, cols);
         reset_style(w);

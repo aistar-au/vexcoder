@@ -340,8 +340,8 @@ fn enriched_paragraph_output_renders_paragraph_markers() {
         "summary target must appear on the status line"
     );
     assert!(
-        output.contains("Scope: Read file content"),
-        "detail line must appear in output"
+        output.contains("Scope:") && output.contains("Read file content"),
+        "detail label and value must appear in output"
     );
     assert!(
         output.contains("\x1b[38;5;2mcompleted"),
@@ -374,7 +374,7 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
 
     assert!(output.contains("bash"), "tool name must appear in summary");
     assert!(
-        output.contains("Result: exit code 0"),
+        output.contains("Result:") && output.contains("exit code 0"),
         "4-space phase detail must be drawn"
     );
     assert!(
@@ -419,7 +419,7 @@ fn paragraph_tree_summary_prefers_target_hint() {
         "target hint must appear in summary"
     );
     assert!(
-        output.contains("Result: 42 lines"),
+        output.contains("Result:") && output.contains("42 lines read from src/main.rs"),
         "phase detail must appear"
     );
     assert!(
@@ -452,6 +452,111 @@ fn paragraph_block_uses_four_to_six_lines_per_tool() {
     );
     assert!(output.contains("Scope"), "detail rows must render");
     assert!(output.contains("\u{2727}"), "evidence marker must render");
+}
+
+#[test]
+fn tool_summary_styles_awaiting_approval_status() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[tool] read_file · awaiting approval"]);
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(output.contains("read_file"), "tool name must render");
+    assert!(
+        output.contains("\x1b[38;5;3mawaiting approval"),
+        "awaiting approval status must use yellow accent: {output}"
+    );
+}
+
+#[test]
+fn labeled_diff_evidence_keeps_field_prefix_and_styles_diff() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[evidence] Outcome: +fn main() {"]);
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(output.contains("Outcome: "), "field prefix must render");
+    assert!(
+        output.contains("\x1b[38;5;2m+fn main() {"),
+        "labeled diff evidence must keep green addition styling: {output}"
+    );
+}
+
+#[test]
+fn labeled_json_evidence_preserves_json_number_styling() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec!["[evidence] Outcome: {\"path\":\"src/main.rs\",\"count\":2}"],
+    );
+
+    draw.draw(&mut buf, &state, 100, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(output.contains("Outcome: "), "field prefix must render");
+    assert!(
+        output.contains("\x1b[38;5;3m2"),
+        "labeled json evidence must keep numeric styling: {output}"
+    );
+}
+
+#[test]
+fn command_session_start_includes_running_status_and_pid() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[command session started pid=42] cargo test"]);
+
+    draw.draw(&mut buf, &state, 100, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("command session"),
+        "session summary must render"
+    );
+    assert!(output.contains("pid 42"), "pid detail must render");
+    assert!(
+        output.contains("\x1b[38;5;6mrunning"),
+        "command session summary must keep the running status accent: {output}"
+    );
+}
+
+#[test]
+fn error_header_uses_error_body_color() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[error] permission denied writing src/lib.rs"]);
+
+    draw.draw(&mut buf, &state, 100, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("\x1b[38;5;1mpermission denied writing src/lib.rs"),
+        "error header body must use the error color: {output}"
+    );
+}
+
+#[test]
+fn streaming_cursor_uses_live_cursor_accent() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["streaming line▌"]);
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("streaming line"),
+        "streaming text must render"
+    );
+    assert!(
+        output.contains("\x1b[1m\x1b[38;5;6m\u{258c}"),
+        "streaming cursor must use the live cyan cursor accent: {output}"
+    );
 }
 
 #[test]
