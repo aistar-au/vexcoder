@@ -4,9 +4,19 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - AGENTS.md
+      - CONTRIBUTING.md
+      - .github/copilot-instructions.md
+      - .github/agents/**
+      - .github/instructions/**
       - .github/workflows/copilot-setup-steps.yml
   pull_request:
     paths:
+      - AGENTS.md
+      - CONTRIBUTING.md
+      - .github/copilot-instructions.md
+      - .github/agents/**
+      - .github/instructions/**
       - .github/workflows/copilot-setup-steps.yml
 
 jobs:
