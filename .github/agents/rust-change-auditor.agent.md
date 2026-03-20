@@ -27,6 +27,15 @@ You are the Rust Change Auditor for this repository.
   temporary visual-surrogate files.
 - Do not create ad hoc temporary projects or files whose only purpose is to
   simulate, capture, or restyle the UI for visual verification.
+- After every `gh agent-task create`, identify the new unique session id and
+  immediately tail logs with:
+  `gh agent-task view <session-id> --log --follow`
+- List hosted sessions first when the identifier is unknown:
+  `gh agent-task list`
+- If the tailed logs show private-skill bootstrap attempts, `SKILL.md` reads,
+  non-English output, screenshot or pseudo-screenshot plans, temporary visual
+  artifacts, or ad hoc tool installation, stop the run, correct the prompt or
+  profile, and relaunch before treating the session as valid.
 
 ## Purpose
 

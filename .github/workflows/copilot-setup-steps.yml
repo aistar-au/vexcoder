@@ -33,6 +33,16 @@ jobs:
         run: |
           set -euo pipefail
 
+          show_matches() {
+            local pattern="$1"
+            shift
+            if command -v rg >/dev/null 2>&1; then
+              rg -n -- "$pattern" "$@"
+            else
+              grep -nE -- "$pattern" "$@"
+            fi
+          }
+
           hosted_files=(
             .github/copilot-instructions.md
             .github/agents/rust-change-auditor.agent.md
@@ -41,7 +51,7 @@ jobs:
             .github/agents/vexcoder-transcript-renderer-overhaul.agent.md
           )
 
-          if rg -n "../vexdraft/.agents/skills/|aistar-au/vexdraft|synchronized skill tree|GitHub MCP|Bootstrap private skills" "${hosted_files[@]}"; then
+          if show_matches "../vexdraft/.agents/skills/|aistar-au/vexdraft|synchronized skill tree|GitHub MCP|Bootstrap private skills" "${hosted_files[@]}"; then
             echo "Hosted-session contract still references private skill bootstrap."
             exit 1
           fi
@@ -53,6 +63,26 @@ jobs:
         run: |
           set -euo pipefail
 
+          has_match() {
+            local pattern="$1"
+            shift
+            if command -v rg >/dev/null 2>&1; then
+              rg -qi -- "$pattern" "$@"
+            else
+              grep -qiE -- "$pattern" "$@"
+            fi
+          }
+
+          show_matches() {
+            local pattern="$1"
+            shift
+            if command -v rg >/dev/null 2>&1; then
+              rg -n -- "$pattern" "$@"
+            else
+              grep -nE -- "$pattern" "$@"
+            fi
+          }
+
           hosted_files=(
             .github/copilot-instructions.md
             .github/agents/rust-change-auditor.agent.md
@@ -62,38 +92,43 @@ jobs:
           )
 
           for file in "${hosted_files[@]}"; do
-            rg -q "Use English only" "$file" || {
+            has_match "Use English only" "$file" || {
               echo "Missing English-only guardrail in $file"
               exit 1
             }
-            rg -q 'Do not read any `SKILL.md` file' "$file" || {
+            has_match 'Do not read any .*SKILL\.md.* file' "$file" || {
               echo "Missing no-SKILL guardrail in $file"
               exit 1
             }
-            rg -q "text-only verification and reporting" "$file" || {
+            has_match "text-only verification and reporting" "$file" || {
               echo "Missing text-only verification guardrail in $file"
               exit 1
             }
-            rg -q "screenshots, screen|pseudo-screenshots|parsed terminal snapshots|visual-surrogate" "$file" || {
+            has_match "screenshots, screen|pseudo-screenshots|parsed terminal snapshots|visual-surrogate" "$file" || {
               echo "Missing no-visual-artifact guardrail in $file"
               exit 1
             }
           done
 
-          dispatcher_files=(
+          log_tail_files=(
             AGENTS.md
             CONTRIBUTING.md
+            .github/copilot-instructions.md
             .github/instructions/repository.instructions.md
+            .github/agents/rust-change-auditor.agent.md
+            .github/agents/vexcoder-ui-parity-orchestrator.agent.md
+            .github/agents/vexcoder-ui-paragraph-renderer.agent.md
+            .github/agents/vexcoder-transcript-renderer-overhaul.agent.md
           )
 
-          for file in "${dispatcher_files[@]}"; do
-            rg -q "gh agent-task view <session-id> --log --follow" "$file" || {
+          for file in "${log_tail_files[@]}"; do
+            has_match "gh agent-task view <session-id> --log --follow" "$file" || {
               echo "Missing mandatory session log tail command in $file"
               exit 1
             }
           done
 
-          if rg -n '^[[:space:]]+--follow[[:space:]]*\\?$' CONTRIBUTING.md; then
+          if show_matches '^[[:space:]]+--follow[[:space:]]*\\?$' CONTRIBUTING.md; then
             echo "Hosted launch examples must use explicit gh agent-task view --log --follow instead of gh agent-task create --follow."
             exit 1
           fi
