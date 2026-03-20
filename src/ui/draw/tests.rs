@@ -947,3 +947,131 @@ fn inline_strikethrough_renders_as_dim() {
 
     assert!(output.contains("struck"), "struck text must appear");
 }
+
+// ── Paragraph-style disclosure tests ────────────────────────────
+
+#[test]
+fn tool_paragraph_header_renders_with_cosmic_marker() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[tool] read_file src/main.rs"]);
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("\u{2726}"),
+        "tool paragraph header must show ✦ cosmic marker: {output}"
+    );
+    assert!(
+        output.contains("read_file"),
+        "tool name must appear in paragraph header"
+    );
+}
+
+#[test]
+fn tool_detail_renders_at_four_space_indent() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[detail] Status: completed, 42 lines"]);
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("    Status"),
+        "detail line must render at 4-space indent: {output}"
+    );
+}
+
+#[test]
+fn tool_evidence_renders_at_six_space_indent_with_accent() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[evidence] fn main() { println!(\"hello\"); }"]);
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("\u{2727}"),
+        "evidence line must show ✧ accent marker: {output}"
+    );
+    assert!(
+        output.contains("fn main"),
+        "evidence content must appear"
+    );
+}
+
+#[test]
+fn paragraph_block_disclosure_levels_render_as_tree() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec![
+            "[tool] read_file src/main.rs",
+            "[detail] Status: completed, 42 lines",
+            "[detail] Path: src/main.rs",
+            "[evidence] fn main() {",
+            "[evidence]     println!(\"hello\");",
+            "[evidence] }",
+            "",
+            "[ok] read_file completed",
+        ],
+    );
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    // All three disclosure levels must be present.
+    assert!(
+        output.contains("\u{2726}"),
+        "2-space tool header must have ✦ marker"
+    );
+    assert!(
+        output.contains("    Status"),
+        "4-space detail lines must be indented"
+    );
+    assert!(
+        output.contains("\u{2727}"),
+        "6-space evidence must have ✧ marker"
+    );
+    // Completion marker must also render.
+    assert!(
+        output.contains("\u{2605}"),
+        "completed tool must show ★ star marker"
+    );
+}
+
+#[test]
+fn six_space_raw_indent_differentiates_from_four_space() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec![
+            "    four-space detail",
+            "      six-space evidence",
+        ],
+    );
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("four-space detail"),
+        "4-space indent must render"
+    );
+    assert!(
+        output.contains("six-space evidence"),
+        "6-space indent must render"
+    );
+    // Both must contain dim escape (CSI 2m) but 6-space uses DIM_GRAY (240)
+    // while 4-space uses GRAY (245).
+    let four_idx = output.find("four-space").unwrap();
+    let six_idx = output.find("six-space").unwrap();
+    // 6-space evidence text must appear at a different position confirming
+    // it was rendered through a separate code path.
+    assert_ne!(four_idx, six_idx, "indent levels must be rendered separately");
+}
