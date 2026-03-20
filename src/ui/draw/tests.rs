@@ -1064,8 +1064,14 @@ fn six_space_raw_indent_differentiates_from_four_space() {
         output.contains("six-space evidence"),
         "6-space indent must render"
     );
-    // Both must contain dim escape (CSI 2m) but 6-space uses DIM_GRAY (240)
-    // while 4-space uses GRAY (245).
+    assert!(
+        output.contains("\x1b[2m\x1b[38;5;245m    four-space detail"),
+        "4-space detail must render dimmed in GRAY"
+    );
+    assert!(
+        output.contains("\x1b[2m\x1b[38;5;240m      six-space evidence"),
+        "6-space raw indent must render dimmed in DIM_GRAY"
+    );
     let four_idx = output.find("four-space").unwrap();
     let six_idx = output.find("six-space").unwrap();
     // 6-space evidence text must appear at a different position confirming
