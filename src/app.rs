@@ -624,6 +624,8 @@ pub struct TuiMode {
     last_turn_duration: Option<Duration>,
     /// Last visible terminal error for the task surface.
     last_error_message: Option<String>,
+    /// Remembers a runtime turn completion event until the last command session exits.
+    turn_completion_pending: bool,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }

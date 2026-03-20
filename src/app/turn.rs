@@ -15,6 +15,7 @@ impl TuiMode {
         self.active_stream_blocks.clear();
         self.last_assembled_context = None;
         self.read_only_turn_active = false;
+        self.turn_completion_pending = false;
         self.reset_turn_capture();
         self.reset_last_turn_display();
     }
@@ -45,6 +46,7 @@ impl TuiMode {
         self.timeline_follow_mode = true;
         self.inspector_scroll_offset = 0;
         self.turn_started_at = None;
+        self.turn_completion_pending = false;
     }
 
     pub(super) fn reset_last_turn_display(&mut self) {
@@ -88,6 +90,31 @@ impl TuiMode {
             status: "running".to_string(),
         });
         self.current_task.status = TaskStatus::Running;
+    }
+
+    pub(super) fn complete_turn_if_idle(&mut self, ctx: &RuntimeContext) -> bool {
+        if !self.turn_completion_pending || !self.command_sessions.is_empty() {
+            return false;
+        }
+
+        self.last_error_message = None;
+        self.resolve_pending_approval(false, ctx);
+        self.resolve_pending_patch_approval(false);
+        self.active_stream_blocks.clear();
+        self.commit_completed_turn(ctx);
+        self.history_state.cancel_pending = false;
+        self.history_state.turn_in_progress = false;
+        self.history_state.active_assistant_index = None;
+        self.read_only_turn_active = false;
+        self.turn_completion_pending = false;
+        if self.history_state.auto_follow {
+            self.set_scroll_to_bottom();
+        } else {
+            self.clamp_scroll_offset();
+        }
+        self.transcript_scroll_offset = 0;
+        self.inspector_scroll_offset = 0;
+        true
     }
 
     pub(super) fn commit_completed_turn(&mut self, ctx: &RuntimeContext) {

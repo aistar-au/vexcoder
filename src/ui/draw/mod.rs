@@ -136,7 +136,7 @@ impl TaskDraw {
         hide_cursor(w);
 
         // Header.
-        let header_hash = simple_hash(&state.status_line);
+        let header_hash = self.compute_header_hash(state);
         if header_hash != self.last_header_hash {
             self.draw_header(w, state, &regions);
             self.last_header_hash = header_hash;
@@ -192,7 +192,7 @@ impl TaskDraw {
         clear_to_end(w);
 
         self.draw_header(w, state, regions);
-        self.last_header_hash = simple_hash(&state.status_line);
+        self.last_header_hash = self.compute_header_hash(state);
 
         if let Some(files_row) = regions.files_row {
             self.draw_files(w, state, files_row, regions.cols);
@@ -217,152 +217,19 @@ impl TaskDraw {
 
     // ── Header ──────────────────────────────────────────────────────
 
-    fn draw_header<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
-        move_to(w, regions.header_row, 0);
-        clear_line(w);
-
-        // Parse the status line to extract human-readable components.
-        // The status_line format is: "mode:X approval:Y history:N repo:R inst:I tokens:T"
-        let parts = parse_status_parts(&state.status_line);
-
-        // Left border accent + repo name — bold white.
-        set_fg(w, DIM_GRAY);
-        let _ = write!(w, "\u{2502} "); // │
-        set_bold(w);
-        set_fg(w, YELLOW);
-        let _ = write!(w, "\u{2605} "); // ★
-        set_fg(w, WHITE);
-        let _ = write!(w, "{}", parts.repo);
-        reset_style(w);
-
-        // Separator.
-        set_fg(w, DIM_GRAY);
-        let _ = write!(w, " \u{00b7} ");
-        reset_style(w);
-
-        // Mode — color-coded.
-        let (mode_label, mode_color) = match parts.mode.as_str() {
-            "streaming" => ("running", CYAN),
-            "command-session" => ("session", MAGENTA),
-            "overlay" => ("approval", YELLOW),
-            "cancelling" => ("cancelling", RED),
-            "quit-arm" => ("quit?", RED),
-            _ => ("ready", GREEN),
-        };
-        set_bold(w);
-        set_fg(w, mode_color);
-        let _ = write!(w, "{mode_label}");
-        reset_style(w);
-
-        // Changed files count (if any).
-        if !state.changed_files.is_empty() {
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{00b7} ");
-            reset_style(w);
-            set_fg(w, GRAY);
-            let _ = write!(
-                w,
-                "{} file{} changed",
-                state.changed_files.len(),
-                if state.changed_files.len() == 1 {
-                    ""
-                } else {
-                    "s"
-                }
-            );
-            reset_style(w);
-        }
-
-        // Timeline step count (if active).
-        if !state.timeline_entries.is_empty() {
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{00b7} ");
-            reset_style(w);
-            let running = state
-                .timeline_entries
-                .iter()
-                .filter(|e| e.lifecycle == StepLifecycle::Running)
-                .count();
-            let completed = state
-                .timeline_entries
-                .iter()
-                .filter(|e| e.lifecycle == StepLifecycle::Completed)
-                .count();
-            if running > 0 {
-                // Animated progress indicator for running tasks.
-                let idx = (self.frame_counter as usize) % PROGRESS_FRAMES.len();
-                set_fg(w, CYAN);
-                let _ = write!(w, "{} ", PROGRESS_FRAMES[idx]);
-                reset_style(w);
-                set_fg(w, GRAY);
-                let _ = write!(w, "{running} active");
-                if completed > 0 {
-                    let _ = write!(w, ", {completed} done");
-                }
-            } else if completed > 0 {
-                set_fg(w, GRAY);
-                let _ = write!(
-                    w,
-                    "{completed} step{} done",
-                    if completed == 1 { "" } else { "s" }
-                );
-            }
-            reset_style(w);
-        }
-
-        if state.total_steps > 0 {
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{00b7} ");
-            reset_style(w);
-            set_dim(w);
-            set_fg(w, BLUE);
-            let _ = write!(w, "step {}/{}", state.selected_step + 1, state.total_steps);
-            reset_style(w);
-        }
-
-        // Context-window token counter — shown once at least one turn has
-        // completed and session tokens have been recorded.  Expressed as a
-        // compact "~1.2k ctx" indicator so the operator can see how much of
-        // the model context window has been consumed so far.
-        if parts.tokens > 0 {
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{00b7} ");
-            reset_style(w);
-            set_dim(w);
-            set_fg(w, BLUE);
-            let _ = write!(w, "~{:.1}k ctx", parts.tokens_k);
-            reset_style(w);
-        }
-
-        // Instructions path (dimmed, right side info).
-        if parts.inst != "none" {
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{00b7} ");
-            set_dim(w);
-            let _ = write!(w, "{}", parts.inst);
-            reset_style(w);
-        }
-    }
+    fn draw_header<W: Write>(&self, _w: &mut W, _state: &TaskLayoutState, _regions: &Regions) {}
 
     // ── Changed files ───────────────────────────────────────────────
 
-    fn draw_files<W: Write>(&self, w: &mut W, state: &TaskLayoutState, row: u16, cols: u16) {
-        move_to(w, row, 0);
-        clear_line(w);
-        if state.changed_files.is_empty() {
-            return;
-        }
-        set_dim(w);
-        set_fg(w, GRAY);
-        let files_text = format!("  {}", state.changed_files.join("  "));
-        let truncated = truncate_to_width(&files_text, cols as usize);
-        let _ = write!(w, "{truncated}");
-        reset_style(w);
-    }
+    fn draw_files<W: Write>(&self, _w: &mut W, _state: &TaskLayoutState, _row: u16, _cols: u16) {}
 
     // ── Timeline (adaptive height) ──────────────────────────────────
 
     fn draw_timeline<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
+        if regions.timeline_rows == 0 {
+            return;
+        }
+
         let visible_slots = (regions.timeline_rows.saturating_sub(1)) as usize; // -1 for separator
 
         if state.timeline_entries.is_empty() {
@@ -612,6 +479,8 @@ impl TaskDraw {
     ) {
         let viewport_height = regions.transcript_rows as usize;
         let (visible_start, visible_end) = transcript_window(state, viewport_height);
+        let render_start_row =
+            transcript_render_start_row(state, regions, visible_start, visible_end);
 
         // Clear the transcript area.
         for vp_offset in 0..viewport_height {
@@ -636,7 +505,7 @@ impl TaskDraw {
             if i >= visible_end || vp_offset >= viewport_height {
                 break;
             }
-            let row = regions.transcript_start + vp_offset as u16;
+            let row = render_start_row + vp_offset as u16;
             move_to(w, row, 0);
             self.draw_transcript_line(w, line, regions.cols);
         }
@@ -670,6 +539,8 @@ impl TaskDraw {
 
         let viewport_height = regions.transcript_rows as usize;
         let (visible_start, visible_end) = transcript_window(state, viewport_height);
+        let render_start_row =
+            transcript_render_start_row(state, regions, visible_start, visible_end);
 
         // Rebuild code-block state by scanning all lines before the viewport.
         self.in_code_block = false;
@@ -685,7 +556,7 @@ impl TaskDraw {
             if src_index >= visible_end || src_index >= total_output {
                 break;
             }
-            let row = regions.transcript_start + vp_offset as u16;
+            let row = render_start_row + vp_offset as u16;
             move_to(w, row, 0);
             clear_line(w);
             self.draw_transcript_line(w, &state.output_rows[src_index], regions.cols);
@@ -773,12 +644,6 @@ impl TaskDraw {
             set_fg(w, WHITE);
             let _ = write!(w, "Prompt");
             reset_style(w);
-            set_dim(w);
-            set_fg(w, DIM_GRAY);
-            let chrome = "  / command  @ file  ! shell  paste block  Shift+Enter newline";
-            let truncated = truncate_to_width(chrome, regions.cols.saturating_sub(8) as usize);
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
 
             for offset in 0..body_rows {
                 let row = regions.composer_start + 1 + offset as u16;
@@ -803,7 +668,6 @@ impl TaskDraw {
                 let hint = hint_lines
                     .get(line_index + 1)
                     .copied()
-                    .or_else(|| hint_lines.get(1).copied())
                     .filter(|line| !line.is_empty());
                 if let Some(hint) = hint {
                     set_fg(w, DIM_GRAY);
@@ -830,7 +694,7 @@ impl TaskDraw {
         let hints = if is_approval {
             " y approve  n deny  s approve all"
         } else {
-            " PgUp/PgDn transcript  Alt+\u{2191}/\u{2193} steps  Shift+Enter newline  Enter submit"
+            " PgUp/PgDn transcript  Shift+Enter newline  Enter submit"
         };
         let _ = write!(w, "{hints}");
 
@@ -900,12 +764,14 @@ impl TaskDraw {
         h
     }
 
+    fn compute_header_hash(&self, state: &TaskLayoutState) -> u64 {
+        let _ = state;
+        0
+    }
+
     fn compute_files_hash(&self, state: &TaskLayoutState) -> u64 {
-        let mut h = state.changed_files.len() as u64;
-        for path in &state.changed_files {
-            h = h.wrapping_mul(31).wrapping_add(simple_hash(path));
-        }
-        h
+        let _ = state;
+        0
     }
 
     fn compute_transcript_hash(&self, state: &TaskLayoutState) -> u64 {
@@ -951,16 +817,16 @@ impl Default for TaskDraw {
 
 // ── Status line parsing ─────────────────────────────────────────────
 
+#[cfg(test)]
 struct StatusParts {
     mode: String,
     repo: String,
     inst: String,
     /// Cumulative session token count (0 when none have been recorded yet).
     tokens: u64,
-    /// Pre-converted token count in thousands (computed once during parsing).
-    tokens_k: f64,
 }
 
+#[cfg(test)]
 fn parse_status_parts(status: &str) -> StatusParts {
     let mut mode = String::from("ready");
     let mut repo = String::from("vexcoder");
@@ -982,13 +848,11 @@ fn parse_status_parts(status: &str) -> StatusParts {
         }
     }
 
-    let tokens_k = tokens as f64 / 1000.0;
     StatusParts {
         mode,
         repo,
         inst,
         tokens,
-        tokens_k,
     }
 }
 
@@ -1014,6 +878,24 @@ fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize,
             (start, end)
         }
     }
+}
+
+fn transcript_render_start_row(
+    state: &TaskLayoutState,
+    regions: &Regions,
+    visible_start: usize,
+    visible_end: usize,
+) -> u16 {
+    let visible_len = visible_end.saturating_sub(visible_start);
+    if state.output_scroll_anchor == OutputScrollAnchor::Bottom
+        && visible_len < regions.transcript_rows as usize
+    {
+        return regions
+            .transcript_start
+            .saturating_add(regions.transcript_rows.saturating_sub(visible_len as u16));
+    }
+
+    regions.transcript_start
 }
 
 /// Draw a labeled separator line at the given row.

@@ -1,22 +1,20 @@
 ---
 name: Vexcoder UI Paragraph Renderer
 description: >-
-  GitHub coding agent for ANSI transcript drawing, paragraph markers,
-  disclosure styling, transcript regression coverage, and parallel-shard
-  UI-overhaul work in vexcoder.
+  GitHub coding agent for the direct ANSI fullscreen surface, paragraph
+  markers, star/cosmic styling, transcript regression coverage, and
+  parallel-shard UI-overhaul work in vexcoder.
 target: github-copilot
-model: "GPT-5.4"
 tools:
   - read
   - search
   - edit
   - execute
   - github/*
-user-invocable: true
 ---
 
-You implement paragraph-style tool rendering and adjacent operator-surface work
-in this Rust TUI coding agent.
+You implement the direct ANSI fullscreen surface and paragraph-style tool
+rendering in this Rust TUI coding agent.
 
 ## Session bootstrap
 
@@ -31,13 +29,20 @@ in this Rust TUI coding agent.
 - In a repository-hosted session, do not read any `SKILL.md` file. The hosted
   contract is limited to this repository's tracked instructions and source
   tree.
+- Use English only in all agent-authored output.
+- Use text-only verification and reporting. Do not create screenshots, screen
+  captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or
+  temporary visual-surrogate files.
+- Do not create ad hoc temporary projects or files whose only purpose is to
+  simulate, capture, or restyle the UI for visual verification.
 
 ## Parallel shard role
 
-Use this profile as the ANSI transcript-rendering shard.
+Use this profile as the ANSI fullscreen-surface shard.
 
 Default owned files:
 
+- `src/ui/draw/mod.rs`
 - `src/ui/draw/transcript.rs`
 - `src/ui/draw/ansi.rs`
 - `src/ui/draw/tests.rs`
@@ -57,6 +62,8 @@ Default out-of-scope files unless the prompt explicitly reassigns them:
 
 ## Target files
 
+- `src/ui/draw/mod.rs` — direct ANSI surface controller for transcript rows,
+  prompt dock, and top-surface chrome removal.
 - `src/ui/draw/transcript.rs` — ANSI transcript renderer with 2/4/6-space
   disclosure levels and celestial accent markers.
 - `src/ui/draw/tests.rs` — tests for transcript rendering.
@@ -109,6 +116,9 @@ just to close a cross-shard gap; report that dependency instead.
   behavior explicitly instead of changing invocation style.
 - If `rg` is unavailable in the hosted runner, fall back to `git grep -n`,
   `grep -RIn`, or direct file reads and continue.
+- Keep verification text-only. Inspect source, tests, commands, logs, and text
+  output directly instead of producing screenshots, pseudo-screenshots, parsed
+  terminal snapshots, or temporary visualizer artifacts.
 - If validation fails only because the hosted runner lacks a local tool that is
   not provisioned by this repository, report the environment gap instead of
   installing ad hoc tooling in-session.
@@ -158,12 +168,20 @@ tooling are already installed in the runner image.
 
 ## Post-session workflow
 
-- List and tail hosted sessions with the unique session identifier:
+- After every `gh agent-task create`, the dispatcher must identify the new
+  unique session identifier and tail logs explicitly:
 
 ```bash
 gh agent-task list
-gh agent-task view <session-id-or-pr> --log --follow
+gh agent-task view <session-id> --log --follow
 ```
+
+- If the tailed logs show private-skill bootstrap attempts, `SKILL.md` reads,
+  non-English output, screenshot or pseudo-screenshot plans, temporary visual
+  artifacts, or ad hoc tool installation, stop the run, correct the prompt or
+  profile, and relaunch before promotion.
+- Do not move on to PR inspection, review, promotion, or merge work until the
+  paired launch-log tail has completed and any violation has been triaged.
 
 - Inspect the hosted PR and watch its checks with:
 

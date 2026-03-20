@@ -6,6 +6,9 @@ impl TuiMode {
             UiUpdate::TranscriptLine(line) => {
                 let previous_output_len = self.task_output_view().1.len();
                 if self.history_state.turn_in_progress {
+                    self.current_task.status = TaskStatus::Running;
+                }
+                if self.history_state.turn_in_progress {
                     if !self.current_turn_response.is_empty() {
                         self.current_turn_response.push('\n');
                     }
@@ -18,6 +21,9 @@ impl TuiMode {
                 let previous_output_len = self.task_output_view().1.len();
                 if self.history_state.cancel_pending {
                     return;
+                }
+                if self.history_state.turn_in_progress {
+                    self.current_task.status = TaskStatus::Running;
                 }
                 self.current_turn_response.push_str(&text);
                 let idx = match self.history_state.active_assistant_index {
@@ -42,6 +48,9 @@ impl TuiMode {
                 self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
             UiUpdate::StreamBlockStart { index, block } => {
+                if self.history_state.turn_in_progress {
+                    self.current_task.status = TaskStatus::Running;
+                }
                 match &block {
                     StreamBlock::ToolCall {
                         id, name, input, ..
@@ -94,6 +103,9 @@ impl TuiMode {
                 self.active_stream_blocks.insert(index, block);
             }
             UiUpdate::StreamBlockDelta { index, delta } => {
+                if self.history_state.turn_in_progress {
+                    self.current_task.status = TaskStatus::Running;
+                }
                 if let Some(block) = self.active_stream_blocks.get_mut(&index) {
                     match block {
                         StreamBlock::Thinking { content, .. } => content.push_str(&delta),
@@ -103,6 +115,9 @@ impl TuiMode {
                 }
             }
             UiUpdate::StreamBlockComplete { index } => {
+                if self.history_state.turn_in_progress {
+                    self.current_task.status = TaskStatus::Running;
+                }
                 self.active_stream_blocks.remove(&index);
             }
             UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
@@ -151,6 +166,7 @@ impl TuiMode {
 
                 let summary = summarize_tool_approval_context(&tool_name, &input_preview);
                 self.push_history_line(format!("[tool approval requested: {summary}]"));
+                self.current_task.status = TaskStatus::AwaitingApproval;
                 self.overlay_state.pending_approval = Some(PendingApproval {
                     tool_name,
                     input_preview,
@@ -232,27 +248,13 @@ impl TuiMode {
                 {
                     self.command_sessions.remove(pos);
                 }
+                if self.command_sessions.is_empty() {
+                    self.complete_turn_if_idle(ctx);
+                }
             }
             UiUpdate::TurnComplete => {
-                if !self.command_sessions.is_empty() {
-                    return;
-                }
-                self.last_error_message = None;
-                self.resolve_pending_approval(false, ctx);
-                self.resolve_pending_patch_approval(false);
-                self.active_stream_blocks.clear();
-                self.commit_completed_turn(ctx);
-                self.history_state.cancel_pending = false;
-                self.history_state.turn_in_progress = false;
-                self.history_state.active_assistant_index = None;
-                self.read_only_turn_active = false;
-                if self.history_state.auto_follow {
-                    self.set_scroll_to_bottom();
-                } else {
-                    self.clamp_scroll_offset();
-                }
-                self.transcript_scroll_offset = 0;
-                self.inspector_scroll_offset = 0;
+                self.turn_completion_pending = true;
+                self.complete_turn_if_idle(ctx);
             }
             UiUpdate::Error(msg) => {
                 self.command_sessions.clear();

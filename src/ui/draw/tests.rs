@@ -15,7 +15,7 @@ fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState
         output_scroll_offset: 0,
         output_scroll_anchor: OutputScrollAnchor::Bottom,
         pending_approval: None,
-        input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
+        input_hint: "Prompt\n/ commands  @ files  ! shell".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         changed_files: vec![],
@@ -42,16 +42,14 @@ fn first_draw_writes_full_screen() {
     let output = String::from_utf8_lossy(&buf);
 
     assert!(output.contains("\x1b["), "output must contain ANSI escapes");
-    // Human-readable header must show repo name.
-    assert!(output.contains("vexcoder"), "header must show repo name");
-    // Must contain the timeline entry.
-    assert!(
-        output.contains("read_file: running"),
-        "timeline entry must be drawn"
-    );
     // Must contain output rows.
     assert!(output.contains("line 1"), "output row 1 must be drawn");
     assert!(output.contains("line 2"), "output row 2 must be drawn");
+    assert!(output.contains("Prompt"), "composer label must be drawn");
+    assert!(
+        !output.contains("vexcoder") && !output.contains("AGENTS.md"),
+        "fullscreen transcript should not reintroduce top header chrome"
+    );
 }
 
 #[test]
@@ -211,8 +209,12 @@ fn lifecycle_only_changes_redraw_activity() {
 
     let output = String::from_utf8_lossy(&buf);
     assert!(
-        output.contains("\u{2605}"),
-        "lifecycle changes must redraw the timeline row with star marker"
+        output.contains("task:test-001"),
+        "lifecycle changes should still redraw the bottom status bar"
+    );
+    assert!(
+        !output.contains("1 step done"),
+        "lifecycle changes must not reintroduce the removed header summary"
     );
 }
 
@@ -272,7 +274,7 @@ fn changing_selected_inspector_entry_redraws_output() {
 }
 
 #[test]
-fn fallback_activity_rows_render_without_timeline_entries() {
+fn activity_rows_do_not_render_in_fullscreen_transcript_surface() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
     let state = TaskLayoutState {
@@ -297,8 +299,9 @@ fn fallback_activity_rows_render_without_timeline_entries() {
     draw.draw(&mut buf, &state, 80, 24);
     let output = String::from_utf8_lossy(&buf);
 
-    assert!(output.contains("validate: running"));
-    assert!(output.contains("ship it"));
+    assert!(output.contains("line 1"));
+    assert!(!output.contains("validate: running"));
+    assert!(!output.contains("ship it"));
 }
 
 #[test]
@@ -340,8 +343,8 @@ fn enriched_paragraph_output_renders_paragraph_markers() {
         "summary target must appear on the status line"
     );
     assert!(
-        output.contains("Scope: Read file content"),
-        "detail line must appear in output"
+        output.contains("Scope:") && output.contains("Read file content"),
+        "detail label and value must appear in output"
     );
     assert!(
         output.contains("\x1b[38;5;2mcompleted"),
@@ -374,7 +377,7 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
 
     assert!(output.contains("bash"), "tool name must appear in summary");
     assert!(
-        output.contains("Result: exit code 0"),
+        output.contains("Result:") && output.contains("exit code 0"),
         "4-space phase detail must be drawn"
     );
     assert!(
@@ -419,7 +422,7 @@ fn paragraph_tree_summary_prefers_target_hint() {
         "target hint must appear in summary"
     );
     assert!(
-        output.contains("Result: 42 lines"),
+        output.contains("Result:") && output.contains("42 lines read from src/main.rs"),
         "phase detail must appear"
     );
     assert!(
@@ -455,7 +458,112 @@ fn paragraph_block_uses_four_to_six_lines_per_tool() {
 }
 
 #[test]
-fn persistent_layout_shows_welcome_hint_before_first_turn() {
+fn tool_summary_styles_awaiting_approval_status() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[tool] read_file · awaiting approval"]);
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(output.contains("read_file"), "tool name must render");
+    assert!(
+        output.contains("\x1b[38;5;3mawaiting approval"),
+        "awaiting approval status must use yellow accent: {output}"
+    );
+}
+
+#[test]
+fn labeled_diff_evidence_keeps_field_prefix_and_styles_diff() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[evidence] Outcome: +fn main() {"]);
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(output.contains("Outcome: "), "field prefix must render");
+    assert!(
+        output.contains("\x1b[38;5;2m+fn main() {"),
+        "labeled diff evidence must keep green addition styling: {output}"
+    );
+}
+
+#[test]
+fn labeled_json_evidence_preserves_json_number_styling() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec!["[evidence] Outcome: {\"path\":\"src/main.rs\",\"count\":2}"],
+    );
+
+    draw.draw(&mut buf, &state, 100, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(output.contains("Outcome: "), "field prefix must render");
+    assert!(
+        output.contains("\x1b[38;5;3m2"),
+        "labeled json evidence must keep numeric styling: {output}"
+    );
+}
+
+#[test]
+fn command_session_start_includes_running_status_and_pid() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[command session started pid=42] cargo test"]);
+
+    draw.draw(&mut buf, &state, 100, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("command session"),
+        "session summary must render"
+    );
+    assert!(output.contains("pid 42"), "pid detail must render");
+    assert!(
+        output.contains("\x1b[38;5;6mrunning"),
+        "command session summary must keep the running status accent: {output}"
+    );
+}
+
+#[test]
+fn error_header_uses_error_body_color() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[error] permission denied writing src/lib.rs"]);
+
+    draw.draw(&mut buf, &state, 100, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("\x1b[38;5;1mpermission denied writing src/lib.rs"),
+        "error header body must use the error color: {output}"
+    );
+}
+
+#[test]
+fn streaming_cursor_uses_live_cursor_accent() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["streaming line▌"]);
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("streaming line"),
+        "streaming text must render"
+    );
+    assert!(
+        output.contains("\x1b[1m\x1b[38;5;6m\u{258c}"),
+        "streaming cursor must use the live cyan cursor accent: {output}"
+    );
+}
+
+#[test]
+fn persistent_layout_starts_with_blank_transcript_before_first_turn() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
     let state = TaskLayoutState {
@@ -466,15 +574,11 @@ fn persistent_layout_shows_welcome_hint_before_first_turn() {
         selected_step: 0,
         total_steps: 0,
         output_title: "Transcript".into(),
-        output_rows: vec![
-            "Type a prompt below to begin.".into(),
-            String::new(),
-            "The orchestrator will call tools and stream results here.".into(),
-        ],
+        output_rows: vec![],
         output_scroll_offset: 0,
         output_scroll_anchor: OutputScrollAnchor::Bottom,
         pending_approval: None,
-        input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
+        input_hint: "Prompt\n/ commands  @ files  ! shell".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         changed_files: vec![],
@@ -485,13 +589,17 @@ fn persistent_layout_shows_welcome_hint_before_first_turn() {
     let output = String::from_utf8_lossy(&buf);
 
     assert!(
-        output.contains("Type a prompt"),
-        "welcome hint must be drawn on first frame"
+        output.contains("Prompt"),
+        "composer label must be drawn on first frame"
+    );
+    assert!(
+        !output.contains("Type a prompt"),
+        "fullscreen transcript should start blank before the first turn"
     );
 }
 
 #[test]
-fn adaptive_layout_scales_timeline_with_entries() {
+fn adaptive_layout_assigns_full_body_to_transcript() {
     let entries: Vec<TimelineEntry> = (0..20)
         .map(|i| TimelineEntry {
             step_id: i as u64,
@@ -503,42 +611,34 @@ fn adaptive_layout_scales_timeline_with_entries() {
         .collect();
 
     let regions = Regions::compute(80, 40, false, entries.len());
-    // Timeline should grow beyond the old fixed 6 rows.
-    assert!(
-        regions.timeline_rows > 6,
-        "timeline must scale beyond 6 rows for 20 entries on a 40-row terminal"
-    );
-    // But not exceed 35% of available space.
-    let max_expected = ((40 - 1 - 3) as f32 * 0.35) as u16;
-    assert!(
-        regions.timeline_rows <= max_expected + 1,
-        "timeline must not exceed ~35% of available space"
-    );
+    assert_eq!(regions.timeline_rows, 0);
+    assert_eq!(regions.transcript_start, 0);
+    assert!(regions.transcript_rows > 0);
 }
 
 #[test]
 fn adaptive_composer_scales_with_terminal_height() {
     let small = Regions::compute(80, 12, false, 0);
     assert_eq!(
-        small.composer_rows, 4,
-        "small terminal keeps a usable multiline prompt surface"
+        small.composer_rows, 3,
+        "small terminal keeps the prompt surface fixed to three rows"
     );
 
     let medium = Regions::compute(80, 20, false, 0);
     assert_eq!(
-        medium.composer_rows, 5,
-        "medium terminal gets a larger multiline prompt surface"
+        medium.composer_rows, 3,
+        "medium terminal keeps the prompt surface fixed to three rows"
     );
 
     let large = Regions::compute(80, 40, false, 0);
     assert_eq!(
-        large.composer_rows, 8,
-        "large terminal gets an expanded prompt surface"
+        large.composer_rows, 3,
+        "large terminal keeps the prompt surface fixed to three rows"
     );
 }
 
 #[test]
-fn human_readable_header_shows_running_state() {
+fn fullscreen_surface_hides_top_header_chrome() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
     let state = TaskLayoutState {
@@ -559,7 +659,7 @@ fn human_readable_header_shows_running_state() {
         output_scroll_offset: 0,
         output_scroll_anchor: OutputScrollAnchor::Bottom,
         pending_approval: None,
-        input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
+        input_hint: "Prompt\n/ commands  @ files  ! shell".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         changed_files: vec!["src/main.rs".into()],
@@ -569,12 +669,11 @@ fn human_readable_header_shows_running_state() {
     draw.draw(&mut buf, &state, 100, 24);
     let output = String::from_utf8_lossy(&buf);
 
-    assert!(output.contains("myrepo"), "header must show repo name");
-    assert!(output.contains("running"), "header must show running state");
     assert!(
-        output.contains("1 file changed") || output.contains("1 active"),
-        "header must show file count or active count"
+        !output.contains("myrepo") && !output.contains("AGENTS.md"),
+        "repo and instruction labels must not appear above the transcript"
     );
+    assert!(output.contains("Prompt"), "composer should remain visible");
 }
 
 #[test]
@@ -634,7 +733,7 @@ fn status_parts_parsing_with_tokens() {
 }
 
 #[test]
-fn header_shows_token_indicator_when_tokens_recorded() {
+fn fullscreen_surface_hides_token_indicator_when_tokens_recorded() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
     let state = TaskLayoutState {
@@ -651,7 +750,7 @@ fn header_shows_token_indicator_when_tokens_recorded() {
         output_scroll_offset: 0,
         output_scroll_anchor: OutputScrollAnchor::Bottom,
         pending_approval: None,
-        input_hint: "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".into(),
+        input_hint: "Prompt\n/ commands  @ files  ! shell".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         changed_files: vec![],
@@ -662,12 +761,12 @@ fn header_shows_token_indicator_when_tokens_recorded() {
     let output = String::from_utf8_lossy(&buf);
 
     assert!(
-        output.contains("ctx"),
-        "header must show 'ctx' token indicator when tokens > 0: got {output:?}"
+        !output.contains("ctx"),
+        "top header chrome should stay hidden: {output:?}"
     );
     assert!(
-        output.contains("2.5"),
-        "header must show rounded token count: got {output:?}"
+        !output.contains("2.5"),
+        "top header chrome should stay hidden: {output:?}"
     );
 }
 
@@ -734,6 +833,37 @@ fn composer_renders_live_input_text() {
     assert!(
         output.contains("hello fullscreen"),
         "composer must render the live editor buffer"
+    );
+}
+
+#[test]
+fn composer_hint_renders_once_without_repeating_down_the_prompt() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec![]);
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    let hint = "/ commands  @ files  ! shell";
+
+    assert_eq!(
+        output.matches(hint).count(),
+        1,
+        "composer helper hint must render once"
+    );
+}
+
+#[test]
+fn short_bottom_anchored_transcript_hugs_prompt_edge() {
+    let state = make_state(vec![], vec!["Type a prompt below to begin."]);
+    let regions = Regions::compute(80, 24, false, 0);
+    let (visible_start, visible_end) = transcript_window(&state, regions.transcript_rows as usize);
+    let render_start = transcript_render_start_row(&state, &regions, visible_start, visible_end);
+
+    assert_eq!(
+        render_start,
+        regions.composer_start.saturating_sub(1),
+        "short transcript should render against the prompt edge"
     );
 }
 
@@ -931,10 +1061,13 @@ fn progress_indicator_shown_for_running_tasks() {
     let has_progress_char =
         output.contains('\u{2591}') || output.contains('\u{2593}') || output.contains('\u{2588}');
     assert!(
-        has_progress_char,
-        "header must show progress indicator for running tasks"
+        !has_progress_char,
+        "running tasks must not reintroduce the removed top progress banner"
     );
-    assert!(output.contains("1 active"), "header must show active count");
+    assert!(
+        !output.contains("1 active"),
+        "running tasks must not reintroduce the removed top activity count"
+    );
 }
 
 #[test]

@@ -11,6 +11,14 @@ If this is a repository-hosted background session:
   dispatcher sessions only.
 - Do not bootstrap, clone, sync, fetch, inspect, or depend on private skills,
   adjacent repos, or setup-workflow copies of the private skill tree.
+- Do not read any `SKILL.md` file in a repository-hosted background session.
+- Use English only in agent-authored output, including plans, logs, pull
+  requests, comments, and status updates.
+- Use text-only verification and reporting. Do not create screenshots, screen
+  captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or
+  temporary visual-surrogate files.
+- Do not create ad hoc temporary projects or files whose only purpose is to
+  simulate, capture, or restyle the UI for visual verification.
 - Stay within this repository's tracked instructions and source tree.
 - Continue with the repository-hosted agent instructions file under `.github/`,
   `.github/instructions/repository.instructions.md`, and `CONTRIBUTING.md`.
@@ -85,13 +93,29 @@ A–H post-session checklist.
   `.github/instructions/`, and the checked-in agent profiles as the
   hosted-session contract.
 - Do not read any `SKILL.md` file in a repository-hosted session.
-- Tail remote logs with the unique session or PR identifier:
-  `gh agent-task view <session-id-or-pr> --log --follow`
+- Use English only in agent-authored output.
+- Use text-only verification and reporting. Do not create screenshots, screen
+  captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or
+  temporary visual-surrogate files.
+- Do not create ad hoc temporary projects or files whose only purpose is to
+  simulate, capture, or restyle the UI for visual verification.
+- After every `gh agent-task create`, identify the new unique session id and
+  immediately tail logs with:
+  `gh agent-task view <session-id> --log --follow`
+- Treat the launch as incomplete until the tailed log confirms the session is
+  staying inside this repository, avoiding `SKILL.md`, staying in English, and
+  using text-only verification.
 - List hosted sessions first when the identifier is unknown:
   `gh agent-task list`
+- If the tailed logs show private-skill bootstrap attempts, `SKILL.md` reads,
+  non-English output, screenshot or pseudo-screenshot plans, temporary visual
+  artifacts, or ad hoc tool installation, stop the run, correct the prompt or
+  profile, and relaunch before treating the session as valid.
 - Inspect hosted PR state and watch checks with:
   `gh pr view <pr> --json headRefName,commits,statusCheckRollup`
   `gh pr checks <pr> --watch`
+- Do not move on to PR inspection, review, promotion, or merge work until the
+  paired launch-log tail has completed and any violation has been triaged.
 - If `rg` is unavailable, fall back to `git grep -n`, `grep -RIn`, or direct
   file reads and continue.
 - Promote remote agent output onto a `coder/vexcoder-...` branch before

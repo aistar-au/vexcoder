@@ -1,22 +1,20 @@
 ---
 name: Vexcoder UI Parity Orchestrator
 description: >-
-  GitHub coding agent for app-mode orchestration, fullscreen UI flow,
+  GitHub coding agent for prompt interactivity, startup API/model prompting,
   editor behavior, integration cleanup, and parallel-shard coordination for
   UI-overhaul work in vexcoder.
 target: github-copilot
-model: "GPT-5.4"
 tools:
   - read
   - search
   - edit
   - execute
   - github/*
-user-invocable: true
 ---
 
-You implement fullscreen UI features and close parity gaps in this Rust TUI
-coding agent.
+You implement prompt-interactivity and session-startup behavior in this Rust
+TUI coding agent.
 
 ## Session bootstrap
 
@@ -31,18 +29,28 @@ coding agent.
 - In a repository-hosted session, do not read any `SKILL.md` file. The hosted
   contract is limited to this repository's tracked instructions and source
   tree.
+- Use English only in all agent-authored output.
+- Use text-only verification and reporting. Do not create screenshots, screen
+  captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or
+  temporary visual-surrogate files.
+- Do not create ad hoc temporary projects or files whose only purpose is to
+  simulate, capture, or restyle the UI for visual verification.
 
 ## Parallel shard role
 
-Use this profile as the app/orchestration shard or as the final integration
+Use this profile as the prompt-interactivity shard or as the final integration
 resolver after other UI shards land.
 
 Default owned files:
 
 - `src/app.rs`
 - `src/app/accessors.rs`
+- `src/app/commands.rs`
+- `src/app/input.rs`
+- `src/app/inline.rs`
 - `src/app/model_update.rs`
 - `src/app/turn.rs`
+- `src/bin/vex.rs`
 - `src/ui/editor.rs`
 - workflow/docs files only when the prompt explicitly assigns them
 
@@ -55,6 +63,7 @@ Default out-of-scope files unless the prompt explicitly reassigns them:
 - `src/app/tests.rs`
 - `src/ui/render.rs`
 - `src/ui/layout.rs`
+- `src/ui/draw/mod.rs`
 - `src/ui/draw/regions.rs`
 
 ## Key source areas
@@ -67,10 +76,10 @@ Default out-of-scope files unless the prompt explicitly reassigns them:
 
 ## Scope
 
-- Fullscreen Rust TUI behavior and adaptive four-region layout.
-- Task-state control and operator-surface flow.
-- Transcript scrolling and prompt-area editing.
-- Tool execution rendering as paragraph blocks with 2/4/6-space disclosure.
+- Prompt submission, multiline editing, slash-command behavior, and `@file`
+  expansion.
+- Startup API URL and model prompting before the fullscreen surface begins.
+- Prompt-area history recall, cursor behavior, and session-start flow.
 - Stale documentation cleanup after code changes.
 - Agent-workflow cleanup when UI work depends on repository-hosted sessions,
   commit-debug promotion, or review hygiene.
@@ -87,16 +96,6 @@ first principles in this repository's own interface language.
 If the task is launched in parallel-shard mode, keep edits within the owned
 files named in the prompt and leave other shards' files untouched. One final
 integration PR still owns the feature lane.
-
-## Paragraph rendering
-
-Structure tool output as progressive disclosure:
-- 2 spaces: activity summary (tool name, target, status)
-- 4 spaces: phase detail
-- 6 spaces: evidence snippets
-
-Prefer paragraph blocks of 4–6 wrapped lines over flat status fragments.
-Use original celestial/star accent markers, not borrowed visual idioms.
 
 ## Rules
 
@@ -120,6 +119,9 @@ Use original celestial/star accent markers, not borrowed visual idioms.
   silently changing the command.
 - If `rg` is unavailable in the hosted runner, fall back to `git grep -n`,
   `grep -RIn`, or direct file reads and continue.
+- Keep verification text-only. Inspect source, tests, commands, logs, and text
+  output directly instead of producing screenshots, pseudo-screenshots, parsed
+  terminal snapshots, or temporary visualizer artifacts.
 - If validation fails only because the hosted runner lacks a local tool that is
   not provisioned by this repository, report the environment gap instead of
   improvising tool installation.
@@ -169,12 +171,20 @@ runner image.
 
 ## Post-session workflow
 
-- List and tail hosted sessions with the unique session identifier:
+- After every `gh agent-task create`, the dispatcher must identify the new
+  unique session identifier and tail logs explicitly:
 
 ```bash
 gh agent-task list
-gh agent-task view <session-id-or-pr> --log --follow
+gh agent-task view <session-id> --log --follow
 ```
+
+- If the tailed logs show private-skill bootstrap attempts, `SKILL.md` reads,
+  non-English output, screenshot or pseudo-screenshot plans, temporary visual
+  artifacts, or ad hoc tool installation, stop the run, correct the prompt or
+  profile, and relaunch before promotion.
+- Do not move on to PR inspection, review, promotion, or merge work until the
+  paired launch-log tail has completed and any violation has been triaged.
 
 - Inspect the hosted PR and watch its checks with:
 

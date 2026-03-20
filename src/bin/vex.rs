@@ -3,7 +3,7 @@ use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::widgets::Clear;
-use std::io::IsTerminal;
+use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
@@ -24,6 +24,54 @@ use vexcoder::ui::render::{
 };
 
 const STARTUP_NOISE_GUARD: Duration = Duration::from_secs(15);
+
+fn prompt_line(label: &str, current: Option<&str>) -> Result<String> {
+    let mut stdout = io::stdout();
+    match current.filter(|value| !value.trim().is_empty()) {
+        Some(current) => write!(stdout, "{label} [{current}]: ")?,
+        None => write!(stdout, "{label}: ")?,
+    }
+    stdout.flush()?;
+
+    let mut line = String::new();
+    if io::stdin().read_line(&mut line)? == 0 {
+        bail!("{label} is required");
+    }
+
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return Ok(current.unwrap_or_default().to_string());
+    }
+    Ok(trimmed.to_string())
+}
+
+fn prompt_tui_startup_config(mut config: Config) -> Result<Config> {
+    if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
+        return Ok(config);
+    }
+
+    println!("Interactive session setup");
+    println!("Enter the API base or full endpoint before the fullscreen surface starts.");
+
+    let api_url = prompt_line(
+        "API URL",
+        Some(config.model_url.as_str()).filter(|value| !value.trim().is_empty()),
+    )?;
+    if api_url.trim().is_empty() {
+        bail!("API URL is required for interactive sessions");
+    }
+
+    let model_name = prompt_line(
+        "Model name",
+        Some(config.model_name.as_str()).filter(|value| !value.trim().is_empty()),
+    )?;
+
+    if api_url.trim() != config.model_url.trim() || model_name.trim() != config.model_name.trim() {
+        config.apply_interactive_model_selection(api_url, Some(model_name));
+    }
+
+    Ok(config)
+}
 
 #[derive(Parser)]
 #[command(name = "vex", about = "vexcoder -- zero-licensing-cost coding agent")]
@@ -732,7 +780,7 @@ const INIT_CONFIG_TEMPLATE: &str = concat!(
     "# vex workspace config\n",
     "# uncomment only the keys you need for this workspace\n",
     "# model_name = \"local/default\"\n",
-    "# model_url = \"http://localhost:11434/v1\"\n",
+    "# model_url = \"https://example.invalid/v1\"\n",
     "# working_dir = \".\"\n",
     "# model_backend = \"local-runtime\"\n",
     "# model_protocol = \"chat-compat\"\n",
@@ -1238,8 +1286,7 @@ async fn main() -> Result<ExitCode> {
         None => {}
     }
 
-    let config = Config::load()?;
-    config.validate()?;
+    let mut config = Config::load()?;
 
     let resume_state = match cli.resume.as_deref() {
         Some(task_id) => match resolve_resume_state(task_id)? {
@@ -1254,8 +1301,12 @@ async fn main() -> Result<ExitCode> {
 
     // PM-03: -p/--print one-shot mode.
     if let Some(prompt) = cli.print_prompt {
+        config.validate()?;
         return run_print(prompt, config, resume_state).await;
     }
+
+    config = prompt_tui_startup_config(config)?;
+    config.validate()?;
 
     // PM-01: --resume startup flag.
     if let Some(state) = resume_state {

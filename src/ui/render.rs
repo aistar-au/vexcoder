@@ -3,7 +3,7 @@ use crate::ui::input_metrics::{
     char_display_width, cursor_row_col, truncate_to_display_width, visual_row_count,
     visual_window_start, wrap_input_lines,
 };
-use crate::ui::layout::split_four_region_layout;
+use crate::ui::layout::{preferred_four_region_input_rows, split_four_region_layout};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -212,129 +212,12 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
 /// The selected timeline entry is highlighted and its detail is shown
 /// in the output/inspector pane.
 pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
-    use crate::app::StepLifecycle;
-
-    let preferred_input_rows = if frame.area().height >= 30 {
-        7
-    } else if frame.area().height >= 22 {
-        6
-    } else if frame.area().height >= 16 {
-        5
-    } else {
-        4
-    };
-    let input_rows = preferred_input_rows.max(input_visual_rows(
-        &state.composer_text,
-        frame.area().width.max(1) as usize,
-    ));
-    let layout = split_four_region_layout(frame.area(), 2, input_rows as u16);
+    let layout = split_four_region_layout(
+        frame.area(),
+        0,
+        preferred_four_region_input_rows(frame.area().height),
+    );
     frame.render_widget(Clear, frame.area());
-
-    // --- Header ---
-    let mut header_lines = vec![Line::from(state.status_line.clone())];
-    if !state.changed_files.is_empty() {
-        header_lines.push(Line::from(format!(
-            "files: {}",
-            state.changed_files.join(", ")
-        )));
-    }
-    frame.render_widget(Paragraph::new(Text::from(header_lines)), layout.header);
-
-    // --- Activity / Timeline pane ---
-    let max_visible: usize = 6;
-
-    if !state.timeline_entries.is_empty() {
-        // Use structured timeline entries with selection highlighting.
-        let total = state.timeline_entries.len();
-        let selected = state.selected_step.min(total.saturating_sub(1));
-
-        // Compute the visible window: keep selected entry in view.
-        let window_start = if selected >= max_visible {
-            selected + 1 - max_visible
-        } else {
-            0
-        };
-        let window_end = (window_start + max_visible).min(total);
-
-        let activity_text: Vec<Line> = state.timeline_entries[window_start..window_end]
-            .iter()
-            .enumerate()
-            .map(|(i, entry)| {
-                let abs_index = window_start + i;
-                let is_selected = abs_index == selected;
-                render_timeline_entry(entry, is_selected)
-            })
-            .collect();
-
-        let activity_title = if state
-            .timeline_entries
-            .iter()
-            .any(|e| e.lifecycle == StepLifecycle::Running)
-        {
-            "Orchestrating"
-        } else if state
-            .timeline_entries
-            .iter()
-            .any(|e| e.lifecycle == StepLifecycle::CommandSession)
-        {
-            "Session"
-        } else {
-            "Steps"
-        };
-
-        // Show scroll indicator if total exceeds visible window.
-        let title_suffix = if total > max_visible {
-            format!(" ({}/{})", selected + 1, total)
-        } else {
-            String::new()
-        };
-
-        frame.render_widget(
-            Paragraph::new(Text::from(activity_text)).block(
-                Block::default().borders(Borders::NONE).title(Span::styled(
-                    format!("{activity_title}{title_suffix}"),
-                    Style::default()
-                        .fg(Color::DarkGray)
-                        .add_modifier(Modifier::BOLD),
-                )),
-            ),
-            layout.activity,
-        );
-    } else {
-        // Fallback to legacy string-based activity rows.
-        let activity_text: Vec<Line> = state
-            .activity_rows
-            .iter()
-            .map(|row| pipeline_activity_line(row))
-            .collect();
-        let activity_title = if state
-            .activity_rows
-            .first()
-            .map(|row| row.starts_with("command:"))
-            .unwrap_or(false)
-        {
-            "Session"
-        } else if state
-            .activity_rows
-            .iter()
-            .any(|row| row.starts_with("[->]"))
-        {
-            "Orchestrating"
-        } else {
-            "Steps"
-        };
-        frame.render_widget(
-            Paragraph::new(Text::from(activity_text)).block(
-                Block::default().borders(Borders::NONE).title(Span::styled(
-                    activity_title,
-                    Style::default()
-                        .fg(Color::DarkGray)
-                        .add_modifier(Modifier::BOLD),
-                )),
-            ),
-            layout.activity,
-        );
-    }
 
     // --- Output / Inspector pane ---
     let output_lines: Vec<Line> = state
@@ -354,11 +237,6 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
 
     frame.render_widget(
         Paragraph::new(Text::from(output_lines))
-            .block(
-                Block::default()
-                    .borders(Borders::NONE)
-                    .title(state.output_title.clone()),
-            )
             .scroll((output_scroll, 0))
             .wrap(Wrap { trim: false }),
         layout.output,
@@ -380,6 +258,7 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     }
 }
 
+#[cfg(test)]
 /// Render a single timeline entry with lifecycle-based colour coding
 /// and an optional selection indicator.
 fn render_timeline_entry(entry: &crate::app::TimelineEntry, is_selected: bool) -> Line<'static> {
@@ -1201,7 +1080,7 @@ mod tests {
     }
 
     #[test]
-    fn task_layout_renders_orchestrating_title_for_pending_steps() {
+    fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
         let backend = TestBackend::new(80, 24);
         let mut terminal = Terminal::new(backend).unwrap();
         let state = crate::app::TaskLayoutState {
@@ -1251,12 +1130,104 @@ mod tests {
             .collect::<Vec<_>>()
             .join("");
         assert!(
-            flat.contains("Orchestrating"),
-            "pending steps should switch the activity title"
+            flat.contains("streamed output"),
+            "the output pane should remain primary when steps are pending"
         );
         assert!(
-            flat.contains("validate: running"),
-            "pending steps should remain visible in the activity pane"
+            !flat.contains("Orchestrating") && !flat.contains("validate: running"),
+            "the fallback surface should not render a separate top activity pane"
+        );
+    }
+
+    #[test]
+    fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
+        let backend = TestBackend::new(80, 40);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let timeline_entries = (0..12)
+            .map(|index| crate::app::TimelineEntry {
+                step_id: index as u64,
+                lifecycle: crate::app::StepLifecycle::Completed,
+                label: format!("step_{index} · completed"),
+                detail: format!("Tool: step_{index}"),
+                session_id: None,
+            })
+            .collect();
+        let state = crate::app::TaskLayoutState {
+            task_id: "task-003".into(),
+            status_line: "Running".into(),
+            activity_rows: vec![],
+            timeline_entries,
+            selected_step: 8,
+            total_steps: 12,
+            output_title: "Inspector".into(),
+            output_rows: vec!["output".into()],
+            output_scroll_offset: 0,
+            output_scroll_anchor: crate::app::OutputScrollAnchor::Top,
+            changed_files: vec![],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
+            follow_mode: true,
+        };
+
+        terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+
+        let rendered = terminal.backend().buffer().clone();
+        let flat = rendered
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<Vec<_>>()
+            .join("");
+        assert!(
+            flat.contains("output"),
+            "the fallback transcript should use the available body space"
+        );
+    }
+
+    #[test]
+    fn task_layout_without_changed_files_starts_transcript_at_top_row() {
+        let backend = TestBackend::new(60, 16);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = crate::app::TaskLayoutState {
+            task_id: "task-004".into(),
+            status_line: "Running".into(),
+            activity_rows: vec![],
+            timeline_entries: vec![crate::app::TimelineEntry {
+                step_id: 1,
+                lifecycle: crate::app::StepLifecycle::Completed,
+                label: "step_1 · completed".into(),
+                detail: "Tool: step_1".into(),
+                session_id: None,
+            }],
+            selected_step: 0,
+            total_steps: 1,
+            output_title: "Transcript".into(),
+            output_rows: vec!["body row".into()],
+            output_scroll_offset: 0,
+            output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
+            changed_files: vec![],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
+            follow_mode: true,
+        };
+
+        terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+
+        let rendered = terminal.backend().buffer().clone();
+        let first_row_text = rendered
+            .content()
+            .iter()
+            .take(60)
+            .map(|cell| cell.symbol())
+            .collect::<Vec<_>>()
+            .join("");
+        assert!(
+            first_row_text.contains("body row"),
+            "without a top header, the transcript should begin on the first row"
         );
     }
 

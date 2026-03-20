@@ -1238,6 +1238,20 @@ fn test_editor_history_stash_restore() {
 }
 
 #[test]
+fn test_editor_submit_trims_trailing_newlines_before_history_recall() {
+    let mut editor = InputEditor::new();
+    editor.input_state.buffer = "first line\nsecond line\n\n".to_string();
+    editor.input_state.cursor = editor.input_state.buffer.len();
+
+    let submitted = editor.submit().expect("submitted multiline prompt");
+    assert_eq!(submitted, "first line\nsecond line");
+
+    editor.history_up();
+    assert_eq!(editor.input_state.buffer, "first line\nsecond line");
+    assert_eq!(editor.input_state.cursor, "first line\nsecond line".len());
+}
+
+#[test]
 fn test_editor_multiline_shortcuts() {
     let mut editor = InputEditor::new();
     editor.apply_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
@@ -2446,6 +2460,44 @@ async fn test_tool_approval_prompts_when_grant_does_not_match_tool() {
     );
 }
 
+#[tokio::test]
+async fn test_tool_approval_updates_task_status_until_turn_resumes() {
+    let mut ctx = setup_ctx();
+    let mut mode = TuiMode::new();
+    let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();
+
+    mode.on_user_input("review the plan".to_string(), &mut ctx);
+    assert_eq!(
+        mode.current_task.status,
+        crate::runtime::TaskStatus::Running
+    );
+
+    mode.on_model_update(
+        UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
+            tool_name: "read_file".to_string(),
+            input_preview: "{\"path\":\"src/main.rs\"}".to_string(),
+            response_tx,
+        }),
+        &mut ctx,
+    );
+    assert_eq!(
+        mode.current_task.status,
+        crate::runtime::TaskStatus::AwaitingApproval
+    );
+
+    mode.on_user_input("1".to_string(), &mut ctx);
+    assert!(response_rx.await.expect("approval should resolve"));
+
+    mode.on_model_update(
+        UiUpdate::TranscriptLine("[tool] resumed".to_string()),
+        &mut ctx,
+    );
+    assert_eq!(
+        mode.current_task.status,
+        crate::runtime::TaskStatus::Running
+    );
+}
+
 // -- PM-01 (app side): build_runtime_with_resume ---------------------------
 
 #[test]
@@ -3580,6 +3632,30 @@ fn test_command_session_started_update_creates_running_session() {
     assert_eq!(mode.command_sessions[0].command, "echo from-tool");
     assert_eq!(mode.command_sessions[0].pid, Some(7700));
     assert_eq!(mode.command_sessions[0].status, "running");
+}
+
+#[test]
+fn test_turn_complete_waits_for_last_command_session_to_finish() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.history_state.turn_in_progress = true;
+    mode.begin_turn_capture("!echo delayed-finish".to_string());
+    let session_id = mode.begin_command_session("echo delayed-finish".to_string());
+
+    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+    assert!(mode.is_turn_in_progress());
+    assert!(mode.turn_completion_pending);
+
+    mode.on_model_update(UiUpdate::CommandSessionFinished { session_id }, &mut ctx);
+
+    assert!(mode.command_sessions.is_empty());
+    assert!(!mode.is_turn_in_progress());
+    assert!(!mode.turn_completion_pending);
+    assert_eq!(
+        mode.current_task.status,
+        crate::runtime::TaskStatus::Completed
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

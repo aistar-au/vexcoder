@@ -1,5 +1,7 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
+pub(crate) const FIXED_FULLSCREEN_INPUT_ROWS: u16 = 3;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ThreePaneLayout {
     pub header: Rect,
@@ -33,15 +35,24 @@ pub struct FourRegionLayout {
     pub input: Rect,
 }
 
+pub(crate) fn preferred_four_region_input_rows(_rows: u16) -> u16 {
+    FIXED_FULLSCREEN_INPUT_ROWS
+}
+
 pub fn split_four_region_layout(area: Rect, header_rows: u16, input_rows: u16) -> FourRegionLayout {
-    let header_rows = header_rows.clamp(1, 2);
-    let input_rows = input_rows.clamp(3, 8);
+    let header_rows = header_rows.min(1).min(area.height);
+    let available_body = area.height.saturating_sub(header_rows);
+    let max_input_rows = available_body.saturating_sub(1).max(1);
+    let input_rows = input_rows
+        .clamp(1, FIXED_FULLSCREEN_INPUT_ROWS)
+        .min(max_input_rows);
+    let activity_rows = 0;
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(header_rows),
-            Constraint::Percentage(28),
+            Constraint::Length(activity_rows),
             Constraint::Min(1),
             Constraint::Length(input_rows),
         ])
@@ -85,18 +96,37 @@ mod tests {
     #[test]
     fn test_task_layout_four_regions_render_without_panic() {
         let area = Rect::new(0, 0, 80, 24);
-        let layout = split_four_region_layout(area, 1, 3);
+        let layout = split_four_region_layout(area, 0, 3);
 
         // Verify four regions are created with expected constraints
-        assert_eq!(layout.header.height, 1);
-        assert!(layout.activity.height > 0);
+        assert_eq!(layout.header.height, 0);
+        assert_eq!(layout.activity.height, 0);
         assert_eq!(layout.input.height, 3);
         assert!(layout.output.height > 0);
 
         // Verify vertical stacking
         assert_eq!(layout.header.y, 0);
-        assert_eq!(layout.activity.y, 1);
-        assert_eq!(layout.output.y, 1 + layout.activity.height);
+        assert_eq!(layout.activity.y, 0);
+        assert_eq!(layout.output.y, layout.activity.y + layout.activity.height);
         assert_eq!(layout.input.y, layout.output.y + layout.output.height);
+    }
+
+    #[test]
+    fn preferred_input_rows_remain_fixed_to_three_lines() {
+        assert_eq!(preferred_four_region_input_rows(12), 3);
+        assert_eq!(preferred_four_region_input_rows(20), 3);
+        assert_eq!(preferred_four_region_input_rows(24), 3);
+        assert_eq!(preferred_four_region_input_rows(30), 3);
+        assert_eq!(preferred_four_region_input_rows(40), 3);
+    }
+
+    #[test]
+    fn four_region_layout_keeps_full_body_for_transcript_on_tall_terminals() {
+        let area = Rect::new(0, 0, 80, 40);
+        let layout = split_four_region_layout(area, 0, 3);
+
+        assert_eq!(layout.activity.height, 0);
+        assert_eq!(layout.input.height, 3);
+        assert!(layout.output.height >= 36);
     }
 }
