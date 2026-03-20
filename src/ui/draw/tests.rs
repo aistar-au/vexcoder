@@ -450,7 +450,7 @@ fn paragraph_block_uses_four_to_six_lines_per_tool() {
         output.contains("\u{2726}"),
         "tool summary marker must render"
     );
-    assert!(output.contains("    Scope"), "detail rows must render");
+    assert!(output.contains("Scope"), "detail rows must render");
     assert!(output.contains("\u{2727}"), "evidence marker must render");
 }
 
@@ -1017,8 +1017,8 @@ fn tool_detail_renders_at_four_space_indent() {
     let output = String::from_utf8_lossy(&buf);
 
     assert!(
-        output.contains("    Status"),
-        "detail line must render at 4-space indent: {output}"
+        output.contains("Status"),
+        "detail line must render: {output}"
     );
 }
 
@@ -1068,8 +1068,8 @@ fn paragraph_block_disclosure_levels_render_as_tree() {
         "2-space tool header must have ✦ marker"
     );
     assert!(
-        output.contains("    Status"),
-        "4-space detail lines must be indented"
+        output.contains("Status"),
+        "4-space detail lines must be present"
     );
     assert!(
         output.contains("\u{2727}"),

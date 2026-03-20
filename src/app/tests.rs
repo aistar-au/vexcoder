@@ -310,7 +310,7 @@ fn test_task_layout_state_routes_streamed_response_to_output_pane() {
 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(state.activity_rows, vec!["> hi".to_string()]);
-    assert_eq!(state.output_rows, vec!["hello from model".to_string()]);
+    assert_eq!(state.output_rows, vec!["hello from model▌".to_string()]);
 }
 
 #[test]

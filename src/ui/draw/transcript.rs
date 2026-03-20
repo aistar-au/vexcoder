@@ -855,7 +855,7 @@ impl TaskDraw {
 
 /// Parse a numbered list item like "1. foo" or "12. bar".
 /// Returns (prefix_with_dot, rest_text, prefix_display_width).
-pub(super) fn parse_numbered_list_item(line: &str) -> Option<(&str, &str, usize)> {
+pub(crate) fn parse_numbered_list_item(line: &str) -> Option<(&str, &str, usize)> {
     let bytes = line.as_bytes();
     if bytes.is_empty() || !bytes[0].is_ascii_digit() {
         return None;

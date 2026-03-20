@@ -840,7 +840,8 @@ fn structured_transcript_line(
             ),
         ]);
     }
-    if let Some((prefix, rest, _)) = parse_numbered_list_item(trimmed) {
+    if let Some((prefix, rest, _)) = crate::ui::draw::transcript::parse_numbered_list_item(trimmed)
+    {
         return Line::from(vec![
             Span::styled(
                 format!("{indent}{}", marker.unwrap_or("")),
