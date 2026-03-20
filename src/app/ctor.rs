@@ -47,9 +47,12 @@ impl TuiMode {
             timeline_follow_mode: true,
             transcript_scroll_offset: 0,
             inspector_scroll_offset: 0,
+            turn_started_at: None,
             last_turn_tool_invocations: Vec::new(),
             last_turn_response: String::new(),
             last_turn_input_display: String::new(),
+            last_turn_duration: None,
+            last_error_message: None,
             #[cfg(test)]
             last_turn_input: None,
         }

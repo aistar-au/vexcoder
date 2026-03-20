@@ -646,7 +646,73 @@ fn pipeline_activity_line(row: &str) -> Line<'static> {
 }
 
 fn transcript_output_line(row: &str) -> Line<'static> {
-    if let Some(rest) = row.strip_prefix("[tool] ") {
+    if let Some(rest) = row.strip_prefix("[turn] ") {
+        Line::from(vec![
+            Span::styled(
+                "─── ✦ ",
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM),
+            ),
+            Span::styled(
+                rest.to_string(),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ])
+    } else if let Some(rest) = row.strip_prefix("[thinking] ") {
+        Line::from(vec![
+            Span::styled(
+                "  ⋯ ",
+                Style::default()
+                    .fg(Color::Blue)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                rest.to_string(),
+                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+            ),
+        ])
+    } else if let Some(rest) = row.strip_prefix("[thinking_detail] ") {
+        Line::styled(
+            format!("    {rest}"),
+            Style::default()
+                .fg(Color::Gray)
+                .add_modifier(Modifier::ITALIC | Modifier::DIM),
+        )
+    } else if let Some(rest) = row.strip_prefix("[approval] ") {
+        Line::from(vec![
+            Span::styled(
+                "  ? ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                rest.to_string(),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ])
+    } else if let Some(rest) = row.strip_prefix("[approval_detail] ") {
+        Line::styled(
+            format!("    {rest}"),
+            Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+        )
+    } else if let Some(rest) = row.strip_prefix("[error] ") {
+        Line::from(vec![
+            Span::styled(
+                "  ✖ ",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                rest.to_string(),
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
+        ])
+    } else if let Some(rest) = row.strip_prefix("[tool] ") {
         let mut spans = vec![Span::styled(
             "  \u{2726} ",
             Style::default()
@@ -688,11 +754,27 @@ fn transcript_output_line(row: &str) -> Line<'static> {
             Line::from(spans)
         }
     } else if let Some(rest) = row.strip_prefix("[detail] ") {
-        Line::styled(
-            format!("    {rest}"),
-            Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
-        )
+        structured_transcript_line(rest, "    ", None)
     } else if let Some(rest) = row.strip_prefix("[evidence] ") {
+        structured_transcript_line(rest, "      ", Some("\u{2727} "))
+    } else if let Some((command, pid)) = parse_command_session_started(row) {
+        let summary = pid
+            .map(|pid| format!("command session · {command} · pid {pid}"))
+            .unwrap_or_else(|| format!("command session · {command} · running"));
+        transcript_output_line(&format!("[tool] {summary}"))
+    } else if let Some(rest) = row.strip_prefix("[command session exit: ") {
+        structured_transcript_line(
+            &format!("Exit: {}", rest.trim_end_matches(']')),
+            "    ",
+            None,
+        )
+    } else if row == "[command session cancelled]" {
+        structured_transcript_line("Status: cancelled", "    ", None)
+    } else if row == "[command session cancellation requested]" {
+        structured_transcript_line("Status: cancellation requested", "    ", None)
+    } else if let Some(rest) = row.strip_prefix("[command session] error: ") {
+        transcript_output_line(&format!("[error] {rest}"))
+    } else if let Some(rest) = row.strip_prefix("[stderr] ") {
         Line::from(vec![
             Span::styled(
                 "      \u{2727} ",
@@ -702,7 +784,7 @@ fn transcript_output_line(row: &str) -> Line<'static> {
             ),
             Span::styled(
                 rest.to_string(),
-                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+                Style::default().fg(Color::Red).add_modifier(Modifier::DIM),
             ),
         ])
     } else if row.starts_with("[ok]")
@@ -715,6 +797,153 @@ fn transcript_output_line(row: &str) -> Line<'static> {
     } else {
         Line::from(row.to_string())
     }
+}
+
+fn structured_transcript_line(
+    row: &str,
+    indent: &'static str,
+    marker: Option<&'static str>,
+) -> Line<'static> {
+    let trimmed = row.trim_start();
+    if let Some((color, bold)) = diff_style(trimmed) {
+        let mut style = Style::default().fg(color).add_modifier(Modifier::DIM);
+        if bold {
+            style = style.add_modifier(Modifier::BOLD);
+        }
+        let mut spans = vec![Span::styled(
+            format!("{indent}{}", marker.unwrap_or("")),
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::DIM),
+        )];
+        spans.push(Span::styled(trimmed.to_string(), style));
+        return Line::from(spans);
+    }
+    if looks_like_json_line(trimmed) {
+        return json_transcript_line(trimmed, indent, marker);
+    }
+    if let Some(rest) = trimmed
+        .strip_prefix("- ")
+        .or_else(|| trimmed.strip_prefix("* "))
+    {
+        return Line::from(vec![
+            Span::styled(
+                format!("{indent}{}", marker.unwrap_or("")),
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM),
+            ),
+            Span::styled("• ".to_string(), Style::default().fg(Color::Yellow)),
+            Span::styled(
+                rest.to_string(),
+                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+            ),
+        ]);
+    }
+    if let Some((prefix, rest, _)) = parse_numbered_list_item(trimmed) {
+        return Line::from(vec![
+            Span::styled(
+                format!("{indent}{}", marker.unwrap_or("")),
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM),
+            ),
+            Span::styled(prefix.to_string(), Style::default().fg(Color::Yellow)),
+            Span::styled(
+                rest.to_string(),
+                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+            ),
+        ]);
+    }
+    Line::from(vec![
+        Span::styled(
+            format!("{indent}{}", marker.unwrap_or("")),
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::DIM),
+        ),
+        Span::styled(
+            trimmed.to_string(),
+            Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+        ),
+    ])
+}
+
+fn json_transcript_line(
+    row: &str,
+    indent: &'static str,
+    marker: Option<&'static str>,
+) -> Line<'static> {
+    let mut spans = vec![Span::styled(
+        format!("{indent}{}", marker.unwrap_or("")),
+        Style::default()
+            .fg(Color::DarkGray)
+            .add_modifier(Modifier::DIM),
+    )];
+    let mut chars = row.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '"' {
+            let mut token = String::from("\"");
+            while let Some(next) = chars.next() {
+                token.push(next);
+                if next == '"' {
+                    break;
+                }
+            }
+            let color = if chars.peek() == Some(&':') {
+                Color::Cyan
+            } else {
+                Color::Green
+            };
+            spans.push(Span::styled(token, Style::default().fg(color)));
+            continue;
+        }
+        let style = match ch {
+            '0'..='9' | '-' => Style::default().fg(Color::Yellow),
+            't' | 'f' | 'n' => Style::default().fg(Color::Magenta),
+            _ => Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::DIM),
+        };
+        spans.push(Span::styled(ch.to_string(), style));
+    }
+    Line::from(spans)
+}
+
+fn looks_like_json_line(text: &str) -> bool {
+    text.trim_start().starts_with('{')
+        || text.trim_start().starts_with('[')
+        || text.trim_start().starts_with('}')
+        || text.trim_start().starts_with(']')
+        || text.contains("\":")
+}
+
+fn diff_style(line: &str) -> Option<(Color, bool)> {
+    if line.starts_with('+') && !line.starts_with("+++") {
+        Some((Color::Green, false))
+    } else if line.starts_with('-') && !line.starts_with("---") {
+        Some((Color::Red, false))
+    } else if line.starts_with("@@")
+        || line.starts_with("diff --git")
+        || line.starts_with("index ")
+        || line.starts_with("+++ ")
+        || line.starts_with("--- ")
+    {
+        Some((Color::Cyan, true))
+    } else {
+        None
+    }
+}
+
+fn parse_command_session_started(line: &str) -> Option<(String, Option<String>)> {
+    let rest = line.strip_prefix("[command session started")?;
+    let (meta, command) = rest.split_once("] ")?;
+    let pid = meta
+        .strip_prefix(" pid=")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    Some((command.to_string(), pid))
 }
 
 fn split_tool_summary(text: &str) -> Option<(Vec<&str>, &str)> {

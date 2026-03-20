@@ -44,12 +44,15 @@ impl TuiMode {
         self.selected_timeline_index = 0;
         self.timeline_follow_mode = true;
         self.inspector_scroll_offset = 0;
+        self.turn_started_at = None;
     }
 
     pub(super) fn reset_last_turn_display(&mut self) {
         self.last_turn_tool_invocations.clear();
         self.last_turn_response.clear();
         self.last_turn_input_display.clear();
+        self.last_turn_duration = None;
+        self.last_error_message = None;
     }
 
     pub(super) fn begin_turn_capture(&mut self, input: String) {
@@ -57,6 +60,8 @@ impl TuiMode {
         self.current_turn_input = input;
         self.current_task.status = TaskStatus::Running;
         self.transcript_scroll_offset = 0;
+        self.turn_started_at = Some(Instant::now());
+        self.last_error_message = None;
     }
 
     pub(super) fn begin_command_session(&mut self, command: String) -> u64 {
@@ -101,6 +106,8 @@ impl TuiMode {
         self.last_turn_tool_invocations = self.current_turn_tool_invocations.clone();
         self.last_turn_response = self.current_turn_response.clone();
         self.last_turn_input_display = self.current_turn_input.clone();
+        self.last_turn_duration = self.turn_started_at.map(|started| started.elapsed());
+        self.last_error_message = None;
 
         let changed_files = self
             .current_turn_changed_files

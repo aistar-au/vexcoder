@@ -162,6 +162,7 @@ impl TuiMode {
                 last_validation_result,
             } => {
                 self.command_sessions.clear();
+                self.last_error_message = None;
                 if let Some(result) = last_validation_result {
                     if let Some(edit_loop) = self.active_edit_loop.as_mut() {
                         edit_loop.set_last_validation_result(result);
@@ -236,6 +237,7 @@ impl TuiMode {
                 if !self.command_sessions.is_empty() {
                     return;
                 }
+                self.last_error_message = None;
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
@@ -257,6 +259,8 @@ impl TuiMode {
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
+                self.last_turn_duration = self.turn_started_at.map(|started| started.elapsed());
+                self.last_error_message = Some(msg.clone());
                 self.reset_turn_capture();
                 self.history_state.cancel_pending = false;
                 self.push_history_line(format!("[error] {msg}"));
