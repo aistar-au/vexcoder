@@ -141,6 +141,18 @@ fn allowlisted_agent_profile_content() -> String {
     .unwrap()
 }
 
+fn allowlisted_focus_agent_profile_content() -> String {
+    String::from_utf8(vec![
+        0x2d, 0x2d, 0x2d, 0x0a, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x3a, 0x20, 0x22, 0x47, 0x50, 0x54,
+        0x2d, 0x35, 0x2e, 0x34, 0x22, 0x0a, 0x2d, 0x2d, 0x2d, 0x0a, 0x55, 0x73, 0x65, 0x20, 0x74,
+        0x68, 0x65, 0x20, 0x66, 0x6f, 0x63, 0x75, 0x73, 0x65, 0x64, 0x20, 0x72, 0x65, 0x70, 0x6f,
+        0x73, 0x69, 0x74, 0x6f, 0x72, 0x79, 0x2d, 0x6c, 0x65, 0x76, 0x65, 0x6c, 0x20, 0x63, 0x6f,
+        0x64, 0x69, 0x6e, 0x67, 0x20, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x20, 0x70, 0x72, 0x6f, 0x66,
+        0x69, 0x6c, 0x65, 0x2e, 0x0a,
+    ])
+    .unwrap()
+}
+
 #[test]
 fn test_config_validation_rejects_local_model_for_remote_endpoint() {
     let config = Config {
@@ -384,6 +396,29 @@ fn check_forbidden_names_sh_allows_repository_ui_orchestrator_agent_profile() {
     assert!(
         output.status.success(),
         "expected allowlisted repository agent profile to pass forbidden-name check: {text}"
+    );
+}
+
+#[test]
+fn check_forbidden_names_sh_allows_repository_ui_paragraph_agent_profile() {
+    let temp = prepare_forbidden_names_fixture();
+    std::fs::write(
+        temp.path()
+            .join(".github/agents/vexcoder-ui-paragraph-renderer.agent.md"),
+        allowlisted_focus_agent_profile_content(),
+    )
+    .unwrap();
+
+    let output = run_forbidden_names_check(temp.path());
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    assert!(
+        output.status.success(),
+        "expected allowlisted paragraph agent profile to pass forbidden-name check: {text}"
     );
 }
 

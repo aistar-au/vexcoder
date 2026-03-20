@@ -143,17 +143,27 @@ Do not merge packaging work directly from a local debug session; keep the review
 
 Repository-level background sessions can use the private skill tree from
 `aistar-au/vexdraft` through the repository setup workflow and the
-`vexcoder-ui-parity-orchestrator` profile.
+custom agent profiles under `.github/agents/`.
 
 - The setup workflow syncs `vexdraft/.agents/skills/` into the background
   session home directory and reads the private-repo clone credential from the
   platform environment secret referenced by the setup workflow.
+- Repository-wide background-session guidance now lives under
+  `.github/instructions/`, while skill bootstrap stays in the setup workflow and
+  the custom agent profiles.
 - The setup workflow only affects background sessions after it lands on the
   default branch. Manual workflow dispatch is still useful for validating the
   bootstrap steps on a feature branch before merge.
 - The repository-level agent profile follows the branch you target. Use a
   dispatcher branch as the `--base` argument when you want the remote session
   to see branch-local agent changes.
+
+Available profiles:
+
+- `vexcoder-ui-parity-orchestrator` for broad fullscreen UI, task-state, and
+  stale-doc work.
+- `vexcoder-ui-paragraph-renderer` for transcript drawing, paragraph rendering,
+  and enriched tool-detail layout work.
 
 Start a UI parity session from the GitHub CLI with:
 
@@ -169,6 +179,16 @@ Tail an existing session with:
 
 ```bash
 gh agent-task view <session-id-or-pr> --log --follow
+```
+
+Start a paragraph-rendering session with:
+
+```bash
+gh agent-task create \
+  --base <dispatcher-branch> \
+  --custom-agent vexcoder-ui-paragraph-renderer \
+  --follow \
+  "Investigate paragraph-style tool rendering, transcript drawing, and stale docs."
 ```
 
 When promoting remote-session changes, mirror or cherry-pick them onto a

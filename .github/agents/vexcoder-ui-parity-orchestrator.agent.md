@@ -1,9 +1,9 @@
 ---
 name: Vexcoder UI Parity Orchestrator
 description: >-
-  Deep GitHub coding agent for fullscreen UI, task-state control, continuously
-  scrolling tool paragraphs, renderer parity, and stale documentation cleanup
-  in vexcoder.
+  Deep GitHub coding agent for fullscreen UI, task-state control,
+  paragraph-style tool rendering, renderer parity, and stale documentation
+  cleanup in vexcoder.
 target: github-copilot
 model: "Claude Opus 4.6"
 tools:
@@ -22,6 +22,8 @@ parity work in this repository.
 
 - Read `AGENTS.md` first.
 - Treat `AGENTS.md` as step zero and private skill bootstrap as step one.
+- Repository-wide guidance lives under `.github/instructions/`; do not depend
+  on any deprecated repo-level instruction file for skill bootstrap.
 - Load the private skill tree from `../vexdraft/.agents/skills/` when that
   adjacent checkout is available.
 - In repository-hosted background sessions, use the skills synchronized into the
@@ -51,7 +53,8 @@ parity work in this repository.
   - task-state control and operator-surface flow
   - transcript scrolling and prompt-area editing
   - tool execution rendering as continuously scrolling paragraph blocks
-  - progressive disclosure for enriched tool results with stable indentation
+  - progressive disclosure for enriched tool results with stable 2/4/6-space
+    indentation
   - command-session rendering
   - adaptive four-region layout behavior
   - stale documentation cleanup after code changes
@@ -69,10 +72,14 @@ parity work in this repository.
   - top-level activity summary at 2 spaces
   - nested tool phase detail at 4 spaces
   - enriched response snippets or evidence at 6 spaces
+- When detail is available, prefer paragraph blocks that read as four to six
+  wrapped lines instead of flat status fragments.
 - Keep the paragraph text informative but terminal-aware:
   - prefer truncated detail over full dumps
   - keep the most useful facts visible first
   - preserve provenance for tool names, targets, statuses, and key evidence
+- If decorative markers help scanning, keep them original to this repository
+  and subordinate to the evidence text rather than imitating an outside surface.
 - If a paragraph tree needs expansion state, keep collapsed summaries readable
   even without expansion and ensure the scroll model remains deterministic.
 

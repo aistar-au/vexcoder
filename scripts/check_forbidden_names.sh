@@ -35,6 +35,7 @@ scan_targets() {
     "$RG_BIN" -n --hidden -i \
       --glob '!.git' \
       --glob '!.github/agents/vexcoder-ui-parity-orchestrator.agent.md' \
+      --glob '!.github/agents/vexcoder-ui-paragraph-renderer.agent.md' \
       --glob '!.github/workflows/**' \
       --glob '!scripts/check_forbidden_names.sh' \
       --glob '!TASKS/completed/REPO-RAW-URL-MAP.md' \
@@ -62,6 +63,8 @@ for root in roots:
         if rel == "TASKS/completed/REPO-RAW-URL-MAP.md":
             continue
         if rel == ".github/agents/vexcoder-ui-parity-orchestrator.agent.md":
+            continue
+        if rel == ".github/agents/vexcoder-ui-paragraph-renderer.agent.md":
             continue
         if rel.startswith(".git/") or rel.startswith(".github/workflows/"):
             continue
@@ -173,8 +176,9 @@ PY
 #           Ensures no proprietary assistant-brand names appear in workflow YAML even
 #           though action-reference patterns are excluded there.
 #           Exact-path allowlists cover the repository's required coding-agent
-#           setup workflow and its paired repository-level agent profile because
-#           those files must use platform-mandated integration identifiers.
+#           setup workflow and its paired repository-level agent profiles
+#           because those files must use platform-mandated integration
+#           identifiers.
 #   Pass 3 (PATH_PATTERN): brand-name subset over prompt/model file paths so
 #           branded fixture/template filenames are rejected even when file
 #           contents are generic.
