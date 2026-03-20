@@ -199,8 +199,24 @@ gh agent-task create \
   "Investigate paragraph-style tool rendering, transcript drawing, and stale docs."
 ```
 
-When promoting remote-session changes, mirror or cherry-pick them onto a
-repo-qualified dispatcher branch before commit-debug, push, and PR creation.
+### Post-session workflow (mandatory steps A–G)
+
+After an agent session completes, the dispatcher must follow these steps in
+order. The full procedure is documented in the `vex-local-bash` skill.
+
+1. **A — Tail logs**: identify each concurrent session by its unique ID.
+2. **B — Create dispatcher branch**: create a `dispatcher/vexcoder-` branch
+   from `origin/main` and cherry-pick the agent's commits.
+3. **C — Commit-debug loop**: run `vexdraft/scripts/commit-debug.py`, fix
+   findings, push, and re-run until `PASS`.
+4. **D — Hide bot comments**: minimize automated reviewer bot comments via
+   GraphQL `minimizeComment` with `OUTDATED` classifier.
+5. **E — Sanitize brand names**: scan PR body, commit messages, and comments
+   for proprietary brand names before posting.
+6. **F — Watch CI**: monitor all checks with `gh pr checks --watch` and fix
+   any failures before merge.
+7. **G — Update documentation**: refresh CONTRIBUTING, architecture docs,
+   commands docs, and the raw URL map for all changed files.
 
 ---
 

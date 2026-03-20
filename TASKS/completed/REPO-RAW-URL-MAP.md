@@ -60,7 +60,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 51 | `build.rs` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/build.rs> | ~29 |
 | 52 | `Cargo.lock` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.lock> | ~2574 |
 | 53 | `Cargo.toml` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.toml> | ~51 |
-| 54 | `CONTRIBUTING.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> | ~337 |
+| 54 | `CONTRIBUTING.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> | ~353 |
 | 55 | `docs/src/architecture.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/architecture.md> | ~32 |
 | 56 | `docs/src/commands.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/commands.md> | ~215 |
 | 57 | `docs/src/configuration.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/configuration.md> | ~95 |
