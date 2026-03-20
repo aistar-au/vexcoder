@@ -44,10 +44,10 @@ fn first_draw_writes_full_screen() {
     assert!(output.contains("\x1b["), "output must contain ANSI escapes");
     // Human-readable header must show repo name.
     assert!(output.contains("vexcoder"), "header must show repo name");
-    // Must contain the timeline entry.
+    // Must reflect running activity in the header.
     assert!(
-        output.contains("read_file: running"),
-        "timeline entry must be drawn"
+        output.contains("1 active"),
+        "header must summarize running activity"
     );
     // Must contain output rows.
     assert!(output.contains("line 1"), "output row 1 must be drawn");
@@ -211,8 +211,8 @@ fn lifecycle_only_changes_redraw_activity() {
 
     let output = String::from_utf8_lossy(&buf);
     assert!(
-        output.contains("\u{2605}"),
-        "lifecycle changes must redraw the timeline row with star marker"
+        output.contains("1 step done"),
+        "lifecycle changes must redraw the header summary"
     );
 }
 
@@ -272,7 +272,7 @@ fn changing_selected_inspector_entry_redraws_output() {
 }
 
 #[test]
-fn fallback_activity_rows_render_without_timeline_entries() {
+fn activity_rows_do_not_render_in_fullscreen_transcript_surface() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
     let state = TaskLayoutState {
@@ -297,8 +297,9 @@ fn fallback_activity_rows_render_without_timeline_entries() {
     draw.draw(&mut buf, &state, 80, 24);
     let output = String::from_utf8_lossy(&buf);
 
-    assert!(output.contains("validate: running"));
-    assert!(output.contains("ship it"));
+    assert!(output.contains("line 1"));
+    assert!(!output.contains("validate: running"));
+    assert!(!output.contains("ship it"));
 }
 
 #[test]
@@ -596,7 +597,7 @@ fn persistent_layout_shows_welcome_hint_before_first_turn() {
 }
 
 #[test]
-fn adaptive_layout_scales_timeline_with_entries() {
+fn adaptive_layout_assigns_full_body_to_transcript() {
     let entries: Vec<TimelineEntry> = (0..20)
         .map(|i| TimelineEntry {
             step_id: i as u64,
@@ -608,17 +609,9 @@ fn adaptive_layout_scales_timeline_with_entries() {
         .collect();
 
     let regions = Regions::compute(80, 40, false, entries.len());
-    // Timeline should grow beyond the old fixed 6 rows.
-    assert!(
-        regions.timeline_rows > 6,
-        "timeline must scale beyond 6 rows for 20 entries on a 40-row terminal"
-    );
-    // But not exceed 35% of available space.
-    let max_expected = ((40 - 1 - 3) as f32 * 0.35) as u16;
-    assert!(
-        regions.timeline_rows <= max_expected + 1,
-        "timeline must not exceed ~35% of available space"
-    );
+    assert_eq!(regions.timeline_rows, 0);
+    assert_eq!(regions.transcript_start, 1);
+    assert!(regions.transcript_rows > 0);
 }
 
 #[test]
@@ -839,6 +832,37 @@ fn composer_renders_live_input_text() {
     assert!(
         output.contains("hello fullscreen"),
         "composer must render the live editor buffer"
+    );
+}
+
+#[test]
+fn composer_hint_renders_once_without_repeating_down_the_prompt() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec![]);
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    let hint = "Use `/` for commands";
+
+    assert_eq!(
+        output.matches(hint).count(),
+        1,
+        "composer helper hint must render once"
+    );
+}
+
+#[test]
+fn short_bottom_anchored_transcript_hugs_prompt_edge() {
+    let state = make_state(vec![], vec!["Type a prompt below to begin."]);
+    let regions = Regions::compute(80, 24, false, 0);
+    let (visible_start, visible_end) = transcript_window(&state, regions.transcript_rows as usize);
+    let render_start = transcript_render_start_row(&state, &regions, visible_start, visible_end);
+
+    assert_eq!(
+        render_start,
+        regions.composer_start.saturating_sub(1),
+        "short transcript should render against the prompt edge"
     );
 }
 

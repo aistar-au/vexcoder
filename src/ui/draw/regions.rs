@@ -1,4 +1,4 @@
-use crate::ui::layout::{preferred_four_region_input_rows, MAX_TIMELINE_FRACTION};
+use crate::ui::layout::preferred_four_region_input_rows;
 
 // ── Adaptive region geometry ────────────────────────────────────────
 
@@ -7,8 +7,7 @@ use crate::ui::layout::{preferred_four_region_input_rows, MAX_TIMELINE_FRACTION}
 /// ```text
 /// row 0        ┌─ header (repo + status) ───────┐  (1 row)
 /// row 1        ├─ changed files (optional) ──────┤  (0..1 rows)
-/// row H..T     ├─ timeline (adaptive height) ────┤  (3..40% of rows)
-/// row T..C     │  transcript (remaining rows)    │  (fills remaining)
+/// row H..C     │  transcript (remaining rows)    │  (fills remaining)
 /// row C..end   ├─ composer (adaptive) ───────────┤  (4..8 rows)
 ///              └─────────────────────────────────┘
 /// ```
@@ -26,8 +25,6 @@ pub(super) struct Regions {
     pub(super) status_bar_row: u16,
 }
 
-/// Minimum timeline rows (below this the timeline is hidden).
-const MIN_TIMELINE_ROWS: u16 = 3;
 /// Minimum transcript rows reserved above the prompt surface.
 const MIN_TRANSCRIPT_ROWS: u16 = 2;
 /// Minimum fullscreen prompt rows (toolbar + multiline input).
@@ -48,10 +45,9 @@ impl Regions {
         let status_bar_row = rows.saturating_sub(1);
 
         // Composer: dedicate a larger bottom-docked prompt surface while
-        // preserving minimum room for timeline and transcript.
+        // preserving minimum room for transcript above it.
         let available = rows.saturating_sub(header_height).saturating_sub(1);
         let max_composer_rows = available
-            .saturating_sub(MIN_TIMELINE_ROWS)
             .saturating_sub(MIN_TRANSCRIPT_ROWS)
             .max(MIN_COMPOSER_ROWS);
         let composer_rows = preferred_four_region_input_rows(rows)
@@ -60,18 +56,15 @@ impl Regions {
 
         let available = available.saturating_sub(composer_rows);
 
-        // Timeline: adaptive height based on content and terminal size.
-        // Uses up to MAX_TIMELINE_FRACTION of available space, but at least
-        // MIN_TIMELINE_ROWS (with a title row).
-        let content_rows = (timeline_entry_count as u16).saturating_add(1); // +1 for title
-        let max_timeline = ((available as f32) * MAX_TIMELINE_FRACTION) as u16;
-        let timeline_rows = content_rows.min(max_timeline).max(MIN_TIMELINE_ROWS);
-
-        // Transcript: everything left after timeline.
-        let transcript_rows = available.saturating_sub(timeline_rows);
+        // The fullscreen ANSI surface does not reserve a dedicated top
+        // timeline strip. The transcript owns the full body above the
+        // composer and renders tool/state paragraphs directly.
+        let _ = timeline_entry_count;
+        let timeline_rows = 0;
+        let transcript_rows = available;
 
         let timeline_start = header_height;
-        let transcript_start = timeline_start + timeline_rows;
+        let transcript_start = header_height;
         let composer_start = transcript_start + transcript_rows;
 
         Regions {
