@@ -10,8 +10,14 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
 - Keep one comprehensive draft branch and one comprehensive draft PR per
   feature lane.
 - Keep wording neutral and repository-focused.
+- Aim for original free-license parity through first-principles design. Do not
+  reuse proprietary product wording, branded visual labels, or copyrighted UI
+  material.
 - Do not introduce proprietary product names in code, comments, commits,
   review replies, or PR text unless a path, URL, command, or quoted log line
   requires the exact string.
 - Preserve the model pin declared inside the selected agent profile. Do not add
   invocation flags to override it from the command line.
+- If the hosted runner lacks an undeclared local tool that this repository does
+  not provision, report the environment gap instead of installing ad hoc
+  tooling inside the session.

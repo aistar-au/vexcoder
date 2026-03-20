@@ -168,6 +168,9 @@ repository-hosted agent instructions file under `.github/`.
   passing a model flag in `gh agent-task create`. If the hosting surface does
   not honor the profile pin, record the observed behavior in the session log
   instead of changing invocation style.
+- If a hosted-run validation step fails only because the runner lacks a local
+  CLI that the repository does not provision, record the gap as environment
+  drift instead of installing ad hoc tooling inside the session.
 - For one feature lane, open one comprehensive draft PR. Do not keep multiple
   overlapping draft PRs for the same layout/render/test/doc workflow.
 

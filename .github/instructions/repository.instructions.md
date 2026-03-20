@@ -72,6 +72,9 @@ gh agent-task view <session-id-or-pr> --log --follow
 - Keep the model pinned in the agent profile rather than adding model flags at
   invocation time. If the hosting surface ignores the profile pin, report that
   behavior explicitly instead of silently changing the command.
+- If a hosted-run validation step fails only because the runner lacks a local
+  tool that this repository does not provision, report the environment gap
+  rather than installing ad hoc tooling in-session.
 - Promote remote agent output onto a `dispatcher/vexcoder-...` branch before
   commit-debug, CI watch, and final PR preparation.
 - Run `vexdraft/scripts/commit-debug.py` with the configured review slot after
@@ -91,6 +94,8 @@ gh agent-task view <session-id-or-pr> --log --follow
 - Prefer original wording and original implementations.
 - Do not copy third-party text or code into the repository unless it is clearly
   intended, necessary, and license-compatible.
+- Match proprietary reference behavior through original implementation and
+  neutral descriptions, not borrowed product wording or copied interface text.
 - If an implementation or document reads too close to an outside source, prefer
   a rewrite from first principles and call out the provenance risk explicitly.
 

@@ -54,7 +54,9 @@ with progressive disclosure:
 
 Use the repository's own celestial/star accent markers. Do not copy color
 schemes, icon sets, or visual patterns from proprietary tools. The goal is
-functional equivalence through original design.
+functional equivalence to proprietary reference surfaces through original
+design. Do not reuse branded wording, layout phrasing, or copyrighted UI
+material.
 
 If the task touches `src/app/layout.rs`, `src/ui/render.rs`,
 `src/ui/draw/**`, `src/app/tests.rs`, docs, or agent workflow files together,
@@ -73,6 +75,9 @@ already exist, inspect and consolidate them before pushing a new draft.
 - Keep the model pinned in this profile. Do not pass a model flag when invoking
   this agent. If the hosting surface ignores the profile pin, report that
   behavior explicitly instead of changing invocation style.
+- If validation fails only because the hosted runner lacks a local tool that is
+  not provisioned by this repository, report the environment gap instead of
+  installing ad hoc tooling in-session.
 
 ## Before committing
 

@@ -49,7 +49,8 @@ coding agent.
 
 Prefer the smallest safe diff that closes a documented or observed gap.
 Keep wording neutral — no proprietary brand names in code, comments, or
-commits.
+commits. Match proprietary reference behavior through original design rather
+than borrowed wording, copied layout phrasing, or copyrighted UI material.
 
 If the task spans layout, renderer, tests, docs, workflow instructions, or
 remote-session cleanup, keep the work in one comprehensive branch and one
@@ -77,6 +78,9 @@ Use original celestial/star accent markers, not borrowed visual idioms.
 - Keep the model pinned in the profile rather than adding invocation flags. If
   the hosting surface ignores the profile pin, report that behavior instead of
   silently changing the command.
+- If validation fails only because the hosted runner lacks a local tool that is
+  not provisioned by this repository, report the environment gap instead of
+  improvising tool installation.
 
 ## Before committing
 
