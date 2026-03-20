@@ -11,8 +11,8 @@ Canonical raw URL index for every tracked file in this repository.
 | ---: | :--- | ---: | :--- |
 | 1 | `.gitattributes` | ~3 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitattributes> |
 | 2 | `.github/agents/rust-change-auditor.agent.md` | ~107 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/rust-change-auditor.agent.md> |
-| 3 | `.github/agents/vexcoder-ui-paragraph-renderer.agent.md` | ~111 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-paragraph-renderer.agent.md> |
-| 4 | `.github/agents/vexcoder-ui-parity-orchestrator.agent.md` | ~138 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-parity-orchestrator.agent.md> |
+| 3 | `.github/agents/vexcoder-ui-paragraph-renderer.agent.md` | ~141 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-paragraph-renderer.agent.md> |
+| 4 | `.github/agents/vexcoder-ui-parity-orchestrator.agent.md` | ~168 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-parity-orchestrator.agent.md> |
 | 5 | `.github/instructions/repository.instructions.md` | ~55 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/instructions/repository.instructions.md> |
 | 6 | `.github/instructions/rust.instructions.md` | ~58 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/instructions/rust.instructions.md> |
 | 7 | `.github/instructions/third-party.instructions.md` | ~38 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/instructions/third-party.instructions.md> |
@@ -25,7 +25,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 14 | `.github/workflows/release.yml` | ~229 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/release.yml> |
 | 15 | `.gitignore` | ~36 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitignore> |
 | 16 | `AGENTS.md` | ~176 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/AGENTS.md> |
-| 17 | `CONTRIBUTING.md` | ~329 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
+| 17 | `CONTRIBUTING.md` | ~334 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
 | 18 | `Cargo.lock` | ~2867 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.lock> |
 | 19 | `Cargo.toml` | ~54 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.toml> |
 | 20 | `LICENSE` | ~21 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/LICENSE> |
@@ -179,8 +179,8 @@ Canonical raw URL index for every tracked file in this repository.
 | 168 | `src/ui/draw/ansi.rs` | ~109 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/ansi.rs> |
 | 169 | `src/ui/draw/mod.rs` | ~1132 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/mod.rs> |
 | 170 | `src/ui/draw/regions.rs` | ~105 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/regions.rs> |
-| 171 | `src/ui/draw/tests.rs` | ~875 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/tests.rs> |
-| 172 | `src/ui/draw/transcript.rs` | ~398 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/transcript.rs> |
+| 171 | `src/ui/draw/tests.rs` | ~1003 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/tests.rs> |
+| 172 | `src/ui/draw/transcript.rs` | ~483 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/transcript.rs> |
 | 173 | `src/ui/editor.rs` | ~450 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/editor.rs> |
 | 174 | `src/ui/input_metrics.rs` | ~224 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/input_metrics.rs> |
 | 175 | `src/ui/layout.rs` | ~102 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/layout.rs> |

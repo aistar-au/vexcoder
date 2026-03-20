@@ -157,6 +157,11 @@ custom agent profiles under `.github/agents/`.
 - The repository-level agent profile follows the branch you target. Use a
   dispatcher branch as the `--base` argument when you want the remote session
   to see branch-local agent changes.
+- New or renamed custom agent profile files are only selectable through
+  `gh agent-task --custom-agent` after they exist on the default branch.
+  Branch-local profiles remain useful for repository content and follow-up
+  promotion work, but the remote agent catalog itself is resolved from the
+  default-branch profile set before the session starts.
 
 Available profiles:
 
