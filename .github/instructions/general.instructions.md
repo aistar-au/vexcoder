@@ -1,3 +1,7 @@
+---
+applyTo: "**"
+---
+
 This repository is a Rust and Git focused development workspace.
 
 ## Language and tone
