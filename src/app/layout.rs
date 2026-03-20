@@ -303,14 +303,11 @@ impl TuiMode {
             );
         }
 
-        // No turn data yet — show a welcome hint.
+        // No turn data yet — leave the transcript blank so the surface starts
+        // directly from the prompt edge.
         (
             "Transcript".to_string(),
-            vec![
-                "Type a prompt below to begin.".to_string(),
-                String::new(),
-                "The orchestrator will call tools and stream results here.".to_string(),
-            ],
+            Vec::new(),
             OutputScrollAnchor::Bottom,
         )
     }
@@ -522,9 +519,9 @@ impl TuiMode {
         let input_hint = if let Some(approval) = pending_approval.clone() {
             format!("{approval}\n[y/n/s] ")
         } else if self.command_session_active() {
-            "Prompt\nCommand session active. Ctrl+C cancels the running command.".to_string()
+            "Prompt\n/ commands  @ files  ! shell  Ctrl+C cancels".to_string()
         } else {
-            "Prompt\nUse `/` for commands, `@path` to inline files, paste large blocks, and Shift+Enter for a newline.".to_string()
+            "Prompt\n/ commands  @ files  ! shell".to_string()
         };
         Some(TaskLayoutState {
             task_id: self.current_task.id.clone(),

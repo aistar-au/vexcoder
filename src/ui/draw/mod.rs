@@ -217,148 +217,11 @@ impl TaskDraw {
 
     // ── Header ──────────────────────────────────────────────────────
 
-    fn draw_header<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
-        move_to(w, regions.header_row, 0);
-        clear_line(w);
-
-        // Parse the status line to extract human-readable components.
-        // The status_line format is: "mode:X approval:Y history:N repo:R inst:I tokens:T"
-        let parts = parse_status_parts(&state.status_line);
-
-        // Left border accent + repo name — bold white.
-        set_fg(w, DIM_GRAY);
-        let _ = write!(w, "\u{2502} "); // │
-        set_bold(w);
-        set_fg(w, YELLOW);
-        let _ = write!(w, "\u{2605} "); // ★
-        set_fg(w, WHITE);
-        let _ = write!(w, "{}", parts.repo);
-        reset_style(w);
-
-        // Separator.
-        set_fg(w, DIM_GRAY);
-        let _ = write!(w, " \u{00b7} ");
-        reset_style(w);
-
-        // Mode — color-coded.
-        let (mode_label, mode_color) = match parts.mode.as_str() {
-            "streaming" => ("running", CYAN),
-            "command-session" => ("session", MAGENTA),
-            "overlay" => ("approval", YELLOW),
-            "cancelling" => ("cancelling", RED),
-            "quit-arm" => ("quit?", RED),
-            _ => ("ready", GREEN),
-        };
-        set_bold(w);
-        set_fg(w, mode_color);
-        let _ = write!(w, "{mode_label}");
-        reset_style(w);
-
-        // Changed files count (if any).
-        if !state.changed_files.is_empty() {
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{00b7} ");
-            reset_style(w);
-            set_fg(w, GRAY);
-            let _ = write!(
-                w,
-                "{} file{} changed",
-                state.changed_files.len(),
-                if state.changed_files.len() == 1 {
-                    ""
-                } else {
-                    "s"
-                }
-            );
-            reset_style(w);
-        }
-
-        // Timeline step count (if active).
-        if !state.timeline_entries.is_empty() {
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{00b7} ");
-            reset_style(w);
-            let running = state
-                .timeline_entries
-                .iter()
-                .filter(|e| e.lifecycle == StepLifecycle::Running)
-                .count();
-            let completed = state
-                .timeline_entries
-                .iter()
-                .filter(|e| e.lifecycle == StepLifecycle::Completed)
-                .count();
-            if running > 0 {
-                // Animated progress indicator for running tasks.
-                let idx = (self.frame_counter as usize) % PROGRESS_FRAMES.len();
-                set_fg(w, CYAN);
-                let _ = write!(w, "{} ", PROGRESS_FRAMES[idx]);
-                reset_style(w);
-                set_fg(w, GRAY);
-                let _ = write!(w, "{running} active");
-                if completed > 0 {
-                    let _ = write!(w, ", {completed} done");
-                }
-            } else if completed > 0 {
-                set_fg(w, GRAY);
-                let _ = write!(
-                    w,
-                    "{completed} step{} done",
-                    if completed == 1 { "" } else { "s" }
-                );
-            }
-            reset_style(w);
-        }
-
-        if state.total_steps > 0 {
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{00b7} ");
-            reset_style(w);
-            set_dim(w);
-            set_fg(w, BLUE);
-            let _ = write!(w, "step {}/{}", state.selected_step + 1, state.total_steps);
-            reset_style(w);
-        }
-
-        // Context-window token counter — shown once at least one turn has
-        // completed and session tokens have been recorded.  Expressed as a
-        // compact "~1.2k ctx" indicator so the operator can see how much of
-        // the model context window has been consumed so far.
-        if parts.tokens > 0 {
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{00b7} ");
-            reset_style(w);
-            set_dim(w);
-            set_fg(w, BLUE);
-            let _ = write!(w, "~{:.1}k ctx", parts.tokens_k);
-            reset_style(w);
-        }
-
-        // Instructions path (dimmed, right side info).
-        if parts.inst != "none" {
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, " \u{00b7} ");
-            set_dim(w);
-            let _ = write!(w, "{}", parts.inst);
-            reset_style(w);
-        }
-    }
+    fn draw_header<W: Write>(&self, _w: &mut W, _state: &TaskLayoutState, _regions: &Regions) {}
 
     // ── Changed files ───────────────────────────────────────────────
 
-    fn draw_files<W: Write>(&self, w: &mut W, state: &TaskLayoutState, row: u16, cols: u16) {
-        move_to(w, row, 0);
-        clear_line(w);
-        if state.changed_files.is_empty() {
-            return;
-        }
-        set_dim(w);
-        set_fg(w, GRAY);
-        let files_text = format!("  {}", state.changed_files.join("  "));
-        let truncated = truncate_to_width(&files_text, cols as usize);
-        let _ = write!(w, "{truncated}");
-        reset_style(w);
-    }
+    fn draw_files<W: Write>(&self, _w: &mut W, _state: &TaskLayoutState, _row: u16, _cols: u16) {}
 
     // ── Timeline (adaptive height) ──────────────────────────────────
 
@@ -781,12 +644,6 @@ impl TaskDraw {
             set_fg(w, WHITE);
             let _ = write!(w, "Prompt");
             reset_style(w);
-            set_dim(w);
-            set_fg(w, DIM_GRAY);
-            let chrome = "  / command  @ file  ! shell  paste block  Shift+Enter newline";
-            let truncated = truncate_to_width(chrome, regions.cols.saturating_sub(8) as usize);
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
 
             for offset in 0..body_rows {
                 let row = regions.composer_start + 1 + offset as u16;
@@ -908,26 +765,13 @@ impl TaskDraw {
     }
 
     fn compute_header_hash(&self, state: &TaskLayoutState) -> u64 {
-        let mut h = simple_hash(&state.status_line);
-        h = h
-            .wrapping_mul(31)
-            .wrapping_add(state.changed_files.len() as u64);
-        h = h.wrapping_mul(31).wrapping_add(state.selected_step as u64);
-        h = h.wrapping_mul(31).wrapping_add(state.total_steps as u64);
-        for entry in &state.timeline_entries {
-            h = h
-                .wrapping_mul(31)
-                .wrapping_add(entry_lifecycle_id(&entry.lifecycle));
-        }
-        h
+        let _ = state;
+        0
     }
 
     fn compute_files_hash(&self, state: &TaskLayoutState) -> u64 {
-        let mut h = state.changed_files.len() as u64;
-        for path in &state.changed_files {
-            h = h.wrapping_mul(31).wrapping_add(simple_hash(path));
-        }
-        h
+        let _ = state;
+        0
     }
 
     fn compute_transcript_hash(&self, state: &TaskLayoutState) -> u64 {
@@ -973,16 +817,16 @@ impl Default for TaskDraw {
 
 // ── Status line parsing ─────────────────────────────────────────────
 
+#[cfg(test)]
 struct StatusParts {
     mode: String,
     repo: String,
     inst: String,
     /// Cumulative session token count (0 when none have been recorded yet).
     tokens: u64,
-    /// Pre-converted token count in thousands (computed once during parsing).
-    tokens_k: f64,
 }
 
+#[cfg(test)]
 fn parse_status_parts(status: &str) -> StatusParts {
     let mut mode = String::from("ready");
     let mut repo = String::from("vexcoder");
@@ -1004,13 +848,11 @@ fn parse_status_parts(status: &str) -> StatusParts {
         }
     }
 
-    let tokens_k = tokens as f64 / 1000.0;
     StatusParts {
         mode,
         repo,
         inst,
         tokens,
-        tokens_k,
     }
 }
 

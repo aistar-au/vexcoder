@@ -199,6 +199,9 @@ repository-hosted agent instructions file under `.github/`.
   explicit log tail with `gh agent-task view <session-id> --log --follow`.
   Treat log tailing and violation triage as part of launch, not as an optional
   post-launch observation step.
+- Do not continue to `gh pr view`, `gh pr checks`, promotion, or merge work
+  until that paired launch-log tail has completed and any contract violation
+  has been handled.
 
 Authoritative launch suffix for hosted prompts:
 
@@ -213,12 +216,15 @@ Authoritative launch suffix for hosted prompts:
 
 Available profiles:
 
-- `vexcoder-ui-parity-orchestrator` for app-mode orchestration, fullscreen UI
-  flow, editor behavior, and final integration/conflict cleanup.
-- `vexcoder-ui-paragraph-renderer` for ANSI transcript drawing, paragraph
-  markers, disclosure styling, and transcript regression coverage.
-- `vexcoder-transcript-renderer-overhaul` for timeline rows, fallback renderer
-  parity, layout geometry, and task-state transcript surface work.
+- `vexcoder-ui-parity-orchestrator` for prompt interactivity, slash commands,
+  `@file` expansion, startup API/model prompting, editor behavior, and final
+  integration/conflict cleanup.
+- `vexcoder-ui-paragraph-renderer` for the direct ANSI surface controller,
+  fullscreen paragraph rendering, star/cosmic accent styling, prompt-dock
+  drawing, and transcript regression coverage.
+- `vexcoder-transcript-renderer-overhaul` for task-state layout logic,
+  fallback-renderer parity, fixed-height prompt geometry, blank-initial
+  transcript behavior, and related layout/test contracts.
 
 ### Parallel UI overhaul pattern
 
@@ -239,11 +245,12 @@ repository-hosted sessions.
 Recommended shard ownership for UI-overhaul work:
 
 - `vexcoder-ui-parity-orchestrator`
-  `src/app.rs`, `src/app/accessors.rs`, `src/app/model_update.rs`,
-  `src/app/turn.rs`, `src/ui/editor.rs`, and final workflow/doc cleanup only
-  when explicitly assigned.
+  `src/app.rs`, `src/app/accessors.rs`, `src/app/commands.rs`,
+  `src/app/input.rs`, `src/app/inline.rs`, `src/app/model_update.rs`,
+  `src/app/turn.rs`, `src/bin/vex.rs`, `src/ui/editor.rs`, and final
+  workflow/doc cleanup only when explicitly assigned.
 - `vexcoder-ui-paragraph-renderer`
-  `src/ui/draw/transcript.rs`, `src/ui/draw/ansi.rs`,
+  `src/ui/draw/mod.rs`, `src/ui/draw/transcript.rs`, `src/ui/draw/ansi.rs`,
   `src/ui/draw/tests.rs`, and closely related transcript helpers.
 - `vexcoder-transcript-renderer-overhaul`
   `src/app/layout.rs`, `src/app/tests.rs`, `src/ui/render.rs`,
@@ -260,19 +267,19 @@ git push -u origin coder/vexcoder-ui-overhaul
 gh agent-task create \
   --base coder/vexcoder-ui-overhaul \
   --custom-agent vexcoder-ui-parity-orchestrator \
-  "Shard: app orchestration. Own only src/app.rs, src/app/accessors.rs, src/app/model_update.rs, src/app/turn.rs, src/ui/editor.rs. Do not edit transcript or fallback-renderer files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Shard: prompt interactivity. Own only src/app.rs, src/app/accessors.rs, src/app/commands.rs, src/app/input.rs, src/app/inline.rs, src/app/model_update.rs, src/app/turn.rs, src/bin/vex.rs, and src/ui/editor.rs. Focus on prompt submission, slash commands, @file expansion, and startup API/model prompting. Do not edit layout or ANSI-surface files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 
 gh agent-task create \
   --base coder/vexcoder-ui-overhaul \
   --custom-agent vexcoder-ui-paragraph-renderer \
-  "Shard: ANSI transcript renderer. Own only src/ui/draw/transcript.rs, src/ui/draw/ansi.rs, src/ui/draw/tests.rs, and transcript-local helpers. Do not edit app layout or fallback-renderer files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Shard: ANSI fullscreen surface. Own only src/ui/draw/mod.rs, src/ui/draw/transcript.rs, src/ui/draw/ansi.rs, src/ui/draw/tests.rs, and transcript-local helpers. Focus on paragraph rendering, star/cosmic accents, prompt-dock drawing, and removal of stray top-surface chrome. Do not edit app layout or fallback-renderer files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 
 gh agent-task create \
   --base coder/vexcoder-ui-overhaul \
   --custom-agent vexcoder-transcript-renderer-overhaul \
-  "Shard: timeline rows and fallback renderer. Own only src/app/layout.rs, src/app/tests.rs, src/ui/render.rs, src/ui/layout.rs, src/ui/draw/regions.rs, tests/layout_underflow_tests.rs, and directly related helpers. Do not edit ANSI transcript files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Shard: task-state layout and fallback renderer. Own only src/app/layout.rs, src/app/tests.rs, src/ui/render.rs, src/ui/layout.rs, src/ui/draw/regions.rs, tests/layout_underflow_tests.rs, and directly related helpers. Focus on single-stream transcript layout, fixed 3-line prompt geometry, blank initial transcript behavior, and fallback parity. Do not edit ANSI transcript files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 ```
 
@@ -282,7 +289,7 @@ Start a UI parity session from the GitHub CLI with:
 gh agent-task create \
   --base <coder-branch> \
   --custom-agent vexcoder-ui-parity-orchestrator \
-  "Investigate the fullscreen UI, task-state control surface, scrolling, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Investigate prompt interactivity, slash commands, @file expansion, startup API/model prompting, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 ```
 
@@ -305,7 +312,7 @@ Start a paragraph-rendering session with:
 gh agent-task create \
   --base <coder-branch> \
   --custom-agent vexcoder-ui-paragraph-renderer \
-  "Investigate paragraph-style tool rendering, transcript drawing, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Investigate the direct ANSI fullscreen surface, paragraph rendering, star/cosmic accent styling, prompt-dock drawing, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 ```
 
@@ -315,7 +322,7 @@ Start a timeline/fallback-renderer session with:
 gh agent-task create \
   --base <coder-branch> \
   --custom-agent vexcoder-transcript-renderer-overhaul \
-  "Investigate task-state timeline rows, fallback renderer parity, layout geometry, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Investigate task-state layout logic, fallback renderer parity, fixed prompt geometry, blank-initial transcript behavior, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 ```
 

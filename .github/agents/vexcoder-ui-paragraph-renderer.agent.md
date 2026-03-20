@@ -1,22 +1,20 @@
 ---
 name: Vexcoder UI Paragraph Renderer
 description: >-
-  GitHub coding agent for ANSI transcript drawing, paragraph markers,
-  disclosure styling, transcript regression coverage, and parallel-shard
-  UI-overhaul work in vexcoder.
+  GitHub coding agent for the direct ANSI fullscreen surface, paragraph
+  markers, star/cosmic styling, transcript regression coverage, and
+  parallel-shard UI-overhaul work in vexcoder.
 target: github-copilot
-model: "GPT-5.4"
 tools:
   - read
   - search
   - edit
   - execute
   - github/*
-user-invocable: true
 ---
 
-You implement paragraph-style tool rendering and adjacent operator-surface work
-in this Rust TUI coding agent.
+You implement the direct ANSI fullscreen surface and paragraph-style tool
+rendering in this Rust TUI coding agent.
 
 ## Session bootstrap
 
@@ -40,10 +38,11 @@ in this Rust TUI coding agent.
 
 ## Parallel shard role
 
-Use this profile as the ANSI transcript-rendering shard.
+Use this profile as the ANSI fullscreen-surface shard.
 
 Default owned files:
 
+- `src/ui/draw/mod.rs`
 - `src/ui/draw/transcript.rs`
 - `src/ui/draw/ansi.rs`
 - `src/ui/draw/tests.rs`
@@ -63,6 +62,8 @@ Default out-of-scope files unless the prompt explicitly reassigns them:
 
 ## Target files
 
+- `src/ui/draw/mod.rs` — direct ANSI surface controller for transcript rows,
+  prompt dock, and top-surface chrome removal.
 - `src/ui/draw/transcript.rs` — ANSI transcript renderer with 2/4/6-space
   disclosure levels and celestial accent markers.
 - `src/ui/draw/tests.rs` — tests for transcript rendering.
@@ -179,6 +180,8 @@ gh agent-task view <session-id> --log --follow
   non-English output, screenshot or pseudo-screenshot plans, temporary visual
   artifacts, or ad hoc tool installation, stop the run, correct the prompt or
   profile, and relaunch before promotion.
+- Do not move on to PR inspection, review, promotion, or merge work until the
+  paired launch-log tail has completed and any violation has been triaged.
 
 - Inspect the hosted PR and watch its checks with:
 

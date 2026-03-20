@@ -37,6 +37,9 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
 - After every `gh agent-task create`, identify the new unique session id and
   immediately tail logs with:
   `gh agent-task view <session-id> --log --follow`
+- Treat the launch as incomplete until the tailed log confirms the session is
+  staying inside this repository, avoiding `SKILL.md`, staying in English, and
+  using text-only verification.
 - List hosted sessions first when the identifier is unknown:
   `gh agent-task list`
 - If the tailed logs show private-skill bootstrap attempts, `SKILL.md` reads,
@@ -45,6 +48,8 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
   profile, and relaunch before treating the session as valid.
 - Prefer the unique session id over the PR number when tailing logs during
   concurrent hosted runs.
+- Do not move on to PR inspection, review, promotion, or merge work until the
+  paired launch-log tail has completed and any violation has been triaged.
 - If `rg` is unavailable, fall back to `git grep -n`, `grep -RIn`, or direct
   file reads and continue.
 - If the hosted runner lacks an undeclared local tool that this repository does

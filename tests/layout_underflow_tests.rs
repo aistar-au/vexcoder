@@ -47,20 +47,18 @@ fn test_four_region_layout_handles_small_terminal_sizes() {
 }
 
 #[test]
-fn test_four_region_layout_scales_activity_on_tall_terminals() {
+fn test_four_region_layout_keeps_prompt_fixed_on_tall_terminals() {
     let area = Rect::new(0, 0, 80, 40);
-    let layout = split_four_region_layout(area, 1, 8);
+    let layout = split_four_region_layout(area, 0, 3);
 
     assert_rect_within(area, layout.header);
     assert_rect_within(area, layout.activity);
     assert_rect_within(area, layout.output);
     assert_rect_within(area, layout.input);
+    assert_eq!(layout.activity.height, 0);
+    assert_eq!(layout.input.height, 3);
     assert!(
-        layout.activity.height > 6,
-        "activity pane should grow beyond the earlier fixed 6-row window"
-    );
-    assert!(
-        layout.output.height > layout.activity.height,
+        layout.output.height >= 36,
         "output pane should remain the dominant region on tall terminals"
     );
 }

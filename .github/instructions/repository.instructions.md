@@ -83,6 +83,9 @@ gh agent-task view <session-id> --log --follow
 
 - Prefer the unique session id over the PR number when multiple hosted runs are
   active.
+- Treat the launch as incomplete until the tailed log confirms the session is
+  staying inside this repository, avoiding `SKILL.md`, staying in English, and
+  using text-only verification.
 - Inspect the hosted PR and watch its checks with:
 
 ```sh
@@ -93,6 +96,8 @@ gh pr checks <pr> --watch
 - Keep the model pinned in the agent profile rather than adding model flags at
   invocation time. If the hosting surface ignores the profile pin, report that
   behavior explicitly instead of silently changing the command.
+- Do not move on to PR inspection, review, promotion, or merge work until the
+  paired launch-log tail has completed and any violation has been triaged.
 - In agent-authored prose, explicitly avoid every assistant-brand term,
   provider-name term, model-family term, and editor-brand term matched by
   `scripts/check_forbidden_names.sh` unless a literal path, URL, command, or

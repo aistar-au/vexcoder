@@ -284,10 +284,10 @@ impl Config {
         Self {
             model_token: None,
             model_name: "local/default".to_string(),
-            model_url: "http://localhost:11434/v1".to_string(),
+            model_url: String::new(),
             working_dir: cwd,
             model_backend: ModelBackendKind::LocalRuntime,
-            model_protocol: ModelProtocol::ChatCompat,
+            model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::TaggedFallback,
             model_profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
             max_project_instructions_tokens: 4096,
@@ -300,6 +300,9 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
+        if self.model_url.trim().is_empty() {
+            bail!("VEX_MODEL_URL must be set");
+        }
         if !self.model_url.starts_with("http://") && !self.model_url.starts_with("https://") {
             bail!(
                 "Invalid VEX_MODEL_URL '{}': expected http:// or https:// URL",
@@ -324,6 +327,37 @@ impl Config {
 
     fn is_local_endpoint(&self) -> bool {
         is_local_endpoint_url(&self.model_url)
+    }
+
+    pub fn apply_interactive_model_selection(
+        &mut self,
+        model_url: String,
+        model_name: Option<String>,
+    ) {
+        let next_url = model_url.trim().to_string();
+        let next_backend = if is_local_endpoint_url(&next_url) {
+            ModelBackendKind::LocalRuntime
+        } else {
+            ModelBackendKind::ApiServer
+        };
+        let backend_changed = self.model_backend != next_backend;
+
+        self.model_url = next_url;
+        if let Some(model_name) = model_name.map(|value| value.trim().to_string()) {
+            if !model_name.is_empty() {
+                self.model_name = model_name;
+            }
+        }
+        self.model_backend = next_backend;
+        self.model_protocol = infer_model_protocol(&self.model_url);
+        self.tool_call_mode = if self.is_local_endpoint() {
+            ToolCallMode::TaggedFallback
+        } else {
+            ToolCallMode::Structured
+        };
+        if backend_changed {
+            self.model_profile = ModelProfile::default_for_backend(self.model_backend);
+        }
     }
 }
 
@@ -779,15 +813,13 @@ fn resolve_config(
     fallback_cwd: &Path,
     profile_base_dir: &Path,
 ) -> Result<Config> {
-    let model_url = merged
-        .model_url
-        .unwrap_or_else(|| "http://localhost:11434/v1".to_string());
+    let model_url = merged.model_url.unwrap_or_default();
     let model_name = merged
         .model_name
         .unwrap_or_else(|| "local/default".to_string());
     let working_dir = resolve_working_dir(merged.working_dir, fallback_cwd);
 
-    let is_local = is_local_endpoint_url(&model_url);
+    let is_local = model_url.trim().is_empty() || is_local_endpoint_url(&model_url);
 
     let model_backend = merged
         .model_backend

@@ -1,22 +1,20 @@
 ---
 name: Vexcoder Transcript Renderer Overhaul
 description: >-
-  GitHub coding agent for timeline rows, fallback renderer parity, layout
-  geometry, task-state transcript surfaces, and parallel-shard UI-overhaul
-  work in vexcoder.
+  GitHub coding agent for task-state layout logic, fallback renderer parity,
+  prompt geometry, blank-initial transcript behavior, and parallel-shard
+  UI-overhaul work in vexcoder.
 target: github-copilot
-model: "GPT-5.4"
 tools:
   - read
   - search
   - edit
   - execute
   - github/*
-user-invocable: true
 ---
 
-You implement the layout/timeline shard of the fullscreen TUI overhaul so the
-task-state timeline, fallback renderer, and layout geometry stay aligned with
+You implement the layout/fallback shard of the fullscreen TUI overhaul so the
+task-state layout, fallback renderer, and prompt geometry stay aligned with
 the ANSI transcript surface. Keep the work focused, shard-safe, and ready for
 promotion onto a shared integration branch.
 
@@ -42,7 +40,7 @@ promotion onto a shared integration branch.
 
 ## Parallel shard role
 
-Use this profile as the layout/timeline/fallback-renderer shard.
+Use this profile as the task-state layout/fallback-renderer shard.
 
 Default owned files:
 
@@ -59,7 +57,11 @@ Default out-of-scope files unless the prompt explicitly reassigns them:
 - `src/ui/draw/transcript.rs`
 - `src/ui/draw/ansi.rs`
 - `src/ui/draw/tests.rs`
+- `src/ui/draw/mod.rs`
 - `src/app.rs`
+- `src/app/commands.rs`
+- `src/app/input.rs`
+- `src/app/inline.rs`
 - `src/app/model_update.rs`
 - `src/app/accessors.rs`
 - `src/app/turn.rs`
@@ -68,22 +70,22 @@ Default out-of-scope files unless the prompt explicitly reassigns them:
 ## Key source areas
 
 - `src/app/layout.rs` — `enriched_paragraph_rows()` generates timeline
-  entries and activity rows from tool invocations and pending calls.
-- `src/app/tests.rs` — timeline and layout behavior tests.
-
-- `src/ui/draw/regions.rs` — `Regions` struct: adaptive four-region
-  layout (header, timeline, transcript, composer).
-- `src/ui/render.rs` — fallback ratatui renderer. Must match ANSI renderer
-  for all content types.
-- `src/ui/layout.rs` — `split_four_region_layout()` for ratatui.
+  entries and transcript rows from tool invocations and pending calls.
+- `src/app/tests.rs` — layout and task-state behavior tests.
+- `src/ui/draw/regions.rs` — `Regions` struct: fullscreen transcript and
+  fixed prompt-dock geometry.
+- `src/ui/render.rs` — fallback renderer. Must match ANSI behavior for the
+  single-stream transcript surface.
+- `src/ui/layout.rs` — `split_four_region_layout()` for fallback parity.
 - `tests/layout_underflow_tests.rs` — layout edge cases.
 
 ## Shard goals
 
 - Keep `src/app/layout.rs` and `src/ui/render.rs` behavior aligned for the
-  task-state timeline surface.
-- Preserve four-region geometry and small-terminal behavior.
-- Add or update focused tests for layout, fallback rendering, and timeline-row
+  task-state transcript surface.
+- Preserve the single-stream transcript layout, fixed 3-line prompt dock, and
+  blank-initial transcript behavior across ANSI and fallback paths.
+- Add or update focused tests for layout, fallback rendering, and geometry
   regressions.
 - Leave ANSI transcript drawing and app-orchestration files to the other
   shards unless the prompt explicitly reassigns them.
@@ -166,6 +168,8 @@ gh agent-task view <session-id> --log --follow
   non-English output, screenshot or pseudo-screenshot plans, temporary visual
   artifacts, or ad hoc tool installation, stop the run, correct the prompt or
   profile, and relaunch before promotion.
+- Do not move on to PR inspection, review, promotion, or merge work until the
+  paired launch-log tail has completed and any violation has been triaged.
 
 - Inspect the hosted PR and watch its checks with:
 

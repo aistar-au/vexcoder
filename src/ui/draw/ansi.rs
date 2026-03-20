@@ -71,19 +71,6 @@ pub(super) const DIM_GRAY: u8 = 240;
 pub(super) const WHITE: u8 = 15;
 pub(super) const BLUE: u8 = 4;
 
-// ── Progress bar frames (animated fill for running state) ───────────
-
-pub(super) const PROGRESS_FRAMES: &[&str] = &[
-    "\u{2591}\u{2591}\u{2593}\u{2588}\u{2588}\u{2593}\u{2591}\u{2591}", // ░░▓██▓░░
-    "\u{2591}\u{2593}\u{2588}\u{2588}\u{2593}\u{2591}\u{2591}\u{2591}", // ░▓██▓░░░
-    "\u{2593}\u{2588}\u{2588}\u{2593}\u{2591}\u{2591}\u{2591}\u{2591}", // ▓██▓░░░░
-    "\u{2588}\u{2588}\u{2593}\u{2591}\u{2591}\u{2591}\u{2591}\u{2593}", // ██▓░░░░▓
-    "\u{2588}\u{2593}\u{2591}\u{2591}\u{2591}\u{2591}\u{2593}\u{2588}", // █▓░░░░▓█
-    "\u{2593}\u{2591}\u{2591}\u{2591}\u{2591}\u{2593}\u{2588}\u{2588}", // ▓░░░░▓██
-    "\u{2591}\u{2591}\u{2591}\u{2591}\u{2593}\u{2588}\u{2588}\u{2593}", // ░░░░▓██▓
-    "\u{2591}\u{2591}\u{2591}\u{2593}\u{2588}\u{2588}\u{2593}\u{2591}", // ░░░▓██▓░
-];
-
 pub(super) fn lifecycle_color(lifecycle: &StepLifecycle) -> u8 {
     match lifecycle {
         StepLifecycle::Completed => GREEN,
