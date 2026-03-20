@@ -336,7 +336,15 @@ impl TuiMode {
             } else {
                 compact_outcome_summary(first_line)
             };
-            let summary = if let Some(target_summary) = tool_target_summary(first_line) {
+            let summary_target = invocation
+                .target_hint
+                .clone()
+                .or_else(|| tool_target_summary(first_line));
+            let command_summary = invocation
+                .command_summary
+                .clone()
+                .unwrap_or_else(|| invocation.name.clone());
+            let summary = if let Some(target_summary) = summary_target {
                 format!(
                     "{} \u{00b7} {} \u{00b7} {}",
                     invocation.name, target_summary, status_label
@@ -352,7 +360,7 @@ impl TuiMode {
 
             rows.push(format!("[tool] {summary}"));
             rows.push(format!("[detail] Scope: {scope}"));
-            rows.push(format!("[detail] Command: {}", invocation.name));
+            rows.push(format!("[detail] Command: {command_summary}"));
             rows.push(format!("[detail] Result: {result_summary}"));
 
             let mut evidence_lines = Vec::new();

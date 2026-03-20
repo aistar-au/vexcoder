@@ -156,6 +156,8 @@ mod tests {
                 step_id: 1,
                 name: "read_file".to_string(),
                 outcome: "ok".to_string(),
+                target_hint: None,
+                command_summary: None,
             }],
             tokens: TurnTokens {
                 input: 5,
@@ -185,6 +187,8 @@ mod tests {
                 step_id: 1,
                 name: "apply_patch".to_string(),
                 outcome: "ok".to_string(),
+                target_hint: None,
+                command_summary: None,
             }],
             tokens: TurnTokens::default(),
         });
