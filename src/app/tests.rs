@@ -287,7 +287,7 @@ fn test_task_layout_state_emits_completed_tool_paragraph_markers() {
     assert_eq!(
         state.output_rows[..6],
         [
-            "[tool] read_file · 42 lines read from src/main.rs · completed",
+            "[tool] read_file · src/main.rs · completed",
             "[detail] Scope: Read file content",
             "[detail] Command: read_file",
             "[detail] Result: 42 lines read from src/main.rs",

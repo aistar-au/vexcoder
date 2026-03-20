@@ -645,17 +645,76 @@ fn pipeline_activity_line(row: &str) -> Line<'static> {
     }
 }
 
-fn transcript_output_line(row: &str) -> Line<'static> {
-    if let Some(rest) = row.strip_prefix("[tool] ") {
-        Line::from(vec![
-            Span::styled(
+fn tool_summary_status_style(status: &str) -> Style {
+    match status {
+        "completed" => Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD),
+        "failed" => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        "running" => Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+        _ => Style::default().fg(Color::White),
+    }
+}
+
+fn tool_summary_spans(summary: &str) -> Vec<Span<'static>> {
+    let segments: Vec<&str> = summary.split(" · ").collect();
+    if let Some((status, leading)) = segments.split_last() {
+        if !leading.is_empty() && matches!(*status, "completed" | "failed" | "running") {
+            let mut spans = Vec::with_capacity(1 + leading.len() * 2);
+            spans.push(Span::styled(
                 "  \u{2726} ",
                 Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(rest.to_string(), Style::default().fg(Color::White)),
-        ])
+            ));
+            for (index, segment) in leading.iter().enumerate() {
+                if index > 0 {
+                    spans.push(Span::styled(
+                        " · ",
+                        Style::default()
+                            .fg(Color::DarkGray)
+                            .add_modifier(Modifier::DIM),
+                    ));
+                }
+                spans.push(Span::styled(
+                    (*segment).to_string(),
+                    if index == 0 {
+                        Style::default().fg(Color::White)
+                    } else {
+                        Style::default().fg(Color::Gray)
+                    },
+                ));
+            }
+            spans.push(Span::styled(
+                " · ",
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM),
+            ));
+            spans.push(Span::styled(
+                (*status).to_string(),
+                tool_summary_status_style(status),
+            ));
+            return spans;
+        }
+    }
+
+    vec![
+        Span::styled(
+            "  \u{2726} ",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(summary.to_string(), Style::default().fg(Color::White)),
+    ]
+}
+
+fn transcript_output_line(row: &str) -> Line<'static> {
+    if let Some(rest) = row.strip_prefix("[tool] ") {
+        Line::from(tool_summary_spans(rest))
     } else if let Some(rest) = row.strip_prefix("[detail] ") {
         Line::styled(
             format!("    {rest}"),
@@ -1004,5 +1063,21 @@ mod tests {
         assert!(tool_text.starts_with("  \u{2726} "));
         assert_eq!(detail_text, "    Scope: Read file content");
         assert!(evidence_text.starts_with("      \u{2727} "));
+        assert_eq!(
+            tool.spans.last().and_then(|span| span.style.fg),
+            Some(Color::Green)
+        );
+    }
+
+    #[test]
+    fn transcript_output_line_highlights_tool_target_and_failed_status() {
+        let tool = transcript_output_line("[tool] write_file · src/ui/render.rs · failed");
+
+        assert_eq!(tool.spans.len(), 6);
+        assert_eq!(tool.spans[1].content.as_ref(), "write_file");
+        assert_eq!(tool.spans[3].content.as_ref(), "src/ui/render.rs");
+        assert_eq!(tool.spans[3].style.fg, Some(Color::Gray));
+        assert_eq!(tool.spans[5].content.as_ref(), "failed");
+        assert_eq!(tool.spans[5].style.fg, Some(Color::Red));
     }
 }
