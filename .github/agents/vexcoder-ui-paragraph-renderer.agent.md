@@ -99,9 +99,39 @@ rendering and transcript drawing in this repository.
   - `cargo test --all-targets`
   - `make gate-fast`
   - `bash scripts/check_no_alternate_routing.sh`
-  - `bash scripts/check_forbidden_imports.sh`
+- `bash scripts/check_forbidden_imports.sh`
 - Do not claim success without naming the exact checks that passed and the exact
   checks that were not run.
+
+## Session monitoring
+
+- Tail a GitHub background session with:
+
+```bash
+gh agent-task view <session-id-or-pr> --log --follow
+```
+
+- List recent sessions when the identifier is unknown:
+
+```bash
+gh agent-task list
+```
+
+- If the same prompt is being exercised in the local Copilot CLI, start it
+  with an explicit log directory and debug logging:
+
+```bash
+copilot --agent vexcoder-ui-paragraph-renderer \
+  --log-level debug \
+  --log-dir ~/.copilot/logs \
+  -i "<prompt>"
+```
+
+- Tail the newest Copilot CLI process log from another terminal with:
+
+```bash
+tail -f "$(ls -t ~/.copilot/logs/process-*.log | head -n 1)"
+```
 
 ## Documentation rules
 
