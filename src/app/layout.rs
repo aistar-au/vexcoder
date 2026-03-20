@@ -297,28 +297,27 @@ impl TuiMode {
     /// Build enriched paragraph rows from the last completed turn.
     ///
     /// Each tool invocation is rendered as a paragraph tree with stable
-    /// indentation levels:
+    /// marker-based disclosure levels:
     ///
     /// ```text
-    /// [ok] tool_name: brief outcome summary       ← summary (2-space visual)
-    ///     detail line 1                            ← phase detail (4-space)
-    ///     detail line 2                            ← phase detail (4-space)
-    ///       evidence line 1                        ← evidence (6-space)
-    ///       ... N more lines                       ← truncation hint
+    /// [tool] tool_name · brief outcome · status   ← summary (2-space visual)
+    /// [detail] Scope: ...                         ← phase detail (4-space)
+    /// [detail] Command: ...                       ← phase detail (4-space)
+    /// [detail] Result: ...                        ← phase detail (4-space)
+    /// [evidence] Outcome: ...                     ← evidence (6-space)
+    /// [evidence] ...                              ← evidence (6-space)
     /// ```
     ///
-    /// The summary line is self-informative: it includes the tool name and
-    /// a compact extract from the outcome so the operator can scan without
-    /// expanding detail.  Phase-detail lines (4-space) show the first few
-    /// outcome lines.  Evidence lines (6-space) show remaining content,
-    /// truncated with a count when the output is long.
+    /// The summary line is self-informative: it includes the tool name, a
+    /// compact extract from the outcome, and the final status so the operator
+    /// can scan without expanding detail. Phase-detail lines provide stable
+    /// scope/command/result fields. Evidence lines preserve the original
+    /// outcome wording, capped to keep each paragraph to 4–6 lines.
     ///
     /// Followed by the model response text.
     fn enriched_paragraph_rows(&self) -> Vec<String> {
-        /// Maximum outcome lines shown at phase-detail level (4-space indent).
-        const MAX_PHASE_LINES: usize = 4;
-        /// Maximum outcome lines shown at evidence level (6-space indent).
-        const MAX_EVIDENCE_LINES: usize = 3;
+        /// Maximum evidence lines shown at 6-space disclosure level.
+        const MAX_EVIDENCE_LINES: usize = 2;
 
         let mut rows = Vec::new();
 
@@ -329,38 +328,46 @@ impl TuiMode {
             let is_error = invocation.outcome.starts_with("error")
                 || invocation.outcome.starts_with("failed")
                 || invocation.outcome.starts_with("Error");
-            let status = if is_error { "[!]" } else { "[ok]" };
-
-            let outcome_lines: Vec<&str> = invocation.outcome.lines().collect();
+            let status_label = if is_error { "failed" } else { "completed" };
+            let scope = tool_scope_detail(&invocation.name);
+            let outcome_lines: Vec<&str> = invocation
+                .outcome
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .collect();
             let first_line = outcome_lines.first().copied().unwrap_or("");
-
-            // Summary line: tool name + compact first-line extract.
-            if first_line.is_empty() {
-                rows.push(format!("{} {}", status, invocation.name));
+            let result_summary = if first_line.is_empty() {
+                status_label.to_string()
             } else {
-                let brief = compact_outcome_summary(first_line);
-                rows.push(format!("{} {}: {}", status, invocation.name, brief));
-            }
+                compact_outcome_summary(first_line)
+            };
+            let summary = if result_summary.is_empty() {
+                format!("{} \u{00b7} {}", invocation.name, status_label)
+            } else {
+                format!(
+                    "{} \u{00b7} {} \u{00b7} {}",
+                    invocation.name, result_summary, status_label
+                )
+            };
 
-            // Phase detail (4-space): subsequent outcome lines up to the cap.
-            let detail_lines = outcome_lines
-                .get(1..outcome_lines.len().min(1 + MAX_PHASE_LINES))
-                .unwrap_or(&[]);
-            for line in detail_lines {
-                rows.push(format!("    {}", line));
-            }
+            rows.push(format!("[tool] {summary}"));
+            rows.push(format!("[detail] Scope: {scope}"));
+            rows.push(format!("[detail] Command: {}", invocation.name));
+            rows.push(format!("[detail] Result: {result_summary}"));
 
-            // Evidence (6-space): remaining lines after phase detail, capped.
-            let evidence_start = 1 + MAX_PHASE_LINES;
-            if outcome_lines.len() > evidence_start {
-                let evidence_end = outcome_lines.len().min(evidence_start + MAX_EVIDENCE_LINES);
-                for line in &outcome_lines[evidence_start..evidence_end] {
-                    rows.push(format!("      {}", line));
-                }
-                let remaining = outcome_lines.len().saturating_sub(evidence_end);
-                if remaining > 0 {
-                    rows.push(format!("      \u{2026} {} more lines", remaining));
-                }
+            let mut evidence_lines = Vec::new();
+            if let Some(first_line) = outcome_lines.first() {
+                evidence_lines.push(format!("Outcome: {first_line}"));
+            }
+            for line in outcome_lines.iter().skip(1) {
+                evidence_lines.push((*line).to_string());
+            }
+            if evidence_lines.is_empty() {
+                evidence_lines.push(format!("Status note: tool step {status_label}."));
+            }
+            for line in evidence_lines.into_iter().take(MAX_EVIDENCE_LINES) {
+                rows.push(format!("[evidence] {line}"));
             }
         }
 
@@ -493,9 +500,17 @@ fn compact_outcome_summary(line: &str) -> String {
     format!("{}\u{2026}", &trimmed[..end])
 }
 
+fn tool_scope_detail(tool_name: &str) -> String {
+    builtin_tool_summaries()
+        .into_iter()
+        .find(|tool| tool.name == tool_name)
+        .map(|tool| tool.description)
+        .unwrap_or_else(|| "Tool invocation recorded in the completed turn.".to_string())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::compact_outcome_summary;
+    use super::{compact_outcome_summary, tool_scope_detail};
 
     #[test]
     fn short_outcome_preserved() {
@@ -524,5 +539,18 @@ mod tests {
     #[test]
     fn whitespace_trimmed() {
         assert_eq!(compact_outcome_summary("  ok  "), "ok");
+    }
+
+    #[test]
+    fn scope_detail_prefers_builtin_tool_description() {
+        assert_eq!(tool_scope_detail("read_file"), "Read file content");
+    }
+
+    #[test]
+    fn scope_detail_falls_back_for_unknown_tools() {
+        assert_eq!(
+            tool_scope_detail("custom_tool"),
+            "Tool invocation recorded in the completed turn."
+        );
     }
 }
