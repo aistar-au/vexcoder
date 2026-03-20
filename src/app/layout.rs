@@ -91,9 +91,7 @@ impl TuiMode {
         // Completed tool invocations — step identity carried from the
         // pending call that created them.
         for invocation in tool_invocations {
-            let is_error = invocation.outcome.starts_with("error")
-                || invocation.outcome.starts_with("failed")
-                || invocation.outcome.starts_with("Error");
+            let is_error = tool_outcome_is_error(&invocation.outcome);
             entries.push(TimelineEntry {
                 step_id: invocation.step_id,
                 lifecycle: if is_error {
@@ -174,10 +172,7 @@ impl TuiMode {
         // Completed tool invocations — prefixed to match render_task_layout
         // style markers ([ok] / [!]).
         for invocation in tool_invocations {
-            let prefix = if invocation.outcome.starts_with("error")
-                || invocation.outcome.starts_with("failed")
-                || invocation.outcome.starts_with("Error")
-            {
+            let prefix = if tool_outcome_is_error(&invocation.outcome) {
                 "[!]"
             } else {
                 "[ok]"
@@ -297,21 +292,22 @@ impl TuiMode {
     /// Build enriched paragraph rows from the last completed turn.
     ///
     /// Each tool invocation is rendered as a paragraph tree with stable
-    /// indentation levels:
+    /// disclosure markers that the transcript renderer expands to 2/4/6-space
+    /// visual paragraphs:
     ///
     /// ```text
-    /// [ok] tool_name: brief outcome summary       ← summary (2-space visual)
-    ///     detail line 1                            ← phase detail (4-space)
-    ///     detail line 2                            ← phase detail (4-space)
-    ///       evidence line 1                        ← evidence (6-space)
-    ///       ... N more lines                       ← truncation hint
+    /// [tool] tool_name: brief outcome summary     ← summary (2-space visual)
+    /// [detail] detail line 1                      ← phase detail (4-space)
+    /// [detail] detail line 2                      ← phase detail (4-space)
+    /// [evidence] evidence line 1                  ← evidence (6-space)
+    /// [evidence] ... N more lines                 ← truncation hint
     /// ```
     ///
-    /// The summary line is self-informative: it includes the tool name and
-    /// a compact extract from the outcome so the operator can scan without
-    /// expanding detail.  Phase-detail lines (4-space) show the first few
-    /// outcome lines.  Evidence lines (6-space) show remaining content,
-    /// truncated with a count when the output is long.
+    /// The summary line is self-informative: it includes the tool name, a
+    /// compact extract from the outcome, and the completion status so the
+    /// operator can scan without expanding detail. Phase-detail rows carry the
+    /// structured marker that the renderer turns into 4-space disclosure, and
+    /// evidence rows carry the 6-space disclosure marker.
     ///
     /// Followed by the model response text.
     fn enriched_paragraph_rows(&self) -> Vec<String> {
@@ -326,40 +322,50 @@ impl TuiMode {
             if !rows.is_empty() {
                 rows.push(String::new());
             }
-            let is_error = invocation.outcome.starts_with("error")
-                || invocation.outcome.starts_with("failed")
-                || invocation.outcome.starts_with("Error");
-            let status = if is_error { "[!]" } else { "[ok]" };
-
-            let outcome_lines: Vec<&str> = invocation.outcome.lines().collect();
+            let is_error = tool_outcome_is_error(&invocation.outcome);
+            let outcome_lines: Vec<&str> = invocation
+                .outcome
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .collect();
             let first_line = outcome_lines.first().copied().unwrap_or("");
+            let status_label = if is_error { "failed" } else { "completed" };
 
             // Summary line: tool name + compact first-line extract.
             if first_line.is_empty() {
-                rows.push(format!("{} {}", status, invocation.name));
+                rows.push(format!("[tool] {} ({status_label})", invocation.name));
             } else {
                 let brief = compact_outcome_summary(first_line);
-                rows.push(format!("{} {}: {}", status, invocation.name, brief));
+                rows.push(format!(
+                    "[tool] {}: {} ({status_label})",
+                    invocation.name, brief
+                ));
             }
 
-            // Phase detail (4-space): subsequent outcome lines up to the cap.
-            let detail_lines = outcome_lines
-                .get(1..outcome_lines.len().min(1 + MAX_PHASE_LINES))
-                .unwrap_or(&[]);
-            for line in detail_lines {
-                rows.push(format!("    {}", line));
+            let mut disclosure_lines = Vec::new();
+            disclosure_lines.push(format!("status: {status_label}"));
+            if !first_line.is_empty() {
+                disclosure_lines.push(format!("result: {first_line}"));
+            }
+            disclosure_lines.extend(outcome_lines.iter().skip(1).map(|line| (*line).to_string()));
+
+            // Phase detail (4-space): early disclosure rows with structured markers.
+            for line in disclosure_lines.iter().take(MAX_PHASE_LINES) {
+                rows.push(format!("[detail] {line}"));
             }
 
-            // Evidence (6-space): remaining lines after phase detail, capped.
-            let evidence_start = 1 + MAX_PHASE_LINES;
-            if outcome_lines.len() > evidence_start {
-                let evidence_end = outcome_lines.len().min(evidence_start + MAX_EVIDENCE_LINES);
-                for line in &outcome_lines[evidence_start..evidence_end] {
-                    rows.push(format!("      {}", line));
+            // Evidence (6-space): remaining disclosure rows after phase detail, capped.
+            if disclosure_lines.len() > MAX_PHASE_LINES {
+                let evidence_end = disclosure_lines
+                    .len()
+                    .min(MAX_PHASE_LINES + MAX_EVIDENCE_LINES);
+                for line in &disclosure_lines[MAX_PHASE_LINES..evidence_end] {
+                    rows.push(format!("[evidence] {line}"));
                 }
-                let remaining = outcome_lines.len().saturating_sub(evidence_end);
+                let remaining = disclosure_lines.len().saturating_sub(evidence_end);
                 if remaining > 0 {
-                    rows.push(format!("      \u{2026} {} more lines", remaining));
+                    rows.push(format!("[evidence] \u{2026} {} more lines", remaining));
                 }
             }
         }
@@ -493,9 +499,19 @@ fn compact_outcome_summary(line: &str) -> String {
     format!("{}\u{2026}", &trimmed[..end])
 }
 
+fn tool_outcome_is_error(outcome: &str) -> bool {
+    let lowered = outcome.trim().to_ascii_lowercase();
+    lowered.starts_with("error")
+        || lowered.starts_with("failed")
+        || lowered.contains("denied")
+        || lowered.starts_with("cancelled")
+        || lowered.starts_with("canceled")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::compact_outcome_summary;
+    use super::{compact_outcome_summary, tool_outcome_is_error, TuiMode};
+    use crate::turn_evidence::ToolInvocationSummary;
 
     #[test]
     fn short_outcome_preserved() {
@@ -524,5 +540,80 @@ mod tests {
     #[test]
     fn whitespace_trimmed() {
         assert_eq!(compact_outcome_summary("  ok  "), "ok");
+    }
+
+    #[test]
+    fn error_outcome_classifier_treats_denials_as_failures() {
+        assert!(tool_outcome_is_error("permission denied"));
+        assert!(tool_outcome_is_error("cancelled by user"));
+        assert!(!tool_outcome_is_error("ok"));
+    }
+
+    #[test]
+    fn enriched_paragraph_rows_emit_structured_markers() {
+        let mut mode = TuiMode::new();
+        mode.last_turn_tool_invocations = vec![ToolInvocationSummary {
+            step_id: 1,
+            name: "read_file".to_string(),
+            outcome: [
+                "42 lines read from src/main.rs",
+                "scope: src/main.rs",
+                "command: read_file src/main.rs",
+                "preview: fn main() {}",
+                "preview: println!(\"hello\");",
+            ]
+            .join("\n"),
+        }];
+        mode.last_turn_response = "Done.".to_string();
+
+        assert_eq!(
+            mode.enriched_paragraph_rows(),
+            vec![
+                "[tool] read_file: 42 lines read from src/main.rs (completed)".to_string(),
+                "[detail] status: completed".to_string(),
+                "[detail] result: 42 lines read from src/main.rs".to_string(),
+                "[detail] scope: src/main.rs".to_string(),
+                "[detail] command: read_file src/main.rs".to_string(),
+                "[evidence] preview: fn main() {}".to_string(),
+                "[evidence] preview: println!(\"hello\");".to_string(),
+                String::new(),
+                "Done.".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn enriched_paragraph_rows_cap_evidence_with_hint() {
+        let mut mode = TuiMode::new();
+        mode.last_turn_tool_invocations = vec![ToolInvocationSummary {
+            step_id: 2,
+            name: "write_file".to_string(),
+            outcome: [
+                "permission denied",
+                "target: /tmp/demo.txt",
+                "command: write_file /tmp/demo.txt",
+                "result: denied",
+                "stderr: line 1",
+                "stderr: line 2",
+                "stderr: line 3",
+                "stderr: line 4",
+            ]
+            .join("\n"),
+        }];
+
+        assert_eq!(
+            mode.enriched_paragraph_rows(),
+            vec![
+                "[tool] write_file: permission denied (failed)".to_string(),
+                "[detail] status: failed".to_string(),
+                "[detail] result: permission denied".to_string(),
+                "[detail] target: /tmp/demo.txt".to_string(),
+                "[detail] command: write_file /tmp/demo.txt".to_string(),
+                "[evidence] result: denied".to_string(),
+                "[evidence] stderr: line 1".to_string(),
+                "[evidence] stderr: line 2".to_string(),
+                "[evidence] … 2 more lines".to_string(),
+            ]
+        );
     }
 }

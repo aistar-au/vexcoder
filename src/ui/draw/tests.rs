@@ -302,17 +302,20 @@ fn fallback_activity_rows_render_without_timeline_entries() {
 }
 
 #[test]
-fn enriched_paragraph_output_renders_tool_status_colors() {
+fn structured_paragraph_markers_render_celestial_accents() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
     let state = make_state(
         vec![],
         vec![
-            "[ok] read_file: 42 lines",
-            "    README.md: 42 lines",
+            "[tool] read_file: 42 lines (completed)",
+            "[detail] status: completed",
+            "[detail] target: README.md",
+            "[evidence] preview: fn main() {}",
             "",
-            "[!] write_file: error: permission denied",
-            "    target: /etc/passwd",
+            "[tool] write_file: permission denied (failed)",
+            "[detail] status: failed",
+            "[detail] target: /etc/passwd",
             "",
             "The file was read successfully.",
         ],
@@ -321,12 +324,13 @@ fn enriched_paragraph_output_renders_tool_status_colors() {
     draw.draw(&mut buf, &state, 80, 24);
     let output = String::from_utf8_lossy(&buf);
 
-    // Star markers in the transcript area: both ★ and ✖ must be drawn
-    // (the ✖ marker only appears in transcript, not header, so it is
-    // sufficient to confirm transcript rendering is active).
     assert!(
-        output.contains("\u{2716}"),
-        "failure cross marker must be drawn in transcript"
+        output.contains("\u{2726}"),
+        "tool summary lines must render the celestial summary marker"
+    );
+    assert!(
+        output.contains("\u{2727}"),
+        "evidence lines must render the celestial evidence marker"
     );
     assert!(
         output.contains("read_file"),
@@ -349,11 +353,11 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
     let state = make_state(
         vec![],
         vec![
-            "[ok] bash: exit code 0",
-            "    $ npm test",
-            "    All tests passed",
-            "      > stdout line 1",
-            "      > stdout line 2",
+            "[tool] bash: exit code 0 (completed)",
+            "[detail] command: npm test",
+            "[detail] result: all tests passed",
+            "[evidence] stdout: line 1",
+            "[evidence] stdout: line 2",
         ],
     );
 
@@ -366,7 +370,7 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
         "4-space phase detail must be drawn"
     );
     assert!(
-        output.contains("stdout line 1"),
+        output.contains("stdout: line 1"),
         "6-space evidence must be drawn"
     );
     // The 6-space evidence uses DIM_GRAY (240) rather than GRAY (245).
@@ -383,15 +387,13 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
 fn paragraph_tree_summary_includes_outcome_extract() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
-    // Simulate the enriched paragraph output format where summary includes
-    // tool name + compact outcome.
     let state = make_state(
         vec![],
         vec![
-            "[ok] read_file: 42 lines read from src/main.rs",
-            "    content preview line 1",
-            "    content preview line 2",
-            "      evidence detail line",
+            "[tool] read_file: 42 lines read from src/main.rs (completed)",
+            "[detail] result: 42 lines read from src/main.rs",
+            "[detail] content preview line 1",
+            "[evidence] evidence detail line",
         ],
     );
 
