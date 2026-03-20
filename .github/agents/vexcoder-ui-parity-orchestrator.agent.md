@@ -137,14 +137,14 @@ gh pr view <pr> --json headRefName,commits,statusCheckRollup
 gh pr checks <pr> --watch
 ```
 
-- Open at most one draft PR for the lane. If the host creates a non-dispatcher
+- Open at most one draft PR for the lane. If the host creates a non-coder
   branch slug, report the session id, PR number, head branch, and any
   code-bearing commit SHAs, then stop after the draft is ready so the
-  dispatcher can promote the work onto `dispatcher/vexcoder-...`.
+  dispatcher can promote the work onto `coder/vexcoder-...`.
 - If the hosted PR has only a planning commit or no file diff, report that no
   code was published and do not present the change as implemented.
 - Expect the dispatcher to cherry-pick only code-bearing commits onto a
-  `dispatcher/vexcoder-...` branch, run
+  `coder/vexcoder-...` branch, run
   `vexdraft/scripts/commit-debug.py` on the configured 2.5 review lane, patch
   findings, minimize automated review comments after fixes, sanitize PR text
   and comments, watch CI, and refresh documentation plus the raw URL map
