@@ -141,19 +141,21 @@ Do not merge packaging work directly from a local debug session; keep the review
 
 ## Remote Agent Sessions
 
-Repository-level background sessions can use the private skill tree from
-`aistar-au/vexdraft` through the repository setup workflow and the
-custom agent profiles under `.github/agents/`.
+Repository-level background sessions are self-contained. They must not load or
+depend on the private `vexdraft` skill tree. Use the checked-in background
+session contract under `.github/agents/`, `.github/instructions/`, and the
+repository-hosted agent instructions file under `.github/`.
 
-- The setup workflow syncs `vexdraft/.agents/skills/` into the background
-  session home directory and reads the private-repo clone credential from the
-  platform environment secret referenced by the setup workflow.
-- Repository-wide background-session guidance now lives under
-  `.github/instructions/`, while skill bootstrap stays in the setup workflow and
-  the custom agent profiles.
+- The setup workflow validates the hosted-session contract and must stay
+  self-contained. It must not clone `vexdraft`, copy private skills into the
+  background-session home directory, or depend on platform secrets just to make
+  the agent start.
+- Repository-wide background-session guidance lives under
+  `.github/instructions/`, the repository-hosted agent instructions file under
+  `.github/`, and the custom agent profiles.
 - The setup workflow only affects background sessions after it lands on the
   default branch. Manual workflow dispatch is still useful for validating the
-  bootstrap steps on a feature branch before merge.
+  hosted-session bootstrap contract on a feature branch before merge.
 - The repository-level agent profile follows the branch you target. Use a
   dispatcher branch as the `--base` argument when you want the remote session
   to see branch-local agent changes.
@@ -162,9 +164,12 @@ custom agent profiles under `.github/agents/`.
   Branch-local profiles remain useful for repository content and follow-up
   promotion work, but the remote agent catalog itself is resolved from the
   default-branch profile set before the session starts.
-- On GitHub.com, the repository agent profile does not reliably pin the coding
-  model for hosted background sessions. Use the model picker in supported
-  GitHub entrypoints when it is available; otherwise expect GitHub to use Auto.
+- Keep the preferred model pinned inside the agent profile itself rather than
+  passing a model flag in `gh agent-task create`. If the hosting surface does
+  not honor the profile pin, record the observed behavior in the session log
+  instead of changing invocation style.
+- For one feature lane, open one comprehensive draft PR. Do not keep multiple
+  overlapping draft PRs for the same layout/render/test/doc workflow.
 
 Available profiles:
 
@@ -189,6 +194,12 @@ Tail an existing session with:
 gh agent-task view <session-id-or-pr> --log --follow
 ```
 
+List sessions first when the identifier is unknown:
+
+```bash
+gh agent-task list
+```
+
 Start a paragraph-rendering session with:
 
 ```bash
@@ -202,7 +213,7 @@ gh agent-task create \
 ### Post-session workflow (mandatory steps A–G)
 
 After an agent session completes, the dispatcher must follow these steps in
-order. The full procedure is documented in the `vex-local-bash` skill.
+order.
 
 1. **A — Tail logs**: identify each concurrent session by its unique ID.
 2. **B — Create dispatcher branch**: create a `dispatcher/vexcoder-` branch
@@ -230,7 +241,7 @@ order. The full procedure is documented in the `vex-local-bash` skill.
 │   ├── adr/           # Architecture Decision Records
 │   ├── src/                # Rust crate source
 │   └── tests/              # Integration tests
-└── vexdraft/               # Adjacent devops repo — dispatcher, commit-debug, skills
+└── vexdraft/               # Adjacent devops repo — local dispatcher, commit-debug, skills
     └── scripts/
         └── commit-debug.py # Multi-provider pre-push reviewer (called by dispatcher)
 ```
