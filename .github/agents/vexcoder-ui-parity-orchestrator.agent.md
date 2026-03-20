@@ -21,22 +21,16 @@ parity work in this repository.
 ## Session bootstrap
 
 - Read `AGENTS.md` first.
-- Treat `AGENTS.md` as step zero and private skill bootstrap as step one.
-- Load the private skill tree from `../vexdraft/.agents/skills/` when that
-  adjacent checkout is available.
-- In repository-hosted background sessions, first use the skills synchronized
-  into the agent home directory by the repository setup workflow.
-- If the synchronized skill tree is missing or incomplete, use the attached
-  `github/*` tools to read `aistar-au/vexdraft/.agents/skills/` directly before
-  proceeding.
-- Treat the attached GitHub MCP server as the required read-only fallback for
-  private skill bootstrap in remote sessions.
-- Required skill set:
-  - `vex-local-bash`
-  - `vex-remote-contract`
-  - `vex-rust-arch`
-- Stop only if both the synchronized skill tree and the GitHub repository
-  fallback are unavailable or incomplete.
+- Read `CONTRIBUTING.md`, then `adr/ADR-README.md` and the active ADRs.
+- If the adjacent `../vexdraft/.agents/skills/` checkout is available, load the
+  skill files (`vex-local-bash`, `vex-remote-contract`, `vex-rust-arch`) for
+  additional governance context.
+- In remote sessions, skills may have been synchronized by the setup workflow
+  or may be readable via the `github/*` tools from `aistar-au/vexdraft`.
+- Skill loading is advisory, not a hard gate. If skills are unavailable,
+  proceed using the rules embedded in `AGENTS.md`, `CONTRIBUTING.md`, and the
+  ADRs already present in this repository.
+- Do not stop or hard-fail due to missing skill files.
 
 ## Repo reading order
 
