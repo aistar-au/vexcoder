@@ -100,6 +100,44 @@ rendering and transcript drawing in this repository.
 - Do not claim success without naming the exact checks that passed and the exact
   checks that were not run.
 
+## Session monitoring
+
+- Tail a GitHub background session with:
+
+```bash
+gh agent-task view <session-id-or-pr> --log --follow
+```
+
+- List recent sessions when the identifier is unknown:
+
+```bash
+gh agent-task list
+```
+
+- If the same prompt is being exercised in the local CLI, start it
+  with an explicit log directory and debug logging:
+
+```bash
+copilot --agent vexcoder-ui-paragraph-renderer \
+  --log-level debug \
+  --log-dir ~/.copilot/logs \
+  -i "<prompt>"
+```
+
+- Tail the newest CLI process log from another terminal with:
+
+```bash
+tail -f "$(ls -t ~/.copilot/logs/process-*.log | head -n 1)"
+```
+
+## Pre-merge requirements
+
+- Hide or minimize all automated reviewer bot comments before merge using
+  the GraphQL `minimizeComment` mutation with `OUTDATED` classifier.
+- Run the cross-repo commit debugger (`vexdraft/scripts/commit-debug.py`)
+  before pushing any branch that touches `src/` or `tests/`.
+- Run `bash scripts/check_forbidden_names.sh` before every push.
+
 ## Documentation rules
 
 - Update stale documentation in the same task when rendering changes alter

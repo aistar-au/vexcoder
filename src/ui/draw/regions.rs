@@ -5,10 +5,9 @@
 /// ```text
 /// row 0        ┌─ header (repo + status) ───────┐  (1 row)
 /// row 1        ├─ changed files (optional) ──────┤  (0..1 rows)
-/// row H..T     ├─ timeline (adaptive height) ────┤  (3..35% of rows)
+/// row H..T     ├─ timeline (adaptive height) ────┤  (3..40% of rows)
 /// row T..C     │  transcript (remaining rows)    │  (fills remaining)
-/// row C..S     ├─ composer (adaptive) ───────────┤  (3..8 rows)
-/// row S        ├─ status bar (key hints + task)  ┤  (1 row)
+/// row C..end   ├─ composer (adaptive) ───────────┤  (4..8 rows)
 ///              └─────────────────────────────────┘
 /// ```
 pub(super) struct Regions {

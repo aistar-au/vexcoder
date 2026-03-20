@@ -8,9 +8,8 @@ This page documents the commands and flags implemented in the current binary.
 
 Starts the interactive full-screen CLI UI. While a task is running, the task
 surface uses a direct ANSI renderer for a human-readable header, optional
-changed-file row, adaptive timeline, prompt-anchored transcript area, a
-larger multiline composer, and a bottom status bar with key hints and task
-identity. When completed turns record usage metadata, the
+changed-file row, adaptive timeline, prompt-anchored transcript area, and a
+larger multiline composer. When completed turns record usage metadata, the
 header appends a compact `~N.Nk ctx` cumulative session indicator. The prompt
 surface keeps `/` commands, `@path` expansion, pasted blocks, and multiline
 editing available in the same fullscreen layout.
