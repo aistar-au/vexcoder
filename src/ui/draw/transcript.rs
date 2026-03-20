@@ -54,6 +54,58 @@ fn draw_heading(w: &mut dyn Write, text: &str, color: u8, cols: u16) {
     reset_style(w);
 }
 
+/// Write a tool paragraph header line at 2-space disclosure level.
+///
+/// Renders with a ✦ cosmic accent marker in bold cyan followed by the
+/// tool summary text in white:
+///
+/// ```text
+///   ✦ read_file src/main.rs
+/// ```
+fn draw_tool_paragraph_header(w: &mut dyn Write, text: &str, cols: u16) {
+    set_bold(w);
+    set_fg(w, CYAN);
+    let _ = write!(w, "  \u{2726} "); // 2-space indent + ✦
+    reset_style(w);
+    set_fg(w, WHITE);
+    let truncated = truncate_to_width(text, (cols as usize).saturating_sub(4));
+    let _ = write!(w, "{truncated}");
+    reset_style(w);
+}
+
+/// Write a tool phase detail line at 4-space disclosure level.
+///
+/// Renders the detail text dimmed at the nested indent level:
+///
+/// ```text
+///     Status: completed, 42 lines
+/// ```
+fn draw_tool_detail_line(w: &mut dyn Write, text: &str, cols: u16) {
+    set_fg(w, GRAY);
+    let _ = write!(w, "    ");
+    let truncated = truncate_to_width(text, (cols as usize).saturating_sub(4));
+    let _ = write!(w, "{truncated}");
+    reset_style(w);
+}
+
+/// Write a tool evidence line at 6-space disclosure level.
+///
+/// Renders with a ✧ accent marker in dim styling for enriched evidence
+/// snippets that should remain readable but visually subordinate:
+///
+/// ```text
+///       ✧ fn main() { … }
+/// ```
+fn draw_tool_evidence_line(w: &mut dyn Write, text: &str, cols: u16) {
+    set_dim(w);
+    set_fg(w, DIM_GRAY);
+    let _ = write!(w, "      \u{2727} "); // 6-space indent + ✧
+    set_fg(w, GRAY);
+    let truncated = truncate_to_width(text, (cols as usize).saturating_sub(8));
+    let _ = write!(w, "{truncated}");
+    reset_style(w);
+}
+
 /// Write a thin horizontal rule of `─` characters.
 fn draw_thin_rule(w: &mut dyn Write, width: usize, max: usize) {
     for _ in 0..width.min(max) {
@@ -63,7 +115,30 @@ fn draw_thin_rule(w: &mut dyn Write, width: usize, max: usize) {
 
 impl TaskDraw {
     /// Render a single transcript line with semantic and markdown-aware styling.
+    ///
+    /// Tool activity renders as paragraph-style transcript blocks with stable
+    /// 2/4/6-space disclosure levels:
+    ///
+    /// ```text
+    ///   ✦ read_file src/main.rs              ← 2-space: tool activity summary
+    ///     Status: completed, 42 lines        ← 4-space: phase detail
+    ///       fn main() { … }                  ← 6-space: evidence snippet
+    /// ```
     pub(super) fn draw_transcript_line(&mut self, w: &mut dyn Write, line: &str, cols: u16) {
+        // ── Tool paragraph markers (2/4/6-space disclosure) ────────
+        if let Some(rest) = line.strip_prefix("[tool] ") {
+            draw_tool_paragraph_header(w, rest, cols);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[detail] ") {
+            draw_tool_detail_line(w, rest, cols);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[evidence] ") {
+            draw_tool_evidence_line(w, rest, cols);
+            return;
+        }
+
         // ── Tool status markers ────────────────────────────────────
         if let Some(rest) = line.strip_prefix("[ok] ") {
             draw_icon_line(w, GREEN, "\u{2605}", WHITE, rest, cols, true);
@@ -167,8 +242,18 @@ impl TaskDraw {
             return;
         }
 
-        // ── Indented detail text ───────────────────────────────────
+        // ── Indented disclosure (6-space evidence, 4-space detail) ─
+        if line.starts_with("      ") {
+            // 6-space: evidence-level — dimmer than detail.
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let truncated = truncate_to_width(line, cols as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+            return;
+        }
         if line.starts_with("    ") {
+            // 4-space: detail-level disclosure.
             set_dim(w);
             set_fg(w, GRAY);
             let truncated = truncate_to_width(line, cols as usize);
