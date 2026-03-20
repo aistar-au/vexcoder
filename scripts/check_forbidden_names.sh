@@ -176,8 +176,9 @@ PY
 #           Ensures no proprietary assistant-brand names appear in workflow YAML even
 #           though action-reference patterns are excluded there.
 #           Exact-path allowlists cover the repository's required coding-agent
-#           setup workflow and its paired repository-level agent profile because
-#           those files must use platform-mandated integration identifiers.
+#           setup workflow and its paired repository-level agent profiles
+#           because those files must use platform-mandated integration
+#           identifiers.
 #   Pass 3 (PATH_PATTERN): brand-name subset over prompt/model file paths so
 #           branded fixture/template filenames are rejected even when file
 #           contents are generic.
