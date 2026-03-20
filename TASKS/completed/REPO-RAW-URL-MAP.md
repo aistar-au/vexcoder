@@ -55,7 +55,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 46 | `adr/completed/ADR-017-append-terminal-single-session.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-017-append-terminal-single-session.md> | ~20 |
 | 47 | `adr/completed/ADR-019-adr-018-follow-up-correctness-cutover-cleanup.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-019-adr-018-follow-up-correctness-cutover-cleanup.md> | ~440 |
 | 48 | `adr/completed/ADR-020-looping-architecture-enriched-response-correctness.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-020-looping-architecture-enriched-response-correctness.md> | ~310 |
-| 49 | `AGENTS.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/AGENTS.md> | ~142 |
+| 49 | `AGENTS.md` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/AGENTS.md> | ~42 |
 | 50 | `book.toml` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/book.toml> | ~9 |
 | 51 | `build.rs` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/build.rs> | ~29 |
 | 52 | `Cargo.lock` | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.lock> | ~2574 |
