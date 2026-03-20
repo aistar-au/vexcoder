@@ -137,21 +137,6 @@ fn draw_tool_detail_line(w: &mut dyn Write, text: &str, cols: u16) {
 /// Write a tool evidence line at 6-space disclosure level.
 ///
 /// Renders with a ✧ accent marker in dim styling for enriched evidence
-/// snippets that should remain readable but visually subordinate:
-///
-/// ```text
-///       ✧ fn main() { … }
-/// ```
-fn draw_tool_evidence_line(w: &mut dyn Write, text: &str, cols: u16) {
-    set_dim(w);
-    set_fg(w, DIM_GRAY);
-    let _ = write!(w, "      \u{2727} "); // 6-space indent + ✧
-    set_fg(w, GRAY);
-    let truncated = truncate_to_width(text, (cols as usize).saturating_sub(8));
-    let _ = write!(w, "{truncated}");
-    reset_style(w);
-}
-
 fn draw_status_paragraph_header(
     w: &mut dyn Write,
     accent: u8,
@@ -169,6 +154,7 @@ fn draw_status_paragraph_header(
     reset_style(w);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_prefixed_disclosure_line(
     w: &mut dyn Write,
     indent: &str,
@@ -318,6 +304,7 @@ fn parse_command_session_started(line: &str) -> Option<(String, Option<String>)>
     Some((command.to_string(), pid))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_nested_disclosure_line(
     this: &mut TaskDraw,
     w: &mut dyn Write,

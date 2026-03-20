@@ -885,7 +885,7 @@ fn json_transcript_line(
     while let Some(ch) = chars.next() {
         if ch == '"' {
             let mut token = String::from("\"");
-            while let Some(next) = chars.next() {
+            for next in chars.by_ref() {
                 token.push(next);
                 if next == '"' {
                     break;
