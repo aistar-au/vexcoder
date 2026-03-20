@@ -402,7 +402,10 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
 
     assert_eq!(
         labels,
-        vec!["edit_file: running...", "validate: running..."]
+        vec![
+            "edit_file \u{00b7} tool input captured",
+            "validate \u{00b7} tool input captured",
+        ]
     );
 }
 
