@@ -295,7 +295,7 @@ impl TuiMode {
     /// marker-based disclosure levels:
     ///
     /// ```text
-    /// [tool] tool_name · brief outcome · status   ← summary (2-space visual)
+    /// [tool] tool_name · target · status          ← summary (2-space visual)
     /// [detail] Scope: ...                         ← phase detail (4-space)
     /// [detail] Command: ...                       ← phase detail (4-space)
     /// [detail] Result: ...                        ← phase detail (4-space)
@@ -304,10 +304,11 @@ impl TuiMode {
     /// ```
     ///
     /// The summary line is self-informative: it includes the tool name, a
-    /// compact extract from the outcome, and the final status so the operator
-    /// can scan without expanding detail. Phase-detail lines provide stable
-    /// scope/command/result fields. Evidence lines preserve the original
-    /// outcome wording, capped to keep each paragraph to 4–6 lines.
+    /// compact target hint when one can be inferred from the outcome, and the
+    /// final status so the operator can scan without expanding detail.
+    /// Phase-detail lines provide stable scope/command/result fields.
+    /// Evidence lines preserve the original outcome wording, capped to keep
+    /// each paragraph to 4–6 lines.
     ///
     /// Followed by the model response text.
     fn enriched_paragraph_rows(&self) -> Vec<String> {
@@ -335,7 +336,12 @@ impl TuiMode {
             } else {
                 compact_outcome_summary(first_line)
             };
-            let summary = if result_summary.is_empty() {
+            let summary = if let Some(target_summary) = tool_target_summary(first_line) {
+                format!(
+                    "{} \u{00b7} {} \u{00b7} {}",
+                    invocation.name, target_summary, status_label
+                )
+            } else if result_summary == status_label {
                 format!("{} \u{00b7} {}", invocation.name, status_label)
             } else {
                 format!(
@@ -510,9 +516,50 @@ fn tool_scope_detail(tool_name: &str) -> String {
         .unwrap_or_else(|| "Tool invocation recorded in the completed turn.".to_string())
 }
 
+fn tool_target_summary(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let lowered = trimmed.to_ascii_lowercase();
+    for marker in [" from ", " to ", " in ", " at ", " into ", " on "] {
+        if let Some(index) = lowered.find(marker) {
+            if let Some(candidate) = first_pathish_token(&trimmed[index + marker.len()..]) {
+                return Some(candidate);
+            }
+        }
+    }
+
+    first_pathish_token(trimmed)
+}
+
+fn first_pathish_token(text: &str) -> Option<String> {
+    text.split_whitespace().find_map(|token| {
+        let candidate = token.trim_matches(|ch: char| {
+            matches!(
+                ch,
+                '"' | '\'' | '`' | '(' | ')' | '[' | ']' | '{' | '}' | ',' | ';' | ':'
+            )
+        });
+        if candidate.is_empty() {
+            return None;
+        }
+        let looks_pathish = candidate.contains('/')
+            || candidate.contains('\\')
+            || candidate
+                .rsplit_once('.')
+                .map(|(stem, ext)| !stem.is_empty() && !ext.is_empty())
+                .unwrap_or(false);
+        looks_pathish.then(|| candidate.to_string())
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{compact_outcome_summary, tool_outcome_is_error, tool_scope_detail};
+    use super::{
+        compact_outcome_summary, tool_outcome_is_error, tool_scope_detail, tool_target_summary,
+    };
 
     #[test]
     fn short_outcome_preserved() {
@@ -562,5 +609,26 @@ mod tests {
             tool_scope_detail("custom_tool"),
             "Tool invocation recorded in the completed turn."
         );
+    }
+
+    #[test]
+    fn target_summary_extracts_path_after_common_prepositions() {
+        assert_eq!(
+            tool_target_summary("42 lines read from src/main.rs"),
+            Some("src/main.rs".to_string())
+        );
+        assert_eq!(
+            tool_target_summary("wrote 17 bytes to Cargo.toml"),
+            Some("Cargo.toml".to_string())
+        );
+    }
+
+    #[test]
+    fn target_summary_falls_back_to_first_pathish_token() {
+        assert_eq!(
+            tool_target_summary("updated src/ui/render.rs successfully"),
+            Some("src/ui/render.rs".to_string())
+        );
+        assert_eq!(tool_target_summary("permission denied"), None);
     }
 }
