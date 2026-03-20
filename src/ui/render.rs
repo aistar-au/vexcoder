@@ -3,7 +3,7 @@ use crate::ui::input_metrics::{
     char_display_width, cursor_row_col, truncate_to_display_width, visual_row_count,
     visual_window_start, wrap_input_lines,
 };
-use crate::ui::layout::split_four_region_layout;
+use crate::ui::layout::{preferred_four_region_input_rows, split_four_region_layout};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -214,20 +214,13 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
 pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     use crate::app::StepLifecycle;
 
-    let preferred_input_rows = if frame.area().height >= 30 {
-        7
-    } else if frame.area().height >= 22 {
-        6
-    } else if frame.area().height >= 16 {
-        5
-    } else {
-        4
-    };
-    let input_rows = preferred_input_rows.max(input_visual_rows(
-        &state.composer_text,
-        frame.area().width.max(1) as usize,
-    ));
-    let layout = split_four_region_layout(frame.area(), 2, input_rows as u16);
+    let header_rows = if state.changed_files.is_empty() { 1 } else { 2 };
+    let preferred_input_rows = preferred_four_region_input_rows(frame.area().height);
+    let visual_input_rows =
+        input_visual_rows(&state.composer_text, frame.area().width.max(1) as usize)
+            .min(u16::MAX as usize) as u16;
+    let input_rows = preferred_input_rows.max(visual_input_rows);
+    let layout = split_four_region_layout(frame.area(), header_rows, input_rows as u16);
     frame.render_widget(Clear, frame.area());
 
     // --- Header ---
@@ -241,30 +234,13 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     frame.render_widget(Paragraph::new(Text::from(header_lines)), layout.header);
 
     // --- Activity / Timeline pane ---
-    let max_visible: usize = 6;
+    let max_visible = layout.activity.height.saturating_sub(1) as usize;
 
     if !state.timeline_entries.is_empty() {
         // Use structured timeline entries with selection highlighting.
         let total = state.timeline_entries.len();
         let selected = state.selected_step.min(total.saturating_sub(1));
-
-        // Compute the visible window: keep selected entry in view.
-        let window_start = if selected >= max_visible {
-            selected + 1 - max_visible
-        } else {
-            0
-        };
-        let window_end = (window_start + max_visible).min(total);
-
-        let activity_text: Vec<Line> = state.timeline_entries[window_start..window_end]
-            .iter()
-            .enumerate()
-            .map(|(i, entry)| {
-                let abs_index = window_start + i;
-                let is_selected = abs_index == selected;
-                render_timeline_entry(entry, is_selected)
-            })
-            .collect();
+        let activity_text = visible_timeline_lines(&state.timeline_entries, selected, max_visible);
 
         let activity_title = if state
             .timeline_entries
@@ -283,7 +259,7 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
         };
 
         // Show scroll indicator if total exceeds visible window.
-        let title_suffix = if total > max_visible {
+        let title_suffix = if max_visible > 0 && total > max_visible {
             format!(" ({}/{})", selected + 1, total)
         } else {
             String::new()
@@ -305,6 +281,7 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
         let activity_text: Vec<Line> = state
             .activity_rows
             .iter()
+            .take(max_visible)
             .map(|row| pipeline_activity_line(row))
             .collect();
         let activity_title = if state
@@ -378,6 +355,93 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
             layout.input,
         );
     }
+}
+
+fn visible_timeline_lines(
+    entries: &[crate::app::TimelineEntry],
+    selected: usize,
+    max_visible: usize,
+) -> Vec<Line<'static>> {
+    if max_visible == 0 || entries.is_empty() {
+        return Vec::new();
+    }
+
+    let total = entries.len();
+    if total <= max_visible {
+        return entries
+            .iter()
+            .enumerate()
+            .map(|(index, entry)| render_timeline_entry(entry, index == selected))
+            .collect();
+    }
+
+    let mut entry_cap = max_visible.saturating_sub(2);
+    let mut window_start = if selected >= entry_cap {
+        selected + 1 - entry_cap
+    } else {
+        0
+    };
+    if window_start + entry_cap > total {
+        window_start = total.saturating_sub(entry_cap);
+    }
+
+    let mut show_above = window_start > 0;
+    let mut show_below = window_start + entry_cap < total;
+    if !show_above || !show_below {
+        entry_cap = max_visible
+            .saturating_sub(show_above as usize)
+            .saturating_sub(show_below as usize);
+        if selected >= window_start + entry_cap {
+            window_start = selected + 1 - entry_cap;
+        }
+        if window_start + entry_cap > total {
+            window_start = total.saturating_sub(entry_cap);
+        }
+        show_above = window_start > 0;
+        show_below = window_start + entry_cap < total;
+    }
+
+    let above_count = window_start;
+    let below_count = total.saturating_sub(window_start + entry_cap);
+    let mut lines = Vec::with_capacity(max_visible);
+
+    for slot in 0..max_visible {
+        if slot == 0 && show_above {
+            lines.push(timeline_scroll_indicator("▲", above_count, "above"));
+            continue;
+        }
+
+        if slot == max_visible - 1 && show_below {
+            lines.push(timeline_scroll_indicator("▼", below_count, "below"));
+            continue;
+        }
+
+        let entry_slot = slot.saturating_sub(show_above as usize);
+        let entry_index = window_start + entry_slot;
+        if entry_index >= total {
+            break;
+        }
+
+        lines.push(render_timeline_entry(
+            &entries[entry_index],
+            entry_index == selected,
+        ));
+    }
+
+    lines
+}
+
+fn timeline_scroll_indicator(
+    marker: &'static str,
+    hidden_count: usize,
+    direction: &'static str,
+) -> Line<'static> {
+    Line::from(vec![Span::styled(
+        format!("   {marker} {hidden_count} more {direction}"),
+        Style::default()
+            .fg(Color::DarkGray)
+            .add_modifier(Modifier::DIM),
+    )])
 }
 
 /// Render a single timeline entry with lifecycle-based colour coding
@@ -1257,6 +1321,103 @@ mod tests {
         assert!(
             flat.contains("validate: running"),
             "pending steps should remain visible in the activity pane"
+        );
+    }
+
+    #[test]
+    fn task_layout_uses_adaptive_timeline_window_on_tall_terminals() {
+        let backend = TestBackend::new(80, 40);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let timeline_entries = (0..12)
+            .map(|index| crate::app::TimelineEntry {
+                step_id: index as u64,
+                lifecycle: crate::app::StepLifecycle::Completed,
+                label: format!("step_{index} · completed"),
+                detail: format!("Tool: step_{index}"),
+                session_id: None,
+            })
+            .collect();
+        let state = crate::app::TaskLayoutState {
+            task_id: "task-003".into(),
+            status_line: "Running".into(),
+            activity_rows: vec![],
+            timeline_entries,
+            selected_step: 8,
+            total_steps: 12,
+            output_title: "Inspector".into(),
+            output_rows: vec!["output".into()],
+            output_scroll_offset: 0,
+            output_scroll_anchor: crate::app::OutputScrollAnchor::Top,
+            changed_files: vec![],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
+            follow_mode: true,
+        };
+
+        terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+
+        let rendered = terminal.backend().buffer().clone();
+        let flat = rendered
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<Vec<_>>()
+            .join("");
+        assert!(
+            flat.contains("step_8"),
+            "selected timeline step should stay visible in the adaptive window"
+        );
+        assert!(
+            flat.contains("▼") || flat.contains("▲"),
+            "scroll indicators should appear when timeline entries exceed the visible window"
+        );
+    }
+
+    #[test]
+    fn task_layout_without_changed_files_keeps_single_line_header() {
+        let backend = TestBackend::new(60, 16);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = crate::app::TaskLayoutState {
+            task_id: "task-004".into(),
+            status_line: "Running".into(),
+            activity_rows: vec![],
+            timeline_entries: vec![crate::app::TimelineEntry {
+                step_id: 1,
+                lifecycle: crate::app::StepLifecycle::Completed,
+                label: "step_1 · completed".into(),
+                detail: "Tool: step_1".into(),
+                session_id: None,
+            }],
+            selected_step: 0,
+            total_steps: 1,
+            output_title: "Transcript".into(),
+            output_rows: vec!["body row".into()],
+            output_scroll_offset: 0,
+            output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
+            changed_files: vec![],
+            pending_approval: None,
+            input_hint: "> ".into(),
+            composer_text: String::new(),
+            composer_cursor: 0,
+            follow_mode: true,
+        };
+
+        terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+
+        let rendered = terminal.backend().buffer().clone();
+        let second_row_text = rendered
+            .content()
+            .iter()
+            .skip(60)
+            .take(60)
+            .map(|cell| cell.symbol())
+            .collect::<Vec<_>>()
+            .join("");
+        assert!(
+            second_row_text.contains("Steps") || second_row_text.contains("step_1"),
+            "without changed files, the activity pane should begin immediately below the status header"
         );
     }
 

@@ -1,3 +1,5 @@
+use crate::ui::layout::{preferred_four_region_input_rows, MAX_TIMELINE_FRACTION};
+
 // ── Adaptive region geometry ────────────────────────────────────────
 
 /// Adaptive layout regions that scale with terminal dimensions.
@@ -28,24 +30,8 @@ pub(super) struct Regions {
 const MIN_TIMELINE_ROWS: u16 = 3;
 /// Minimum transcript rows reserved above the prompt surface.
 const MIN_TRANSCRIPT_ROWS: u16 = 2;
-/// Maximum fraction of terminal for the timeline.
-const MAX_TIMELINE_FRACTION: f32 = 0.35;
 /// Minimum fullscreen prompt rows (toolbar + multiline input).
 const MIN_COMPOSER_ROWS: u16 = 3;
-
-fn preferred_composer_rows(rows: u16) -> u16 {
-    if rows >= 36 {
-        8
-    } else if rows >= 28 {
-        7
-    } else if rows >= 22 {
-        6
-    } else if rows >= 16 {
-        5
-    } else {
-        4
-    }
-}
 
 impl Regions {
     pub(super) fn compute(
@@ -68,7 +54,7 @@ impl Regions {
             .saturating_sub(MIN_TIMELINE_ROWS)
             .saturating_sub(MIN_TRANSCRIPT_ROWS)
             .max(MIN_COMPOSER_ROWS);
-        let composer_rows = preferred_composer_rows(rows)
+        let composer_rows = preferred_four_region_input_rows(rows)
             .max(MIN_COMPOSER_ROWS)
             .min(max_composer_rows);
 
