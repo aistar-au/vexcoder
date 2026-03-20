@@ -269,6 +269,37 @@ fn test_task_layout_state_routes_streamed_response_to_output_pane() {
 }
 
 #[test]
+fn test_task_layout_state_emits_completed_tool_paragraph_markers() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("inspect the file".to_string(), &mut ctx);
+    mode.current_turn_tool_invocations = vec![ToolInvocationSummary {
+        step_id: 1,
+        name: "read_file".to_string(),
+        outcome: "42 lines read from src/main.rs\nfn main() {}".to_string(),
+    }];
+    mode.current_turn_response = "Done.".to_string();
+    mode.commit_completed_turn(&ctx);
+    mode.history_state.turn_in_progress = false;
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(
+        state.output_rows[..6],
+        [
+            "[tool] read_file · 42 lines read from src/main.rs · completed",
+            "[detail] Scope: Read file content",
+            "[detail] Command: read_file",
+            "[detail] Result: 42 lines read from src/main.rs",
+            "[evidence] Outcome: 42 lines read from src/main.rs",
+            "[evidence] fn main() {}",
+        ]
+    );
+    assert_eq!(state.output_rows[6], "");
+    assert_eq!(state.output_rows[7], "Done.");
+}
+
+#[test]
 fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();

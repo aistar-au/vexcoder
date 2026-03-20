@@ -340,7 +340,7 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     let output_lines: Vec<Line> = state
         .output_rows
         .iter()
-        .map(|row| Line::from(row.to_string()))
+        .map(|row| transcript_output_line(row))
         .collect();
     let output_scroll = match state.output_scroll_anchor {
         crate::app::OutputScrollAnchor::Bottom => output_lines
@@ -645,6 +645,47 @@ fn pipeline_activity_line(row: &str) -> Line<'static> {
     }
 }
 
+fn transcript_output_line(row: &str) -> Line<'static> {
+    if let Some(rest) = row.strip_prefix("[tool] ") {
+        Line::from(vec![
+            Span::styled(
+                "  \u{2726} ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(rest.to_string(), Style::default().fg(Color::White)),
+        ])
+    } else if let Some(rest) = row.strip_prefix("[detail] ") {
+        Line::styled(
+            format!("    {rest}"),
+            Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+        )
+    } else if let Some(rest) = row.strip_prefix("[evidence] ") {
+        Line::from(vec![
+            Span::styled(
+                "      \u{2727} ",
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM),
+            ),
+            Span::styled(
+                rest.to_string(),
+                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+            ),
+        ])
+    } else if row.starts_with("[ok]")
+        || row.starts_with("[!]")
+        || row.starts_with("[->]")
+        || row.starts_with("[?]")
+        || row.starts_with("> ")
+    {
+        pipeline_activity_line(row)
+    } else {
+        Line::from(row.to_string())
+    }
+}
+
 fn truncate_line(input: &str, width: usize) -> String {
     let width = width.max(1);
     let mut out = String::new();
@@ -936,5 +977,32 @@ mod tests {
             flat.contains("validate: running"),
             "pending steps should remain visible in the activity pane"
         );
+    }
+
+    #[test]
+    fn transcript_output_line_styles_paragraph_markers() {
+        let tool = transcript_output_line("[tool] read_file · ok · completed");
+        let detail = transcript_output_line("[detail] Scope: Read file content");
+        let evidence = transcript_output_line("[evidence] Outcome: ok");
+
+        let tool_text: String = tool
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        let detail_text: String = detail
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        let evidence_text: String = evidence
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+
+        assert!(tool_text.starts_with("  \u{2726} "));
+        assert_eq!(detail_text, "    Scope: Read file content");
+        assert!(evidence_text.starts_with("      \u{2727} "));
     }
 }

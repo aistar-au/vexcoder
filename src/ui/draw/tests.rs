@@ -302,17 +302,23 @@ fn fallback_activity_rows_render_without_timeline_entries() {
 }
 
 #[test]
-fn enriched_paragraph_output_renders_tool_status_colors() {
+fn enriched_paragraph_output_renders_paragraph_markers() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
     let state = make_state(
         vec![],
         vec![
-            "[ok] read_file: 42 lines",
-            "    README.md: 42 lines",
+            "[tool] read_file · 42 lines · completed",
+            "[detail] Scope: Read file content",
+            "[detail] Command: read_file",
+            "[detail] Result: 42 lines",
+            "[evidence] Outcome: 42 lines",
             "",
-            "[!] write_file: error: permission denied",
-            "    target: /etc/passwd",
+            "[tool] write_file · permission denied · failed",
+            "[detail] Scope: Write file content",
+            "[detail] Command: write_file",
+            "[detail] Result: permission denied",
+            "[evidence] Outcome: permission denied",
             "",
             "The file was read successfully.",
         ],
@@ -321,12 +327,9 @@ fn enriched_paragraph_output_renders_tool_status_colors() {
     draw.draw(&mut buf, &state, 80, 24);
     let output = String::from_utf8_lossy(&buf);
 
-    // Star markers in the transcript area: both ★ and ✖ must be drawn
-    // (the ✖ marker only appears in transcript, not header, so it is
-    // sufficient to confirm transcript rendering is active).
     assert!(
-        output.contains("\u{2716}"),
-        "failure cross marker must be drawn in transcript"
+        output.contains("\u{2726}"),
+        "tool paragraph marker must be drawn in transcript"
     );
     assert!(
         output.contains("read_file"),
@@ -337,8 +340,8 @@ fn enriched_paragraph_output_renders_tool_status_colors() {
         "summary outcome must appear on the status line"
     );
     assert!(
-        output.contains("README.md"),
-        "indented detail must appear in output"
+        output.contains("Scope: Read file content"),
+        "detail line must appear in output"
     );
 }
 
@@ -349,11 +352,12 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
     let state = make_state(
         vec![],
         vec![
-            "[ok] bash: exit code 0",
-            "    $ npm test",
-            "    All tests passed",
-            "      > stdout line 1",
-            "      > stdout line 2",
+            "[tool] bash · exit code 0 · completed",
+            "[detail] Scope: Tool invocation recorded in the completed turn.",
+            "[detail] Command: bash",
+            "[detail] Result: exit code 0",
+            "[evidence] Outcome: exit code 0",
+            "[evidence] stdout line 1",
         ],
     );
 
@@ -362,7 +366,7 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
 
     assert!(output.contains("bash"), "tool name must appear in summary");
     assert!(
-        output.contains("npm test"),
+        output.contains("Result: exit code 0"),
         "4-space phase detail must be drawn"
     );
     assert!(
@@ -383,15 +387,15 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
 fn paragraph_tree_summary_includes_outcome_extract() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
-    // Simulate the enriched paragraph output format where summary includes
-    // tool name + compact outcome.
     let state = make_state(
         vec![],
         vec![
-            "[ok] read_file: 42 lines read from src/main.rs",
-            "    content preview line 1",
-            "    content preview line 2",
-            "      evidence detail line",
+            "[tool] read_file · 42 lines read from src/main.rs · completed",
+            "[detail] Scope: Read file content",
+            "[detail] Command: read_file",
+            "[detail] Result: 42 lines read from src/main.rs",
+            "[evidence] Outcome: 42 lines read from src/main.rs",
+            "[evidence] evidence detail line",
         ],
     );
 
@@ -407,13 +411,39 @@ fn paragraph_tree_summary_includes_outcome_extract() {
         "compact outcome extract must appear in summary"
     );
     assert!(
-        output.contains("content preview"),
+        output.contains("Result: 42 lines"),
         "phase detail must appear"
     );
     assert!(
         output.contains("evidence detail"),
         "evidence text must appear"
     );
+}
+
+#[test]
+fn paragraph_block_uses_four_to_six_lines_per_tool() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec![
+            "[tool] read_file · ok · completed",
+            "[detail] Scope: Read file content",
+            "[detail] Command: read_file",
+            "[detail] Result: ok",
+            "[evidence] Outcome: ok",
+        ],
+    );
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("\u{2726}"),
+        "tool summary marker must render"
+    );
+    assert!(output.contains("    Scope"), "detail rows must render");
+    assert!(output.contains("\u{2727}"), "evidence marker must render");
 }
 
 #[test]
