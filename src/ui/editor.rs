@@ -142,9 +142,7 @@ impl InputEditor {
         if value.is_empty() {
             return None;
         }
-        self.input_state
-            .history
-            .push(self.input_state.buffer.clone());
+        self.input_state.history.push(value.clone());
         self.input_state.history_index = None;
         self.input_state.history_stash = None;
         self.push_undo();

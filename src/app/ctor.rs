@@ -53,6 +53,7 @@ impl TuiMode {
             last_turn_input_display: String::new(),
             last_turn_duration: None,
             last_error_message: None,
+            turn_completion_pending: false,
             #[cfg(test)]
             last_turn_input: None,
         }
