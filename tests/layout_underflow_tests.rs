@@ -35,7 +35,7 @@ fn test_four_region_layout_handles_small_terminal_sizes() {
         Rect::new(0, 0, 20, 5),
         Rect::new(0, 0, 40, 12),
     ] {
-        let layout = split_four_region_layout(area, 1, 3);
+        let layout = split_four_region_layout(area, 1, 3, 4);
         assert_rect_within(area, layout.header);
         assert_rect_within(area, layout.activity);
         assert_rect_within(area, layout.output);
