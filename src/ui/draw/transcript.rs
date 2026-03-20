@@ -81,6 +81,7 @@ fn draw_tool_paragraph_header(w: &mut dyn Write, text: &str, cols: u16) {
 ///     Status: completed, 42 lines
 /// ```
 fn draw_tool_detail_line(w: &mut dyn Write, text: &str, cols: u16) {
+    set_dim(w);
     set_fg(w, GRAY);
     let _ = write!(w, "    ");
     let truncated = truncate_to_width(text, (cols as usize).saturating_sub(4));
@@ -122,7 +123,7 @@ impl TaskDraw {
     /// ```text
     ///   ✦ read_file src/main.rs              ← 2-space: tool activity summary
     ///     Status: completed, 42 lines        ← 4-space: phase detail
-    ///       fn main() { … }                  ← 6-space: evidence snippet
+    ///       ✧ fn main() { … }                ← 6-space: evidence snippet
     /// ```
     pub(super) fn draw_transcript_line(&mut self, w: &mut dyn Write, line: &str, cols: u16) {
         // ── Tool paragraph markers (2/4/6-space disclosure) ────────
