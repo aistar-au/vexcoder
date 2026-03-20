@@ -51,9 +51,16 @@ pub(crate) fn preferred_four_region_input_rows(rows: u16) -> u16 {
 
 pub fn split_four_region_layout(area: Rect, header_rows: u16, input_rows: u16) -> FourRegionLayout {
     let header_rows = header_rows.clamp(1, 2).min(area.height);
-    let max_input_rows = area.height.saturating_sub(header_rows).saturating_sub(1).max(1);
+    let max_input_rows = area
+        .height
+        .saturating_sub(header_rows)
+        .saturating_sub(1)
+        .max(1);
     let input_rows = input_rows.clamp(3, 8).min(max_input_rows);
-    let body_rows = area.height.saturating_sub(header_rows).saturating_sub(input_rows);
+    let body_rows = area
+        .height
+        .saturating_sub(header_rows)
+        .saturating_sub(input_rows);
     let activity_rows = if body_rows <= 1 {
         body_rows
     } else if body_rows <= 3 {
