@@ -137,8 +137,7 @@ impl TuiMode {
                 compact_outcome_summary(first_line)
             };
             let scope = tool_scope_detail(&invocation.name);
-            let summary = tool_target_summary(first_line)
-                .unwrap_or_else(|| result_summary.clone());
+            let summary = tool_target_summary(first_line).unwrap_or_else(|| result_summary.clone());
             entries.push(TimelineEntry {
                 step_id: invocation.step_id,
                 lifecycle: if is_error {
