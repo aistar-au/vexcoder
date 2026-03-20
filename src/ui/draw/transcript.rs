@@ -57,16 +57,61 @@ fn draw_heading(w: &mut dyn Write, text: &str, color: u8, cols: u16) {
 /// Write a tool paragraph header line at 2-space disclosure level.
 ///
 /// Renders with a ✦ cosmic accent marker in bold cyan followed by the
-/// tool summary text in white:
+/// tool summary text with a brighter tool name, a dimmer target hint,
+/// and a status accent when present:
 ///
 /// ```text
 ///   ✦ read_file src/main.rs
 /// ```
 fn draw_tool_paragraph_header(w: &mut dyn Write, text: &str, cols: u16) {
+    let segments: Vec<&str> = text.split(" \u{00b7} ").collect();
     set_bold(w);
     set_fg(w, CYAN);
     let _ = write!(w, "  \u{2726} "); // 2-space indent + ✦
     reset_style(w);
+    if let Some((status, leading)) = segments.split_last() {
+        if !leading.is_empty() && matches!(*status, "completed" | "failed" | "running") {
+            let available = (cols as usize).saturating_sub(4);
+            let leading_text = leading.join(" · ");
+            let full_text = format!("{leading_text} · {status}");
+            let truncated = truncate_to_width(&full_text, available);
+            if truncated != full_text {
+                set_fg(w, WHITE);
+                let _ = write!(w, "{truncated}");
+                reset_style(w);
+                return;
+            }
+
+            for (index, segment) in leading.iter().enumerate() {
+                if index > 0 {
+                    set_dim(w);
+                    set_fg(w, DIM_GRAY);
+                    let _ = write!(w, " \u{00b7} ");
+                    reset_style(w);
+                }
+                set_fg(w, if index == 0 { WHITE } else { GRAY });
+                let _ = write!(w, "{segment}");
+                reset_style(w);
+            }
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, " \u{00b7} ");
+            reset_style(w);
+            set_bold(w);
+            set_fg(
+                w,
+                match *status {
+                    "completed" => GREEN,
+                    "failed" => RED,
+                    "running" => CYAN,
+                    _ => WHITE,
+                },
+            );
+            let _ = write!(w, "{status}");
+            reset_style(w);
+            return;
+        }
+    }
     set_fg(w, WHITE);
     let truncated = truncate_to_width(text, (cols as usize).saturating_sub(4));
     let _ = write!(w, "{truncated}");

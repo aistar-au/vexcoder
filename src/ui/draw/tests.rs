@@ -308,17 +308,17 @@ fn enriched_paragraph_output_renders_paragraph_markers() {
     let state = make_state(
         vec![],
         vec![
-            "[tool] read_file · 42 lines · completed",
+            "[tool] read_file · src/main.rs · completed",
             "[detail] Scope: Read file content",
             "[detail] Command: read_file",
-            "[detail] Result: 42 lines",
-            "[evidence] Outcome: 42 lines",
+            "[detail] Result: 42 lines read from src/main.rs",
+            "[evidence] Outcome: 42 lines read from src/main.rs",
             "",
-            "[tool] write_file · permission denied · failed",
+            "[tool] write_file · src/lib.rs · failed",
             "[detail] Scope: Write file content",
             "[detail] Command: write_file",
-            "[detail] Result: permission denied",
-            "[evidence] Outcome: permission denied",
+            "[detail] Result: permission denied writing to src/lib.rs",
+            "[evidence] Outcome: permission denied writing to src/lib.rs",
             "",
             "The file was read successfully.",
         ],
@@ -336,12 +336,20 @@ fn enriched_paragraph_output_renders_paragraph_markers() {
         "tool name must appear in output"
     );
     assert!(
-        output.contains("42 lines"),
-        "summary outcome must appear on the status line"
+        output.contains("src/main.rs"),
+        "summary target must appear on the status line"
     );
     assert!(
         output.contains("Scope: Read file content"),
         "detail line must appear in output"
+    );
+    assert!(
+        output.contains("\x1b[38;5;2mcompleted"),
+        "completed status should use the success accent color"
+    );
+    assert!(
+        output.contains("\x1b[38;5;1mfailed"),
+        "failed status should use the error accent color"
     );
 }
 
@@ -384,7 +392,7 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
 }
 
 #[test]
-fn paragraph_tree_summary_includes_outcome_extract() {
+fn paragraph_tree_summary_prefers_target_hint() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
     let state = make_state(
@@ -407,8 +415,8 @@ fn paragraph_tree_summary_includes_outcome_extract() {
         "tool name must appear in summary"
     );
     assert!(
-        output.contains("42 lines"),
-        "compact outcome extract must appear in summary"
+        output.contains("src/main.rs"),
+        "target hint must appear in summary"
     );
     assert!(
         output.contains("Result: 42 lines"),

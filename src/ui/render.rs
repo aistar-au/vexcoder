@@ -647,15 +647,46 @@ fn pipeline_activity_line(row: &str) -> Line<'static> {
 
 fn transcript_output_line(row: &str) -> Line<'static> {
     if let Some(rest) = row.strip_prefix("[tool] ") {
-        Line::from(vec![
-            Span::styled(
-                "  \u{2726} ",
+        let mut spans = vec![Span::styled(
+            "  \u{2726} ",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )];
+        if let Some((leading, status)) = split_tool_summary(rest) {
+            for (index, segment) in leading.iter().enumerate() {
+                if index > 0 {
+                    spans.push(Span::styled(
+                        " \u{00b7} ",
+                        Style::default()
+                            .fg(Color::DarkGray)
+                            .add_modifier(Modifier::DIM),
+                    ));
+                }
+                spans.push(Span::styled(
+                    (*segment).to_string(),
+                    if index == 0 {
+                        Style::default().fg(Color::White)
+                    } else {
+                        Style::default().fg(Color::Gray)
+                    },
+                ));
+            }
+            spans.push(Span::styled(
+                " \u{00b7} ",
                 Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(rest.to_string(), Style::default().fg(Color::White)),
-        ])
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM),
+            ));
+            spans.push(Span::styled(status.to_string(), tool_status_style(status)));
+            Line::from(spans)
+        } else {
+            spans.push(Span::styled(
+                rest.to_string(),
+                Style::default().fg(Color::White),
+            ));
+            Line::from(spans)
+        }
     } else if let Some(rest) = row.strip_prefix("[detail] ") {
         Line::styled(
             format!("    {rest}"),
@@ -684,6 +715,26 @@ fn transcript_output_line(row: &str) -> Line<'static> {
     } else {
         Line::from(row.to_string())
     }
+}
+
+fn split_tool_summary(text: &str) -> Option<(Vec<&str>, &str)> {
+    let segments: Vec<&str> = text.split(" \u{00b7} ").collect();
+    let (status, leading) = segments.split_last()?;
+    if leading.is_empty() || !matches!(*status, "completed" | "failed" | "running") {
+        return None;
+    }
+    Some((leading.to_vec(), *status))
+}
+
+fn tool_status_style(status: &str) -> Style {
+    Style::default()
+        .fg(match status {
+            "completed" => Color::Green,
+            "failed" => Color::Red,
+            "running" => Color::Cyan,
+            _ => Color::White,
+        })
+        .add_modifier(Modifier::BOLD)
 }
 
 fn truncate_line(input: &str, width: usize) -> String {
@@ -1004,5 +1055,18 @@ mod tests {
         assert!(tool_text.starts_with("  \u{2726} "));
         assert_eq!(detail_text, "    Scope: Read file content");
         assert!(evidence_text.starts_with("      \u{2727} "));
+    }
+
+    #[test]
+    fn transcript_output_line_highlights_tool_target_and_failed_status() {
+        let tool = transcript_output_line("[tool] write_file · src/lib.rs · failed");
+
+        assert_eq!(tool.spans[1].content.as_ref(), "write_file");
+        assert_eq!(tool.spans[1].style.fg, Some(Color::White));
+        assert_eq!(tool.spans[3].content.as_ref(), "src/lib.rs");
+        assert_eq!(tool.spans[3].style.fg, Some(Color::Gray));
+        assert_eq!(tool.spans[5].content.as_ref(), "failed");
+        assert_eq!(tool.spans[5].style.fg, Some(Color::Red));
+        assert!(tool.spans[5].style.add_modifier.contains(Modifier::BOLD));
     }
 }
