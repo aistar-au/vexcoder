@@ -67,6 +67,15 @@ already exist, inspect and consolidate them before pushing a new draft.
 ## Rules
 
 - Do not introduce proprietary brand names in code, comments, or commits.
+- In agent-authored prose, explicitly avoid these terms unless a literal path,
+  URL, command, or quoted log line requires them: `Copilot`, `copilot`,
+  `Codex`, `codex`, `Claude`, `claude`, `Anthropic`, `anthropic`, `OpenAI`,
+  `openai`, `GPT`, `gpt`, `Gemini`, `gemini`, `Google`, `google`, `Qwen`,
+  `qwen`, `DeepSeek`, `deepseek`, `CodeLlama`, `codellama`, `StarCoder`,
+  `starcoder`, `CodeWhisperer`, `codewhisperer`, and `VS Code`.
+- Rewrite those references as `the hosted coding agent`, `the profile-pinned
+  model`, `the proprietary reference`, `the automated reviewer`, or `the
+  hosted runtime`.
 - Reuse existing helpers. Avoid speculative refactors.
 - Prefer explicit state over stringly typed control flow.
 - Every new dependency must be MIT or Apache 2.0 licensed.
@@ -78,6 +87,10 @@ already exist, inspect and consolidate them before pushing a new draft.
 - If validation fails only because the hosted runner lacks a local tool that is
   not provisioned by this repository, report the environment gap instead of
   installing ad hoc tooling in-session.
+- For hosted docs/workflow/instruction edits, do not run `make gate-fast`
+  unless `taplo` and the other required local tools are already present in the
+  runner image. Use the lighter validation set below first and report any
+  missing-tool environment gap without trying to install it.
 
 ## Before committing
 
@@ -89,8 +102,10 @@ cargo test --all-targets
 bash scripts/check_forbidden_names.sh
 ```
 
-Run `make gate-fast` when the branch also touches layout coordination, docs,
-instructions, or workflows.
+Run `make gate-fast` for layout coordination or broader local verification.
+In a hosted session that only touches docs, instructions, agent profiles, or
+workflows, run `make gate-fast` only when `taplo` and the rest of the gate
+tooling are already installed in the runner image.
 
 ## Post-session workflow
 

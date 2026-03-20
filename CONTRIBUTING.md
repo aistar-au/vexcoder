@@ -146,6 +146,8 @@ depend on the private `vexdraft` skill tree. Use the checked-in background
 session contract under `.github/agents/`, `.github/instructions/`, and the
 repository-hosted agent instructions file under `.github/`.
 
+- In `AGENTS.md`, hosted sessions must ignore the `Local bootstrap only`
+  section and every `../vexdraft` reference.
 - The setup workflow validates the hosted-session contract and must stay
   self-contained. It must not clone `vexdraft`, copy private skills into the
   background-session home directory, or depend on platform secrets just to make
@@ -168,9 +170,18 @@ repository-hosted agent instructions file under `.github/`.
   passing a model flag in `gh agent-task create`. If the hosting surface does
   not honor the profile pin, record the observed behavior in the session log
   instead of changing invocation style.
+- In hosted agent-authored prose, explicitly avoid vendor and proprietary
+  assistant names unless a path, URL, command, or quoted log line requires the
+  exact string. When possible, rewrite them as `the hosted coding agent`, `the
+  profile-pinned model`, `the proprietary reference`, `the automated
+  reviewer`, or `the hosted runtime`.
 - If a hosted-run validation step fails only because the runner lacks a local
   CLI that the repository does not provision, record the gap as environment
   drift instead of installing ad hoc tooling inside the session.
+- For hosted sessions that only touch docs, instructions, agent profiles, or
+  workflows, run `cargo fmt --check`, `cargo test --all-targets`, and
+  `bash scripts/check_forbidden_names.sh` first. Run `make gate-fast` only if
+  the runner image already has the required gate tools.
 - For one feature lane, open one comprehensive draft PR. Do not keep multiple
   overlapping draft PRs for the same layout/render/test/doc workflow.
 

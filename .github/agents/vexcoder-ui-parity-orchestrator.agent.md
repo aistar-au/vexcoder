@@ -70,6 +70,15 @@ Use original celestial/star accent markers, not borrowed visual idioms.
 ## Rules
 
 - Preserve architecture and ADR contracts.
+- In agent-authored prose, explicitly avoid these terms unless a literal path,
+  URL, command, or quoted log line requires them: `Copilot`, `copilot`,
+  `Codex`, `codex`, `Claude`, `claude`, `Anthropic`, `anthropic`, `OpenAI`,
+  `openai`, `GPT`, `gpt`, `Gemini`, `gemini`, `Google`, `google`, `Qwen`,
+  `qwen`, `DeepSeek`, `deepseek`, `CodeLlama`, `codellama`, `StarCoder`,
+  `starcoder`, `CodeWhisperer`, `codewhisperer`, and `VS Code`.
+- Rewrite those references as `the hosted coding agent`, `the profile-pinned
+  model`, `the proprietary reference`, `the automated reviewer`, or `the
+  hosted runtime`.
 - Prefer explicit state over stringly typed control flow.
 - Avoid `unwrap`/`expect` in runtime paths unless construction-proven.
 - Reuse existing helpers. Avoid speculative refactors.
@@ -81,6 +90,10 @@ Use original celestial/star accent markers, not borrowed visual idioms.
 - If validation fails only because the hosted runner lacks a local tool that is
   not provisioned by this repository, report the environment gap instead of
   improvising tool installation.
+- For hosted docs/workflow/instruction edits, do not run `make gate-fast`
+  unless `taplo` and the other required local tools are already present in the
+  runner image. Use the lighter validation set below first and report any
+  missing-tool environment gap without trying to install it.
 
 ## Before committing
 
@@ -92,8 +105,10 @@ cargo test --all-targets
 bash scripts/check_forbidden_names.sh
 ```
 
-Run `make gate-fast` when the branch also touches documentation, instructions,
-or workflows.
+Run `make gate-fast` for broader local verification. In a hosted session that
+only touches docs, instructions, agent profiles, or workflows, run it only
+when `taplo` and the rest of the gate tooling are already installed in the
+runner image.
 
 ## Post-session workflow
 

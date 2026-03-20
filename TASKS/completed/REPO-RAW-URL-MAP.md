@@ -11,10 +11,10 @@ Canonical raw URL index for every tracked file in this repository.
 | ---: | :--- | ---: | :--- |
 | 1 | `.gitattributes` | ~3 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitattributes> |
 | 2 | `.github/agents/rust-change-auditor.agent.md` | ~107 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/rust-change-auditor.agent.md> |
-| 3 | `.github/agents/vexcoder-ui-paragraph-renderer.agent.md` | ~108 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-paragraph-renderer.agent.md> |
-| 4 | `.github/agents/vexcoder-ui-parity-orchestrator.agent.md` | ~115 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-parity-orchestrator.agent.md> |
-| 5 | `.github/copilot-instructions.md` | ~23 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/copilot-instructions.md> |
-| 6 | `.github/instructions/repository.instructions.md` | ~108 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/instructions/repository.instructions.md> |
+| 3 | `.github/agents/vexcoder-ui-paragraph-renderer.agent.md` | ~123 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-paragraph-renderer.agent.md> |
+| 4 | `.github/agents/vexcoder-ui-parity-orchestrator.agent.md` | ~130 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-parity-orchestrator.agent.md> |
+| 5 | `.github/copilot-instructions.md` | ~37 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/copilot-instructions.md> |
+| 6 | `.github/instructions/repository.instructions.md` | ~118 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/instructions/repository.instructions.md> |
 | 7 | `.github/instructions/rust.instructions.md` | ~58 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/instructions/rust.instructions.md> |
 | 8 | `.github/instructions/third-party.instructions.md` | ~38 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/instructions/third-party.instructions.md> |
 | 9 | `.github/workflows/arch-contracts.yml` | ~38 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/arch-contracts.yml> |
@@ -25,8 +25,8 @@ Canonical raw URL index for every tracked file in this repository.
 | 14 | `.github/workflows/docs-build.yml` | ~46 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/docs-build.yml> |
 | 15 | `.github/workflows/release.yml` | ~229 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/release.yml> |
 | 16 | `.gitignore` | ~36 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitignore> |
-| 17 | `AGENTS.md` | ~80 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/AGENTS.md> |
-| 18 | `CONTRIBUTING.md` | ~367 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
+| 17 | `AGENTS.md` | ~92 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/AGENTS.md> |
+| 18 | `CONTRIBUTING.md` | ~378 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
 | 19 | `Cargo.lock` | ~2867 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.lock> |
 | 20 | `Cargo.toml` | ~54 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.toml> |
 | 21 | `LICENSE` | ~21 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/LICENSE> |

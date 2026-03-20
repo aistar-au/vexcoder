@@ -31,6 +31,8 @@ applyTo: "**"
 - For repository-hosted background sessions, stay self-contained inside this
   repository. Do not bootstrap, fetch, or depend on private skills or adjacent
   repos before editing.
+- In `AGENTS.md`, repository-hosted background sessions must ignore the
+  `Local bootstrap only` section and every `../vexdraft` reference.
 - When present, read the repository-hosted agent instructions file under
   `.github/` as part of the background-session contract.
 
@@ -72,9 +74,17 @@ gh agent-task view <session-id-or-pr> --log --follow
 - Keep the model pinned in the agent profile rather than adding model flags at
   invocation time. If the hosting surface ignores the profile pin, report that
   behavior explicitly instead of silently changing the command.
+- In agent-authored prose, explicitly avoid every assistant-brand term,
+  provider-name term, model-family term, and editor-brand term matched by
+  `scripts/check_forbidden_names.sh` unless a literal path, URL, command, or
+  quoted log line requires the exact string.
 - If a hosted-run validation step fails only because the runner lacks a local
   tool that this repository does not provision, report the environment gap
   rather than installing ad hoc tooling in-session.
+- For hosted sessions that only touch docs, instructions, agent profiles, or
+  workflows, start with `cargo fmt --check`, `cargo test --all-targets`, and
+  `bash scripts/check_forbidden_names.sh`. Run `make gate-fast` only when the
+  full toolchain is already present in the runner image.
 - Promote remote agent output onto a `dispatcher/vexcoder-...` branch before
   commit-debug, CI watch, and final PR preparation.
 - Run `vexdraft/scripts/commit-debug.py` with the configured review slot after

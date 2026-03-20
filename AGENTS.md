@@ -2,7 +2,22 @@
 
 Read this file first.
 
-## Local bootstrap
+## Hosted-session short circuit
+
+If this is a repository-hosted background session:
+
+- Stop here before reading any local bootstrap instruction below.
+- Ignore every `../vexdraft` reference in this file. Those lines are for local
+  dispatcher sessions only.
+- Do not bootstrap, clone, sync, fetch, inspect, or depend on private skills,
+  adjacent repos, or setup-workflow copies of the private skill tree.
+- Stay within this repository's tracked instructions and source tree.
+- Continue with the repository-hosted agent instructions file under `.github/`,
+  `.github/instructions/repository.instructions.md`, and `CONTRIBUTING.md`.
+
+## Local bootstrap only
+
+Ignore this section in repository-hosted background sessions.
 
 - Only local dispatcher sessions bootstrap private skills.
 - Load `../vexdraft/.agents/skills/vex-local-bash/SKILL.md`.
@@ -10,11 +25,6 @@ Read this file first.
 - Load `../vexdraft/.agents/skills/vex-rust-arch/SKILL.md` for Rust changes.
 - Read `CONTRIBUTING.md`, especially the `Remote Agent Sessions` section and
   the A-G post-session workflow.
-
-Repository-hosted background sessions are self-contained. Do not bootstrap,
-clone, sync, or depend on private skills, `../vexdraft`, or setup-workflow
-copies of the private skill tree. For hosted sessions, stay within this
-repository's tracked instructions and source tree.
 
 ## Key directories
 
@@ -67,6 +77,8 @@ A–G post-session checklist.
 
 - Stay self-contained within this repository.
 - Do not fetch or load private skills.
+- Ignore the `Local bootstrap only` section above and every `../vexdraft`
+  reference in this file.
 - Use the repository-hosted agent instructions file under `.github/`,
   `.github/instructions/`, and the checked-in agent profiles as the
   hosted-session contract.
