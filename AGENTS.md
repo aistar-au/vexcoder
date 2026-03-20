@@ -82,11 +82,22 @@ A–G post-session checklist.
 - Use the repository-hosted agent instructions file under `.github/`,
   `.github/instructions/`, and the checked-in agent profiles as the
   hosted-session contract.
-
+- Do not read any `SKILL.md` file in a repository-hosted session.
 - Tail remote logs with the unique session or PR identifier:
   `gh agent-task view <session-id-or-pr> --log --follow`
+- List hosted sessions first when the identifier is unknown:
+  `gh agent-task list`
+- Inspect hosted PR state and watch checks with:
+  `gh pr view <pr> --json headRefName,commits,statusCheckRollup`
+  `gh pr checks <pr> --watch`
+- If `rg` is unavailable, fall back to `git grep -n`, `grep -RIn`, or direct
+  file reads and continue.
 - Promote remote agent output onto a `dispatcher/vexcoder-...` branch before
   commit-debug, CI watch, and PR preparation.
+- If the hosted run opens a non-dispatcher branch or ends with only a planning
+  commit and no file diff, treat it as draft-only evidence. Do not present the
+  change as implemented until code-bearing commits are promoted onto a
+  dispatcher branch.
 - Keep the paragraph-renderer model pinned in the agent profile rather than
   passing a model flag at invocation time. If the hosting surface ignores the
   profile pin, record that behavior instead of silently changing the command.

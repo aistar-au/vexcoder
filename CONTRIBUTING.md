@@ -148,6 +148,7 @@ repository-hosted agent instructions file under `.github/`.
 
 - In `AGENTS.md`, hosted sessions must ignore the `Local bootstrap only`
   section and every `../vexdraft` reference.
+- Hosted sessions must not read any `SKILL.md` file.
 - The setup workflow validates the hosted-session contract and must stay
   self-contained. It must not clone `vexdraft`, copy private skills into the
   background-session home directory, or depend on platform secrets just to make
@@ -170,6 +171,8 @@ repository-hosted agent instructions file under `.github/`.
   passing a model flag in `gh agent-task create`. If the hosting surface does
   not honor the profile pin, record the observed behavior in the session log
   instead of changing invocation style.
+- If `rg` is unavailable in the hosted runner, fall back to `git grep -n`,
+  `grep -RIn`, or direct file reads and continue.
 - In hosted agent-authored prose, explicitly avoid vendor and proprietary
   assistant names unless a path, URL, command, or quoted log line requires the
   exact string. When possible, rewrite them as `the hosted coding agent`, `the
@@ -208,7 +211,8 @@ Tail an existing session with:
 gh agent-task view <session-id-or-pr> --log --follow
 ```
 
-List sessions first when the identifier is unknown:
+Prefer the unique session id when multiple hosted runs are active. List the
+sessions first when the identifier is unknown:
 
 ```bash
 gh agent-task list
@@ -230,8 +234,13 @@ After an agent session completes, the dispatcher must follow these steps in
 order.
 
 1. **A — Tail logs**: identify each concurrent session by its unique ID.
+   Use `gh agent-task view <session-id> --log --follow`.
 2. **B — Create dispatcher branch**: create a `dispatcher/vexcoder-` branch
    from `origin/main` and cherry-pick the agent's commits.
+   Inspect the hosted PR first with
+   `gh pr view <pr> --json headRefName,commits,statusCheckRollup`.
+   If the hosted PR has only a planning commit or no file diff, treat it as
+   draft-only evidence and do not present the change as implemented.
 3. **C — Commit-debug loop**: run `vexdraft/scripts/commit-debug.py`, fix
    findings, push, and re-run until `PASS`.
 4. **D — Hide bot comments**: minimize automated reviewer bot comments via
