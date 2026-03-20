@@ -28,6 +28,9 @@ in this Rust TUI coding agent.
   task.
 - Repository-hosted background sessions must stay self-contained. Do not
   bootstrap, clone, sync, or depend on private skills or adjacent repos.
+- In a repository-hosted session, do not read any `SKILL.md` file. The hosted
+  contract is limited to this repository's tracked instructions and source
+  tree.
 
 ## Target files
 
@@ -58,6 +61,10 @@ functional equivalence to proprietary reference surfaces through original
 design. Do not reuse branded wording, layout phrasing, or copyrighted UI
 material.
 
+Treat proprietary reference surfaces as behavioral benchmarks only. Build the
+paragraph structure, transcript drawing, and informative tool-result summaries
+from first principles in this repository's own language and visual system.
+
 If the task touches `src/app/layout.rs`, `src/ui/render.rs`,
 `src/ui/draw/**`, `src/app/tests.rs`, docs, or agent workflow files together,
 keep the work in one comprehensive branch and one comprehensive draft PR. Do
@@ -84,6 +91,8 @@ already exist, inspect and consolidate them before pushing a new draft.
 - Keep the model pinned in this profile. Do not pass a model flag when invoking
   this agent. If the hosting surface ignores the profile pin, report that
   behavior explicitly instead of changing invocation style.
+- If `rg` is unavailable in the hosted runner, fall back to `git grep -n`,
+  `grep -RIn`, or direct file reads and continue.
 - If validation fails only because the hosted runner lacks a local tool that is
   not provisioned by this repository, report the environment gap instead of
   installing ad hoc tooling in-session.
@@ -91,6 +100,8 @@ already exist, inspect and consolidate them before pushing a new draft.
   unless `taplo` and the other required local tools are already present in the
   runner image. Use the lighter validation set below first and report any
   missing-tool environment gap without trying to install it.
+- Do not describe implementation work as landed unless the remote branch has a
+  code-bearing commit and a visible file diff.
 
 ## Before committing
 
@@ -109,15 +120,29 @@ tooling are already installed in the runner image.
 
 ## Post-session workflow
 
-- Tail logs with the session or PR identifier:
+- List and tail hosted sessions with the unique session identifier:
 
 ```bash
+gh agent-task list
 gh agent-task view <session-id-or-pr> --log --follow
 ```
 
+- Inspect the hosted PR and watch its checks with:
+
+```bash
+gh pr view <pr> --json headRefName,commits,statusCheckRollup
+gh pr checks <pr> --watch
+```
+
 - Open at most one draft PR for the lane. If the host creates a non-dispatcher
-  branch slug, report the identifier and stop after the draft is ready so the
+  branch slug, report the session id, PR number, head branch, and any
+  code-bearing commit SHAs, then stop after the draft is ready so the
   dispatcher can promote the work onto `dispatcher/vexcoder-...`.
-- Expect the dispatcher to run `vexdraft/scripts/commit-debug.py`, patch
-  findings, sanitize PR text, outdate automated review comments after fixes,
-  watch CI, and refresh documentation before merge.
+- If the hosted PR has only a planning commit or no file diff, report that no
+  code was published and do not present the change as implemented.
+- Expect the dispatcher to cherry-pick only code-bearing commits onto a
+  `dispatcher/vexcoder-...` branch, run
+  `vexdraft/scripts/commit-debug.py` on the configured 2.5 review lane, patch
+  findings, minimize automated review comments after fixes, sanitize PR text
+  and comments, watch CI, and refresh documentation plus the raw URL map
+  before merge.

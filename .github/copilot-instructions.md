@@ -9,6 +9,7 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
   `.github/instructions/repository.instructions.md` first.
 - In `AGENTS.md`, ignore the `Local bootstrap only` section and every
   `../vexdraft` reference. Those lines are for local dispatcher sessions only.
+- Do not read any `SKILL.md` file in a repository-hosted session.
 - Keep one comprehensive draft branch and one comprehensive draft PR per
   feature lane.
 - Keep wording neutral and repository-focused.
@@ -27,6 +28,10 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
   reference`, `the automated reviewer`, or `the hosted runtime`.
 - Preserve the model pin declared inside the selected agent profile. Do not add
   invocation flags to override it from the command line.
+- Prefer the unique session id over the PR number when tailing logs during
+  concurrent hosted runs.
+- If `rg` is unavailable, fall back to `git grep -n`, `grep -RIn`, or direct
+  file reads and continue.
 - If the hosted runner lacks an undeclared local tool that this repository does
   not provision, report the environment gap instead of installing ad hoc
   tooling inside the session.
@@ -35,3 +40,9 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
   `bash scripts/check_forbidden_names.sh` first. Run `make gate-fast` only if
   the required local tools are already present in the runner image. Do not try
   to install missing tools during the hosted session.
+- If the host opens a non-dispatcher branch, stop after the draft is ready and
+  report the session id, PR number, head branch, and any code-bearing commit
+  SHAs so the dispatcher can promote the diff.
+- If the hosted run finishes with only a planning commit or no file diff,
+  report that no code was published and do not describe the implementation as
+  landed.

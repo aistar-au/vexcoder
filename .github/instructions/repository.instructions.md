@@ -65,10 +65,25 @@ bash scripts/check_forbidden_names.sh
 
 ### Remote agent workflow
 
+- List hosted sessions first when the identifier is unknown:
+
+```sh
+gh agent-task list
+```
+
 - Tail background-session logs with the unique session or PR identifier:
 
 ```sh
 gh agent-task view <session-id-or-pr> --log --follow
+```
+
+- Prefer the unique session id over the PR number when multiple hosted runs are
+  active.
+- Inspect the hosted PR and watch its checks with:
+
+```sh
+gh pr view <pr> --json headRefName,commits,statusCheckRollup
+gh pr checks <pr> --watch
 ```
 
 - Keep the model pinned in the agent profile rather than adding model flags at
@@ -78,6 +93,9 @@ gh agent-task view <session-id-or-pr> --log --follow
   provider-name term, model-family term, and editor-brand term matched by
   `scripts/check_forbidden_names.sh` unless a literal path, URL, command, or
   quoted log line requires the exact string.
+- In a repository-hosted session, do not read any `SKILL.md` file.
+- If `rg` is unavailable, fall back to `git grep -n`, `grep -RIn`, or direct
+  file reads and continue.
 - If a hosted-run validation step fails only because the runner lacks a local
   tool that this repository does not provision, report the environment gap
   rather than installing ad hoc tooling in-session.
@@ -87,6 +105,10 @@ gh agent-task view <session-id-or-pr> --log --follow
   full toolchain is already present in the runner image.
 - Promote remote agent output onto a `dispatcher/vexcoder-...` branch before
   commit-debug, CI watch, and final PR preparation.
+- If a hosted run opens a non-dispatcher branch or ends with only a planning
+  commit and no file diff, treat it as draft-only evidence. Do not claim the
+  implementation landed until code-bearing commits are promoted onto the
+  dispatcher branch.
 - Run `vexdraft/scripts/commit-debug.py` with the configured review slot after
   pushing the dispatcher branch. Patch findings and rerun until the review
   passes.
