@@ -35,6 +35,7 @@ scan_targets() {
     "$RG_BIN" -n --hidden -i \
       --glob '!.git' \
       --glob '!.github/agents/vexcoder-ui-parity-orchestrator.agent.md' \
+      --glob '!.github/agents/vexcoder-ui-paragraph-renderer.agent.md' \
       --glob '!.github/workflows/**' \
       --glob '!scripts/check_forbidden_names.sh' \
       --glob '!TASKS/completed/REPO-RAW-URL-MAP.md' \
@@ -62,6 +63,8 @@ for root in roots:
         if rel == "TASKS/completed/REPO-RAW-URL-MAP.md":
             continue
         if rel == ".github/agents/vexcoder-ui-parity-orchestrator.agent.md":
+            continue
+        if rel == ".github/agents/vexcoder-ui-paragraph-renderer.agent.md":
             continue
         if rel.startswith(".git/") or rel.startswith(".github/workflows/"):
             continue

@@ -24,17 +24,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "${GH_TOKEN:-}" ]; then
-            echo "Missing Copilot environment secret: COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN"
-            exit 1
-          fi
-
           export HOME="${HOME:-/github/home}"
           export COPILOT_HOME="${COPILOT_HOME:-$HOME/.copilot}"
           TMP_ROOT="$(mktemp -d)"
           SRC_REPO="$TMP_ROOT/vexdraft"
           PRIMARY_DEST="$COPILOT_HOME/skills"
           EXTRA_DEST=""
+          BOOTSTRAP_MODE="github-mcp-fallback"
+          SYNCED_SKILLS_DIR=""
 
           mkdir -p "$PRIMARY_DEST"
           if [ -d /copilot ] && [ -w /copilot ]; then
@@ -42,40 +39,58 @@ jobs:
             mkdir -p "$EXTRA_DEST"
           fi
 
-          git clone --filter=blob:none --no-checkout \
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "Copilot environment secret unavailable; leaving private skill bootstrap to the attached GitHub MCP fallback."
+          elif ! git clone --filter=blob:none --no-checkout \
             "https://x-access-token:${GH_TOKEN}@github.com/aistar-au/vexdraft.git" \
-            "$SRC_REPO"
-          git -C "$SRC_REPO" sparse-checkout init --cone
-          git -C "$SRC_REPO" sparse-checkout set .agents/skills
-          git -C "$SRC_REPO" checkout
+            "$SRC_REPO"; then
+            echo "Private skill clone failed; the remote agent must fetch aistar-au/vexdraft through the attached GitHub MCP server."
+          else
+            git -C "$SRC_REPO" sparse-checkout init --cone
+            git -C "$SRC_REPO" sparse-checkout set .agents/skills
+            git -C "$SRC_REPO" checkout
 
-          SKILLS_SRC="$SRC_REPO/.agents/skills"
-          if [ ! -d "$SKILLS_SRC" ]; then
-            echo "Missing private skill tree at $SKILLS_SRC"
-            exit 1
-          fi
+            SKILLS_SRC="$SRC_REPO/.agents/skills"
+            if [ ! -d "$SKILLS_SRC" ]; then
+              echo "Missing private skill tree at $SKILLS_SRC; the remote agent must use GitHub MCP bootstrap instead."
+            else
+              rsync -a --delete "$SKILLS_SRC/" "$PRIMARY_DEST/"
+              if [ -n "$EXTRA_DEST" ]; then
+                rsync -a --delete "$SKILLS_SRC/" "$EXTRA_DEST/"
+              fi
 
-          rsync -a --delete "$SKILLS_SRC/" "$PRIMARY_DEST/"
-          if [ -n "$EXTRA_DEST" ]; then
-            rsync -a --delete "$SKILLS_SRC/" "$EXTRA_DEST/"
-          fi
+              missing_required=0
+              for required in vex-local-bash vex-remote-contract vex-rust-arch; do
+                if [ ! -f "$PRIMARY_DEST/$required/SKILL.md" ]; then
+                  echo "Missing synchronized skill after copy: $required"
+                  missing_required=1
+                fi
+              done
 
-          for required in vex-local-bash vex-remote-contract vex-rust-arch; do
-            if [ ! -f "$PRIMARY_DEST/$required/SKILL.md" ]; then
-              echo "Missing required skill: $required"
-              exit 1
+              if [ "$missing_required" -eq 0 ]; then
+                BOOTSTRAP_MODE="synced"
+                SYNCED_SKILLS_DIR="$PRIMARY_DEST"
+              else
+                echo "Synchronized skill tree is incomplete; the remote agent must fall back to GitHub MCP bootstrap."
+              fi
             fi
-          done
+          fi
 
           {
             echo "COPILOT_HOME=$COPILOT_HOME"
-            echo "VEXDRAFT_SKILLS_DIR=$PRIMARY_DEST"
+            echo "VEXDRAFT_SKILLS_BOOTSTRAP=$BOOTSTRAP_MODE"
+            echo "VEXDRAFT_SKILLS_DIR=$SYNCED_SKILLS_DIR"
           } >> "$GITHUB_ENV"
 
       - name: Verify synchronized skill tree
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ "${VEXDRAFT_SKILLS_BOOTSTRAP:-github-mcp-fallback}" != "synced" ]; then
+            echo "Private skill sync skipped; background sessions must bootstrap from the attached GitHub MCP server."
+            exit 0
+          fi
 
           test -d "${VEXDRAFT_SKILLS_DIR:?}"
           find "$VEXDRAFT_SKILLS_DIR" -mindepth 2 -maxdepth 2 -name SKILL.md -print | sort
