@@ -278,6 +278,8 @@ fn test_task_layout_state_emits_completed_tool_paragraph_markers() {
         step_id: 1,
         name: "read_file".to_string(),
         outcome: "42 lines read from src/main.rs\nfn main() {}".to_string(),
+        target_hint: None,
+        command_summary: None,
     }];
     mode.current_turn_response = "Done.".to_string();
     mode.commit_completed_turn(&ctx);
@@ -300,6 +302,35 @@ fn test_task_layout_state_emits_completed_tool_paragraph_markers() {
 }
 
 #[test]
+fn test_task_layout_state_prefers_recorded_target_and_command_summaries() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("inspect the file".to_string(), &mut ctx);
+    mode.current_turn_tool_invocations = vec![ToolInvocationSummary {
+        step_id: 1,
+        name: "read_file".to_string(),
+        outcome: "ok".to_string(),
+        target_hint: Some("src/app/layout.rs".to_string()),
+        command_summary: Some("read_file path=src/app/layout.rs".to_string()),
+    }];
+    mode.current_turn_response = "Done.".to_string();
+    mode.commit_completed_turn(&ctx);
+    mode.history_state.turn_in_progress = false;
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(
+        state.output_rows[0],
+        "[tool] read_file · src/app/layout.rs · completed"
+    );
+    assert_eq!(
+        state.output_rows[2],
+        "[detail] Command: read_file path=src/app/layout.rs"
+    );
+    assert_eq!(state.output_rows[3], "[detail] Result: ok");
+}
+
+#[test]
 fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
@@ -310,26 +341,36 @@ fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
             step_id: 1,
             name: "read_file".to_string(),
             outcome: "ok".to_string(),
+            target_hint: None,
+            command_summary: None,
         },
         ToolInvocationSummary {
             step_id: 2,
             name: "edit_file".to_string(),
             outcome: "ok".to_string(),
+            target_hint: None,
+            command_summary: None,
         },
         ToolInvocationSummary {
             step_id: 3,
             name: "run_command".to_string(),
             outcome: "ok".to_string(),
+            target_hint: None,
+            command_summary: None,
         },
         ToolInvocationSummary {
             step_id: 4,
             name: "write_file".to_string(),
             outcome: "ok".to_string(),
+            target_hint: None,
+            command_summary: None,
         },
         ToolInvocationSummary {
             step_id: 5,
             name: "apply_patch".to_string(),
             outcome: "ok".to_string(),
+            target_hint: None,
+            command_summary: None,
         },
     ];
     mode.pending_turn_tool_calls.insert(

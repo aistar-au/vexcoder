@@ -84,6 +84,15 @@ impl TuiMode {
                             self.current_turn_tool_invocations
                                 .push(ToolInvocationSummary {
                                     step_id: pending.step_id,
+                                    target_hint: crate::turn_evidence::tool_target_hint_from_input(
+                                        &pending.name,
+                                        &pending.input,
+                                    ),
+                                    command_summary:
+                                        crate::turn_evidence::tool_command_summary_from_input(
+                                            &pending.name,
+                                            &pending.input,
+                                        ),
                                     name: pending.name,
                                     outcome: summarize_tool_outcome(output, *is_error).to_string(),
                                 });

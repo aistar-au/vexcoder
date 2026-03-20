@@ -31,6 +31,10 @@ pub struct ToolInvocationSummary {
     pub step_id: u64,
     pub name: String,
     pub outcome: String,
+    #[serde(default)]
+    pub target_hint: Option<String>,
+    #[serde(default)]
+    pub command_summary: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -102,6 +106,110 @@ pub fn note_changed_files_from_tool_call(
     }
 }
 
+pub fn tool_target_hint_from_input(name: &str, input: &serde_json::Value) -> Option<String> {
+    match name {
+        "rename_file" => {
+            let from = first_string_field(input, &["old_path", "from", "source_path"])?;
+            let to = first_string_field(input, &["new_path", "to", "target_path"])?;
+            Some(format!("{from} → {to}"))
+        }
+        "search" | "search_content" | "search_files" | "find_files" => {
+            first_string_field(input, &["path", "query", "pattern", "term"]).map(compact_tool_value)
+        }
+        "git_commit" => first_string_field(input, &["message"]).map(compact_tool_value),
+        _ => first_string_field(
+            input,
+            &[
+                "path",
+                "file_path",
+                "file",
+                "filename",
+                "new_path",
+                "old_path",
+                "directory",
+                "dir",
+                "cwd",
+                "query",
+                "pattern",
+                "term",
+                "rev",
+                "sha",
+            ],
+        )
+        .map(compact_tool_value),
+    }
+}
+
+pub fn tool_command_summary_from_input(name: &str, input: &serde_json::Value) -> Option<String> {
+    if let Some(command) = first_string_field(input, &["command", "cmd"]) {
+        return Some(format!("{name} {}", compact_tool_value(command)));
+    }
+
+    if let Some(shell) = first_string_field(input, &["shell_command"]) {
+        return Some(format!("{name} {}", compact_tool_value(shell)));
+    }
+
+    match name {
+        "rename_file" => {
+            let from = first_string_field(input, &["old_path", "from", "source_path"])?;
+            let to = first_string_field(input, &["new_path", "to", "target_path"])?;
+            Some(format!(
+                "{name} {} → {}",
+                compact_tool_value(from),
+                compact_tool_value(to)
+            ))
+        }
+        _ => {
+            let mut fields = Vec::new();
+            for key in [
+                "path",
+                "file_path",
+                "file",
+                "filename",
+                "directory",
+                "dir",
+                "cwd",
+                "query",
+                "pattern",
+                "term",
+                "rev",
+                "sha",
+                "message",
+            ] {
+                if let Some(value) = first_string_field(input, &[key]) {
+                    fields.push(format!("{key}={}", compact_tool_value(value)));
+                }
+                if fields.len() == 2 {
+                    break;
+                }
+            }
+            if fields.is_empty() {
+                None
+            } else {
+                Some(format!("{name} {}", fields.join(" ")))
+            }
+        }
+    }
+}
+
+fn compact_tool_value(value: &str) -> String {
+    const MAX_WIDTH: usize = 36;
+    let trimmed = value.trim();
+    if trimmed.chars().count() <= MAX_WIDTH {
+        return trimmed.to_string();
+    }
+
+    let mut compact = String::new();
+    for (index, ch) in trimmed.chars().enumerate() {
+        if index >= MAX_WIDTH.saturating_sub(1) {
+            compact.push('…');
+            break;
+        }
+        compact.push(ch);
+    }
+    compact
+}
+
 pub fn command_evidence_from_tool_result(name: &str, is_error: bool) -> Option<CommandEvidence> {
     let program = match name {
         "git_status" => Some("git status"),
@@ -124,7 +232,8 @@ pub fn command_evidence_from_tool_result(name: &str, is_error: bool) -> Option<C
 mod tests {
     use super::{
         command_evidence_from_tool_result, normalize_tool_invocation_step_ids,
-        note_changed_files_from_tool_call, ToolInvocationSummary, TurnEvidenceState,
+        note_changed_files_from_tool_call, tool_command_summary_from_input,
+        tool_target_hint_from_input, ToolInvocationSummary, TurnEvidenceState,
     };
     use std::collections::BTreeSet;
 
@@ -172,11 +281,15 @@ mod tests {
                         step_id: 0,
                         name: "read_file".to_string(),
                         outcome: "ok".to_string(),
+                        target_hint: None,
+                        command_summary: None,
                     },
                     ToolInvocationSummary {
                         step_id: 2,
                         name: "edit_file".to_string(),
                         outcome: "ok".to_string(),
+                        target_hint: None,
+                        command_summary: None,
                     },
                 ],
                 tokens: Default::default(),
@@ -190,6 +303,8 @@ mod tests {
                     step_id: 2,
                     name: "run_command".to_string(),
                     outcome: "ok".to_string(),
+                    target_hint: None,
+                    command_summary: None,
                 }],
                 tokens: Default::default(),
             },
@@ -200,5 +315,38 @@ mod tests {
         assert_eq!(turns[0].tool_invocations[0].step_id, 1);
         assert_eq!(turns[0].tool_invocations[1].step_id, 2);
         assert_eq!(turns[1].tool_invocations[0].step_id, 3);
+    }
+
+    #[test]
+    fn target_hint_prefers_paths_and_rename_pairs() {
+        assert_eq!(
+            tool_target_hint_from_input("read_file", &serde_json::json!({"path":"src/main.rs"})),
+            Some("src/main.rs".to_string())
+        );
+        assert_eq!(
+            tool_target_hint_from_input(
+                "rename_file",
+                &serde_json::json!({"old_path":"src/old.rs","new_path":"src/new.rs"})
+            ),
+            Some("src/old.rs → src/new.rs".to_string())
+        );
+    }
+
+    #[test]
+    fn command_summary_prefers_command_and_falls_back_to_key_fields() {
+        assert_eq!(
+            tool_command_summary_from_input(
+                "run_command",
+                &serde_json::json!({"command":"cargo test --all-targets"})
+            ),
+            Some("run_command cargo test --all-targets".to_string())
+        );
+        assert_eq!(
+            tool_command_summary_from_input(
+                "search_content",
+                &serde_json::json!({"path":"src","query":"paragraph markers"})
+            ),
+            Some("search_content path=src query=paragraph markers".to_string())
+        );
     }
 }
