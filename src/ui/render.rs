@@ -398,6 +398,7 @@ fn render_timeline_entry(entry: &crate::app::TimelineEntry, is_selected: bool) -
         StepLifecycle::Approved => ("[v]", Color::Green),
         StepLifecycle::UserInput => (">", Color::DarkGray),
         StepLifecycle::CommandSession => ("[$$]", Color::Magenta),
+        StepLifecycle::Queued => ("[..]", Color::DarkGray),
     };
 
     let selector = if is_selected { "> " } else { "  " };
