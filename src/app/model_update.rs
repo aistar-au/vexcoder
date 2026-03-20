@@ -54,6 +54,7 @@ impl TuiMode {
                                 step_id,
                                 name: name.clone(),
                                 input: input.clone(),
+                                started_at: std::time::Instant::now(),
                             },
                         );
                         // Auto-advance timeline selection when follow mode is on.
@@ -86,6 +87,14 @@ impl TuiMode {
                                     step_id: pending.step_id,
                                     name: pending.name,
                                     outcome: summarize_tool_outcome(output, *is_error).to_string(),
+                                    duration_ms: Some(
+                                        pending
+                                            .started_at
+                                            .elapsed()
+                                            .as_millis()
+                                            .min(u128::from(u64::MAX))
+                                            as u64,
+                                    ),
                                 });
                         }
                     }

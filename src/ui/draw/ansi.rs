@@ -86,6 +86,7 @@ pub(super) const PROGRESS_FRAMES: &[&str] = &[
 
 pub(super) fn lifecycle_color(lifecycle: &StepLifecycle) -> u8 {
     match lifecycle {
+        StepLifecycle::Queued => YELLOW,
         StepLifecycle::Completed => GREEN,
         StepLifecycle::Failed => RED,
         StepLifecycle::Running => CYAN,
@@ -98,6 +99,7 @@ pub(super) fn lifecycle_color(lifecycle: &StepLifecycle) -> u8 {
 
 pub(super) fn lifecycle_prefix(lifecycle: &StepLifecycle) -> &'static str {
     match lifecycle {
+        StepLifecycle::Queued => "\u{2736}",           // ✶
         StepLifecycle::Completed => "\u{2605}",        // ★
         StepLifecycle::Failed => "\u{2716}",           // ✖
         StepLifecycle::Running => "\u{2726}",          // ✦

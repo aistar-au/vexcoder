@@ -139,6 +139,13 @@ impl TuiMode {
         if !input_text.trim().is_empty() {
             count += 1;
         }
+        if self.history_state.turn_in_progress
+            && !input_text.trim().is_empty()
+            && tool_count == 0
+            && self.current_turn_response.trim().is_empty()
+        {
+            count += 1;
+        }
         count += tool_count;
         count.max(1)
     }
