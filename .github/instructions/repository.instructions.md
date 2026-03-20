@@ -18,6 +18,18 @@ applyTo: "**"
   explicitly asks for restructuring.
 - Keep diffs focused. Avoid formatting-only edits and unrelated history rewrites
   unless explicitly requested.
+- When one task spans layout, renderer, tests, docs, instructions, and review
+  cleanup for the same feature lane, keep it in one comprehensive branch and
+  one comprehensive draft PR. Do not split overlapping partial drafts for the
+  same lane.
+
+### Bootstrap
+
+- Read `AGENTS.md` first.
+- For local dispatcher sessions, bootstrap the private skill tree from
+  `../vexdraft/.agents/skills/`.
+- For repository-hosted background sessions, use the synchronized skill tree
+  from the setup workflow or the repository API fallback before editing.
 
 ### Pull request structure
 
@@ -37,6 +49,39 @@ Use these five sections for every non-trivial pull request:
 ```sh
 make gate-fast
 ```
+
+- For Rust/UI changes, also run:
+
+```sh
+cargo fmt --check
+cargo test --all-targets
+bash scripts/check_forbidden_names.sh
+```
+
+### Remote agent workflow
+
+- Tail background-session logs with the unique session or PR identifier:
+
+```sh
+gh agent-task view <session-id-or-pr> --log --follow
+```
+
+- Keep the model pinned in the agent profile rather than adding model flags at
+  invocation time. If the hosting surface ignores the profile pin, report that
+  behavior explicitly instead of silently changing the command.
+- Promote remote agent output onto a `dispatcher/vexcoder-...` branch before
+  commit-debug, CI watch, and final PR preparation.
+- Run `vexdraft/scripts/commit-debug.py` with the configured Gemini 2.5 review
+  slot after pushing the dispatcher branch. Patch findings and rerun until the
+  review passes.
+- After fixes land, outdate or minimize automated reviewer comments where
+  possible, then reply with the fixing commit when a thread remains visible.
+- Keep PR bodies, review comments, and commit summaries free of proprietary
+  product names unless a file path, URL, quoted log line, or command requires
+  the exact string.
+- Watch all PR checks to completion and fix any failures before merge.
+- Refresh documentation and the raw URL map when the branch changes workflow,
+  instructions, UI behavior, or file ownership.
 
 ### Provenance and originality
 
