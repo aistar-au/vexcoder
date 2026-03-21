@@ -111,48 +111,60 @@ impl StreamParser {
             let end = pos + delim_len;
             let frame_bytes = self.buffer[..pos].to_vec();
             self.buffer.drain(..end);
+            events.extend(self.parse_frame_bytes(frame_bytes)?);
+        }
 
-            let frame_text = String::from_utf8(frame_bytes)?;
-
-            let mut event_type = None;
-            let mut data_lines = Vec::new();
-
-            for line in frame_text.lines() {
-                if line.is_empty() || line.starts_with(':') {
-                    continue;
-                }
-                if let Some(rest) = line.strip_prefix("event:") {
-                    event_type = Some(rest.trim().to_string());
-                } else if let Some(rest) = line.strip_prefix("data:") {
-                    data_lines.push(rest.trim_start().to_string());
-                }
-            }
-
-            if !data_lines.is_empty() {
-                let json_data = data_lines.join("\n");
-                if event_type.as_deref() == Some("ping") {
-                    events.push(StreamEvent::Ping);
-                    continue;
-                }
-
-                match serde_json::from_str::<StreamEvent>(&json_data) {
-                    Ok(evt) => events.push(evt),
-                    Err(messages_v1_error) => {
-                        if let Some(chat_compat_events) = self.parse_chat_compat_chunk(&json_data) {
-                            events.extend(chat_compat_events);
-                        } else {
-                            emit_sse_parse_error(
-                                event_type.as_deref(),
-                                &json_data,
-                                &messages_v1_error,
-                            );
-                        }
-                    }
-                }
+        if self.find_delimiter().is_none() {
+            let frame_text = String::from_utf8_lossy(&self.buffer).trim().to_string();
+            if looks_like_raw_json_frame(&frame_text) {
+                let frame_bytes = std::mem::take(&mut self.buffer);
+                events.extend(self.parse_frame_bytes(frame_bytes)?);
             }
         }
 
         Ok(events)
+    }
+
+    fn parse_frame_bytes(&mut self, frame_bytes: Vec<u8>) -> Result<Vec<StreamEvent>> {
+        let frame_text = String::from_utf8(frame_bytes)?;
+        let mut event_type = None;
+        let mut data_lines = Vec::new();
+
+        for line in frame_text.lines() {
+            if line.is_empty() || line.starts_with(':') {
+                continue;
+            }
+            if let Some(rest) = line.strip_prefix("event:") {
+                event_type = Some(rest.trim().to_string());
+            } else if let Some(rest) = line.strip_prefix("data:") {
+                data_lines.push(rest.trim_start().to_string());
+            }
+        }
+
+        let json_data = if !data_lines.is_empty() {
+            data_lines.join("\n")
+        } else {
+            frame_text.trim().to_string()
+        };
+
+        if json_data.is_empty() {
+            return Ok(Vec::new());
+        }
+        if event_type.as_deref() == Some("ping") {
+            return Ok(vec![StreamEvent::Ping]);
+        }
+
+        match serde_json::from_str::<StreamEvent>(&json_data) {
+            Ok(evt) => Ok(vec![evt]),
+            Err(messages_v1_error) => {
+                if let Some(chat_compat_events) = self.parse_chat_compat_chunk(&json_data) {
+                    Ok(chat_compat_events)
+                } else {
+                    emit_sse_parse_error(event_type.as_deref(), &json_data, &messages_v1_error);
+                    Ok(Vec::new())
+                }
+            }
+        }
     }
 
     fn find_delimiter(&self) -> Option<(usize, usize)> {
@@ -424,6 +436,13 @@ impl StreamParser {
     }
 }
 
+fn looks_like_raw_json_frame(text: &str) -> bool {
+    let trimmed = text.trim();
+    !trimmed.is_empty()
+        && (trimmed.starts_with('{') || trimmed == "[DONE]")
+        && serde_json::from_str::<serde_json::Value>(trimmed).is_ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::StreamParser;
@@ -535,5 +554,20 @@ mod tests {
             }
             other => panic!("expected MessageDelta event, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn test_process_accepts_raw_json_frame_without_sse_delimiter() {
+        let mut parser = StreamParser::new();
+        let events = parser
+            .process(
+                br#"{"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"hello"},"finish_reason":"stop"}]}"#,
+            )
+            .unwrap();
+
+        assert_eq!(events.len(), 3);
+        assert!(matches!(events[0], StreamEvent::MessageStart { .. }));
+        assert!(matches!(events[1], StreamEvent::ContentBlockDelta { .. }));
+        assert!(matches!(events[2], StreamEvent::MessageDelta { .. }));
     }
 }

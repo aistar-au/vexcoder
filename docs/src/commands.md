@@ -11,8 +11,9 @@ surface uses a direct ANSI renderer for a human-readable header, optional
 changed-file row, adaptive timeline, prompt-anchored transcript area, and a
 larger multiline composer. When completed turns record usage metadata, the
 header appends a compact `~N.Nk ctx` cumulative session indicator. The prompt
-surface keeps submit-time `/` commands, submit-time `@path` expansion, pasted
-blocks, and multiline editing available in the same fullscreen layout.
+surface keeps live `/` command hints, live `@path` file suggestions, submit-time
+`@path` expansion, pasted blocks, and multiline editing available in the same
+fullscreen layout.
 
 ### `vex --resume [task-id]`
 
@@ -154,7 +155,11 @@ Commands entered inside the interactive UI start with `/`.
 - `/plan <instruction>`
   - Generates a concise implementation plan for the given instruction.
   - Assembles workspace context via `ContextAssembler`; renders `plan_template.txt`.
+  - Expands `@path` mentions inside the instruction before the plan turn starts.
   - Never enters the edit loop; patch requests are silently denied during the turn.
+- `/init [environment]`
+  - Scaffolds `.vex/config.toml`, `.vex/validate.toml`, and `AGENTS.md` in the current workspace.
+  - Reports the selected environment label in the transcript when one is supplied.
 - `/context`
 - `/tools [desc]`
 - `/usage`
@@ -193,6 +198,7 @@ session totals.
 
 - `@path`
   - Expands a workspace-relative file or directory into the prompt when the turn is submitted.
+  - While composing, the prompt footer shows matching file suggestions from the current workspace subtree.
   - Files are inlined as fenced text blocks. Missing paths are annotated inline instead of aborting the turn.
   - Directories render a compact workspace-relative listing.
 - `!command`

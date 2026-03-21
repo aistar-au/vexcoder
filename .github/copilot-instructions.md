@@ -18,6 +18,13 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
   simulate, capture, or restyle the UI for visual verification.
 - Keep one comprehensive draft branch and one comprehensive draft PR per
   feature lane.
+- For any remote code change, create or reuse that draft PR before the first
+  code-bearing push and keep the branch pushed after every code-bearing commit
+  or patch set.
+- Treat `origin/<branch>` as authoritative once remote work begins. Do not
+  leave unpublished local-only commits or diffs on a remote feature lane.
+- If local `HEAD` diverges from `origin/<branch>`, stop, push or resync, then
+  continue from the verified remote SHA only.
 - Keep wording neutral and repository-focused.
 - Aim for original free-license parity through first-principles design. Do not
   reuse proprietary product wording, branded visual labels, or copyrighted UI

@@ -124,6 +124,15 @@ gh pr checks <pr> --watch
   full toolchain is already present in the runner image.
 - Promote remote agent output onto a `coder/vexcoder-...` branch before
   commit-debug, CI watch, and final PR preparation.
+- Create or reuse a draft PR for that `coder/vexcoder-...` branch before the
+  first code-bearing push, even when the launch prompt did not explicitly ask
+  for PR creation.
+- After every code-bearing commit or patch set on a remote lane, push
+  immediately, run `git fetch origin --prune`, and confirm
+  `git rev-parse HEAD == git rev-parse origin/<branch>` before continuing.
+- Once a remote lane exists, treat the remote branch head as authoritative.
+  Do not continue review, commit-debug, CI watch, PR text edits, or merge work
+  from unpublished local-only state.
 - For one feature lane that needs parallel hosted work, create one shared
   `coder/vexcoder-...` integration branch from the latest `origin/main`, then
   launch one hosted session per disjoint write set from that same base branch.
@@ -145,6 +154,8 @@ gh pr checks <pr> --watch
   passes.
 - After fixes land, outdate or minimize automated reviewer comments where
   possible, then reply with the fixing commit when a thread remains visible.
+- Keep the final PR in draft until commit-debug is clean, automated reviews are
+  sanitized, and required checks are green.
 - Keep PR bodies, review comments, and commit summaries free of proprietary
   product names unless a file path, URL, quoted log line, or command requires
   the exact string.

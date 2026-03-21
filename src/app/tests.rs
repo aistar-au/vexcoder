@@ -3461,6 +3461,58 @@ fn test_at_path_not_expanded_inside_slash_command_args() {
 }
 
 #[test]
+fn test_at_path_expanded_inside_plan_args() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("note.txt"), "hello from file\n").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("/plan use @note.txt for context".to_string(), &mut ctx);
+
+    let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+    assert!(turn_input.contains("[file: note.txt]"));
+    assert!(turn_input.contains("hello from file"));
+}
+
+#[test]
+fn test_init_slash_command_scaffolds_workspace() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("/init local-test".to_string(), &mut ctx);
+
+    assert!(temp.path().join(".vex/config.toml").exists());
+    assert!(temp.path().join(".vex/validate.toml").exists());
+    assert!(temp.path().join("AGENTS.md").exists());
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line.contains("selected environment: local-test")));
+}
+
+#[test]
+fn test_prompt_hint_for_slash_and_file_mentions() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("src/app")).unwrap();
+    std::fs::write(temp.path().join("src/app/input.rs"), "fn hint() {}\n").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    let slash_hint = mode.prompt_hint_for_input("/pl");
+    assert!(slash_hint.contains("mode: slash"));
+    assert!(slash_hint.contains("/plan <instruction>"));
+
+    let file_hint = mode.prompt_hint_for_input("inspect @inp");
+    assert!(file_hint.contains("mode: file mention"));
+    assert!(file_hint.contains("src/app/input.rs"));
+}
+
+#[test]
 fn test_bang_prefix_requires_run_command_approval() {
     let temp = tempfile::tempdir().unwrap();
     let mut mode = TuiMode::new();

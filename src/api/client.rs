@@ -4,7 +4,9 @@ use crate::runtime::backend::{
     ByteStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode,
 };
 use crate::types::{ApiMessage, Content, ContentBlock};
-use crate::util::{is_local_endpoint_url, parse_bool_flag};
+use crate::util::{
+    is_local_endpoint_url, parse_bool_flag, preferred_plain_http_url_for_local_endpoint,
+};
 use anyhow::anyhow;
 use anyhow::Result;
 use futures::StreamExt;
@@ -380,18 +382,26 @@ impl ModelBackend for ApiClient {
 }
 
 fn map_api_request_error(error: reqwest::Error, request_url: &str) -> anyhow::Error {
+    let local_http_hint = local_plain_http_hint(request_url);
+
     if error.is_connect() && is_local_endpoint_url(request_url) {
         return anyhow!(
-            "cannot reach local API endpoint '{}': {}. Start your local server or update VEX_MODEL_URL.",
+            "cannot reach local API endpoint '{}': {}. Start your local server or update VEX_MODEL_URL.{}",
             request_url,
-            error
+            error,
+            local_http_hint
         );
     }
     if error.is_connect() {
         return anyhow!("cannot reach API endpoint '{}': {}", request_url, error);
     }
     if error.is_timeout() {
-        return anyhow!("API request to '{}' timed out: {}", request_url, error);
+        return anyhow!(
+            "API request to '{}' timed out: {}.{}",
+            request_url,
+            error,
+            local_http_hint
+        );
     }
     if let Some(status) = error.status() {
         return anyhow!(
@@ -402,6 +412,12 @@ fn map_api_request_error(error: reqwest::Error, request_url: &str) -> anyhow::Er
         );
     }
     anyhow!("API request to '{}' failed: {}", request_url, error)
+}
+
+fn local_plain_http_hint(request_url: &str) -> String {
+    preferred_plain_http_url_for_local_endpoint(request_url)
+        .map(|http_url| format!(" Try '{}'.", http_url))
+        .unwrap_or_default()
 }
 
 #[allow(dead_code)]
@@ -996,6 +1012,12 @@ mod tests {
 
         let client = ApiClient::new(&config).expect("client should build");
         assert_eq!(client.request_url(), "https://localhost:8443/v1/messages");
+    }
+
+    #[test]
+    fn test_local_plain_http_hint_suggests_plain_http_endpoint() {
+        let hint = local_plain_http_hint("https://localhost:8000/v1/messages");
+        assert_eq!(hint, " Try 'http://localhost:8000/v1/messages'.");
     }
 
     #[test]

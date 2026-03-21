@@ -54,6 +54,11 @@ Ignore this section in repository-hosted background sessions.
   is intentionally sharded for repository-hosted sessions with explicit
   disjoint file ownership and one shared integration branch.
 - Reuse or consolidate existing related draft PRs before starting a new one.
+- For any remote code-bearing lane, create or reuse the draft PR before the
+  first code-bearing push and keep the branch pushed after every code-bearing
+  commit or patch set.
+- Once remote work begins, treat `origin/<branch>` as authoritative. Do not
+  continue from unpublished local-only commits or diffs.
 - No proprietary brand names in code, comments, commits, or PR text.
 - Every new dependency must be MIT or Apache 2.0 licensed.
 - Prefer explicit state over stringly typed control flow.
@@ -120,6 +125,9 @@ A–H post-session checklist.
   file reads and continue.
 - Promote remote agent output onto a `coder/vexcoder-...` branch before
   commit-debug, CI watch, and PR preparation.
+- Create or reuse the draft PR for that coder branch before the first
+  code-bearing push, then keep `HEAD` in sync with `origin/<branch>` after
+  every code-bearing fix.
 - For parallel hosted work on one feature lane, use one shared
   `coder/vexcoder-...` integration branch plus one hosted shard branch per
   disjoint write set. Keep the final merge path to `main` on the shared

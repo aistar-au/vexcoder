@@ -164,6 +164,7 @@ enum SlashCommandId {
     Explain,
     Review,
     Plan,
+    Init,
     Run,
     Test,
     Context,
@@ -275,6 +276,15 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         },
         "/plan <instruction>",
         "generate an implementation plan; no patch",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Init,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/init",
+            prefix: "/init ",
+        },
+        "/init [environment]",
+        "scaffold .vex files for the current workspace",
     ),
     SlashCommandSpec::new(
         SlashCommandId::Run,

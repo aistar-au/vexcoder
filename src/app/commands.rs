@@ -38,6 +38,7 @@ impl TuiMode {
                 SlashCommandId::Explain => self.handle_explain_command(args, ctx),
                 SlashCommandId::Review => self.handle_review_command(args, ctx),
                 SlashCommandId::Plan => self.handle_plan_command(args, ctx),
+                SlashCommandId::Init => self.handle_init_command(args),
                 SlashCommandId::Run => self.handle_run_command(args),
                 SlashCommandId::Test => self.handle_test_command(),
                 SlashCommandId::Context => self.handle_context_command(ctx),
@@ -304,6 +305,24 @@ impl TuiMode {
         let rendered_context = render_assembler.render(&assembled);
         let prompt = render_plan_prompt(instruction, &rendered_context, &scope_instruction);
         self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
+    }
+    pub(super) fn handle_init_command(&mut self, environment: &str) {
+        match crate::init::scaffold_workspace(&self.working_dir) {
+            Ok(summary) => {
+                for line in summary {
+                    self.push_history_line(line);
+                }
+                if !environment.trim().is_empty() {
+                    self.push_history_line(format!(
+                        "[init] selected environment: {}",
+                        environment.trim()
+                    ));
+                }
+            }
+            Err(error) => {
+                self.push_history_line(format!("[init] error: {error}"));
+            }
+        }
     }
     pub(super) fn handle_run_command(&mut self, command_str: &str) {
         let suite = if command_str.is_empty() {
