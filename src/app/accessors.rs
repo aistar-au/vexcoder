@@ -1,4 +1,6 @@
 use super::*;
+use std::collections::BTreeSet;
+use std::path::Path;
 
 impl TuiMode {
     pub(super) fn mode_status_label(&self) -> &'static str {
@@ -107,6 +109,48 @@ impl TuiMode {
         !self.command_sessions.is_empty()
     }
 
+    pub fn prompt_hint_for_input(&self, input: &str) -> String {
+        let base = if self.command_session_active() {
+            "Prompt\nsubmit: / commands  @ files  ! shell  Ctrl+C cancels".to_string()
+        } else {
+            "Prompt\nsubmit: / commands  @ files  ! shell".to_string()
+        };
+
+        if self.command_session_active() || self.overlay_active() {
+            return base;
+        }
+
+        let trimmed = input.trim_start();
+        if trimmed.starts_with('/') {
+            let suggestions = self.slash_prompt_suggestions(trimmed);
+            if !suggestions.is_empty() {
+                let mut lines = vec!["Prompt".to_string(), "mode: slash".to_string()];
+                lines.extend(suggestions);
+                return lines.join("\n");
+            }
+            return "Prompt\nmode: slash".to_string();
+        }
+
+        if let Some(token) = input.split_whitespace().last() {
+            if let Some(prefix) = token.strip_prefix('@') {
+                let mut lines = vec!["Prompt".to_string(), "mode: file mention".to_string()];
+                let suggestions = self.file_prompt_suggestions(prefix);
+                if suggestions.is_empty() {
+                    if prefix.is_empty() {
+                        lines.push("[file] no files available".to_string());
+                    } else {
+                        lines.push(format!("[file] no matches for {prefix}"));
+                    }
+                } else {
+                    lines.extend(suggestions);
+                }
+                return lines.join("\n");
+            }
+        }
+
+        base
+    }
+
     pub fn set_history_content_width(&self, width: usize) {
         self.history_content_width.set(width.max(1));
     }
@@ -141,5 +185,85 @@ impl TuiMode {
         }
         count += tool_count;
         count.max(1)
+    }
+}
+
+impl TuiMode {
+    fn slash_prompt_suggestions(&self, token: &str) -> Vec<String> {
+        let partial = token.split_whitespace().next().unwrap_or(token);
+        let mut rows = SLASH_COMMANDS
+            .iter()
+            .filter(|spec| {
+                spec.display.starts_with(partial)
+                    || spec
+                        .display
+                        .split_whitespace()
+                        .next()
+                        .is_some_and(|command| command == partial)
+            })
+            .take(6)
+            .map(|spec| {
+                format!(
+                    "[slash] {} · {}",
+                    spec.display,
+                    slash_command_mode_summary(spec.id)
+                )
+            })
+            .collect::<Vec<_>>();
+
+        rows.extend(
+            self.custom_commands
+                .iter()
+                .filter(|command| format!("/{}", command.name).starts_with(partial))
+                .take(3)
+                .map(|command| {
+                    format!(
+                        "[slash] {} · custom · {}",
+                        command.display(),
+                        command.description
+                    )
+                }),
+        );
+        rows
+    }
+
+    fn file_prompt_suggestions(&self, prefix: &str) -> Vec<String> {
+        let operator = ToolOperator::new(self.working_dir.clone());
+        let Ok(paths) = operator.find_files("**/*") else {
+            return Vec::new();
+        };
+
+        let mut entries = BTreeSet::new();
+        for path in paths {
+            let display = operator.to_workspace_relative_display(&path);
+            let basename = Path::new(&display)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(display.as_str());
+            if prefix.is_empty() || display.starts_with(prefix) || basename.starts_with(prefix) {
+                entries.insert(format!("[file] {display}"));
+                if entries.len() >= 8 {
+                    break;
+                }
+            }
+        }
+
+        entries.into_iter().collect()
+    }
+}
+
+fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
+    match id {
+        SlashCommandId::Plan => "read-only · no patch",
+        SlashCommandId::Init => "writes .vex + AGENTS in current workspace",
+        SlashCommandId::Edit | SlashCommandId::Fix => "edit loop · may patch",
+        SlashCommandId::Explain | SlashCommandId::Review => "read-only semantic turn",
+        SlashCommandId::Run | SlashCommandId::Test => "local validation only",
+        SlashCommandId::Permissions | SlashCommandId::Allow | SlashCommandId::Deny => {
+            "session permissions"
+        }
+        SlashCommandId::Model => "session model selection",
+        SlashCommandId::Commands | SlashCommandId::Help => "show command directory",
+        _ => "session command",
     }
 }

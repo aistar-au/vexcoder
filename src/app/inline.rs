@@ -2,12 +2,13 @@ use super::*;
 
 impl TuiMode {
     pub(super) fn expand_inline_file_tokens(&self, input: &str) -> String {
-        if input.starts_with('/') {
-            return input.to_string();
-        }
-
         let assembler = ContextAssembler::default();
         let operator = ToolOperator::new(self.working_dir.clone());
+
+        if input.starts_with('/') {
+            return self.expand_inline_file_tokens_for_slash_command(input, &operator, &assembler);
+        }
+
         let mut output = String::new();
         let mut token = String::new();
 
@@ -25,6 +26,57 @@ impl TuiMode {
 
         if !token.is_empty() {
             output.push_str(&self.expand_inline_token(&token, &operator, &assembler));
+        }
+
+        output
+    }
+
+    fn expand_inline_file_tokens_for_slash_command(
+        &self,
+        input: &str,
+        operator: &ToolOperator,
+        assembler: &ContextAssembler,
+    ) -> String {
+        let trimmed = input.trim();
+        let Some((spec, args)) = Self::registered_slash_command(trimmed) else {
+            return input.to_string();
+        };
+        if !matches!(spec.id, SlashCommandId::Plan | SlashCommandId::Init) {
+            return input.to_string();
+        }
+
+        let command = spec.display.split_whitespace().next().unwrap_or(trimmed);
+        let expanded_args = self.expand_inline_tokens_in_text(args, operator, assembler);
+        if expanded_args.trim().is_empty() {
+            command.to_string()
+        } else {
+            format!("{command} {expanded_args}")
+        }
+    }
+
+    fn expand_inline_tokens_in_text(
+        &self,
+        input: &str,
+        operator: &ToolOperator,
+        assembler: &ContextAssembler,
+    ) -> String {
+        let mut output = String::new();
+        let mut token = String::new();
+
+        for ch in input.chars() {
+            if ch.is_whitespace() {
+                if !token.is_empty() {
+                    output.push_str(&self.expand_inline_token(&token, operator, assembler));
+                    token.clear();
+                }
+                output.push(ch);
+            } else {
+                token.push(ch);
+            }
+        }
+
+        if !token.is_empty() {
+            output.push_str(&self.expand_inline_token(&token, operator, assembler));
         }
 
         output

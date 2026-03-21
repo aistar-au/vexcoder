@@ -71,6 +71,60 @@ pub fn render_input(frame: &mut Frame<'_>, area: Rect, input: &str, cursor_byte:
     frame.set_cursor_position((cursor_x, cursor_y));
 }
 
+pub fn render_task_input(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    input: &str,
+    cursor_byte: usize,
+    footer: &str,
+) {
+    if area.height == 0 || area.width <= 2 {
+        return;
+    }
+
+    let footer_lines = footer
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    let footer_height = footer_lines
+        .len()
+        .min(area.height.saturating_sub(1) as usize) as u16;
+    let input_height = area.height.saturating_sub(footer_height).max(1);
+    let input_area = Rect {
+        x: area.x,
+        y: area.y,
+        width: area.width,
+        height: input_height,
+    };
+    render_input(frame, input_area, input, cursor_byte);
+
+    if footer_height == 0 {
+        return;
+    }
+
+    let footer_area = Rect {
+        x: area.x,
+        y: area.y.saturating_add(input_height),
+        width: area.width,
+        height: footer_height,
+    };
+    let rows = footer_lines
+        .into_iter()
+        .take(footer_height as usize)
+        .map(Line::from)
+        .collect::<Vec<_>>();
+    frame.render_widget(
+        Paragraph::new(rows).style(
+            Style::default()
+                .fg(Color::Yellow)
+                .bg(Color::Rgb(24, 24, 24))
+                .add_modifier(Modifier::DIM),
+        ),
+        footer_area,
+    );
+}
+
 pub fn render_messages(frame: &mut Frame<'_>, area: Rect, messages: &[String], scroll: usize) {
     if area.height == 0 || area.width == 0 {
         return;
@@ -243,12 +297,13 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     );
 
     // --- Input pane ---
-    if state.pending_approval.is_none() && !state.input_hint.starts_with('[') {
-        render_input(
+    if state.pending_approval.is_none() {
+        render_task_input(
             frame,
             layout.input,
             &state.composer_text,
             state.composer_cursor,
+            &state.input_hint,
         );
     } else {
         frame.render_widget(

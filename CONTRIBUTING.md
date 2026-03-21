@@ -195,6 +195,15 @@ repository-hosted agent instructions file under `.github/`.
   final PR to `main`. Parallel hosted shard PRs are allowed only when each
   shard has an explicit disjoint write set and all accepted commits are
   promoted onto the shared integration branch before merge.
+- For any remote code-bearing lane, create or reuse the draft PR before the
+  first code-bearing push. Do not wait for a later merge prompt to open the
+  PR.
+- After every code-bearing commit or patch set, push immediately, fetch
+  `origin`, and verify `HEAD` matches `origin/<branch>`. Do not continue from
+  unpublished local-only branch state.
+- Once the remote lane exists, treat the remote branch head and PR state as
+  authoritative for commit-debug, CI watch, PR body updates, review cleanup,
+  and merge readiness.
 - Every `gh agent-task create` invocation must be followed immediately by an
   explicit log tail with `gh agent-task view <session-id> --log --follow`.
   Treat log tailing and violation triage as part of launch, not as an optional
@@ -348,13 +357,14 @@ order.
    a deterministic order, then resolve cross-shard conflicts there rather than
    reopening multiple competing PRs to `main`.
 3. **C — Commit-debug loop**: run `vexdraft/scripts/commit-debug.py`, fix
-   findings, push, and re-run until `PASS`.
+  findings, push after every code-bearing fix, verify the remote head SHA,
+  and re-run until `PASS`.
 4. **D — Hide bot comments**: minimize automated reviewer bot comments via
    GraphQL `minimizeComment` with `OUTDATED` classifier.
 5. **E — Sanitize brand names**: scan PR body, commit messages, and comments
    for proprietary brand names before posting.
-6. **F — Watch CI**: monitor all checks with `gh pr checks --watch` and fix
-   any failures before merge.
+6. **F — Watch CI**: keep the PR in draft, monitor all checks with
+  `gh pr checks --watch`, and fix any failures before merge.
 7. **G — Update documentation**: refresh CONTRIBUTING, architecture docs,
    commands docs, and the raw URL map for all changed files.
 8. **H — Handle main drift**: if `origin/main` advanced during the hosted

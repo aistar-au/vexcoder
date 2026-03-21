@@ -22,6 +22,7 @@ use vexcoder::ui::render::{
     history_content_width_for_area, input_visual_rows, render_input, render_messages,
     render_overlay_modal_in_area, render_status_line, OverlayModal,
 };
+use vexcoder::util::preferred_plain_http_url_for_local_endpoint;
 
 const STARTUP_NOISE_GUARD: Duration = Duration::from_secs(15);
 
@@ -53,9 +54,18 @@ fn prompt_tui_startup_config(mut config: Config) -> Result<Config> {
     println!("Interactive session setup");
     println!("Enter the API base or full endpoint before the fullscreen surface starts.");
 
+    let suggested_api_url = preferred_plain_http_url_for_local_endpoint(&config.model_url)
+        .unwrap_or_else(|| config.model_url.clone());
+    if suggested_api_url != config.model_url {
+        println!(
+            "Detected a local HTTPS endpoint. If your localhost server is plain HTTP, press Enter to use {}.",
+            suggested_api_url
+        );
+    }
+
     let api_url = prompt_line(
         "API URL",
-        Some(config.model_url.as_str()).filter(|value| !value.trim().is_empty()),
+        Some(suggested_api_url.as_str()).filter(|value| !value.trim().is_empty()),
     )?;
     if api_url.trim().is_empty() {
         bail!("API URL is required for interactive sessions");
@@ -266,6 +276,8 @@ struct ManagedTuiFrontend {
     started_at: Instant,
     /// Direct ANSI draw engine for the task-state control surface.
     task_draw: TaskDraw,
+    last_hint_input: String,
+    last_hint_text: String,
 }
 
 impl ManagedTuiFrontend {
@@ -278,6 +290,8 @@ impl ManagedTuiFrontend {
             editor: InputEditor::new(),
             started_at: Instant::now(),
             task_draw: TaskDraw::new(),
+            last_hint_input: String::new(),
+            last_hint_text: String::new(),
         })
     }
 
@@ -504,6 +518,14 @@ impl ManagedTuiFrontend {
             _ => None,
         }
     }
+
+    fn prompt_hint(&mut self, mode: &TuiMode, input: &str) -> String {
+        if self.last_hint_input != input {
+            self.last_hint_input = input.to_string();
+            self.last_hint_text = mode.prompt_hint_for_input(input);
+        }
+        self.last_hint_text.clone()
+    }
 }
 
 impl Drop for ManagedTuiFrontend {
@@ -574,6 +596,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
         if let Some(mut task_state) = mode.task_layout_state() {
             // Direct ANSI draw path — no ratatui buffer allocation.
             // Get terminal size from the ratatui terminal (already tracks it).
+            task_state.input_hint = self.prompt_hint(mode, &input);
             task_state.composer_text = input;
             task_state.composer_cursor = cursor;
             let size = self.terminal.size().unwrap_or_default();

@@ -35,6 +35,16 @@ model_name = "local/default"
 model_profile = "models/local-balanced.toml"
 ```
 
+For a local Messages-v1 server such as `llama.cpp`, use plain HTTP unless you
+have explicitly configured TLS:
+
+```toml
+# .vex/config.toml
+model_url = "http://localhost:8000/v1/messages"
+model_name = "your-model-name"
+model_profile = "models/local-balanced.toml"
+```
+
 Remote example:
 
 ```toml

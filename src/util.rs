@@ -33,6 +33,20 @@ pub fn is_local_endpoint_url(url: &str) -> bool {
     }
 }
 
+pub fn preferred_plain_http_url_for_local_endpoint(url: &str) -> Option<String> {
+    let parsed = Url::parse(url.trim()).ok()?;
+    if parsed.scheme() != "https" {
+        return None;
+    }
+    if !is_local_endpoint_url(url) {
+        return None;
+    }
+
+    let mut adapted = parsed;
+    adapted.set_scheme("http").ok()?;
+    Some(adapted.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -57,5 +71,27 @@ mod tests {
         assert!(!is_local_endpoint_url(
             "https://api.example.com/v1/messages"
         ));
+    }
+
+    #[test]
+    fn test_preferred_plain_http_url_for_https_local_endpoint() {
+        let adapted =
+            preferred_plain_http_url_for_local_endpoint(" https://localhost:8000/v1/messages ");
+        assert_eq!(
+            adapted.as_deref(),
+            Some("http://localhost:8000/v1/messages")
+        );
+    }
+
+    #[test]
+    fn test_preferred_plain_http_url_ignores_non_local_or_non_https_urls() {
+        assert!(
+            preferred_plain_http_url_for_local_endpoint("http://localhost:8000/v1/messages")
+                .is_none()
+        );
+        assert!(
+            preferred_plain_http_url_for_local_endpoint("https://api.example.com/v1/messages")
+                .is_none()
+        );
     }
 }
