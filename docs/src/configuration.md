@@ -124,7 +124,9 @@ sections for future expansion.
 
 - The active runtime keys are the top-level keys listed above.
 - `[[hooks]]` is active today.
-- Commented `[api]` remains a scaffold placeholder.
+- Commented `[api]` remains a scaffold placeholder in config files.
+  `VEX_API_*` environment variables (transport, host, port, socket, key,
+  protocol, TLS paths) are active and functional for API server configuration.
 - `[[mcp_servers]]` and `sandbox_require` are not active runtime features yet,
   but `vex doctor` reads them to probe MCP connectivity and report sandbox
   fallback status.
