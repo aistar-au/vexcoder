@@ -1646,7 +1646,10 @@ mod tests {
         assert_eq!(cfg.model_url, "http://localhost:9000/v1/messages");
         assert_eq!(cfg.model_name, "test-model-2");
         assert_eq!(cfg.model_backend, ModelBackendKind::ApiServer);
-        assert_eq!(cfg.model_protocol, crate::runtime::ModelProtocol::ChatCompat);
+        assert_eq!(
+            cfg.model_protocol,
+            crate::runtime::ModelProtocol::ChatCompat
+        );
         assert_eq!(cfg.tool_call_mode, crate::runtime::ToolCallMode::Structured);
     }
 
