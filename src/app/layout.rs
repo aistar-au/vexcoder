@@ -519,9 +519,9 @@ impl TuiMode {
         let input_hint = if let Some(approval) = pending_approval.clone() {
             format!("{approval}\n[y/n/s] ")
         } else if self.command_session_active() {
-            "Prompt\n/ commands  @ files  ! shell  Ctrl+C cancels".to_string()
+            "Prompt\nsubmit: / commands  @ files  ! shell  Ctrl+C cancels".to_string()
         } else {
-            "Prompt\n/ commands  @ files  ! shell".to_string()
+            "Prompt\nsubmit: / commands  @ files  ! shell".to_string()
         };
         Some(TaskLayoutState {
             task_id: self.current_task.id.clone(),

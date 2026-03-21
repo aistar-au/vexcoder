@@ -72,8 +72,11 @@ enum ApiProtocol {
 
 impl ApiClient {
     pub fn new(config: &Config) -> Result<Self> {
+        let http = reqwest::Client::builder()
+            .danger_accept_invalid_certs(config.model_url_skip_tls_check)
+            .build()?;
         Ok(Self {
-            http: reqwest::Client::new(),
+            http,
             api_key: config.model_token.clone(),
             model: Arc::new(RwLock::new(config.model_name.clone())),
             supplementary_system_prompt: Arc::new(RwLock::new(None)),
@@ -858,6 +861,7 @@ mod tests {
             model_token: None,
             model_name: "local/test-model".to_string(),
             model_url: "http://localhost:8000/v1/messages".to_string(),
+            model_url_skip_tls_check: false,
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
@@ -885,6 +889,7 @@ mod tests {
             model_token: None,
             model_name: "local/test-model".to_string(),
             model_url: "http://localhost:8000/v1".to_string(),
+            model_url_skip_tls_check: false,
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
@@ -912,6 +917,7 @@ mod tests {
             model_token: None,
             model_name: "local/test-model".to_string(),
             model_url: "http://localhost:8000/v1".to_string(),
+            model_url_skip_tls_check: false,
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::ChatCompat,
@@ -942,6 +948,7 @@ mod tests {
             model_token: Some("test-key".to_string()),
             model_name: "remote-test-model".to_string(),
             model_url: "https://model.example.internal/v1/messages".to_string(),
+            model_url_skip_tls_check: false,
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::ApiServer,
             model_protocol: ModelProtocol::MessagesV1,
@@ -963,6 +970,32 @@ mod tests {
             client.request_url(),
             "https://model.example.internal/v1/messages"
         );
+    }
+
+    #[test]
+    fn test_https_localhost_messages_endpoint_preserves_full_request_url() {
+        let config = crate::config::Config {
+            model_token: Some("test-key".to_string()),
+            model_name: "remote-test-model".to_string(),
+            model_url: "https://localhost:8443/v1/messages".to_string(),
+            model_url_skip_tls_check: true,
+            working_dir: std::path::PathBuf::from("."),
+            model_backend: ModelBackendKind::ApiServer,
+            model_protocol: ModelProtocol::MessagesV1,
+            tool_call_mode: ToolCallMode::Structured,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                ModelBackendKind::ApiServer,
+            ),
+            max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
+            model_headers: reqwest::header::HeaderMap::new(),
+            notes_path: None,
+            api: crate::config::ApiConfig::default(),
+            hooks: Vec::new(),
+        };
+
+        let client = ApiClient::new(&config).expect("client should build");
+        assert_eq!(client.request_url(), "https://localhost:8443/v1/messages");
     }
 
     #[test]
@@ -1025,6 +1058,7 @@ mod tests {
             model_token: None,
             model_name: "mock-model".to_string(),
             model_url: "http://localhost:8000/v1/messages".to_string(),
+            model_url_skip_tls_check: false,
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
@@ -1053,6 +1087,7 @@ mod tests {
             model_token: None,
             model_name: "local/test-model".to_string(),
             model_url: "http://localhost:8000/v1/messages".to_string(),
+            model_url_skip_tls_check: false,
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
@@ -1080,6 +1115,7 @@ mod tests {
             model_token: Some("test-key".to_string()),
             model_name: "mistral-7b-instruct".to_string(),
             model_url: "https://model.example.internal/v1/messages".to_string(),
+            model_url_skip_tls_check: false,
             working_dir: std::path::PathBuf::from("."),
             model_backend: ModelBackendKind::ApiServer,
             model_protocol: ModelProtocol::MessagesV1,

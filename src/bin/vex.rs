@@ -73,6 +73,15 @@ fn prompt_tui_startup_config(mut config: Config) -> Result<Config> {
     Ok(config)
 }
 
+fn emit_model_endpoint_warnings(config: &Config) {
+    if config.should_warn_about_model_tls_skip_check() {
+        eprintln!(
+            "[warning] model_url_skip_tls_check is enabled for {}; HTTPS certificate verification is bypassed for this launch",
+            config.model_url
+        );
+    }
+}
+
 #[derive(Parser)]
 #[command(name = "vex", about = "vexcoder -- zero-licensing-cost coding agent")]
 struct Cli {
@@ -1302,11 +1311,13 @@ async fn main() -> Result<ExitCode> {
     // PM-03: -p/--print one-shot mode.
     if let Some(prompt) = cli.print_prompt {
         config.validate()?;
+        emit_model_endpoint_warnings(&config);
         return run_print(prompt, config, resume_state).await;
     }
 
     config = prompt_tui_startup_config(config)?;
     config.validate()?;
+    emit_model_endpoint_warnings(&config);
 
     // PM-01: --resume startup flag.
     if let Some(state) = resume_state {

@@ -11,8 +11,8 @@ surface uses a direct ANSI renderer for a human-readable header, optional
 changed-file row, adaptive timeline, prompt-anchored transcript area, and a
 larger multiline composer. When completed turns record usage metadata, the
 header appends a compact `~N.Nk ctx` cumulative session indicator. The prompt
-surface keeps `/` commands, `@path` expansion, pasted blocks, and multiline
-editing available in the same fullscreen layout.
+surface keeps submit-time `/` commands, submit-time `@path` expansion, pasted
+blocks, and multiline editing available in the same fullscreen layout.
 
 ### `vex --resume [task-id]`
 
@@ -192,11 +192,11 @@ session totals.
 ### Free-form input transforms
 
 - `@path`
-  - Expands a workspace-relative file or directory into the prompt before the model turn starts.
+  - Expands a workspace-relative file or directory into the prompt when the turn is submitted.
   - Files are inlined as fenced text blocks. Missing paths are annotated inline instead of aborting the turn.
   - Directories render a compact workspace-relative listing.
 - `!command`
-  - Runs a shell command immediately from the workspace without starting a model turn.
+  - Runs a shell command immediately from the workspace without starting a model turn when the composer is submitted.
   - Uses the same `run_command` approval gate as tool calls.
   - Starts a captured command session inside the managed TUI instead of yielding
     control back to the parent CLI session.

@@ -26,6 +26,7 @@ These keys are read by the current runtime from config files:
 | Key | Purpose | Default |
 | :--- | :--- | :--- |
 | `model_url` | Model endpoint URL | `http://localhost:11434/v1` |
+| `model_url_skip_tls_check` | Skip HTTPS certificate validation for the model endpoint | `false` |
 | `model_name` | Model identifier | `local/default` |
 | `working_dir` | Workspace root for tool execution | current directory |
 | `model_backend` | `local-runtime` or `api-server` | inferred |
@@ -56,6 +57,15 @@ The full model endpoint URL.
 ### `VEX_MODEL_TOKEN`
 
 Bearer token for authenticated endpoints.
+
+### `VEX_MODEL_URL_SKIP_TLS_CHECK`
+
+Development-only escape hatch for HTTPS model endpoints with self-signed or
+otherwise non-system-trusted certificates.
+
+- Accepts `true`, `false`, `1`, or `0`.
+- Emits a startup warning on every launch when enabled.
+- Must not be committed in repo-local `.vex/config.toml`.
 
 ### `VEX_MODEL_NAME`
 

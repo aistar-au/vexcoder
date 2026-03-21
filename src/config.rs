@@ -95,6 +95,7 @@ pub struct Config {
     pub model_token: Option<String>,
     pub model_name: String,
     pub model_url: String,
+    pub model_url_skip_tls_check: bool,
     pub working_dir: PathBuf,
     pub model_backend: ModelBackendKind,
     pub model_protocol: ModelProtocol,
@@ -138,6 +139,7 @@ pub struct DoctorMcpServer {
 struct ConfigLayer {
     model_name: Option<String>,
     model_url: Option<String>,
+    model_url_skip_tls_check: Option<bool>,
     working_dir: Option<PathBuf>,
     model_backend: Option<String>,
     model_protocol: Option<String>,
@@ -221,6 +223,17 @@ impl Config {
         let user_layer = user_cfg.map(load_config_layer).transpose()?.flatten();
         let repo_layer = repo_cfg.map(load_config_layer).transpose()?.flatten();
 
+        if repo_layer
+            .as_ref()
+            .map(|l| l.model_url_skip_tls_check == Some(true))
+            .unwrap_or(false)
+        {
+            bail!(
+                "'model_url_skip_tls_check' found in repo-local config '{}': TLS bypass must be set in user config or environment only",
+                repo_cfg.unwrap_or(Path::new("<unknown>")).display()
+            );
+        }
+
         // notes_path is user-only; reject it if found in repo-local config.
         if repo_layer
             .as_ref()
@@ -285,6 +298,7 @@ impl Config {
             model_token: None,
             model_name: "local/default".to_string(),
             model_url: String::new(),
+            model_url_skip_tls_check: false,
             working_dir: cwd,
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
@@ -334,13 +348,22 @@ impl Config {
         model_url: String,
         model_name: Option<String>,
     ) {
+        let previous_url = self.model_url.clone();
+        let previous_backend = self.model_backend;
+        let inferred_previous_backend = default_model_backend(&previous_url);
+        let inferred_previous_protocol = infer_model_protocol(&previous_url);
+        let inferred_previous_tool_call_mode = default_tool_call_mode(&previous_url);
+        let preserve_backend = previous_backend != inferred_previous_backend;
+        let preserve_protocol = self.model_protocol != inferred_previous_protocol;
+        let preserve_tool_call_mode = self.tool_call_mode != inferred_previous_tool_call_mode;
         let next_url = model_url.trim().to_string();
-        let next_backend = if is_local_endpoint_url(&next_url) {
-            ModelBackendKind::LocalRuntime
+        let inferred_next_backend = default_model_backend(&next_url);
+        let next_backend = if preserve_backend {
+            previous_backend
         } else {
-            ModelBackendKind::ApiServer
+            inferred_next_backend
         };
-        let backend_changed = self.model_backend != next_backend;
+        let backend_changed = previous_backend != next_backend;
 
         self.model_url = next_url;
         if let Some(model_name) = model_name.map(|value| value.trim().to_string()) {
@@ -349,15 +372,23 @@ impl Config {
             }
         }
         self.model_backend = next_backend;
-        self.model_protocol = infer_model_protocol(&self.model_url);
-        self.tool_call_mode = if self.is_local_endpoint() {
-            ToolCallMode::TaggedFallback
+        self.model_protocol = if preserve_protocol {
+            self.model_protocol
         } else {
-            ToolCallMode::Structured
+            infer_model_protocol(&self.model_url)
+        };
+        self.tool_call_mode = if preserve_tool_call_mode {
+            self.tool_call_mode
+        } else {
+            default_tool_call_mode(&self.model_url)
         };
         if backend_changed {
             self.model_profile = ModelProfile::default_for_backend(self.model_backend);
         }
+    }
+
+    pub fn should_warn_about_model_tls_skip_check(&self) -> bool {
+        self.model_url_skip_tls_check && self.model_url.starts_with("https://")
     }
 }
 
@@ -438,6 +469,9 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
     ConfigLayer {
         model_name: over.model_name.or(base.model_name),
         model_url: over.model_url.or(base.model_url),
+        model_url_skip_tls_check: over
+            .model_url_skip_tls_check
+            .or(base.model_url_skip_tls_check),
         working_dir: over.working_dir.or(base.working_dir),
         model_backend: over.model_backend.or(base.model_backend),
         model_protocol: over.model_protocol.or(base.model_protocol),
@@ -530,6 +564,15 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         }
         _ => None,
     };
+    let model_url_skip_tls_check = match std::env::var("VEX_MODEL_URL_SKIP_TLS_CHECK") {
+        Ok(v) if !v.trim().is_empty() => Some(parse_bool_flag(v.clone()).ok_or_else(|| {
+            anyhow::anyhow!(
+                "Invalid VEX_MODEL_URL_SKIP_TLS_CHECK '{}': expected true/false/1/0",
+                v
+            )
+        })?),
+        _ => None,
+    };
 
     let max_project_instructions_tokens = std::env::var("VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS")
         .ok()
@@ -582,6 +625,7 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
             .ok()
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty()),
+        model_url_skip_tls_check,
         working_dir: std::env::var("VEX_WORKDIR")
             .ok()
             .filter(|v| !v.trim().is_empty())
@@ -814,6 +858,7 @@ fn resolve_config(
     profile_base_dir: &Path,
 ) -> Result<Config> {
     let model_url = merged.model_url.unwrap_or_default();
+    let model_url_skip_tls_check = merged.model_url_skip_tls_check.unwrap_or(false);
     let model_name = merged
         .model_name
         .unwrap_or_else(|| "local/default".to_string());
@@ -861,6 +906,7 @@ fn resolve_config(
         model_token: env_token,
         model_name,
         model_url,
+        model_url_skip_tls_check,
         working_dir,
         model_backend,
         model_protocol,
@@ -873,6 +919,22 @@ fn resolve_config(
         api,
         hooks: merged.hooks.unwrap_or_default(),
     })
+}
+
+fn default_model_backend(model_url: &str) -> ModelBackendKind {
+    if model_url.trim().is_empty() || is_local_endpoint_url(model_url) {
+        ModelBackendKind::LocalRuntime
+    } else {
+        ModelBackendKind::ApiServer
+    }
+}
+
+fn default_tool_call_mode(model_url: &str) -> ToolCallMode {
+    if model_url.trim().is_empty() || is_local_endpoint_url(model_url) {
+        ToolCallMode::TaggedFallback
+    } else {
+        ToolCallMode::Structured
+    }
 }
 
 fn resolve_api_config(layer: Option<ApiConfigLayer>) -> Result<ApiConfig> {
@@ -1274,6 +1336,28 @@ mod tests {
     }
 
     #[test]
+    fn test_repo_local_model_url_skip_tls_check_is_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo_root = temp.path().join("repo");
+        let cwd = repo_root.join("nested/project");
+
+        std::fs::create_dir_all(repo_root.join(".vex")).unwrap();
+        std::fs::create_dir_all(repo_root.join(".git")).unwrap();
+        std::fs::create_dir_all(&cwd).unwrap();
+        std::fs::write(
+            repo_root.join(".vex/config.toml"),
+            "model_url_skip_tls_check = true\n",
+        )
+        .unwrap();
+
+        let error = Config::load_for_tests(&cwd, None, None).unwrap_err();
+        assert!(
+            format!("{error:#}").contains("model_url_skip_tls_check"),
+            "unexpected error: {error:#}"
+        );
+    }
+
+    #[test]
     fn test_user_api_key_env_reference_resolves() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         let _api_key = EnvRestore::capture("VEX_API_KEY");
@@ -1525,8 +1609,45 @@ mod tests {
             cfg.model_profile,
             ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime)
         );
+        assert!(!cfg.model_url_skip_tls_check);
         assert!(cfg.model_token.is_none());
         assert!(cfg.hooks.is_empty());
+    }
+
+    #[test]
+    fn test_model_url_skip_tls_check_parses_from_env() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _skip = EnvRestore::capture("VEX_MODEL_URL_SKIP_TLS_CHECK");
+        let _url = EnvRestore::capture("VEX_MODEL_URL");
+        let _name = EnvRestore::capture("VEX_MODEL_NAME");
+        std::env::set_var("VEX_MODEL_URL_SKIP_TLS_CHECK", "true");
+        std::env::set_var("VEX_MODEL_URL", "https://localhost:8443/v1/messages");
+        std::env::set_var("VEX_MODEL_NAME", "test-model");
+
+        let cfg = Config::load().expect("load failed");
+        assert!(cfg.model_url_skip_tls_check);
+        assert!(cfg.should_warn_about_model_tls_skip_check());
+    }
+
+    #[test]
+    fn test_interactive_selection_preserves_non_default_runtime_shape() {
+        let mut cfg = Config::default_for_tui();
+        cfg.model_url = "http://localhost:8000/v1/messages".to_string();
+        cfg.model_name = "test-model".to_string();
+        cfg.model_backend = ModelBackendKind::ApiServer;
+        cfg.model_protocol = crate::runtime::ModelProtocol::ChatCompat;
+        cfg.tool_call_mode = crate::runtime::ToolCallMode::Structured;
+
+        cfg.apply_interactive_model_selection(
+            "http://localhost:9000/v1/messages".to_string(),
+            Some("test-model-2".to_string()),
+        );
+
+        assert_eq!(cfg.model_url, "http://localhost:9000/v1/messages");
+        assert_eq!(cfg.model_name, "test-model-2");
+        assert_eq!(cfg.model_backend, ModelBackendKind::ApiServer);
+        assert_eq!(cfg.model_protocol, crate::runtime::ModelProtocol::ChatCompat);
+        assert_eq!(cfg.tool_call_mode, crate::runtime::ToolCallMode::Structured);
     }
 
     #[test]
