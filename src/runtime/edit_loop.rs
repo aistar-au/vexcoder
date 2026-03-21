@@ -44,7 +44,7 @@ impl EditLoop {
             max_turns: DEFAULT_MAX_TURNS,
             stop_on_clean_validate: true,
             profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
-            working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            working_dir: std::env::current_dir().unwrap_or_else(|_| std::env::temp_dir()),
             last_validation_result: None,
         }
     }
@@ -83,11 +83,19 @@ impl EditLoop {
         cancel: &CancellationToken,
     ) -> Result<EditLoopOutcome> {
         // EL-03 step 1: workspace-dirty warning.
-        if Self::check_workspace_dirty(&self.working_dir, &[])? {
-            ctx.emit_transcript_line(
+        match Self::check_workspace_dirty(&self.working_dir, &[]) {
+            Ok(true) => {
+                ctx.emit_transcript_line(
                     "[edit loop warning: workspace has uncommitted changes; proceeding without mutating git state]"
                         .to_string(),
                 );
+            }
+            Ok(false) => {}
+            Err(error) => {
+                ctx.emit_transcript_line(format!(
+                    "[edit loop warning: skipped workspace-dirty check: {error}]"
+                ));
+            }
         }
 
         // EL-04: assemble → model → apply → validate → retry cycle.

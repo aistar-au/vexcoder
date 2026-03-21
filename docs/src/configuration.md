@@ -26,6 +26,7 @@ These keys are read by the current runtime from config files:
 | Key | Purpose | Default |
 | :--- | :--- | :--- |
 | `model_url` | Model endpoint URL | `http://localhost:11434/v1` |
+| `model_url_skip_tls_check` | Skip HTTPS certificate validation for the model endpoint | `false` |
 | `model_name` | Model identifier | `local/default` |
 | `working_dir` | Workspace root for tool execution | current directory |
 | `model_backend` | `local-runtime` or `api-server` | inferred |
@@ -56,6 +57,15 @@ The full model endpoint URL.
 ### `VEX_MODEL_TOKEN`
 
 Bearer token for authenticated endpoints.
+
+### `VEX_MODEL_URL_SKIP_TLS_CHECK`
+
+Development-only escape hatch for HTTPS model endpoints with self-signed or
+otherwise non-system-trusted certificates.
+
+- Accepts `true`, `false`, `1`, or `0`.
+- Emits a startup warning on every launch when enabled.
+- Must not be committed in repo-local `.vex/config.toml`.
 
 ### `VEX_MODEL_NAME`
 
@@ -114,7 +124,9 @@ sections for future expansion.
 
 - The active runtime keys are the top-level keys listed above.
 - `[[hooks]]` is active today.
-- Commented `[api]` remains a scaffold placeholder.
+- Commented `[api]` remains a scaffold placeholder in config files.
+  `VEX_API_*` environment variables (transport, host, port, socket, key,
+  protocol, TLS paths) are active and functional for API server configuration.
 - `[[mcp_servers]]` and `sandbox_require` are not active runtime features yet,
   but `vex doctor` reads them to probe MCP connectivity and report sandbox
   fallback status.
