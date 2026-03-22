@@ -25,7 +25,7 @@ These keys are read by the current runtime from config files:
 
 | Key | Purpose | Default |
 | :--- | :--- | :--- |
-| `model_url` | Model endpoint URL | `http://localhost:11434/v1` |
+| `model_url` | Model endpoint URL | `http://localhost:8080/v1` |
 | `model_url_skip_tls_check` | Skip HTTPS certificate validation for the model endpoint | `false` |
 | `model_name` | Model identifier | `local/default` |
 | `working_dir` | Workspace root for tool execution | current directory |
@@ -53,7 +53,7 @@ The full model endpoint URL.
 
 - URLs containing `/chat/completions` or ending in `/v1` default to `chat-compat`.
 - Other URLs default to `messages-v1`.
-- For plain local inference servers such as `llama.cpp`, prefer explicit HTTP
+- For plain local inference servers, prefer explicit HTTP
   localhost URLs such as `http://localhost:8000/v1/messages`. If you enter an
   HTTPS localhost URL in the interactive startup prompt, `vex` now suggests the
   equivalent plain-HTTP localhost endpoint before the fullscreen session starts.
@@ -155,7 +155,7 @@ sections for future expansion.
 Local endpoint:
 
 ```toml
-model_url = "http://localhost:11434/v1"
+model_url = "http://localhost:8080/v1"
 model_name = "local/default"
 model_profile = "models/local-balanced.toml"
 ```

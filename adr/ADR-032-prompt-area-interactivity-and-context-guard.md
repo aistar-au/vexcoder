@@ -9,7 +9,7 @@
 
 ## Context
 
-Local inference servers (llama.cpp, vLLM, Ollama) expose a fixed context
+Local inference servers expose a fixed context
 window via `--ctx-size` or equivalent. When conversation history grows beyond
 this limit the server returns HTTP 400 with a body describing the overflow.
 The original error handler did not read the response body, so the user saw a

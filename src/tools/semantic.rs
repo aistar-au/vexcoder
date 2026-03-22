@@ -3,8 +3,11 @@ use crate::tools::index::IndexChunk;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::fs;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use tempfile::Builder;
+use tokio::fs;
+use tokio::io::AsyncWriteExt;
 
 const SEMANTIC_INDEX_VERSION: u32 = 1;
 const DEFAULT_INDEX_MAX_FILES: usize = 5_000;
@@ -36,7 +39,7 @@ pub async fn semantic_search(
         return Ok(Vec::new());
     }
 
-    let mut persisted = load_index(workspace_root, config)?;
+    let mut persisted = load_index(workspace_root, config).await?;
     let mut stored_by_key: HashMap<String, PersistedSemanticChunk> = persisted
         .chunks
         .drain(..)
@@ -91,7 +94,7 @@ pub async fn semantic_search(
             stored_by_key.values().cloned().collect();
         saved_chunks.sort_by(|left, right| left.chunk_key.cmp(&right.chunk_key));
         persisted.chunks = saved_chunks;
-        save_index(workspace_root, &persisted)?;
+        save_index(workspace_root, &persisted).await?;
     }
 
     let mut query_embeddings = embed_texts(config, &[query.to_string()]).await?;
@@ -150,7 +153,10 @@ fn semantic_index_path(workspace_root: &Path) -> PathBuf {
         .join("semantic-codebase-index.json")
 }
 
-fn load_index(workspace_root: &Path, config: &EmbeddingConfig) -> Result<PersistedSemanticIndex> {
+async fn load_index(
+    workspace_root: &Path,
+    config: &EmbeddingConfig,
+) -> Result<PersistedSemanticIndex> {
     let path = semantic_index_path(workspace_root);
     let fresh = || PersistedSemanticIndex {
         version: SEMANTIC_INDEX_VERSION,
@@ -159,15 +165,18 @@ fn load_index(workspace_root: &Path, config: &EmbeddingConfig) -> Result<Persist
         chunks: Vec::new(),
     };
 
-    let Ok(raw) = fs::read_to_string(&path) else {
-        return Ok(fresh());
+    let raw = match fs::read_to_string(&path).await {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(fresh()),
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("failed to read semantic index {}", path.display()));
+        }
     };
-    let parsed: PersistedSemanticIndex = serde_json::from_str(&raw).with_context(|| {
-        format!(
-            "failed to parse persisted semantic index {}",
-            path.display()
-        )
-    })?;
+    let parsed: PersistedSemanticIndex = match serde_json::from_str(&raw) {
+        Ok(parsed) => parsed,
+        Err(_) => return Ok(fresh()),
+    };
     if parsed.version != SEMANTIC_INDEX_VERSION
         || parsed.provider != config.provider.as_str()
         || parsed.model != config.model
@@ -177,19 +186,56 @@ fn load_index(workspace_root: &Path, config: &EmbeddingConfig) -> Result<Persist
     Ok(parsed)
 }
 
-fn save_index(workspace_root: &Path, persisted: &PersistedSemanticIndex) -> Result<()> {
+async fn save_index(workspace_root: &Path, persisted: &PersistedSemanticIndex) -> Result<()> {
     let path = semantic_index_path(workspace_root);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).with_context(|| {
+    let parent = path.parent().with_context(|| {
+        format!(
+            "failed to derive semantic index parent directory for {}",
+            path.display()
+        )
+    })?;
+    fs::create_dir_all(parent).await.with_context(|| {
+        format!(
+            "failed to create semantic index directory {}",
+            parent.display()
+        )
+    })?;
+    let raw = serde_json::to_vec_pretty(persisted).context("failed to encode semantic index")?;
+    let temp_path = Builder::new()
+        .prefix("semantic-codebase-index.")
+        .suffix(".tmp")
+        .tempfile_in(parent)
+        .with_context(|| {
             format!(
-                "failed to create semantic index directory {}",
+                "failed to create temp semantic index in {}",
                 parent.display()
             )
-        })?;
-    }
-    let raw = serde_json::to_string_pretty(persisted).context("failed to encode semantic index")?;
-    fs::write(&path, raw)
-        .with_context(|| format!("failed to write semantic index {}", path.display()))?;
+        })?
+        .into_temp_path();
+    let temp_path_buf = temp_path.to_path_buf();
+    let mut file = fs::File::create(&temp_path_buf).await.with_context(|| {
+        format!(
+            "failed to create temp semantic index {}",
+            temp_path_buf.display()
+        )
+    })?;
+    file.write_all(&raw).await.with_context(|| {
+        format!(
+            "failed to write temp semantic index {}",
+            temp_path_buf.display()
+        )
+    })?;
+    file.sync_all().await.with_context(|| {
+        format!(
+            "failed to flush temp semantic index {}",
+            temp_path_buf.display()
+        )
+    })?;
+    drop(file);
+
+    fs::rename(&temp_path_buf, &path)
+        .await
+        .with_context(|| format!("failed to replace semantic index {}", path.display()))?;
     Ok(())
 }
 
@@ -255,6 +301,7 @@ struct PersistedSemanticIndex {
 mod tests {
     use super::*;
     use crate::tools::index::ItemKind;
+    use tempfile::tempdir;
 
     fn make_chunk(path: &str, name: &str, source: &str) -> IndexChunk {
         IndexChunk {
@@ -293,5 +340,121 @@ mod tests {
     #[test]
     fn test_source_hash_is_stable() {
         assert_eq!(source_hash("fn stable() {}\n"), 0xdc532b0ead0558e9);
+    }
+
+    #[tokio::test]
+    async fn test_save_index_round_trips_without_leaving_temp_files() {
+        let workspace = tempdir().expect("tempdir");
+        let config = EmbeddingConfig {
+            provider: crate::tools::embed::EmbeddingProvider::Compat,
+            model: "text-embedding-test".to_string(),
+            url: "https://example.invalid".to_string(),
+            api_key: None,
+            batch_size: 8,
+        };
+        let persisted = PersistedSemanticIndex {
+            version: SEMANTIC_INDEX_VERSION,
+            provider: config.provider.as_str().to_string(),
+            model: config.model.clone(),
+            chunks: vec![PersistedSemanticChunk {
+                chunk_key: "src/lib.rs:1:3:answer".to_string(),
+                path: "src/lib.rs".to_string(),
+                start_line: 1,
+                end_line: 3,
+                name: "answer".to_string(),
+                content_hash: 42,
+                embedding: vec![0.25, 0.75],
+            }],
+        };
+        let updated = PersistedSemanticIndex {
+            version: SEMANTIC_INDEX_VERSION,
+            provider: config.provider.as_str().to_string(),
+            model: config.model.clone(),
+            chunks: vec![PersistedSemanticChunk {
+                chunk_key: "src/lib.rs:8:12:updated".to_string(),
+                path: "src/lib.rs".to_string(),
+                start_line: 8,
+                end_line: 12,
+                name: "updated".to_string(),
+                content_hash: 99,
+                embedding: vec![0.1, 0.9],
+            }],
+        };
+
+        save_index(workspace.path(), &persisted)
+            .await
+            .expect("save index");
+        save_index(workspace.path(), &updated)
+            .await
+            .expect("overwrite index");
+        let reloaded = load_index(workspace.path(), &config)
+            .await
+            .expect("load index");
+
+        assert_eq!(reloaded.chunks.len(), 1);
+        assert_eq!(reloaded.chunks[0].chunk_key, updated.chunks[0].chunk_key);
+        assert_eq!(
+            reloaded.chunks[0].content_hash,
+            updated.chunks[0].content_hash
+        );
+        assert_eq!(reloaded.chunks[0].embedding, updated.chunks[0].embedding);
+
+        let index_dir = workspace.path().join(".vex").join("index");
+        let mut entries: Vec<String> = std::fs::read_dir(index_dir)
+            .expect("read index dir")
+            .map(|entry| {
+                entry
+                    .expect("dir entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        entries.sort();
+        assert_eq!(entries, vec!["semantic-codebase-index.json".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn test_load_index_resets_for_provider_or_model_changes() {
+        let workspace = tempdir().expect("tempdir");
+        let compat_config = EmbeddingConfig {
+            provider: crate::tools::embed::EmbeddingProvider::Compat,
+            model: "model-a".to_string(),
+            url: "https://example.invalid".to_string(),
+            api_key: None,
+            batch_size: 8,
+        };
+        let native_config = EmbeddingConfig {
+            provider: crate::tools::embed::EmbeddingProvider::Native,
+            model: "model-b".to_string(),
+            url: "http://localhost:9200".to_string(),
+            api_key: None,
+            batch_size: 1,
+        };
+        let persisted = PersistedSemanticIndex {
+            version: SEMANTIC_INDEX_VERSION,
+            provider: compat_config.provider.as_str().to_string(),
+            model: compat_config.model.clone(),
+            chunks: vec![PersistedSemanticChunk {
+                chunk_key: "src/lib.rs:1:3:answer".to_string(),
+                path: "src/lib.rs".to_string(),
+                start_line: 1,
+                end_line: 3,
+                name: "answer".to_string(),
+                content_hash: 42,
+                embedding: vec![0.25, 0.75],
+            }],
+        };
+
+        save_index(workspace.path(), &persisted)
+            .await
+            .expect("save index");
+        let reloaded = load_index(workspace.path(), &native_config)
+            .await
+            .expect("load mismatched index");
+
+        assert!(reloaded.chunks.is_empty());
+        assert_eq!(reloaded.provider, native_config.provider.as_str());
+        assert_eq!(reloaded.model, native_config.model);
     }
 }

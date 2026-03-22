@@ -6,14 +6,14 @@ const DEFAULT_EMBED_BATCH_SIZE: usize = 32;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EmbeddingProvider {
     Compat,
-    Ollama,
+    Native,
 }
 
 impl EmbeddingProvider {
     fn parse(raw: &str) -> Option<Self> {
         match raw.trim().to_ascii_lowercase().as_str() {
             "compat" => Some(Self::Compat),
-            "ollama" => Some(Self::Ollama),
+            "native" => Some(Self::Native),
             _ => None,
         }
     }
@@ -21,7 +21,7 @@ impl EmbeddingProvider {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Compat => "compat",
-            Self::Ollama => "ollama",
+            Self::Native => "native",
         }
     }
 }
@@ -44,7 +44,7 @@ impl EmbeddingConfig {
 
         let provider = EmbeddingProvider::parse(&provider_raw).ok_or_else(|| {
             anyhow!(
-                "unsupported VEX_EMBEDDING_PROVIDER '{}'; expected compat or ollama",
+                "unsupported VEX_EMBEDDING_PROVIDER '{}'; expected compat or native",
                 provider_raw
             )
         })?;
@@ -79,7 +79,7 @@ pub async fn embed_texts(config: &EmbeddingConfig, texts: &[String]) -> Result<V
     let client = reqwest::Client::new();
     match config.provider {
         EmbeddingProvider::Compat => embed_compat_batches(&client, config, texts).await,
-        EmbeddingProvider::Ollama => embed_ollama_batches(&client, config, texts).await,
+        EmbeddingProvider::Native => embed_native_batches(&client, config, texts).await,
     }
 }
 
@@ -121,7 +121,7 @@ async fn embed_compat_batches(
     Ok(embeddings)
 }
 
-async fn embed_ollama_batches(
+async fn embed_native_batches(
     client: &reqwest::Client,
     config: &EmbeddingConfig,
     texts: &[String],
@@ -145,10 +145,10 @@ async fn embed_ollama_batches(
             bail!("embedding request failed with {status}: {body}");
         }
 
-        let payload: OllamaEmbeddingResponse = response
+        let payload: NativeEmbeddingResponse = response
             .json()
             .await
-            .context("failed to decode ollama embedding response")?;
+            .context("failed to decode native embedding response")?;
         embeddings.push(payload.embedding);
     }
 
@@ -177,7 +177,7 @@ struct CompatEmbeddingItem {
 }
 
 #[derive(Debug, Deserialize)]
-struct OllamaEmbeddingResponse {
+struct NativeEmbeddingResponse {
     embedding: Vec<f32>,
 }
 
