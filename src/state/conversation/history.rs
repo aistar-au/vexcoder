@@ -301,11 +301,7 @@ pub(super) fn resolve_history_keep_turns() -> usize {
 /// last line already matches the indicator pattern, the text is returned
 /// unchanged.
 pub(super) fn truncate_to_lines(text: &str, max_lines: usize) -> String {
-    if text
-        .lines()
-        .last()
-        .is_some_and(|l| l.ends_with("more lines)"))
-    {
+    if text.lines().last().is_some_and(|l| l.ends_with("more lines)")) {
         return text.to_string();
     }
     let lines: Vec<&str> = text.lines().collect();

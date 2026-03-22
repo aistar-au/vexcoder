@@ -120,7 +120,6 @@ impl ConversationManager {
         self.condense_old_tool_results(history_keep_turns);
         loop {
             self.current_turn_blocks.clear();
-            self.condense_old_tool_results(history_keep_turns);
             turn_user_anchor_index = self
                 .prune_message_history_preserving(limits.max_api_messages, turn_user_anchor_index);
             rounds += 1;
