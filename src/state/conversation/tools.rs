@@ -7,6 +7,8 @@ use crate::runtime::{
     PassthroughSandbox, SandboxDriver,
 };
 use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
+use crate::tools::index::{self, IndexChunk};
+use crate::tools::search;
 use crate::tools::{ToolOperator, WriteFileOutcome};
 use crate::types::ContentBlock;
 use crate::util::parse_bool_flag;
@@ -14,16 +16,30 @@ use anyhow::{bail, Context, Result};
 #[cfg(test)]
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(test)]
+use std::sync::Arc;
 #[cfg(all(test, not(windows)))]
 use std::sync::LazyLock;
-#[cfg(test)]
-use std::sync::{Arc, Mutex};
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
 #[cfg(all(test, not(windows)))]
 static HOOK_WARNINGS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 static RUN_COMMAND_SESSION_IDS: AtomicU64 = AtomicU64::new(1 << 63);
+
+/// Lazily-built structural index for the codebase_search tool.
+static CODEBASE_INDEX: OnceLock<Mutex<Vec<IndexChunk>>> = OnceLock::new();
+
+/// Refresh the structural index for a single changed file (if the index exists).
+fn refresh_codebase_index(rel_path: &str, workspace_root: &std::path::Path) {
+    if let Some(idx_mutex) = CODEBASE_INDEX.get() {
+        if let Ok(mut idx) = idx_mutex.lock() {
+            let abs_path = workspace_root.join(rel_path);
+            index::update_index(&mut idx, &abs_path, workspace_root);
+        }
+    }
+}
 
 /// Maximum bytes kept in the accumulated stdout/stderr buffers returned to the
 /// model after a `run_command` tool call.  The full output is always streamed to
@@ -521,14 +537,16 @@ pub(super) fn execute_tool_dispatch(
                 required_tool_string_any(input, name, "path", &["path", "file_path", "file"])?;
             let content = first_tool_string(input, &["content", "text"]).unwrap_or("");
             let (chars, lines) = text_stats(content);
-            match tool_operator.write_file(path, content)? {
+            let result = match tool_operator.write_file(path, content)? {
                 WriteFileOutcome::Written => {
-                    Ok(format!("Wrote {path} ({chars} chars, {lines} lines)."))
+                    format!("Wrote {path} ({chars} chars, {lines} lines).")
                 }
                 WriteFileOutcome::Pending(pending) => {
-                    Ok(format!("Pending patch for {path}.\n{}", pending.diff))
+                    format!("Pending patch for {path}.\n{}", pending.diff)
                 }
-            }
+            };
+            refresh_codebase_index(path, tool_operator.working_dir());
+            Ok(result)
         }
         "apply_patch" => {
             let path =
@@ -543,6 +561,7 @@ pub(super) fn execute_tool_dispatch(
             let pending = tool_operator.propose_patch(path, &old_content, content)?;
             tool_operator.apply_patch(pending)?;
             let (chars, lines) = text_stats(content);
+            refresh_codebase_index(path, tool_operator.working_dir());
             Ok(format!(
                 "Applied patch to {path} ({chars} chars, {lines} lines)."
             ))
@@ -587,9 +606,9 @@ pub(super) fn execute_tool_dispatch(
                     "Updated snippet in {path} ({old_chars} chars/{old_lines} lines -> {new_chars} chars/{new_lines} lines)."
                 )
             };
-            tool_operator
-                .edit_file(path, old_str, new_str)
-                .map(|_| summary)
+            tool_operator.edit_file(path, old_str, new_str)?;
+            refresh_codebase_index(path, tool_operator.working_dir());
+            Ok(summary)
         }
         "rename_file" => {
             let old_path = required_tool_string_any(
@@ -670,6 +689,22 @@ pub(super) fn execute_tool_dispatch(
                 .map(|p| tool_operator.to_workspace_relative_display(p))
                 .collect::<Vec<_>>()
                 .join("\n"))
+        }
+        "codebase_search" => {
+            let query = required_tool_string(input, name, "query")?;
+            let max_results = input
+                .get("max_results")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize);
+            let idx_mutex = CODEBASE_INDEX.get_or_init(|| {
+                let chunks = index::build_index(tool_operator.working_dir());
+                Mutex::new(chunks)
+            });
+            let idx = idx_mutex
+                .lock()
+                .map_err(|_| anyhow::anyhow!("codebase index lock poisoned"))?;
+            let results = search::codebase_search(query, &idx, max_results);
+            Ok(search::format_search_results(query, &results))
         }
         "run_command" => bail!("run_command must execute through the runtime command runner"),
         _ => bail!("Unknown tool: {name}"),
@@ -1254,6 +1289,9 @@ pub(super) fn is_read_only_tool_name(name: &str) -> bool {
         "read_file"
             | "search"
             | "search_files"
+            | "search_content"
+            | "find_files"
+            | "codebase_search"
             | "list_files"
             | "list_directory"
             | "git_status"
