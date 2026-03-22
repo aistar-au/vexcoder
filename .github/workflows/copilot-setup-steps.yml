@@ -3,6 +3,7 @@ name: Hosted Agent Setup Checks
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     paths:
       - AGENTS.md
       - CONTRIBUTING.md
@@ -18,6 +19,10 @@ on:
       - .github/agents/**
       - .github/instructions/**
       - .github/workflows/copilot-setup-steps.yml
+
+concurrency:
+  group: hosted-setup-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   copilot-setup-steps:
