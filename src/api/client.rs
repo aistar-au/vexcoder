@@ -456,7 +456,7 @@ fn map_api_status_error(
     let local_http_hint = local_plain_http_hint(request_url);
     let is_local = is_local_endpoint_url(request_url);
 
-    // Detect context-window overflow from local servers (e.g. llama.cpp, vLLM).
+    // Detect context-window overflow from local inference servers.
     if is_context_overflow(body) {
         let ctx_hint = if is_local {
             "\n  The conversation has exceeded the server's context window. \
@@ -1388,14 +1388,14 @@ mod tests {
     }
 
     #[test]
-    fn test_is_context_overflow_detects_llama_cpp() {
+    fn test_is_context_overflow_detects_token_exceeded() {
         assert!(is_context_overflow(
             "request (4291 tokens) exceeds the available context size (4096 tokens), try increasing it"
         ));
     }
 
     #[test]
-    fn test_is_context_overflow_detects_vllm() {
+    fn test_is_context_overflow_detects_max_context_length() {
         assert!(is_context_overflow(
             "This model's maximum context length is 4096 tokens"
         ));

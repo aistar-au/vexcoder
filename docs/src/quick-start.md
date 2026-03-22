@@ -35,7 +35,7 @@ model_name = "local/default"
 model_profile = "models/local-balanced.toml"
 ```
 
-For a local Messages-v1 server such as `llama.cpp`, use plain HTTP unless you
+For a local Messages-v1 server, use plain HTTP unless you
 have explicitly configured TLS:
 
 ```toml
