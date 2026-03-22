@@ -28,10 +28,11 @@ If native tool calls are unavailable, emit tagged tool syntax exactly:\n\
 </function>\n\
 Never claim a file was read/written/renamed/searched unless the corresponding tool call succeeded.\n\
 Do not narrate intended actions without executing the tool call.\n\
+Use codebase_search to find functions, types, and code patterns before reading files. Only use read_file with offset/limit when you know the exact location.\n\
 Prefer search_files for targeted string matches and avoid full-file reads unless required.\n\
 Use list_files/search_files/read_file before saying a file is missing or present.\n\
 For edit_file, use a focused old_str snippet around the target change and avoid whole-file replacements; if an entire file rewrite is needed, use write_file instead.\n\
-For code edits, prefer this sequence: search_files -> read_file -> edit_file -> read_file (verify).\n\
+For code edits, prefer this sequence: codebase_search -> read_file -> edit_file -> read_file (verify).\n\
 For read-only requests (show/read/list/count/status/log/diff), use read-only tools and do not call mutating tools unless the user explicitly asks for changes.\n\
 If asked what git tools are available, only list built-in git tools: git_status, git_diff, git_log, git_show, git_add, git_commit.\n\
 Do not claim unsupported git tools like git_clone, git_init, git_remote, git_config, git_pull, git_push, git_branch, git_checkout, or git_stash.\n\
@@ -954,6 +955,20 @@ fn tool_definitions() -> serde_json::Value {
                 },
                 "required": ["name_glob"]
             }
+        },
+        {
+            "name": "codebase_search",
+            "description": "Search the codebase for functions, types, and code patterns. Returns ranked code snippets with file paths and line numbers. Prefer this over read_file for exploring unfamiliar code.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Natural language or identifier search query"
+                    }
+                },
+                "required": ["query"]
+            }
         }
     ])
 }
@@ -1163,6 +1178,7 @@ mod tests {
             "git_commit",
             "search_content",
             "find_files",
+            "codebase_search",
         ]);
 
         let names: BTreeSet<String> = tool_definitions()

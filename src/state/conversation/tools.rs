@@ -7,7 +7,7 @@ use crate::runtime::{
     PassthroughSandbox, SandboxDriver,
 };
 use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
-use crate::tools::{ToolOperator, WriteFileOutcome};
+use crate::tools::{index::IndexChunk, ToolOperator, WriteFileOutcome};
 use crate::types::ContentBlock;
 use crate::util::parse_bool_flag;
 use anyhow::{bail, Context, Result};
@@ -16,14 +16,19 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(all(test, not(windows)))]
 use std::sync::LazyLock;
+use std::sync::{Mutex, OnceLock};
 #[cfg(test)]
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
 #[cfg(all(test, not(windows)))]
 static HOOK_WARNINGS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 static RUN_COMMAND_SESSION_IDS: AtomicU64 = AtomicU64::new(1 << 63);
+
+/// Lazily-built structural index of workspace Rust source items.
+/// Initialised on the first `codebase_search` tool call.
+static CODEBASE_INDEX: OnceLock<Mutex<Vec<IndexChunk>>> = OnceLock::new();
 
 /// Maximum bytes kept in the accumulated stdout/stderr buffers returned to the
 /// model after a `run_command` tool call.  The full output is always streamed to
@@ -521,14 +526,16 @@ pub(super) fn execute_tool_dispatch(
                 required_tool_string_any(input, name, "path", &["path", "file_path", "file"])?;
             let content = first_tool_string(input, &["content", "text"]).unwrap_or("");
             let (chars, lines) = text_stats(content);
-            match tool_operator.write_file(path, content)? {
+            let result = match tool_operator.write_file(path, content)? {
                 WriteFileOutcome::Written => {
-                    Ok(format!("Wrote {path} ({chars} chars, {lines} lines)."))
+                    format!("Wrote {path} ({chars} chars, {lines} lines).")
                 }
                 WriteFileOutcome::Pending(pending) => {
-                    Ok(format!("Pending patch for {path}.\n{}", pending.diff))
+                    format!("Pending patch for {path}.\n{}", pending.diff)
                 }
-            }
+            };
+            maybe_update_index(path, tool_operator);
+            Ok(result)
         }
         "apply_patch" => {
             let path =
@@ -543,6 +550,7 @@ pub(super) fn execute_tool_dispatch(
             let pending = tool_operator.propose_patch(path, &old_content, content)?;
             tool_operator.apply_patch(pending)?;
             let (chars, lines) = text_stats(content);
+            maybe_update_index(path, tool_operator);
             Ok(format!(
                 "Applied patch to {path} ({chars} chars, {lines} lines)."
             ))
@@ -589,7 +597,10 @@ pub(super) fn execute_tool_dispatch(
             };
             tool_operator
                 .edit_file(path, old_str, new_str)
-                .map(|_| summary)
+                .map(|_| {
+                    maybe_update_index(path, tool_operator);
+                    summary
+                })
         }
         "rename_file" => {
             let old_path = required_tool_string_any(
@@ -670,6 +681,41 @@ pub(super) fn execute_tool_dispatch(
                 .map(|p| tool_operator.to_workspace_relative_display(p))
                 .collect::<Vec<_>>()
                 .join("\n"))
+        }
+        "codebase_search" => {
+            let query = required_tool_string(input, name, "query")?;
+            let index_mutex = CODEBASE_INDEX.get_or_init(|| {
+                let root = tool_operator.working_dir().to_path_buf();
+                let chunks = crate::tools::index::build_index(&root).unwrap_or_default();
+                Mutex::new(chunks)
+            });
+            let index = index_mutex
+                .lock()
+                .map_err(|_| anyhow::anyhow!("codebase index lock poisoned"))?;
+            let max_results = crate::tools::search::default_max_results();
+            let results = crate::tools::search::codebase_search(query, &index, max_results);
+            if results.is_empty() {
+                return Ok(format!("No results found for \"{query}\"."));
+            }
+            let mut output = format!("Found {} results for \"{query}\":\n\n", results.len());
+            for (i, result) in results.iter().enumerate() {
+                let indented = result
+                    .snippet
+                    .lines()
+                    .collect::<Vec<_>>()
+                    .join("\n   ");
+                output.push_str(&format!(
+                    "{}. [{}] `{}` in {}:{}-{}\n   {}\n\n",
+                    i + 1,
+                    result.chunk.kind.as_str(),
+                    result.chunk.name,
+                    result.chunk.path,
+                    result.chunk.start_line,
+                    result.chunk.end_line,
+                    indented,
+                ));
+            }
+            Ok(output)
         }
         "run_command" => bail!("run_command must execute through the runtime command runner"),
         _ => bail!("Unknown tool: {name}"),
@@ -1032,6 +1078,21 @@ pub(super) fn text_stats(text: &str) -> (usize, usize) {
     )
 }
 
+/// If the codebase index has been initialised and `path` ends with `.rs`,
+/// re-index the changed file so subsequent `codebase_search` calls reflect the
+/// latest content.  Silently ignores errors so callers are not disrupted.
+fn maybe_update_index(path: &str, tool_operator: &ToolOperator) {
+    if !path.ends_with(".rs") {
+        return;
+    }
+    if let Some(mx) = CODEBASE_INDEX.get() {
+        if let Ok(mut idx) = mx.lock() {
+            let abs = tool_operator.working_dir().join(path);
+            crate::tools::index::update_index(&mut idx, &abs);
+        }
+    }
+}
+
 pub(super) fn default_tool_approval_enabled(is_local_endpoint: bool) -> bool {
     !is_local_endpoint
 }
@@ -1260,6 +1321,7 @@ pub(super) fn is_read_only_tool_name(name: &str) -> bool {
             | "git_diff"
             | "git_log"
             | "git_show"
+            | "codebase_search"
     )
 }
 
