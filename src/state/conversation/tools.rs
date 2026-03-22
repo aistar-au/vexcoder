@@ -467,7 +467,6 @@ pub(super) fn execute_tool_dispatch(
     name: &str,
     input: &serde_json::Value,
 ) -> Result<String> {
-    let get_str = |key: &str| input.get(key).and_then(|v| v.as_str()).unwrap_or("");
     let get_bool =
         |key: &str, default: bool| input.get(key).and_then(|v| v.as_bool()).unwrap_or(default);
     let get_usize = |key: &str, default: usize| {
@@ -575,14 +574,22 @@ pub(super) fn execute_tool_dispatch(
             tool_operator.rename_file(old_path, new_path)
         }
         "list_files" | "list_directory" => tool_operator.list_files(
-            input.get("path").and_then(|v| v.as_str()),
-            get_usize("max_entries", 100),
+            first_tool_string(input, &["path", "dir", "directory", "root"]),
+            first_tool_usize(input, &["max_entries", "max_results", "limit"]).unwrap_or(100),
         ),
-        "search_files" | "search" => tool_operator.search_files(
-            get_str("query"),
-            input.get("path").and_then(|v| v.as_str()),
-            get_usize("max_results", 30),
-        ),
+        "search_files" | "search" => {
+            let query = required_tool_string_any(
+                input,
+                name,
+                "query",
+                &["query", "pattern", "text", "search", "needle"],
+            )?;
+            tool_operator.search_files(
+                query,
+                first_tool_string(input, &["path", "dir", "directory", "root"]),
+                first_tool_usize(input, &["max_results", "limit", "max_entries"]).unwrap_or(30),
+            )
+        }
         "git_status" => tool_operator.git_status(
             get_bool("short", true),
             input.get("path").and_then(|v| v.as_str()),
@@ -658,6 +665,18 @@ pub(super) fn first_tool_string<'a>(
 ) -> Option<&'a str> {
     keys.iter()
         .find_map(|key| input.get(*key).and_then(|v| v.as_str()))
+}
+
+pub(super) fn first_tool_usize(input: &serde_json::Value, keys: &[&str]) -> Option<usize> {
+    keys.iter().find_map(|key| {
+        input.get(*key).and_then(|value| match value {
+            serde_json::Value::Number(number) => number
+                .as_u64()
+                .and_then(|value| usize::try_from(value).ok()),
+            serde_json::Value::String(text) => text.trim().parse::<usize>().ok(),
+            _ => None,
+        })
+    })
 }
 
 pub(super) fn required_tool_string_any<'a>(

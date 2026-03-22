@@ -236,17 +236,20 @@ impl TuiMode {
     /// Derive output/inspector rows for the output pane.
     ///
     /// Rendering strategy:
-    /// - During an active turn with timeline entries: inspector detail for the
-    ///   selected tool step, with streaming model response appended below.
-    /// - During an active turn without tool steps: streaming model response.
-    /// - After a completed turn: enriched paragraph view showing each tool
-    ///   invocation as a paragraph followed by the model response.
+    /// - While timeline follow mode is active: accumulated transcript rows so
+    ///   each new server response appends at the bottom instead of replacing
+    ///   the prior view.
+    /// - After manual timeline navigation (follow mode off): inspector detail
+    ///   for the selected tool step, with streaming model response appended
+    ///   below.
     /// - Before any turn: welcome hint.
     pub(super) fn task_output_view(&self) -> (String, Vec<String>, OutputScrollAnchor) {
-        // If timeline has entries and a valid selection on a tool step
-        // (not user input), show inspector detail.
         let entries = self.task_timeline_entries();
-        if !entries.is_empty() {
+        // Keep the output pane on the accumulated transcript while follow mode
+        // is active so prior server responses scroll upward instead of being
+        // replaced by the latest inspector view. Manual timeline navigation can
+        // still switch the pane into inspector mode.
+        if !self.timeline_follow_mode && !entries.is_empty() {
             let idx = self
                 .selected_timeline_index
                 .min(entries.len().saturating_sub(1));
@@ -268,37 +271,11 @@ impl TuiMode {
             }
         }
 
-        if self.history_state.turn_in_progress
-            || self.overlay_state.pending_approval.is_some()
-            || !self.active_stream_blocks.is_empty()
-            || !self.current_turn_tool_invocations.is_empty()
-            || self.last_error_message.is_some()
-        {
-            let rows = self.active_turn_rows();
-            if rows.is_empty() {
-                return (
-                    "Transcript".to_string(),
-                    vec!["[awaiting model response]".to_string()],
-                    OutputScrollAnchor::Bottom,
-                );
-            }
-            return ("Transcript".to_string(), rows, OutputScrollAnchor::Bottom);
-        }
-
-        // After turn completes: show enriched paragraph view with tool
-        // invocations and model response from the last completed turn.
-        if !self.last_turn_tool_invocations.is_empty() || !self.last_turn_response.is_empty() {
+        let transcript_rows = self.transcript_display_rows();
+        if !transcript_rows.is_empty() {
             return (
                 "Transcript".to_string(),
-                self.enriched_paragraph_rows(),
-                OutputScrollAnchor::Bottom,
-            );
-        }
-
-        if let Some(message) = &self.last_error_message {
-            return (
-                "Transcript".to_string(),
-                vec![format!("[error] {message}")],
+                transcript_rows,
                 OutputScrollAnchor::Bottom,
             );
         }
@@ -312,179 +289,47 @@ impl TuiMode {
         )
     }
 
-    /// Build enriched paragraph rows from the last completed turn.
-    ///
-    /// Each tool invocation is rendered as a paragraph tree with stable
-    /// marker-based disclosure levels:
-    ///
-    /// ```text
-    /// [tool] tool_name · target · status          ← summary (2-space visual)
-    /// [detail] Scope: ...                         ← phase detail (4-space)
-    /// [detail] Command: ...                       ← phase detail (4-space)
-    /// [detail] Result: ...                        ← phase detail (4-space)
-    /// [evidence] Outcome: ...                     ← evidence (6-space)
-    /// [evidence] ...                              ← evidence (6-space)
-    /// ```
-    ///
-    /// The summary line is self-informative: it includes the tool name, a
-    /// compact target hint when one can be inferred from the outcome, and the
-    /// final status so the operator can scan without expanding detail.
-    /// Phase-detail lines provide stable scope/command/result fields.
-    /// Evidence lines preserve the original outcome wording, capped to keep
-    /// each paragraph to 4–6 lines.
-    ///
-    /// Followed by the model response text.
-    fn enriched_paragraph_rows(&self) -> Vec<String> {
+    fn transcript_display_rows(&self) -> Vec<String> {
         let mut rows = Vec::new();
-        if let Some(boundary) = self.last_turn_boundary_summary() {
-            rows.push(format!("[turn] {boundary}"));
-            rows.push(String::new());
-        }
-        append_tool_paragraph_rows(&mut rows, &self.last_turn_tool_invocations);
-
-        if !self.last_turn_response.is_empty() {
-            if !rows.is_empty() {
+        for line in &self.history_state.lines {
+            if line.is_empty() {
                 rows.push(String::new());
+            } else {
+                rows.extend(line.lines().map(ToOwned::to_owned));
             }
-            for line in self.last_turn_response.lines() {
-                rows.push(line.to_string());
-            }
         }
 
-        if rows.is_empty() {
-            rows.push("Turn completed.".to_string());
-        }
-
-        rows
-    }
-
-    fn active_turn_rows(&self) -> Vec<String> {
-        let mut rows = Vec::new();
-
-        if let Some(pending) = self.overlay_state.pending_approval.as_ref() {
-            rows.push(format!("[approval] {} \u{00b7} pending", pending.tool_name));
-            let input_summary = compact_outcome_summary(&pending.input_preview.replace('\n', " "));
-            rows.push(format!("[approval_detail] Input: {input_summary}"));
-        }
-
-        let mut block_entries: Vec<(&usize, &StreamBlock)> =
-            self.active_stream_blocks.iter().collect();
-        block_entries.sort_by_key(|(index, _)| **index);
-        for (_, block) in block_entries {
-            if let StreamBlock::Thinking { content, collapsed } = block {
-                rows.push(format!(
-                    "[thinking] {}",
-                    if *collapsed {
-                        "thinking... \u{00b7} collapsed"
-                    } else {
-                        "thinking... \u{00b7} expanded"
-                    }
-                ));
-                if !*collapsed {
-                    for line in content.lines().filter(|line| !line.trim().is_empty()) {
-                        rows.push(format!("[thinking_detail] {line}"));
-                    }
+        if self.history_state.turn_in_progress
+            && !self.history_state.cancel_pending
+            && rows.last().is_some_and(|line| line.is_empty())
+        {
+            if self.current_turn_response.is_empty() {
+                if let Some(last) = rows.last_mut() {
+                    *last = "[awaiting model response]".to_string();
                 }
-            }
-        }
-
-        if !self.current_turn_tool_invocations.is_empty() {
-            if !rows.is_empty() {
-                rows.push(String::new());
-            }
-            append_tool_paragraph_rows(&mut rows, &self.current_turn_tool_invocations);
-        }
-
-        let mut pending_calls: Vec<&PendingTurnToolCall> =
-            self.pending_turn_tool_calls.values().collect();
-        pending_calls.sort_by_key(|pending| pending.step_id);
-        for pending in pending_calls {
-            if !rows.is_empty() {
-                rows.push(String::new());
-            }
-            let awaiting = self
-                .overlay_state
-                .pending_approval
-                .as_ref()
-                .map(|approval| approval.tool_name == pending.name)
-                .unwrap_or(false);
-            rows.push(format!(
-                "[tool] {} \u{00b7} {}",
-                pending.name,
-                if awaiting {
-                    "awaiting approval"
-                } else {
-                    "running"
-                }
-            ));
-            rows.push(format!(
-                "[detail] Scope: {}",
-                tool_scope_detail(&pending.name)
-            ));
-            rows.push(format!("[detail] Command: {}", pending.name));
-            for line in serde_json::to_string_pretty(&pending.input)
-                .unwrap_or_else(|_| pending.input.to_string())
-                .lines()
-                .take(3)
-            {
-                rows.push(format!("[evidence] {line}"));
-            }
-        }
-
-        if !self.current_turn_response.is_empty() {
-            if !rows.is_empty() {
-                rows.push(String::new());
-            }
-            let mut response_rows = self
-                .current_turn_response
-                .lines()
-                .map(ToOwned::to_owned)
-                .collect::<Vec<_>>();
-            if self.history_state.turn_in_progress
-                && !self.history_state.cancel_pending
-                && !response_rows.is_empty()
-            {
+            } else {
+                rows.pop();
+                let mut response_rows = self
+                    .current_turn_response
+                    .lines()
+                    .map(ToOwned::to_owned)
+                    .collect::<Vec<_>>();
                 if let Some(last) = response_rows.last_mut() {
                     last.push('▌');
                 }
+                rows.extend(response_rows);
             }
-            rows.extend(response_rows);
-        }
-
-        if let Some(message) = &self.last_error_message {
-            if !rows.is_empty() {
-                rows.push(String::new());
+        } else if self.history_state.turn_in_progress
+            && !self.history_state.cancel_pending
+            && !self.current_turn_response.is_empty()
+            && rows.last().is_some_and(|line| !line.ends_with('▌'))
+        {
+            if let Some(last) = rows.last_mut() {
+                last.push('▌');
             }
-            rows.push(format!("[error] {message}"));
         }
 
         rows
-    }
-
-    fn last_turn_boundary_summary(&self) -> Option<String> {
-        let turn = self.current_task.turns.len();
-        if turn == 0
-            && self.last_turn_tool_invocations.is_empty()
-            && self.last_turn_response.is_empty()
-        {
-            return None;
-        }
-        let tool_count = self.last_turn_tool_invocations.len();
-        let files_changed = self
-            .current_task
-            .turns
-            .last()
-            .map(|turn| turn.changed_files.len())
-            .unwrap_or_default();
-        let duration = self
-            .last_turn_duration
-            .map(format_duration_compact)
-            .unwrap_or_else(|| "n/a".to_string());
-        Some(format!(
-            "Turn {turn} \u{00b7} {tool_count} tool{} \u{00b7} {files_changed} file{} changed \u{00b7} {duration}",
-            if tool_count == 1 { "" } else { "s" },
-            if files_changed == 1 { "" } else { "s" },
-        ))
     }
 
     pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
@@ -580,64 +425,6 @@ impl TuiMode {
     }
 }
 
-fn append_tool_paragraph_rows(rows: &mut Vec<String>, invocations: &[ToolInvocationSummary]) {
-    /// Maximum evidence lines shown at 6-space disclosure level.
-    const MAX_EVIDENCE_LINES: usize = 4;
-
-    for invocation in invocations {
-        if !rows.is_empty() && rows.last().is_some_and(|line| !line.is_empty()) {
-            rows.push(String::new());
-        }
-        let is_error = tool_outcome_is_error(&invocation.outcome);
-        let status_label = if is_error { "failed" } else { "completed" };
-        let scope = tool_scope_detail(&invocation.name);
-        let outcome_lines: Vec<&str> = invocation
-            .outcome
-            .lines()
-            .map(str::trim_end)
-            .filter(|line| !line.is_empty())
-            .collect();
-        let first_line = outcome_lines.first().copied().unwrap_or("");
-        let result_summary = if first_line.is_empty() {
-            status_label.to_string()
-        } else {
-            compact_outcome_summary(first_line)
-        };
-        let summary = if let Some(target_summary) = tool_target_summary(first_line) {
-            format!(
-                "{} \u{00b7} {} \u{00b7} {}",
-                invocation.name, target_summary, status_label
-            )
-        } else if result_summary == status_label {
-            format!("{} \u{00b7} {}", invocation.name, status_label)
-        } else {
-            format!(
-                "{} \u{00b7} {} \u{00b7} {}",
-                invocation.name, result_summary, status_label
-            )
-        };
-
-        rows.push(format!("[tool] {summary}"));
-        rows.push(format!("[detail] Scope: {scope}"));
-        rows.push(format!("[detail] Command: {}", invocation.name));
-        rows.push(format!("[detail] Result: {result_summary}"));
-
-        let mut evidence_lines = Vec::new();
-        if let Some(first_line) = outcome_lines.first() {
-            evidence_lines.push(format!("Outcome: {first_line}"));
-        }
-        for line in outcome_lines.iter().skip(1) {
-            evidence_lines.push((*line).to_string());
-        }
-        if evidence_lines.is_empty() {
-            evidence_lines.push(format!("Status note: tool step {status_label}."));
-        }
-        for line in evidence_lines.into_iter().take(MAX_EVIDENCE_LINES) {
-            rows.push(format!("[evidence] {line}"));
-        }
-    }
-}
-
 fn timeline_label_for_invocation(invocation: &ToolInvocationSummary) -> String {
     let is_error = tool_outcome_is_error(&invocation.outcome);
     let status_label = if is_error { "failed" } else { "completed" };
@@ -665,20 +452,6 @@ fn timeline_label_for_invocation(invocation: &ToolInvocationSummary) -> String {
             "{} · {} · {}",
             invocation.name, result_summary, status_label
         )
-    }
-}
-
-fn format_duration_compact(duration: Duration) -> String {
-    if duration.as_secs() >= 60 {
-        format!(
-            "{}m{:02}s",
-            duration.as_secs() / 60,
-            duration.as_secs() % 60
-        )
-    } else if duration.as_secs() > 0 {
-        format!("{:.1}s", duration.as_secs_f32())
-    } else {
-        format!("{}ms", duration.as_millis())
     }
 }
 
@@ -711,6 +484,7 @@ fn tool_outcome_is_error(outcome: &str) -> bool {
         || lowered.starts_with("canceled")
 }
 
+#[allow(dead_code)]
 fn tool_scope_detail(tool_name: &str) -> String {
     builtin_tool_summaries()
         .into_iter()

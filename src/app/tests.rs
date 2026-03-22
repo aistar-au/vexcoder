@@ -248,12 +248,12 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
     assert_eq!(state.activity_rows, vec!["> hi".to_string()]);
     assert_eq!(
         state.output_rows,
-        vec!["[awaiting model response]".to_string()]
+        vec!["> hi".to_string(), "[awaiting model response]".to_string()]
     );
 }
 
 #[test]
-fn test_task_layout_state_surfaces_thinking_approval_and_cursor_rows() {
+fn test_task_layout_state_transcript_streaming_with_pending_approval() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
@@ -279,18 +279,14 @@ fn test_task_layout_state_surfaces_thinking_approval_and_cursor_rows() {
         input_preview: "{\"path\":\"src/main.rs\"}".to_string(),
         action: PendingApprovalAction::Tool(response_tx),
     });
-    mode.current_turn_response = "streaming line".to_string();
+    mode.on_model_update(
+        UiUpdate::StreamDelta("streaming line".to_string()),
+        &mut ctx,
+    );
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert_eq!(state.output_rows[0], "[approval] read_file · pending");
-    assert!(state
-        .output_rows
-        .iter()
-        .any(|row| row == "[thinking] thinking... · expanded"));
-    assert!(state
-        .output_rows
-        .iter()
-        .any(|row| row == "[tool] read_file · awaiting approval"));
+    assert_eq!(state.output_rows[0], "> plan it");
+    assert_eq!(state.output_rows[1], "streaming line▌");
     assert_eq!(
         state.output_rows.last().expect("last row"),
         "streaming line▌"
@@ -310,11 +306,58 @@ fn test_task_layout_state_routes_streamed_response_to_output_pane() {
 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(state.activity_rows, vec!["> hi".to_string()]);
-    assert_eq!(state.output_rows, vec!["hello from model▌".to_string()]);
+    assert_eq!(
+        state.output_rows,
+        vec!["> hi".to_string(), "hello from model▌".to_string()]
+    );
 }
 
 #[test]
-fn test_task_layout_state_emits_completed_tool_paragraph_markers() {
+fn test_task_layout_state_preserves_multiline_streamed_response_in_transcript() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("hi".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamDelta("first line\nsecond line".to_string()),
+        &mut ctx,
+    );
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(
+        state.output_rows,
+        vec![
+            "> hi".to_string(),
+            "first line".to_string(),
+            "second line▌".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn test_task_layout_state_keeps_prior_responses_visible_after_turn_completion() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("inspect the file".to_string(), &mut ctx);
+    mode.on_model_update(UiUpdate::StreamDelta("Done.".to_string()), &mut ctx);
+    mode.current_turn_tool_invocations = vec![ToolInvocationSummary {
+        step_id: 1,
+        name: "read_file".to_string(),
+        outcome: "42 lines read from src/main.rs\nfn main() {}".to_string(),
+    }];
+    mode.commit_completed_turn(&ctx);
+    mode.history_state.turn_in_progress = false;
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(
+        state.output_rows,
+        vec!["> inspect the file".to_string(), "Done.".to_string()]
+    );
+}
+
+#[test]
+fn test_manual_timeline_selection_opens_tool_inspector() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
@@ -322,31 +365,18 @@ fn test_task_layout_state_emits_completed_tool_paragraph_markers() {
     mode.current_turn_tool_invocations = vec![ToolInvocationSummary {
         step_id: 1,
         name: "read_file".to_string(),
-        outcome: "42 lines read from src/main.rs\nfn main() {}".to_string(),
+        outcome: "42 lines read from src/main.rs".to_string(),
     }];
-    mode.current_turn_response = "Done.".to_string();
-    mode.commit_completed_turn(&ctx);
-    mode.history_state.turn_in_progress = false;
+    mode.timeline_follow_mode = false;
+    mode.selected_timeline_index = 1;
 
     let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.output_title, "Inspector");
+    assert_eq!(state.output_rows[0], "Tool: read_file");
     assert_eq!(
-        state.output_rows[2..8],
-        [
-            "[tool] read_file · src/main.rs · completed",
-            "[detail] Scope: Read file content",
-            "[detail] Command: read_file",
-            "[detail] Result: 42 lines read from src/main.rs",
-            "[evidence] Outcome: 42 lines read from src/main.rs",
-            "[evidence] fn main() {}",
-        ]
+        state.output_rows[1],
+        "Outcome: 42 lines read from src/main.rs"
     );
-    assert!(
-        state.output_rows[0].starts_with("[turn] Turn 1 · 1 tool"),
-        "completed turn output must begin with a boundary summary"
-    );
-    assert_eq!(state.output_rows[1], "");
-    assert_eq!(state.output_rows[8], "");
-    assert_eq!(state.output_rows[9], "Done.");
 }
 
 #[test]

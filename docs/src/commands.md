@@ -217,5 +217,7 @@ session totals.
 - The visible timeline window scales with terminal height instead of staying fixed at six rows.
 - `PageUp`, `PageDown`, `Ctrl+Up`, and `Ctrl+Down` scroll the transcript/output pane upward from the prompt edge instead of moving the cursor.
 - `Ctrl+Home` jumps to the oldest visible transcript content, and `Ctrl+End` returns to the live bottom edge.
+- The transcript pane keeps the full session scrollback visible while follow mode is on; new model responses append at the bottom instead of replacing the prior response view.
+- Selecting older timeline entries manually switches the output pane into inspector detail for that step until follow mode resumes.
 - `Shift+Enter` inserts a newline without submitting the turn.
 - Pasted text is inserted into the larger multiline prompt surface during normal editing.
