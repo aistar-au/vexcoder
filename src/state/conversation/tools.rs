@@ -1321,6 +1321,27 @@ pub(super) fn is_read_only_tool_round(blocks: &[ContentBlock]) -> bool {
     })
 }
 
+pub(super) fn tool_can_run_in_parallel(name: &str) -> bool {
+    is_read_only_tool_name(name)
+}
+
+pub(super) fn is_parallel_safe_tool_round(blocks: &[ContentBlock]) -> bool {
+    !blocks.is_empty()
+        && blocks.iter().all(|block| {
+            matches!(
+                block,
+                ContentBlock::ToolUse { name, .. } if tool_can_run_in_parallel(name)
+            )
+        })
+}
+
+pub(super) fn should_parallelize_tool_round(
+    blocks: &[ContentBlock],
+    require_tool_approval: bool,
+) -> bool {
+    !require_tool_approval && blocks.len() > 1 && is_parallel_safe_tool_round(blocks)
+}
+
 pub(super) fn is_mutating_tool_round(blocks: &[ContentBlock]) -> bool {
     blocks.iter().any(|block| {
         matches!(

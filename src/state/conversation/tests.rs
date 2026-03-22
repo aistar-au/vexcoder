@@ -111,6 +111,43 @@ fn test_read_only_tool_round_helpers() {
 }
 
 #[test]
+fn test_parallel_safe_tool_round_helpers() {
+    let parallel_round = vec![
+        ContentBlock::ToolUse {
+            id: "tool_read_1".to_string(),
+            name: "read_file".to_string(),
+            input: json!({"path":"src/app/mod.rs"}),
+            metadata: None,
+        },
+        ContentBlock::ToolUse {
+            id: "tool_read_2".to_string(),
+            name: "codebase_search".to_string(),
+            input: json!({"query":"ConversationManager"}),
+            metadata: None,
+        },
+    ];
+    assert!(is_parallel_safe_tool_round(&parallel_round));
+
+    let mixed_round = vec![
+        ContentBlock::ToolUse {
+            id: "tool_read_3".to_string(),
+            name: "read_file".to_string(),
+            input: json!({"path":"src/app/mod.rs"}),
+            metadata: None,
+        },
+        ContentBlock::ToolUse {
+            id: "tool_write_1".to_string(),
+            name: "write_file".to_string(),
+            input: json!({"path":"src/app/mod.rs","content":"x"}),
+            metadata: None,
+        },
+    ];
+    assert!(!is_parallel_safe_tool_round(&mixed_round));
+    assert!(should_parallelize_tool_round(&parallel_round, false));
+    assert!(!should_parallelize_tool_round(&parallel_round, true));
+}
+
+#[test]
 fn test_tool_requires_confirmation_for_mutating_tools() {
     assert!(tool_requires_confirmation("write_file"));
     assert!(tool_requires_confirmation("apply_patch"));
@@ -1110,6 +1147,74 @@ data: {"type":"message_stop"}"#.to_string(),
                 is_error: false,
                 ..
             } if tool_use_id == "toolu_multi_read"
+        )));
+    } else {
+        panic!("expected tool_result blocks");
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_multi_read_only_tool_round_preserves_result_order() -> Result<()> {
+    let first_response_sse = vec![
+        r#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_parallel_reads_01","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
+        r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_read_a","name":"read_file","input":{"path":"file-a.txt"}}}"#.to_string(),
+        r#"event: content_block_stop
+data: {"type":"content_block_stop","index":0}"#.to_string(),
+        r#"event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_read_b","name":"read_file","input":{"path":"file-b.txt"}}}"#.to_string(),
+        r#"event: content_block_stop
+data: {"type":"content_block_stop","index":1}"#.to_string(),
+        r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":6}}"#.to_string(),
+        r#"event: message_stop
+data: {"type":"message_stop"}"#.to_string(),
+    ];
+    let second_response_sse = plain_text_round("msg_parallel_reads_02", "Handled both reads.");
+    let mock_api_client =
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+            first_response_sse,
+            second_response_sse,
+        ])));
+    let mut mock_tool_responses = HashMap::new();
+    mock_tool_responses.insert("file-a.txt".to_string(), "alpha".to_string());
+    mock_tool_responses.insert("file-b.txt".to_string(), "beta".to_string());
+    let mut manager = ConversationManager::new_mock(mock_api_client, mock_tool_responses);
+
+    let final_text = manager
+        .send_message("read both files".to_string(), None)
+        .await?;
+
+    assert!(final_text.contains("Handled both reads."));
+
+    let tool_result_message = manager
+        .api_messages
+        .iter()
+        .find(|message| {
+            message.role == "user"
+                && matches!(message.content, Content::Blocks(_))
+                && message_contains_tool_result(message)
+        })
+        .expect("expected tool_result message in history");
+
+    if let Content::Blocks(blocks) = &tool_result_message.content {
+        let tool_result_ids = blocks
+            .iter()
+            .filter_map(|block| match block {
+                ContentBlock::ToolResult { tool_use_id, .. } => Some(tool_use_id.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(tool_result_ids, vec!["toolu_read_a", "toolu_read_b"]);
+        assert!(blocks.iter().any(|block| matches!(
+            block,
+            ContentBlock::ToolResult { tool_use_id, content, is_error } if tool_use_id == "toolu_read_a" && !is_error && content.contains("alpha")
+        )));
+        assert!(blocks.iter().any(|block| matches!(
+            block,
+            ContentBlock::ToolResult { tool_use_id, content, is_error } if tool_use_id == "toolu_read_b" && !is_error && content.contains("beta")
         )));
     } else {
         panic!("expected tool_result blocks");

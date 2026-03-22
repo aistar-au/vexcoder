@@ -8,11 +8,64 @@ use crate::runtime::policy::{default_runtime_policy, RuntimeCorePolicy};
 use crate::types::{ApiMessage, ApiUsage, Content, ContentBlock, StreamEvent};
 use crate::usage::TurnTokens;
 use anyhow::Result;
-use futures::StreamExt;
+use futures::{future::join_all, StreamExt};
 use std::collections::BTreeSet;
 use tokio::sync::mpsc;
 
+struct CompletedToolCall {
+    id: String,
+    name: String,
+    input: serde_json::Value,
+    result: Result<String>,
+}
+
 impl ConversationManager {
+    async fn execute_parallel_tool_round(
+        &mut self,
+        blocks: &[ContentBlock],
+        tool_timeout: std::time::Duration,
+        use_structured_blocks: bool,
+        stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
+    ) -> Vec<CompletedToolCall> {
+        if use_structured_blocks {
+            for block in blocks {
+                if let ContentBlock::ToolUse { id, .. } = block {
+                    self.set_tool_call_status(id, ToolStatus::Executing, stream_delta_tx);
+                }
+            }
+        }
+
+        let manager = &*self;
+        let executions = blocks
+            .iter()
+            .filter_map(|block| {
+                let ContentBlock::ToolUse {
+                    id, name, input, ..
+                } = block
+                else {
+                    return None;
+                };
+                Some(async move {
+                    CompletedToolCall {
+                        id: id.clone(),
+                        name: name.clone(),
+                        input: input.clone(),
+                        result: manager
+                            .execute_tool_with_timeout_with_updates(
+                                name,
+                                input,
+                                tool_timeout,
+                                stream_delta_tx,
+                            )
+                            .await,
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+
+        join_all(executions).await
+    }
+
     pub async fn send_message(
         &mut self,
         content: String,
@@ -478,198 +531,24 @@ impl ConversationManager {
 
             let mut tool_result_blocks = Vec::new();
             let mut text_protocol_tool_results = Vec::new();
-            for block in tool_use_blocks {
-                if let ContentBlock::ToolUse {
-                    id, name, input, ..
-                } = block
-                {
-                    if let Some(clarification) = missing_mutating_location_prompt(&name, &input) {
-                        if use_structured_blocks {
-                            self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
-                            self.push_tool_result_block(
-                                StreamBlock::ToolResult {
-                                    tool_call_id: id.clone(),
-                                    output: clarification.clone(),
-                                    is_error: true,
-                                },
-                                stream_delta_tx,
-                            );
-                        } else if stream_local_tool_events {
-                            emit_text_update(
-                                stream_delta_tx,
-                                format!("\n- [tool_error] {name}: {clarification}\n"),
-                            );
-                        }
-                        emit_text_update(stream_delta_tx, clarification.clone());
-                        let history_content = truncate_for_history(
-                            &clarification,
-                            limits.max_tool_result_history_chars,
-                        );
-                        if use_structured_round {
-                            tool_result_blocks.push(ContentBlock::ToolResult {
-                                tool_use_id: id,
-                                content: history_content,
-                                is_error: true,
-                            });
-                        } else {
-                            let rendered = format!("tool_error {name}:\n{history_content}");
-                            text_protocol_tool_results.push(truncate_for_history(
-                                &rendered,
-                                limits.max_tool_result_history_chars,
-                            ));
-                        }
-                        continue;
-                    }
+            if should_parallelize_tool_round(&tool_use_blocks, require_tool_approval) {
+                let completed_calls = self
+                    .execute_parallel_tool_round(
+                        &tool_use_blocks,
+                        tool_timeout,
+                        use_structured_blocks,
+                        stream_delta_tx,
+                    )
+                    .await;
 
-                    if let Some(read_only_guard) =
-                        mutating_tool_read_only_conflict_prompt(&original_user_input, &name)
-                    {
-                        if use_structured_blocks {
-                            self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
-                            self.push_tool_result_block(
-                                StreamBlock::ToolResult {
-                                    tool_call_id: id.clone(),
-                                    output: read_only_guard.clone(),
-                                    is_error: true,
-                                },
-                                stream_delta_tx,
-                            );
-                        } else if stream_local_tool_events {
-                            emit_text_update(
-                                stream_delta_tx,
-                                format!("\n- [tool_error] {name}: {read_only_guard}\n"),
-                            );
-                        }
-                        emit_text_update(stream_delta_tx, read_only_guard.clone());
-                        let history_content = truncate_for_history(
-                            &read_only_guard,
-                            limits.max_tool_result_history_chars,
-                        );
-                        if use_structured_round {
-                            tool_result_blocks.push(ContentBlock::ToolResult {
-                                tool_use_id: id,
-                                content: history_content,
-                                is_error: true,
-                            });
-                        } else {
-                            let rendered = format!("tool_error {name}:\n{history_content}");
-                            text_protocol_tool_results.push(truncate_for_history(
-                                &rendered,
-                                limits.max_tool_result_history_chars,
-                            ));
-                        }
-                        continue;
-                    }
+                for completed in completed_calls {
+                    let CompletedToolCall {
+                        id,
+                        name,
+                        input,
+                        result,
+                    } = completed;
 
-                    if let Some(test_only_guard) =
-                        tests_only_mutation_conflict_prompt(turn_tool_policy, &name, &input)
-                    {
-                        if use_structured_blocks {
-                            self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
-                            self.push_tool_result_block(
-                                StreamBlock::ToolResult {
-                                    tool_call_id: id.clone(),
-                                    output: test_only_guard.clone(),
-                                    is_error: true,
-                                },
-                                stream_delta_tx,
-                            );
-                        } else if stream_local_tool_events {
-                            emit_text_update(
-                                stream_delta_tx,
-                                format!("\n- [tool_error] {name}: {test_only_guard}\n"),
-                            );
-                        }
-                        emit_text_update(stream_delta_tx, test_only_guard.clone());
-                        let history_content = truncate_for_history(
-                            &test_only_guard,
-                            limits.max_tool_result_history_chars,
-                        );
-                        if use_structured_round {
-                            tool_result_blocks.push(ContentBlock::ToolResult {
-                                tool_use_id: id,
-                                content: history_content,
-                                is_error: true,
-                            });
-                        } else {
-                            let rendered = format!("tool_error {name}:\n{history_content}");
-                            text_protocol_tool_results.push(truncate_for_history(
-                                &rendered,
-                                limits.max_tool_result_history_chars,
-                            ));
-                        }
-                        continue;
-                    }
-
-                    let tool_requires_approval =
-                        require_tool_approval || tool_requires_confirmation(&name);
-
-                    if use_structured_blocks && tool_requires_approval {
-                        self.set_tool_call_status(
-                            &id,
-                            ToolStatus::WaitingApproval,
-                            stream_delta_tx,
-                        );
-                    }
-                    let approved = if tool_requires_approval {
-                        self.request_tool_approval(&name, &input, stream_delta_tx)
-                            .await
-                    } else {
-                        true
-                    };
-
-                    if use_structured_blocks {
-                        if approved {
-                            self.set_tool_call_status(&id, ToolStatus::Executing, stream_delta_tx);
-                        } else {
-                            self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
-                        }
-                    }
-
-                    if !approved {
-                        let denial = render_tool_denied_message(&name);
-                        if use_structured_blocks {
-                            self.push_tool_result_block(
-                                StreamBlock::ToolResult {
-                                    tool_call_id: id.clone(),
-                                    output: denial.clone(),
-                                    is_error: true,
-                                },
-                                stream_delta_tx,
-                            );
-                        } else if stream_local_tool_events {
-                            emit_text_update(
-                                stream_delta_tx,
-                                format!("\n- [tool_error] {name}: {denial}\n"),
-                            );
-                        }
-                        emit_text_update(stream_delta_tx, denial.clone());
-                        let history_content =
-                            truncate_for_history(&denial, limits.max_tool_result_history_chars);
-                        if use_structured_round {
-                            tool_result_blocks.push(ContentBlock::ToolResult {
-                                tool_use_id: id,
-                                content: history_content,
-                                is_error: true,
-                            });
-                        } else {
-                            let rendered = format!("tool_error {name}:\n{history_content}");
-                            text_protocol_tool_results.push(truncate_for_history(
-                                &rendered,
-                                limits.max_tool_result_history_chars,
-                            ));
-                        }
-                        continue;
-                    }
-
-                    let result = self
-                        .execute_tool_with_timeout_with_updates(
-                            &name,
-                            &input,
-                            tool_timeout,
-                            stream_delta_tx,
-                        )
-                        .await;
                     if use_structured_blocks {
                         let final_status = if result.is_err() {
                             ToolStatus::Error
@@ -725,6 +604,278 @@ impl ConversationManager {
                             &rendered,
                             limits.max_tool_result_history_chars,
                         ));
+                    }
+                }
+            } else {
+                for block in tool_use_blocks {
+                    if let ContentBlock::ToolUse {
+                        id, name, input, ..
+                    } = block
+                    {
+                        if let Some(clarification) = missing_mutating_location_prompt(&name, &input)
+                        {
+                            if use_structured_blocks {
+                                self.set_tool_call_status(
+                                    &id,
+                                    ToolStatus::Cancelled,
+                                    stream_delta_tx,
+                                );
+                                self.push_tool_result_block(
+                                    StreamBlock::ToolResult {
+                                        tool_call_id: id.clone(),
+                                        output: clarification.clone(),
+                                        is_error: true,
+                                    },
+                                    stream_delta_tx,
+                                );
+                            } else if stream_local_tool_events {
+                                emit_text_update(
+                                    stream_delta_tx,
+                                    format!("\n- [tool_error] {name}: {clarification}\n"),
+                                );
+                            }
+                            emit_text_update(stream_delta_tx, clarification.clone());
+                            let history_content = truncate_for_history(
+                                &clarification,
+                                limits.max_tool_result_history_chars,
+                            );
+                            if use_structured_round {
+                                tool_result_blocks.push(ContentBlock::ToolResult {
+                                    tool_use_id: id,
+                                    content: history_content,
+                                    is_error: true,
+                                });
+                            } else {
+                                let rendered = format!("tool_error {name}:\n{history_content}");
+                                text_protocol_tool_results.push(truncate_for_history(
+                                    &rendered,
+                                    limits.max_tool_result_history_chars,
+                                ));
+                            }
+                            continue;
+                        }
+
+                        if let Some(read_only_guard) =
+                            mutating_tool_read_only_conflict_prompt(&original_user_input, &name)
+                        {
+                            if use_structured_blocks {
+                                self.set_tool_call_status(
+                                    &id,
+                                    ToolStatus::Cancelled,
+                                    stream_delta_tx,
+                                );
+                                self.push_tool_result_block(
+                                    StreamBlock::ToolResult {
+                                        tool_call_id: id.clone(),
+                                        output: read_only_guard.clone(),
+                                        is_error: true,
+                                    },
+                                    stream_delta_tx,
+                                );
+                            } else if stream_local_tool_events {
+                                emit_text_update(
+                                    stream_delta_tx,
+                                    format!("\n- [tool_error] {name}: {read_only_guard}\n"),
+                                );
+                            }
+                            emit_text_update(stream_delta_tx, read_only_guard.clone());
+                            let history_content = truncate_for_history(
+                                &read_only_guard,
+                                limits.max_tool_result_history_chars,
+                            );
+                            if use_structured_round {
+                                tool_result_blocks.push(ContentBlock::ToolResult {
+                                    tool_use_id: id,
+                                    content: history_content,
+                                    is_error: true,
+                                });
+                            } else {
+                                let rendered = format!("tool_error {name}:\n{history_content}");
+                                text_protocol_tool_results.push(truncate_for_history(
+                                    &rendered,
+                                    limits.max_tool_result_history_chars,
+                                ));
+                            }
+                            continue;
+                        }
+
+                        if let Some(test_only_guard) =
+                            tests_only_mutation_conflict_prompt(turn_tool_policy, &name, &input)
+                        {
+                            if use_structured_blocks {
+                                self.set_tool_call_status(
+                                    &id,
+                                    ToolStatus::Cancelled,
+                                    stream_delta_tx,
+                                );
+                                self.push_tool_result_block(
+                                    StreamBlock::ToolResult {
+                                        tool_call_id: id.clone(),
+                                        output: test_only_guard.clone(),
+                                        is_error: true,
+                                    },
+                                    stream_delta_tx,
+                                );
+                            } else if stream_local_tool_events {
+                                emit_text_update(
+                                    stream_delta_tx,
+                                    format!("\n- [tool_error] {name}: {test_only_guard}\n"),
+                                );
+                            }
+                            emit_text_update(stream_delta_tx, test_only_guard.clone());
+                            let history_content = truncate_for_history(
+                                &test_only_guard,
+                                limits.max_tool_result_history_chars,
+                            );
+                            if use_structured_round {
+                                tool_result_blocks.push(ContentBlock::ToolResult {
+                                    tool_use_id: id,
+                                    content: history_content,
+                                    is_error: true,
+                                });
+                            } else {
+                                let rendered = format!("tool_error {name}:\n{history_content}");
+                                text_protocol_tool_results.push(truncate_for_history(
+                                    &rendered,
+                                    limits.max_tool_result_history_chars,
+                                ));
+                            }
+                            continue;
+                        }
+
+                        let tool_requires_approval =
+                            require_tool_approval || tool_requires_confirmation(&name);
+
+                        if use_structured_blocks && tool_requires_approval {
+                            self.set_tool_call_status(
+                                &id,
+                                ToolStatus::WaitingApproval,
+                                stream_delta_tx,
+                            );
+                        }
+                        let approved = if tool_requires_approval {
+                            self.request_tool_approval(&name, &input, stream_delta_tx)
+                                .await
+                        } else {
+                            true
+                        };
+
+                        if use_structured_blocks {
+                            if approved {
+                                self.set_tool_call_status(
+                                    &id,
+                                    ToolStatus::Executing,
+                                    stream_delta_tx,
+                                );
+                            } else {
+                                self.set_tool_call_status(
+                                    &id,
+                                    ToolStatus::Cancelled,
+                                    stream_delta_tx,
+                                );
+                            }
+                        }
+
+                        if !approved {
+                            let denial = render_tool_denied_message(&name);
+                            if use_structured_blocks {
+                                self.push_tool_result_block(
+                                    StreamBlock::ToolResult {
+                                        tool_call_id: id.clone(),
+                                        output: denial.clone(),
+                                        is_error: true,
+                                    },
+                                    stream_delta_tx,
+                                );
+                            } else if stream_local_tool_events {
+                                emit_text_update(
+                                    stream_delta_tx,
+                                    format!("\n- [tool_error] {name}: {denial}\n"),
+                                );
+                            }
+                            emit_text_update(stream_delta_tx, denial.clone());
+                            let history_content =
+                                truncate_for_history(&denial, limits.max_tool_result_history_chars);
+                            if use_structured_round {
+                                tool_result_blocks.push(ContentBlock::ToolResult {
+                                    tool_use_id: id,
+                                    content: history_content,
+                                    is_error: true,
+                                });
+                            } else {
+                                let rendered = format!("tool_error {name}:\n{history_content}");
+                                text_protocol_tool_results.push(truncate_for_history(
+                                    &rendered,
+                                    limits.max_tool_result_history_chars,
+                                ));
+                            }
+                            continue;
+                        }
+
+                        let result = self
+                            .execute_tool_with_timeout_with_updates(
+                                &name,
+                                &input,
+                                tool_timeout,
+                                stream_delta_tx,
+                            )
+                            .await;
+                        if use_structured_blocks {
+                            let final_status = if result.is_err() {
+                                ToolStatus::Error
+                            } else {
+                                ToolStatus::Complete
+                            };
+                            self.set_tool_call_status(&id, final_status, stream_delta_tx);
+
+                            let output_for_stream = result
+                                .as_ref()
+                                .map_or_else(|e| e.to_string(), ToString::to_string);
+                            self.push_tool_result_block(
+                                StreamBlock::ToolResult {
+                                    tool_call_id: id.clone(),
+                                    output: output_for_stream,
+                                    is_error: result.is_err(),
+                                },
+                                stream_delta_tx,
+                            );
+                        } else if stream_local_tool_events {
+                            match &result {
+                                Ok(_) => {
+                                    emit_text_update(
+                                        stream_delta_tx,
+                                        format!("\n+ [tool_result] {name}\n"),
+                                    );
+                                }
+                                Err(error) => {
+                                    emit_text_update(
+                                        stream_delta_tx,
+                                        format!("\n- [tool_error] {name}: {error}\n"),
+                                    );
+                                }
+                            }
+                        }
+
+                        let history_content = truncate_for_history(
+                            &self.format_tool_result_for_history(&name, &input, &result),
+                            limits.max_tool_result_history_chars,
+                        );
+                        if use_structured_round {
+                            tool_result_blocks.push(ContentBlock::ToolResult {
+                                tool_use_id: id,
+                                content: history_content,
+                                is_error: result.is_err(),
+                            });
+                        } else {
+                            let rendered = result.as_ref().map_or_else(
+                                |_| format!("tool_error {name}:\n{history_content}"),
+                                |_| format!("tool_result {name}:\n{history_content}"),
+                            );
+                            text_protocol_tool_results.push(truncate_for_history(
+                                &rendered,
+                                limits.max_tool_result_history_chars,
+                            ));
+                        }
                     }
                 }
             }
