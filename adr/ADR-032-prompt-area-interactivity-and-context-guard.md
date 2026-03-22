@@ -54,11 +54,43 @@ or to recover without restarting.
 7. **`@` file picker** — the `@` prefix surfaces files from the current
    working directory with arrow-key navigation and Enter to select.
 
-### Token-aware offset reading
+### Context-proportional offset reading
 
-8. Tool-result file reads use offset-based reading (10s or 100s of lines)
-   rather than full-file reads to preserve context budget on small-window
-   servers.
+8. The `read_file` tool accepts `offset` (1-based line) and `limit`
+   parameters. When no explicit limit is given, an auto-cap derived from
+   `VEX_MAX_TOKENS` prevents full-file reads from exhausting the context
+   window. The heuristic allocates ~10% of the context budget per file read
+   at ~20 tokens per line:
+
+   - 4K context: ~50 lines per read
+   - 32K context: ~160 lines
+   - 128K context: ~640 lines
+   - 1M+ context: up to 10,000 lines
+
+   Configurable via `VEX_READ_FILE_MAX_LINES` for explicit override.
+
+### Target architecture: hybrid retrieval
+
+9. The offset/limit mechanism is a pragmatic first step. The target
+   architecture for large-codebase context management uses a hybrid
+   retrieval pipeline:
+
+   - **AST-aware chunking**: structural graph at function/type boundaries
+     (Tree-sitter for Rust). Never reads a full file unless explicitly
+     requested; returns snippets with file:line references.
+   - **Semantic search tool** (`codebase_search`): vector-indexed semantic
+     queries return ranked snippets, not whole files. Indexing is
+     incremental and persistent.
+   - **Diff-native edits**: `apply_diff` / patch-style edits preferred over
+     full-file writes to prevent truncation on files exceeding ~500 lines.
+   - **Task decomposition**: complex refactors decomposed into isolated
+     subtasks with slim per-task context. Results summarized before passing
+     back to the orchestrator.
+   - **Context condensing**: conversation history auto-summarized; oldest
+     messages dropped to stay under the model window.
+   - **Observe-revise self-correction**: agent runs tests/linters on
+     changes, observes failures, then uses index to pull just the broken
+     part for the next turn rather than re-scanning files.
 
 ## Consequences
 
@@ -66,7 +98,10 @@ or to recover without restarting.
   misleading protocol hint.
 - `/clear` becomes the documented recovery path for context exhaustion.
 - Prompt area focus and character count reduce guesswork during input.
-- Offset-based file reads reduce context waste for tool results.
+- Context-proportional auto-cap prevents file reads from exhausting small
+  context windows while allowing generous reads on large contexts.
+- The hybrid retrieval target ensures the architecture scales to massive
+  codebases without naive full-file reads.
 
 ## References
 
