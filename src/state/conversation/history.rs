@@ -121,7 +121,7 @@ impl ConversationManager {
                 }
             }
         }
-    if boundary >= len || boundary == 0 {
+        if boundary >= len || boundary == 0 {
             return;
         }
         // Condense tool results in messages before the boundary.
