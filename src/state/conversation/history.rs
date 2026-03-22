@@ -133,8 +133,7 @@ impl ConversationManager {
                 Content::Blocks(blocks) => {
                     for block in blocks.iter_mut() {
                         if let ContentBlock::ToolResult { content, .. } = block {
-                            *content =
-                                truncate_to_lines(content, CONDENSED_TOOL_RESULT_LINES);
+                            *content = truncate_to_lines(content, CONDENSED_TOOL_RESULT_LINES);
                         }
                     }
                 }
@@ -350,8 +349,7 @@ fn condense_text_protocol_tool_results(text: &str) -> String {
     let mut in_tool_result = false;
 
     for line in text.lines() {
-        let is_header =
-            line.starts_with("tool_result ") || line.starts_with("tool_error ");
+        let is_header = line.starts_with("tool_result ") || line.starts_with("tool_error ");
         if is_header {
             // Flush pending indicator for previous block.
             if in_tool_result && total_remaining > 0 {

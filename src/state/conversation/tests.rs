@@ -2798,8 +2798,7 @@ fn test_write_file_rejects_content_above_max_lines() {
 
     let long_content: String = (0..15).map(|i| format!("line {i}\n")).collect();
     let input = json!({"path": "big.rs", "content": long_content});
-    let result =
-        super::tools::execute_tool_dispatch(&op, "write_file", &input);
+    let result = super::tools::execute_tool_dispatch(&op, "write_file", &input);
     std::env::remove_var("VEX_WRITE_FILE_MAX_LINES");
 
     assert!(result.is_err());
@@ -2820,8 +2819,7 @@ fn test_write_file_warns_above_diff_preferred_threshold() {
 
     let content: String = (0..10).map(|i| format!("line {i}\n")).collect();
     let input = json!({"path": "medium.rs", "content": content});
-    let result =
-        super::tools::execute_tool_dispatch(&op, "write_file", &input);
+    let result = super::tools::execute_tool_dispatch(&op, "write_file", &input);
     std::env::remove_var("VEX_DIFF_PREFERRED_ABOVE_LINES");
     std::env::remove_var("VEX_WRITE_FILE_MAX_LINES");
 
@@ -2838,13 +2836,16 @@ fn test_write_file_warns_above_diff_preferred_threshold() {
 
 #[test]
 fn test_condense_old_tool_results_truncates_blocks() {
-    let client = MockApiClient::new(vec![]);
+    let client = Arc::new(MockApiClient::new(vec![]));
     let dir = tempfile::tempdir().unwrap();
     let operator = ToolOperator::new(dir.path().to_path_buf());
-    let mut manager = ConversationManager::new(ApiClient::Mock(client), operator);
+    let mut manager = ConversationManager::new(ApiClient::new_mock(client), operator);
 
     // Build a long tool result.
-    let long_result: String = (0..20).map(|i| format!("line {i}")).collect::<Vec<_>>().join("\n");
+    let long_result: String = (0..20)
+        .map(|i| format!("line {i}"))
+        .collect::<Vec<_>>()
+        .join("\n");
     // Simulate 3 turns: 3 user messages (with tool results), 3 assistant messages.
     for i in 0..3 {
         manager.api_messages.push(ApiMessage {
