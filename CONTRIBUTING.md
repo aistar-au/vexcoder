@@ -143,8 +143,8 @@ Do not merge packaging work directly from a local debug session; keep the review
 
 Repository-level background sessions are self-contained. They must not load or
 depend on the private `vexdraft` skill tree. Use the checked-in background
-session contract under `.github/agents/`, `.github/instructions/`, and the
-repository-hosted agent instructions file under `.github/`.
+session contract under `.github/instructions/` and the repository-hosted agent
+instructions file under `.github/`.
 
 - In `AGENTS.md`, hosted sessions must ignore the `Local bootstrap only`
   section and every `../vexdraft` reference.
