@@ -509,7 +509,7 @@ async fn test_build_batch_runtime_succeeds_with_local_config() {
     let config = vexcoder::config::Config {
         model_token: None,
         model_name: "local/test-model".to_string(),
-        model_url: "http://localhost:11434/v1/messages".to_string(),
+        model_url: "http://localhost:8080/v1/messages".to_string(),
         model_url_skip_tls_check: false,
         working_dir: temp.path().to_path_buf(),
         model_backend: vexcoder::runtime::ModelBackendKind::LocalRuntime,

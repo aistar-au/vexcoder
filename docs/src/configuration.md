@@ -25,7 +25,7 @@ These keys are read by the current runtime from config files:
 
 | Key | Purpose | Default |
 | :--- | :--- | :--- |
-| `model_url` | Model endpoint URL | `http://localhost:11434/v1` |
+| `model_url` | Model endpoint URL | `http://localhost:8080/v1` |
 | `model_url_skip_tls_check` | Skip HTTPS certificate validation for the model endpoint | `false` |
 | `model_name` | Model identifier | `local/default` |
 | `working_dir` | Workspace root for tool execution | current directory |
@@ -155,7 +155,7 @@ sections for future expansion.
 Local endpoint:
 
 ```toml
-model_url = "http://localhost:11434/v1"
+model_url = "http://localhost:8080/v1"
 model_name = "local/default"
 model_profile = "models/local-balanced.toml"
 ```

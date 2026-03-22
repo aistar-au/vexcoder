@@ -30,7 +30,7 @@ Local example:
 
 ```toml
 # .vex/config.toml
-model_url = "http://localhost:11434/v1"
+model_url = "http://localhost:8080/v1"
 model_name = "local/default"
 model_profile = "models/local-balanced.toml"
 ```

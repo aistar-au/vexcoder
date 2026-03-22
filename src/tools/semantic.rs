@@ -173,12 +173,10 @@ async fn load_index(
                 .with_context(|| format!("failed to read semantic index {}", path.display()));
         }
     };
-    let parsed: PersistedSemanticIndex = serde_json::from_str(&raw).with_context(|| {
-        format!(
-            "failed to parse persisted semantic index {}",
-            path.display()
-        )
-    })?;
+    let parsed: PersistedSemanticIndex = match serde_json::from_str(&raw) {
+        Ok(parsed) => parsed,
+        Err(_) => return Ok(fresh()),
+    };
     if parsed.version != SEMANTIC_INDEX_VERSION
         || parsed.provider != config.provider.as_str()
         || parsed.model != config.model
@@ -234,19 +232,6 @@ async fn save_index(workspace_root: &Path, persisted: &PersistedSemanticIndex) -
         )
     })?;
     drop(file);
-
-    match fs::remove_file(&path).await {
-        Ok(()) => {}
-        Err(error) if error.kind() == ErrorKind::NotFound => {}
-        Err(error) => {
-            return Err(error).with_context(|| {
-                format!(
-                    "failed to remove existing semantic index {}",
-                    path.display()
-                )
-            });
-        }
-    }
 
     fs::rename(&temp_path_buf, &path)
         .await
@@ -415,7 +400,7 @@ mod tests {
         assert_eq!(reloaded.chunks[0].embedding, updated.chunks[0].embedding);
 
         let index_dir = workspace.path().join(".vex").join("index");
-        let entries: Vec<String> = std::fs::read_dir(index_dir)
+        let mut entries: Vec<String> = std::fs::read_dir(index_dir)
             .expect("read index dir")
             .map(|entry| {
                 entry
@@ -425,6 +410,7 @@ mod tests {
                     .into_owned()
             })
             .collect();
+        entries.sort();
         assert_eq!(entries, vec!["semantic-codebase-index.json".to_string()]);
     }
 
@@ -438,10 +424,10 @@ mod tests {
             api_key: None,
             batch_size: 8,
         };
-        let ollama_config = EmbeddingConfig {
-            provider: crate::tools::embed::EmbeddingProvider::Ollama,
+        let native_config = EmbeddingConfig {
+            provider: crate::tools::embed::EmbeddingProvider::Native,
             model: "model-b".to_string(),
-            url: "http://localhost:11434".to_string(),
+            url: "http://localhost:9200".to_string(),
             api_key: None,
             batch_size: 1,
         };
@@ -463,12 +449,12 @@ mod tests {
         save_index(workspace.path(), &persisted)
             .await
             .expect("save index");
-        let reloaded = load_index(workspace.path(), &ollama_config)
+        let reloaded = load_index(workspace.path(), &native_config)
             .await
             .expect("load mismatched index");
 
         assert!(reloaded.chunks.is_empty());
-        assert_eq!(reloaded.provider, ollama_config.provider.as_str());
-        assert_eq!(reloaded.model, ollama_config.model);
+        assert_eq!(reloaded.provider, native_config.provider.as_str());
+        assert_eq!(reloaded.model, native_config.model);
     }
 }
