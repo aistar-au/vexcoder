@@ -147,7 +147,8 @@ impl ApiClient {
     /// Return a startup warning when a local endpoint uses HTTPS.
     /// HTTPS is not supported for local inference servers; HTTP is required.
     pub fn https_local_startup_warning(&self) -> Option<String> {
-        if !self.is_local_endpoint() || !self.api_url.starts_with("https://") {
+        let lower = self.api_url.to_ascii_lowercase();
+        if !self.is_local_endpoint() || !lower.starts_with("https://") {
             return None;
         }
         let plain = preferred_plain_http_url_for_local_endpoint(&self.api_url)?;

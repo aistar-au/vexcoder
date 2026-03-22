@@ -304,7 +304,7 @@ fn verb_first_tool_paragraph(
             .map(str::trim)
             .find(|l| !l.is_empty())
             .unwrap_or("error");
-        let capped = &short[..short.len().min(60)];
+        let capped = &short[..short.floor_char_boundary(60)];
         return format!("[!] {name}: {capped}");
     }
 
@@ -377,7 +377,7 @@ fn verb_first_tool_paragraph(
         "run_command" => {
             let cmd = str_arg(&["command", "cmd"]);
             if !cmd.is_empty() {
-                let capped = &cmd[..cmd.len().min(60)];
+                let capped = &cmd[..cmd.floor_char_boundary(60)];
                 format!("Ran: {capped}")
             } else {
                 format!("{name}: ok")
@@ -393,7 +393,7 @@ fn verb_first_tool_paragraph(
             if first.is_empty() {
                 format!("{name}: ok")
             } else {
-                let capped = &first[..first.len().min(60)];
+                let capped = &first[..first.floor_char_boundary(60)];
                 format!("{name}: {capped}")
             }
         }

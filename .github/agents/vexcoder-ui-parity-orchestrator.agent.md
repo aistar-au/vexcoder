@@ -52,9 +52,9 @@ Hard limits on file operations:
 - Do not read any file larger than 500 lines in full. Use `grep -n` or
   `head`/`tail` to read only the relevant section.
 - Do not read more than 10 files total before writing the first code change.
-- Do not run `cargo test --all-targets` during the session. Run only
-  targeted tests for the files you changed:
-  `cargo test -- test_name_pattern`
+- During development, run only targeted tests for the files you changed:
+  `cargo test -- test_name_pattern`. Reserve `cargo test --all-targets`
+  for the final pre-commit gate.
 - If a search or read takes more than 30 seconds, cancel it and narrow the
   scope.
 
