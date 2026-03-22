@@ -5,16 +5,14 @@ const DEFAULT_EMBED_BATCH_SIZE: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EmbeddingProvider {
-    OpenAi,
-    OpenAiCompat,
+    Compat,
     Ollama,
 }
 
 impl EmbeddingProvider {
     fn parse(raw: &str) -> Option<Self> {
         match raw.trim().to_ascii_lowercase().as_str() {
-            "openai" => Some(Self::OpenAi),
-            "openai-compat" | "openai_compat" | "openaicompat" => Some(Self::OpenAiCompat),
+            "compat" => Some(Self::Compat),
             "ollama" => Some(Self::Ollama),
             _ => None,
         }
@@ -22,8 +20,7 @@ impl EmbeddingProvider {
 
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::OpenAi => "openai",
-            Self::OpenAiCompat => "openai-compat",
+            Self::Compat => "compat",
             Self::Ollama => "ollama",
         }
     }
@@ -47,7 +44,7 @@ impl EmbeddingConfig {
 
         let provider = EmbeddingProvider::parse(&provider_raw).ok_or_else(|| {
             anyhow!(
-                "unsupported VEX_EMBEDDING_PROVIDER '{}'; expected openai, openai-compat, or ollama",
+                "unsupported VEX_EMBEDDING_PROVIDER '{}'; expected compat or ollama",
                 provider_raw
             )
         })?;
@@ -81,14 +78,12 @@ pub async fn embed_texts(config: &EmbeddingConfig, texts: &[String]) -> Result<V
 
     let client = reqwest::Client::new();
     match config.provider {
-        EmbeddingProvider::OpenAi | EmbeddingProvider::OpenAiCompat => {
-            embed_openai_batches(&client, config, texts).await
-        }
+        EmbeddingProvider::Compat => embed_compat_batches(&client, config, texts).await,
         EmbeddingProvider::Ollama => embed_ollama_batches(&client, config, texts).await,
     }
 }
 
-async fn embed_openai_batches(
+async fn embed_compat_batches(
     client: &reqwest::Client,
     config: &EmbeddingConfig,
     texts: &[String],
@@ -115,7 +110,7 @@ async fn embed_openai_batches(
             bail!("embedding request failed with {status}: {body}");
         }
 
-        let mut payload: OpenAiEmbeddingResponse = response
+        let mut payload: CompatEmbeddingResponse = response
             .json()
             .await
             .context("failed to decode embedding response")?;
@@ -171,12 +166,12 @@ fn required_env(name: &str) -> Result<String> {
 }
 
 #[derive(Debug, Deserialize)]
-struct OpenAiEmbeddingResponse {
-    data: Vec<OpenAiEmbeddingItem>,
+struct CompatEmbeddingResponse {
+    data: Vec<CompatEmbeddingItem>,
 }
 
 #[derive(Debug, Deserialize)]
-struct OpenAiEmbeddingItem {
+struct CompatEmbeddingItem {
     embedding: Vec<f32>,
     index: usize,
 }
@@ -203,9 +198,9 @@ mod tests {
     }
 
     #[test]
-    fn test_embedding_config_parses_openai_compat() {
+    fn test_embedding_config_parses_compat_provider() {
         let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-        std::env::set_var("VEX_EMBEDDING_PROVIDER", "openai-compat");
+        std::env::set_var("VEX_EMBEDDING_PROVIDER", "compat");
         std::env::set_var("VEX_EMBEDDING_MODEL", "text-embedding-3-small");
         std::env::set_var("VEX_EMBEDDING_URL", "https://example.invalid/v1/");
         std::env::set_var("VEX_EMBEDDING_API_KEY", "secret");
@@ -214,7 +209,7 @@ mod tests {
             .unwrap()
             .expect("embedding config should parse");
 
-        assert_eq!(config.provider, EmbeddingProvider::OpenAiCompat);
+        assert_eq!(config.provider, EmbeddingProvider::Compat);
         assert_eq!(config.model, "text-embedding-3-small");
         assert_eq!(config.url, "https://example.invalid/v1");
         assert_eq!(config.api_key.as_deref(), Some("secret"));

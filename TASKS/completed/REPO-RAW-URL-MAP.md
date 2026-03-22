@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 192
+- Total tracked files: 194
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -176,9 +176,11 @@ Canonical raw URL index for every tracked file in this repository.
 | 162 | `src/test_support.rs` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/test_support.rs> |
 | 163 | `src/tool_preview.rs` | ~445 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tool_preview.rs> |
 | 164 | `src/tools.rs` | ~3 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools.rs> |
+| 165 | `src/tools/embed.rs` | ~227 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/embed.rs> |
 | 165 | `src/tools/index.rs` | ~280 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/index.rs> |
 | 166 | `src/tools/operator.rs` | ~756 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/operator.rs> |
 | 167 | `src/tools/search.rs` | ~225 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/search.rs> |
+| 168 | `src/tools/semantic.rs` | ~282 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/semantic.rs> |
 | 168 | `src/turn_evidence.rs` | ~204 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/turn_evidence.rs> |
 | 167 | `src/types.rs` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types.rs> |
 | 168 | `src/types/api_types.rs` | ~479 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/api_types.rs> |
