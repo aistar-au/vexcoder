@@ -66,9 +66,7 @@ Hard limits on build commands:
   if absolutely needed, and only after all code changes are committed.
 - Leave compilation, test, and lint verification to the CI pipeline and the
   local operator who promotes the branch.
-- Do not delegate `cargo`, `cargo clippy`, `cargo test`, `cargo check`, or
-  `make gate-fast` to another hosted agent or subagent. Nested delegation for
-  these commands is treated as a session failure.
+- Do not delegate `cargo`, `cargo clippy`, `cargo test`, `cargo check`, or `make gate-fast` to another hosted agent or subagent. Nested delegation for these commands is treated as a session failure.
 
 These limits exist because hosted sessions must finish inside a 590-second
 safety ceiling. Leave enough margin to publish code-bearing commits before the
