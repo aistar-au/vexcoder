@@ -670,7 +670,9 @@ pub(super) fn first_tool_string<'a>(
 pub(super) fn first_tool_usize(input: &serde_json::Value, keys: &[&str]) -> Option<usize> {
     keys.iter().find_map(|key| {
         input.get(*key).and_then(|value| match value {
-            serde_json::Value::Number(number) => number.as_u64().map(|value| value as usize),
+            serde_json::Value::Number(number) => number
+                .as_u64()
+                .and_then(|value| usize::try_from(value).ok()),
             serde_json::Value::String(text) => text.trim().parse::<usize>().ok(),
             _ => None,
         })

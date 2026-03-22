@@ -253,7 +253,7 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
 }
 
 #[test]
-fn test_task_layout_state_surfaces_thinking_approval_and_cursor_rows() {
+fn test_task_layout_state_transcript_streaming_with_pending_approval() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
