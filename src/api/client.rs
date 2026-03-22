@@ -958,7 +958,7 @@ fn tool_definitions() -> serde_json::Value {
         },
         {
             "name": "codebase_search",
-            "description": "Search the codebase for functions, types, and code patterns by name or keyword. Returns ranked code snippets with file paths and line numbers. Prefer this over read_file for exploring unfamiliar code.",
+            "description": "Search the codebase for functions, types, and code patterns by name or keyword. Returns ranked code snippets with file paths and line numbers, and when embeddings are configured it also performs semantic reranking backed by a persisted index under .vex/index/. Prefer this over read_file for exploring unfamiliar code.",
             "input_schema": {
                 "type": "object",
                 "properties": {

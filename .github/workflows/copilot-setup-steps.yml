@@ -43,14 +43,17 @@ jobs:
             fi
           }
 
+          agent_files=()
+          if [[ -d .github/agents ]]; then
+            while read -r file; do
+              agent_files+=("$file")
+            done < <(find .github/agents -maxdepth 1 -type f -name '*.agent.md' | sort)
+          fi
+
           hosted_files=(
             .github/copilot-instructions.md
             .github/instructions/repository.instructions.md
-            .github/agents/rust-change-auditor.agent.md
-            .github/agents/vexcoder-hybrid-retrieval.agent.md
-            .github/agents/vexcoder-ui-parity-orchestrator.agent.md
-            .github/agents/vexcoder-ui-paragraph-renderer.agent.md
-            .github/agents/vexcoder-transcript-renderer-overhaul.agent.md
+            "${agent_files[@]}"
           )
 
           if show_matches "../vexdraft/.agents/skills/|aistar-au/vexdraft|synchronized skill tree|GitHub MCP|Bootstrap private skills" "${hosted_files[@]}"; then
@@ -85,19 +88,24 @@ jobs:
             fi
           }
 
+          agent_files=()
+          if [[ -d .github/agents ]]; then
+            while read -r file; do
+              agent_files+=("$file")
+            done < <(find .github/agents -maxdepth 1 -type f -name '*.agent.md' | sort)
+          fi
+
           hosted_files=(
             .github/copilot-instructions.md
             .github/instructions/repository.instructions.md
-            .github/agents/rust-change-auditor.agent.md
-            .github/agents/vexcoder-hybrid-retrieval.agent.md
-            .github/agents/vexcoder-ui-parity-orchestrator.agent.md
-            .github/agents/vexcoder-ui-paragraph-renderer.agent.md
-            .github/agents/vexcoder-transcript-renderer-overhaul.agent.md
+            "${agent_files[@]}"
           )
 
-          if show_matches '^(disable-model-invocation|user-invocable|model):' .github/agents/*.agent.md; then
-            echo "Unsupported agent frontmatter keys detected in .github/agents/*.agent.md"
-            exit 1
+          if ((${#agent_files[@]} > 0)); then
+            if show_matches '^(disable-model-invocation|user-invocable|model):' "${agent_files[@]}"; then
+              echo "Unsupported agent frontmatter keys detected in .github/agents/*.agent.md"
+              exit 1
+            fi
           fi
 
           for file in "${hosted_files[@]}"; do
@@ -126,13 +134,7 @@ jobs:
           log_tail_files=(
             AGENTS.md
             CONTRIBUTING.md
-            .github/copilot-instructions.md
-            .github/instructions/repository.instructions.md
-            .github/agents/rust-change-auditor.agent.md
-            .github/agents/vexcoder-hybrid-retrieval.agent.md
-            .github/agents/vexcoder-ui-parity-orchestrator.agent.md
-            .github/agents/vexcoder-ui-paragraph-renderer.agent.md
-            .github/agents/vexcoder-transcript-renderer-overhaul.agent.md
+            "${hosted_files[@]}"
           )
 
           for file in "${log_tail_files[@]}"; do
@@ -151,13 +153,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          agent_files=()
+          if [[ -d .github/agents ]]; then
+            while read -r file; do
+              agent_files+=("$file")
+            done < <(find .github/agents -maxdepth 1 -type f -name '*.agent.md' | sort)
+          fi
+
           printf '%s\n' \
             AGENTS.md \
             CONTRIBUTING.md \
             .github/copilot-instructions.md \
-            .github/agents/rust-change-auditor.agent.md \
-            .github/instructions/repository.instructions.md \
-            .github/agents/vexcoder-hybrid-retrieval.agent.md \
-            .github/agents/vexcoder-ui-parity-orchestrator.agent.md \
-            .github/agents/vexcoder-ui-paragraph-renderer.agent.md \
-            .github/agents/vexcoder-transcript-renderer-overhaul.agent.md
+            .github/instructions/repository.instructions.md
+
+          if ((${#agent_files[@]} > 0)); then
+            printf '%s\n' "${agent_files[@]}"
+          fi

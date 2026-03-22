@@ -143,8 +143,8 @@ Do not merge packaging work directly from a local debug session; keep the review
 
 Repository-level background sessions are self-contained. They must not load or
 depend on the private `vexdraft` skill tree. Use the checked-in background
-session contract under `.github/agents/`, `.github/instructions/`, and the
-repository-hosted agent instructions file under `.github/`.
+session contract under `.github/instructions/` and the repository-hosted agent
+instructions file under `.github/`.
 
 - In `AGENTS.md`, hosted sessions must ignore the `Local bootstrap only`
   section and every `../vexdraft` reference.
@@ -359,6 +359,8 @@ order.
 3. **C — Commit-debug loop**: run `vexdraft/scripts/commit-debug.py`, fix
   findings, push after every code-bearing fix, verify the remote head SHA,
   and re-run until `PASS`.
+  Before each push from the review branch, run `git fetch origin --prune && git rebase origin/main`
+  so the branch is rebased onto the latest moving mainline.
 4. **D — Hide bot comments**: minimize automated reviewer bot comments via
    GraphQL `minimizeComment` with `OUTDATED` classifier.
 5. **E — Sanitize brand names**: scan PR body, commit messages, and comments

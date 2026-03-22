@@ -47,7 +47,7 @@ Ignore this section in repository-hosted background sessions.
 ## Rules
 
 - If the prompt touches `src/app/layout.rs`, `src/ui/render.rs`,
-  `src/ui/draw/**`, `src/app/tests.rs`, `.github/agents/**`,
+  `src/ui/draw/**`, `src/app/tests.rs`,
   `.github/instructions/**`, `CONTRIBUTING.md`, or workflow/docs files tied to
   the same feature lane, treat it as one comprehensive task. Do not split the
   same lane across multiple overlapping draft branches or PRs unless the lane
@@ -128,6 +128,8 @@ A–H post-session checklist.
 - Create or reuse the draft PR for that review branch before the first
   code-bearing push, then keep `HEAD` in sync with `origin/<branch>` after
   every code-bearing fix.
+- Before every feature-branch push, refresh from `origin` and rebase onto the
+  latest `origin/main` so the review branch stays current with moving main.
 - For parallel hosted work on one feature lane, use one shared
   `work/<topic>` integration branch plus one hosted shard branch per
   disjoint write set. Keep the final merge path to `main` on the shared

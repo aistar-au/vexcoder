@@ -134,6 +134,9 @@ gh pr checks <pr> --watch
 - After every code-bearing commit or patch set on a remote lane, push
   immediately, run `git fetch origin --prune`, and confirm
   `git rev-parse HEAD == git rev-parse origin/<branch>` before continuing.
+- Before every feature-branch push, fetch `origin` and rebase onto
+  `origin/main` so the review branch stays on the current merge target before
+  publication.
 - Once a remote lane exists, treat the remote branch head as authoritative.
   Do not continue review, commit-debug, CI watch, PR text edits, or merge work
   from unpublished local-only state.
