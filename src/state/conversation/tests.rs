@@ -464,6 +464,26 @@ fn test_required_tool_string_validation() {
 }
 
 #[test]
+fn test_search_files_accepts_common_query_aliases() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("notes.txt"), "hello alias world\n").unwrap();
+    let operator = ToolOperator::new(temp.path().to_path_buf());
+
+    let result = execute_tool_dispatch(
+        &operator,
+        "search_files",
+        &json!({
+            "pattern": "alias",
+            "directory": ".",
+            "limit": "5"
+        }),
+    )
+    .unwrap();
+
+    assert!(result.contains("notes.txt:1:hello alias world"));
+}
+
+#[test]
 fn test_default_tool_approval_enabled_prefers_remote_only() {
     assert!(default_tool_approval_enabled(false));
     assert!(!default_tool_approval_enabled(true));

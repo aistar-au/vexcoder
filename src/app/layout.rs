@@ -243,10 +243,12 @@ impl TuiMode {
     ///   invocation as a paragraph followed by the model response.
     /// - Before any turn: welcome hint.
     pub(super) fn task_output_view(&self) -> (String, Vec<String>, OutputScrollAnchor) {
-        // If timeline has entries and a valid selection on a tool step
-        // (not user input), show inspector detail.
         let entries = self.task_timeline_entries();
-        if !entries.is_empty() {
+        // Keep the output pane on the accumulated transcript while follow mode
+        // is active so prior server responses scroll upward instead of being
+        // replaced by the latest inspector view. Manual timeline navigation can
+        // still switch the pane into inspector mode.
+        if !self.timeline_follow_mode && !entries.is_empty() {
             let idx = self
                 .selected_timeline_index
                 .min(entries.len().saturating_sub(1));
@@ -268,37 +270,11 @@ impl TuiMode {
             }
         }
 
-        if self.history_state.turn_in_progress
-            || self.overlay_state.pending_approval.is_some()
-            || !self.active_stream_blocks.is_empty()
-            || !self.current_turn_tool_invocations.is_empty()
-            || self.last_error_message.is_some()
-        {
-            let rows = self.active_turn_rows();
-            if rows.is_empty() {
-                return (
-                    "Transcript".to_string(),
-                    vec!["[awaiting model response]".to_string()],
-                    OutputScrollAnchor::Bottom,
-                );
-            }
-            return ("Transcript".to_string(), rows, OutputScrollAnchor::Bottom);
-        }
-
-        // After turn completes: show enriched paragraph view with tool
-        // invocations and model response from the last completed turn.
-        if !self.last_turn_tool_invocations.is_empty() || !self.last_turn_response.is_empty() {
+        let transcript_rows = self.transcript_display_rows();
+        if !transcript_rows.is_empty() {
             return (
                 "Transcript".to_string(),
-                self.enriched_paragraph_rows(),
-                OutputScrollAnchor::Bottom,
-            );
-        }
-
-        if let Some(message) = &self.last_error_message {
-            return (
-                "Transcript".to_string(),
-                vec![format!("[error] {message}")],
+                transcript_rows,
                 OutputScrollAnchor::Bottom,
             );
         }
@@ -334,6 +310,7 @@ impl TuiMode {
     /// each paragraph to 4–6 lines.
     ///
     /// Followed by the model response text.
+    #[allow(dead_code)]
     fn enriched_paragraph_rows(&self) -> Vec<String> {
         let mut rows = Vec::new();
         if let Some(boundary) = self.last_turn_boundary_summary() {
@@ -358,6 +335,7 @@ impl TuiMode {
         rows
     }
 
+    #[allow(dead_code)]
     fn active_turn_rows(&self) -> Vec<String> {
         let mut rows = Vec::new();
 
@@ -461,6 +439,50 @@ impl TuiMode {
         rows
     }
 
+    fn transcript_display_rows(&self) -> Vec<String> {
+        let mut rows = Vec::new();
+        for line in &self.history_state.lines {
+            if line.is_empty() {
+                rows.push(String::new());
+            } else {
+                rows.extend(line.lines().map(ToOwned::to_owned));
+            }
+        }
+
+        if self.history_state.turn_in_progress
+            && !self.history_state.cancel_pending
+            && rows.last().is_some_and(|line| line.is_empty())
+        {
+            if self.current_turn_response.is_empty() {
+                if let Some(last) = rows.last_mut() {
+                    *last = "[awaiting model response]".to_string();
+                }
+            } else {
+                rows.pop();
+                let mut response_rows = self
+                    .current_turn_response
+                    .lines()
+                    .map(ToOwned::to_owned)
+                    .collect::<Vec<_>>();
+                if let Some(last) = response_rows.last_mut() {
+                    last.push('▌');
+                }
+                rows.extend(response_rows);
+            }
+        } else if self.history_state.turn_in_progress
+            && !self.history_state.cancel_pending
+            && !self.current_turn_response.is_empty()
+            && rows.last().is_some_and(|line| !line.ends_with('▌'))
+        {
+            if let Some(last) = rows.last_mut() {
+                last.push('▌');
+            }
+        }
+
+        rows
+    }
+
+    #[allow(dead_code)]
     fn last_turn_boundary_summary(&self) -> Option<String> {
         let turn = self.current_task.turns.len();
         if turn == 0
@@ -580,6 +602,7 @@ impl TuiMode {
     }
 }
 
+#[allow(dead_code)]
 fn append_tool_paragraph_rows(rows: &mut Vec<String>, invocations: &[ToolInvocationSummary]) {
     /// Maximum evidence lines shown at 6-space disclosure level.
     const MAX_EVIDENCE_LINES: usize = 4;
@@ -668,6 +691,7 @@ fn timeline_label_for_invocation(invocation: &ToolInvocationSummary) -> String {
     }
 }
 
+#[allow(dead_code)]
 fn format_duration_compact(duration: Duration) -> String {
     if duration.as_secs() >= 60 {
         format!(
@@ -711,6 +735,7 @@ fn tool_outcome_is_error(outcome: &str) -> bool {
         || lowered.starts_with("canceled")
 }
 
+#[allow(dead_code)]
 fn tool_scope_detail(tool_name: &str) -> String {
     builtin_tool_summaries()
         .into_iter()
