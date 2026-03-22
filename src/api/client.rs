@@ -357,7 +357,7 @@ impl ApiClient {
             .map_err(|error| map_api_request_error(error, &request_url))?;
 
         let status = response.status();
-        if status.is_client_error() {
+        if status.is_client_error() || status.is_server_error() {
             let body = response.text().await.unwrap_or_default();
             return Err(map_api_status_error(status, &body, &request_url));
         }
@@ -1428,5 +1428,17 @@ mod tests {
         let msg = format!("{}", err);
         assert!(msg.contains("bad request body"), "got: {msg}");
         assert!(!msg.contains("--ctx-size"), "got: {msg}");
+    }
+
+    #[test]
+    fn test_map_api_status_error_server_500() {
+        let err = map_api_status_error(
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            "internal server error: out of memory",
+            "http://localhost:8000/v1/messages",
+        );
+        let msg = format!("{}", err);
+        assert!(msg.contains("500"), "got: {msg}");
+        assert!(msg.contains("out of memory"), "got: {msg}");
     }
 }
