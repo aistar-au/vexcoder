@@ -72,7 +72,7 @@ within a token budget.
 - The landed implementation required bounded plumbing in `src/api/client.rs`
   and `src/runtime/context.rs` so session-start notes injection could be shared
   across TUI and batch runtime entry points. `src/state/` was not modified.
-- The dispatcher branch also carries PE-01/PE-02 work (`src/batch_mode.rs`,
+- The operator branch also carries PE-01/PE-02 work (`src/batch_mode.rs`,
   `src/bin/vex.rs`, `src/runtime/task_state.rs`, and
   `TASKS/PE-01-batch-mode.md`). That combined scope is a branch-traceability
   matter, not a notes-surface correctness issue.
@@ -121,7 +121,7 @@ fn test_tui_memory_does_not_call_start_turn() {
 
 ### [PJ-03] - User persistent notes (`/memory`)
 
-- Dispatcher: `dispatcher/vexcoder-adr-024-batch-b`
+- Historical branch name: omitted
 - Commit: `c289cac`
 - Files changed:
   - `TASKS/PJ-03-memory-notes-injection.md` (this file)
@@ -141,7 +141,7 @@ fn test_tui_memory_does_not_call_start_turn() {
 
 ### [PJ-03] - User persistent notes (`/memory`)
 
-- Dispatcher: `dispatcher/vexcoder-pj-03-memory-notes`
+- Historical branch name: omitted
 - Commit: `3e0405f6697812f686da7a17c3f9ca7fc27a068f`
 - Files changed:
   - `src/app.rs` (+`354` -`6`)

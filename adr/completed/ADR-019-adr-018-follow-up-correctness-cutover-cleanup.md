@@ -3,14 +3,14 @@
 **Date:** 2026-02-22
 **Status:** Superseded by ADR-027
 **Deciders:** Core maintainer
-**Related tasks:** B1, U1, U2, U3, U4, D1, D2 (dispatcher-assigned work items)
+**Related tasks:** B1, U1, U2, U3, U4, D1, D2 (assigned work items)
 **ADR chain:** ADR-006, ADR-007, ADR-008, ADR-009, ADR-010, ADR-018
 
 ## Context
 
 ADR-018 defines the managed TUI direction (viewport scrollback, streaming cell,
 overlay lifecycle), but current implementation work is split across parallel
-dispatchers. Without a strict fix order, this can cause:
+operators. Without a strict fix order, this can cause:
 
 1. correctness regressions during streaming,
 2. event semantic drift (typed vs text-sentinel control paths),
@@ -59,9 +59,9 @@ Use a two-phase sequence with explicit priority and gating.
 
 No reordering is allowed unless this ADR is amended.
 
-## Dispatcher checklist (single source of truth)
+## Implementation checklist (single source of truth)
 
-Each dispatcher must update this section in-place when work is completed.
+Each operator must update this section in-place when work is completed.
 Do not create parallel checklists in other docs.
 
 - [ ] **B1** Unicode-safe streaming delta slicing
@@ -72,13 +72,13 @@ Do not create parallel checklists in other docs.
 - [x] **U2** Simplify streaming rendering to single-responsibility flow
 - [x] **U3** Remove `#[cfg(test)]` field layout drift on `TuiMode`
 
-## Dispatcher reporting contract (mandatory per checklist item)
+## Implementation reporting contract (mandatory per checklist item)
 
 When checking a box above, append an evidence block under this section:
 
 ```markdown
 ### [B1|U1|U2|U3|U4|D1|D2] - <short title>
-- Dispatcher: <name/id>
+- Operator: <name/id>
 - Commit: <sha>
 - Files changed:
   - `path/to/file.rs` (+<insertions> -<deletions>)
@@ -96,7 +96,7 @@ Line insertion/deletion counts must come from `git diff --numstat` (or equivalen
 for the exact commit that closes the checklist item.
 
 ### U1 - Typed scroll/control events; removed text sentinels
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/runtime/frontend.rs` (+20 -0)
@@ -115,7 +115,7 @@ for the exact commit that closes the checklist item.
   - Removed sentinel parsing constants/handlers from `TuiMode` path.
 
 ### U4 - Production cutover to managed TUI path
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/bin/vex.rs` (+274 -102)
@@ -130,7 +130,7 @@ for the exact commit that closes the checklist item.
   - `vex` binary now runs the managed TUI adapter in production execution.
 
 ### D1 - Promote required render logic to production runtime path
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/app.rs` (+138 -92)
@@ -147,7 +147,7 @@ for the exact commit that closes the checklist item.
   - Production path now exercises `ui/layout.rs`, `ui/render.rs`, and `terminal.rs`.
 
 ### D2 - Resolve StreamBlock no-op dispatch
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/app.rs` (+138 -92)
@@ -162,7 +162,7 @@ for the exact commit that closes the checklist item.
   - Block lifecycle updates now mutate state rather than being ignored.
 
 ### U2 - Simplify streaming rendering to single-responsibility flow
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/bin/vex.rs` (+274 -102)
@@ -176,7 +176,7 @@ for the exact commit that closes the checklist item.
   - Managed frontend now performs one frame render path via ui renderer.
 
 ### U3 - Remove `#[cfg(test)]` TuiMode field/layout drift
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/app.rs` (+138 -92)
@@ -192,7 +192,7 @@ for the exact commit that closes the checklist item.
   - Reduced test/release divergence for `TuiMode` state/behavior.
 
 ### Dead-Code Audit - Prune orphan runtime event stub after cutover
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/runtime.rs` (+0 -3)
@@ -205,7 +205,7 @@ for the exact commit that closes the checklist item.
   - Removed unused `runtime::event` module that was compile-shape-only and not on production path.
 
 ### API Logging Follow-up - Consolidate API debug/error emission
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/api/logging.rs` (+100 -0)
@@ -229,7 +229,7 @@ for the exact commit that closes the checklist item.
   - Standardized output formatting and sink resolution with a global `VEX_API_LOG_PATH` override and fallback compatibility for `VEX_DEBUG_PAYLOAD_PATH`.
 
 ### Dead-Code Follow-up - Remove unused legacy `src/main.rs`
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/main.rs` (+0 -141)
@@ -245,7 +245,7 @@ for the exact commit that closes the checklist item.
   - `autobins = false` with explicit `[[bin]] path = "src/bin/vex.rs"` remains the only binary build path.
 
 ### Branding Follow-up - Standardize remaining non-vexcoder references
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `LICENSE` (+1 -1)
@@ -273,7 +273,7 @@ historical record of the managed-TUI cutover work, but new operator-facing TUI
 and passthrough changes must follow ADR-027.
 
 ### API Logging Follow-up - Canonicalize debug path env contract
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/api/logging.rs` (+10 -25)
@@ -289,7 +289,7 @@ and passthrough changes must follow ADR-027.
   - Logging path configuration now has one canonical env override: `VEX_API_LOG_PATH`.
 
 ### Search Policy Follow-up - Literal matching only (no regex)
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `Cargo.toml` (+1 -0)
@@ -313,7 +313,7 @@ and passthrough changes must follow ADR-027.
   - Regex (regix) matching is not used and is disallowed for runtime tool search behavior.
 
 ### Runtime UX Follow-up - Normalize API transport failures and startup transcript noise
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/api/client.rs` (+39 -5)
@@ -336,7 +336,7 @@ and passthrough changes must follow ADR-027.
   - Added binary tests for transcript signature detection to prevent regressions.
 
 ### Tool Approval Follow-up - Mandatory overlay for mutating tools in local mode
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/state/conversation.rs` (+80 -2)
@@ -355,7 +355,7 @@ and passthrough changes must follow ADR-027.
   - Tool permission overlay shortcut copy now explicitly shows `1 yes`, `2 allow this session`, `3/esc cancel`.
 
 ### Tool Reliability Follow-up - Prevent edit_file no-op loops and accept alias arguments
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/state/conversation.rs` (+246 -17)
@@ -385,7 +385,7 @@ and passthrough changes must follow ADR-027.
   - Added a mutating-tool loop guard that stops repeated identical `edit_file`/write-like calls and returns a loop-guard message instead of spinning through repeated approvals.
 
 ### Tool Evidence Follow-up - Clarify missing file location and stop repeated prompt churn
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/state/conversation.rs` (+108 -0)
@@ -403,7 +403,7 @@ and passthrough changes must follow ADR-027.
   - This ensures the user is explicitly asked for edit/create location before any file mutation is attempted.
 
 ### UX Follow-up - Clear mutation summaries and viewport-aware rendering
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/app.rs` (+35 -4)
@@ -433,7 +433,7 @@ and passthrough changes must follow ADR-027.
   - Tool-evidence hint matching was expanded (`what is in`, `read it again`, `read again`) to reduce repeated non-tool answers for file-content follow-ups.
 
 ### Turn Stability Follow-up - End turn on denied tool approval to prevent retry loops
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/state/conversation.rs` (+35 -7)
@@ -461,7 +461,7 @@ and passthrough changes must follow ADR-027.
 
 ## Consequences
 
-- Improves safety of concurrent dispatcher work by fixing order and scope.
+- Improves safety of concurrent operator work by fixing order and scope.
 - Reduces sentinel collision risk and Unicode slicing bugs.
 - Forces complete ADR-018 production cutover before cleanup polish.
 - Keeps later cleanup tasks from masking correctness regressions.

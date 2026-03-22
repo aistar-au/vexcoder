@@ -28,14 +28,14 @@ ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
 `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`. `PK-08` (`vex branch` and
 `vex pr-summary`), the ADR-027 command-session follow-up, and the full
 ADR-023 implementation track (`EL-01` through `EL-13`) are now on `main`.
-Milestone-1 validation passed on `2026-03-15` on branch
-`dispatcher/vexcoder-adr-022-m1-validation-gate`; the ADR-025, ADR-026,
-ADR-028, ADR-029, ADR-030, and ADR-031 post-gate work now remains sequenced only by their
-documented dependencies.
+Milestone-1 validation passed on `2026-03-15` and remains recorded in
+`adr/ADR-022-free-open-coding-agent-roadmap.md`; the ADR-025, ADR-026,
+ADR-028, ADR-029, ADR-030, and ADR-031 post-gate work now remains sequenced
+only by their documented dependencies.
 
-## Current Next Dispatcher Batch
+## Current Next Work Batch
 
-The current dispatcher batch continues ADR-031 operator-surface follow-up on top of the active ADR-028 facade boundary.
+The current work batch continues ADR-031 operator-surface follow-up on top of the active ADR-028 facade boundary.
 
 - Milestone-1 validation remains the recorded Phase I gate result in `adr/ADR-022-free-open-coding-agent-roadmap.md`.
 - ADR-025 now has the canonical runtime handoff types, schemas, normalization layer, and BatchMode parity tests in the current tree.

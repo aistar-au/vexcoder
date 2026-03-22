@@ -69,7 +69,7 @@ explicit regression tests.
 - Preserve public API and behavior while reducing the monolithic-file blast radius for
   future fixes.
 
-## Dispatcher checklist
+## Implementation checklist
 
 - [x] **L1** Tool execution errors emit `ToolStatus::Error`
 - [x] **L2** Multi-tool rounds collect all tool results before next API round
@@ -86,7 +86,7 @@ L7 progress note (2026-02-24):
 ## Evidence
 
 ### L1-L6 - Loop/enriched response correctness sweep
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/state/conversation.rs` (+367 -56)
@@ -115,7 +115,7 @@ L7 progress note (2026-02-24):
   - Regression tests were added for each bug to prevent reintroduction.
 
 ### Read-only Intent Guard Follow-up (2026-02-22)
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/state/conversation.rs` (+196 -0)
@@ -130,7 +130,7 @@ L7 progress note (2026-02-24):
   - Strengthened API system prompt instructions to keep read-only requests on read-only tool paths unless the user explicitly asks for changes.
 
 ### Git Tool Capability Accuracy Follow-up (2026-02-22)
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
   - `src/state/conversation.rs` (+69 -0)
@@ -152,7 +152,7 @@ L7 progress note (2026-02-24):
   - Added explicit system-prompt constraints and regression tests to keep git-tool capability claims aligned with implemented tool definitions.
 
 ### REF-10 - Conversation module split and thin entrypoint (2026-02-22)
-- Dispatcher: automation-agent
+- Operator: automation-agent
 - Commit: `41750ad`
 - Files changed:
   - `src/state/conversation.rs` (+11 -3840)
@@ -353,7 +353,7 @@ Apply a single correctness sweep… (L1–L6 unchanged)
 - Prevent over-dedupe on long rich outputs.
 - Emit optional grouped “Tool Round Summary” block for multi-tool rounds.
 
-## Dispatcher checklist
+## Implementation checklist
 - [x] L1 Tool execution errors emit `ToolStatus::Error`
 - [x] L2 Multi-tool rounds collect all tool results before next API round
 - [x] L3 Incremental suffix dedupe does not drop short trailing repeats
@@ -364,7 +364,7 @@ Apply a single correctness sweep… (L1–L6 unchanged)
 
 ## Evidence
 ### L1–L6 – Loop/enriched response correctness sweep
-- Dispatcher: automation-agent  
+- Operator: automation-agent  
 - Commit: (already landed)  
 - Files changed: `src/state/conversation.rs` (+367 -56), `src/state/stream_block.rs` (+1 -0)  
 - Validation: `cargo test --all-targets` + clippy pass

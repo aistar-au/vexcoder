@@ -44,7 +44,7 @@ This ADR satisfies ADR-024's Phase I specification requirement, but implementati
 1. Phase H (macOS packaging and distribution) is complete, and
 2. milestone-1 correctness work (ADR-022 phases 1–8 plus ADR-023 deterministic edit loop) is validated end-to-end.
 
-No dispatcher may begin canonical JSON handoff implementation before that gate is green.
+No implementation lane may begin canonical JSON handoff implementation before that gate is green.
 
 ---
 
@@ -447,7 +447,7 @@ The grammar constrains the **shape of the runtime tool-call JSON contract** at t
 
 ---
 
-## Dispatcher checklist
+## Implementation checklist
 
 | ID | Task | Status |
 |----|------|--------|
@@ -458,13 +458,13 @@ The grammar constrains the **shape of the runtime tool-call JSON contract** at t
 
 ---
 
-## Dispatcher reporting contract
+## Implementation reporting contract
 
 When checking any PI-09…PI-12 box, append an evidence block:
 
 ```markdown
 ### [PI-XX] - <short title>
-- Dispatcher: <name/id>
+- Operator: <name/id>
 - Commit: <sha>
 - Files changed:
   - `path/to/file` (+X -Y)
@@ -479,7 +479,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
 ---
 
 ### [PI-09] - Canonical runtime handoff types and grammar
-- Dispatcher: `dispatcher/adr-025-phase-1-kickoff`
+- Historical branch name: omitted
 - Commit: `a7b22137f779fd617b3ec1420b9a3a615e719fc0`
 - Files changed:
   - `src/runtime.rs` (+4 -0)
@@ -496,7 +496,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
   - Keeps `ToolCall.id` ownership in the runtime contract while leaving provider-id discard and event projection work dependency-sequenced for PI-10.
 
 ### [PI-11] - Runtime envelope and request schemas
-- Dispatcher: `dispatcher/adr-025-phase-1-kickoff`
+- Historical branch name: omitted
 - Commit: `a7b22137f779fd617b3ec1420b9a3a615e719fc0`
 - Files changed:
   - `schemas/runtime_envelope_v1.json` (+193 -0)
@@ -512,7 +512,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
   - Leaves PI-12 schema/serde/grammar parity enforcement and BatchMode-derivation coverage sequenced behind PI-10.
 
 ### [PI-10] - Runtime envelope normalization layer
-- Dispatcher: `dispatcher/vexcoder-adr-025-phase-2-post-pr101`
+- Historical branch name: omitted
 - Commit: `c9a4b2e19cf87abb357617d8bdd3589e693bb7e7`
 - Files changed:
   - `src/runtime/json_handoff.rs` (+810 -0)
@@ -528,7 +528,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
   - Runtime-generated `ToolCall.id` values now discard provider ids, approval requests normalize into canonical capability/scope fields, and runtime approval decisions project into `ApprovalResolved` events.
 
 ### [PI-12] - Runtime handoff parity and BatchMode replay tests
-- Dispatcher: `dispatcher/vexcoder-adr-025-phase-2-post-pr101`
+- Historical branch name: omitted
 - Commit: `c9a4b2e19cf87abb357617d8bdd3589e693bb7e7`
 - Files changed:
   - `src/runtime/json_handoff.rs` (+810 -0)

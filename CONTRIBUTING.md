@@ -5,7 +5,7 @@
 > The ADRs explain *why* the project is structured this way. Read them before opening a PR.
 >
 > **Agent bootstrap:** repo-local product guidance stays here, but the active
-> dispatcher skills now live in the internal private repo
+> local skills now live in the internal private repo
 > `../vexdraft/.agents/skills/`.
 > Read [`AGENTS.md`](AGENTS.md) first for the dependency map and required load
 > order before using the private skill tree against this repo.
@@ -105,28 +105,28 @@ bash scripts/check_forbidden_imports.sh
 
 ## Release Packaging
 
-Package release changes on a coder branch first, verify them locally, and open the PR without waiting on a duplicate packaging workflow run.
+Package release changes on a review branch first, verify them locally, and open the PR without waiting on a duplicate packaging workflow run.
 
 ```bash
-git switch -c coder/v0.1.0-alpha2-packaging
+git switch -c work/v0.1.0-alpha2-packaging
 make gate
 make release TARGET=x86_64-unknown-linux-gnu
-git push -u origin coder/v0.1.0-alpha2-packaging
+git push -u origin work/v0.1.0-alpha2-packaging
 ```
 
 On Windows PowerShell 7, use the native packaging script instead of `make release`:
 
 ```powershell
-git switch -c coder/v0.1.0-alpha2-packaging
+git switch -c work/v0.1.0-alpha2-packaging
 $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
 cargo build --release --bin vex
 .\scripts\release.ps1 -Target x86_64-pc-windows-msvc -RunGate
-git push -u origin coder/v0.1.0-alpha2-packaging
+git push -u origin work/v0.1.0-alpha2-packaging
 ```
 
 Windows packaging is currently an unsigned alpha path. Platform trust warnings are expected until code signing lands; evaluate a compatible signing service only when the packaging ADR set explicitly requires it.
 
-The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. `.github/workflows/release.yml` now runs only for tag pushes and manual dispatch so coder branches do not duplicate the main PR checks. After the branch gates are green and the local packaging smoke checks look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
+The packaging scripts derive the archive tag from `Cargo.toml` and reject mismatched tag inputs. `.github/workflows/release.yml` now runs only for tag pushes and manual dispatch so review branches do not duplicate the main PR checks. After the branch gates are green and the local packaging smoke checks look correct, open the PR. Publish the prerelease only after the merge commit is on `main`:
 
 ```bash
 git switch main
@@ -166,7 +166,7 @@ repository-hosted agent instructions file under `.github/`.
   default branch. Manual workflow dispatch is still useful for validating the
   hosted-session bootstrap contract on a feature branch before merge.
 - The repository-level agent profile follows the branch you target. Use a
-  coder branch as the `--base` argument when you want the remote session
+  review branch as the `--base` argument when you want the remote session
   to see branch-local agent changes.
 - New or renamed custom agent profile files are only selectable through
   `gh agent-task --custom-agent` after they exist on the default branch.
@@ -270,23 +270,23 @@ Example launch sequence:
 
 ```bash
 git fetch origin --prune
-git switch -c coder/vexcoder-ui-overhaul origin/main
-git push -u origin coder/vexcoder-ui-overhaul
+git switch -c work/vexcoder-ui-overhaul origin/main
+git push -u origin work/vexcoder-ui-overhaul
 
 gh agent-task create \
-  --base coder/vexcoder-ui-overhaul \
+  --base work/vexcoder-ui-overhaul \
   --custom-agent vexcoder-ui-parity-orchestrator \
   "Shard: prompt interactivity. Own only src/app.rs, src/app/accessors.rs, src/app/commands.rs, src/app/input.rs, src/app/inline.rs, src/app/model_update.rs, src/app/turn.rs, src/bin/vex.rs, and src/ui/editor.rs. Focus on prompt submission, slash commands, @file expansion, and startup API/model prompting. Do not edit layout or ANSI-surface files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 
 gh agent-task create \
-  --base coder/vexcoder-ui-overhaul \
+  --base work/vexcoder-ui-overhaul \
   --custom-agent vexcoder-ui-paragraph-renderer \
   "Shard: ANSI fullscreen surface. Own only src/ui/draw/mod.rs, src/ui/draw/transcript.rs, src/ui/draw/ansi.rs, src/ui/draw/tests.rs, and transcript-local helpers. Focus on paragraph rendering, star/cosmic accents, prompt-dock drawing, and removal of stray top-surface chrome. Do not edit app layout or fallback-renderer files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 
 gh agent-task create \
-  --base coder/vexcoder-ui-overhaul \
+  --base work/vexcoder-ui-overhaul \
   --custom-agent vexcoder-transcript-renderer-overhaul \
   "Shard: task-state layout and fallback renderer. Own only src/app/layout.rs, src/app/tests.rs, src/ui/render.rs, src/ui/layout.rs, src/ui/draw/regions.rs, tests/layout_underflow_tests.rs, and directly related helpers. Focus on single-stream transcript layout, fixed 3-line prompt geometry, blank initial transcript behavior, and fallback parity. Do not edit ANSI transcript files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
@@ -296,7 +296,7 @@ Start a UI parity session from the GitHub CLI with:
 
 ```bash
 gh agent-task create \
-  --base <coder-branch> \
+  --base <review-branch> \
   --custom-agent vexcoder-ui-parity-orchestrator \
   "Investigate prompt interactivity, slash commands, @file expansion, startup API/model prompting, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
@@ -319,7 +319,7 @@ Start a paragraph-rendering session with:
 
 ```bash
 gh agent-task create \
-  --base <coder-branch> \
+  --base <review-branch> \
   --custom-agent vexcoder-ui-paragraph-renderer \
   "Investigate the direct ANSI fullscreen surface, paragraph rendering, star/cosmic accent styling, prompt-dock drawing, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
@@ -329,7 +329,7 @@ Start a timeline/fallback-renderer session with:
 
 ```bash
 gh agent-task create \
-  --base <coder-branch> \
+  --base <review-branch> \
   --custom-agent vexcoder-transcript-renderer-overhaul \
   "Investigate task-state layout logic, fallback renderer parity, fixed prompt geometry, blank-initial transcript behavior, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
@@ -337,7 +337,7 @@ gh agent-task view <session-id-from-create-output> --log --follow
 
 ### Post-session workflow (mandatory steps A–H)
 
-After an agent session completes, the dispatcher must follow these steps in
+After an agent session completes, the operator must follow these steps in
 order.
 
 1. **A — Tail and debug logs**: identify each concurrent session by its unique
@@ -347,7 +347,7 @@ order.
    or pseudo-screenshot plans, temporary visual artifacts, or ad hoc tool
    installation, stop the run, record the violation, correct the prompt or
    profile, and relaunch before promotion.
-2. **B — Create coder branch**: create a `coder/vexcoder-` branch
+2. **B — Create review branch**: create a `work/<topic>` branch
    from `origin/main` and cherry-pick the agent's commits.
    Inspect the hosted PR first with
    `gh pr view <pr> --json headRefName,commits,statusCheckRollup`.
@@ -384,12 +384,12 @@ order.
 │   ├── adr/           # Architecture Decision Records
 │   ├── src/                # Rust crate source
 │   └── tests/              # Integration tests
-└── vexdraft/               # Adjacent devops repo — local dispatcher, commit-debug, skills
+└── vexdraft/               # Adjacent devops repo — local operator, commit-debug, skills
     └── scripts/
-        └── commit-debug.py # Multi-provider pre-push reviewer (called by dispatcher)
+        └── commit-debug.py # Multi-provider pre-push reviewer (called by operator)
 ```
 
-`vexdraft` must exist at `../vexdraft` relative to this repo for the dispatcher
+`vexdraft` must exist at `../vexdraft` relative to this repo for the operator
 loop and pre-push review to function. The internal layout is the assumed path contract.
 
 ```
@@ -503,5 +503,5 @@ vexcoder/ (standalone view)
 
 ## Reference
 
-- [AGENTS.md](AGENTS.md) — bootstrap dependency map for the private dispatcher skill tree
+- [AGENTS.md](AGENTS.md) — bootstrap dependency map for the private operator skill tree
 - [ADR index](adr/ADR-README.md) — architectural decisions and their rationale

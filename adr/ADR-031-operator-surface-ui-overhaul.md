@@ -287,9 +287,9 @@ Parallel-dispatchable, merge-gated by A and whatever derivation it consumes.
 Removes legacy behavior once the new state and rendering path are proven.
 Should merge last.
 
-## Compliance note for dispatchers and agents
+## Compliance note for operators and agents
 
-Dispatchers and coding agents must use this policy:
+Operators and coding agents must use this policy:
 
 - split work aggressively for parallel remote development;
 - identify which batches modify execution truth versus presentation only;

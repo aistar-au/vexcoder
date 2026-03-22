@@ -8,7 +8,7 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
 - Read `AGENTS.md`, `CONTRIBUTING.md`, and
   `.github/instructions/repository.instructions.md` first.
 - In `AGENTS.md`, ignore the `Local bootstrap only` section and every
-  `../vexdraft` reference. Those lines are for local dispatcher sessions only.
+  `../vexdraft` reference. Those lines are for local operator sessions only.
 - Do not read any `SKILL.md` file in a repository-hosted session.
 - Use English only in all agent-authored output.
 - Use text-only verification and reporting. Do not create screenshots, screen
@@ -67,9 +67,10 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
   `bash scripts/check_forbidden_names.sh` first. Run `make gate-fast` only if
   the required local tools are already present in the runner image. Do not try
   to install missing tools during the hosted session.
-- If the host opens a non-coder branch, stop after the draft is ready and
-  report the session id, PR number, head branch, and any code-bearing commit
-  SHAs so the dispatcher can promote the diff.
+- If the host opens a non-review branch, stop after the draft is ready and
+  report the session id, any associated PR number, the head branch, and any
+  code-bearing commit SHAs so the operator can promote the diff.
 - If the hosted run finishes with only a planning commit or no file diff,
   report that no code was published and do not describe the implementation as
   landed.
+- Do not delegate `cargo`, `cargo clippy`, `cargo test`, `cargo check`, or `make gate-fast` to another hosted agent or subagent. Leave those commands to the local operator or CI because nested delegation is unreliable in the hosted runtime.
