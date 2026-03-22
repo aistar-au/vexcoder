@@ -39,6 +39,23 @@ be treated as a session failure.
 Spend at most 20% of the session reading code and 80% writing code. Start
 diagnosis as soon as you understand the change boundaries. Do not
 exhaustively read every related file before writing the first finding.
+
+Hard limits on file operations:
+
+- Do not run `find` across the entire source tree. Target specific
+  directories or use `grep -rn` with a focused pattern instead.
+- Do not read any file larger than 500 lines in full. Use `grep -n` or
+  `head`/`tail` to read only the relevant section.
+- Do not read more than 10 files total before writing the first code change.
+- Do not run `cargo test --all-targets` during the session. Run only
+  targeted tests for the files you changed:
+  `cargo test -- test_name_pattern`
+- If a search or read takes more than 30 seconds, cancel it and narrow the
+  scope.
+
+These limits exist because the hosting runtime has a 10-minute wall clock.
+Every wasted read steals time from implementation.
+
 - After every `gh agent-task create`, identify the new unique session id and
   immediately tail logs with:
   `gh agent-task view <session-id> --log --follow`
