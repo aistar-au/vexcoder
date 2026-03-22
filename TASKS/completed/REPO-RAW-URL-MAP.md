@@ -5,13 +5,14 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 188
+- Total tracked files: 190
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
 | 1 | `.gitattributes` | ~3 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitattributes> |
 | 2 | `.github/agents/rust-change-auditor.agent.md` | ~132 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/rust-change-auditor.agent.md> |
-| 3 | `.github/agents/vexcoder-transcript-renderer-overhaul.agent.md` | ~200 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-transcript-renderer-overhaul.agent.md> |
+| 3 | `.github/agents/vexcoder-hybrid-retrieval.agent.md` | ~155 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-hybrid-retrieval.agent.md> |
+| 4 | `.github/agents/vexcoder-transcript-renderer-overhaul.agent.md` | ~200 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-transcript-renderer-overhaul.agent.md> |
 | 4 | `.github/agents/vexcoder-ui-paragraph-renderer.agent.md` | ~208 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-paragraph-renderer.agent.md> |
 | 5 | `.github/agents/vexcoder-ui-parity-orchestrator.agent.md` | ~215 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/agents/vexcoder-ui-parity-orchestrator.agent.md> |
 | 6 | `.github/copilot-instructions.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/copilot-instructions.md> |
@@ -57,7 +58,8 @@ Canonical raw URL index for every tracked file in this repository.
 | 46 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | ~445 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md> |
 | 47 | `adr/ADR-031-operator-surface-ui-overhaul.md` | ~360 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-031-operator-surface-ui-overhaul.md> |
 | 48 | `adr/ADR-032-prompt-area-interactivity-and-context-guard.md` | ~67 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-032-prompt-area-interactivity-and-context-guard.md> |
-| 48 | `adr/ADR-README.md` | ~59 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
+| 49 | `adr/ADR-033-hybrid-retrieval-context-architecture.md` | ~112 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-033-hybrid-retrieval-context-architecture.md> |
+| 50 | `adr/ADR-README.md` | ~59 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 49 | `adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
 | 50 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~77 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |
 | 51 | `adr/completed/ADR-003-dual-protocol-api-auto-detection.md` | ~88 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-003-dual-protocol-api-auto-detection.md> |
