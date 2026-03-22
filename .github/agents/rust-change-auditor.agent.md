@@ -45,16 +45,23 @@ Hard limits on file operations:
 - Do not run `find` across the entire source tree. Target specific
   directories or use `grep -rn` with a focused pattern instead.
 - Do not read any file larger than 500 lines in full. Use `grep -n` or
-  `head`/`tail` to read only the relevant section.
+  `head`/`tail` to read only the relevant section, using offsets of 10s or
+  100s of lines. Never read an entire large file to answer a simple question.
 - Do not read more than 10 files total before writing the first code change.
-- During development, run only targeted tests for the files you changed:
-  `cargo test -- test_name_pattern`. Reserve `cargo test --all-targets`
-  for the final pre-commit gate.
 - If a search or read takes more than 30 seconds, cancel it and narrow the
   scope.
 
+Hard limits on build commands:
+
+- **Do not run `cargo build`, `cargo test`, `cargo check`, `cargo clippy`,
+  or `cargo fmt`** during the hosted session. These commands are too heavy
+  for the 10-minute hosted runtime and risk killing the session before code
+  changes are pushed. CI runs these after push.
+- Leave compilation, test, and lint verification to the CI pipeline and the
+  local dispatcher who promotes the branch.
+
 These limits exist because the hosting runtime has a 10-minute wall clock.
-Every wasted read steals time from implementation.
+Every wasted build or exhaustive read steals time from implementation.
 
 - After every `gh agent-task create`, identify the new unique session id and
   immediately tail logs with:
