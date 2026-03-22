@@ -85,6 +85,24 @@ fn read_file_max_lines() -> usize {
     budget_lines.clamp(50, 10_000)
 }
 
+/// Line threshold above which `write_file` warns the model to use
+/// `apply_diff` or `edit_file` instead. Default 200.
+fn write_file_diff_preferred_above_lines() -> usize {
+    std::env::var("VEX_DIFF_PREFERRED_ABOVE_LINES")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(200)
+}
+
+/// Hard line limit for `write_file`. Calls on files exceeding this are
+/// rejected outright. Default 500.
+fn write_file_max_lines() -> usize {
+    std::env::var("VEX_WRITE_FILE_MAX_LINES")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(500)
+}
+
 /// Append `text` to `buf`, keeping only the tail when the cap is exceeded.
 fn append_capped(buf: &mut String, text: &str, cap: usize) {
     buf.push_str(text);
@@ -586,6 +604,16 @@ pub(super) fn execute_tool_dispatch(
                 required_tool_string_any(input, name, "path", &["path", "file_path", "file"])?;
             let content = first_tool_string(input, &["content", "text"]).unwrap_or("");
             let (chars, lines) = text_stats(content);
+
+            // Phase 3 hard guard: reject writes above VEX_WRITE_FILE_MAX_LINES.
+            let max_lines = write_file_max_lines();
+            if lines > max_lines {
+                bail!(
+                    "write_file rejected: {lines} lines exceeds the {max_lines}-line limit. \
+                     Use apply_patch or edit_file for large files."
+                );
+            }
+
             let result = match tool_operator.write_file(path, content)? {
                 WriteFileOutcome::Written => {
                     format!("Wrote {path} ({chars} chars, {lines} lines).")
@@ -594,8 +622,20 @@ pub(super) fn execute_tool_dispatch(
                     format!("Pending patch for {path}.\n{}", pending.diff)
                 }
             };
+
+            // Phase 3 soft guard: warn when file exceeds diff-preferred threshold.
+            let diff_threshold = write_file_diff_preferred_above_lines();
+            let warning = if lines > diff_threshold {
+                format!(
+                    "\n⚠ File has {lines} lines (>{diff_threshold}). \
+                     Prefer apply_patch or edit_file for large-file edits."
+                )
+            } else {
+                String::new()
+            };
+
             refresh_codebase_index(path, tool_operator.working_dir());
-            Ok(result)
+            Ok(format!("{result}{warning}"))
         }
         "apply_patch" => {
             let path =

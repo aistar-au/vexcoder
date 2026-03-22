@@ -99,6 +99,57 @@ impl ConversationManager {
         }
     }
 
+    /// Condense tool results in messages older than `keep_turns` recent
+    /// message pairs. Each affected tool result is truncated to its first 5
+    /// lines plus a `(N more lines)` indicator.
+    pub(super) fn condense_old_tool_results(&mut self, keep_turns: usize) {
+        let len = self.api_messages.len();
+        if len == 0 {
+            return;
+        }
+        // Count backwards to find the boundary. Each "turn" is roughly a
+        // user message followed by an assistant message, but the exact
+        // interleaving varies. We count user-role messages from the end.
+        let mut user_count = 0usize;
+        let mut boundary = len;
+        for i in (0..len).rev() {
+            if self.api_messages[i].role == "user" {
+                user_count += 1;
+                if user_count >= keep_turns {
+                    boundary = i;
+                    break;
+                }
+            }
+        }
+        if boundary == 0 {
+            return;
+        }
+        // Condense tool results in messages before the boundary.
+        for message in &mut self.api_messages[..boundary] {
+            if message.role != "user" {
+                continue;
+            }
+            match &mut message.content {
+                Content::Blocks(blocks) => {
+                    for block in blocks.iter_mut() {
+                        if let ContentBlock::ToolResult { content, .. } = block {
+                            *content =
+                                truncate_to_lines(content, CONDENSED_TOOL_RESULT_LINES);
+                        }
+                    }
+                }
+                Content::Text(text) => {
+                    // Text-protocol tool results are embedded as
+                    // "tool_result <name>:\n<content>". Condense the content
+                    // portion after each header.
+                    if text.contains("tool_result ") || text.contains("tool_error ") {
+                        *text = condense_text_protocol_tool_results(text);
+                    }
+                }
+            }
+        }
+    }
+
     pub(super) fn format_tool_result_for_history(
         &mut self,
         name: &str,
@@ -236,6 +287,29 @@ pub(super) fn env_override_usize(key: &str, default: usize, min: usize, max: usi
         .unwrap_or(default)
 }
 
+/// Number of recent message pairs (user + assistant) to keep at full
+/// fidelity.  Older tool results are condensed to their first 5 lines.
+/// Configurable via `VEX_HISTORY_KEEP_TURNS`.
+const DEFAULT_HISTORY_KEEP_TURNS: usize = 10;
+const CONDENSED_TOOL_RESULT_LINES: usize = 5;
+
+pub(super) fn resolve_history_keep_turns() -> usize {
+    env_override_usize("VEX_HISTORY_KEEP_TURNS", DEFAULT_HISTORY_KEEP_TURNS, 2, 64)
+}
+
+/// Truncate a tool result to its first `max_lines` lines, appending a
+/// `(N more lines)` indicator when content is trimmed.
+pub(super) fn truncate_to_lines(text: &str, max_lines: usize) -> String {
+    let lines: Vec<&str> = text.lines().collect();
+    if lines.len() <= max_lines {
+        return text.to_string();
+    }
+    let remaining = lines.len() - max_lines;
+    let mut out: String = lines[..max_lines].join("\n");
+    out.push_str(&format!("\n({remaining} more lines)"));
+    out
+}
+
 pub(super) fn truncate_for_history(text: &str, max_chars: usize) -> String {
     if max_chars == 0 {
         return String::new();
@@ -263,4 +337,55 @@ pub(super) fn truncate_for_history(text: &str, max_chars: usize) -> String {
     let head: String = chars.iter().take(keep_head).collect();
     let tail: String = chars.iter().skip(total.saturating_sub(keep_tail)).collect();
     format!("{head}{indicator}{tail}")
+}
+
+/// Condense text-protocol tool results. Each result block starts with a
+/// header line like `tool_result read_file:` followed by content lines.
+/// We keep the header and the first `CONDENSED_TOOL_RESULT_LINES` content
+/// lines, appending a `(N more lines)` indicator for the rest.
+fn condense_text_protocol_tool_results(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut content_lines_since_header = 0usize;
+    let mut total_remaining = 0usize;
+    let mut in_tool_result = false;
+
+    for line in text.lines() {
+        let is_header =
+            line.starts_with("tool_result ") || line.starts_with("tool_error ");
+        if is_header {
+            // Flush pending indicator for previous block.
+            if in_tool_result && total_remaining > 0 {
+                out.push_str(&format!("\n({total_remaining} more lines)"));
+                total_remaining = 0;
+            }
+            in_tool_result = true;
+            content_lines_since_header = 0;
+            out.push('\n');
+            out.push_str(line);
+            continue;
+        }
+        if in_tool_result {
+            content_lines_since_header += 1;
+            if content_lines_since_header <= CONDENSED_TOOL_RESULT_LINES {
+                out.push('\n');
+                out.push_str(line);
+            } else {
+                total_remaining += 1;
+            }
+        } else {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(line);
+        }
+    }
+    // Flush final block.
+    if in_tool_result && total_remaining > 0 {
+        out.push_str(&format!("\n({total_remaining} more lines)"));
+    }
+    // Remove leading newline if the original didn't start with one.
+    if out.starts_with('\n') && !text.starts_with('\n') {
+        out.remove(0);
+    }
+    out
 }
