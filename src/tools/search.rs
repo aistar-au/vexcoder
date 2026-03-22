@@ -1,4 +1,6 @@
 use crate::tools::index::IndexChunk;
+use crate::tools::semantic::SemanticChunkScore;
+use std::collections::HashMap;
 
 /// Result of a codebase search query.
 #[derive(Debug)]
@@ -79,6 +81,93 @@ pub fn codebase_search(
         .collect()
 }
 
+pub fn merge_search_results(
+    index: &[IndexChunk],
+    structural_results: Vec<SearchResult>,
+    semantic_scores: Vec<SemanticChunkScore>,
+    max_results: Option<usize>,
+) -> Vec<SearchResult> {
+    let cap = max_results.unwrap_or_else(max_results_default);
+    if cap == 0 {
+        return Vec::new();
+    }
+
+    let mut merged = structural_results;
+    let mut merged_positions: HashMap<(String, usize, usize, String), usize> = merged
+        .iter()
+        .enumerate()
+        .map(|(idx, result)| {
+            (
+                (
+                    result.path.clone(),
+                    result.start_line,
+                    result.end_line,
+                    result.name.clone(),
+                ),
+                idx,
+            )
+        })
+        .collect();
+
+    let index_lookup: HashMap<(String, usize, usize, String), &IndexChunk> = index
+        .iter()
+        .map(|chunk| {
+            (
+                (
+                    chunk.path.clone(),
+                    chunk.start_line,
+                    chunk.end_line,
+                    chunk.name.clone(),
+                ),
+                chunk,
+            )
+        })
+        .collect();
+
+    for semantic in semantic_scores {
+        let key = (
+            semantic.path.clone(),
+            semantic.start_line,
+            semantic.end_line,
+            semantic.name.clone(),
+        );
+        let semantic_weight = semantic_score_weight(semantic.score);
+        if semantic_weight <= 0.0 {
+            continue;
+        }
+
+        if let Some(existing_idx) = merged_positions.get(&key).copied() {
+            merged[existing_idx].score += semantic_weight;
+            continue;
+        }
+
+        let Some(chunk) = index_lookup.get(&key) else {
+            continue;
+        };
+
+        merged_positions.insert(key, merged.len());
+        merged.push(SearchResult {
+            path: chunk.path.clone(),
+            start_line: chunk.start_line,
+            end_line: chunk.end_line,
+            kind_label: chunk.kind.label().to_string(),
+            name: chunk.name.clone(),
+            score: semantic_weight,
+            snippet: truncate_snippet(&chunk.source, 20),
+        });
+    }
+
+    merged.sort_by(|left, right| {
+        right
+            .score
+            .total_cmp(&left.score)
+            .then_with(|| left.path.cmp(&right.path))
+            .then_with(|| left.start_line.cmp(&right.start_line))
+    });
+    merged.truncate(cap);
+    merged
+}
+
 fn score_chunk(chunk: &IndexChunk, query_lower: &str, query_words: &[&str]) -> f64 {
     let mut score = 0.0;
     let name_lower = chunk.name.to_ascii_lowercase();
@@ -114,6 +203,10 @@ fn score_chunk(chunk: &IndexChunk, query_lower: &str, query_words: &[&str]) -> f
     }
 
     score
+}
+
+fn semantic_score_weight(score: f64) -> f64 {
+    score.max(0.0) * 60.0
 }
 
 /// Truncate a snippet to at most `max_lines` lines.
@@ -228,5 +321,58 @@ mod tests {
     fn test_format_search_results_empty() {
         let out = format_search_results("foo", &[]);
         assert!(out.contains("No results found"));
+    }
+
+    #[test]
+    fn test_merge_search_results_boosts_structural_match() {
+        let index = vec![make_chunk(
+            "ranked_handler",
+            ItemKind::Function,
+            "fn ranked_handler() { process_request(); }",
+        )];
+        let structural = codebase_search("ranked_handler", &index, Some(10));
+        let base_score = structural[0].score;
+
+        let merged = merge_search_results(
+            &index,
+            structural,
+            vec![SemanticChunkScore {
+                path: "src/lib.rs".to_string(),
+                start_line: 1,
+                end_line: 5,
+                name: "ranked_handler".to_string(),
+                score: 0.8,
+            }],
+            Some(10),
+        );
+
+        assert_eq!(merged[0].name, "ranked_handler");
+        assert!(merged[0].score > base_score);
+    }
+
+    #[test]
+    fn test_merge_search_results_adds_semantic_only_match() {
+        let index = vec![make_chunk(
+            "semantic_candidate",
+            ItemKind::Function,
+            "fn semantic_candidate() { handle_request(); }",
+        )];
+
+        let merged = merge_search_results(
+            &index,
+            Vec::new(),
+            vec![SemanticChunkScore {
+                path: "src/lib.rs".to_string(),
+                start_line: 1,
+                end_line: 5,
+                name: "semantic_candidate".to_string(),
+                score: 0.7,
+            }],
+            Some(10),
+        );
+
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].name, "semantic_candidate");
+        assert!(merged[0].score > 0.0);
     }
 }

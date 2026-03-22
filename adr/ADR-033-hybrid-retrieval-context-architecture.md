@@ -50,14 +50,16 @@ snippets with file:line references.
 ### Phase 2 — Semantic vector search (optional, additive)
 
 5. When an embedding provider is configured (`VEX_EMBEDDING_PROVIDER`,
-   `VEX_EMBEDDING_MODEL`), chunks from Phase 1 are embedded at logical
-   boundaries (function/type level) and stored in an in-process vector index.
+   `VEX_EMBEDDING_MODEL`, `VEX_EMBEDDING_URL`), chunks from Phase 1 are
+   embedded at logical boundaries (function/type level) and stored in a
+   persisted local vector index under `.vex/index/semantic-codebase-index.json`.
 
 6. Semantic search returns snippets ranked by cosine similarity to the query
-   embedding, merged with structural match scores from Phase 1.
+   embedding, merged with structural match scores from Phase 1. When no
+   embedding provider is configured, `codebase_search` remains structural-only.
 
-7. The vector index is persisted to `.vex/index/` and updated incrementally.
-   First-time indexing is bounded by `VEX_INDEX_MAX_FILES` (default 5000).
+7. The vector index is updated incrementally and first-time indexing is bounded
+   by `VEX_INDEX_MAX_FILES` (default 5000).
 
 ### Phase 3 — Diff-native edits and write guards
 
@@ -97,8 +99,8 @@ snippets with file:line references.
 - `apply_diff` preference prevents truncation on large-file edits.
 - Context condensing extends effective session length on small-context servers.
 - Phase 1 (structural search) requires Tree-sitter Rust parser as a build
-  dependency. Phase 2 (vector search) is optional and requires an embedding
-  provider.
+   dependency. Phase 2 (vector search) is optional, requires an embedding
+   provider, and persists provider/model-specific embeddings inside `.vex/index/`.
 
 ## Implementation order
 
