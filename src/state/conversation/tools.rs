@@ -41,6 +41,14 @@ fn refresh_codebase_index(rel_path: &str, workspace_root: &std::path::Path) {
     }
 }
 
+#[cfg(test)]
+pub(super) fn rebuild_codebase_index_for_tests(workspace_root: &std::path::Path) {
+    let idx_mutex = CODEBASE_INDEX.get_or_init(|| Mutex::new(Vec::new()));
+    if let Ok(mut idx) = idx_mutex.lock() {
+        *idx = index::build_index(workspace_root);
+    }
+}
+
 /// Maximum bytes kept in the accumulated stdout/stderr buffers returned to the
 /// model after a `run_command` tool call.  The full output is always streamed to
 /// the TUI via `TranscriptLine`, so this cap only limits the in-process buffer
@@ -623,7 +631,10 @@ pub(super) fn execute_tool_dispatch(
                 "new_path",
                 &["new_path", "to", "target_path"],
             )?;
-            tool_operator.rename_file(old_path, new_path)
+            let result = tool_operator.rename_file(old_path, new_path)?;
+            refresh_codebase_index(old_path, tool_operator.working_dir());
+            refresh_codebase_index(new_path, tool_operator.working_dir());
+            Ok(result)
         }
         "list_files" | "list_directory" => tool_operator.list_files(
             first_tool_string(input, &["path", "dir", "directory", "root"]),

@@ -483,6 +483,51 @@ fn test_search_files_accepts_common_query_aliases() {
     assert!(result.contains("notes.txt:1:hello alias world"));
 }
 
+#[tokio::test]
+async fn test_rename_file_refreshes_codebase_search_index() -> Result<()> {
+    let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+    let temp = TempDir::new()?;
+    let src_dir = temp.path().join("src");
+    std::fs::create_dir_all(&src_dir)?;
+    std::fs::write(src_dir.join("old_name.rs"), "pub fn renamed_symbol() {}\n")?;
+
+    rebuild_codebase_index_for_tests(temp.path());
+
+    let operator = ToolOperator::new(temp.path().to_path_buf());
+    let before = execute_tool_dispatch(
+        &operator,
+        "codebase_search",
+        &json!({
+            "query": "renamed_symbol",
+            "max_results": 5
+        }),
+    )?;
+    assert!(before.contains("src/old_name.rs:1-1"));
+
+    let rename_result = execute_tool_dispatch(
+        &operator,
+        "rename_file",
+        &json!({
+            "old_path": "src/old_name.rs",
+            "new_path": "src/new_name.rs"
+        }),
+    )?;
+    assert!(rename_result.contains("Renamed src/old_name.rs -> src/new_name.rs"));
+
+    let after = execute_tool_dispatch(
+        &operator,
+        "codebase_search",
+        &json!({
+            "query": "renamed_symbol",
+            "max_results": 5
+        }),
+    )?;
+    assert!(after.contains("src/new_name.rs:1-1"));
+    assert!(!after.contains("src/old_name.rs:1-1"));
+
+    Ok(())
+}
+
 #[test]
 fn test_default_tool_approval_enabled_prefers_remote_only() {
     assert!(default_tool_approval_enabled(false));
