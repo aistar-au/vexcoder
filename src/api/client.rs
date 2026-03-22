@@ -759,10 +759,14 @@ fn tool_definitions() -> serde_json::Value {
     json!([
         {
             "name": "read_file",
-            "description": "Read file content",
+            "description": "Read file content. For large files, use offset and limit to read specific line ranges instead of loading the entire file.",
             "input_schema": {
                 "type": "object",
-                "properties": { "path": { "type": "string" } },
+                "properties": {
+                    "path": { "type": "string", "description": "File path relative to workspace root" },
+                    "offset": { "type": "integer", "description": "Starting line number (1-based). Omit to start from line 1." },
+                    "limit": { "type": "integer", "description": "Maximum number of lines to return. Omit to read all remaining lines." }
+                },
                 "required": ["path"]
             }
         },

@@ -38,6 +38,27 @@ fn max_command_output_bytes() -> usize {
         .unwrap_or(DEFAULT_MAX_COMMAND_OUTPUT_BYTES)
 }
 
+/// Maximum lines returned by read_file when no explicit limit is provided.
+/// Configurable via `VEX_READ_FILE_MAX_LINES`. When not set, derives from
+/// `VEX_MAX_TOKENS` using the heuristic: 1 line ≈ 20 tokens, budget ≈ 10%
+/// of max_tokens for a single file read. Defaults to 200 for small contexts.
+fn read_file_max_lines() -> usize {
+    if let Some(explicit) = std::env::var("VEX_READ_FILE_MAX_LINES")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+    {
+        return explicit;
+    }
+    // Derive from max_tokens: allocate ~10% of context budget per file read,
+    // at ~20 tokens per line. Large contexts (128K+) get generous limits.
+    let max_tokens: usize = std::env::var("VEX_MAX_TOKENS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(4096);
+    let budget_lines = max_tokens / 200; // ~10% of context / 20 tok per line
+    budget_lines.clamp(50, 10_000)
+}
+
 /// Append `text` to `buf`, keeping only the tail when the cap is exceeded.
 fn append_capped(buf: &mut String, text: &str, cap: usize) {
     buf.push_str(text);
@@ -481,7 +502,19 @@ pub(super) fn execute_tool_dispatch(
         "read_file" => {
             let path =
                 required_tool_string_any(input, name, "path", &["path", "file_path", "file"])?;
-            tool_operator.read_file(path)
+            let offset = input
+                .get("offset")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize);
+            let limit = input
+                .get("limit")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize);
+            // Auto-cap reads to preserve context budget. The model can use
+            // offset/limit to navigate within large files.
+            let auto_limit = read_file_max_lines();
+            let effective_limit = limit.or(Some(auto_limit));
+            tool_operator.read_file_range(path, offset, effective_limit)
         }
         "write_file" => {
             let path =
