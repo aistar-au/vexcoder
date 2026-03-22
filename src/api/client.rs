@@ -144,6 +144,19 @@ impl ApiClient {
         is_local_endpoint_url(&self.api_url)
     }
 
+    /// Return a startup warning when a local endpoint uses HTTPS.
+    /// HTTPS is not supported for local inference servers; HTTP is required.
+    pub fn https_local_startup_warning(&self) -> Option<String> {
+        if !self.is_local_endpoint() || !self.api_url.starts_with("https://") {
+            return None;
+        }
+        let plain = preferred_plain_http_url_for_local_endpoint(&self.api_url)?;
+        Some(format!(
+            "[warning] local endpoint '{}' uses HTTPS; plain HTTP is required for local servers. Consider '{}'.",
+            self.api_url, plain
+        ))
+    }
+
     pub fn model_name(&self) -> String {
         self.model
             .read()
@@ -404,6 +417,18 @@ fn map_api_request_error(error: reqwest::Error, request_url: &str) -> anyhow::Er
         );
     }
     if let Some(status) = error.status() {
+        if status == reqwest::StatusCode::BAD_REQUEST && is_local_endpoint_url(request_url) {
+            let detected = infer_api_protocol(request_url);
+            return anyhow!(
+                "API endpoint '{}' returned HTTP 400 Bad Request: {}\n  \
+                 detected protocol: {:?}. Check: model name, protocol format \
+                 (MessagesV1 vs ChatCompat), and whether the server supports streaming.{}",
+                request_url,
+                error,
+                detected,
+                local_http_hint
+            );
+        }
         return anyhow!(
             "API endpoint '{}' returned HTTP {}: {}",
             request_url,
@@ -444,7 +469,6 @@ fn resolve_max_tokens(default_max_tokens: u32) -> u32 {
     default_max_tokens
 }
 
-#[allow(dead_code)]
 fn infer_api_protocol(api_url: &str) -> ApiProtocol {
     let normalized = api_url.trim().to_ascii_lowercase();
     if normalized.contains("/chat/completions") || normalized.ends_with("/v1") {
