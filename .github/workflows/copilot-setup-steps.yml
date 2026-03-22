@@ -87,6 +87,7 @@ jobs:
 
           hosted_files=(
             .github/copilot-instructions.md
+            .github/instructions/repository.instructions.md
             .github/agents/rust-change-auditor.agent.md
             .github/agents/vexcoder-hybrid-retrieval.agent.md
             .github/agents/vexcoder-ui-parity-orchestrator.agent.md
