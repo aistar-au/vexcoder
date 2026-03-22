@@ -29,13 +29,13 @@ applyTo: "**"
 ### Bootstrap
 
 - Read `AGENTS.md` first.
-- For local operator sessions, bootstrap the private skill tree from
-  `../vexdraft/.agents/skills/`.
+- For local operator sessions, use the adjacent private skill checkout
+  described in `AGENTS.md`.
 - For repository-hosted background sessions, stay self-contained inside this
   repository. Do not bootstrap, fetch, or depend on private skills or adjacent
   repos before editing.
 - In `AGENTS.md`, repository-hosted background sessions must ignore the
-  `Local bootstrap only` section and every `../vexdraft` reference.
+  `Local bootstrap only` section and every adjacent private-skill reference.
 - When present, read the repository-hosted agent instructions file under
   `.github/` as part of the background-session contract.
 
@@ -125,9 +125,7 @@ gh pr checks <pr> --watch
   workflows, start with `cargo fmt --check`, `cargo test --all-targets`, and
   `bash scripts/check_forbidden_names.sh`. Run `make gate-fast` only when the
   full toolchain is already present in the runner image.
-- Do not delegate `cargo`, `cargo clippy`, `cargo test`, `cargo check`, or
-  `make gate-fast` to another hosted agent or subagent. If those validations
-  are needed, leave them to the local operator or CI.
+- Do not delegate `cargo`, `cargo clippy`, `cargo test`, `cargo check`, or `make gate-fast` to another hosted agent or subagent. If those validations are needed, leave them to the local operator or CI.
 - Promote remote agent output onto a `work/<topic>` branch before
   commit-debug, CI watch, and final PR preparation.
 - Create or reuse a draft PR for that `work/<topic>` branch before the
