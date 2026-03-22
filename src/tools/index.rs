@@ -65,7 +65,7 @@ pub fn build_index(workspace_root: &Path) -> Vec<IndexChunk> {
 pub fn update_index(index: &mut Vec<IndexChunk>, changed_path: &Path, workspace_root: &Path) {
     let rel = workspace_relative(changed_path, workspace_root);
     index.retain(|c| c.path != rel);
-    if changed_path.extension().map_or(false, |e| e == "rs") {
+    if changed_path.extension().is_some_and(|e| e == "rs") {
         if let Ok(source) = fs::read_to_string(changed_path) {
             parse_rust_file(&rel, &source, index);
         }
@@ -81,7 +81,7 @@ fn collect_rs_files(dir: &Path, workspace_root: &Path, chunks: &mut Vec<IndexChu
         let path = entry.path();
         if path.is_dir() {
             collect_rs_files(&path, workspace_root, chunks);
-        } else if path.extension().map_or(false, |e| e == "rs") {
+        } else if path.extension().is_some_and(|e| e == "rs") {
             let rel = workspace_relative(&path, workspace_root);
             if let Ok(source) = fs::read_to_string(&path) {
                 parse_rust_file(&rel, &source, chunks);
