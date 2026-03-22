@@ -1441,7 +1441,7 @@ The migration tooling exists to help operators who were running `vexcoder` befor
 
 ### Why is code indexing a formal deferral gate rather than simply unscheduled?
 
-Recording a deferral explicitly prevents a operator from treating the absence of an ADR as permission to proceed. The `src/index/` path is named, the rationale for not building it yet is on record, and any future implementation is required to go through a new ADR. Without this gate, the constraint is invisible to automated agents processing the task backlog.
+Recording a deferral explicitly prevents an operator from treating the absence of an ADR as permission to proceed. The `src/index/` path is named, the rationale for not building it yet is on record, and any future implementation is required to go through a new ADR. Without this gate, the constraint is invisible to automated agents processing the task backlog.
 
 ---
 
