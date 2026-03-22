@@ -120,6 +120,41 @@ impl ToolOperator {
         fs::read_to_string(resolved).context("Failed to read file")
     }
 
+    /// Read a file with optional line-based offset and limit to preserve
+    /// context budget on small-window servers.
+    pub fn read_file_range(
+        &self,
+        path: &str,
+        offset: Option<usize>,
+        limit: Option<usize>,
+    ) -> Result<String> {
+        let resolved = self.resolve_path(path)?;
+        if resolved.is_dir() {
+            bail!("read_file expected a file path, got a directory: {path}");
+        }
+        let content = fs::read_to_string(&resolved).context("Failed to read file")?;
+        let start = offset.unwrap_or(1).saturating_sub(1); // 1-based to 0-based
+        let lines: Vec<&str> = content.lines().collect();
+        let total = lines.len();
+        if start >= total {
+            return Ok(format!(
+                "(file has {total} lines, offset {start} is past end)"
+            ));
+        }
+        let end = limit.map(|l| (start + l).min(total)).unwrap_or(total);
+        let selected: Vec<String> = lines[start..end]
+            .iter()
+            .enumerate()
+            .map(|(i, line)| format!("{:>5}\t{}", start + i + 1, line))
+            .collect();
+        let header = if start > 0 || end < total {
+            format!("(showing lines {}-{} of {total})\n", start + 1, end)
+        } else {
+            String::new()
+        };
+        Ok(format!("{}{}", header, selected.join("\n")))
+    }
+
     pub fn read_file_if_exists(&self, path: &str) -> Result<Option<String>> {
         let resolved = self.resolve_path(path)?;
         if resolved.is_dir() {

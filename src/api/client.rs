@@ -354,9 +354,13 @@ impl ApiClient {
         let response = request
             .send()
             .await
-            .map_err(|error| map_api_request_error(error, &request_url))?
-            .error_for_status()
             .map_err(|error| map_api_request_error(error, &request_url))?;
+
+        let status = response.status();
+        if status.is_client_error() || status.is_server_error() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(map_api_status_error(status, &body, &request_url));
+        }
 
         let request_url_for_stream = request_url.clone();
         let stream = response.bytes_stream().map(move |item| {
@@ -438,6 +442,78 @@ fn map_api_request_error(error: reqwest::Error, request_url: &str) -> anyhow::Er
         );
     }
     anyhow!("API request to '{}' failed: {}", request_url, error)
+}
+
+/// Handle HTTP 4xx responses where the body has already been read.
+/// Detects context-overflow errors from local inference servers and provides
+/// actionable guidance including `--ctx-size` configuration hints.
+fn map_api_status_error(
+    status: reqwest::StatusCode,
+    body: &str,
+    request_url: &str,
+) -> anyhow::Error {
+    let local_http_hint = local_plain_http_hint(request_url);
+    let is_local = is_local_endpoint_url(request_url);
+
+    // Detect context-window overflow from local servers (e.g. llama.cpp, vLLM).
+    if is_context_overflow(body) {
+        let ctx_hint = if is_local {
+            "\n  The conversation has exceeded the server's context window. \
+             Restart the server with a larger context size (e.g. --ctx-size 8192) \
+             or use /clear to reset the conversation."
+        } else {
+            "\n  The conversation has exceeded the endpoint's context window. \
+             Use /clear to reset the conversation."
+        };
+        return anyhow!(
+            "API endpoint '{}' returned HTTP {}: {}{}\n  Server message: {}",
+            request_url,
+            status.as_u16(),
+            status.canonical_reason().unwrap_or(""),
+            ctx_hint,
+            body.chars().take(300).collect::<String>()
+        );
+    }
+
+    // Local 400 with protocol hint (non-context-overflow).
+    if status == reqwest::StatusCode::BAD_REQUEST && is_local {
+        let detected = infer_api_protocol(request_url);
+        return anyhow!(
+            "API endpoint '{}' returned HTTP 400 Bad Request.\n  \
+             detected protocol: {:?}. Check: model name, protocol format \
+             (MessagesV1 vs ChatCompat), and whether the server supports streaming.{}\n  \
+             Server message: {}",
+            request_url,
+            detected,
+            local_http_hint,
+            body.chars().take(300).collect::<String>()
+        );
+    }
+
+    anyhow!(
+        "API endpoint '{}' returned HTTP {}: {}",
+        request_url,
+        status.as_u16(),
+        if body.is_empty() {
+            status
+                .canonical_reason()
+                .unwrap_or("unknown error")
+                .to_string()
+        } else {
+            body.chars().take(500).collect::<String>()
+        }
+    )
+}
+
+/// Returns true when the response body indicates the request exceeded the
+/// server's configured context window.
+fn is_context_overflow(body: &str) -> bool {
+    let lower = body.to_ascii_lowercase();
+    lower.contains("exceeds the available context size")
+        || lower.contains("exceeds context")
+        || lower.contains("context length exceeded")
+        || lower.contains("maximum context length")
+        || lower.contains("context window")
 }
 
 fn local_plain_http_hint(request_url: &str) -> String {
@@ -683,10 +759,14 @@ fn tool_definitions() -> serde_json::Value {
     json!([
         {
             "name": "read_file",
-            "description": "Read file content",
+            "description": "Read file content. For large files, use offset and limit to read specific line ranges instead of loading the entire file.",
             "input_schema": {
                 "type": "object",
-                "properties": { "path": { "type": "string" } },
+                "properties": {
+                    "path": { "type": "string", "description": "File path relative to workspace root" },
+                    "offset": { "type": "integer", "description": "Starting line number (1-based). Omit to start from line 1." },
+                    "limit": { "type": "integer", "description": "Maximum number of lines to return. Omit to read all remaining lines." }
+                },
                 "required": ["path"]
             }
         },
@@ -1291,5 +1371,78 @@ mod tests {
         client.set_supplementary_system_prompt(None);
 
         assert_eq!(client.system_prompt(), BASE_SYSTEM_PROMPT);
+    }
+
+    #[test]
+    fn test_is_context_overflow_detects_llama_cpp() {
+        assert!(is_context_overflow(
+            "request (4291 tokens) exceeds the available context size (4096 tokens), try increasing it"
+        ));
+    }
+
+    #[test]
+    fn test_is_context_overflow_detects_vllm() {
+        assert!(is_context_overflow(
+            "This model's maximum context length is 4096 tokens"
+        ));
+    }
+
+    #[test]
+    fn test_is_context_overflow_negative() {
+        assert!(!is_context_overflow("invalid model name"));
+        assert!(!is_context_overflow("bad request"));
+        assert!(!is_context_overflow(""));
+    }
+
+    #[test]
+    fn test_map_api_status_error_context_overflow_local() {
+        let err = map_api_status_error(
+            reqwest::StatusCode::BAD_REQUEST,
+            "request (4291 tokens) exceeds the available context size (4096 tokens)",
+            "http://localhost:8000/v1/messages",
+        );
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("exceeded the server's context window"),
+            "got: {msg}"
+        );
+        assert!(msg.contains("--ctx-size"), "got: {msg}");
+        assert!(msg.contains("/clear"), "got: {msg}");
+    }
+
+    #[test]
+    fn test_map_api_status_error_generic_400_local() {
+        let err = map_api_status_error(
+            reqwest::StatusCode::BAD_REQUEST,
+            "invalid model name",
+            "http://localhost:8000/v1/messages",
+        );
+        let msg = format!("{}", err);
+        assert!(msg.contains("protocol"), "got: {msg}");
+        assert!(msg.contains("MessagesV1"), "got: {msg}");
+    }
+
+    #[test]
+    fn test_map_api_status_error_remote_400() {
+        let err = map_api_status_error(
+            reqwest::StatusCode::BAD_REQUEST,
+            "bad request body",
+            "https://api.example.com/v1/messages",
+        );
+        let msg = format!("{}", err);
+        assert!(msg.contains("bad request body"), "got: {msg}");
+        assert!(!msg.contains("--ctx-size"), "got: {msg}");
+    }
+
+    #[test]
+    fn test_map_api_status_error_server_500() {
+        let err = map_api_status_error(
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            "internal server error: out of memory",
+            "http://localhost:8000/v1/messages",
+        );
+        let msg = format!("{}", err);
+        assert!(msg.contains("500"), "got: {msg}");
+        assert!(msg.contains("out of memory"), "got: {msg}");
     }
 }

@@ -579,7 +579,10 @@ mod tests {
 
     #[test]
     fn scope_detail_prefers_builtin_tool_description() {
-        assert_eq!(tool_scope_detail("read_file"), "Read file content");
+        assert_eq!(
+            tool_scope_detail("read_file"),
+            "Read file content. For large files, use offset and limit to read specific line ranges instead of loading the entire file."
+        );
     }
 
     #[test]

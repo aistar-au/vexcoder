@@ -57,9 +57,12 @@ The full model endpoint URL.
   localhost URLs such as `http://localhost:8000/v1/messages`. If you enter an
   HTTPS localhost URL in the interactive startup prompt, `vex` now suggests the
   equivalent plain-HTTP localhost endpoint before the fullscreen session starts.
-- If a local endpoint returns HTTP 400, the error message now includes the
-  detected protocol (MessagesV1 vs ChatCompat) and suggests checking the model
-  name, protocol format, and whether the server supports streaming.
+- If a local endpoint returns HTTP 400 due to context overflow, the error now
+  shows the server's message verbatim and suggests increasing `--ctx-size` on
+  the server or using `/clear` to reset the conversation.
+- For non-context-overflow 400s, the error includes the detected protocol
+  (MessagesV1 vs ChatCompat) and suggests checking the model name, protocol
+  format, and whether the server supports streaming.
 
 ### `VEX_MODEL_TOKEN`
 
@@ -123,6 +126,15 @@ Overrides the notes token budget.
 Maximum bytes kept in the accumulated stdout/stderr buffer returned to the
 model after a `run_command` tool call. The full output is always streamed to
 the TUI transcript. Default: `51200` (50 KiB).
+
+### `VEX_READ_FILE_MAX_LINES`
+
+Maximum lines returned by the `read_file` tool when no explicit `limit`
+parameter is provided. When not set, derives from `VEX_MAX_TOKENS`: roughly
+10% of the context budget at ~20 tokens per line. For a 4096-token context
+this yields ~50 lines; for 128K it yields ~640; for 1M+ contexts up to
+10,000 lines. The `read_file` tool also accepts `offset` (1-based line
+number) and `limit` parameters for targeted partial reads.
 
 ## `vex init` scaffold
 
