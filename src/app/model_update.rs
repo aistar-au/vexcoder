@@ -90,6 +90,19 @@ impl TuiMode {
                             {
                                 self.current_turn_command_history.push(evidence);
                             }
+                            // Immediately push a verb-first line so the user
+                            // sees tool progress without waiting for the model
+                            // to produce response text.
+                            let previous_output_len = self.task_output_view().1.len();
+                            let para = verb_first_tool_paragraph(
+                                &pending.name,
+                                &pending.input,
+                                output,
+                                *is_error,
+                            );
+                            self.push_history_line(para);
+                            self.preserve_transcript_scroll_on_growth(previous_output_len);
+
                             self.current_turn_tool_invocations
                                 .push(ToolInvocationSummary {
                                     step_id: pending.step_id,
@@ -272,6 +285,116 @@ impl TuiMode {
                 self.read_only_turn_active = false;
                 self.transcript_scroll_offset = 0;
                 self.inspector_scroll_offset = 0;
+            }
+        }
+    }
+}
+
+/// Derive a verb-first one-liner from a completed tool call so the transcript
+/// shows immediate progress instead of a blank screen while the model thinks.
+fn verb_first_tool_paragraph(
+    name: &str,
+    input: &serde_json::Value,
+    output: &str,
+    is_error: bool,
+) -> String {
+    if is_error {
+        let short = output
+            .lines()
+            .map(str::trim)
+            .find(|l| !l.is_empty())
+            .unwrap_or("error");
+        let capped = &short[..short.floor_char_boundary(60)];
+        return format!("[!] {name}: {capped}");
+    }
+
+    let str_arg = |keys: &[&str]| -> &str {
+        keys.iter()
+            .find_map(|k| {
+                input
+                    .get(*k)
+                    .and_then(|v| v.as_str())
+                    .filter(|v| !v.is_empty())
+            })
+            .unwrap_or("")
+    };
+
+    match name {
+        "search_files" | "search_content" | "search" | "find_files" => {
+            let pat = str_arg(&["pattern", "query", "q", "text", "needle"]);
+            let path = str_arg(&["path", "directory", "dir"]);
+            if !pat.is_empty() && !path.is_empty() {
+                format!("Searched {pat:?} in {path}")
+            } else if !pat.is_empty() {
+                format!("Searched {pat:?}")
+            } else {
+                format!("{name}: ok")
+            }
+        }
+        "read_file" => {
+            let path = str_arg(&["path", "file"]);
+            let lines = output.lines().count();
+            if !path.is_empty() {
+                format!("Read {path} ({lines} lines)")
+            } else {
+                format!("{name}: ok")
+            }
+        }
+        "list_files" | "list_directory" => {
+            let path = str_arg(&["path", "dir", "directory", "root"]);
+            let count = output.lines().count();
+            if !path.is_empty() {
+                format!("Listed {path} ({count} entries)")
+            } else {
+                format!("{name}: ok")
+            }
+        }
+        "write_file" => {
+            let path = str_arg(&["path", "file"]);
+            let lines = str_arg(&["content"]).lines().count();
+            if !path.is_empty() && lines > 0 {
+                format!("Wrote {lines} lines to {path}")
+            } else if !path.is_empty() {
+                format!("Wrote {path}")
+            } else {
+                format!("{name}: ok")
+            }
+        }
+        "edit_file" => {
+            let path = str_arg(&["path", "file"]);
+            if !path.is_empty() {
+                format!("Edited {path}")
+            } else {
+                format!("{name}: ok")
+            }
+        }
+        "git_status" => "Checked git status".to_string(),
+        "git_diff" => "Fetched git diff".to_string(),
+        "git_log" => "Fetched git log".to_string(),
+        "git_show" => "Showed git object".to_string(),
+        "git_add" => "Staged files".to_string(),
+        "git_commit" => "Committed changes".to_string(),
+        "run_command" => {
+            let cmd = str_arg(&["command", "cmd"]);
+            if !cmd.is_empty() {
+                let capped = &cmd[..cmd.floor_char_boundary(60)];
+                format!("Ran: {capped}")
+            } else {
+                format!("{name}: ok")
+            }
+        }
+        "apply_patch" => "Applied patch".to_string(),
+        _ => {
+            let first = output
+                .lines()
+                .map(str::trim)
+                .find(|l| !l.is_empty())
+                .unwrap_or("");
+            if first.is_empty() {
+                format!("{name}: ok")
+            } else {
+                let capped = &first[..first.floor_char_boundary(60)];
+                format!("{name}: {capped}")
             }
         }
     }

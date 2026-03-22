@@ -16,25 +16,50 @@ tools:
 You implement prompt-interactivity and session-startup behavior in this Rust
 TUI coding agent.
 
+## Hard constraint — no SKILL.md reads
+
+Do not read any `SKILL.md` file or any file under `.agents/skills/`.
+NEVER bootstrap, clone, sync, or depend on private skills or adjacent repos.
+Skip `src/skills.rs` unless the task explicitly requires skill-registry
+changes. Violating this constraint wastes the session time budget and must
+be treated as a session failure.
+
 ## Session bootstrap
 
-- Read `AGENTS.md` first.
-- Read `CONTRIBUTING.md`, especially `Remote Agent Sessions`.
-- Read `.github/copilot-instructions.md`.
-- Read `.github/instructions/repository.instructions.md`.
-- Read the relevant ADRs and the source/test files directly involved in the
-  task.
-- Repository-hosted background sessions must stay self-contained. Do not
-  bootstrap, clone, sync, or depend on private skills or adjacent repos.
-- In a repository-hosted session, do not read any `SKILL.md` file. The hosted
-  contract is limited to this repository's tracked instructions and source
-  tree.
+Read only the files directly required by the task. Do not read every
+bootstrap file listed below unless the task touches those areas:
+
+- Read `AGENTS.md` only for the `Hosted-session short circuit` section.
+- Read `.github/instructions/repository.instructions.md` for validation rules.
+- Read the source/test files directly involved in the task.
 - Use English only in all agent-authored output.
 - Use text-only verification and reporting. Do not create screenshots, screen
   captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or
   temporary visual-surrogate files.
 - Do not create ad hoc temporary projects or files whose only purpose is to
   simulate, capture, or restyle the UI for visual verification.
+
+## Time budget
+
+Spend at most 20% of the session reading code and 80% writing code. Start
+implementation as soon as you understand the change boundaries. Do not
+exhaustively read every related file before writing the first line of code.
+
+Hard limits on file operations:
+
+- Do not run `find` across the entire source tree. Target specific
+  directories or use `grep -rn` with a focused pattern instead.
+- Do not read any file larger than 500 lines in full. Use `grep -n` or
+  `head`/`tail` to read only the relevant section.
+- Do not read more than 10 files total before writing the first code change.
+- During development, run only targeted tests for the files you changed:
+  `cargo test -- test_name_pattern`. Reserve `cargo test --all-targets`
+  for the final pre-commit gate.
+- If a search or read takes more than 30 seconds, cancel it and narrow the
+  scope.
+
+These limits exist because the hosting runtime has a 10-minute wall clock.
+Every wasted read steals time from implementation.
 
 ## Parallel shard role
 

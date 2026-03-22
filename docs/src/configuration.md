@@ -57,6 +57,9 @@ The full model endpoint URL.
   localhost URLs such as `http://localhost:8000/v1/messages`. If you enter an
   HTTPS localhost URL in the interactive startup prompt, `vex` now suggests the
   equivalent plain-HTTP localhost endpoint before the fullscreen session starts.
+- If a local endpoint returns HTTP 400, the error message now includes the
+  detected protocol (MessagesV1 vs ChatCompat) and suggests checking the model
+  name, protocol format, and whether the server supports streaming.
 
 ### `VEX_MODEL_TOKEN`
 
