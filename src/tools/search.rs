@@ -16,7 +16,8 @@ pub struct SearchResult {
 fn max_results_default() -> usize {
     std::env::var("VEX_SEARCH_MAX_RESULTS")
         .ok()
-        .and_then(|v| v.parse().ok())
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|&n| n > 0)
         .unwrap_or(10)
 }
 
@@ -56,7 +57,9 @@ pub fn codebase_search(
         })
         .collect();
 
-    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    scored.sort_by(|(score_a, idx_a), (score_b, idx_b)| {
+        score_b.total_cmp(score_a).then(idx_a.cmp(idx_b))
+    });
     scored.truncate(cap);
 
     scored

@@ -141,11 +141,12 @@ fn extract_items(
             let end_line = child.end_position().row + 1;
             let chunk_source = child.utf8_text(source).unwrap_or("").to_string();
 
-            let scope_name = if kind == ItemKind::Impl || kind == ItemKind::Trait {
-                Some(name.clone())
-            } else {
-                parent_scope.map(String::from)
-            };
+            let scope_name =
+                if kind == ItemKind::Impl || kind == ItemKind::Trait || kind == ItemKind::Module {
+                    Some(name.clone())
+                } else {
+                    parent_scope.map(String::from)
+                };
 
             chunks.push(IndexChunk {
                 path: rel_path.to_string(),
@@ -270,5 +271,19 @@ mod tests {
         update_index(&mut chunks, &file_path, tmp.path());
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].name, "new_fn");
+    }
+
+    #[test]
+    fn test_mod_item_propagates_scope_to_nested_functions() {
+        let source = "mod mymod {\n    fn inner() {}\n}\n";
+        let mut chunks = Vec::new();
+        parse_rust_file("test.rs", source, &mut chunks);
+        let inner = chunks.iter().find(|c| c.name == "inner");
+        assert!(inner.is_some(), "expected to find function 'inner'");
+        assert_eq!(
+            inner.unwrap().parent_scope.as_deref(),
+            Some("mymod"),
+            "function inside mod should have parent_scope = module name"
+        );
     }
 }
