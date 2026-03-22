@@ -73,7 +73,4 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
 - If the hosted run finishes with only a planning commit or no file diff,
   report that no code was published and do not describe the implementation as
   landed.
-- Do not delegate `cargo`, `cargo clippy`, `cargo test`, `cargo check`, or
-  `make gate-fast` to another hosted agent or subagent. Leave those commands to
-  the local operator or CI because nested delegation is unreliable in the
-  hosted runtime.
+- Do not delegate `cargo`, `cargo clippy`, `cargo test`, `cargo check`, or `make gate-fast` to another hosted agent or subagent. Leave those commands to the local operator or CI because nested delegation is unreliable in the hosted runtime.
