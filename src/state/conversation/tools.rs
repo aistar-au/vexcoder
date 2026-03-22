@@ -7,8 +7,10 @@ use crate::runtime::{
     PassthroughSandbox, SandboxDriver,
 };
 use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
+use crate::tools::embed::EmbeddingConfig;
 use crate::tools::index::{self, IndexChunk};
 use crate::tools::search;
+use crate::tools::semantic;
 use crate::tools::{ToolOperator, WriteFileOutcome};
 use crate::types::ContentBlock;
 use crate::util::parse_bool_flag;
@@ -163,6 +165,8 @@ impl ConversationManager {
         let tool_result = if name == "run_command" {
             execute_run_command_tool(&self.tool_operator, input, tool_timeout, stream_delta_tx)
                 .await
+        } else if name == "codebase_search" {
+            execute_codebase_search_tool(&self.tool_operator, input).await
         } else {
             let task_name = tool_name.clone();
             let task_input = input.clone();
@@ -301,6 +305,43 @@ impl ConversationManager {
 
         Ok(())
     }
+}
+
+async fn execute_codebase_search_tool(
+    tool_operator: &ToolOperator,
+    input: &serde_json::Value,
+) -> Result<String> {
+    let query = required_tool_string(input, "codebase_search", "query")?;
+    let max_results = input
+        .get("max_results")
+        .and_then(|value| value.as_u64())
+        .map(|value| value as usize);
+    let idx_mutex = CODEBASE_INDEX.get_or_init(|| {
+        let chunks = index::build_index(tool_operator.working_dir());
+        Mutex::new(chunks)
+    });
+    let idx = idx_mutex
+        .lock()
+        .map_err(|_| anyhow::anyhow!("codebase index lock poisoned"))?
+        .clone();
+
+    let structural_results = search::codebase_search(query, &idx, max_results);
+    let merged_results = match EmbeddingConfig::from_env()? {
+        Some(config) => {
+            let semantic_scores = semantic::semantic_search(
+                tool_operator.working_dir(),
+                &idx,
+                query,
+                &config,
+                max_results,
+            )
+            .await?;
+            search::merge_search_results(&idx, structural_results, semantic_scores, max_results)
+        }
+        None => structural_results,
+    };
+
+    Ok(search::format_search_results(query, &merged_results))
 }
 
 async fn execute_run_command_tool(

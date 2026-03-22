@@ -565,6 +565,46 @@ async fn test_rename_file_refreshes_codebase_search_index() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_execute_tool_codebase_search_works_without_embeddings() -> Result<()> {
+    let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+    std::env::remove_var("VEX_EMBEDDING_PROVIDER");
+    std::env::remove_var("VEX_EMBEDDING_MODEL");
+    std::env::remove_var("VEX_EMBEDDING_URL");
+    std::env::remove_var("VEX_EMBEDDING_API_KEY");
+
+    let temp = TempDir::new()?;
+    let src_dir = temp.path().join("src");
+    std::fs::create_dir_all(&src_dir)?;
+    std::fs::write(
+        src_dir.join("searchable.rs"),
+        "pub fn semantic_fallback() {}\n",
+    )?;
+
+    rebuild_codebase_index_for_tests(temp.path());
+
+    let mock_api_client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+    let manager = ConversationManager::new(
+        mock_api_client,
+        ToolOperator::new(temp.path().to_path_buf()),
+    );
+    let result = manager
+        .execute_tool_with_timeout_with_updates(
+            "codebase_search",
+            &json!({
+                "query": "semantic_fallback",
+                "max_results": 5,
+            }),
+            Duration::from_secs(2),
+            None,
+        )
+        .await?;
+
+    assert!(result.contains("semantic_fallback"));
+    assert!(result.contains("src/searchable.rs:1-1"));
+    Ok(())
+}
+
 #[test]
 fn test_default_tool_approval_enabled_prefers_remote_only() {
     assert!(default_tool_approval_enabled(false));
