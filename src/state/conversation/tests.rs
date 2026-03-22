@@ -2914,3 +2914,12 @@ fn test_truncate_to_lines_long_input_condensed() {
     assert!(result.contains("(15 more lines)"));
     assert!(!result.contains("line 5"));
 }
+
+#[test]
+fn test_truncate_to_lines_is_idempotent() {
+    let lines: Vec<String> = (0..20).map(|i| format!("line {i}")).collect();
+    let input = lines.join("\n");
+    let first = super::history::truncate_to_lines(&input, 5);
+    let second = super::history::truncate_to_lines(&first, 5);
+    assert_eq!(first, second, "truncate_to_lines must be idempotent");
+}

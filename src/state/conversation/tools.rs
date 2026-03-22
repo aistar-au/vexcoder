@@ -86,20 +86,22 @@ fn read_file_max_lines() -> usize {
 }
 
 /// Line threshold above which `write_file` warns the model to use
-/// `apply_diff` or `edit_file` instead. Default 200.
+/// `apply_patch` or `edit_file` instead. Default 200. Minimum 10.
 fn write_file_diff_preferred_above_lines() -> usize {
     std::env::var("VEX_DIFF_PREFERRED_ABOVE_LINES")
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
+        .map(|v| v.clamp(10, 10_000))
         .unwrap_or(200)
 }
 
 /// Hard line limit for `write_file`. Calls on files exceeding this are
-/// rejected outright. Default 500.
+/// rejected outright. Default 500. Minimum 10.
 fn write_file_max_lines() -> usize {
     std::env::var("VEX_WRITE_FILE_MAX_LINES")
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
+        .map(|v| v.clamp(10, 10_000))
         .unwrap_or(500)
 }
 

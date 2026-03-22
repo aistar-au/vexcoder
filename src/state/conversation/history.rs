@@ -286,9 +286,9 @@ pub(super) fn env_override_usize(key: &str, default: usize, min: usize, max: usi
         .unwrap_or(default)
 }
 
-/// Number of recent message pairs (user + assistant) to keep at full
-/// fidelity.  Older tool results are condensed to their first 5 lines.
-/// Configurable via `VEX_HISTORY_KEEP_TURNS`.
+/// Number of recent user messages to keep at full fidelity.  Tool results
+/// in messages older than this threshold are condensed to their first 5
+/// lines.  Configurable via `VEX_HISTORY_KEEP_TURNS`.
 const DEFAULT_HISTORY_KEEP_TURNS: usize = 10;
 const CONDENSED_TOOL_RESULT_LINES: usize = 5;
 
@@ -297,8 +297,13 @@ pub(super) fn resolve_history_keep_turns() -> usize {
 }
 
 /// Truncate a tool result to its first `max_lines` lines, appending a
-/// `(N more lines)` indicator when content is trimmed.
+/// `(N more lines)` indicator when content is trimmed.  Idempotent: if the
+/// last line already matches the indicator pattern, the text is returned
+/// unchanged.
 pub(super) fn truncate_to_lines(text: &str, max_lines: usize) -> String {
+    if text.lines().last().is_some_and(|l| l.ends_with("more lines)")) {
+        return text.to_string();
+    }
     let lines: Vec<&str> = text.lines().collect();
     if lines.len() <= max_lines {
         return text.to_string();
@@ -342,6 +347,7 @@ pub(super) fn truncate_for_history(text: &str, max_chars: usize) -> String {
 /// header line like `tool_result read_file:` followed by content lines.
 /// We keep the header and the first `CONDENSED_TOOL_RESULT_LINES` content
 /// lines, appending a `(N more lines)` indicator for the rest.
+/// Idempotent: existing `(N more lines)` indicators are preserved as-is.
 fn condense_text_protocol_tool_results(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut content_lines_since_header = 0usize;
@@ -350,8 +356,20 @@ fn condense_text_protocol_tool_results(text: &str) -> String {
 
     for line in text.lines() {
         let is_header = line.starts_with("tool_result ") || line.starts_with("tool_error ");
+        // Idempotency: treat existing indicators as pass-through.
+        if line.ends_with("more lines)") && line.starts_with('(') {
+            if in_tool_result {
+                out.push('\n');
+                out.push_str(line);
+            } else {
+                if !out.is_empty() {
+                    out.push('\n');
+                }
+                out.push_str(line);
+            }
+            continue;
+        }
         if is_header {
-            // Flush pending indicator for previous block.
             if in_tool_result && total_remaining > 0 {
                 out.push_str(&format!("\n({total_remaining} more lines)"));
                 total_remaining = 0;
@@ -377,11 +395,9 @@ fn condense_text_protocol_tool_results(text: &str) -> String {
             out.push_str(line);
         }
     }
-    // Flush final block.
     if in_tool_result && total_remaining > 0 {
         out.push_str(&format!("\n({total_remaining} more lines)"));
     }
-    // Remove leading newline if the original didn't start with one.
     if out.starts_with('\n') && !text.starts_with('\n') {
         out.remove(0);
     }

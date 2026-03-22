@@ -116,9 +116,10 @@ impl ConversationManager {
         let mut repeated_round_nudge_used = false;
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = TurnTokens::default();
+        // Condense once per user turn, not per API round, to stay idempotent.
+        self.condense_old_tool_results(history_keep_turns);
         loop {
             self.current_turn_blocks.clear();
-            self.condense_old_tool_results(history_keep_turns);
             turn_user_anchor_index = self
                 .prune_message_history_preserving(limits.max_api_messages, turn_user_anchor_index);
             rounds += 1;
