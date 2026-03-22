@@ -8,7 +8,7 @@ If this is a repository-hosted background session:
 
 - Stop here before reading any local bootstrap instruction below.
 - Ignore every `../vexdraft` reference in this file. Those lines are for local
-  dispatcher sessions only.
+  operator sessions only.
 - Do not bootstrap, clone, sync, fetch, inspect, or depend on private skills,
   adjacent repos, or setup-workflow copies of the private skill tree.
 - Do not read any `SKILL.md` file in a repository-hosted background session.
@@ -27,7 +27,7 @@ If this is a repository-hosted background session:
 
 Ignore this section in repository-hosted background sessions.
 
-- Only local dispatcher sessions bootstrap private skills.
+- Only local operator sessions bootstrap private skills.
 - Load `../vexdraft/.agents/skills/vex-local-bash/SKILL.md`.
 - Load `../vexdraft/.agents/skills/vex-remote-contract/SKILL.md`.
 - Load `../vexdraft/.agents/skills/vex-rust-arch/SKILL.md` for Rust changes.
@@ -82,9 +82,9 @@ workflows, or documentation tied to the same feature lane.
 
 Use five sections: Summary, Motivation, Approach, Validation, Risks.
 
-## For local dispatcher sessions
+## For local operator sessions
 
-Local dispatcher workflows use private skills from `../vexdraft/.agents/skills/`.
+Local operator workflows use private skills from `../vexdraft/.agents/skills/`.
 See `CONTRIBUTING.md` for the full local workflow, session commands, and the
 A–H post-session checklist.
 
@@ -123,19 +123,19 @@ A–H post-session checklist.
   paired launch-log tail has completed and any violation has been triaged.
 - If `rg` is unavailable, fall back to `git grep -n`, `grep -RIn`, or direct
   file reads and continue.
-- Promote remote agent output onto a `coder/vexcoder-...` branch before
+- Promote remote agent output onto a `work/<topic>` branch before
   commit-debug, CI watch, and PR preparation.
-- Create or reuse the draft PR for that coder branch before the first
+- Create or reuse the draft PR for that review branch before the first
   code-bearing push, then keep `HEAD` in sync with `origin/<branch>` after
   every code-bearing fix.
 - For parallel hosted work on one feature lane, use one shared
-  `coder/vexcoder-...` integration branch plus one hosted shard branch per
+  `work/<topic>` integration branch plus one hosted shard branch per
   disjoint write set. Keep the final merge path to `main` on the shared
   integration branch only.
-- If the hosted run opens a non-coder branch or ends with only a planning
+- If the hosted run opens a non-review branch or ends with only a planning
   commit and no file diff, treat it as draft-only evidence. Do not present the
   change as implemented until code-bearing commits are promoted onto a
-  coder branch.
+  review branch.
 - If `main` moves while hosted shards are running, do not force the running
   hosted sessions to rebase. Refresh the shared integration branch from the
   latest `origin/main`, cherry-pick completed shard commits onto it, and

@@ -2,7 +2,7 @@
 
 ## Status update
 
-This batch is now implemented on `dispatcher/vexcoder-adr-025-phase-2-post-pr101`.
+This batch is now implemented in the current tree after the PR #101 follow-up.
 The next dependency-sequenced batch is ADR-026 Phase I transport binding (`PI-13` and `PI-14` in parallel) after ADR-024 reconciliation.
 
 ## Context
@@ -12,7 +12,7 @@ Milestone-1 validation passed on 2026-03-15 and is recorded in
 (PI-09 and PI-11) landed in PR #99 and established the canonical runtime
 handoff types, normative tool-call grammar, and versioned schema assets.
 
-The next dispatcher batch is the ADR-025 Phase I continuation. The dependency
+The next work batch is the ADR-025 Phase I continuation. The dependency
 order is:
 
 - PI-10 immediately after PI-09 (normalization layer)
@@ -150,7 +150,7 @@ PI-09 (complete) + PI-11 (complete)
 - Treat ADR-030 as the control-flow ADR for post-gate runtime work; do not let
   it supersede ADR-025 dependency order.
 - Follow all no-touch / explicit-approval / exact-diff rules from AGENTS.md,
-  CONTRIBUTING.md, and the private dispatcher skills.
+  CONTRIBUTING.md, and the private local skills.
 
 ## Verification baseline
 

@@ -67,7 +67,7 @@ src/prompts/pr_summary_template.txt
 
 Constraints:
 
-- Template files must not contain provider names or proprietary product references. CI must include a `scripts/check_forbidden_names.sh` grep check covering the content of `src/prompts/` files and the content and filenames of `models/*.toml` files. Profile fixtures must use generic backend/scope-oriented names rather than branded identifiers. This check is added to the dispatcher checklist as **EL-09** and must pass for every checklist item from EL-06 onward.
+- Template files must not contain provider names or proprietary product references. CI must include a `scripts/check_forbidden_names.sh` grep check covering the content of `src/prompts/` files and the content and filenames of `models/*.toml` files. Profile fixtures must use generic backend/scope-oriented names rather than branded identifiers. This check is added to the implementation checklist as **EL-09** and must pass for every checklist item from EL-06 onward.
 - The coding system prompt is only injected when the edit loop or a semantic command is active. Free-form turns use the `RuntimeCorePolicy` base prompt only.
 - Templates are plain UTF-8 text files. `include_str!` keeps the binary self-contained while keeping the text separately auditable.
 
@@ -638,7 +638,7 @@ Rejected. `TaskState`'s `CommandEvidence` struct records execution facts, not st
 
 ---
 
-## Dispatcher checklist
+## Implementation checklist
 
 | ID | Task | Gate | Status |
 | :--- | :--- | :--- | :--- |
@@ -656,13 +656,13 @@ Rejected. `TaskState`'s `CommandEvidence` struct records execution facts, not st
 | **EL-12** | `/context` — zero-turn status render; token estimate; `active_grants` count; git summary; no model turn | Must be green after EL-05 | [x] |
 | **EL-13** | `/commands` and `/help` alias — runtime-generated from dispatch table; description registration; compile-error for missing descriptions | Must be green after EL-04 | [x] |
 
-## Dispatcher reporting contract (mandatory per checklist item)
+## Implementation reporting contract (mandatory per checklist item)
 
 When checking a box above, append an evidence block under this section:
 
 ```markdown
 ### [EL-01 … EL-13] - <short title>
-- Dispatcher: <name/id>
+- Operator: <name/id>
 - Commit: <sha>
 - Files changed:
   - `path/to/file.rs` (+<insertions> -<deletions>)
@@ -678,7 +678,7 @@ When checking a box above, append an evidence block under this section:
 ```
 
 ### EL-12 - /context zero-turn status render
-- Dispatcher: coding agent
+- Operator: coding agent
 - Commit: 37f379d42f2fee392e5fbfebff9ef131e4174de8
 - Files changed:
     - `src/app/commands.rs` (existing — `handle_context_command` already present on `main`)
@@ -696,7 +696,7 @@ When checking a box above, append an evidence block under this section:
     - EL-12 anchors verify the status render path does not call `ctx.start_turn`, preserves the token estimate annotation, and reports active grants.
 
 ### EL-13 - /commands and /help alias from dispatch table
-- Dispatcher: coding agent
+- Operator: coding agent
 - Commit: 37f379d42f2fee392e5fbfebff9ef131e4174de8
 - Files changed:
     - `src/app/commands.rs` (existing — `handle_commands_command` already present on `main`)
@@ -714,8 +714,8 @@ When checking a box above, append an evidence block under this section:
     - `/help` remains an alias to the same handler, and the anchor tests verify neither path starts a model turn.
 
 ### Milestone-1 validation gate - ADR-023 command-surface regression pass
-- Dispatcher: coding agent
-- Branch: `dispatcher/vexcoder-adr-022-m1-validation-gate`
+- Operator: coding agent
+- Historical branch name: omitted
 - Base: `origin/main` @ `feb8d4db161a0a72bf5134a6d88e187a576190d5`
 - Scope:
     - validate the completed ADR-023 command surface against the ADR-022 milestone-1 gate

@@ -29,7 +29,7 @@ applyTo: "**"
 ### Bootstrap
 
 - Read `AGENTS.md` first.
-- For local dispatcher sessions, bootstrap the private skill tree from
+- For local operator sessions, bootstrap the private skill tree from
   `../vexdraft/.agents/skills/`.
 - For repository-hosted background sessions, stay self-contained inside this
   repository. Do not bootstrap, fetch, or depend on private skills or adjacent
@@ -83,6 +83,9 @@ gh agent-task view <session-id> --log --follow
 
 - Prefer the unique session id over the PR number when multiple hosted runs are
   active.
+- Treat 590 seconds as the hard hosted-session ceiling. Publish any code-bearing
+  work and stop before the 9-minute-50-second mark. Do not plan against the
+  full 10-minute wall clock.
 - Treat the launch as incomplete until the tailed log confirms the session is
   staying inside this repository, avoiding `SKILL.md`, staying in English, and
   using text-only verification.
@@ -122,9 +125,12 @@ gh pr checks <pr> --watch
   workflows, start with `cargo fmt --check`, `cargo test --all-targets`, and
   `bash scripts/check_forbidden_names.sh`. Run `make gate-fast` only when the
   full toolchain is already present in the runner image.
-- Promote remote agent output onto a `coder/vexcoder-...` branch before
+- Do not delegate `cargo`, `cargo clippy`, `cargo test`, `cargo check`, or
+  `make gate-fast` to another hosted agent or subagent. If those validations
+  are needed, leave them to the local operator or CI.
+- Promote remote agent output onto a `work/<topic>` branch before
   commit-debug, CI watch, and final PR preparation.
-- Create or reuse a draft PR for that `coder/vexcoder-...` branch before the
+- Create or reuse a draft PR for that `work/<topic>` branch before the
   first code-bearing push, even when the launch prompt did not explicitly ask
   for PR creation.
 - After every code-bearing commit or patch set on a remote lane, push
@@ -134,23 +140,23 @@ gh pr checks <pr> --watch
   Do not continue review, commit-debug, CI watch, PR text edits, or merge work
   from unpublished local-only state.
 - For one feature lane that needs parallel hosted work, create one shared
-  `coder/vexcoder-...` integration branch from the latest `origin/main`, then
+  `work/<topic>` integration branch from the latest `origin/main`, then
   launch one hosted session per disjoint write set from that same base branch.
 - Each hosted shard prompt must name the shard, the owned files, the
   out-of-scope files, and the integration branch it promotes into.
 - Each hosted shard must report the launch base SHA, the code-bearing commit
   SHAs, and the changed-path list before handoff.
-- If a hosted run opens a non-coder branch or ends with only a planning
+- If a hosted run opens a non-review branch or ends with only a planning
   commit and no file diff, treat it as draft-only evidence. Do not claim the
   implementation landed until code-bearing commits are promoted onto the
-  coder branch.
+  review branch.
 - If `main` moves while hosted shards are still running, do not require the
   running hosted sessions to rebase in place. Refresh the shared integration
   branch locally from the latest `origin/main`, cherry-pick completed shard
   commits onto it, and relaunch only the shards whose owned files or required
   upstream dependencies changed underneath them.
 - Run `vexdraft/scripts/commit-debug.py` with the configured review slot after
-  pushing the coder branch. Patch findings and rerun until the review
+  pushing the review branch. Patch findings and rerun until the review
   passes.
 - After fixes land, outdate or minimize automated reviewer comments where
   possible, then reply with the fixing commit when a thread remains visible.

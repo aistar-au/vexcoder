@@ -1,7 +1,7 @@
 ---
 name: Vexcoder Hybrid Retrieval
 description: >-
-  GitHub coding agent for implementing the hybrid retrieval context
+  Hosted coding agent for implementing the hybrid retrieval context
   architecture (ADR-033): Tree-sitter structural indexing, codebase_search
   tool, diff-native edit guards, and context condensing in vexcoder.
 target: github-copilot
@@ -60,15 +60,19 @@ Hard limits on build commands:
 
 - **Do not run `cargo build`, `cargo test`, `cargo check`, `cargo clippy`,
   or `cargo fmt`** during the hosted session. These commands are too heavy
-  for the 10-minute hosted runtime and risk killing the session before code
-  changes are pushed. CI runs these after push.
+  for the hosted 9-minute-50-second safety ceiling and risk timing out the
+  session before code changes are pushed. CI runs these after push.
 - The only acceptable cargo command is `cargo fmt --check` on a single file
   if absolutely needed, and only after all code changes are committed.
 - Leave compilation, test, and lint verification to the CI pipeline and the
-  local dispatcher who promotes the branch.
+  local operator who promotes the branch.
+- Do not delegate `cargo`, `cargo clippy`, `cargo test`, `cargo check`, or
+  `make gate-fast` to another hosted agent or subagent. Nested delegation for
+  these commands is treated as a session failure.
 
-These limits exist because the hosting runtime has a 10-minute wall clock.
-Every wasted build or exhaustive read steals time from implementation.
+These limits exist because hosted sessions must finish inside a 590-second
+safety ceiling. Leave enough margin to publish code-bearing commits before the
+session expires.
 
 ## Owned files
 
@@ -133,11 +137,11 @@ bash scripts/check_forbidden_names.sh
 ```
 
 Note: do NOT run these in the hosted session — leave them for CI and the
-local dispatcher.
+local operator.
 
 ## Post-session workflow
 
-- After every `gh agent-task create`, the dispatcher must identify the new
+- After every `gh agent-task create`, the operator must identify the new
   unique session identifier and tail logs explicitly:
 
 ```bash
@@ -145,8 +149,8 @@ gh agent-task list
 gh agent-task view <session-id> --log --follow
 ```
 
-- Expect the dispatcher to cherry-pick only code-bearing commits onto a
-  `coder/vexcoder-...` branch, run commit-debug, patch findings, minimize
+- Expect the operator to cherry-pick only code-bearing commits onto a
+  `work/<topic>` branch, run commit-debug, patch findings, minimize
   automated review comments, sanitize PR text, watch CI, and refresh
   documentation before merge.
 

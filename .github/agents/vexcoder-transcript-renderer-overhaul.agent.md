@@ -1,7 +1,7 @@
 ---
 name: Vexcoder Transcript Renderer Overhaul
 description: >-
-  GitHub coding agent for task-state layout logic, fallback renderer parity,
+  Hosted coding agent for task-state layout logic, fallback renderer parity,
   prompt geometry, blank-initial transcript behavior, and parallel-shard
   UI-overhaul work in vexcoder.
 target: github-copilot
@@ -63,15 +63,19 @@ Hard limits on build commands:
 
 - **Do not run `cargo build`, `cargo test`, `cargo check`, `cargo clippy`,
   or `cargo fmt`** during the hosted session. These commands are too heavy
-  for the 10-minute hosted runtime and risk killing the session before code
-  changes are pushed. CI runs these after push.
+  for the hosted 9-minute-50-second safety ceiling and risk timing out the
+  session before code changes are pushed. CI runs these after push.
 - The only acceptable cargo command is `cargo fmt --check` on a single file
   if absolutely needed, and only after all code changes are committed.
 - Leave compilation, test, and lint verification to the CI pipeline and the
-  local dispatcher who promotes the branch.
+  local operator who promotes the branch.
+- Do not delegate `cargo`, `cargo clippy`, `cargo test`, `cargo check`, or
+  `make gate-fast` to another hosted agent or subagent. Nested delegation for
+  these commands is treated as a session failure.
 
-These limits exist because the hosting runtime has a 10-minute wall clock.
-Every wasted build or exhaustive read steals time from implementation.
+These limits exist because hosted sessions must finish inside a 590-second
+safety ceiling. Leave enough margin to publish code-bearing commits before the
+session expires.
 
 ## Parallel shard role
 
@@ -191,7 +195,7 @@ already installed in the runner image.
 
 ## Post-session workflow
 
-- After every `gh agent-task create`, the dispatcher must identify the new
+- After every `gh agent-task create`, the operator must identify the new
   unique session identifier and tail logs explicitly:
 
 ```bash
@@ -214,17 +218,17 @@ gh pr checks <pr> --watch
 ```
 
 - In parallel-shard mode, open one draft PR for this shard against the shared
-  integration base. Report the session id, PR number, head branch, base
-  branch, base SHA, code-bearing commit SHAs, changed paths, and any detected
-  drift before stopping.
-- If the host creates a non-coder branch slug, report the session id, PR
-  number, head branch, and any code-bearing commit SHAs, then stop after the
-  draft is ready so the dispatcher can promote the work onto
-  `coder/vexcoder-...`.
+  integration base. Report the session id, any associated PR number, the head
+  branch, base branch, base SHA, code-bearing commit SHAs, changed paths, and
+  any detected drift before stopping.
+- If the host creates a non-review branch slug, report the session id, PR
+  number, the head branch, and any code-bearing commit SHAs, then stop after
+  the draft is ready so the operator can promote the work onto
+  `work/<topic>`.
 - If the hosted PR has only a planning commit or no file diff, report that no
   code was published and do not present the change as implemented.
-- Expect the dispatcher to cherry-pick only code-bearing commits onto a
-  `coder/vexcoder-...` branch, run
+- Expect the operator to cherry-pick only code-bearing commits onto a
+  `work/<topic>` branch, run
   `vexdraft/scripts/commit-debug.py` on the configured 2.5 review lane, patch
   findings, minimize automated review comments after fixes, sanitize PR text
   and comments, watch CI, and refresh documentation plus the raw URL map

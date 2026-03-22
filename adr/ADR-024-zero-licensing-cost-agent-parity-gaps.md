@@ -91,9 +91,9 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 ## Sequencing guard
 
-**Phases G and H (distribution and macOS packaging) are post-first-milestone** and must not block milestone-1 correctness work (ADR-022 phases 1–8 and ADR-023 edit loop). They may not begin until the edit loop, approval system, and task state persistence are validated end-to-end. Any dispatcher that begins Phase G or H work before those milestones are green must be considered out of scope.
+**Phases G and H (distribution and macOS packaging) are post-first-milestone** and must not block milestone-1 correctness work (ADR-022 phases 1–8 and ADR-023 edit loop). They may not begin until the edit loop, approval system, and task state persistence are validated end-to-end. Any implementation lane that begins Phase G or H work before those milestones are green must be considered out of scope.
 
-**Phase I (local API server)** requires a dedicated ADR specifying wire protocol, local socket authentication, and streaming response format before any dispatcher begins work. It may not begin before milestone-1 correctness work is validated end-to-end.
+**Phase I (local API server)** requires a dedicated ADR specifying wire protocol, local socket authentication, and streaming response format before any implementation lane begins work. It may not begin before milestone-1 correctness work is validated end-to-end.
 
 The dedicated ADRs for the Phase I machine-readable and transport surfaces are
 ADR-025 (canonical runtime JSON handoff contract) and ADR-026
@@ -285,7 +285,7 @@ For milestone 1, the in-tree operator surfaces remain CLI/TUI and `BatchMode`. `
 
 The relationship to cloud API servers is direct: architecturally, `LocalApiServer` and a cloud-hosted API server are the same construct — a `RuntimeMode` implementation that accepts requests and streams responses. The network path differs (private IPC, LAN, or internet); the interface contract does not. This means a future cloud-hosted or enterprise-licensed deployment follows the same expansion path: a `RuntimeMode` implementation that routes to a remote transport rather than a local socket.
 
-`LocalApiServer` must not begin implementation until `BatchMode` is validated end-to-end. That specification requirement is now satisfied by ADR-025 (canonical runtime JSON handoff contract) and ADR-026 (transport binding, auth model, and streaming rules). No dispatcher may begin Phase I code until milestone-1 correctness work is validated end-to-end.
+`LocalApiServer` must not begin implementation until `BatchMode` is validated end-to-end. That specification requirement is now satisfied by ADR-025 (canonical runtime JSON handoff contract) and ADR-026 (transport binding, auth model, and streaming rules). No implementation lane may begin Phase I code until milestone-1 correctness work is validated end-to-end.
 
 **`vex remote-control` is explicitly out of scope for Phase I.** A `remote-control` subcommand that serves the running local environment to remote callers is a distinct surface from `LocalApiServer`. It requires its own ADR covering network exposure model, authentication, and security boundary — it must not be conflated with the TLS-scoped `LocalApiServer` design.
 
@@ -1441,7 +1441,7 @@ The migration tooling exists to help operators who were running `vexcoder` befor
 
 ### Why is code indexing a formal deferral gate rather than simply unscheduled?
 
-Recording a deferral explicitly prevents a dispatcher from treating the absence of an ADR as permission to proceed. The `src/index/` path is named, the rationale for not building it yet is on record, and any future implementation is required to go through a new ADR. Without this gate, the constraint is invisible to automated agents processing the task backlog.
+Recording a deferral explicitly prevents a operator from treating the absence of an ADR as permission to proceed. The `src/index/` path is named, the rationale for not building it yet is on record, and any future implementation is required to go through a new ADR. Without this gate, the constraint is invisible to automated agents processing the task backlog.
 
 ---
 
@@ -1499,7 +1499,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 
 ---
 
-## Dispatcher checklist
+## Implementation checklist
 
 **Phase I dispatch ordering (post-gate):** once milestone-1 correctness work is validated end-to-end, PI-09 and PI-11 may dispatch in parallel. PI-10 depends on PI-09. PI-12 depends on PI-09 through PI-11. PI-13 and PI-14 may dispatch in parallel only after PI-12 and the ADR-024 reconciliation edits are merged. PI-15 follows PI-13 and PI-14. PI-16 is last. This ordering prioritizes ADR-025 and ADR-026 work immediately after the milestone-1 gate; ADR-028 remains the boundary ADR those later refactors must respect. This note does not relax the gate.
 
@@ -1566,13 +1566,13 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PM-03** | `-p`/`--print` flag — `BatchMode` single-turn; stdin pipe; plain-text stdout; gated on Gap 2 | [x] |
 | **PP-01** | `search_files`, `list_dir`, `glob_files` — workspace-confined; `.gitignore`-aware; bounded results; registered in dispatch table; gated on workspace ignore mechanism being available | [ ] |
 
-## Dispatcher reporting contract (mandatory per checklist item)
+## Implementation reporting contract (mandatory per checklist item)
 
 When checking a box above, append an evidence block under this section:
 
 ```markdown
 ### [PA-01 … PP-01] - <short title>
-- Dispatcher: <name/id>
+- Operator: <name/id>
 - Commit: <sha>
 - Files changed:
   - `path/to/file` (+<insertions> -<deletions>)
@@ -1657,7 +1657,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - `.agents/skills/registry.toml` — skills registry manifest
 
 ### [PB-01 / PB-02 / PB-03] - completions, hooks, and skills CLI surface
-- Dispatcher: `dispatcher/vexcoder-adr-024-pb-01-pb-02-pb-03-completions-hooks-skills`
+- Historical branch name: omitted
 - Commit: `1aaea9211c5387b3283a20e77b3a123939380477`
 - Files changed:
   - `CONTRIBUTING.md` (+3 -0)
@@ -1675,12 +1675,12 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - `vex completions`, `vex install-hooks` / `vex uninstall-hooks`, and `vex skills` landed on this dispatcher branch and now match the ADR-024 surface contract.
+  - `vex completions`, `vex install-hooks` / `vex uninstall-hooks`, and `vex skills` landed on this operator branch and now match the ADR-024 surface contract.
   - Follow-up commit `7f7cdbed65633c787d137ed3937cf782495b9f24` preserves resume compatibility for legacy subdirectory task-state paths, adds fish and powershell completion parsing coverage, and changes the installed-skill version sentinel from `0.0.0` to `unknown`.
   - Hook installation remains worktree-aware and repo-root anchoring stays in place for `.vex/state` and `.agents/skills/registry.toml`.
 
 ### [PA-01] - Layered config resolution chain
-- Dispatcher: `dispatcher/adr-024-pa01-layered-config`
+- Historical branch name: omitted
 - Commit: `39d7ab385f5e8c53eac5b1e15a651eeb61c36dcc`
 - Files changed:
   - `src/config.rs` (+323 -72)
@@ -1696,7 +1696,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - The commit-debug gate reached quorum with no blocking findings after a clean rerun.
 
 ### [PJ-03] - User persistent notes (`/memory`)
-- Dispatcher: `dispatcher/vexcoder-pj-03-memory-notes`
+- Historical branch name: omitted
 - Commit: `3e0405f6697812f686da7a17c3f9ca7fc27a068f`
 - Files changed:
   - `src/app.rs` (+354 -6)
@@ -1712,10 +1712,10 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Notes:
   - Notes injection and `/memory` commands implemented per ADR-024 Gap 16.
   - Notes path remains user-config-layer only; repo-local override rejected.
-  - The same merge path also carried the base `PE-01`/`PE-02` implementation that was closed out later on `dispatcher/vexcoder-adr-024-pe-01-batch-mode`.
+  - The same merge path also carried the base `PE-01`/`PE-02` implementation that was closed out later on a dedicated integration branch.
 
 ### [PE-01 / PE-02] - BatchMode + vex exec
-- Dispatcher: `dispatcher/vexcoder-adr-024-pe-01-batch-mode`
+- Historical branch name: omitted
 - Commit: `d6e508b0e54d2d1c2411825e651e44611b389244`
 - Files changed:
   - `Makefile` (+5 -3): extend `check-boundary` to cover `src/batch_mode.rs`
@@ -1749,7 +1749,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `tokens` remain deferred to `PL-03` per ADR-024 Gap 28.
 
 ### [PL-01] - Pre/post-tool-call hooks
-- Dispatcher: `dispatcher/vexcoder-adr-024-pl-01-hooks-full-surface`
+- Historical branch name: omitted
 - Commit: `0e87859af38186f70fa2802c25d9dc83ac20550d`
 - Files changed:
   - `src/config.rs` (+47 -0)
@@ -1783,7 +1783,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `SandboxKind` enum scaffolded in `sandbox.rs` for PD-01/PD-02 (not yet wired to config).
 
 ### [PA-02] - Project instructions injection
-- Dispatcher: reconciliation (implemented as part of PA-01 batch)
+- Operator: reconciliation (implemented as part of PA-01 batch)
 - Files:
   - `src/runtime/project_instructions.rs` — PA-02 loading logic
   - `src/app.rs` — TuiMode injection at startup
@@ -1803,7 +1803,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - Over-budget files emit a warning and are skipped; never truncated.
 
 ### [PD-01] - SandboxDriver trait + PassthroughSandbox
-- Dispatcher: reconciliation (implemented as part of PL-01 batch)
+- Operator: reconciliation (implemented as part of PL-01 batch)
 - Files:
   - `src/runtime/sandbox.rs` — `SandboxDriver` trait + `PassthroughSandbox`
   - `src/runtime.rs` — re-export
@@ -1816,7 +1816,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - PD-02 (`MacosSandboxExec`) and PD-03 (`DockerSandbox`) remain deferred.
 
 ### [PA-03 / PA-04] - vex migrate config + migration doc
-- Dispatcher: reconciliation on `dispatcher/vexcoder-adr-024-pi-04-pi-05-pj-01-pj-02-session-lifecycle`; implementation landed earlier
+- Operator: reconciliation on a prior integration branch; implementation landed earlier
 - Commit: `c14d695160e58209365e2728ff16ac14d0f9acce`
 - Files changed:
   - `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — PA-03, PA-04 rows flipped to [x] on this branch
@@ -1840,7 +1840,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - Phase A now complete; EL-08 (ModelProfile config integration, ADR-023) is unblocked.
 
 ### [PI-04 / PI-05 / PJ-01 / PJ-02] - /new, /resume, /clear, /fork
-- Dispatcher: `dispatcher/vexcoder-adr-024-pi-04-pi-05-pj-01-pj-02-session-lifecycle`
+- Historical branch name: omitted
 - Commit: `03b84ced0cc7f5952f8091c996d56cc2efae1d48`
 - Files changed:
   - `src/app.rs` (+N -0): `current_task`-backed session lifecycle; monotonic `new_task_id()` helper; transcript reset helper; no-argument `/resume` selection flow; `/fork` label sanitization; task-layout now reads live `current_task` state
@@ -1875,7 +1875,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `Capability` enum confirmed: no `McpTool` variant yet; PI-06/PI-07 remain gated on PF-01.
 
 ### [PK-01 / PK-02] - /quit, /exit, /about
-- Dispatcher: `dispatcher/vexcoder-adr-024-pk-01-pk-02-quit-about`
+- Historical branch name: omitted
 - Files changed:
   - `build.rs` (new) — compile-time injection of `GIT_COMMIT_SHORT` and `BUILD_DATE`
   - `src/app.rs` — `/quit`, `/exit`, `/about` slash commands
@@ -1899,7 +1899,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
     `env!()` macros with `"unknown"` fallback.
 
 ### [PI-01 / PI-02 / PI-03 / PM-01 / PM-03] - permissions, resume, and print surfaces
-- Dispatcher: `dispatcher/vexcoder-adr-024-pi-01-pi-02-pi-03-pm-01-pm-03-permissions-startup`
+- Historical branch name: omitted
 - Commit: `aa4ba77d91525391a7773b16998eba464a04d610`
 - Files changed:
   - `src/app.rs` (+398 -20)
@@ -1918,7 +1918,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - The merged PR landed the command surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
 
 ### [PC-01 / PJ-04 / PK-07] - model switching, workspace init, and diff helpers
-- Dispatcher: `dispatcher/vexcoder-adr-024-pc01-pj04-pk07`
+- Historical branch name: omitted
 - Commit: `336708b7805b39159135c863b0a31eddb64a6c36`
 - Files changed:
   - `src/app.rs` (+352 -0)
@@ -1939,7 +1939,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `/diff` renders truncated git diff output without starting a model turn.
 
 ### [PK-03 / PK-04] - inline path injection and shell passthrough
-- Dispatcher: `dispatcher/vexcoder-adr-024-pk-03-pk-04-input-transforms`
+- Historical branch name: omitted
 - Commit: `8a329754582b024b50a0988f144717eb20d0b470`
 - Files changed:
   - `src/app.rs` (+551 -21)
@@ -1958,7 +1958,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - The merged PR landed this surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
 
 ### [PK-05 / PK-06 / PK-09] - custom commands, /tools, and /generate-tests
-- Dispatcher: `dispatcher/vexcoder-adr-024-pk-05-pk-06-pk-09-custom-commands`
+- Historical branch name: omitted
 - Commit: `07dd065c8adae9bec71f86f0986314c5c1dc7a2a`
 - Files changed:
   - `src/app.rs` (+619 -0)
@@ -1982,7 +1982,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - This batch also refreshed the tracked-file map for the new custom command module.
 
 ### [PL-02 / PL-03 / PL-04] - doctor, usage accounting, and export
-- Dispatcher: `dispatcher/vexcoder-adr-024-pl-02-pl-03-pl-04-introspection`
+- Historical branch name: omitted
 - Commit: `796c54d4caf91136249a43c27a94e4d3902dd48c`
 - Files changed:
   - `src/doctor.rs` (+369 -0)
@@ -2010,7 +2010,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - The merged PR also refreshed turn evidence persistence so export uses the same saved turn schema as `BatchMode`.
 
 ### [PK-08] - git branch wrapper and PR summary draft
-- Dispatcher: `dispatcher/vexcoder-adr-024-pk-08-reconcile`
+- Historical branch name: omitted
 - Files changed:
   - `src/bin/vex.rs` — adds `vex branch <name>` and `vex pr-summary`
   - `src/runtime/task_state.rs` — records the most recent saved branch name

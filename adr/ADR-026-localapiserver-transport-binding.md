@@ -36,7 +36,7 @@ This ADR satisfies ADR-024's Phase I specification requirement, but implementati
 1. Phase H (macOS packaging and distribution) is complete, and
 2. milestone-1 correctness work (ADR-022 phases 1–8 plus ADR-023 deterministic edit loop) is validated end-to-end.
 
-No dispatcher may begin LocalApiServer implementation before that gate is green.
+No implementation lane may begin LocalApiServer implementation before that gate is green.
 
 ---
 
@@ -357,12 +357,12 @@ vpn_trust = false           # RESERVED false only; VPN carve-out requires a dedi
 
 **Certificate lifecycle note:** certificate hot-reload is deferred in Phase I. `tls_cert`, `tls_key`, and `tls_ca_cert` are loaded and validated at startup only; rotating them requires a server restart.
 
-**ADR-024 reconciliation (pre-merge requirement):** the `api.*` config-key block above must be applied to ADR-024's `Config TOML canonical keys` section before this ADR is merged. ADR-024 is currently `Proposed` status, so this is an in-place amendment consistent with the Proposed-status editing convention. A separate amendment ADR is not required unless ADR-024 is locked before this reconciliation PR lands. The reconciliation PR must also extend ADR-024's Phase I dispatcher checklist from PI-09 through PI-16.
+**ADR-024 reconciliation (pre-merge requirement):** the `api.*` config-key block above must be applied to ADR-024's `Config TOML canonical keys` section before this ADR is merged. ADR-024 is currently `Proposed` status, so this is an in-place amendment consistent with the Proposed-status editing convention. A separate amendment ADR is not required unless ADR-024 is locked before this reconciliation PR lands. The reconciliation PR must also extend ADR-024's Phase I implementation checklist from PI-09 through PI-16.
 
 **Pre-merge checklist:**
 
 - [x] Apply the `[api]` config-key block to ADR-024's `Config TOML canonical keys` section (in-place amendment; ADR-024 is Proposed).
-- [x] Extend ADR-024's Phase I dispatcher checklist from PI-09 through PI-16. ADR-025 owns PI-09–12; this ADR owns PI-13–16. The reconciliation PR is owned by the ADR-025 dispatcher (PI-09 closeout) and must be merged before PI-13 begins.
+- [x] Extend ADR-024's Phase I implementation checklist from PI-09 through PI-16. ADR-025 owns PI-09–12; this ADR owns PI-13–16. The reconciliation PR is owned by the ADR-025 operator (PI-09 closeout) and must be merged before PI-13 begins.
 - [x] Verify all JSON, GBNF, and schema examples in ADR-025 and ADR-026 remain syntax-clean after reconciliation.
 
 ### 9. Validation at the API boundary
@@ -611,7 +611,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
 
 ---
 
-## Dispatcher checklist
+## Implementation checklist
 
 | ID | Task | Status |
 |----|------|--------|
@@ -621,7 +621,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
 | **PI-16** | Add integration tests for SSE stream order, SSE keepalive emission, auth failures (`401` for missing/invalid token), loopback classification (`127.0.0.1`, other `127/8`, `::1`, and `localhost`), non-loopback-without-TLS rejection, TLS 1.2 minimum enforcement, `tls_cert`/`tls_key` mismatch rejection, `tls_skip_verify=true` rejection, `vpn_trust=true` rejection until a dedicated ADR exists, schema validation, mid-stream runtime error, `MaxTurnsReached` sequence, `POST /v1/interrupt` with unknown task id returns `404`, `POST /v1/approve` with unknown task id returns `404` and with no pending approval returns `409`, and reconnect/new-turn behavior | [x] |
 
 ### [PI-13] - HTTP transport adapter
-- Dispatcher: `dispatcher/vexcoder-adr-026-phase-1-pi-13-pi-14`
+- Historical branch name: omitted
 - Commit: `67e248ba6564eecf16223cd6a9cf04bb202ebf3b`
 - Files changed:
   - `src/local_api.rs` (+683 -0)
@@ -638,7 +638,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
   - Added a `vex serve` entrypoint so the transport adapter can be launched without extending the TUI path.
 
 ### [PI-14] - Schema bundle endpoint
-- Dispatcher: `dispatcher/vexcoder-adr-026-phase-1-pi-13-pi-14`
+- Historical branch name: omitted
 - Commit: `67e248ba6564eecf16223cd6a9cf04bb202ebf3b`
 - Files changed:
   - `src/local_api.rs` (+683 -0)
@@ -654,7 +654,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
   - Added focused local API tests covering health, schema, approval projection, and interrupt-to-cancelled turn behavior.
 
 ### [PI-15] - Transport security and Unix socket binding
-- Dispatcher: `dispatcher/vexcoder-adr-026-phase-2-pi-15`
+- Historical branch name: omitted
 - Commit: `039148d1e5edef373661a0b89ea642f285388c40`
 - Files changed:
   - `src/local_api.rs` (+527 -11)
@@ -677,7 +677,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
   - Added Unix-socket transport with stale-socket cleanup, `0600` permissions, and clean-shutdown removal while keeping HTTP and Unix auth rules split under `transport = "both"`.
 
 ### [PI-16] - Transport validation coverage
-- Dispatcher: `work/pr-108`
+- Historical branch name: omitted
 - Commit: `962ed933d8e0ab3b705ad14f9902db9654d28117`
 - Files changed:
   - `src/local_api.rs` (+269 -10)
@@ -695,13 +695,13 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
 
 ---
 
-## Dispatcher reporting contract
+## Implementation reporting contract
 
 When checking any PI-13…PI-16 box, append an evidence block:
 
 ```markdown
 ### [PI-XX] - <short title>
-- Dispatcher: <name/id>
+- Operator: <name/id>
 - Commit: <sha>
 - Files changed:
   - `path/to/file` (+X -Y)

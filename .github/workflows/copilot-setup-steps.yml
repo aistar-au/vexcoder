@@ -1,4 +1,4 @@
-name: Copilot Setup Steps
+name: Hosted Agent Setup Checks
 
 on:
   workflow_dispatch:
@@ -46,6 +46,7 @@ jobs:
           hosted_files=(
             .github/copilot-instructions.md
             .github/agents/rust-change-auditor.agent.md
+            .github/agents/vexcoder-hybrid-retrieval.agent.md
             .github/agents/vexcoder-ui-parity-orchestrator.agent.md
             .github/agents/vexcoder-ui-paragraph-renderer.agent.md
             .github/agents/vexcoder-transcript-renderer-overhaul.agent.md
@@ -86,10 +87,16 @@ jobs:
           hosted_files=(
             .github/copilot-instructions.md
             .github/agents/rust-change-auditor.agent.md
+            .github/agents/vexcoder-hybrid-retrieval.agent.md
             .github/agents/vexcoder-ui-parity-orchestrator.agent.md
             .github/agents/vexcoder-ui-paragraph-renderer.agent.md
             .github/agents/vexcoder-transcript-renderer-overhaul.agent.md
           )
+
+          if show_matches '^(disable-model-invocation|user-invocable|model):' .github/agents/*.agent.md; then
+            echo "Unsupported agent frontmatter keys detected in .github/agents/*.agent.md"
+            exit 1
+          fi
 
           for file in "${hosted_files[@]}"; do
             has_match "Use English only" "$file" || {
@@ -108,6 +115,10 @@ jobs:
               echo "Missing no-visual-artifact guardrail in $file"
               exit 1
             }
+            has_match 'Do not delegate .*cargo.*cargo clippy.*subagent|Do not delegate .*cargo.*make gate-fast.*subagent' "$file" || {
+              echo "Missing no-cargo-delegation guardrail in $file"
+              exit 1
+            }
           done
 
           log_tail_files=(
@@ -116,6 +127,7 @@ jobs:
             .github/copilot-instructions.md
             .github/instructions/repository.instructions.md
             .github/agents/rust-change-auditor.agent.md
+            .github/agents/vexcoder-hybrid-retrieval.agent.md
             .github/agents/vexcoder-ui-parity-orchestrator.agent.md
             .github/agents/vexcoder-ui-paragraph-renderer.agent.md
             .github/agents/vexcoder-transcript-renderer-overhaul.agent.md
@@ -143,6 +155,7 @@ jobs:
             .github/copilot-instructions.md \
             .github/agents/rust-change-auditor.agent.md \
             .github/instructions/repository.instructions.md \
+            .github/agents/vexcoder-hybrid-retrieval.agent.md \
             .github/agents/vexcoder-ui-parity-orchestrator.agent.md \
             .github/agents/vexcoder-ui-paragraph-renderer.agent.md \
             .github/agents/vexcoder-transcript-renderer-overhaul.agent.md

@@ -418,7 +418,7 @@ fn approval_policy_is_capability_scoped() {
 
 ### Milestone-1 validation log (2026-03-15)
 
-- Branch: `dispatcher/vexcoder-adr-022-m1-validation-gate`
+- Historical branch name: omitted
 - Base: `origin/main` @ `feb8d4db161a0a72bf5134a6d88e187a576190d5`
 - Outcome: **passed**
 - Validation:

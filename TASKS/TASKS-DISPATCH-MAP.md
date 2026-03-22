@@ -55,9 +55,9 @@ LocalApiServer refactors must respect.
 ADR-029 and ADR-030 remain part of the active ADR set but do not supersede the
 passed milestone-1 gate or ADR-025 sequencing.
 
-## Current Next Dispatcher Batch
+## Current Next Work Batch
 
-The current dispatcher batch continues ADR-031 operator-surface overhaul and ADR-028 application-facade follow-up.
+The current work batch continues ADR-031 operator-surface overhaul and ADR-028 application-facade follow-up.
 
 - Milestone-1 validation is complete; use the recorded gate result in ADR-022 as the Phase I entry condition.
 - ADR-025 now has the completed kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) work in the current tree.
