@@ -2,14 +2,14 @@ use crate::tools::embed::{embed_texts, EmbeddingConfig};
 use crate::tools::index::IndexChunk;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 const SEMANTIC_INDEX_VERSION: u32 = 1;
 const DEFAULT_INDEX_MAX_FILES: usize = 5_000;
+const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+const FNV_PRIME: u64 = 0x100000001b3;
 
 #[derive(Debug, Clone)]
 pub struct SemanticChunkScore {
@@ -42,12 +42,15 @@ pub async fn semantic_search(
         .drain(..)
         .map(|chunk| (chunk.chunk_key.clone(), chunk))
         .collect();
+    let mut index_dirty = false;
 
     let valid_keys: HashSet<String> = selected_chunks
         .iter()
         .map(|chunk| chunk_key(chunk))
         .collect();
+    let original_len = stored_by_key.len();
     stored_by_key.retain(|key, _| valid_keys.contains(key));
+    index_dirty |= stored_by_key.len() != original_len;
 
     let mut missing_texts = Vec::new();
     let mut missing_chunks = Vec::new();
@@ -80,12 +83,16 @@ pub async fn semantic_search(
                 },
             );
         }
+        index_dirty = true;
     }
 
-    let mut saved_chunks: Vec<PersistedSemanticChunk> = stored_by_key.values().cloned().collect();
-    saved_chunks.sort_by(|left, right| left.chunk_key.cmp(&right.chunk_key));
-    persisted.chunks = saved_chunks;
-    save_index(workspace_root, &persisted)?;
+    if index_dirty {
+        let mut saved_chunks: Vec<PersistedSemanticChunk> =
+            stored_by_key.values().cloned().collect();
+        saved_chunks.sort_by(|left, right| left.chunk_key.cmp(&right.chunk_key));
+        persisted.chunks = saved_chunks;
+        save_index(workspace_root, &persisted)?;
+    }
 
     let mut query_embeddings = embed_texts(config, &[query.to_string()]).await?;
     let Some(query_embedding) = query_embeddings.pop() else {
@@ -194,9 +201,12 @@ fn chunk_key(chunk: &IndexChunk) -> String {
 }
 
 fn source_hash(source: &str) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    source.hash(&mut hasher);
-    hasher.finish()
+    let mut hash = FNV_OFFSET_BASIS;
+    for byte in source.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    hash
 }
 
 fn cosine_similarity(left: &[f32], right: &[f32]) -> Option<f64> {
@@ -278,5 +288,10 @@ mod tests {
     #[test]
     fn test_cosine_similarity_handles_dimension_mismatch() {
         assert!(cosine_similarity(&[1.0, 2.0], &[1.0]).is_none());
+    }
+
+    #[test]
+    fn test_source_hash_is_stable() {
+        assert_eq!(source_hash("fn stable() {}\n"), 0xdc532b0ead0558e9);
     }
 }

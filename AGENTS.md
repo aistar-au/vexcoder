@@ -128,6 +128,8 @@ A–H post-session checklist.
 - Create or reuse the draft PR for that review branch before the first
   code-bearing push, then keep `HEAD` in sync with `origin/<branch>` after
   every code-bearing fix.
+- Before every feature-branch push, refresh from `origin` and rebase onto the
+  latest `origin/main` so the review branch stays current with moving main.
 - For parallel hosted work on one feature lane, use one shared
   `work/<topic>` integration branch plus one hosted shard branch per
   disjoint write set. Keep the final merge path to `main` on the shared
