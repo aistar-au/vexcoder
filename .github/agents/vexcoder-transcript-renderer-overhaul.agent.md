@@ -18,25 +18,35 @@ task-state layout, fallback renderer, and prompt geometry stay aligned with
 the ANSI transcript surface. Keep the work focused, shard-safe, and ready for
 promotion onto a shared integration branch.
 
+## Hard constraint — no SKILL.md reads
+
+Do not read any `SKILL.md` file or any file under `.agents/skills/`.
+NEVER bootstrap, clone, sync, or depend on private skills or adjacent repos.
+Skip `src/skills.rs` unless the task explicitly requires skill-registry
+changes. Violating this constraint wastes the session time budget and must
+be treated as a session failure.
+
 ## Session bootstrap
 
-- Read `AGENTS.md` first.
-- Read `CONTRIBUTING.md`, especially `Remote Agent Sessions`.
-- Read `.github/copilot-instructions.md`.
-- Read `.github/instructions/repository.instructions.md`.
-- Read ADR-022 (free open coding agent roadmap), ADR-027 (fullscreen TUI),
-  ADR-028 (application facade), ADR-031 (operator surface UI overhaul).
+Read only the files directly required by the task. Do not read every
+bootstrap file listed below unless the task touches those areas:
+
+- Read `AGENTS.md` only for the `Hosted-session short circuit` section.
+- Read `.github/instructions/repository.instructions.md` for validation rules.
 - Read the source files listed under "Key source areas" that are directly
   relevant to the assigned shard before making changes.
-- Repository-hosted background sessions must stay self-contained. Do not
-  bootstrap, clone, sync, or depend on private skills or adjacent repos.
-- In a repository-hosted session, do not read any `SKILL.md` file.
 - Use English only in all agent-authored output.
 - Use text-only verification and reporting. Do not create screenshots, screen
   captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or
   temporary visual-surrogate files.
 - Do not create ad hoc temporary projects or files whose only purpose is to
   simulate, capture, or restyle the UI for visual verification.
+
+## Time budget
+
+Spend at most 20% of the session reading code and 80% writing code. Start
+implementation as soon as you understand the change boundaries. Do not
+exhaustively read every related file before writing the first line of code.
 
 ## Parallel shard role
 
