@@ -144,16 +144,21 @@ Commands entered inside the interactive UI start with `/`.
 ### Edit loop
 
 - `/edit <instruction>`
+  - Expands `@path` mentions inside the instruction before the edit loop starts so picked files can be inlined as context.
+  - Grants task-scoped `write-file`, `apply-patch`, and `run-command` permissions for the active edit workflow.
 - `/fix`
+  - Restores the edit loop from the last validation failure and re-seeds the same task-scoped edit permissions.
 
 ### Read-only semantic turns
 
 - `/explain [path]`
+  - Accepts either a plain workspace-relative path or `@path`; `@path` is normalized to the requested file target before context assembly runs.
 - `/review [--base <git-ref>] [--files <glob>] [<instruction>]`
   - Starts a single review turn without entering the edit loop.
   - With no flags, reviews `git diff HEAD`.
   - `--base <git-ref>` reviews `git diff <git-ref>` after validating the ref.
   - `--files <glob>` assembles matching workspace files instead of a diff and cannot be combined with `--base`.
+  - Expands `@path` mentions inside the free-form review instruction before the review turn starts. When `--files` receives `@glob`, the leading `@` is stripped before file matching.
   - Patch requests are silently denied during the turn.
 - `/plan <instruction>`
   - Generates a concise implementation plan for the given instruction.
@@ -172,7 +177,8 @@ Commands entered inside the interactive UI start with `/`.
 When a read-only turn asks for a repo summary instead of a specific file, the
 runtime prefers `list_files` and `codebase_search` first. If the model emits a
 `read_file` call without a concrete path, VexCoder returns a clarification
-instead of looping the raw tool error.
+instead of looping the raw tool error, even when the malformed `read_file`
+arrives in the same parallel tool round as other read-only calls.
 
 `/usage` prints the most recent turn's token counts and the cumulative session
 totals. If the runtime does not return usage metadata, the values are estimated
@@ -206,10 +212,11 @@ session totals.
 
 - `@path`
   - Expands a workspace-relative file or directory into the prompt when the turn is submitted.
-  - While composing, the prompt footer shows matching file suggestions from the current workspace subtree.
-  - When a file mention is active, `Up` and `Down` move the suggestion picker, `Enter` inserts the selected workspace-relative path into the composer, and `Esc` dismisses the picker so the raw mention can still be submitted unchanged.
+  - While composing, the prompt footer searches the entire repo tree, including nested subdirectories, and ranks matches by basename and path relevance instead of limiting suggestions to simple path-prefix hits.
+  - When a file mention is active, `Up` and `Down` move the suggestion picker through the full match list, `Enter` inserts the selected workspace-relative path into the composer, and `Esc` dismisses the picker so the raw mention can still be submitted unchanged.
   - Files are inlined as fenced text blocks. Missing paths are annotated inline instead of aborting the turn.
   - Directories render a compact workspace-relative listing.
+  - Slash commands with free-form instructions (`/edit`, `/plan`, `/review`) expand selected `@path` mentions before the model turn starts. `/explain` treats `@path` as the requested file target.
   - Repo summaries still need tool evidence: use a plain prompt when you want the model to start with `list_files` or `codebase_search`, and use `@path` only when you already know the file or directory you want to inline.
 - `!command`
   - Runs a shell command immediately from the workspace without starting a model turn when the composer is submitted.

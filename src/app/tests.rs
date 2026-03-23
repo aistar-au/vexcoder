@@ -3549,7 +3549,7 @@ fn test_at_path_multiple_tokens_resolved_in_order() {
 }
 
 #[test]
-fn test_at_path_not_expanded_inside_slash_command_args() {
+fn test_at_path_expanded_inside_edit_command_args() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("note.txt"), "hello from file\n").unwrap();
 
@@ -3557,11 +3557,23 @@ fn test_at_path_not_expanded_inside_slash_command_args() {
     mode.working_dir = temp.path().to_path_buf();
     let mut ctx = setup_ctx();
 
-    mode.on_user_input("/explain @note.txt".to_string(), &mut ctx);
+    mode.on_user_input("/edit use @note.txt for context".to_string(), &mut ctx);
 
     let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
-    assert!(!turn_input.contains("[file: note.txt]"));
-    assert!(!turn_input.contains("hello from file"));
+    assert!(turn_input.contains("[file: note.txt]"));
+    assert!(turn_input.contains("hello from file"));
+}
+
+#[test]
+fn test_at_path_argument_is_normalized_for_explain_command() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("/explain @src/app.rs".to_string(), &mut ctx);
+
+    let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+    assert!(turn_input.contains("explain src/app.rs"));
+    assert!(!turn_input.contains("explain @src/app.rs"));
 }
 
 #[test]
@@ -3578,6 +3590,79 @@ fn test_at_path_expanded_inside_plan_args() {
     let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
     assert!(turn_input.contains("[file: note.txt]"));
     assert!(turn_input.contains("hello from file"));
+}
+
+#[test]
+fn test_file_prompt_matches_include_repo_wide_substring_results() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("src/app")).unwrap();
+    std::fs::create_dir_all(temp.path().join("docs/guides")).unwrap();
+    std::fs::write(temp.path().join("src/app/input.rs"), "fn a() {}\n").unwrap();
+    std::fs::write(temp.path().join("src/app/input_state.rs"), "fn b() {}\n").unwrap();
+    std::fs::write(temp.path().join("docs/guides/prompt-input.md"), "docs\n").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    let matches = mode.file_prompt_matches("input");
+    assert!(matches.contains(&"src/app/input.rs".to_string()));
+    assert!(matches.contains(&"src/app/input_state.rs".to_string()));
+    assert!(matches.contains(&"docs/guides/prompt-input.md".to_string()));
+}
+
+#[test]
+fn test_edit_command_grants_task_permissions() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("/edit refactor src/app.rs".to_string(), &mut ctx);
+
+    assert_eq!(
+        mode.current_task.active_grants.get(&Capability::WriteFile),
+        Some(&ApprovalScope::Task)
+    );
+    assert_eq!(
+        mode.current_task.active_grants.get(&Capability::ApplyPatch),
+        Some(&ApprovalScope::Task)
+    );
+    assert_eq!(
+        mode.current_task.active_grants.get(&Capability::RunCommand),
+        Some(&ApprovalScope::Task)
+    );
+}
+
+#[test]
+fn test_fix_command_grants_task_permissions() {
+    let mut mode = TuiMode::new();
+    let mut edit_loop = EditLoop::new("task-1".to_string());
+    edit_loop.set_last_validation_result(crate::runtime::ValidationResult {
+        passed: false,
+        outputs: vec![crate::runtime::ValidationOutput {
+            label: "cargo test".to_string(),
+            exit_code: 1,
+            stdout_tail: String::new(),
+            stderr_tail: String::new(),
+            stdout_truncated: false,
+            stderr_truncated: false,
+        }],
+    });
+    mode.active_edit_loop = Some(edit_loop);
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("/fix".to_string(), &mut ctx);
+
+    assert_eq!(
+        mode.current_task.active_grants.get(&Capability::WriteFile),
+        Some(&ApprovalScope::Task)
+    );
+    assert_eq!(
+        mode.current_task.active_grants.get(&Capability::ApplyPatch),
+        Some(&ApprovalScope::Task)
+    );
+    assert_eq!(
+        mode.current_task.active_grants.get(&Capability::RunCommand),
+        Some(&ApprovalScope::Task)
+    );
 }
 
 #[test]

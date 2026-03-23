@@ -1,6 +1,31 @@
 use super::*;
 
 impl TuiMode {
+    fn expand_slash_instruction_context(&self, input: &str) -> String {
+        let assembler = ContextAssembler::default();
+        let operator = ToolOperator::new(self.working_dir.clone());
+        self.expand_inline_tokens_in_text(input, &operator, &assembler)
+    }
+
+    fn grant_task_capabilities(&mut self, capabilities: &[Capability], source: &str) {
+        let mut granted = Vec::new();
+        for &capability in capabilities {
+            let previous = self
+                .current_task
+                .active_grants
+                .insert(capability, ApprovalScope::Task);
+            if previous != Some(ApprovalScope::Task) {
+                granted.push(capability_to_kebab(capability));
+            }
+        }
+        if !granted.is_empty() {
+            self.push_history_line(format!(
+                "[permissions: {source} task grants {}]",
+                granted.join(", ")
+            ));
+        }
+    }
+
     pub(super) fn try_handle_slash_command(
         &mut self,
         input: &str,
@@ -73,6 +98,15 @@ impl TuiMode {
             self.push_history_line("[edit] usage: /edit <instruction>".to_string());
             return;
         }
+        let instruction = self.expand_slash_instruction_context(instruction);
+        self.grant_task_capabilities(
+            &[
+                Capability::WriteFile,
+                Capability::ApplyPatch,
+                Capability::RunCommand,
+            ],
+            "/edit",
+        );
         let task_id = self.current_task.id.clone();
         let edit_loop = EditLoop::new(task_id)
             .with_working_dir(self.working_dir.clone())
@@ -82,9 +116,9 @@ impl TuiMode {
         self.history_state.turn_in_progress = true;
         #[cfg(test)]
         {
-            self.last_turn_input = Some(instruction.to_string());
+            self.last_turn_input = Some(instruction.clone());
         }
-        ctx.start_edit_loop(edit_loop, instruction.to_string());
+        ctx.start_edit_loop(edit_loop, instruction);
     }
     pub(super) fn handle_fix_command(&mut self, ctx: &mut RuntimeContext) {
         if self.active_edit_loop.is_some() && self.history_state.turn_in_progress {
@@ -113,6 +147,14 @@ impl TuiMode {
             .find(|o| o.exit_code != 0)
             .map(|o| format!("fix the {} failure", o.label))
             .unwrap_or_else(|| "fix the validation failure".to_string());
+        self.grant_task_capabilities(
+            &[
+                Capability::WriteFile,
+                Capability::ApplyPatch,
+                Capability::RunCommand,
+            ],
+            "/fix",
+        );
         let task_id = self.current_task.id.clone();
         let edit_loop = EditLoop::new(task_id)
             .with_working_dir(self.working_dir.clone())
@@ -127,8 +169,15 @@ impl TuiMode {
         ctx.start_edit_loop(edit_loop, instruction);
     }
     pub(super) fn handle_explain_command(&mut self, path_hint: &str, ctx: &mut RuntimeContext) {
-        let requested_path = if !path_hint.is_empty() {
-            Some(path_hint.to_string())
+        let normalized_path_hint = path_hint
+            .trim()
+            .strip_prefix('@')
+            .map(str::trim)
+            .filter(|path| !path.is_empty() && !path.contains(char::is_whitespace))
+            .unwrap_or(path_hint)
+            .trim();
+        let requested_path = if !normalized_path_hint.is_empty() {
+            Some(normalized_path_hint.to_string())
         } else {
             self.current_task
                 .changed_files
@@ -153,12 +202,19 @@ impl TuiMode {
                 return;
             }
         };
-        let instruction = parsed.instruction.unwrap_or_else(|| {
-            "Review these changes for correctness, clarity, and potential issues.".to_string()
-        });
+        let instruction = parsed
+            .instruction
+            .map(|instruction| self.expand_slash_instruction_context(&instruction))
+            .unwrap_or_else(|| {
+                "Review these changes for correctness, clarity, and potential issues.".to_string()
+            });
 
         if let Some(files_glob) = parsed.files.as_deref() {
-            self.start_review_files_turn(files_glob, &instruction, ctx);
+            self.start_review_files_turn(
+                files_glob.strip_prefix('@').unwrap_or(files_glob),
+                &instruction,
+                ctx,
+            );
             return;
         }
 
@@ -293,6 +349,7 @@ impl TuiMode {
             self.push_history_line("[plan] usage: /plan <instruction>".to_string());
             return;
         }
+        let instruction = self.expand_slash_instruction_context(instruction);
         let scope_instruction = format!("plan {instruction}");
         let assembled = match self.try_assemble_context(&scope_instruction) {
             Ok(assembled) => assembled,
@@ -303,7 +360,7 @@ impl TuiMode {
         };
         let render_assembler = ContextAssembler::default();
         let rendered_context = render_assembler.render(&assembled);
-        let prompt = render_plan_prompt(instruction, &rendered_context, &scope_instruction);
+        let prompt = render_plan_prompt(&instruction, &rendered_context, &scope_instruction);
         self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
     }
     pub(super) fn handle_init_command(&mut self, environment: &str) {

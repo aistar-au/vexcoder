@@ -7,7 +7,7 @@ use crate::api::stream::StreamParser;
 use crate::runtime::policy::{default_runtime_policy, RuntimeCorePolicy};
 use crate::types::{ApiMessage, ApiUsage, Content, ContentBlock, StreamEvent};
 use crate::usage::TurnTokens;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use futures::{future::join_all, StreamExt};
 use std::collections::BTreeSet;
 use tokio::sync::mpsc;
@@ -23,6 +23,7 @@ impl ConversationManager {
     async fn execute_parallel_tool_round(
         &mut self,
         blocks: &[ContentBlock],
+        original_user_input: &str,
         tool_timeout: std::time::Duration,
         use_structured_blocks: bool,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
@@ -45,19 +46,32 @@ impl ConversationManager {
                 else {
                     return None;
                 };
+                let original_user_input = original_user_input.to_string();
                 Some(async move {
                     CompletedToolCall {
                         id: id.clone(),
                         name: name.clone(),
                         input: input.clone(),
-                        result: manager
-                            .execute_tool_with_timeout_with_updates(
-                                name,
-                                input,
-                                tool_timeout,
-                                stream_delta_tx,
-                            )
-                            .await,
+                        result: if let Some(message) =
+                            missing_read_only_location_prompt(name, input)
+                                .or_else(|| missing_mutating_location_prompt(name, input))
+                                .or_else(|| {
+                                    mutating_tool_read_only_conflict_prompt(
+                                        &original_user_input,
+                                        name,
+                                    )
+                                }) {
+                            Err(anyhow!(message))
+                        } else {
+                            manager
+                                .execute_tool_with_timeout_with_updates(
+                                    name,
+                                    input,
+                                    tool_timeout,
+                                    stream_delta_tx,
+                                )
+                                .await
+                        },
                     }
                 })
             })
@@ -538,6 +552,7 @@ impl ConversationManager {
                 let completed_calls = self
                     .execute_parallel_tool_round(
                         &tool_use_blocks,
+                        &original_user_input,
                         tool_timeout,
                         use_structured_blocks,
                         stream_delta_tx,

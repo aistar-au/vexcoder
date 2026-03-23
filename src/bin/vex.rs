@@ -667,9 +667,26 @@ fn render_file_picker_hint(prefix: &str, matches: &[String], selected: usize) ->
         return lines.join("\n");
     }
 
-    for (index, path) in matches.iter().enumerate() {
+    lines.push(format!("[file] {} match(es)", matches.len()));
+    let selected = selected.min(matches.len().saturating_sub(1));
+    let window = 12.min(matches.len());
+    let start = selected
+        .saturating_sub(window / 2)
+        .min(matches.len() - window);
+    let end = (start + window).min(matches.len());
+
+    if start > 0 {
+        lines.push(format!("[file] {start} earlier match(es)"));
+    }
+
+    for (offset, path) in matches[start..end].iter().enumerate() {
+        let index = start + offset;
         let marker = if index == selected { '>' } else { ' ' };
         lines.push(format!("{marker} [file] {path}"));
+    }
+
+    if end < matches.len() {
+        lines.push(format!("[file] {} more match(es)", matches.len() - end));
     }
     lines.join("\n")
 }
