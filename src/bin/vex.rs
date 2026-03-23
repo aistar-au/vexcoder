@@ -296,7 +296,7 @@ struct ManagedTuiFrontend {
     last_hint_text: String,
     last_file_picker_prefix: String,
     selected_file_hint: usize,
-    dismissed_file_picker: Option<(String, usize)>,
+    dismissed_file_picker: Option<(String, Range<usize>)>,
     cached_file_picker: Option<(String, usize, Option<FileMentionPickerState>)>,
 }
 
@@ -338,7 +338,8 @@ impl ManagedTuiFrontend {
     }
 
     fn dismiss_current_file_picker(&mut self) {
-        self.dismissed_file_picker = Some((self.editor.buffer().to_string(), self.editor.cursor()));
+        self.dismissed_file_picker = file_mention_range(self.editor.buffer(), self.editor.cursor())
+            .map(|range| (self.editor.buffer().to_string(), range));
         self.cached_file_picker = None;
         self.last_file_picker_prefix.clear();
         self.selected_file_hint = 0;
@@ -643,12 +644,15 @@ fn active_file_picker(
 }
 
 fn file_picker_is_dismissed(
-    dismissed: Option<&(String, usize)>,
+    dismissed: Option<&(String, Range<usize>)>,
     input: &str,
     cursor: usize,
 ) -> bool {
-    dismissed.is_some_and(|(dismissed_input, dismissed_cursor)| {
-        dismissed_input == input && *dismissed_cursor == cursor
+    dismissed.is_some_and(|(dismissed_input, dismissed_range)| {
+        dismissed_input == input
+            && file_mention_range(input, cursor)
+                .as_ref()
+                .is_some_and(|current_range| current_range == dismissed_range)
     })
 }
 
@@ -671,6 +675,8 @@ fn render_file_picker_hint(prefix: &str, matches: &[String], selected: usize) ->
 }
 
 fn apply_file_picker_selection(editor: &mut InputEditor, range: &Range<usize>, path: &str) {
+    let range =
+        file_mention_range(editor.buffer(), editor.cursor()).unwrap_or_else(|| range.clone());
     let suffix_needs_space = editor
         .buffer()
         .get(range.end..)
@@ -1749,12 +1755,19 @@ mod tests {
 
     #[test]
     fn dismissed_file_picker_stays_suppressed_until_input_changes() {
-        let dismissed = Some(("inspect @inp".to_string(), "inspect @inp".len()));
+        let input = "inspect @inp";
+        let range = file_mention_range(input, input.len()).expect("mention range");
+        let dismissed = Some((input.to_string(), range));
 
         assert!(file_picker_is_dismissed(
             dismissed.as_ref(),
             "inspect @inp",
             "inspect @inp".len()
+        ));
+        assert!(file_picker_is_dismissed(
+            dismissed.as_ref(),
+            "inspect @inp",
+            "inspect @i".len()
         ));
         assert!(!file_picker_is_dismissed(
             dismissed.as_ref(),

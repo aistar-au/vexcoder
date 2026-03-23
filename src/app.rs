@@ -41,7 +41,7 @@ use crate::ui::render::history_visual_line_count;
 use anyhow::Result;
 #[cfg(test)]
 use crossterm::event::{Event, KeyCode, KeyModifiers};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::io::Write;
 use std::ops::Range;
 use std::path::PathBuf;
@@ -611,6 +611,7 @@ pub struct TuiMode {
     model_profile: ModelProfile,
     /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
+    file_prompt_entries: RefCell<Option<Vec<String>>>,
     custom_commands: Vec<CustomCommand>,
     last_assembled_context: Option<AssembledContext>,
     read_only_turn_active: bool,

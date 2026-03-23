@@ -19,6 +19,29 @@ impl TuiMode {
             "ready"
         }
     }
+    fn cached_file_prompt_entries(&self) -> Vec<String> {
+        if let Some(entries) = self.file_prompt_entries.borrow().as_ref() {
+            return entries.clone();
+        }
+
+        let operator = ToolOperator::new(self.working_dir.clone());
+        let Ok(paths) = operator.find_files("**/*") else {
+            return Vec::new();
+        };
+
+        let mut entries = paths
+            .into_iter()
+            .map(|path| operator.to_workspace_relative_display(&path))
+            .collect::<Vec<_>>();
+        entries.sort();
+        entries.dedup();
+        *self.file_prompt_entries.borrow_mut() = Some(entries.clone());
+        entries
+    }
+
+    pub(super) fn invalidate_file_prompt_entries(&self) {
+        *self.file_prompt_entries.borrow_mut() = None;
+    }
 
     pub(super) fn approval_status_label(&self) -> &'static str {
         if self.overlay_active() {
@@ -157,14 +180,8 @@ impl TuiMode {
     }
 
     pub fn file_prompt_matches(&self, prefix: &str) -> Vec<String> {
-        let operator = ToolOperator::new(self.working_dir.clone());
-        let Ok(paths) = operator.find_files("**/*") else {
-            return Vec::new();
-        };
-
         let mut entries = BTreeSet::new();
-        for path in paths {
-            let display = operator.to_workspace_relative_display(&path);
+        for display in self.cached_file_prompt_entries() {
             let basename = Path::new(&display)
                 .file_name()
                 .and_then(|name| name.to_str())
