@@ -36,6 +36,7 @@ impl TuiMode {
         let summary = summarize_tool_approval_context("run_command", command);
         self.push_history_line(format!("[tool approval requested: {summary}]"));
         self.overlay_state.pending_approval = Some(PendingApproval {
+            step_id: None,
             tool_name: "run_command".to_string(),
             input_preview: command.to_string(),
             action: PendingApprovalAction::InlineCommand(PendingInlineCommand {

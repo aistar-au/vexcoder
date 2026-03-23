@@ -4,8 +4,26 @@ use super::*;
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 
 impl TuiMode {
+    pub(super) fn pending_tool_step_id(&self, tool_name: &str, input_preview: &str) -> Option<u64> {
+        self.pending_turn_tool_calls
+            .values()
+            .filter(|pending| pending.name == tool_name && pending.input_preview == input_preview)
+            .map(|pending| pending.step_id)
+            .min()
+    }
+
+    pub(super) fn mark_tool_step_approved(&mut self, step_id: Option<u64>) {
+        if let Some(step_id) = step_id {
+            self.overlay_state.approved_tool_steps.insert(step_id);
+        }
+        self.current_task.status = TaskStatus::Running;
+    }
+
     pub(super) fn resolve_pending_approval(&mut self, approved: bool, ctx: &RuntimeContext) {
         if let Some(pending) = self.overlay_state.pending_approval.take() {
+            if approved {
+                self.mark_tool_step_approved(pending.step_id);
+            }
             match pending.action {
                 PendingApprovalAction::Tool(response_tx) => {
                     let _ = response_tx.send(approved);

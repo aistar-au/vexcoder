@@ -62,6 +62,12 @@ impl TuiMode {
                             PendingTurnToolCall {
                                 step_id,
                                 name: name.clone(),
+                                input_preview: preview_tool_input(
+                                    name,
+                                    input,
+                                    ToolPreviewStyle::Compact,
+                                    crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
+                                ),
                                 input: input.clone(),
                             },
                         );
@@ -78,6 +84,9 @@ impl TuiMode {
                         is_error,
                     } => {
                         if let Some(pending) = self.pending_turn_tool_calls.remove(tool_call_id) {
+                            self.overlay_state
+                                .approved_tool_steps
+                                .remove(&pending.step_id);
                             if !*is_error {
                                 note_changed_files_from_tool_call(
                                     &mut self.current_turn_changed_files,
@@ -153,6 +162,8 @@ impl TuiMode {
                 }
 
                 if self.overlay_state.auto_approve_session {
+                    let step_id = self.pending_tool_step_id(&tool_name, &input_preview);
+                    self.mark_tool_step_approved(step_id);
                     let _ = response_tx.send(true);
                     self.push_history_line(format!("[auto-approved tool: {tool_name} session]"));
                     return;
@@ -170,6 +181,8 @@ impl TuiMode {
                     if matches!(scope, ApprovalScope::Once) {
                         self.current_task.active_grants.remove(&capability);
                     }
+                    let step_id = self.pending_tool_step_id(&tool_name, &input_preview);
+                    self.mark_tool_step_approved(step_id);
                     let _ = response_tx.send(true);
                     self.push_history_line(format!(
                         "[auto-approved tool: {tool_name} {} grant]",
@@ -179,9 +192,11 @@ impl TuiMode {
                 }
 
                 let summary = summarize_tool_approval_context(&tool_name, &input_preview);
+                let step_id = self.pending_tool_step_id(&tool_name, &input_preview);
                 self.push_history_line(format!("[tool approval requested: {summary}]"));
                 self.current_task.status = TaskStatus::AwaitingApproval;
                 self.overlay_state.pending_approval = Some(PendingApproval {
+                    step_id,
                     tool_name,
                     input_preview,
                     action: PendingApprovalAction::Tool(response_tx),

@@ -42,6 +42,7 @@ impl TuiMode {
         self.current_turn_command_history.clear();
         self.current_turn_tool_invocations.clear();
         self.pending_turn_tool_calls.clear();
+        self.overlay_state.approved_tool_steps.clear();
         self.selected_timeline_index = 0;
         self.timeline_follow_mode = true;
         self.inspector_scroll_offset = 0;
