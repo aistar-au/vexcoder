@@ -4,10 +4,11 @@ use clap_complete::Shell;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::widgets::Clear;
 use std::io::{self, IsTerminal, Write};
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
-use vexcoder::app::{run_tui_session, serve_facade_local_api, TuiMode};
+use vexcoder::app::{run_tui_session, serve_facade_local_api, FileMentionPickerState, TuiMode};
 use vexcoder::batch_mode::{run_batch, AutoApproveScope, BatchResult, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
 use vexcoder::doctor::run_doctor;
@@ -16,7 +17,7 @@ use vexcoder::prompts::render_pr_summary_prompt;
 use vexcoder::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
 use vexcoder::runtime::{ContextAssembler, TaskState, TaskStatus};
 use vexcoder::ui::draw::TaskDraw;
-use vexcoder::ui::editor::{InputAction, InputEditor};
+use vexcoder::ui::editor::{file_mention_range, InputAction, InputEditor};
 use vexcoder::ui::layout::split_three_pane_layout;
 use vexcoder::ui::render::{
     history_content_width_for_area, input_visual_rows, render_input, render_messages,
@@ -291,7 +292,12 @@ struct ManagedTuiFrontend {
     /// Direct ANSI draw engine for the task-state control surface.
     task_draw: TaskDraw,
     last_hint_input: String,
+    last_hint_cursor: usize,
     last_hint_text: String,
+    last_file_picker_prefix: String,
+    selected_file_hint: usize,
+    dismissed_file_picker: Option<(String, Range<usize>)>,
+    cached_file_picker: Option<(String, usize, Option<FileMentionPickerState>)>,
 }
 
 impl ManagedTuiFrontend {
@@ -305,8 +311,39 @@ impl ManagedTuiFrontend {
             started_at: Instant::now(),
             task_draw: TaskDraw::new(),
             last_hint_input: String::new(),
+            last_hint_cursor: 0,
             last_hint_text: String::new(),
+            last_file_picker_prefix: String::new(),
+            selected_file_hint: 0,
+            dismissed_file_picker: None,
+            cached_file_picker: None,
         })
+    }
+
+    fn current_file_picker(&mut self, mode: &TuiMode) -> Option<FileMentionPickerState> {
+        let input = self.editor.buffer();
+        let cursor = self.editor.cursor();
+        if file_picker_is_dismissed(self.dismissed_file_picker.as_ref(), input, cursor) {
+            return None;
+        }
+        if let Some((cached_input, cached_cursor, cached_picker)) = &self.cached_file_picker {
+            if cached_input == input && *cached_cursor == cursor {
+                return cached_picker.clone();
+            }
+        }
+
+        let picker = active_file_picker(mode, input, cursor);
+        self.cached_file_picker = Some((input.to_string(), cursor, picker.clone()));
+        picker
+    }
+
+    fn dismiss_current_file_picker(&mut self) {
+        self.dismissed_file_picker = file_mention_range(self.editor.buffer(), self.editor.cursor())
+            .map(|range| (self.editor.buffer().to_string(), range));
+        self.cached_file_picker = None;
+        self.last_file_picker_prefix.clear();
+        self.selected_file_hint = 0;
+        self.last_hint_input.clear();
     }
 
     fn drain_startup_events() {
@@ -395,7 +432,39 @@ impl ManagedTuiFrontend {
             .unwrap_or(1)
     }
 
-    fn map_regular_key(&mut self, key: KeyEvent) -> Option<UserInputEvent> {
+    fn map_regular_key(&mut self, key: KeyEvent, mode: &TuiMode) -> Option<UserInputEvent> {
+        if key.modifiers.is_empty() {
+            if let Some(picker) = self.current_file_picker(mode) {
+                let last_index = picker.matches.len().saturating_sub(1);
+                self.selected_file_hint = self.selected_file_hint.min(last_index);
+                match key.code {
+                    KeyCode::Up if !picker.matches.is_empty() => {
+                        self.selected_file_hint = self.selected_file_hint.saturating_sub(1);
+                        return None;
+                    }
+                    KeyCode::Down if !picker.matches.is_empty() => {
+                        self.selected_file_hint = (self.selected_file_hint + 1).min(last_index);
+                        return None;
+                    }
+                    KeyCode::Enter if !picker.matches.is_empty() => {
+                        let replacement = &picker.matches[self.selected_file_hint];
+                        apply_file_picker_selection(&mut self.editor, &picker.range, replacement);
+                        self.dismissed_file_picker = None;
+                        self.cached_file_picker = None;
+                        self.last_file_picker_prefix.clear();
+                        self.selected_file_hint = 0;
+                        self.last_hint_input.clear();
+                        return None;
+                    }
+                    KeyCode::Esc => {
+                        self.dismiss_current_file_picker();
+                        return None;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         match key.code {
             // Timeline navigation: Alt+Up / Alt+Down.
             KeyCode::Up if key.modifiers.contains(KeyModifiers::ALT) => {
@@ -533,13 +602,92 @@ impl ManagedTuiFrontend {
         }
     }
 
-    fn prompt_hint(&mut self, mode: &TuiMode, input: &str) -> String {
-        if self.last_hint_input != input {
+    fn prompt_hint(&mut self, mode: &TuiMode, input: &str, cursor: usize) -> String {
+        if let Some(picker) = self.current_file_picker(mode) {
+            if self.last_file_picker_prefix != picker.prefix {
+                self.last_file_picker_prefix = picker.prefix.clone();
+                self.selected_file_hint = 0;
+            }
+            let selected = self
+                .selected_file_hint
+                .min(picker.matches.len().saturating_sub(1));
             self.last_hint_input = input.to_string();
-            self.last_hint_text = mode.prompt_hint_for_input(input);
+            self.last_hint_text =
+                render_file_picker_hint(&picker.prefix, &picker.matches, selected);
+            return self.last_hint_text.clone();
+        }
+
+        self.last_file_picker_prefix.clear();
+        self.selected_file_hint = 0;
+        if self.last_hint_input != input || self.last_hint_cursor != cursor {
+            self.last_hint_input = input.to_string();
+            self.last_hint_cursor = cursor;
+            self.last_hint_text = mode.prompt_hint_for_input(input, cursor);
         }
         self.last_hint_text.clone()
     }
+}
+
+fn active_file_picker(
+    mode: &TuiMode,
+    buffer: &str,
+    cursor: usize,
+) -> Option<FileMentionPickerState> {
+    let range = file_mention_range(buffer, cursor)?;
+    let token = &buffer[range.clone()];
+    let prefix = token.strip_prefix('@')?.to_string();
+    Some(FileMentionPickerState {
+        range,
+        prefix: prefix.clone(),
+        matches: mode.file_prompt_matches(&prefix),
+    })
+}
+
+fn file_picker_is_dismissed(
+    dismissed: Option<&(String, Range<usize>)>,
+    input: &str,
+    cursor: usize,
+) -> bool {
+    dismissed.is_some_and(|(dismissed_input, dismissed_range)| {
+        dismissed_input == input
+            && file_mention_range(input, cursor)
+                .as_ref()
+                .is_some_and(|current_range| current_range == dismissed_range)
+    })
+}
+
+fn render_file_picker_hint(prefix: &str, matches: &[String], selected: usize) -> String {
+    let mut lines = vec!["Prompt".to_string(), "mode: file mention".to_string()];
+    if matches.is_empty() {
+        if prefix.is_empty() {
+            lines.push("[file] no files available".to_string());
+        } else {
+            lines.push(format!("[file] no matches for {prefix}"));
+        }
+        return lines.join("\n");
+    }
+
+    for (index, path) in matches.iter().enumerate() {
+        let marker = if index == selected { '>' } else { ' ' };
+        lines.push(format!("{marker} [file] {path}"));
+    }
+    lines.join("\n")
+}
+
+fn apply_file_picker_selection(editor: &mut InputEditor, range: &Range<usize>, path: &str) {
+    let range =
+        file_mention_range(editor.buffer(), editor.cursor()).unwrap_or_else(|| range.clone());
+    let suffix_needs_space = editor
+        .buffer()
+        .get(range.end..)
+        .map(|rest| rest.is_empty() || !rest.starts_with(char::is_whitespace))
+        .unwrap_or(true);
+    let replacement = if suffix_needs_space {
+        format!("@{path} ")
+    } else {
+        format!("@{path}")
+    };
+    editor.replace_range(range.start, range.end, &replacement);
 }
 
 impl Drop for ManagedTuiFrontend {
@@ -578,7 +726,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                 } else if mode.command_session_active() {
                     self.map_command_session_key(key)
                 } else {
-                    self.map_regular_key(key)
+                    self.map_regular_key(key, mode)
                 }
             }
             Event::Paste(text) => {
@@ -610,9 +758,10 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
         if let Some(mut task_state) = mode.task_layout_state() {
             // Direct ANSI draw path — no ratatui buffer allocation.
             // Get terminal size from the ratatui terminal (already tracks it).
-            task_state.input_hint = self.prompt_hint(mode, &input);
+            task_state.input_hint = self.prompt_hint(mode, &input, cursor);
             task_state.composer_text = input;
             task_state.composer_cursor = cursor;
+            task_state.composer_focused = mode.composer_is_focused();
             let size = self.terminal.size().unwrap_or_default();
             let mut stdout = std::io::stdout();
             self.task_draw
@@ -1379,8 +1528,10 @@ fn exit_code_for_status(status: TaskStatus) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::{
-        emit_migrate_config_output, extract_init_template_keys, looks_like_terminal_transcript,
-        prepare_pr_summary_prompt, resolve_resume_state, run_branch, run_pr_summary_with_batch,
+        active_file_picker, apply_file_picker_selection, emit_migrate_config_output,
+        extract_init_template_keys, file_mention_range, file_picker_is_dismissed,
+        looks_like_terminal_transcript, prepare_pr_summary_prompt, render_file_picker_hint,
+        resolve_resume_state, run_branch, run_pr_summary_with_batch,
         should_ignore_startup_paste_text, Cli, Commands, MigrateCommands, SkillsCommands,
         INIT_CONFIG_NORMATIVE_KEYS,
     };
@@ -1388,9 +1539,11 @@ mod tests {
     use clap_complete::Shell;
     use std::path::PathBuf;
     use std::process::Command;
+    use vexcoder::app::TuiMode;
     use vexcoder::batch_mode::{BatchResult, OutputFormat};
     use vexcoder::config::Config;
     use vexcoder::runtime::{TaskState, TaskStatus};
+    use vexcoder::ui::editor::InputEditor;
 
     mod test_support {
         pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -1554,6 +1707,73 @@ mod tests {
             should_ignore_startup_paste_text(input, true),
             "startup transcript dumps must still be ignored"
         );
+    }
+
+    #[test]
+    fn file_mention_range_tracks_token_under_cursor() {
+        let input = "inspect @src/app/inp more";
+        let cursor = input.find("inp").unwrap() + 3;
+        let range = file_mention_range(input, cursor).expect("mention range");
+        assert_eq!(&input[range], "@src/app/inp");
+    }
+
+    #[test]
+    fn file_picker_hint_marks_selected_entry() {
+        let hint = render_file_picker_hint(
+            "inp",
+            &["src/app/input.rs".into(), "src/app/inline.rs".into()],
+            1,
+        );
+        assert!(hint.contains("> [file] src/app/inline.rs"));
+        assert!(hint.contains("  [file] src/app/input.rs"));
+    }
+
+    #[test]
+    fn apply_file_picker_selection_replaces_partial_token() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("inspect @inp");
+        let range = file_mention_range(editor.buffer(), editor.cursor()).expect("mention range");
+        apply_file_picker_selection(&mut editor, &range, "src/app/input.rs");
+        assert_eq!(editor.buffer(), "inspect @src/app/input.rs ");
+    }
+
+    #[test]
+    fn active_file_picker_uses_tui_file_matches() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("src/app")).unwrap();
+        std::fs::write(temp.path().join("src/app/input.rs"), "fn hint() {}\n").unwrap();
+
+        let mut config = Config::default_for_tui();
+        config.working_dir = temp.path().to_path_buf();
+        let mode = TuiMode::new_with_config(None, config);
+
+        let picker =
+            active_file_picker(&mode, "inspect @inp", "inspect @inp".len()).expect("active picker");
+        assert_eq!(picker.prefix, "inp");
+        assert!(picker.matches.contains(&"src/app/input.rs".to_string()));
+    }
+
+    #[test]
+    fn dismissed_file_picker_stays_suppressed_until_input_changes() {
+        let input = "inspect @inp";
+        let range = file_mention_range(input, input.len()).expect("mention range");
+        let dismissed = Some((input.to_string(), range));
+
+        assert!(file_picker_is_dismissed(
+            dismissed.as_ref(),
+            "inspect @inp",
+            "inspect @inp".len()
+        ));
+        assert!(file_picker_is_dismissed(
+            dismissed.as_ref(),
+            "inspect @inp",
+            "inspect @i".len()
+        ));
+        assert!(!file_picker_is_dismissed(
+            dismissed.as_ref(),
+            "inspect @input",
+            "inspect @input".len()
+        ));
     }
 
     // -- PM-01 ----------------------------------------------------------------

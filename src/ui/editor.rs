@@ -1,6 +1,86 @@
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use std::ops::Range;
 
 use crate::ui::input_metrics::{cursor_row_col, visual_layout, visual_row_bounds};
+
+pub fn prev_char_boundary_in(buffer: &str, idx: usize) -> usize {
+    let mut normalized = idx.min(buffer.len());
+    while normalized > 0 && !buffer.is_char_boundary(normalized) {
+        normalized -= 1;
+    }
+    if normalized == 0 {
+        return 0;
+    }
+
+    normalized -= 1;
+    while normalized > 0 && !buffer.is_char_boundary(normalized) {
+        normalized -= 1;
+    }
+    normalized
+}
+
+pub fn file_mention_range(buffer: &str, cursor: usize) -> Option<Range<usize>> {
+    if buffer.is_empty() {
+        return None;
+    }
+
+    let mut probe = cursor.min(buffer.len());
+    while probe > 0 && !buffer.is_char_boundary(probe) {
+        probe -= 1;
+    }
+
+    if probe == buffer.len()
+        || buffer[probe..]
+            .chars()
+            .next()
+            .is_some_and(char::is_whitespace)
+    {
+        if probe == 0 {
+            return None;
+        }
+        probe = prev_char_boundary_in(buffer, probe);
+        if buffer[probe..]
+            .chars()
+            .next()
+            .is_some_and(char::is_whitespace)
+        {
+            return None;
+        }
+    }
+
+    let mut start = probe;
+    while start > 0 {
+        let prev = prev_char_boundary_in(buffer, start);
+        if buffer[prev..start]
+            .chars()
+            .next()
+            .is_some_and(char::is_whitespace)
+        {
+            break;
+        }
+        start = prev;
+    }
+
+    let mut end = probe;
+    while end < buffer.len() {
+        let next = buffer[end..]
+            .chars()
+            .next()
+            .map(|ch| end + ch.len_utf8())
+            .unwrap_or(buffer.len());
+        if buffer[end..next]
+            .chars()
+            .next()
+            .is_some_and(char::is_whitespace)
+        {
+            break;
+        }
+        end = next;
+    }
+
+    let token = &buffer[start..end];
+    token.starts_with('@').then_some(start..end)
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EditorSnapshot {
@@ -58,15 +138,7 @@ impl InputEditor {
     }
 
     pub fn prev_char_boundary(&self, idx: usize) -> usize {
-        let i = self.clamp_cursor_to_boundary_left(idx);
-        if i == 0 {
-            return 0;
-        }
-        let mut j = i - 1;
-        while j > 0 && !self.input_state.buffer.is_char_boundary(j) {
-            j -= 1;
-        }
-        j
+        prev_char_boundary_in(&self.input_state.buffer, idx)
     }
 
     pub fn next_char_boundary(&self, idx: usize) -> usize {
@@ -104,6 +176,16 @@ impl InputEditor {
         self.push_undo();
         self.input_state.buffer.insert_str(cursor, value);
         self.input_state.cursor = cursor + value.len();
+    }
+
+    pub fn replace_range(&mut self, start: usize, end: usize, value: &str) {
+        let start = self.clamp_cursor_to_boundary_left(start.min(end));
+        let end = self.clamp_cursor_to_boundary_left(end.max(start));
+        self.input_state.history_index = None;
+        self.input_state.history_stash = None;
+        self.push_undo();
+        self.input_state.buffer.replace_range(start..end, value);
+        self.input_state.cursor = start + value.len();
     }
 
     pub fn backspace(&mut self) {
@@ -326,8 +408,33 @@ impl Default for InputEditor {
 
 #[cfg(test)]
 mod tests {
-    use super::InputEditor;
+    use super::{file_mention_range, prev_char_boundary_in, InputEditor};
     use crate::ui::input_metrics::{cursor_row_col, visual_layout, visual_row_bounds};
+
+    #[test]
+    fn shared_prev_char_boundary_handles_multibyte_boundaries() {
+        let text = "éa";
+        assert_eq!(prev_char_boundary_in(text, 3), 2);
+        assert_eq!(prev_char_boundary_in(text, 2), 0);
+        assert_eq!(prev_char_boundary_in(text, 1), 0);
+    }
+
+    #[test]
+    fn file_mention_range_tracks_cursor_scoped_token() {
+        let input = "@bar refactoring @foo";
+        let cursor = input.find("bar").unwrap() + 2;
+        let range = file_mention_range(input, cursor).expect("mention range");
+        assert_eq!(&input[range], "@bar");
+    }
+
+    #[test]
+    fn replace_range_uses_clamped_start_for_reversed_ranges() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("éa");
+        editor.replace_range(3, 1, "x");
+        assert_eq!(editor.buffer(), "xéa");
+        assert_eq!(editor.cursor(), 1);
+    }
 
     #[test]
     fn visual_up_down_moves_within_multiline_prompt() {

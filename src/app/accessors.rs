@@ -1,4 +1,5 @@
 use super::*;
+use crate::ui::editor::file_mention_range;
 use std::collections::BTreeSet;
 use std::path::Path;
 
@@ -17,6 +18,29 @@ impl TuiMode {
         } else {
             "ready"
         }
+    }
+    fn cached_file_prompt_entries(&self) -> Vec<String> {
+        if let Some(entries) = self.file_prompt_entries.borrow().as_ref() {
+            return entries.clone();
+        }
+
+        let operator = ToolOperator::new(self.working_dir.clone());
+        let Ok(paths) = operator.find_files("**/*") else {
+            return Vec::new();
+        };
+
+        let mut entries = paths
+            .into_iter()
+            .map(|path| operator.to_workspace_relative_display(&path))
+            .collect::<Vec<_>>();
+        entries.sort();
+        entries.dedup();
+        *self.file_prompt_entries.borrow_mut() = Some(entries.clone());
+        entries
+    }
+
+    pub(super) fn invalidate_file_prompt_entries(&self) {
+        *self.file_prompt_entries.borrow_mut() = None;
     }
 
     pub(super) fn approval_status_label(&self) -> &'static str {
@@ -109,7 +133,7 @@ impl TuiMode {
         !self.command_sessions.is_empty()
     }
 
-    pub fn prompt_hint_for_input(&self, input: &str) -> String {
+    pub fn prompt_hint_for_input(&self, input: &str, cursor: usize) -> String {
         let base = if self.command_session_active() {
             "Prompt\nsubmit: / commands  @ files  ! shell  Ctrl+C cancels".to_string()
         } else {
@@ -131,10 +155,10 @@ impl TuiMode {
             return "Prompt\nmode: slash".to_string();
         }
 
-        if let Some(token) = input.split_whitespace().last() {
-            if let Some(prefix) = token.strip_prefix('@') {
+        if let Some(range) = file_mention_range(input, cursor) {
+            if let Some(prefix) = input[range].strip_prefix('@') {
                 let mut lines = vec!["Prompt".to_string(), "mode: file mention".to_string()];
-                let suggestions = self.file_prompt_suggestions(prefix);
+                let suggestions = self.file_prompt_matches(prefix);
                 if suggestions.is_empty() {
                     if prefix.is_empty() {
                         lines.push("[file] no files available".to_string());
@@ -142,13 +166,35 @@ impl TuiMode {
                         lines.push(format!("[file] no matches for {prefix}"));
                     }
                 } else {
-                    lines.extend(suggestions);
+                    lines.extend(suggestions.into_iter().map(|path| format!("[file] {path}")));
                 }
                 return lines.join("\n");
             }
         }
 
         base
+    }
+
+    pub fn composer_is_focused(&self) -> bool {
+        !self.overlay_active() && !self.command_session_active()
+    }
+
+    pub fn file_prompt_matches(&self, prefix: &str) -> Vec<String> {
+        let mut entries = BTreeSet::new();
+        for display in self.cached_file_prompt_entries() {
+            let basename = Path::new(&display)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(display.as_str());
+            if prefix.is_empty() || display.starts_with(prefix) || basename.starts_with(prefix) {
+                entries.insert(display);
+                if entries.len() >= 8 {
+                    break;
+                }
+            }
+        }
+
+        entries.into_iter().collect()
     }
 
     pub fn set_history_content_width(&self, width: usize) {
@@ -225,30 +271,6 @@ impl TuiMode {
                 }),
         );
         rows
-    }
-
-    fn file_prompt_suggestions(&self, prefix: &str) -> Vec<String> {
-        let operator = ToolOperator::new(self.working_dir.clone());
-        let Ok(paths) = operator.find_files("**/*") else {
-            return Vec::new();
-        };
-
-        let mut entries = BTreeSet::new();
-        for path in paths {
-            let display = operator.to_workspace_relative_display(&path);
-            let basename = Path::new(&display)
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or(display.as_str());
-            if prefix.is_empty() || display.starts_with(prefix) || basename.starts_with(prefix) {
-                entries.insert(format!("[file] {display}"));
-                if entries.len() >= 8 {
-                    break;
-                }
-            }
-        }
-
-        entries.into_iter().collect()
     }
 }
 

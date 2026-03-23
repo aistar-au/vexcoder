@@ -41,8 +41,9 @@ use crate::ui::render::history_visual_line_count;
 use anyhow::Result;
 #[cfg(test)]
 use crossterm::event::{Event, KeyCode, KeyModifiers};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::io::Write;
+use std::ops::Range;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -574,9 +575,18 @@ pub struct TaskLayoutState {
     pub composer_text: String,
     /// Cursor byte offset within `composer_text`.
     pub composer_cursor: usize,
+    /// Whether the composer should render as the active focus target.
+    pub composer_focused: bool,
     pub changed_files: Vec<String>,
     /// When true the timeline auto-advances to the latest entry.
     pub follow_mode: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FileMentionPickerState {
+    pub range: Range<usize>,
+    pub prefix: String,
+    pub matches: Vec<String>,
 }
 
 pub struct TuiMode {
@@ -601,6 +611,7 @@ pub struct TuiMode {
     model_profile: ModelProfile,
     /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
+    file_prompt_entries: RefCell<Option<Vec<String>>>,
     custom_commands: Vec<CustomCommand>,
     last_assembled_context: Option<AssembledContext>,
     read_only_turn_active: bool,
