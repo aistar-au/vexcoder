@@ -86,6 +86,10 @@ Batch mode:
 make gate-fast
 ```
 
+Once inside an interactive session, the model can explore the codebase using
+`codebase_search` (for functions, types, and code patterns) and `list_files`
+(for directory structure) before making targeted reads.
+
 ## Next
 
 - [Configuration](configuration.md)

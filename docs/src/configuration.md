@@ -121,6 +121,12 @@ Overrides the project instructions token budget.
 
 Overrides the notes token budget.
 
+### `VEX_MAX_TOKENS`
+
+Base context-window size used by auto-cap calculations. The runtime derives
+per-file read limits and search result budgets from this value when explicit
+overrides are not set. Inferred from the model profile when available.
+
 ### `VEX_MAX_COMMAND_OUTPUT_BYTES`
 
 Maximum bytes kept in the accumulated stdout/stderr buffer returned to the
@@ -131,15 +137,23 @@ the TUI transcript. Default: `51200` (50 KiB).
 
 Maximum lines returned by the `read_file` tool when no explicit `limit`
 parameter is provided. When not set, derives from `VEX_MAX_TOKENS`: roughly
-10% of the context budget at ~20 tokens per line. For a 4096-token context
-this yields ~50 lines; for 128K it yields ~640; for 1M+ contexts up to
-10,000 lines. The `read_file` tool also accepts `offset` (1-based line
-number) and `limit` parameters for targeted partial reads.
+10% of the context budget at ~20 tokens per line.
+
+| Context budget | Auto-cap |
+| :--- | :--- |
+| 4 K tokens | ~50 lines |
+| 32 K tokens | ~160 lines |
+| 128 K tokens | ~640 lines |
+| 1 M+ tokens | up to 10,000 lines |
+
+The `read_file` tool also accepts `offset` (1-based line number) and `limit`
+parameters for targeted partial reads.
 
 ### `VEX_DIFF_PREFERRED_ABOVE_LINES`
 
 Line threshold above which `write_file` emits a warning suggesting
-`apply_patch` or `edit_file` instead. Default: `200`.
+`apply_patch` or `edit_file` instead. The model sees the warning in the tool
+result and is expected to switch strategy on the next attempt. Default: `200`.
 
 ### `VEX_WRITE_FILE_MAX_LINES`
 
@@ -150,7 +164,7 @@ Default: `500`.
 ### `VEX_SEARCH_MAX_RESULTS`
 
 Maximum number of results returned by the `codebase_search` tool. Default:
-`20`.
+`10`.
 
 ### `VEX_INDEX_MAX_FILES`
 
@@ -183,9 +197,10 @@ Number of texts sent per embedding API call. Default: `64`.
 
 ### `VEX_HISTORY_KEEP_TURNS`
 
-Number of recent conversation turns kept at full fidelity. Tool results in
-older turns are condensed to their first 5 lines plus a line-count indicator.
-Default: `10`.
+Number of recent conversation turns kept at full fidelity. Older turns are
+condensed: tool results are truncated to their first 5 lines plus a
+`(N more lines)` indicator, keeping the conversation within the context
+budget without losing the thread of earlier work. Default: `10`.
 
 ## `vex init` scaffold
 

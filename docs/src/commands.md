@@ -219,6 +219,73 @@ session totals.
   - The transcript records the command, PID, streamed output, and final
     `[command session exit: N]` status.
 
+## Tool inventory
+
+The model can invoke the following tools during a turn. Read-only tools run
+without confirmation; mutating tools require operator approval (or a
+session/capability auto-approval grant).
+
+### Read-only tools
+
+| Tool | Purpose |
+| :--- | :--- |
+| `read_file` | Read file content from an explicit non-empty path. Accepts `offset` (1-based line) and `limit` for partial reads. For repo overviews, use `list_files` or `codebase_search` first. |
+| `list_files` | List files and directories under a path, or the workspace root when omitted. Prefer this for initial repo exploration. |
+| `list_directory` | Alias for `list_files`. |
+| `search_files` | Search text across files and return matching lines. |
+| `search` | Alias for `search_files`. |
+| `find_files` | Find files by name pattern (glob) within the workspace. |
+| `codebase_search` | Search the structural index for functions, types, and code patterns by name or keyword. Returns ranked code snippets with file paths and line numbers. When embeddings are configured, also performs semantic reranking. Prefer this over `read_file` for exploring unfamiliar code. |
+| `git_status` | Show git repository status. |
+| `git_diff` | Show git diff output. |
+
+### Mutating tools
+
+| Tool | Purpose |
+| :--- | :--- |
+| `write_file` | Write full file content. Files above `VEX_DIFF_PREFERRED_ABOVE_LINES` (default 200) trigger a warning suggesting `apply_patch` or `edit_file`. Files above `VEX_WRITE_FILE_MAX_LINES` (default 500) are rejected. |
+| `edit_file` | Replace one exact unique snippet (`old_str` → `new_str`). Preferred for targeted edits. |
+| `apply_patch` | Apply full-file content as a patch. Preferred for large-scale changes where `edit_file` is impractical. |
+| `rename_file` | Rename or move a file within the workspace. |
+| `run_command` | Execute a shell command in the workspace. |
+
+### Search ranking
+
+`codebase_search` uses a Tree-sitter-based structural index that extracts
+functions, structs, enums, impls, traits, modules, constants, and type
+aliases from Rust source files. The index is built at session start and
+updated incrementally on file writes.
+
+Results are scored by:
+
+- Exact name match: highest priority
+- Substring / fuzzy name match
+- Content keyword match (per word)
+- Recency of last modification
+
+Results are capped at `VEX_SEARCH_MAX_RESULTS` (default 10). When an
+embedding provider is configured (`VEX_EMBEDDING_PROVIDER`), results are
+additionally reranked by semantic similarity using the persisted vector index
+at `.vex/index/`.
+
+## Error handling
+
+### Context-overflow recovery
+
+When the conversation exceeds the server's context window, VexCoder detects
+the overflow from the HTTP 400 response body and provides actionable guidance:
+
+- **Local endpoints:** suggests restarting the server with a larger context
+  size (e.g. `--ctx-size 8192`) or using `/clear` to reset the conversation.
+- **Remote endpoints:** suggests using `/clear` to reset the conversation.
+
+The server's error message is shown verbatim (truncated to 300 characters).
+
+For non-context-overflow HTTP 400 errors from local endpoints, the error
+includes the detected protocol (MessagesV1 vs ChatCompat) and suggests
+checking the model name, protocol format, and whether the server supports
+streaming.
+
 ## Keyboard notes
 
 - `Ctrl+C` requests cancellation for the active turn.
@@ -231,3 +298,4 @@ session totals.
 - Selecting older timeline entries manually switches the output pane into inspector detail for that step until follow mode resumes.
 - `Shift+Enter` inserts a newline without submitting the turn.
 - Pasted text is inserted into the larger multiline prompt surface during normal editing.
+- The composer header shows a live focus indicator (`focused` / `unfocused`) and a character count that updates as you type.

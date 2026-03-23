@@ -99,6 +99,7 @@ cargo test test_crit_XX_anchor_name -- --nocapture
 cargo test --all-targets
 bash scripts/check_no_alternate_routing.sh
 bash scripts/check_forbidden_imports.sh
+bash scripts/check_forbidden_names.sh
 ```
 
 ---
@@ -234,6 +235,8 @@ Available profiles:
 - `vexcoder-transcript-renderer-overhaul` for task-state layout logic,
   fallback-renderer parity, fixed-height prompt geometry, blank-initial
   transcript behavior, and related layout/test contracts.
+- `rust-change-auditor` for review, regression diagnosis, and post-merge
+  audit of Rust changes across the codebase.
 
 ### Parallel UI overhaul pattern
 
