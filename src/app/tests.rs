@@ -270,11 +270,13 @@ fn test_task_layout_state_transcript_streaming_with_pending_approval() {
         PendingTurnToolCall {
             step_id: 1,
             name: "read_file".to_string(),
+            input_preview: "{\"path\":\"src/main.rs\"}".to_string(),
             input: serde_json::json!({"path":"src/main.rs"}),
         },
     );
     let (response_tx, _response_rx) = tokio::sync::oneshot::channel::<bool>();
     mode.overlay_state.pending_approval = Some(PendingApproval {
+        step_id: Some(1),
         tool_name: "read_file".to_string(),
         input_preview: "{\"path\":\"src/main.rs\"}".to_string(),
         action: PendingApprovalAction::Tool(response_tx),
@@ -290,6 +292,58 @@ fn test_task_layout_state_transcript_streaming_with_pending_approval() {
     assert_eq!(
         state.output_rows.last().expect("last row"),
         "streaming line▌"
+    );
+}
+
+#[test]
+fn test_task_layout_state_shows_approved_pending_tool_after_acceptance() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("plan it".to_string(), &mut ctx);
+    mode.pending_turn_tool_calls.insert(
+        "tool-1".to_string(),
+        PendingTurnToolCall {
+            step_id: 1,
+            name: "read_file".to_string(),
+            input_preview: "{\"path\":\"src/main.rs\"}".to_string(),
+            input: serde_json::json!({"path":"src/main.rs"}),
+        },
+    );
+
+    let (response_tx, _response_rx) = tokio::sync::oneshot::channel::<bool>();
+    mode.on_model_update(
+        UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
+            tool_name: "read_file".to_string(),
+            input_preview: "{\"path\":\"src/main.rs\"}".to_string(),
+            response_tx,
+        }),
+        &mut ctx,
+    );
+
+    let awaiting = mode
+        .task_layout_state()
+        .expect("task layout state")
+        .timeline_entries
+        .into_iter()
+        .find(|entry| entry.step_id == 1)
+        .expect("pending entry");
+    assert_eq!(awaiting.lifecycle, StepLifecycle::AwaitingApproval);
+
+    mode.resolve_pending_approval(true, &ctx);
+
+    let approved = mode
+        .task_layout_state()
+        .expect("task layout state")
+        .timeline_entries
+        .into_iter()
+        .find(|entry| entry.step_id == 1)
+        .expect("approved entry");
+    assert_eq!(approved.lifecycle, StepLifecycle::Approved);
+    assert_eq!(approved.label, "read_file: approved");
+    assert_eq!(
+        mode.current_task.status,
+        crate::runtime::TaskStatus::Running
     );
 }
 
@@ -417,6 +471,7 @@ fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
         PendingTurnToolCall {
             step_id: 6,
             name: "validate".to_string(),
+            input_preview: "{}".to_string(),
             input: serde_json::json!({}),
         },
     );
@@ -451,6 +506,7 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
         PendingTurnToolCall {
             step_id: 4,
             name: "validate".to_string(),
+            input_preview: "{}".to_string(),
             input: serde_json::json!({}),
         },
     );
@@ -459,6 +515,7 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
         PendingTurnToolCall {
             step_id: 3,
             name: "edit_file".to_string(),
+            input_preview: "{}".to_string(),
             input: serde_json::json!({}),
         },
     );
@@ -870,6 +927,7 @@ fn overlay_renders_after_base_panes() {
     let mut overlay_mode = TuiMode::new();
     let (response_tx, _response_rx) = tokio::sync::oneshot::channel::<bool>();
     overlay_mode.overlay_state.pending_approval = Some(PendingApproval {
+        step_id: None,
         tool_name: "read_file".to_string(),
         input_preview: "{\"path\":\"Cargo.toml\"}".to_string(),
         action: PendingApprovalAction::Tool(response_tx),
@@ -1036,6 +1094,7 @@ fn multiline_submit_outside_overlay_only() {
     mode.history_state.active_assistant_index = None;
     let (response_tx, _response_rx) = tokio::sync::oneshot::channel::<bool>();
     mode.overlay_state.pending_approval = Some(PendingApproval {
+        step_id: None,
         tool_name: "read_file".to_string(),
         input_preview: "{}".to_string(),
         action: PendingApprovalAction::Tool(response_tx),
@@ -1085,6 +1144,7 @@ fn history_stable_during_overlay() {
 
     let (response_tx, _response_rx) = tokio::sync::oneshot::channel::<bool>();
     mode.overlay_state.pending_approval = Some(PendingApproval {
+        step_id: None,
         tool_name: "read_file".to_string(),
         input_preview: "{}".to_string(),
         action: PendingApprovalAction::Tool(response_tx),

@@ -909,6 +909,25 @@ pub(super) fn missing_mutating_location_prompt(
     }
 }
 
+pub(super) fn missing_read_only_location_prompt(
+    name: &str,
+    input: &serde_json::Value,
+) -> Option<String> {
+    let missing =
+        |keys: &[&str]| first_tool_string(input, keys).is_none_or(|value| value.trim().is_empty());
+
+    match name {
+        "read_file" => {
+            if missing(&["path", "file_path", "file", "filename"]) {
+                Some("I need an explicit file path before reading a file. Please provide a non-empty `path` such as `src/calculator.rs`. For repository overviews, start with `list_files` at the workspace root or `codebase_search` with a repo-summary query instead. No file changes were made.".to_string())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn is_read_only_user_request(input: &str) -> bool {
     const READ_ONLY_HINTS: [&str; 25] = [
         "show",

@@ -31,6 +31,7 @@ Do not narrate intended actions without executing the tool call.\n\
 Use codebase_search to find functions, types, and code patterns before reading files. Only use read_file with offset/limit when you know the exact location.\n\
 Prefer search_files for targeted string matches and avoid full-file reads unless required.\n\
 Use list_files/search_files/read_file before saying a file is missing or present.\n\
+For repository summaries or unfamiliar codebases, start with list_files at the workspace root and/or codebase_search; do not call read_file until you have an explicit non-empty path.\n\
 For edit_file, use a focused old_str snippet around the target change and avoid whole-file replacements; if an entire file rewrite is needed, use write_file instead.\n\
 For code edits, prefer this sequence: search_files -> read_file -> edit_file -> read_file (verify).\n\
 For read-only requests (show/read/list/count/status/log/diff), use read-only tools and do not call mutating tools unless the user explicitly asks for changes.\n\
@@ -760,11 +761,11 @@ fn tool_definitions() -> serde_json::Value {
     json!([
         {
             "name": "read_file",
-            "description": "Read file content. For large files, use offset and limit to read specific line ranges instead of loading the entire file.",
+            "description": "Read file content from an explicit non-empty path. For repository overviews, use list_files or codebase_search first. For large files, use offset and limit to read specific line ranges instead of loading the entire file.",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string", "description": "File path relative to workspace root" },
+                    "path": { "type": "string", "description": "Non-empty file path relative to workspace root" },
                     "offset": { "type": "integer", "description": "Starting line number (1-based). Omit to start from line 1." },
                     "limit": { "type": "integer", "description": "Maximum number of lines to return. Omit to read all remaining lines." }
                 },
@@ -822,7 +823,7 @@ fn tool_definitions() -> serde_json::Value {
         },
         {
             "name": "list_files",
-            "description": "List files and directories under a path.",
+            "description": "List files and directories under a path. Omit path to list the workspace root; prefer this for repo overviews before targeted file reads.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -833,7 +834,7 @@ fn tool_definitions() -> serde_json::Value {
         },
         {
             "name": "list_directory",
-            "description": "Alias for list_files. List files and directories under a path.",
+            "description": "Alias for list_files. List files and directories under a path, or omit path to list the workspace root.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -958,7 +959,7 @@ fn tool_definitions() -> serde_json::Value {
         },
         {
             "name": "codebase_search",
-            "description": "Search the codebase for functions, types, and code patterns by name or keyword. Returns ranked code snippets with file paths and line numbers, and when embeddings are configured it also performs semantic reranking backed by a persisted index under .vex/index/. Prefer this over read_file for exploring unfamiliar code.",
+            "description": "Search the codebase for functions, types, and code patterns by name or keyword. Returns ranked code snippets with file paths and line numbers, and when embeddings are configured it also performs semantic reranking backed by a persisted index under .vex/index/. Prefer this over read_file for exploring unfamiliar code or producing a quick repo overview.",
             "input_schema": {
                 "type": "object",
                 "properties": {

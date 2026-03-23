@@ -15,6 +15,7 @@ Most interactive application coordination still lives in `src/app.rs`. The runti
 - `src/app/model_update.rs` pushes a verb-first one-liner into the transcript as each tool result arrives (e.g. "Searched …", "Read …", "Edited …") so the operator sees immediate progress instead of a blank screen while the model produces its response text.
 - `src/batch_mode.rs` runs the same runtime headlessly for `vex exec` and writes JSONL or text output.
 - `src/runtime/` contains the reusable runtime machinery: context assembly, the edit loop, command and sandbox plumbing, project instructions, task state, and validation.
+- `src/state/conversation/` owns the conversation loop safeguards that sit above raw tool execution. Alongside the existing read-only and mutating-tool guards, it now short-circuits malformed `read_file` calls with missing paths and asks for a concrete file target or a repo-overview flow (`list_files` / `codebase_search`) instead of replaying the same raw tool error.
 
 ## Streaming protocol coverage
 

@@ -31,6 +31,7 @@ use crate::session_notes::{
     build_api_client_with_notes, resolve_notes_path_for_read, resolve_notes_path_for_write,
 };
 use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest, TurnToolPolicy};
+use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
 use crate::tools::ToolOperator;
 use crate::turn_evidence::{
     command_evidence_from_tool_result, note_changed_files_from_tool_call, ToolInvocationSummary,
@@ -90,6 +91,7 @@ use self::util::{
 pub use self::util::{capability_to_kebab, kebab_to_capability};
 
 struct PendingApproval {
+    step_id: Option<u64>,
     tool_name: String,
     input_preview: String,
     action: PendingApprovalAction,
@@ -108,6 +110,7 @@ struct PendingInlineCommand {
 struct PendingTurnToolCall {
     step_id: u64,
     name: String,
+    input_preview: String,
     input: serde_json::Value,
 }
 
@@ -497,6 +500,7 @@ struct OverlayState {
     pending_approval: Option<PendingApproval>,
     pending_patch_approval: Option<PendingPatchApproval>,
     pending_resume_selection: Option<PendingResumeSelection>,
+    approved_tool_steps: std::collections::BTreeSet<u64>,
     auto_approve_session: bool,
     pending_memory_clear: bool,
 }

@@ -114,26 +114,30 @@ impl TuiMode {
                 .overlay_state
                 .pending_approval
                 .as_ref()
-                .map(|pending| pending.tool_name.as_str());
+                .and_then(|pending| pending.step_id);
             for pending in pending_calls {
                 let input_preview = serde_json::to_string_pretty(&pending.input)
                     .unwrap_or_else(|_| pending.input.to_string());
+                let lifecycle = if awaiting_tool_name == Some(pending.step_id) {
+                    StepLifecycle::AwaitingApproval
+                } else if self
+                    .overlay_state
+                    .approved_tool_steps
+                    .contains(&pending.step_id)
+                {
+                    StepLifecycle::Approved
+                } else {
+                    StepLifecycle::Running
+                };
+                let status = match lifecycle {
+                    StepLifecycle::AwaitingApproval => "awaiting approval",
+                    StepLifecycle::Approved => "approved",
+                    _ => "running...",
+                };
                 entries.push(TimelineEntry {
                     step_id: pending.step_id,
-                    lifecycle: if awaiting_tool_name == Some(pending.name.as_str()) {
-                        StepLifecycle::AwaitingApproval
-                    } else {
-                        StepLifecycle::Running
-                    },
-                    label: format!(
-                        "{}: {}",
-                        pending.name,
-                        if awaiting_tool_name == Some(pending.name.as_str()) {
-                            "awaiting approval"
-                        } else {
-                            "running..."
-                        }
-                    ),
+                    lifecycle,
+                    label: format!("{}: {}", pending.name, status),
                     detail: format!("Tool: {}\nInput:\n{}", pending.name, input_preview),
                     session_id: None,
                 });
@@ -582,7 +586,7 @@ mod tests {
     fn scope_detail_prefers_builtin_tool_description() {
         assert_eq!(
             tool_scope_detail("read_file"),
-            "Read file content. For large files, use offset and limit to read specific line ranges instead of loading the entire file."
+            "Read file content from an explicit non-empty path. For repository overviews, use list_files or codebase_search first. For large files, use offset and limit to read specific line ranges instead of loading the entire file."
         );
     }
 
