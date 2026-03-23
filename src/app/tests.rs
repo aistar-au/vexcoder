@@ -508,6 +508,16 @@ fn test_timeline_page_down_disables_follow_mode_until_end() {
 }
 
 #[test]
+fn test_composer_remains_focused_while_transcript_is_scrolled() {
+    let mut mode = TuiMode::new();
+    mode.timeline_follow_mode = false;
+    mode.transcript_scroll_offset = 3;
+    mode.inspector_scroll_offset = 2;
+
+    assert!(mode.composer_is_focused());
+}
+
+#[test]
 fn test_transcript_does_not_exceed_cap_after_n_turns() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     std::env::set_var(MAX_HISTORY_LINES_ENV, "10");

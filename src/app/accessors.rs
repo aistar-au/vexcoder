@@ -152,15 +152,31 @@ impl TuiMode {
     }
 
     pub fn composer_is_focused(&self) -> bool {
-        !self.overlay_active()
-            && !self.command_session_active()
-            && self.timeline_follow_mode
-            && self.transcript_scroll_offset == 0
-            && self.inspector_scroll_offset == 0
+        !self.overlay_active() && !self.command_session_active()
     }
 
     pub fn file_prompt_matches(&self, prefix: &str) -> Vec<String> {
-        self.file_prompt_suggestions(prefix)
+        let operator = ToolOperator::new(self.working_dir.clone());
+        let Ok(paths) = operator.find_files("**/*") else {
+            return Vec::new();
+        };
+
+        let mut entries = BTreeSet::new();
+        for path in paths {
+            let display = operator.to_workspace_relative_display(&path);
+            let basename = Path::new(&display)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(display.as_str());
+            if prefix.is_empty() || display.starts_with(prefix) || basename.starts_with(prefix) {
+                entries.insert(display);
+                if entries.len() >= 8 {
+                    break;
+                }
+            }
+        }
+
+        entries.into_iter().collect()
     }
 
     pub fn set_history_content_width(&self, width: usize) {
@@ -237,30 +253,6 @@ impl TuiMode {
                 }),
         );
         rows
-    }
-
-    fn file_prompt_suggestions(&self, prefix: &str) -> Vec<String> {
-        let operator = ToolOperator::new(self.working_dir.clone());
-        let Ok(paths) = operator.find_files("**/*") else {
-            return Vec::new();
-        };
-
-        let mut entries = BTreeSet::new();
-        for path in paths {
-            let display = operator.to_workspace_relative_display(&path);
-            let basename = Path::new(&display)
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or(display.as_str());
-            if prefix.is_empty() || display.starts_with(prefix) || basename.starts_with(prefix) {
-                entries.insert(display);
-                if entries.len() >= 8 {
-                    break;
-                }
-            }
-        }
-
-        entries.into_iter().collect()
     }
 }
 

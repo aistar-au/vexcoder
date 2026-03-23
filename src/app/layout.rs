@@ -383,7 +383,6 @@ impl TuiMode {
             input_hint,
             composer_text: String::new(),
             composer_cursor: 0,
-            composer_char_count: 0,
             composer_focused: self.composer_is_focused(),
             changed_files: self
                 .current_task

@@ -295,6 +295,7 @@ struct ManagedTuiFrontend {
     last_hint_text: String,
     last_file_picker_prefix: String,
     selected_file_hint: usize,
+    dismissed_file_picker: Option<(String, usize)>,
 }
 
 impl ManagedTuiFrontend {
@@ -311,11 +312,24 @@ impl ManagedTuiFrontend {
             last_hint_text: String::new(),
             last_file_picker_prefix: String::new(),
             selected_file_hint: 0,
+            dismissed_file_picker: None,
         })
     }
 
     fn current_file_picker(&self, mode: &TuiMode) -> Option<FileMentionPickerState> {
-        active_file_picker(mode, self.editor.buffer(), self.editor.cursor())
+        let input = self.editor.buffer();
+        let cursor = self.editor.cursor();
+        if file_picker_is_dismissed(self.dismissed_file_picker.as_ref(), input, cursor) {
+            return None;
+        }
+        active_file_picker(mode, input, cursor)
+    }
+
+    fn dismiss_current_file_picker(&mut self) {
+        self.dismissed_file_picker = Some((self.editor.buffer().to_string(), self.editor.cursor()));
+        self.last_file_picker_prefix.clear();
+        self.selected_file_hint = 0;
+        self.last_hint_input.clear();
     }
 
     fn drain_startup_events() {
@@ -421,7 +435,14 @@ impl ManagedTuiFrontend {
                     KeyCode::Enter if !picker.matches.is_empty() => {
                         let replacement = &picker.matches[self.selected_file_hint];
                         apply_file_picker_selection(&mut self.editor, &picker.range, replacement);
+                        self.dismissed_file_picker = None;
+                        self.last_file_picker_prefix.clear();
+                        self.selected_file_hint = 0;
                         self.last_hint_input.clear();
+                        return None;
+                    }
+                    KeyCode::Esc => {
+                        self.dismiss_current_file_picker();
                         return None;
                     }
                     _ => {}
@@ -566,8 +587,8 @@ impl ManagedTuiFrontend {
         }
     }
 
-    fn prompt_hint(&mut self, mode: &TuiMode, input: &str, cursor: usize) -> String {
-        if let Some(picker) = active_file_picker(mode, input, cursor) {
+    fn prompt_hint(&mut self, mode: &TuiMode, input: &str) -> String {
+        if let Some(picker) = self.current_file_picker(mode) {
             if self.last_file_picker_prefix != picker.prefix {
                 self.last_file_picker_prefix = picker.prefix.clone();
                 self.selected_file_hint = 0;
@@ -684,6 +705,16 @@ fn active_file_picker(
     })
 }
 
+fn file_picker_is_dismissed(
+    dismissed: Option<&(String, usize)>,
+    input: &str,
+    cursor: usize,
+) -> bool {
+    dismissed.is_some_and(|(dismissed_input, dismissed_cursor)| {
+        dismissed_input == input && *dismissed_cursor == cursor
+    })
+}
+
 fn render_file_picker_hint(prefix: &str, matches: &[String], selected: usize) -> String {
     let mut lines = vec!["Prompt".to_string(), "mode: file mention".to_string()];
     if matches.is_empty() {
@@ -784,10 +815,9 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
         if let Some(mut task_state) = mode.task_layout_state() {
             // Direct ANSI draw path — no ratatui buffer allocation.
             // Get terminal size from the ratatui terminal (already tracks it).
-            task_state.input_hint = self.prompt_hint(mode, &input, cursor);
+            task_state.input_hint = self.prompt_hint(mode, &input);
             task_state.composer_text = input;
             task_state.composer_cursor = cursor;
-            task_state.composer_char_count = task_state.composer_text.chars().count();
             task_state.composer_focused = mode.composer_is_focused();
             let size = self.terminal.size().unwrap_or_default();
             let mut stdout = std::io::stdout();
@@ -1556,10 +1586,11 @@ fn exit_code_for_status(status: TaskStatus) -> ExitCode {
 mod tests {
     use super::{
         active_file_picker, apply_file_picker_selection, emit_migrate_config_output,
-        extract_init_template_keys, file_mention_range, looks_like_terminal_transcript,
-        prepare_pr_summary_prompt, render_file_picker_hint, resolve_resume_state, run_branch,
-        run_pr_summary_with_batch, should_ignore_startup_paste_text, Cli, Commands,
-        MigrateCommands, SkillsCommands, INIT_CONFIG_NORMATIVE_KEYS,
+        extract_init_template_keys, file_mention_range, file_picker_is_dismissed,
+        looks_like_terminal_transcript, prepare_pr_summary_prompt, render_file_picker_hint,
+        resolve_resume_state, run_branch, run_pr_summary_with_batch,
+        should_ignore_startup_paste_text, Cli, Commands, MigrateCommands, SkillsCommands,
+        INIT_CONFIG_NORMATIVE_KEYS,
     };
     use clap::Parser;
     use clap_complete::Shell;
@@ -1777,6 +1808,22 @@ mod tests {
             active_file_picker(&mode, "inspect @inp", "inspect @inp".len()).expect("active picker");
         assert_eq!(picker.prefix, "inp");
         assert!(picker.matches.contains(&"src/app/input.rs".to_string()));
+    }
+
+    #[test]
+    fn dismissed_file_picker_stays_suppressed_until_input_changes() {
+        let dismissed = Some(("inspect @inp".to_string(), "inspect @inp".len()));
+
+        assert!(file_picker_is_dismissed(
+            dismissed.as_ref(),
+            "inspect @inp",
+            "inspect @inp".len()
+        ));
+        assert!(!file_picker_is_dismissed(
+            dismissed.as_ref(),
+            "inspect @input",
+            "inspect @input".len()
+        ));
     }
 
     // -- PM-01 ----------------------------------------------------------------

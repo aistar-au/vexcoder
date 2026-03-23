@@ -575,8 +575,6 @@ pub struct TaskLayoutState {
     pub composer_text: String,
     /// Cursor byte offset within `composer_text`.
     pub composer_cursor: usize,
-    /// Live character count for the composer input.
-    pub composer_char_count: usize,
     /// Whether the composer should render as the active focus target.
     pub composer_focused: bool,
     pub changed_files: Vec<String>,

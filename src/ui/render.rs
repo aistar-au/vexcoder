@@ -1108,7 +1108,6 @@ mod tests {
             input_hint: "ApplyPatch: src/main.rs\n[y/n/s] ".into(),
             composer_text: String::new(),
             composer_cursor: 0,
-            composer_char_count: 0,
             composer_focused: true,
             follow_mode: true,
         };
@@ -1174,7 +1173,6 @@ mod tests {
             input_hint: "> ".into(),
             composer_text: String::new(),
             composer_cursor: 0,
-            composer_char_count: 0,
             composer_focused: true,
             follow_mode: true,
         };
@@ -1227,7 +1225,6 @@ mod tests {
             input_hint: "> ".into(),
             composer_text: String::new(),
             composer_cursor: 0,
-            composer_char_count: 0,
             composer_focused: true,
             follow_mode: true,
         };
@@ -1273,7 +1270,6 @@ mod tests {
             input_hint: "> ".into(),
             composer_text: String::new(),
             composer_cursor: 0,
-            composer_char_count: 0,
             composer_focused: true,
             follow_mode: true,
         };

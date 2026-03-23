@@ -639,6 +639,7 @@ impl TaskDraw {
             let body_rows = regions.composer_rows.saturating_sub(1).max(1) as usize;
             let window_start = visual_window_start(cursor_row, body_rows);
             let hint_lines: Vec<&str> = state.input_hint.lines().collect();
+            let composer_char_count = state.composer_text.chars().count();
 
             if state.composer_focused {
                 set_bold(w);
@@ -657,7 +658,7 @@ impl TaskDraw {
                 } else {
                     "unfocused"
                 },
-                state.composer_char_count
+                composer_char_count
             );
             let status_width = display_width(&status);
             let prompt_width = display_width("Prompt");
@@ -843,9 +844,6 @@ impl TaskDraw {
         h = h
             .wrapping_mul(31)
             .wrapping_add(state.composer_cursor as u64);
-        h = h
-            .wrapping_mul(31)
-            .wrapping_add(state.composer_char_count as u64);
         h = h
             .wrapping_mul(31)
             .wrapping_add(state.composer_focused as u64);
