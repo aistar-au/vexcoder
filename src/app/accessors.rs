@@ -1,4 +1,5 @@
 use super::*;
+use crate::ui::editor::file_mention_range;
 use std::collections::BTreeSet;
 use std::path::Path;
 
@@ -109,7 +110,7 @@ impl TuiMode {
         !self.command_sessions.is_empty()
     }
 
-    pub fn prompt_hint_for_input(&self, input: &str) -> String {
+    pub fn prompt_hint_for_input(&self, input: &str, cursor: usize) -> String {
         let base = if self.command_session_active() {
             "Prompt\nsubmit: / commands  @ files  ! shell  Ctrl+C cancels".to_string()
         } else {
@@ -131,8 +132,8 @@ impl TuiMode {
             return "Prompt\nmode: slash".to_string();
         }
 
-        if let Some(token) = input.split_whitespace().last() {
-            if let Some(prefix) = token.strip_prefix('@') {
+        if let Some(range) = file_mention_range(input, cursor) {
+            if let Some(prefix) = input[range].strip_prefix('@') {
                 let mut lines = vec!["Prompt".to_string(), "mode: file mention".to_string()];
                 let suggestions = self.file_prompt_matches(prefix);
                 if suggestions.is_empty() {

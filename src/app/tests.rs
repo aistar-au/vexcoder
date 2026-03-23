@@ -508,13 +508,17 @@ fn test_timeline_page_down_disables_follow_mode_until_end() {
 }
 
 #[test]
-fn test_composer_remains_focused_while_transcript_is_scrolled() {
+fn test_composer_focus_depends_on_overlays_not_scroll_offsets() {
     let mut mode = TuiMode::new();
+    assert!(mode.composer_is_focused());
+
     mode.timeline_follow_mode = false;
     mode.transcript_scroll_offset = 3;
     mode.inspector_scroll_offset = 2;
-
     assert!(mode.composer_is_focused());
+
+    mode.overlay_state.pending_memory_clear = true;
+    assert!(!mode.composer_is_focused());
 }
 
 #[test]
@@ -3543,13 +3547,31 @@ fn test_prompt_hint_for_slash_and_file_mentions() {
     let mut mode = TuiMode::new();
     mode.working_dir = temp.path().to_path_buf();
 
-    let slash_hint = mode.prompt_hint_for_input("/pl");
+    let slash_hint = mode.prompt_hint_for_input("/pl", 3);
     assert!(slash_hint.contains("mode: slash"));
     assert!(slash_hint.contains("/plan <instruction>"));
 
-    let file_hint = mode.prompt_hint_for_input("inspect @inp");
+    let file_hint = mode.prompt_hint_for_input("inspect @inp", "inspect @inp".len());
     assert!(file_hint.contains("mode: file mention"));
     assert!(file_hint.contains("src/app/input.rs"));
+}
+
+#[test]
+fn test_prompt_hint_for_file_mentions_uses_cursor_scoped_token() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("src")).unwrap();
+    std::fs::write(temp.path().join("src/bar.rs"), "fn bar() {}\n").unwrap();
+    std::fs::write(temp.path().join("src/foo.rs"), "fn foo() {}\n").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    let input = "@bar refactoring @foo";
+    let cursor = input.find("bar").unwrap() + 2;
+    let hint = mode.prompt_hint_for_input(input, cursor);
+
+    assert!(hint.contains("src/bar.rs"));
+    assert!(!hint.contains("src/foo.rs"));
 }
 
 #[test]

@@ -17,7 +17,7 @@ use vexcoder::prompts::render_pr_summary_prompt;
 use vexcoder::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
 use vexcoder::runtime::{ContextAssembler, TaskState, TaskStatus};
 use vexcoder::ui::draw::TaskDraw;
-use vexcoder::ui::editor::{InputAction, InputEditor};
+use vexcoder::ui::editor::{file_mention_range, InputAction, InputEditor};
 use vexcoder::ui::layout::split_three_pane_layout;
 use vexcoder::ui::render::{
     history_content_width_for_area, input_visual_rows, render_input, render_messages,
@@ -292,10 +292,12 @@ struct ManagedTuiFrontend {
     /// Direct ANSI draw engine for the task-state control surface.
     task_draw: TaskDraw,
     last_hint_input: String,
+    last_hint_cursor: usize,
     last_hint_text: String,
     last_file_picker_prefix: String,
     selected_file_hint: usize,
     dismissed_file_picker: Option<(String, usize)>,
+    cached_file_picker: Option<(String, usize, Option<FileMentionPickerState>)>,
 }
 
 impl ManagedTuiFrontend {
@@ -309,24 +311,35 @@ impl ManagedTuiFrontend {
             started_at: Instant::now(),
             task_draw: TaskDraw::new(),
             last_hint_input: String::new(),
+            last_hint_cursor: 0,
             last_hint_text: String::new(),
             last_file_picker_prefix: String::new(),
             selected_file_hint: 0,
             dismissed_file_picker: None,
+            cached_file_picker: None,
         })
     }
 
-    fn current_file_picker(&self, mode: &TuiMode) -> Option<FileMentionPickerState> {
+    fn current_file_picker(&mut self, mode: &TuiMode) -> Option<FileMentionPickerState> {
         let input = self.editor.buffer();
         let cursor = self.editor.cursor();
         if file_picker_is_dismissed(self.dismissed_file_picker.as_ref(), input, cursor) {
             return None;
         }
-        active_file_picker(mode, input, cursor)
+        if let Some((cached_input, cached_cursor, cached_picker)) = &self.cached_file_picker {
+            if cached_input == input && *cached_cursor == cursor {
+                return cached_picker.clone();
+            }
+        }
+
+        let picker = active_file_picker(mode, input, cursor);
+        self.cached_file_picker = Some((input.to_string(), cursor, picker.clone()));
+        picker
     }
 
     fn dismiss_current_file_picker(&mut self) {
         self.dismissed_file_picker = Some((self.editor.buffer().to_string(), self.editor.cursor()));
+        self.cached_file_picker = None;
         self.last_file_picker_prefix.clear();
         self.selected_file_hint = 0;
         self.last_hint_input.clear();
@@ -436,6 +449,7 @@ impl ManagedTuiFrontend {
                         let replacement = &picker.matches[self.selected_file_hint];
                         apply_file_picker_selection(&mut self.editor, &picker.range, replacement);
                         self.dismissed_file_picker = None;
+                        self.cached_file_picker = None;
                         self.last_file_picker_prefix.clear();
                         self.selected_file_hint = 0;
                         self.last_hint_input.clear();
@@ -587,7 +601,7 @@ impl ManagedTuiFrontend {
         }
     }
 
-    fn prompt_hint(&mut self, mode: &TuiMode, input: &str) -> String {
+    fn prompt_hint(&mut self, mode: &TuiMode, input: &str, cursor: usize) -> String {
         if let Some(picker) = self.current_file_picker(mode) {
             if self.last_file_picker_prefix != picker.prefix {
                 self.last_file_picker_prefix = picker.prefix.clone();
@@ -604,90 +618,13 @@ impl ManagedTuiFrontend {
 
         self.last_file_picker_prefix.clear();
         self.selected_file_hint = 0;
-        if self.last_hint_input != input {
+        if self.last_hint_input != input || self.last_hint_cursor != cursor {
             self.last_hint_input = input.to_string();
-            self.last_hint_text = mode.prompt_hint_for_input(input);
+            self.last_hint_cursor = cursor;
+            self.last_hint_text = mode.prompt_hint_for_input(input, cursor);
         }
         self.last_hint_text.clone()
     }
-}
-
-fn prev_char_boundary(text: &str, mut idx: usize) -> usize {
-    idx = idx.min(text.len());
-    while idx > 0 && !text.is_char_boundary(idx) {
-        idx -= 1;
-    }
-    if idx == 0 {
-        return 0;
-    }
-    idx -= 1;
-    while idx > 0 && !text.is_char_boundary(idx) {
-        idx -= 1;
-    }
-    idx
-}
-
-fn file_mention_range(buffer: &str, cursor: usize) -> Option<Range<usize>> {
-    if buffer.is_empty() {
-        return None;
-    }
-
-    let mut probe = cursor.min(buffer.len());
-    while probe > 0 && !buffer.is_char_boundary(probe) {
-        probe -= 1;
-    }
-
-    if probe == buffer.len()
-        || buffer[probe..]
-            .chars()
-            .next()
-            .is_some_and(char::is_whitespace)
-    {
-        if probe == 0 {
-            return None;
-        }
-        probe = prev_char_boundary(buffer, probe);
-        if buffer[probe..]
-            .chars()
-            .next()
-            .is_some_and(char::is_whitespace)
-        {
-            return None;
-        }
-    }
-
-    let mut start = probe;
-    while start > 0 {
-        let prev = prev_char_boundary(buffer, start);
-        if buffer[prev..start]
-            .chars()
-            .next()
-            .is_some_and(char::is_whitespace)
-        {
-            break;
-        }
-        start = prev;
-    }
-
-    let mut end = probe;
-    while end < buffer.len() {
-        let next = buffer[end..]
-            .chars()
-            .next()
-            .map(|ch| end + ch.len_utf8())
-            .unwrap_or(buffer.len());
-        if buffer[end..next]
-            .chars()
-            .next()
-            .is_some_and(char::is_whitespace)
-        {
-            break;
-        }
-        end = next;
-    }
-
-    let token = &buffer[start..end];
-    token.starts_with('@').then_some(start..end)
 }
 
 fn active_file_picker(
@@ -815,7 +752,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
         if let Some(mut task_state) = mode.task_layout_state() {
             // Direct ANSI draw path — no ratatui buffer allocation.
             // Get terminal size from the ratatui terminal (already tracks it).
-            task_state.input_hint = self.prompt_hint(mode, &input);
+            task_state.input_hint = self.prompt_hint(mode, &input, cursor);
             task_state.composer_text = input;
             task_state.composer_cursor = cursor;
             task_state.composer_focused = mode.composer_is_focused();

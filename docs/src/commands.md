@@ -200,7 +200,7 @@ session totals.
 - `@path`
   - Expands a workspace-relative file or directory into the prompt when the turn is submitted.
   - While composing, the prompt footer shows matching file suggestions from the current workspace subtree.
-  - When a file mention is active, `Up` and `Down` move the suggestion picker and `Enter` inserts the selected workspace-relative path into the composer.
+  - When a file mention is active, `Up` and `Down` move the suggestion picker, `Enter` inserts the selected workspace-relative path into the composer, and `Esc` dismisses the picker so the raw mention can still be submitted unchanged.
   - Files are inlined as fenced text blocks. Missing paths are annotated inline instead of aborting the turn.
   - Directories render a compact workspace-relative listing.
 - `!command`
