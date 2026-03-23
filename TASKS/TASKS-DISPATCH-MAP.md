@@ -32,6 +32,8 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Proposed |
 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Active |
 | `adr/ADR-031-operator-surface-ui-overhaul.md` | Active |
+| `adr/ADR-032-prompt-area-interactivity-and-context-guard.md` | Active |
+| `adr/ADR-033-hybrid-retrieval-context-architecture.md` | Active |
 
 ## Immediate Dependency Notes
 
@@ -52,19 +54,21 @@ ADR-022 phases 1-8 + ADR-023 deterministic edit loop validated end-to-end
 ADR-025 and ADR-026 are the first post-gate Phase I dispatch track. ADR-028 is
 now active in the current tree and remains the boundary ADR that later CLI and
 LocalApiServer refactors must respect.
-ADR-029 and ADR-030 remain part of the active ADR set but do not supersede the
-passed milestone-1 gate or ADR-025 sequencing.
+ADR-029 through ADR-033 remain part of the active ADR set but do not supersede
+the passed milestone-1 gate or ADR-025 sequencing.
 
 ## Current Next Work Batch
 
-The current work batch continues ADR-031 operator-surface overhaul and ADR-028 application-facade follow-up.
+The current work batch continues ADR-033 hybrid-retrieval follow-up and ADR-028 application-facade boundary enforcement.
 
 - Milestone-1 validation is complete; use the recorded gate result in ADR-022 as the Phase I entry condition.
 - ADR-025 now has the completed kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) work in the current tree.
 - ADR-026 now has `PI-13` through `PI-16` implemented in the current tree.
 - Treat ADR-028 as the active boundary/workstream for the post-gate Phase I follow-up work.
 - Treat ADR-030 as the control-flow ADR for the post-gate runtime work: provider events normalize into canonical runtime events, task state owns truth, and orchestrator decisions remain runtime-owned.
-- Treat ADR-031 as the operator-surface overhaul ADR: adaptive timeline, transcript, and composer regions; progress indicators; enriched markdown rendering; scroll indicators; and inline approval cards.
+- Treat ADR-031 and ADR-032 as landed operator-surface prerequisites that downstream retrieval work must preserve.
+- Treat ADR-033 as the current retrieval ADR: Phase 1 structural search and Phase 2 semantic reranking are on `main`, while the active remote branch carries Phase 3 write guards and Phase 4 context condensing.
+- The useful remaining remote batch is `work/vexcoder-adr-033-phase3-4`; the old ADR-031 Batch A and ADR-032 prompt-interactivity review branches no longer differ from current `main`.
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
 current reference for full-screen rendering and interactive command-session
@@ -80,5 +84,6 @@ capture behavior.
   `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`; `PK-08`, the ADR-027 follow-up,
   and the full ADR-023 implementation track (`EL-01` through `EL-13`) are now
   on `main`. Milestone-1 validation passed on `2026-03-15`; ADR-026 `PI-13`
-  through `PI-16` are now implemented in the current tree, with ADR-028
-  remaining the active facade-boundary follow-up.
+  through `PI-16` are now implemented in the current tree, ADR-031 Batch A and
+  ADR-032 prompt interactivity are on `main`, and ADR-033 Phase 3/4 is the
+  remaining active remote follow-up batch under the ADR-028 facade boundary.
