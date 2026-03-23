@@ -615,6 +615,50 @@ impl ConversationManager {
                         id, name, input, ..
                     } = block
                     {
+                        if let Some(clarification) =
+                            missing_read_only_location_prompt(&name, &input)
+                        {
+                            if use_structured_blocks {
+                                self.set_tool_call_status(
+                                    &id,
+                                    ToolStatus::Cancelled,
+                                    stream_delta_tx,
+                                );
+                                self.push_tool_result_block(
+                                    StreamBlock::ToolResult {
+                                        tool_call_id: id.clone(),
+                                        output: clarification.clone(),
+                                        is_error: true,
+                                    },
+                                    stream_delta_tx,
+                                );
+                            } else if stream_local_tool_events {
+                                emit_text_update(
+                                    stream_delta_tx,
+                                    format!("\n- [tool_error] {name}: {clarification}\n"),
+                                );
+                            }
+                            emit_text_update(stream_delta_tx, clarification.clone());
+                            let history_content = truncate_for_history(
+                                &clarification,
+                                limits.max_tool_result_history_chars,
+                            );
+                            if use_structured_round {
+                                tool_result_blocks.push(ContentBlock::ToolResult {
+                                    tool_use_id: id,
+                                    content: history_content,
+                                    is_error: true,
+                                });
+                            } else {
+                                let rendered = format!("tool_error {name}:\n{history_content}");
+                                text_protocol_tool_results.push(truncate_for_history(
+                                    &rendered,
+                                    limits.max_tool_result_history_chars,
+                                ));
+                            }
+                            continue;
+                        }
+
                         if let Some(clarification) = missing_mutating_location_prompt(&name, &input)
                         {
                             if use_structured_blocks {

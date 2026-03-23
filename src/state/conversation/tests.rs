@@ -638,6 +638,26 @@ fn test_missing_mutating_location_prompt_requires_explicit_paths() {
 }
 
 #[test]
+fn test_missing_read_only_location_prompt_requires_explicit_paths() {
+    let read_missing = json!({});
+    let read_blank = json!({
+        "path": "   "
+    });
+    let read_ready = json!({
+        "path": "src/calculator.rs"
+    });
+
+    let prompt = missing_read_only_location_prompt("read_file", &read_missing)
+        .expect("expected clarification for missing read path");
+    assert!(prompt.contains("explicit file path"));
+    assert!(prompt.contains("list_files"));
+    assert!(prompt.contains("codebase_search"));
+    assert!(missing_read_only_location_prompt("read_file", &read_blank).is_some());
+    assert!(missing_read_only_location_prompt("read_file", &read_ready).is_none());
+    assert!(missing_read_only_location_prompt("edit_file", &json!({})).is_none());
+}
+
+#[test]
 fn test_read_only_user_request_detection_and_mutating_guard() {
     assert!(is_read_only_user_request("show me calculator.rs"));
     assert!(is_read_only_user_request("what is in src/runtime/loop.rs"));
@@ -1060,12 +1080,65 @@ data: {"type":"message_stop"}"#.to_string(),
 }
 
 #[tokio::test]
+async fn test_read_file_missing_path_returns_clarification_instead_of_looping() -> Result<()> {
+    let first_response_sse = vec![
+        r#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_missing_read_path_01","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
+        r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_missing_read_path_01","name":"read_file","input":{}}}"#.to_string(),
+        r#"event: content_block_stop
+data: {"type":"content_block_stop","index":0}"#.to_string(),
+        r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":3}}"#.to_string(),
+        r#"event: message_stop
+data: {"type":"message_stop"}"#.to_string(),
+    ];
+
+    let second_response_sse = plain_text_round(
+        "msg_missing_read_path_02",
+        "Please provide a concrete file path or ask for a repo overview.",
+    );
+    let mock_api_client =
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+            first_response_sse,
+            second_response_sse,
+        ])));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+
+    let final_text = manager
+        .send_message("summarise this repo briefly".to_string(), None)
+        .await?;
+    assert!(final_text.contains("repo overview"));
+    let tool_result_message = manager
+        .api_messages
+        .iter()
+        .find(|message| {
+            message.role == "user"
+                && matches!(message.content, Content::Blocks(_))
+                && message_contains_tool_result(message)
+        })
+        .expect("expected tool_result message in history");
+    if let Content::Blocks(blocks) = &tool_result_message.content {
+        assert!(blocks.iter().any(|block| matches!(
+            block,
+            ContentBlock::ToolResult { content, is_error: true, .. }
+                if content.contains("explicit file path")
+                    && content.contains("list_files")
+                    && content.contains("codebase_search")
+        )));
+    } else {
+        panic!("expected tool_result blocks");
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_tool_execution_error_sets_error_status() -> Result<()> {
     let first_response_sse = vec![
         r#"event: message_start
 data: {"type":"message_start","message":{"id":"msg_tool_error_01","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
         r#"event: content_block_start
-data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_error_01","name":"read_file","input":{}}}"#.to_string(),
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_error_01","name":"read_file","input":{"path":"does-not-exist.txt"}}}"#.to_string(),
         r#"event: content_block_stop
 data: {"type":"content_block_stop","index":0}"#.to_string(),
         r#"event: message_delta
@@ -1083,7 +1156,7 @@ data: {"type":"message_stop"}"#.to_string(),
 
     let (tx, mut rx) = mpsc::unbounded_channel();
     let final_text = manager
-        .send_message("read missing path".to_string(), Some(&tx))
+        .send_message("read a missing file".to_string(), Some(&tx))
         .await?;
     assert!(final_text.contains("Handled read error."));
     drop(tx);

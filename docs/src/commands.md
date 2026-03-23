@@ -14,7 +14,9 @@ header appends a compact `~N.Nk ctx` cumulative session indicator. The prompt
 surface keeps live `/` command hints, live `@path` file suggestions, a live
 character count and focus marker in the composer header, submit-time `@path`
 expansion, pasted blocks, and multiline editing available in the same
-fullscreen layout.
+fullscreen layout. For repo-overview prompts, the runtime now steers the model
+toward `list_files` at the workspace root or `codebase_search` before any
+targeted `read_file`; `read_file` itself requires an explicit non-empty path.
 
 ### `vex --resume [task-id]`
 
@@ -167,6 +169,11 @@ Commands entered inside the interactive UI start with `/`.
 - `/commands`
 - `/help`
 
+When a read-only turn asks for a repo summary instead of a specific file, the
+runtime prefers `list_files` and `codebase_search` first. If the model emits a
+`read_file` call without a concrete path, VexCoder returns a clarification
+instead of looping the raw tool error.
+
 `/usage` prints the most recent turn's token counts and the cumulative session
 totals. If the runtime does not return usage metadata, the values are estimated
 from character counts and marked `(estimated)`. `/new` and `/clear` reset the
@@ -203,6 +210,7 @@ session totals.
   - When a file mention is active, `Up` and `Down` move the suggestion picker, `Enter` inserts the selected workspace-relative path into the composer, and `Esc` dismisses the picker so the raw mention can still be submitted unchanged.
   - Files are inlined as fenced text blocks. Missing paths are annotated inline instead of aborting the turn.
   - Directories render a compact workspace-relative listing.
+  - Repo summaries still need tool evidence: use a plain prompt when you want the model to start with `list_files` or `codebase_search`, and use `@path` only when you already know the file or directory you want to inline.
 - `!command`
   - Runs a shell command immediately from the workspace without starting a model turn when the composer is submitted.
   - Uses the same `run_command` approval gate as tool calls.
