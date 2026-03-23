@@ -260,8 +260,8 @@ Results are scored by:
 
 - Exact name match: highest priority
 - Substring / fuzzy name match
+- Parent scope match
 - Content keyword match (per word)
-- Recency of last modification
 
 Results are capped at `VEX_SEARCH_MAX_RESULTS` (default 10). When an
 embedding provider is configured (`VEX_EMBEDDING_PROVIDER`), results are

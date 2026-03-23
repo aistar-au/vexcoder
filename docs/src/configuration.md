@@ -188,8 +188,9 @@ is set.
 
 ### `VEX_EMBEDDING_API_KEY`
 
-Bearer token for authenticated embedding endpoints. Falls back to
-`VEX_MODEL_TOKEN` when unset.
+Bearer token for authenticated embedding endpoints. Set this explicitly for
+the embedding endpoint when required; the runtime does not fall back to
+`VEX_MODEL_TOKEN`.
 
 ### `VEX_EMBEDDING_BATCH_SIZE`
 
