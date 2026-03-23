@@ -44,4 +44,7 @@ The long-term architecture work is tracked in the ADR set under `adr/`.
 - ADR-030 defines the runtime control-flow rule: provider events normalize into canonical runtime events, task state owns execution truth, and the orchestrator decides whether the task continues or stops.
 - ADR-031 extends the active operator surface with timeline selection, stable step identity, explicit approved/running/completed lifecycle rendering, adaptive timeline sizing, prompt-anchored transcript scrolling, a larger multiline composer, direct ANSI task rendering during orchestration, and keyboard navigation for a terminal-height-scaled timeline window.
 
+- ADR-032 adds prompt-area interactivity: live `/` command hints, `@path` file picker with `Up`/`Down`/`Enter`/`Esc` navigation, `!command` shell execution, pasted-block handling, and a context guard that limits project-instructions and notes token budgets.
+- ADR-033 introduces the hybrid retrieval context architecture: a `codebase_search` tool (Phase 1) backed by structural keyword indexing, optional semantic vector search via an external embedding endpoint (Phase 2), write guards that steer `write_file` toward `apply_patch`/`edit_file` for large files (Phase 3), and history condensing that compresses older tool results to stay within the context budget (Phase 4).
+
 That means the current `src/app.rs`-centric layout is still the live implementation, but it is not intended to be the permanent shape for machine-readable runtime access or local server transports.

@@ -147,6 +147,40 @@ Hard line limit for `write_file`. Calls exceeding this are rejected outright
 with an error directing the model to use `apply_patch` or `edit_file`.
 Default: `500`.
 
+### `VEX_SEARCH_MAX_RESULTS`
+
+Maximum number of results returned by the `codebase_search` tool. Default:
+`20`.
+
+### `VEX_INDEX_MAX_FILES`
+
+Maximum number of files indexed for semantic search. Default: `5000`.
+
+### `VEX_EMBEDDING_PROVIDER`
+
+Embedding provider for semantic search. Accepted values: `compat` (standard
+`/v1/embeddings` compatible endpoint) or `native`. Semantic search is disabled
+when this variable is unset.
+
+### `VEX_EMBEDDING_MODEL`
+
+Model identifier sent to the embedding endpoint. Required when
+`VEX_EMBEDDING_PROVIDER` is set.
+
+### `VEX_EMBEDDING_URL`
+
+Base URL for the embedding endpoint. Required when `VEX_EMBEDDING_PROVIDER`
+is set.
+
+### `VEX_EMBEDDING_API_KEY`
+
+Bearer token for authenticated embedding endpoints. Falls back to
+`VEX_MODEL_TOKEN` when unset.
+
+### `VEX_EMBEDDING_BATCH_SIZE`
+
+Number of texts sent per embedding API call. Default: `64`.
+
 ### `VEX_HISTORY_KEEP_TURNS`
 
 Number of recent conversation turns kept at full fidelity. Tool results in

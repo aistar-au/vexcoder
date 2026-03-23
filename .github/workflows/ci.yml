@@ -102,7 +102,7 @@ jobs:
         shell: pwsh
         run: ${{ matrix.script }}
 
-  windows-build:
+  windows-package:
     runs-on: windows-latest
     steps:
       - name: Checkout repository
@@ -123,37 +123,6 @@ jobs:
         shell: pwsh
         run: |
           .\scripts\release.ps1 -Target x86_64-pc-windows-msvc -BuildOnly
-
-      - name: Upload native Windows binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: vex-windows-msvc-binary
-          path: target/x86_64-pc-windows-msvc/release/vex.exe
-          if-no-files-found: error
-
-  windows-package:
-    needs: windows-build
-    runs-on: windows-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install stable Rust
-        shell: pwsh
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
-
-      - name: Add Cargo bin to PATH
-        shell: pwsh
-        run: |
-          "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Download native Windows binary
-        uses: actions/download-artifact@v4
-        with:
-          name: vex-windows-msvc-binary
-          path: target/x86_64-pc-windows-msvc/release
 
       - name: Run native Windows packaging smoke test
         shell: pwsh
