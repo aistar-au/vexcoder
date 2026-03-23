@@ -106,6 +106,16 @@ impl InputEditor {
         self.input_state.cursor = cursor + value.len();
     }
 
+    pub fn replace_range(&mut self, start: usize, end: usize, value: &str) {
+        let start = self.clamp_cursor_to_boundary_left(start.min(end));
+        let end = self.clamp_cursor_to_boundary_left(end.max(start));
+        self.input_state.history_index = None;
+        self.input_state.history_stash = None;
+        self.push_undo();
+        self.input_state.buffer.replace_range(start..end, value);
+        self.input_state.cursor = start + value.len();
+    }
+
     pub fn backspace(&mut self) {
         let end = self.clamp_cursor_to_boundary_left(self.input_state.cursor);
         if end == 0 {

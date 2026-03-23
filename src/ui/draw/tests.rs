@@ -18,6 +18,8 @@ fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState
         input_hint: "Prompt\nsubmit: / commands  @ files  ! shell".into(),
         composer_text: String::new(),
         composer_cursor: 0,
+        composer_char_count: 0,
+        composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
     }
@@ -253,6 +255,8 @@ fn changing_selected_inspector_entry_redraws_output() {
         input_hint: "Prompt\nUse submit-time `/` commands, submit-time `@path` inlining, paste large blocks, and Shift+Enter for a newline.".into(),
         composer_text: String::new(),
         composer_cursor: 0,
+        composer_char_count: 0,
+        composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
     };
@@ -292,6 +296,8 @@ fn activity_rows_do_not_render_in_fullscreen_transcript_surface() {
         input_hint: "Prompt\nUse submit-time `/` commands, submit-time `@path` inlining, paste large blocks, and Shift+Enter for a newline.".into(),
         composer_text: String::new(),
         composer_cursor: 0,
+        composer_char_count: 0,
+        composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
     };
@@ -581,6 +587,8 @@ fn persistent_layout_starts_with_blank_transcript_before_first_turn() {
         input_hint: "Prompt\nsubmit: / commands  @ files  ! shell".into(),
         composer_text: String::new(),
         composer_cursor: 0,
+        composer_char_count: 0,
+        composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
     };
@@ -662,6 +670,8 @@ fn fullscreen_surface_hides_top_header_chrome() {
         input_hint: "Prompt\nsubmit: / commands  @ files  ! shell".into(),
         composer_text: String::new(),
         composer_cursor: 0,
+        composer_char_count: 0,
+        composer_focused: true,
         changed_files: vec!["src/main.rs".into()],
         follow_mode: true,
     };
@@ -695,6 +705,8 @@ fn inline_approval_renders_in_composer() {
         input_hint: "Approval\n[y/n/s]".into(),
         composer_text: String::new(),
         composer_cursor: 0,
+        composer_char_count: 0,
+        composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
     };
@@ -753,6 +765,8 @@ fn fullscreen_surface_hides_token_indicator_when_tokens_recorded() {
         input_hint: "Prompt\nsubmit: / commands  @ files  ! shell".into(),
         composer_text: String::new(),
         composer_cursor: 0,
+        composer_char_count: 0,
+        composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
     };
@@ -791,6 +805,8 @@ fn header_hides_token_indicator_when_no_turns_completed() {
         input_hint: "Prompt\nUse submit-time `/` commands, submit-time `@path` inlining, paste large blocks, and Shift+Enter for a newline.".into(),
         composer_text: String::new(),
         composer_cursor: 0,
+        composer_char_count: 0,
+        composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
     };
@@ -823,6 +839,8 @@ fn composer_renders_live_input_text() {
         input_hint: "Prompt\nUse submit-time `/` commands, submit-time `@path` inlining, paste large blocks, and Shift+Enter for a newline.".into(),
         composer_text: "hello fullscreen".into(),
         composer_cursor: "hello fullscreen".len(),
+        composer_char_count: "hello fullscreen".chars().count(),
+        composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
     };
@@ -834,6 +852,36 @@ fn composer_renders_live_input_text() {
         output.contains("hello fullscreen"),
         "composer must render the live editor buffer"
     );
+}
+
+#[test]
+fn composer_header_renders_focus_and_char_count() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = TaskLayoutState {
+        task_id: "test-001".into(),
+        status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        activity_rows: vec![],
+        timeline_entries: vec![],
+        selected_step: 0,
+        total_steps: 0,
+        output_title: "Transcript".into(),
+        output_rows: vec![],
+        output_scroll_offset: 0,
+        output_scroll_anchor: OutputScrollAnchor::Bottom,
+        pending_approval: None,
+        input_hint: "Prompt\nsubmit: / commands  @ files  ! shell".into(),
+        composer_text: "hello".into(),
+        composer_cursor: 5,
+        composer_char_count: 5,
+        composer_focused: false,
+        changed_files: vec![],
+        follow_mode: false,
+    };
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    assert!(output.contains("unfocused · 5 chars"));
 }
 
 #[test]
@@ -885,6 +933,8 @@ fn composer_hash_tracks_live_input_changes() {
         input_hint: "Prompt\nUse submit-time `/` commands, submit-time `@path` inlining, paste large blocks, and Shift+Enter for a newline.".into(),
         composer_text: "first".into(),
         composer_cursor: 5,
+        composer_char_count: 5,
+        composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
     };
@@ -919,6 +969,8 @@ fn composer_hash_tracks_cursor_only_changes() {
         input_hint: "Prompt\nUse submit-time `/` commands, submit-time `@path` inlining, paste large blocks, and Shift+Enter for a newline.".into(),
         composer_text: "same text".into(),
         composer_cursor: 2,
+        composer_char_count: "same text".chars().count(),
+        composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
     };

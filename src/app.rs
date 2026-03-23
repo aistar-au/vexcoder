@@ -43,6 +43,7 @@ use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use std::cell::Cell;
 use std::io::Write;
+use std::ops::Range;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -574,9 +575,20 @@ pub struct TaskLayoutState {
     pub composer_text: String,
     /// Cursor byte offset within `composer_text`.
     pub composer_cursor: usize,
+    /// Live character count for the composer input.
+    pub composer_char_count: usize,
+    /// Whether the composer should render as the active focus target.
+    pub composer_focused: bool,
     pub changed_files: Vec<String>,
     /// When true the timeline auto-advances to the latest entry.
     pub follow_mode: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FileMentionPickerState {
+    pub range: Range<usize>,
+    pub prefix: String,
+    pub matches: Vec<String>,
 }
 
 pub struct TuiMode {

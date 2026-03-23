@@ -11,8 +11,9 @@ surface uses a direct ANSI renderer for a human-readable header, optional
 changed-file row, adaptive timeline, prompt-anchored transcript area, and a
 larger multiline composer. When completed turns record usage metadata, the
 header appends a compact `~N.Nk ctx` cumulative session indicator. The prompt
-surface keeps live `/` command hints, live `@path` file suggestions, submit-time
-`@path` expansion, pasted blocks, and multiline editing available in the same
+surface keeps live `/` command hints, live `@path` file suggestions, a live
+character count and focus marker in the composer header, submit-time `@path`
+expansion, pasted blocks, and multiline editing available in the same
 fullscreen layout.
 
 ### `vex --resume [task-id]`
@@ -199,6 +200,7 @@ session totals.
 - `@path`
   - Expands a workspace-relative file or directory into the prompt when the turn is submitted.
   - While composing, the prompt footer shows matching file suggestions from the current workspace subtree.
+  - When a file mention is active, `Up` and `Down` move the suggestion picker and `Enter` inserts the selected workspace-relative path into the composer.
   - Files are inlined as fenced text blocks. Missing paths are annotated inline instead of aborting the turn.
   - Directories render a compact workspace-relative listing.
 - `!command`

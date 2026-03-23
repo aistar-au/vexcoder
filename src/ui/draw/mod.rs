@@ -640,10 +640,44 @@ impl TaskDraw {
             let window_start = visual_window_start(cursor_row, body_rows);
             let hint_lines: Vec<&str> = state.input_hint.lines().collect();
 
-            set_bold(w);
-            set_fg(w, WHITE);
+            if state.composer_focused {
+                set_bold(w);
+                set_fg(w, WHITE);
+            } else {
+                set_dim(w);
+                set_fg(w, DIM_GRAY);
+            }
             let _ = write!(w, "Prompt");
             reset_style(w);
+
+            let status = format!(
+                "{} · {} chars",
+                if state.composer_focused {
+                    "focused"
+                } else {
+                    "unfocused"
+                },
+                state.composer_char_count
+            );
+            let status_width = display_width(&status);
+            let prompt_width = display_width("Prompt");
+            if status_width + prompt_width + 1 < regions.cols as usize {
+                let gap = (regions.cols as usize).saturating_sub(prompt_width + status_width);
+                for _ in 0..gap {
+                    let _ = write!(w, " ");
+                }
+                set_dim(w);
+                set_fg(
+                    w,
+                    if state.composer_focused {
+                        CYAN
+                    } else {
+                        DIM_GRAY
+                    },
+                );
+                let _ = write!(w, "{status}");
+                reset_style(w);
+            }
 
             for offset in 0..body_rows {
                 let row = regions.composer_start + 1 + offset as u16;
@@ -652,7 +686,14 @@ impl TaskDraw {
                 }
                 move_to(w, row, 0);
 
-                set_fg(w, CYAN);
+                set_fg(
+                    w,
+                    if state.composer_focused {
+                        CYAN
+                    } else {
+                        DIM_GRAY
+                    },
+                );
                 let _ = write!(w, "{}", if offset == 0 { "› " } else { "  " });
                 reset_style(w);
 
@@ -802,6 +843,12 @@ impl TaskDraw {
         h = h
             .wrapping_mul(31)
             .wrapping_add(state.composer_cursor as u64);
+        h = h
+            .wrapping_mul(31)
+            .wrapping_add(state.composer_char_count as u64);
+        h = h
+            .wrapping_mul(31)
+            .wrapping_add(state.composer_focused as u64);
         if let Some(ref approval) = state.pending_approval {
             h = h.wrapping_mul(31).wrapping_add(simple_hash(approval));
         }

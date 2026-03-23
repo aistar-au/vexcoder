@@ -134,7 +134,7 @@ impl TuiMode {
         if let Some(token) = input.split_whitespace().last() {
             if let Some(prefix) = token.strip_prefix('@') {
                 let mut lines = vec!["Prompt".to_string(), "mode: file mention".to_string()];
-                let suggestions = self.file_prompt_suggestions(prefix);
+                let suggestions = self.file_prompt_matches(prefix);
                 if suggestions.is_empty() {
                     if prefix.is_empty() {
                         lines.push("[file] no files available".to_string());
@@ -142,13 +142,25 @@ impl TuiMode {
                         lines.push(format!("[file] no matches for {prefix}"));
                     }
                 } else {
-                    lines.extend(suggestions);
+                    lines.extend(suggestions.into_iter().map(|path| format!("[file] {path}")));
                 }
                 return lines.join("\n");
             }
         }
 
         base
+    }
+
+    pub fn composer_is_focused(&self) -> bool {
+        !self.overlay_active()
+            && !self.command_session_active()
+            && self.timeline_follow_mode
+            && self.transcript_scroll_offset == 0
+            && self.inspector_scroll_offset == 0
+    }
+
+    pub fn file_prompt_matches(&self, prefix: &str) -> Vec<String> {
+        self.file_prompt_suggestions(prefix)
     }
 
     pub fn set_history_content_width(&self, width: usize) {
@@ -241,7 +253,7 @@ impl TuiMode {
                 .and_then(|name| name.to_str())
                 .unwrap_or(display.as_str());
             if prefix.is_empty() || display.starts_with(prefix) || basename.starts_with(prefix) {
-                entries.insert(format!("[file] {display}"));
+                entries.insert(display);
                 if entries.len() >= 8 {
                     break;
                 }
