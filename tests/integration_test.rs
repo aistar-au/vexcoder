@@ -179,7 +179,7 @@ fn test_config_validation_rejects_local_model_for_remote_endpoint() {
 fn test_config_validation_allows_local_endpoint_without_token() {
     let config = Config {
         model_token: None,
-        model_name: "local/llama3.3".to_string(),
+        model_name: "local/default-3.3".to_string(),
         model_url: "http://localhost:8000/v1/messages".to_string(),
         model_url_skip_tls_check: false,
         working_dir: std::env::current_dir().expect("cwd"),

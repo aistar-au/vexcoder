@@ -106,6 +106,7 @@ impl ConversationManager {
         let stream_server_events = stream_server_events_enabled();
         let stream_local_tool_events = stream_local_tool_events_enabled();
         let require_tool_approval = tool_approval_enabled(self.client.is_local_endpoint());
+        let history_keep_turns = resolve_history_keep_turns();
         let mut rounds = 0usize;
         let mut forced_tool_retry_count = 0usize;
         let mut saw_any_tool_round = false;
@@ -115,6 +116,8 @@ impl ConversationManager {
         let mut repeated_round_nudge_used = false;
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = TurnTokens::default();
+        // Condense once per user turn, not per API round, to stay idempotent.
+        self.condense_old_tool_results(history_keep_turns);
         loop {
             self.current_turn_blocks.clear();
             turn_user_anchor_index = self

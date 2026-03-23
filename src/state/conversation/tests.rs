@@ -2784,3 +2784,142 @@ fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_r
         "failed mutating tools must not count as an applied patch"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Phase 3 — write_file guards
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_write_file_rejects_content_above_max_lines() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    std::env::set_var("VEX_WRITE_FILE_MAX_LINES", "10");
+    let dir = tempfile::tempdir().unwrap();
+    let op = ToolOperator::new(dir.path().to_path_buf());
+
+    let long_content: String = (0..15).map(|i| format!("line {i}\n")).collect();
+    let input = json!({"path": "big.rs", "content": long_content});
+    let result = super::tools::execute_tool_dispatch(&op, "write_file", &input);
+    std::env::remove_var("VEX_WRITE_FILE_MAX_LINES");
+
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("rejected") && err.contains("limit"),
+        "expected rejection message, got: {err}"
+    );
+}
+
+#[test]
+fn test_write_file_warns_above_diff_preferred_threshold() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    std::env::set_var("VEX_DIFF_PREFERRED_ABOVE_LINES", "15");
+    std::env::set_var("VEX_WRITE_FILE_MAX_LINES", "500");
+    let dir = tempfile::tempdir().unwrap();
+    let op = ToolOperator::new(dir.path().to_path_buf());
+
+    let content: String = (0..20).map(|i| format!("line {i}\n")).collect();
+    let input = json!({"path": "medium.rs", "content": content});
+    let result = super::tools::execute_tool_dispatch(&op, "write_file", &input);
+    std::env::remove_var("VEX_DIFF_PREFERRED_ABOVE_LINES");
+    std::env::remove_var("VEX_WRITE_FILE_MAX_LINES");
+
+    let output = result.expect("write_file should succeed");
+    assert!(
+        output.contains("Prefer apply_patch"),
+        "expected diff-preferred warning, got: {output}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 — context condensing
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_condense_old_tool_results_truncates_blocks() {
+    let client = Arc::new(MockApiClient::new(vec![]));
+    let dir = tempfile::tempdir().unwrap();
+    let operator = ToolOperator::new(dir.path().to_path_buf());
+    let mut manager = ConversationManager::new(ApiClient::new_mock(client), operator);
+
+    // Build a long tool result.
+    let long_result: String = (0..20)
+        .map(|i| format!("line {i}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    // Simulate 3 turns: 3 user messages (with tool results), 3 assistant messages.
+    for i in 0..3 {
+        manager.api_messages.push(ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Blocks(vec![ContentBlock::ToolUse {
+                id: format!("tool_{i}"),
+                name: "read_file".to_string(),
+                input: json!({}),
+                metadata: None,
+            }]),
+        });
+        manager.api_messages.push(ApiMessage {
+            role: "user".to_string(),
+            content: Content::Blocks(vec![ContentBlock::ToolResult {
+                tool_use_id: format!("tool_{i}"),
+                content: long_result.clone(),
+                is_error: false,
+            }]),
+        });
+    }
+
+    // keep_turns = 1 means only the last turn is preserved at full fidelity.
+    manager.condense_old_tool_results(1);
+
+    // First two user messages should be condensed; last should be untouched.
+    for (idx, msg) in manager.api_messages.iter().enumerate() {
+        if msg.role != "user" {
+            continue;
+        }
+        if let Content::Blocks(blocks) = &msg.content {
+            for block in blocks {
+                if let ContentBlock::ToolResult { content, .. } = block {
+                    if idx < 4 {
+                        // Old turns — condensed.
+                        assert!(
+                            content.contains("more lines"),
+                            "expected condensed result at index {idx}, got: {content}"
+                        );
+                    } else {
+                        // Last turn — untouched.
+                        assert!(
+                            !content.contains("more lines"),
+                            "last turn should not be condensed, got: {content}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn test_truncate_to_lines_short_input_unchanged() {
+    let input = "line 1\nline 2\nline 3";
+    let result = super::history::truncate_to_lines(input, 5);
+    assert_eq!(result, input);
+}
+
+#[test]
+fn test_truncate_to_lines_long_input_condensed() {
+    let lines: Vec<String> = (0..20).map(|i| format!("line {i}")).collect();
+    let input = lines.join("\n");
+    let result = super::history::truncate_to_lines(&input, 5);
+    assert!(result.contains("line 0"));
+    assert!(result.contains("line 4"));
+    assert!(result.contains("(15 more lines)"));
+    assert!(!result.contains("line 5"));
+}
+
+#[test]
+fn test_truncate_to_lines_is_idempotent() {
+    let lines: Vec<String> = (0..20).map(|i| format!("line {i}")).collect();
+    let input = lines.join("\n");
+    let first = super::history::truncate_to_lines(&input, 5);
+    let second = super::history::truncate_to_lines(&first, 5);
+    assert_eq!(first, second, "truncate_to_lines must be idempotent");
+}
