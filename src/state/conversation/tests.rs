@@ -2812,12 +2812,12 @@ fn test_write_file_rejects_content_above_max_lines() {
 #[test]
 fn test_write_file_warns_above_diff_preferred_threshold() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_DIFF_PREFERRED_ABOVE_LINES", "5");
+    std::env::set_var("VEX_DIFF_PREFERRED_ABOVE_LINES", "15");
     std::env::set_var("VEX_WRITE_FILE_MAX_LINES", "500");
     let dir = tempfile::tempdir().unwrap();
     let op = ToolOperator::new(dir.path().to_path_buf());
 
-    let content: String = (0..10).map(|i| format!("line {i}\n")).collect();
+    let content: String = (0..20).map(|i| format!("line {i}\n")).collect();
     let input = json!({"path": "medium.rs", "content": content});
     let result = super::tools::execute_tool_dispatch(&op, "write_file", &input);
     std::env::remove_var("VEX_DIFF_PREFERRED_ABOVE_LINES");

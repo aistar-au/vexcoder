@@ -629,7 +629,7 @@ pub(super) fn execute_tool_dispatch(
             let diff_threshold = write_file_diff_preferred_above_lines();
             let warning = if lines > diff_threshold {
                 format!(
-                    "\n⚠ File has {lines} lines (>{diff_threshold}). \
+                    "\nWarning: file has {lines} lines (>{diff_threshold}). \
                      Prefer apply_patch or edit_file for large-file edits."
                 )
             } else {
