@@ -173,8 +173,8 @@ Maximum number of files indexed for semantic search. Default: `5000`.
 ### `VEX_EMBEDDING_PROVIDER`
 
 Embedding provider for semantic search. Accepted values: `compat` (standard
-`/v1/embeddings` compatible endpoint) or `native`. Semantic search is disabled
-when this variable is unset.
+`/v1/embeddings` compatible endpoint) or `native` (single-text embedding
+endpoint). Semantic search is disabled when this variable is unset.
 
 ### `VEX_EMBEDDING_MODEL`
 
@@ -193,7 +193,7 @@ Bearer token for authenticated embedding endpoints. Falls back to
 
 ### `VEX_EMBEDDING_BATCH_SIZE`
 
-Number of texts sent per embedding API call. Default: `64`.
+Number of texts sent per embedding API call. Default: `32`.
 
 ### `VEX_HISTORY_KEEP_TURNS`
 
