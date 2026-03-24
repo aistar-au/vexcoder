@@ -1,0 +1,95 @@
+name: version-bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New version (e.g. 0.1.0-alpha.4). No 'v' prefix."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          git init .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin main
+          git checkout -b version-bump FETCH_HEAD
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Install stable Rust
+        run: |
+          set -euo pipefail
+          source "$HOME/.cargo/env" 2>/dev/null || true
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Run version bump
+        env:
+          NEW_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          source "$HOME/.cargo/env" 2>/dev/null || true
+          bash scripts/bump-version.sh "$NEW_VERSION"
+
+      - name: Commit and push
+        env:
+          NEW_VERSION: ${{ inputs.version }}
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          BRANCH="automation/version-bump-v${NEW_VERSION}"
+          git add -A
+          git commit -m "Bump version to ${NEW_VERSION}"
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" push origin "HEAD:refs/heads/${BRANCH}" --force
+
+      - name: Create pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          BRANCH="automation/version-bump-v${NEW_VERSION}"
+          EXISTING=$(gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            echo "PR #${EXISTING} already exists for branch ${BRANCH}."
+          else
+            gh pr create \
+              --repo "${{ github.repository }}" \
+              --head "$BRANCH" \
+              --base main \
+              --title "Bump version to ${NEW_VERSION}" \
+              --body "Automated version bump to \`${NEW_VERSION}\` via workflow dispatch.
+
+          ## Changes
+
+          - \`Cargo.toml\` version field
+          - \`Cargo.lock\` regenerated
+          - \`CONTRIBUTING.md\` version references
+          - \`RELEASING.md\` example version references
+
+          After merge, tag the release:
+          \`\`\`bash
+          git tag -a v${NEW_VERSION} -m \"Release v${NEW_VERSION}\"
+          git push origin v${NEW_VERSION}
+          \`\`\`"
+          fi

@@ -146,6 +146,13 @@ git push origin v0.1.0-alpha.3
 
 Do not merge packaging work directly from a local debug session; keep the review and merge step explicit.
 
+### Automated version bump
+
+Use the `version-bump` workflow dispatch to bump the version from the
+browser: Actions > version-bump > Run workflow > enter new version. The
+workflow runs `scripts/bump-version.sh`, commits, and opens a PR. See
+`RELEASING.md` for the full automated flow.
+
 ---
 
 ## Remote Agent Sessions

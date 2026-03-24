@@ -148,10 +148,36 @@ version.
 
 ---
 
+## Automated version bump
+
+The `version-bump` workflow (`.github/workflows/version-bump.yml`) is a
+manual dispatch workflow that automates the version bump process:
+
+1. Go to **Actions > version-bump > Run workflow**.
+2. Enter the new version (e.g. `0.1.0-alpha.4`). No `v` prefix.
+3. The workflow runs `scripts/bump-version.sh`, commits the changes, and
+   opens a PR targeting `main`.
+4. Review and merge the PR.
+5. After merge, create and push the annotated tag (see above).
+
+This replaces the manual `make bump V=<version>` step for operators who
+prefer a fully browser-based release flow.
+
+---
+
 ## Automated release workflow
 
-When `.github/workflows/release.yml` exists, it triggers on tag pushes
-matching `v*`. The workflow builds release artifacts and publishes them.
+`.github/workflows/release.yml` triggers on tag pushes matching `v*`.
+The workflow:
+
+1. Builds release archives for 5 targets (Linux musl x86\_64 + aarch64,
+   macOS x86\_64 + aarch64, Windows MSVC).
+2. Signs archives with Sigstore cosign (keyless OIDC-backed bundles).
+3. Creates a GitHub Release with auto-generated notes and attaches all
+   archives, checksums, and signature bundles.
+4. Pre-release tags (containing `alpha`, `beta`, or `rc`) are
+   automatically marked as pre-releases.
+
 Manual dispatch is available for re-running a failed release without
 re-tagging.
 
