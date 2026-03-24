@@ -69,17 +69,17 @@ Ignore this section in repository-hosted background sessions.
 
 ```bash
 cargo fmt --check
-cargo nextest run -j 7
+cargo nextest run -j 2
 cargo test --all-targets
 bash scripts/check_forbidden_names.sh
 ```
 
 Keep `.git/hooks/pre-push` installed so the local push path re-runs
-`cargo nextest run -j 7` automatically.
+`cargo nextest run -j 2` automatically.
 
-The Ubuntu `ci` workflow now installs `cargo-nextest` and runs the same
-`make gate-fast` target, so the documented nextest requirement is enforced in
-GitHub CI as well as the local pre-push path.
+The `ci` workflow runs 8 parallel jobs (lint, clippy, nextest, doctest,
+test-all-targets on Ubuntu; clippy+fmt, test, package on Windows) with
+cargo registry and build-artifact caching for fast subsequent runs.
 
 Commit and push only after these checks pass.
 

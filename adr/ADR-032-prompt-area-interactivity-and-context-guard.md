@@ -51,8 +51,11 @@ or to recover without restarting.
    conversation history. Context-overflow error messages now explicitly
    suggest `/clear` as the recovery path.
 
-7. **`@` file picker** — the `@` prefix surfaces files from the current
-   working directory with arrow-key navigation and Enter to select.
+7. **`@` file picker** — the `@` prefix surfaces files and directories from
+   the current working directory with arrow-key navigation and Enter to select.
+   Selecting a directory (trailing `/`) keeps the picker open for hierarchical
+   drill-down into subdirectories. A `/` slash picker offers the same
+   Up/Down/Enter/Esc navigation for slash commands.
 
 ### Context-proportional offset reading
 
