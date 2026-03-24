@@ -431,10 +431,10 @@ Reference CLIs expose commands to reset the active session and resume a previous
 
 **`/rename` — deferred:** Renaming a task-id after creation is low-priority cosmetic infrastructure. Deferred indefinitely.
 
-**`/clear` — clear conversation history without changing task:**
+**`/compact` — clear conversation history without changing task:**
 
 ```
-/clear
+/compact
     Clears the conversation history in RuntimeContext without changing TaskState,
     TaskId, or active_grants. The task remains active; only the message window
     is reset. Emits "[cleared: conversation history reset; task <task-id> continues]".
@@ -469,7 +469,7 @@ Reference CLIs expose commands to reset the active session and resume a previous
 - `/resume` must not attempt to restore conversation history. `ConversationCheckpoint.message_count` may be displayed informationally; the content is not stored.
 - `/resume` without argument must not start a model turn. The selection overlay must use the existing `PendingApproval` input path.
 - Both commands must clear `active_edit_loop` on `TuiMode` to prevent stale loop state. `[source: task_state.rs — TaskState::state_dir() for VEX_STATE_DIR resolution]`
-- `/clear` must clear `active_edit_loop` on `TuiMode`. A running edit loop cannot continue after its conversation history is discarded.
+- `/compact` must clear `active_edit_loop` on `TuiMode`. A running edit loop cannot continue after its conversation history is discarded.
 - `/fork` must call `TaskState::save` for the parent before creating the fork. Fork must be aborted if the save fails.
 - `/fork` must not copy conversation history to the fork. The fork begins with an empty conversation window.
 
@@ -882,7 +882,7 @@ Reference hosted agent CLIs display per-turn and cumulative token usage from API
 
 **Source:** token counts are read from the `usage` field in model API responses (`input_tokens`, `output_tokens`). For local runtimes that do not return usage fields, counts are estimated at `chars ÷ 4` with an `(estimated)` annotation displayed wherever the count appears.
 
-**Session accumulator:** `RuntimeContext` maintains a `SessionTokens { input: u64, output: u64, last_input: u64, last_output: u64, estimated: bool }` field incremented after each completed turn. The accumulator is reset on `/new` and `/clear` — conversation history is discarded at those points, making the running total meaningless.
+**Session accumulator:** `RuntimeContext` maintains a `SessionTokens { input: u64, output: u64, last_input: u64, last_output: u64, estimated: bool }` field incremented after each completed turn. The accumulator is reset on `/new` and `/compact` — conversation history is discarded at those points, making the running total meaningless.
 
 **`/usage` command** (added to `try_handle_slash_command`):
 
@@ -1544,7 +1544,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-16** | Integration tests for stream order, keepalive emission, auth failures, loopback classification (`127.0.0.1`, other `127/8`, `::1`, and `localhost`), schema validation, mid-stream runtime error, max-turns terminal sequence, interrupt `404`, reconnect/new-turn behavior, non-loopback-without-TLS rejection, TLS 1.2 minimum enforcement, `tls_cert`/`tls_key` mismatch rejection, `tls_skip_verify=true` rejection, and `vpn_trust=true` rejection until a dedicated ADR exists | [x] |
 
 **Phase I continuation note:** PI-09 through PI-16 are the post-PI-08 continuation of ADR-024's reserved LocalApiServer track. PI-08 (`/plan` and `/context`) remains tracked in ADR-023 EL-11/EL-12 and is listed here only for cross-reference. ADR-028 adds the application-facade and transport-boundary constraint that later CLI and LocalApiServer refactors must follow.
-| **PJ-01** | `/clear` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [x] |
+| **PJ-01** | `/compact` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [x] |
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
 | **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [x] |
 | **PJ-04** | `vex init` — scaffolds `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [x] |
@@ -1612,7 +1612,7 @@ When checking a box above, append an evidence block under this section:
 | `/allow session` must not call `TaskState::save` | Session grants are in-memory only; persistence belongs to config layering (Gap 3) |
 | `/mcp add` and `/mcp remove` must not be implemented under this ADR | Runtime MCP lifecycle management requires a dedicated ADR |
 | `/new` must call `TaskState::save` before resetting; abort if save fails | Data loss prevention — never discard a live task state without a successful save |
-| `/clear` must clear `active_edit_loop` on `TuiMode` | A running edit loop cannot continue after its conversation history is discarded |
+| `/compact` must clear `active_edit_loop` on `TuiMode` | A running edit loop cannot continue after its conversation history is discarded |
 | `/fork` must call `TaskState::save` for the parent before creating the fork; abort fork if save fails | Data loss prevention — never branch without preserving the parent |
 | `/fork` must not copy conversation history to the fork | The fork begins with an empty conversation window and inherited grants only |
 | `/memory` notes file must be resolved from the user config layer only | Notes are operator-personal; repo-local config must not be able to set the notes file path |
@@ -1839,7 +1839,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - docs/src/migration.md is the canonical source of truth; vex migrate config output matches it exactly.
   - Phase A now complete; EL-08 (ModelProfile config integration, ADR-023) is unblocked.
 
-### [PI-04 / PI-05 / PJ-01 / PJ-02] - /new, /resume, /clear, /fork
+### [PI-04 / PI-05 / PJ-01 / PJ-02] - /new, /resume, /compact, /fork
 - Historical branch name: omitted
 - Commit: `03b84ced0cc7f5952f8091c996d56cc2efae1d48`
 - Files changed:
@@ -1867,7 +1867,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - `/new`, `/resume`, `/clear`, and `/fork` all reset the live conversation window in both the TUI transcript and `RuntimeContext`.
+  - `/new`, `/resume`, `/compact`, and `/fork` all reset the live conversation window in both the TUI transcript and `RuntimeContext`.
   - `/resume` without an explicit task id now lists the five most recent state files and routes numeric selection through the existing overlay input path.
   - `new_task_id()` uses a monotonic UTC-millisecond generator so rapid `/new` or `/fork` sequences cannot collide on the same state filename.
   - `/fork` sanitizes the optional label before embedding it into the task id, preventing path separator leakage into `VEX_STATE_DIR`.
