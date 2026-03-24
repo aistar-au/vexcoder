@@ -459,17 +459,18 @@ fn test_prompt_hint_slash_edit_filters() {
         hint.contains("/edit"),
         "should show /edit suggestion: {hint}"
     );
-    assert!(
-        !hint.contains("/quit"),
-        "should not show /quit: {hint}"
-    );
+    assert!(!hint.contains("/quit"), "should not show /quit: {hint}");
 }
 
 #[test]
 fn test_slash_picker_matches_bare_slash() {
     let mode = TuiMode::new();
     let matches = mode.slash_picker_matches("/");
-    assert!(matches.len() > 5, "bare / should return many matches: {}", matches.len());
+    assert!(
+        matches.len() > 5,
+        "bare / should return many matches: {}",
+        matches.len()
+    );
     assert!(
         matches.iter().any(|m| m.command.starts_with("/edit")),
         "should contain /edit"

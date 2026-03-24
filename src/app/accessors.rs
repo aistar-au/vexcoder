@@ -326,7 +326,11 @@ impl TuiMode {
             })
             .take(6)
             .map(|spec| {
-                let command_word = spec.display.split_whitespace().next().unwrap_or(spec.display);
+                let command_word = spec
+                    .display
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or(spec.display);
                 SlashPickerMatch {
                     command: format!("{command_word} "),
                     label: format!(

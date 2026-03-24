@@ -841,12 +841,18 @@ mod tests {
 
         let picker = active_slash_picker(&mode, "/ed").expect("partial picker");
         assert!(
-            picker.matches.iter().any(|m| m.command.starts_with("/edit")),
+            picker
+                .matches
+                .iter()
+                .any(|m| m.command.starts_with("/edit")),
             "should contain /edit: {:?}",
             picker.matches
         );
         assert!(
-            !picker.matches.iter().any(|m| m.command.starts_with("/quit")),
+            !picker
+                .matches
+                .iter()
+                .any(|m| m.command.starts_with("/quit")),
             "should not contain /quit"
         );
     }
