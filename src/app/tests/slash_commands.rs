@@ -171,6 +171,18 @@ fn test_tui_commands_renders_all_registered_commands() {
         mode.history_lines().iter().any(|line| line == "[commands]"),
         "expected commands header"
     );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("retrieve with /context, /tools, and /generate-tests")),
+        "expected retrieval guidance header"
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[retrieve + context]"),
+        "expected grouped retrieval section"
+    );
     for spec in SLASH_COMMANDS {
         assert!(
             mode.history_lines()
@@ -352,11 +364,18 @@ fn test_tui_tools_renders_builtin_tools() {
         .history_lines()
         .iter()
         .any(|line| line.contains("built-in tools only")));
+    assert!(mode.history_lines().iter().any(|line| line.contains(
+        "discovery flow: list_files/find_files -> search_content/codebase_search -> read_file"
+    )));
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line == "[tools:retrieve]"));
     for tool in builtin_tool_summaries() {
         assert!(
             mode.history_lines()
                 .iter()
-                .any(|line| line.trim() == tool.name),
+                .any(|line| line.contains(&tool.name)),
             "expected '{}' in /tools output",
             tool.name
         );
@@ -372,9 +391,9 @@ fn test_tui_tools_desc_includes_descriptions() {
 
     for tool in builtin_tool_summaries() {
         assert!(
-            mode.history_lines()
-                .iter()
-                .any(|line| line.contains(&tool.name) && line.contains(&tool.description)),
+            mode.history_lines().iter().any(|line| {
+                line.contains(&tool.name) && line.contains(&tool.description) && line.contains('[')
+            }),
             "expected '{}' description in /tools desc output",
             tool.name
         );

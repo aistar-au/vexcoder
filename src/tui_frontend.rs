@@ -4,9 +4,7 @@ use ratatui::widgets::Clear;
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
-use crate::app::{
-    FileMentionPickerState, SlashPickerMatch, SlashPickerState, SymbolMentionPickerState, TuiMode,
-};
+use crate::app::{FileMentionPickerState, SlashPickerMatch, SlashPickerState, TuiMode};
 use crate::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
 use crate::startup::{
     looks_like_terminal_transcript, should_ignore_startup_paste_text, STARTUP_NOISE_GUARD,
@@ -29,10 +27,6 @@ pub struct ManagedTuiFrontend {
     last_hint_input: String,
     last_hint_cursor: usize,
     last_hint_text: String,
-    last_symbol_picker_prefix: String,
-    selected_symbol_hint: usize,
-    dismissed_symbol_picker: Option<(String, Range<usize>)>,
-    cached_symbol_picker: Option<(String, usize, Option<SymbolMentionPickerState>)>,
     last_file_picker_prefix: String,
     selected_file_hint: usize,
     dismissed_file_picker: Option<(String, Range<usize>)>,
@@ -56,10 +50,6 @@ impl ManagedTuiFrontend {
             last_hint_input: String::new(),
             last_hint_cursor: 0,
             last_hint_text: String::new(),
-            last_symbol_picker_prefix: String::new(),
-            selected_symbol_hint: 0,
-            dismissed_symbol_picker: None,
-            cached_symbol_picker: None,
             last_file_picker_prefix: String::new(),
             selected_file_hint: 0,
             dismissed_file_picker: None,
@@ -86,33 +76,6 @@ impl ManagedTuiFrontend {
         let picker = active_file_picker(mode, input, cursor);
         self.cached_file_picker = Some((input.to_string(), cursor, picker.clone()));
         picker
-    }
-
-    fn current_symbol_picker(&mut self, mode: &TuiMode) -> Option<SymbolMentionPickerState> {
-        let input = self.editor.buffer();
-        let cursor = self.editor.cursor();
-        if file_picker_is_dismissed(self.dismissed_symbol_picker.as_ref(), input, cursor) {
-            return None;
-        }
-        if let Some((cached_input, cached_cursor, cached_picker)) = &self.cached_symbol_picker {
-            if cached_input == input && *cached_cursor == cursor {
-                return cached_picker.clone();
-            }
-        }
-
-        let picker = active_symbol_picker(mode, input, cursor);
-        self.cached_symbol_picker = Some((input.to_string(), cursor, picker.clone()));
-        picker
-    }
-
-    fn dismiss_current_symbol_picker(&mut self) {
-        self.dismissed_symbol_picker =
-            file_mention_range(self.editor.buffer(), self.editor.cursor())
-                .map(|range| (self.editor.buffer().to_string(), range));
-        self.cached_symbol_picker = None;
-        self.last_symbol_picker_prefix.clear();
-        self.selected_symbol_hint = 0;
-        self.last_hint_input.clear();
     }
 
     fn dismiss_current_file_picker(&mut self) {
@@ -273,37 +236,6 @@ impl ManagedTuiFrontend {
                 // Reset dismiss state when no longer on a slash prefix.
                 if slash_prefix_token(self.editor.buffer()).is_none() {
                     self.dismissed_slash_picker = false;
-                }
-            }
-
-            // Symbol mention picker (triggered by `@path:symbol`).
-            if let Some(picker) = self.current_symbol_picker(mode) {
-                let last_index = picker.matches.len().saturating_sub(1);
-                self.selected_symbol_hint = self.selected_symbol_hint.min(last_index);
-                match key.code {
-                    KeyCode::Up if !picker.matches.is_empty() => {
-                        self.selected_symbol_hint = self.selected_symbol_hint.saturating_sub(1);
-                        return None;
-                    }
-                    KeyCode::Down if !picker.matches.is_empty() => {
-                        self.selected_symbol_hint = (self.selected_symbol_hint + 1).min(last_index);
-                        return None;
-                    }
-                    KeyCode::Enter if !picker.matches.is_empty() => {
-                        let replacement = &picker.matches[self.selected_symbol_hint].mention;
-                        apply_symbol_picker_selection(&mut self.editor, &picker.range, replacement);
-                        self.dismissed_symbol_picker = None;
-                        self.cached_symbol_picker = None;
-                        self.last_symbol_picker_prefix.clear();
-                        self.selected_symbol_hint = 0;
-                        self.last_hint_input.clear();
-                        return None;
-                    }
-                    KeyCode::Esc => {
-                        self.dismiss_current_symbol_picker();
-                        return None;
-                    }
-                    _ => {}
                 }
             }
 
@@ -494,28 +426,6 @@ impl ManagedTuiFrontend {
         self.last_slash_picker_prefix.clear();
         self.selected_slash_hint = 0;
 
-        if let Some(picker) = self.current_symbol_picker(mode) {
-            let prefix = format!("{}:{}", picker.path, picker.symbol_prefix);
-            if self.last_symbol_picker_prefix != prefix {
-                self.last_symbol_picker_prefix = prefix;
-                self.selected_symbol_hint = 0;
-            }
-            let selected = self
-                .selected_symbol_hint
-                .min(picker.matches.len().saturating_sub(1));
-            self.last_hint_input = input.to_string();
-            self.last_hint_text = render_symbol_picker_hint(
-                &picker.path,
-                &picker.symbol_prefix,
-                &picker.matches,
-                selected,
-            );
-            return self.last_hint_text.clone();
-        }
-
-        self.last_symbol_picker_prefix.clear();
-        self.selected_symbol_hint = 0;
-
         if let Some(picker) = self.current_file_picker(mode) {
             if self.last_file_picker_prefix != picker.prefix {
                 self.last_file_picker_prefix = picker.prefix.clone();
@@ -553,23 +463,6 @@ pub fn active_file_picker(
         range,
         prefix: prefix.clone(),
         matches: mode.file_prompt_matches(&prefix),
-    })
-}
-
-pub fn active_symbol_picker(
-    mode: &TuiMode,
-    buffer: &str,
-    cursor: usize,
-) -> Option<SymbolMentionPickerState> {
-    let range = file_mention_range(buffer, cursor)?;
-    let token = &buffer[range.clone()];
-    let prefix = token.strip_prefix('@')?;
-    let (path, symbol_prefix) = mode.symbol_picker_target(prefix)?;
-    Some(SymbolMentionPickerState {
-        range,
-        path: path.clone(),
-        symbol_prefix: symbol_prefix.clone(),
-        matches: mode.symbol_prompt_matches(&path, &symbol_prefix),
     })
 }
 
@@ -617,46 +510,6 @@ pub fn render_file_picker_hint(prefix: &str, matches: &[String], selected: usize
 
     if end < matches.len() {
         lines.push(format!("[file] {} more match(es)", matches.len() - end));
-    }
-    lines.join("\n")
-}
-
-pub fn render_symbol_picker_hint(
-    path: &str,
-    symbol_prefix: &str,
-    matches: &[crate::app::SymbolMentionMatch],
-    selected: usize,
-) -> String {
-    let mut lines = vec!["Prompt".to_string(), "mode: symbol mention".to_string()];
-    if matches.is_empty() {
-        if symbol_prefix.is_empty() {
-            lines.push(format!("[symbol] no indexed items for {path}"));
-        } else {
-            lines.push(format!("[symbol] no matches for {path}:{symbol_prefix}"));
-        }
-        return lines.join("\n");
-    }
-
-    lines.push(format!("[symbol] {} match(es) in {path}", matches.len()));
-    let selected = selected.min(matches.len().saturating_sub(1));
-    let window = 12.min(matches.len());
-    let start = selected
-        .saturating_sub(window / 2)
-        .min(matches.len() - window);
-    let end = (start + window).min(matches.len());
-
-    if start > 0 {
-        lines.push(format!("[symbol] {start} earlier match(es)"));
-    }
-
-    for (offset, entry) in matches[start..end].iter().enumerate() {
-        let index = start + offset;
-        let marker = if index == selected { '>' } else { ' ' };
-        lines.push(format!("{marker} {}", entry.label));
-    }
-
-    if end < matches.len() {
-        lines.push(format!("[symbol] {} more match(es)", matches.len() - end));
     }
     lines.join("\n")
 }
@@ -731,26 +584,6 @@ pub fn apply_file_picker_selection(editor: &mut InputEditor, range: &Range<usize
         format!("@{path} ")
     } else {
         format!("@{path}")
-    };
-    editor.replace_range(range.start, range.end, &replacement);
-}
-
-pub fn apply_symbol_picker_selection(
-    editor: &mut InputEditor,
-    range: &Range<usize>,
-    mention: &str,
-) {
-    let range =
-        file_mention_range(editor.buffer(), editor.cursor()).unwrap_or_else(|| range.clone());
-    let suffix_needs_space = editor
-        .buffer()
-        .get(range.end..)
-        .map(|rest| rest.is_empty() || !rest.starts_with(char::is_whitespace))
-        .unwrap_or(true);
-    let replacement = if suffix_needs_space {
-        format!("@{mention} ")
-    } else {
-        format!("@{mention}")
     };
     editor.replace_range(range.start, range.end, &replacement);
 }

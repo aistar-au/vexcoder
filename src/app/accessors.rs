@@ -1,13 +1,10 @@
 use super::*;
-use crate::tools::index::{self, IndexChunk};
 use crate::ui::editor::file_mention_range;
 use std::collections::BinaryHeap;
 use std::path::Path;
 
 const MAX_PROMPT_HINT_FILE_MATCHES: usize = 12;
 const MAX_FILE_PROMPT_MATCH_CANDIDATES: usize = 100;
-const MAX_PROMPT_HINT_SYMBOL_MATCHES: usize = 12;
-const MAX_SYMBOL_PROMPT_MATCHES: usize = 32;
 
 impl TuiMode {
     pub(super) fn mode_status_label(&self) -> &'static str {
@@ -64,104 +61,6 @@ impl TuiMode {
 
     pub(super) fn invalidate_file_prompt_entries(&self) {
         *self.file_prompt_entries.borrow_mut() = None;
-    }
-
-    fn cached_codebase_index(&self) -> Vec<IndexChunk> {
-        if let Some(index) = self.codebase_index.borrow().as_ref() {
-            return index.clone();
-        }
-
-        let index = index::build_index(&self.working_dir);
-        *self.codebase_index.borrow_mut() = Some(index.clone());
-        index
-    }
-
-    pub(super) fn invalidate_codebase_index(&self) {
-        *self.codebase_index.borrow_mut() = None;
-    }
-
-    pub(super) fn resolve_existing_file_display_path(&self, path: &str) -> Option<String> {
-        let operator = ToolOperator::new(self.working_dir.clone());
-        match operator.existing_path(path).ok()? {
-            Some(resolved) if resolved.is_file() => {
-                Some(operator.to_workspace_relative_display(&resolved))
-            }
-            _ => None,
-        }
-    }
-
-    pub(crate) fn symbol_picker_target(&self, prefix: &str) -> Option<(String, String)> {
-        let (path_part, symbol_prefix) = prefix.rsplit_once(':')?;
-        let resolved_path = self.resolve_existing_file_display_path(path_part)?;
-        Some((resolved_path, symbol_prefix.to_string()))
-    }
-
-    pub(crate) fn resolve_symbol_reference(&self, path: &str, symbol: &str) -> Option<IndexChunk> {
-        let resolved_path = self.resolve_existing_file_display_path(path)?;
-        let exact = self
-            .cached_codebase_index()
-            .into_iter()
-            .filter(|chunk| chunk.path == resolved_path)
-            .find(|chunk| chunk.name == symbol)
-            .or_else(|| {
-                self.cached_codebase_index()
-                    .into_iter()
-                    .filter(|chunk| chunk.path == resolved_path)
-                    .find(|chunk| chunk.name.eq_ignore_ascii_case(symbol))
-            });
-        exact
-    }
-
-    pub(crate) fn symbol_prompt_matches(
-        &self,
-        path: &str,
-        symbol_prefix: &str,
-    ) -> Vec<SymbolMentionMatch> {
-        let needle = symbol_prefix.trim().to_ascii_lowercase();
-        let mut matches: Vec<(usize, usize, SymbolMentionMatch)> = self
-            .cached_codebase_index()
-            .into_iter()
-            .filter(|chunk| chunk.path == path)
-            .filter_map(|chunk| {
-                let (rank, match_len) = score_symbol_prompt_entry(&chunk, &needle)?;
-                let parent_scope = chunk
-                    .parent_scope
-                    .as_deref()
-                    .map(|scope| format!(" · {scope}"))
-                    .unwrap_or_default();
-                Some((
-                    rank,
-                    match_len,
-                    SymbolMentionMatch {
-                        mention: format!("{path}:{}", chunk.name),
-                        label: format!(
-                            "[symbol] {} {}{} · {}:{}-{}",
-                            chunk.kind.label(),
-                            chunk.name,
-                            parent_scope,
-                            path,
-                            chunk.start_line,
-                            chunk.end_line
-                        ),
-                    },
-                ))
-            })
-            .collect();
-
-        matches.sort_by(
-            |(left_rank, left_len, left_match), (right_rank, right_len, right_match)| {
-                left_rank
-                    .cmp(right_rank)
-                    .then_with(|| left_len.cmp(right_len))
-                    .then_with(|| left_match.mention.cmp(&right_match.mention))
-            },
-        );
-        matches.dedup_by(|left, right| left.2.mention == right.2.mention);
-        matches
-            .into_iter()
-            .take(MAX_SYMBOL_PROMPT_MATCHES)
-            .map(|(_, _, entry)| entry)
-            .collect()
     }
 
     pub(super) fn approval_status_label(&self) -> &'static str {
@@ -278,30 +177,6 @@ impl TuiMode {
 
         if let Some(range) = file_mention_range(input, cursor) {
             if let Some(prefix) = input[range].strip_prefix('@') {
-                if let Some((path, symbol_prefix)) = self.symbol_picker_target(prefix) {
-                    let mut lines = vec!["Prompt".to_string(), "mode: symbol mention".to_string()];
-                    let suggestions = self.symbol_prompt_matches(&path, &symbol_prefix);
-                    if suggestions.is_empty() {
-                        if symbol_prefix.is_empty() {
-                            lines.push(format!("[symbol] no indexed items for {path}"));
-                        } else {
-                            lines.push(format!("[symbol] no matches for {path}:{symbol_prefix}"));
-                        }
-                    } else {
-                        lines.push(format!(
-                            "[symbol] {} match(es) in {path}",
-                            suggestions.len()
-                        ));
-                        lines.extend(
-                            suggestions
-                                .into_iter()
-                                .take(MAX_PROMPT_HINT_SYMBOL_MATCHES)
-                                .map(|entry| entry.label),
-                        );
-                    }
-                    return lines.join("\n");
-                }
-
                 let mut lines = vec!["Prompt".to_string(), "mode: file mention".to_string()];
                 let suggestions = self.file_prompt_matches(prefix);
                 if suggestions.is_empty() {
@@ -490,33 +365,6 @@ fn score_file_prompt_entry(display: &str, needle: &str) -> Option<(usize, usize)
     }
 }
 
-fn score_symbol_prompt_entry(chunk: &IndexChunk, needle: &str) -> Option<(usize, usize)> {
-    if needle.is_empty() {
-        return Some((0, chunk.start_line));
-    }
-
-    let name_lower = chunk.name.to_ascii_lowercase();
-    let scope_lower = chunk
-        .parent_scope
-        .as_deref()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-
-    if name_lower == needle {
-        Some((0, chunk.start_line))
-    } else if name_lower.starts_with(needle) {
-        Some((1, chunk.start_line))
-    } else if scope_lower.starts_with(needle) {
-        Some((2, chunk.start_line))
-    } else if name_lower.contains(needle) {
-        Some((3, chunk.start_line))
-    } else if scope_lower.contains(needle) {
-        Some((4, chunk.start_line))
-    } else {
-        None
-    }
-}
-
 impl TuiMode {
     fn slash_prompt_suggestions(&self, token: &str) -> Vec<String> {
         self.slash_picker_matches(token)
@@ -547,8 +395,9 @@ impl TuiMode {
                 SlashPickerMatch {
                     command: format!("{command_word} "),
                     label: format!(
-                        "[slash] {} · {}",
+                        "[slash] {} · {} · {}",
                         spec.display,
+                        slash_command_menu_group(spec.id),
                         slash_command_mode_summary(spec.id)
                     ),
                 }
@@ -570,21 +419,5 @@ impl TuiMode {
                 }),
         );
         rows
-    }
-}
-
-fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
-    match id {
-        SlashCommandId::Plan => "read-only · no patch",
-        SlashCommandId::Init => "writes .vex + AGENTS in current workspace",
-        SlashCommandId::Edit | SlashCommandId::Fix => "edit loop · may patch",
-        SlashCommandId::Explain | SlashCommandId::Review => "read-only semantic turn",
-        SlashCommandId::Run | SlashCommandId::Test => "local validation only",
-        SlashCommandId::Permissions | SlashCommandId::Allow | SlashCommandId::Deny => {
-            "session permissions"
-        }
-        SlashCommandId::Model => "session model selection",
-        SlashCommandId::Commands | SlashCommandId::Help => "show command directory",
-        _ => "session command",
     }
 }

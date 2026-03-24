@@ -546,11 +546,36 @@ impl TuiMode {
         }
     }
     pub(super) fn handle_commands_command(&mut self) {
-        let mut seen = std::collections::HashSet::new();
         self.push_history_line("[commands]".to_string());
-        for spec in SLASH_COMMANDS {
-            if seen.insert(spec.display) {
-                self.push_history_line(format!("  {:32} — {}", spec.display, spec.description));
+        self.push_history_line(
+            "[commands] retrieve with /context, /tools, and /generate-tests before opening or mutating files"
+                .to_string(),
+        );
+        let groups = [
+            "retrieve + context",
+            "edit + inspect",
+            "validate + execute",
+            "session + control",
+        ];
+        let mut seen = std::collections::HashSet::new();
+        for group in groups {
+            let mut group_lines = Vec::new();
+            for spec in SLASH_COMMANDS {
+                if slash_command_menu_group(spec.id) != group || !seen.insert(spec.display) {
+                    continue;
+                }
+                group_lines.push(format!(
+                    "  {:32} — {} [{}]",
+                    spec.display,
+                    spec.description,
+                    slash_command_mode_summary(spec.id)
+                ));
+            }
+            if !group_lines.is_empty() {
+                self.push_history_line(format!("[{group}]"));
+                for line in group_lines {
+                    self.push_history_line(line);
+                }
             }
         }
         if !self.custom_commands.is_empty() {
@@ -579,11 +604,42 @@ impl TuiMode {
         self.push_history_line(
             "[tools] MCP registry not yet available; built-in tools only".to_string(),
         );
-        for tool in builtin_tool_summaries() {
-            if include_descriptions {
-                self.push_history_line(format!("  {:24} — {}", tool.name, tool.description));
-            } else {
-                self.push_history_line(format!("  {}", tool.name));
+        self.push_history_line(
+            "[tools] discovery flow: list_files/find_files -> search_content/codebase_search -> read_file"
+                .to_string(),
+        );
+        self.push_history_line(
+            "[tools] mutation flow: edit_file/apply_patch/write_file -> git_diff/git_status -> git_add/git_commit"
+                .to_string(),
+        );
+
+        let groups = ["retrieve", "mutate", "git", "other"];
+        let tools = builtin_tool_summaries();
+        for group in groups {
+            let grouped = tools
+                .iter()
+                .filter(|tool| builtin_tool_menu_group(&tool.name) == group)
+                .collect::<Vec<_>>();
+            if grouped.is_empty() {
+                continue;
+            }
+
+            self.push_history_line(format!("[tools:{group}]"));
+            for tool in grouped {
+                if include_descriptions {
+                    self.push_history_line(format!(
+                        "  {:24} — {} [{}]",
+                        tool.name,
+                        tool.description,
+                        builtin_tool_usage_hint(&tool.name)
+                    ));
+                } else {
+                    self.push_history_line(format!(
+                        "  {:24} {}",
+                        tool.name,
+                        builtin_tool_usage_hint(&tool.name)
+                    ));
+                }
             }
         }
     }
