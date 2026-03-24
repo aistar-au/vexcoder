@@ -396,8 +396,9 @@ mod tests {
     use vexcoder::runtime::{TaskState, TaskStatus};
     use vexcoder::startup::{looks_like_terminal_transcript, should_ignore_startup_paste_text};
     use vexcoder::tui_frontend::{
-        active_file_picker, apply_file_picker_selection, file_picker_is_dismissed,
-        render_file_picker_hint,
+        active_file_picker, active_slash_picker, apply_file_picker_selection,
+        apply_slash_picker_selection, file_picker_is_dismissed, render_file_picker_hint,
+        render_slash_picker_hint, slash_prefix_token,
     };
     use vexcoder::ui::editor::file_mention_range;
     use vexcoder::ui::editor::InputEditor;
@@ -742,6 +743,183 @@ mod tests {
             "review @other",
             "review @other".len()
         ));
+    }
+
+    // -- @ file picker: directory entries ----------------------------------------
+
+    #[test]
+    fn active_file_picker_includes_directory_entries() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("src/ui")).unwrap();
+        std::fs::write(temp.path().join("src/ui/editor.rs"), "").unwrap();
+
+        let mut config = Config::default_for_tui();
+        config.working_dir = temp.path().to_path_buf();
+        let mode = TuiMode::new_with_config(None, config);
+
+        let picker = active_file_picker(&mode, "@", 1).expect("bare @ picker");
+        assert!(
+            picker.matches.iter().any(|m| m == "src/"),
+            "should include src/ dir: {:?}",
+            picker.matches
+        );
+        assert!(
+            picker.matches.iter().any(|m| m == "src/ui/"),
+            "should include src/ui/ dir: {:?}",
+            picker.matches
+        );
+    }
+
+    #[test]
+    fn file_picker_directory_entry_matches_prefix() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("src/ui")).unwrap();
+        std::fs::write(temp.path().join("src/ui/editor.rs"), "").unwrap();
+
+        let mut config = Config::default_for_tui();
+        config.working_dir = temp.path().to_path_buf();
+        let mode = TuiMode::new_with_config(None, config);
+
+        let picker = active_file_picker(&mode, "@src", 4).expect("prefix picker");
+        assert!(
+            picker.matches.iter().any(|m| m == "src/"),
+            "should match src/ directory: {:?}",
+            picker.matches
+        );
+        assert!(
+            picker.matches.iter().any(|m| m == "src/ui/"),
+            "should match src/ui/ directory: {:?}",
+            picker.matches
+        );
+    }
+
+    // -- / slash picker interactivity tests ------------------------------------
+
+    #[test]
+    fn slash_prefix_token_bare_slash() {
+        assert_eq!(slash_prefix_token("/"), Some("/"));
+    }
+
+    #[test]
+    fn slash_prefix_token_with_command() {
+        assert_eq!(slash_prefix_token("/edit something"), Some("/edit"));
+    }
+
+    #[test]
+    fn slash_prefix_token_leading_whitespace() {
+        assert_eq!(slash_prefix_token("  /ed"), Some("/ed"));
+    }
+
+    #[test]
+    fn slash_prefix_token_no_slash() {
+        assert!(slash_prefix_token("hello world").is_none());
+    }
+
+    #[test]
+    fn slash_prefix_token_empty() {
+        assert!(slash_prefix_token("").is_none());
+    }
+
+    #[test]
+    fn active_slash_picker_bare_slash_returns_all() {
+        let config = Config::default_for_tui();
+        let mode = TuiMode::new_with_config(None, config);
+
+        let picker = active_slash_picker(&mode, "/").expect("bare / picker");
+        assert_eq!(picker.prefix, "/");
+        assert!(
+            picker.matches.len() > 5,
+            "should return many commands: {:?}",
+            picker.matches.len()
+        );
+    }
+
+    #[test]
+    fn active_slash_picker_partial_filters() {
+        let config = Config::default_for_tui();
+        let mode = TuiMode::new_with_config(None, config);
+
+        let picker = active_slash_picker(&mode, "/ed").expect("partial picker");
+        assert!(
+            picker.matches.iter().any(|m| m.command.starts_with("/edit")),
+            "should contain /edit: {:?}",
+            picker.matches
+        );
+        assert!(
+            !picker.matches.iter().any(|m| m.command.starts_with("/quit")),
+            "should not contain /quit"
+        );
+    }
+
+    #[test]
+    fn active_slash_picker_no_match_returns_none() {
+        let config = Config::default_for_tui();
+        let mode = TuiMode::new_with_config(None, config);
+
+        assert!(active_slash_picker(&mode, "/zzzznotexist").is_none());
+    }
+
+    #[test]
+    fn active_slash_picker_non_slash_returns_none() {
+        let config = Config::default_for_tui();
+        let mode = TuiMode::new_with_config(None, config);
+
+        assert!(active_slash_picker(&mode, "hello").is_none());
+    }
+
+    #[test]
+    fn render_slash_picker_hint_shows_commands() {
+        use vexcoder::app::SlashPickerMatch;
+
+        let matches = vec![
+            SlashPickerMatch {
+                command: "/edit ".into(),
+                label: "[slash] /edit <instruction> · start an edit loop".into(),
+            },
+            SlashPickerMatch {
+                command: "/explain ".into(),
+                label: "[slash] /explain [path] · explain a file".into(),
+            },
+        ];
+        let hint = render_slash_picker_hint(&matches, 0);
+        assert!(hint.contains("mode: slash"), "hint: {hint}");
+        assert!(hint.contains("> [slash] /edit"), "selected marker: {hint}");
+        assert!(hint.contains("  [slash] /explain"), "unselected: {hint}");
+    }
+
+    #[test]
+    fn render_slash_picker_hint_empty() {
+        let hint = render_slash_picker_hint(&[], 0);
+        assert!(hint.contains("mode: slash"), "hint: {hint}");
+        assert!(!hint.contains(">"), "no selection when empty: {hint}");
+    }
+
+    #[test]
+    fn render_slash_picker_hint_clamps_selected() {
+        use vexcoder::app::SlashPickerMatch;
+
+        let matches = vec![SlashPickerMatch {
+            command: "/edit ".into(),
+            label: "[slash] /edit".into(),
+        }];
+        let hint = render_slash_picker_hint(&matches, 999);
+        assert!(hint.contains("> [slash] /edit"), "should clamp: {hint}");
+    }
+
+    #[test]
+    fn apply_slash_picker_selection_replaces_input() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("/ed");
+        apply_slash_picker_selection(&mut editor, "/edit ");
+        assert_eq!(editor.buffer(), "/edit ");
+    }
+
+    #[test]
+    fn apply_slash_picker_selection_from_bare_slash() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("/");
+        apply_slash_picker_selection(&mut editor, "/explain ");
+        assert_eq!(editor.buffer(), "/explain ");
     }
 
     // -- PM-01 ----------------------------------------------------------------

@@ -593,6 +593,20 @@ pub struct FileMentionPickerState {
     pub matches: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SlashPickerMatch {
+    /// Command text inserted on selection (e.g. "/edit ").
+    pub command: String,
+    /// Display label shown in the picker (e.g. "/edit <instruction> · start an edit loop").
+    pub label: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SlashPickerState {
+    pub prefix: String,
+    pub matches: Vec<SlashPickerMatch>,
+}
+
 pub struct TuiMode {
     history_state: HistoryState,
     overlay_state: OverlayState,

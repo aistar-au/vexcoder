@@ -36,6 +36,23 @@ impl TuiMode {
             .into_iter()
             .map(|path| operator.to_workspace_relative_display(&path))
             .collect::<Vec<_>>();
+
+        // Derive directory entries from file paths so the picker shows both
+        // files and directories (ADR-032 §7).
+        let mut dir_set = std::collections::BTreeSet::new();
+        for entry in &entries {
+            let mut path = Path::new(entry);
+            while let Some(parent) = path.parent() {
+                let s = parent.to_str().unwrap_or("");
+                if s.is_empty() {
+                    break;
+                }
+                dir_set.insert(format!("{s}/"));
+                path = parent;
+            }
+        }
+        entries.extend(dir_set);
+
         entries.sort();
         entries.dedup();
         *self.file_prompt_entries.borrow_mut() = Some(entries.clone());
@@ -289,8 +306,15 @@ fn score_file_prompt_entry(display: &str, needle: &str) -> Option<(usize, usize)
 
 impl TuiMode {
     fn slash_prompt_suggestions(&self, token: &str) -> Vec<String> {
+        self.slash_picker_matches(token)
+            .into_iter()
+            .map(|m| m.label)
+            .collect()
+    }
+
+    pub fn slash_picker_matches(&self, token: &str) -> Vec<SlashPickerMatch> {
         let partial = token.split_whitespace().next().unwrap_or(token);
-        let mut rows = SLASH_COMMANDS
+        let mut rows: Vec<SlashPickerMatch> = SLASH_COMMANDS
             .iter()
             .filter(|spec| {
                 spec.display.starts_with(partial)
@@ -302,25 +326,30 @@ impl TuiMode {
             })
             .take(6)
             .map(|spec| {
-                format!(
-                    "[slash] {} · {}",
-                    spec.display,
-                    slash_command_mode_summary(spec.id)
-                )
+                let command_word = spec.display.split_whitespace().next().unwrap_or(spec.display);
+                SlashPickerMatch {
+                    command: format!("{command_word} "),
+                    label: format!(
+                        "[slash] {} · {}",
+                        spec.display,
+                        slash_command_mode_summary(spec.id)
+                    ),
+                }
             })
-            .collect::<Vec<_>>();
+            .collect();
 
         rows.extend(
             self.custom_commands
                 .iter()
                 .filter(|command| format!("/{}", command.name).starts_with(partial))
                 .take(3)
-                .map(|command| {
-                    format!(
+                .map(|command| SlashPickerMatch {
+                    command: format!("/{} ", command.name),
+                    label: format!(
                         "[slash] {} · custom · {}",
                         command.display(),
                         command.description
-                    )
+                    ),
                 }),
         );
         rows
