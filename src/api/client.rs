@@ -462,10 +462,10 @@ fn map_api_status_error(
     if is_context_overflow(body) {
         let ctx_hint = if is_local {
             "\n  The conversation has exceeded the server's context window. \
-             Increase the server context size (e.g. --ctx-size 8192) or use /clear to reset."
+             Increase the server context size (e.g. --ctx-size 8192) or use /compact to reset."
         } else {
             "\n  The conversation has exceeded the endpoint's context window. \
-             Use /clear to reset the conversation."
+             Use /compact to reset the conversation."
         };
         return anyhow!(
             "API endpoint '{}' returned HTTP {}: {}{}\n  Server message: {}",
@@ -1433,7 +1433,7 @@ mod tests {
             "got: {msg}"
         );
         assert!(msg.contains("--ctx-size"), "got: {msg}");
-        assert!(msg.contains("/clear"), "got: {msg}");
+        assert!(msg.contains("/compact"), "got: {msg}");
     }
 
     #[test]

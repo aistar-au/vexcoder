@@ -65,7 +65,12 @@ impl TuiMode {
             return;
         }
 
-        self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
+        // Show a waiting indicator until the first streaming token arrives.
+        let wait_idx = self.history_state.lines.len() - 1;
+        if let Some(line) = self.history_state.lines.get_mut(wait_idx) {
+            *line = "[waiting for response...]".to_string();
+        }
+        self.history_state.active_assistant_index = Some(wait_idx);
         self.history_state.turn_in_progress = true;
         self.begin_turn_capture(turn_input.clone());
 

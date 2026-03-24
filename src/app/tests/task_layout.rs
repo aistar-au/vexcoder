@@ -11,7 +11,7 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
     assert_eq!(state.activity_rows, vec!["> hi".to_string()]);
     assert_eq!(
         state.output_rows,
-        vec!["> hi".to_string(), "[awaiting model response]".to_string()]
+        vec!["> hi".to_string(), "[waiting for response...]".to_string()]
     );
 }
 #[test]

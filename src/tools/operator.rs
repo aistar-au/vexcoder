@@ -788,4 +788,56 @@ mod tests {
             .expect("missing file check should succeed");
         assert!(content.is_none());
     }
+
+    #[test]
+    fn test_glob_double_star_matches_root_files() {
+        assert!(
+            glob_matches("**", "Cargo.toml"),
+            "** must match root-level files"
+        );
+        assert!(
+            glob_matches("**", "src/main.rs"),
+            "** must match nested files"
+        );
+        assert!(
+            glob_matches("**", "adr/ADR-README.md"),
+            "** must match nested files with dashes"
+        );
+    }
+
+    #[test]
+    fn test_glob_double_star_slash_star_misses_root_files() {
+        assert!(
+            !glob_matches("**/*", "Cargo.toml"),
+            "**/* must NOT match root-level files (requires /)"
+        );
+        assert!(
+            glob_matches("**/*", "src/main.rs"),
+            "**/* must match nested files"
+        );
+    }
+
+    #[test]
+    fn test_find_files_double_star_includes_root_files() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("Cargo.toml"), "[package]").unwrap();
+        fs::create_dir_all(dir.path().join("src")).unwrap();
+        fs::write(dir.path().join("src/main.rs"), "fn main() {}").unwrap();
+        let op = ToolOperator::new(dir.path().to_path_buf());
+
+        let files = op.find_files("**").expect("find_files");
+        let names: Vec<String> = files
+            .iter()
+            .map(|p| op.to_workspace_relative_display(p))
+            .collect();
+
+        assert!(
+            names.iter().any(|n| n == "Cargo.toml"),
+            "find_files(**) must include root-level Cargo.toml, got: {names:?}"
+        );
+        assert!(
+            names.iter().any(|n| n == "src/main.rs"),
+            "find_files(**) must include nested src/main.rs, got: {names:?}"
+        );
+    }
 }

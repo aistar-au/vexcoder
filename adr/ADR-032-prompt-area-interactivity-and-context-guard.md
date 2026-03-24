@@ -31,8 +31,8 @@ or to recover without restarting.
 
 2. Context-overflow errors surface the server's message verbatim (truncated
    to 300 characters) and append actionable guidance:
-   - For local endpoints: suggest `--ctx-size <N>` and `/clear`.
-   - For remote endpoints: suggest `/clear`.
+   - For local endpoints: suggest `--ctx-size <N>` and `/compact`.
+   - For remote endpoints: suggest `/compact`.
 
 3. Non-context-overflow 400s on local endpoints retain the existing protocol
    detection hint (MessagesV1 vs ChatCompat).
@@ -47,9 +47,12 @@ or to recover without restarting.
    distinguishes focused (active input) from unfocused (scrolling transcript)
    state.
 
-6. **`/clear` for context recovery** — the existing `/clear` command resets
-   conversation history. Context-overflow error messages now explicitly
-   suggest `/clear` as the recovery path.
+6. **`/compact` for context recovery** — the `/compact` command resets
+   conversation history while preserving the active task. Context-overflow
+   error messages explicitly suggest `/compact` as the recovery path. The
+   runtime also performs automatic compaction when a context-overflow HTTP 400
+   is detected: it retains the last four messages and retries the request
+   once, displaying a `[context: compacted N -> M messages]` indicator.
 
 7. **`@` file picker** — the `@` prefix surfaces files and directories from
    the current working directory with arrow-key navigation and Enter to select.
@@ -99,7 +102,8 @@ or to recover without restarting.
 
 - Users see the actual server error on context overflow instead of a
   misleading protocol hint.
-- `/clear` becomes the documented recovery path for context exhaustion.
+- `/compact` becomes the documented recovery path for context exhaustion,
+  both as a manual command and as an automatic server-side recovery step.
 - Prompt area focus and character count reduce guesswork during input.
 - Context-proportional auto-cap prevents file reads from exhausting small
   context windows while allowing generous reads on large contexts.

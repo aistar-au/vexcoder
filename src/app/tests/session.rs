@@ -222,26 +222,26 @@ fn test_tui_resume_restores_legacy_subdir_state() {
     );
 }
 #[test]
-fn test_tui_clear_resets_conversation_history() {
+fn test_tui_compact_resets_conversation_history() {
     let mut mode = TuiMode::new();
     mode.push_history_line("stale transcript".to_string());
     let mut ctx = setup_ctx();
 
-    mode.on_user_input("/clear".to_string(), &mut ctx);
+    mode.on_user_input("/compact".to_string(), &mut ctx);
 
     assert_eq!(
         mode.history_lines().len(),
         1,
-        "/clear must reset the transcript"
+        "/compact must reset the transcript"
     );
     assert!(
-        mode.history_lines()[0].starts_with("[cleared: conversation history reset; task "),
-        "expected cleared confirmation"
+        mode.history_lines()[0].starts_with("[compacted: conversation history reset; task "),
+        "expected compacted confirmation"
     );
     assert!(!mode.is_turn_in_progress());
 }
 #[test]
-fn test_tui_clear_preserves_task_id_and_grants() {
+fn test_tui_compact_preserves_task_id_and_grants() {
     let mut mode = TuiMode::new();
     let original_id = mode.current_task_id();
     mode.current_task.active_grants.insert(
@@ -250,33 +250,33 @@ fn test_tui_clear_preserves_task_id_and_grants() {
     );
     let mut ctx = setup_ctx();
 
-    mode.on_user_input("/clear".to_string(), &mut ctx);
+    mode.on_user_input("/compact".to_string(), &mut ctx);
 
     assert_eq!(
         mode.current_task_id(),
         original_id,
-        "/clear must not change task-id"
+        "/compact must not change task-id"
     );
     assert!(
         mode.current_task
             .active_grants
             .contains_key(&crate::runtime::Capability::RunCommand),
-        "/clear must preserve active grants"
+        "/compact must preserve active grants"
     );
     assert!(
         !mode.is_turn_in_progress(),
-        "/clear must clear active edit-loop state"
+        "/compact must clear active edit-loop state"
     );
 }
 #[test]
-fn test_tui_clear_clears_active_edit_loop() {
+fn test_tui_compact_clears_active_edit_loop() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
-    mode.on_user_input("/clear".to_string(), &mut ctx);
+    mode.on_user_input("/compact".to_string(), &mut ctx);
 
     assert!(
         !mode.is_turn_in_progress(),
-        "/clear must clear active edit-loop state"
+        "/compact must clear active edit-loop state"
     );
 }
 #[test]
@@ -726,14 +726,14 @@ fn test_tui_new_clears_active_edit_loop_field() {
     std::env::remove_var("VEX_STATE_DIR");
 }
 #[test]
-fn test_tui_clear_clears_active_edit_loop_field() {
+fn test_tui_compact_clears_active_edit_loop_field() {
     let mut mode = TuiMode::new();
-    mode.active_edit_loop = Some(EditLoop::new("task-before-clear".to_string()));
+    mode.active_edit_loop = Some(EditLoop::new("task-before-compact".to_string()));
     let mut ctx = setup_ctx();
-    mode.on_user_input("/clear".to_string(), &mut ctx);
+    mode.on_user_input("/compact".to_string(), &mut ctx);
 
     assert!(
         mode.active_edit_loop.is_none(),
-        "/clear must clear active_edit_loop field"
+        "/compact must clear active_edit_loop field"
     );
 }

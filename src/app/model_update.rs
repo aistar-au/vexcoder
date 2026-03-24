@@ -39,6 +39,10 @@ impl TuiMode {
                     }
                 };
                 if let Some(line) = self.history_state.lines.get_mut(idx) {
+                    // Clear the waiting placeholder on first real content.
+                    if line.starts_with("[waiting for response...]") {
+                        line.clear();
+                    }
                     line.push_str(&text);
                     *line = sanitize_assistant_text(line);
                 }
@@ -50,6 +54,14 @@ impl TuiMode {
             UiUpdate::StreamBlockStart { index, block } => {
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
+                }
+                // Clear the waiting placeholder when a tool block arrives.
+                if let Some(idx) = self.history_state.active_assistant_index {
+                    if let Some(line) = self.history_state.lines.get_mut(idx) {
+                        if line.starts_with("[waiting for response...]") {
+                            line.clear();
+                        }
+                    }
                 }
                 match &block {
                     StreamBlock::ToolCall {
@@ -336,7 +348,7 @@ fn verb_first_tool_paragraph(
     };
 
     match name {
-        "search_files" | "search_content" | "search" | "find_files" => {
+        "search_files" | "search_content" | "search" | "find_files" | "codebase_search" => {
             let pat = str_arg(&["pattern", "query", "q", "text", "needle"]);
             let path = str_arg(&["path", "directory", "dir"]);
             if !pat.is_empty() && !path.is_empty() {
@@ -353,7 +365,7 @@ fn verb_first_tool_paragraph(
             if !path.is_empty() {
                 format!("Read {path} ({lines} lines)")
             } else {
-                format!("{name}: ok")
+                "Read: (no path given)".to_string()
             }
         }
         "list_files" | "list_directory" => {
@@ -362,7 +374,7 @@ fn verb_first_tool_paragraph(
             if !path.is_empty() {
                 format!("Listed {path} ({count} entries)")
             } else {
-                format!("{name}: ok")
+                format!("Listed workspace ({count} entries)")
             }
         }
         "write_file" => {
