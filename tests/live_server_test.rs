@@ -17,8 +17,7 @@ use vexcoder::types::ModelProfile;
 
 /// Resolve the live server URL from the environment or use the default.
 fn live_server_url() -> String {
-    std::env::var("VEX_LIVE_SERVER_URL")
-        .unwrap_or_else(|_| "http://localhost:8000".to_string())
+    std::env::var("VEX_LIVE_SERVER_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
 }
 
 /// Check whether the live server is reachable. Returns the model name if
@@ -222,7 +221,10 @@ async fn test_live_server_streaming_chat_returns_deltas() {
             })
             .unwrap_or(false)
     });
-    assert!(has_content, "streaming response must contain content deltas");
+    assert!(
+        has_content,
+        "streaming response must contain content deltas"
+    );
 }
 
 #[tokio::test]
