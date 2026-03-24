@@ -708,7 +708,6 @@ mod tests {
 
     #[test]
     fn active_file_picker_no_at_returns_none() {
-        let temp = tempfile::tempdir().unwrap();
         let config = Config::default_for_tui();
         let mode = TuiMode::new_with_config(None, config);
 
