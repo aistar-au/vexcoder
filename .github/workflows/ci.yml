@@ -12,9 +12,11 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
 
 jobs:
-  test:
+  # ── 1. Lint — no compilation, fastest job ──────────────────────────
+  lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -30,68 +32,205 @@ jobs:
           git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
           git checkout --detach FETCH_HEAD
 
-      - name: Install stable Rust (with rustfmt + clippy)
+      - name: Install stable Rust (rustfmt only)
         run: |
           set -euo pipefail
           source "$HOME/.cargo/env" 2>/dev/null || true
-          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup toolchain install stable --profile minimal --component rustfmt
           rustup default stable
+
+      - name: Restore tool cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+          key: linux-tools-taplo-0.8.1
 
       - name: Install Taplo (TOML formatter/linter)
         run: |
           set -euo pipefail
           source "$HOME/.cargo/env" 2>/dev/null || true
-          cargo install taplo-cli --version 0.8.1 --locked
-
-      - name: Install cargo-nextest
-        run: |
-          set -euo pipefail
-          source "$HOME/.cargo/env" 2>/dev/null || true
-          cargo install cargo-nextest --locked
+          command -v taplo >/dev/null 2>&1 || cargo install taplo-cli --version 0.8.1 --locked
 
       - name: Install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 
-      - name: Run consolidated gate
-        run: make gate-fast
+      - name: Format check (rustfmt + taplo)
+        run: make fmt-check
 
-  windows-native:
-    name: windows-native (${{ matrix.label }})
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: fmt
-            script: cargo fmt --check
-          - label: clippy
-            script: cargo clippy --all-targets -- -D warnings
-          - label: check
-            script: cargo check --all-targets
-          - label: test
-            script: |
-              $hadToken = Test-Path Env:VEX_MODEL_TOKEN
-              if ($hadToken) {
-                $previousToken = $env:VEX_MODEL_TOKEN
-              }
-              $env:VEX_MODEL_TOKEN = ""
-              try {
-                cargo test --all
-                if ($LASTEXITCODE -ne 0) {
-                  exit $LASTEXITCODE
-                }
-              } finally {
-                if ($hadToken) {
-                  $env:VEX_MODEL_TOKEN = $previousToken
-                } else {
-                  Remove-Item Env:VEX_MODEL_TOKEN -ErrorAction SilentlyContinue
-                }
-              }
-          - label: test-all-targets
-            script: cargo test --all-targets
+      - name: Architecture checks
+        run: make check-arch
+
+  # ── 2. Clippy ──────────────────────────────────────────────────────
+  clippy:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          git init .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
+          git checkout --detach FETCH_HEAD
+
+      - name: Install stable Rust (with clippy)
+        run: |
+          set -euo pipefail
+          source "$HOME/.cargo/env" 2>/dev/null || true
+          rustup toolchain install stable --profile minimal --component clippy
+          rustup default stable
+
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: linux-clippy-${{ hashFiles('Cargo.lock') }}
+          restore-keys: linux-clippy-
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --all-targets -- -D warnings
+
+  # ── 3. Nextest — parallel test runner ──────────────────────────────
+  nextest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          git init .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
+          git checkout --detach FETCH_HEAD
+
+      - name: Install stable Rust
+        run: |
+          set -euo pipefail
+          source "$HOME/.cargo/env" 2>/dev/null || true
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: linux-test-${{ hashFiles('Cargo.lock') }}
+          restore-keys: linux-test-
+
+      - name: Install cargo-nextest (prebuilt)
+        run: |
+          set -euo pipefail
+          curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: Run tests (nextest, j4)
+        env:
+          VEX_MODEL_TOKEN: ""
+        run: |
+          source "$HOME/.cargo/env" 2>/dev/null || true
+          cargo nextest run -j 4
+
+  # ── 4. Doc tests (nextest cannot run these) ────────────────────────
+  doctest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          git init .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
+          git checkout --detach FETCH_HEAD
+
+      - name: Install stable Rust
+        run: |
+          set -euo pipefail
+          source "$HOME/.cargo/env" 2>/dev/null || true
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: linux-test-${{ hashFiles('Cargo.lock') }}
+          restore-keys: linux-test-
+
+      - name: Run doc tests
+        env:
+          VEX_MODEL_TOKEN: ""
+        run: cargo test --doc
+
+  # ── 5. All-targets (benchmarks, integration extras) ────────────────
+  test-all-targets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          git init .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
+          git checkout --detach FETCH_HEAD
+
+      - name: Install stable Rust
+        run: |
+          set -euo pipefail
+          source "$HOME/.cargo/env" 2>/dev/null || true
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: linux-test-${{ hashFiles('Cargo.lock') }}
+          restore-keys: linux-test-
+
+      - name: Run all-target tests
+        run: cargo test --all-targets
+
+  # ── 6. Windows clippy (includes fmt check) ─────────────────────────
+  windows-clippy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Install stable Rust (with rustfmt + clippy)
         shell: pwsh
@@ -104,15 +243,30 @@ jobs:
         run: |
           "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Run native Windows gate slice
-        shell: pwsh
-        run: ${{ matrix.script }}
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\.cargo\registry\index
+            ~\.cargo\registry\cache
+            ~\.cargo\git\db
+            target
+          key: windows-clippy-${{ hashFiles('Cargo.lock') }}
+          restore-keys: windows-clippy-
 
-  windows-package:
+      - name: Format check
+        shell: pwsh
+        run: cargo fmt --check
+
+      - name: Clippy (deny warnings)
+        shell: pwsh
+        run: cargo clippy --all-targets -- -D warnings
+
+  # ── 7. Windows tests (--all + --all-targets combined) ──────────────
+  windows-test:
     runs-on: windows-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install stable Rust
         shell: pwsh
@@ -124,6 +278,55 @@ jobs:
         shell: pwsh
         run: |
           "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\.cargo\registry\index
+            ~\.cargo\registry\cache
+            ~\.cargo\git\db
+            target
+          key: windows-test-${{ hashFiles('Cargo.lock') }}
+          restore-keys: windows-test-
+
+      - name: Run tests (--all)
+        shell: pwsh
+        run: |
+          $env:VEX_MODEL_TOKEN = ""
+          cargo test --all
+
+      - name: Run tests (--all-targets)
+        shell: pwsh
+        run: cargo test --all-targets
+
+  # ── 8. Windows package (build + smoke test) ────────────────────────
+  windows-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Add Cargo bin to PATH
+        shell: pwsh
+        run: |
+          "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\.cargo\registry\index
+            ~\.cargo\registry\cache
+            ~\.cargo\git\db
+            target
+          key: windows-pkg-${{ hashFiles('Cargo.lock') }}
+          restore-keys: windows-pkg-
 
       - name: Build native Windows binary
         shell: pwsh
