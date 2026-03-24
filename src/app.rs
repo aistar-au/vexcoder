@@ -672,6 +672,15 @@ pub struct TaskLayoutState {
     pub changed_files: Vec<String>,
     /// When true the timeline auto-advances to the latest entry.
     pub follow_mode: bool,
+    /// Floating picker overlay rendered above the composer when a picker is active.
+    pub picker_overlay: Vec<PickerOverlayLine>,
+}
+
+/// A single line in the floating picker overlay.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PickerOverlayLine {
+    pub text: String,
+    pub selected: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

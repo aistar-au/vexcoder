@@ -397,8 +397,9 @@ mod tests {
     use vexcoder::startup::{looks_like_terminal_transcript, should_ignore_startup_paste_text};
     use vexcoder::tui_frontend::{
         active_file_picker, active_slash_picker, apply_file_picker_selection,
-        apply_slash_picker_selection, file_picker_is_dismissed, render_file_picker_hint,
-        render_slash_picker_hint, slash_prefix_token,
+        apply_slash_picker_selection, build_file_overlay, build_slash_overlay,
+        file_picker_is_dismissed, render_file_picker_hint, render_slash_picker_hint,
+        slash_prefix_token,
     };
     use vexcoder::ui::editor::file_mention_range;
     use vexcoder::ui::editor::InputEditor;
@@ -999,6 +1000,164 @@ mod tests {
         editor.insert_str("/");
         apply_slash_picker_selection(&mut editor, "/explain ");
         assert_eq!(editor.buffer(), "/explain ");
+    }
+
+    // -- picker overlay regression tests ----------------------------------------
+
+    #[test]
+    fn build_file_overlay_bare_at_returns_entries() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("src")).unwrap();
+        std::fs::write(temp.path().join("src/a.rs"), "").unwrap();
+        std::fs::write(temp.path().join("src/b.rs"), "").unwrap();
+
+        let mut config = Config::default_for_tui();
+        config.working_dir = temp.path().to_path_buf();
+        let mode = TuiMode::new_with_config(None, config);
+
+        let picker = active_file_picker(&mode, "@", 1).expect("bare @ picker");
+        let overlay = build_file_overlay(&picker.prefix, &picker.matches, 0);
+
+        // Must have at least a header line and one entry
+        assert!(
+            overlay.len() >= 2,
+            "overlay must have header + entries, got: {overlay:?}"
+        );
+        // Header line has match count
+        assert!(
+            overlay[0].text.contains("match(es)"),
+            "header: {}",
+            overlay[0].text
+        );
+        // First entry after header is selected
+        let selected_count = overlay.iter().filter(|l| l.selected).count();
+        assert_eq!(selected_count, 1, "exactly one selected line");
+        // Selected line has > marker
+        let selected = overlay.iter().find(|l| l.selected).unwrap();
+        assert!(
+            selected.text.starts_with('>'),
+            "selected must have > marker: {}",
+            selected.text
+        );
+    }
+
+    #[test]
+    fn build_file_overlay_empty_matches_shows_hint() {
+        let overlay = build_file_overlay("nonexist", &[], 0);
+        assert_eq!(overlay.len(), 1);
+        assert!(
+            overlay[0].text.contains("no matches for nonexist"),
+            "{}",
+            overlay[0].text
+        );
+    }
+
+    #[test]
+    fn build_file_overlay_bare_at_empty_shows_type_hint() {
+        let overlay = build_file_overlay("", &[], 0);
+        assert_eq!(overlay.len(), 1);
+        assert!(
+            overlay[0].text.contains("type to search"),
+            "{}",
+            overlay[0].text
+        );
+    }
+
+    #[test]
+    fn build_file_overlay_navigates_selection() {
+        let matches: Vec<String> = vec!["src/a.rs".into(), "src/b.rs".into(), "src/c.rs".into()];
+
+        let overlay_0 = build_file_overlay("", &matches, 0);
+        let overlay_1 = build_file_overlay("", &matches, 1);
+        let overlay_2 = build_file_overlay("", &matches, 2);
+
+        // Selection at 0
+        let sel_0 = overlay_0.iter().find(|l| l.selected).unwrap();
+        assert!(sel_0.text.contains("src/a.rs"), "sel 0: {}", sel_0.text);
+
+        // Selection at 1
+        let sel_1 = overlay_1.iter().find(|l| l.selected).unwrap();
+        assert!(sel_1.text.contains("src/b.rs"), "sel 1: {}", sel_1.text);
+
+        // Selection at 2
+        let sel_2 = overlay_2.iter().find(|l| l.selected).unwrap();
+        assert!(sel_2.text.contains("src/c.rs"), "sel 2: {}", sel_2.text);
+    }
+
+    #[test]
+    fn build_slash_overlay_returns_entries_with_selection() {
+        use vexcoder::app::SlashPickerMatch;
+
+        let matches = vec![
+            SlashPickerMatch {
+                command: "/edit ".into(),
+                label: "[slash] /edit <instruction>".into(),
+            },
+            SlashPickerMatch {
+                command: "/explain ".into(),
+                label: "[slash] /explain [path]".into(),
+            },
+        ];
+        let overlay = build_slash_overlay(&matches, 0);
+
+        assert!(overlay.len() >= 3, "header + 2 entries: {overlay:?}");
+        assert!(
+            overlay[0].text.contains("command(s)"),
+            "header: {}",
+            overlay[0].text
+        );
+        let selected = overlay.iter().find(|l| l.selected).unwrap();
+        assert!(
+            selected.text.contains("/edit"),
+            "selected: {}",
+            selected.text
+        );
+    }
+
+    #[test]
+    fn build_slash_overlay_empty_returns_empty() {
+        let overlay = build_slash_overlay(&[], 0);
+        assert!(overlay.is_empty());
+    }
+
+    #[test]
+    fn file_overlay_clamps_selected_past_end() {
+        let matches: Vec<String> = vec!["src/a.rs".into(), "src/b.rs".into()];
+        let overlay = build_file_overlay("", &matches, 999);
+        let selected = overlay.iter().find(|l| l.selected).unwrap();
+        assert!(
+            selected.text.contains("src/b.rs"),
+            "should clamp to last: {}",
+            selected.text
+        );
+    }
+
+    #[test]
+    fn file_overlay_integration_with_active_picker() {
+        // End-to-end: type @, get picker, build overlay, verify menu appears
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("src/ui")).unwrap();
+        std::fs::write(temp.path().join("src/ui/editor.rs"), "fn main() {}").unwrap();
+        std::fs::write(temp.path().join("src/lib.rs"), "").unwrap();
+
+        let mut config = Config::default_for_tui();
+        config.working_dir = temp.path().to_path_buf();
+        let mode = TuiMode::new_with_config(None, config);
+
+        // Simulate typing "@"
+        let picker = active_file_picker(&mode, "@", 1).expect("@ must activate picker");
+        assert!(!picker.matches.is_empty(), "@ must return file matches");
+
+        let overlay = build_file_overlay(&picker.prefix, &picker.matches, 0);
+        assert!(overlay.len() >= 2, "overlay must show menu entries for @");
+
+        // Simulate typing "@src/"
+        let picker2 = active_file_picker(&mode, "@src/", 5).expect("@src/ picker");
+        let overlay2 = build_file_overlay(&picker2.prefix, &picker2.matches, 0);
+        assert!(
+            overlay2.iter().any(|l| l.text.contains("src/ui/")),
+            "directory drill-down must show children: {overlay2:?}"
+        );
     }
 
     // -- PM-01 ----------------------------------------------------------------

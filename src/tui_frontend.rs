@@ -4,7 +4,9 @@ use ratatui::widgets::Clear;
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
-use crate::app::{FileMentionPickerState, SlashPickerMatch, SlashPickerState, TuiMode};
+use crate::app::{
+    FileMentionPickerState, PickerOverlayLine, SlashPickerMatch, SlashPickerState, TuiMode,
+};
 use crate::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
 use crate::startup::{
     looks_like_terminal_transcript, should_ignore_startup_paste_text, STARTUP_NOISE_GUARD,
@@ -449,6 +451,121 @@ impl ManagedTuiFrontend {
         }
         self.last_hint_text.clone()
     }
+
+    /// Build the floating picker overlay lines from the currently active picker.
+    fn build_picker_overlay(&mut self, mode: &TuiMode) -> Vec<PickerOverlayLine> {
+        // Slash picker takes priority.
+        if let Some(picker) = self.current_slash_picker(mode) {
+            if picker.matches.is_empty() {
+                return Vec::new();
+            }
+            return build_slash_overlay(&picker.matches, self.selected_slash_hint);
+        }
+
+        // File mention picker.
+        if let Some(picker) = self.current_file_picker(mode) {
+            return build_file_overlay(&picker.prefix, &picker.matches, self.selected_file_hint);
+        }
+
+        Vec::new()
+    }
+}
+
+/// Maximum number of visible entries in the floating picker overlay.
+const MAX_PICKER_OVERLAY_VISIBLE: usize = 12;
+
+pub fn build_file_overlay(
+    prefix: &str,
+    matches: &[String],
+    selected: usize,
+) -> Vec<PickerOverlayLine> {
+    if matches.is_empty() {
+        let text = if prefix.is_empty() {
+            "[file] type to search files".to_string()
+        } else {
+            format!("[file] no matches for {prefix}")
+        };
+        return vec![PickerOverlayLine {
+            text,
+            selected: false,
+        }];
+    }
+
+    let mut lines = Vec::new();
+    let selected = selected.min(matches.len().saturating_sub(1));
+    let window = MAX_PICKER_OVERLAY_VISIBLE.min(matches.len());
+    let start = selected
+        .saturating_sub(window / 2)
+        .min(matches.len().saturating_sub(window));
+    let end = (start + window).min(matches.len());
+
+    lines.push(PickerOverlayLine {
+        text: format!(
+            "[file] {} match(es) — Up/Down to navigate, Enter to select",
+            matches.len()
+        ),
+        selected: false,
+    });
+
+    if start > 0 {
+        lines.push(PickerOverlayLine {
+            text: format!("  [{start} earlier]"),
+            selected: false,
+        });
+    }
+
+    for (offset, path) in matches[start..end].iter().enumerate() {
+        let index = start + offset;
+        let is_selected = index == selected;
+        let marker = if is_selected { ">" } else { " " };
+        lines.push(PickerOverlayLine {
+            text: format!("{marker} {path}"),
+            selected: is_selected,
+        });
+    }
+
+    if end < matches.len() {
+        lines.push(PickerOverlayLine {
+            text: format!("  [{} more]", matches.len() - end),
+            selected: false,
+        });
+    }
+
+    lines
+}
+
+pub fn build_slash_overlay(
+    matches: &[SlashPickerMatch],
+    selected: usize,
+) -> Vec<PickerOverlayLine> {
+    if matches.is_empty() {
+        return Vec::new();
+    }
+
+    let mut lines = Vec::new();
+    let selected = selected.min(matches.len().saturating_sub(1));
+    let window = MAX_PICKER_OVERLAY_VISIBLE.min(matches.len());
+    let start = selected
+        .saturating_sub(window / 2)
+        .min(matches.len().saturating_sub(window));
+    let end = (start + window).min(matches.len());
+
+    lines.push(PickerOverlayLine {
+        text: format!("[slash] {} command(s)", matches.len()),
+        selected: false,
+    });
+
+    for (offset, entry) in matches[start..end].iter().enumerate() {
+        let index = start + offset;
+        let is_selected = index == selected;
+        let marker = if is_selected { ">" } else { " " };
+        lines.push(PickerOverlayLine {
+            text: format!("{marker} {}", entry.label),
+            selected: is_selected,
+        });
+    }
+
+    lines
 }
 
 pub fn active_file_picker(
@@ -657,6 +774,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
             // Direct ANSI draw path — no ratatui buffer allocation.
             // Get terminal size from the ratatui terminal (already tracks it).
             task_state.input_hint = self.prompt_hint(mode, &input, cursor);
+            task_state.picker_overlay = self.build_picker_overlay(mode);
             task_state.composer_text = input;
             task_state.composer_cursor = cursor;
             task_state.composer_focused = mode.composer_is_focused();
