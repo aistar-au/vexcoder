@@ -442,7 +442,7 @@ active_edit_loop: Option<EditLoop>,  // carries last_validation_result between /
         /deny <cap>                     — revoke a capability
         /new                            — save and reset session
         /resume [<task-id>]             — resume a saved session
-        /clear                          — clear conversation history (keep task)
+        /compact                        — compact conversation history (keep task)
         /fork [<label>]                 — fork current session to new task-id
         /memory [add <note>|clear]      — view or edit persistent user notes
         /mcp list                       — list loaded MCP servers

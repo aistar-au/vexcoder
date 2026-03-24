@@ -116,7 +116,7 @@ Commands entered inside the interactive UI start with `/`.
 
 - `/new`
 - `/resume [task-id]`
-- `/clear`
+- `/compact`
 - `/fork [label]`
 - `/quit`
 - `/exit`
@@ -182,7 +182,7 @@ arrives in the same parallel tool round as other read-only calls.
 
 `/usage` prints the most recent turn's token counts and the cumulative session
 totals. If the runtime does not return usage metadata, the values are estimated
-from character counts and marked `(estimated)`. `/new` and `/clear` reset the
+from character counts and marked `(estimated)`. `/new` and `/compact` reset the
 session totals.
 
 ### Test generation
@@ -283,8 +283,8 @@ When the conversation exceeds the server's context window, VexCoder detects
 the overflow from the HTTP 400 response body and provides actionable guidance:
 
 - **Local endpoints:** suggests restarting the server with a larger context
-  size (e.g. `--ctx-size 8192`) or using `/clear` to reset the conversation.
-- **Remote endpoints:** suggests using `/clear` to reset the conversation.
+  size (e.g. `--ctx-size 8192`) or using `/compact` to reset the conversation.
+- **Remote endpoints:** suggests using `/compact` to reset the conversation.
 
 The server's error message is shown verbatim (truncated to 300 characters).
 

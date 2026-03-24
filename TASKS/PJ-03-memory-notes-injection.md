@@ -64,7 +64,7 @@ within a token budget.
 - The notes file is never committed to source control. Do not add it to
   `.gitignore` in this task — that belongs to `vex init` (PJ-04).
 - Do not modify `src/runtime/`, `src/state/`, or `src/api/` in this task.
-- Do not implement `/clear` (PJ-01), `/fork` (PJ-02), or `vex init` (PJ-04)
+- Do not implement `/compact` (PJ-01), `/fork` (PJ-02), or `vex init` (PJ-04)
   in this task.
 
 ## Implementation Addendum

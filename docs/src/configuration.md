@@ -59,7 +59,7 @@ The full model endpoint URL.
   equivalent plain-HTTP localhost endpoint before the fullscreen session starts.
 - If a local endpoint returns HTTP 400 due to context overflow, the error now
   shows the server's message verbatim and suggests increasing `--ctx-size` on
-  the server or using `/clear` to reset the conversation.
+  the server or using `/compact` to reset the conversation.
 - For non-context-overflow 400s, the error includes the detected protocol
   (MessagesV1 vs ChatCompat) and suggests checking the model name, protocol
   format, and whether the server supports streaming.

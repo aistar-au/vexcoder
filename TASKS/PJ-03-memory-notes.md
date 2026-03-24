@@ -7,7 +7,7 @@
 
 **ADR:** ADR-024 Gap 16
 
-**Parity items:** PJ-01 (`/clear`), PJ-02 (`/fork`), PJ-03 (`/memory`)
+**Parity items:** PJ-01 (`/compact`), PJ-02 (`/fork`), PJ-03 (`/memory`)
 
 **Depends on:** PA-01 (layered config — notes file path resolved from user config layer only)
 
