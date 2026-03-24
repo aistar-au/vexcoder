@@ -1,3 +1,4 @@
+#[cfg(not(windows))]
 use super::*;
 
 #[cfg(not(windows))]
