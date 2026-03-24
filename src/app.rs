@@ -32,6 +32,7 @@ use crate::session_notes::{
 };
 use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest, TurnToolPolicy};
 use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
+use crate::tools::index::IndexChunk;
 use crate::tools::ToolOperator;
 use crate::turn_evidence::{
     command_evidence_from_tool_result, note_changed_files_from_tool_call, ToolInvocationSummary,
@@ -594,6 +595,22 @@ pub struct FileMentionPickerState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SymbolMentionMatch {
+    /// Mention text inserted on selection (e.g. "src/lib.rs:answer").
+    pub mention: String,
+    /// Display label shown in the picker.
+    pub label: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SymbolMentionPickerState {
+    pub range: Range<usize>,
+    pub path: String,
+    pub symbol_prefix: String,
+    pub matches: Vec<SymbolMentionMatch>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SlashPickerMatch {
     /// Command text inserted on selection (e.g. "/edit ").
     pub command: String,
@@ -630,6 +647,7 @@ pub struct TuiMode {
     /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
     file_prompt_entries: RefCell<Option<Vec<String>>>,
+    codebase_index: RefCell<Option<Vec<IndexChunk>>>,
     custom_commands: Vec<CustomCommand>,
     last_assembled_context: Option<AssembledContext>,
     read_only_turn_active: bool,

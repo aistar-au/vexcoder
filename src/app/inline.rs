@@ -96,6 +96,27 @@ impl TuiMode {
             return token.to_string();
         }
 
+        if let Some((symbol_path, symbol_name)) = path
+            .rsplit_once(':')
+            .filter(|(_, symbol)| !symbol.is_empty())
+        {
+            if let Some(chunk) = self.resolve_symbol_reference(symbol_path, symbol_name) {
+                let (content, truncated) =
+                    truncate_head_bytes(&chunk.source, assembler.max_file_bytes);
+                return format_inline_block(
+                    "symbol",
+                    &format!("{}:{}", chunk.path, chunk.name),
+                    &content,
+                    truncated,
+                    Some(assembler.max_file_bytes),
+                );
+            }
+
+            if let Some(resolved_path) = self.resolve_existing_file_display_path(symbol_path) {
+                return format!("[symbol: {resolved_path}:{symbol_name} \u{2014} not found]");
+            }
+        }
+
         match operator.existing_path(path) {
             Ok(Some(resolved)) if resolved.is_dir() => {
                 match operator.list_files(Some(path), assembler.max_related) {

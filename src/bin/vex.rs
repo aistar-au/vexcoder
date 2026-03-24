@@ -396,9 +396,10 @@ mod tests {
     use vexcoder::runtime::{TaskState, TaskStatus};
     use vexcoder::startup::{looks_like_terminal_transcript, should_ignore_startup_paste_text};
     use vexcoder::tui_frontend::{
-        active_file_picker, active_slash_picker, apply_file_picker_selection,
-        apply_slash_picker_selection, file_picker_is_dismissed, render_file_picker_hint,
-        render_slash_picker_hint, slash_prefix_token,
+        active_file_picker, active_slash_picker, active_symbol_picker, apply_file_picker_selection,
+        apply_slash_picker_selection, apply_symbol_picker_selection, file_picker_is_dismissed,
+        render_file_picker_hint, render_slash_picker_hint, render_symbol_picker_hint,
+        slash_prefix_token,
     };
     use vexcoder::ui::editor::file_mention_range;
     use vexcoder::ui::editor::InputEditor;
@@ -609,6 +610,56 @@ mod tests {
             active_file_picker(&mode, "inspect @inp", "inspect @inp".len()).expect("active picker");
         assert_eq!(picker.prefix, "inp");
         assert!(picker.matches.contains(&"src/app/input.rs".to_string()));
+    }
+
+    #[test]
+    fn active_symbol_picker_uses_structural_index_matches() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("src")).unwrap();
+        std::fs::write(
+            temp.path().join("src/lib.rs"),
+            "pub fn answer() -> i32 { 42 }\npub fn ask() -> i32 { 7 }\n",
+        )
+        .unwrap();
+
+        let mut config = Config::default_for_tui();
+        config.working_dir = temp.path().to_path_buf();
+        let mode = TuiMode::new_with_config(None, config);
+
+        let picker = active_symbol_picker(
+            &mode,
+            "inspect @src/lib.rs:an",
+            "inspect @src/lib.rs:an".len(),
+        )
+        .expect("active symbol picker");
+        assert_eq!(picker.path, "src/lib.rs");
+        assert_eq!(picker.symbol_prefix, "an");
+        assert_eq!(picker.matches.len(), 1);
+        assert_eq!(picker.matches[0].mention, "src/lib.rs:answer");
+    }
+
+    #[test]
+    fn render_symbol_picker_hint_marks_selected_entry() {
+        let hint = render_symbol_picker_hint(
+            "src/lib.rs",
+            "an",
+            &[vexcoder::app::SymbolMentionMatch {
+                mention: "src/lib.rs:answer".into(),
+                label: "[symbol] function answer · src/lib.rs:1-3".into(),
+            }],
+            0,
+        );
+        assert!(hint.contains("mode: symbol mention"));
+        assert!(hint.contains("> [symbol] function answer · src/lib.rs:1-3"));
+    }
+
+    #[test]
+    fn apply_symbol_picker_selection_replaces_partial_token() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("inspect @src/lib.rs:an");
+        let range = file_mention_range(editor.buffer(), editor.cursor()).expect("mention range");
+        apply_symbol_picker_selection(&mut editor, &range, "src/lib.rs:answer");
+        assert_eq!(editor.buffer(), "inspect @src/lib.rs:answer ");
     }
 
     #[test]

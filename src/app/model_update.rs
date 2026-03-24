@@ -94,6 +94,7 @@ impl TuiMode {
                                     &pending.input,
                                 );
                                 self.invalidate_file_prompt_entries();
+                                self.invalidate_codebase_index();
                             }
                             if let Some(evidence) =
                                 command_evidence_from_tool_result(&pending.name, *is_error)

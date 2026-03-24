@@ -33,6 +33,7 @@ impl TuiMode {
             model_profile: config.model_profile.clone(),
             working_dir: config.working_dir.clone(),
             file_prompt_entries: RefCell::new(None),
+            codebase_index: RefCell::new(None),
             custom_commands,
             last_assembled_context: None,
             read_only_turn_active: false,
