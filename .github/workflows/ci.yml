@@ -146,7 +146,7 @@ jobs:
           VEX_MODEL_TOKEN: ""
         run: |
           source "$HOME/.cargo/env" 2>/dev/null || true
-          cargo nextest run -j 4
+          cargo nextest run -j 2
 
   # ── 4. Doc tests (nextest cannot run these) ────────────────────────
   doctest:

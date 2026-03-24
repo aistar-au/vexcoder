@@ -58,7 +58,7 @@ help:
 	  "  check-module-names assert Rust 2018 path-based modules for production modules" \
 	  "  check-arch         all architecture boundary checks" \
 	  "  test               cargo test --all with VEX_MODEL_TOKEN=\"\" (ci.yml variant)" \
-	  "  test-nextest       cargo nextest run -j 4" \
+	  "  test-nextest       cargo nextest run -j 2" \
 	  "  test-targets       cargo test --all-targets" \
 	  "  test-single        run one test by name: make test-single T=test_fn_name" \
 	  "  gate               full gate: fmt + lint + arch + nextest + tests" \
@@ -216,7 +216,7 @@ check-arch: \
 # test         cargo test --all    with VEX_MODEL_TOKEN=""
 #              Source: ci.yml — env guard prevents accidental real API calls
 #
-# test-nextest cargo nextest run -j 4
+# test-nextest cargo nextest run -j 2
 #              Source: local pre-push hook + ci.yml consolidated gate
 #
 # test-targets cargo test --all-targets  (no token env override)
@@ -228,7 +228,7 @@ test:
 	VEX_MODEL_TOKEN="" cargo test --all
 
 test-nextest: _require-nextest
-	cargo nextest run -j 4
+	cargo nextest run -j 2
 
 test-targets:
 	cargo test --all-targets
