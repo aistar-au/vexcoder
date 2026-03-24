@@ -64,8 +64,13 @@ git push origin v0.1.0-alpha.3
 
 ### Before merge
 
-1. Bump the version in `Cargo.toml` on the feature branch.
-2. Update the version reference in `CONTRIBUTING.md` header.
+1. Run the automated version bump on the feature branch:
+   ```bash
+   make bump V=0.2.0-alpha.1
+   ```
+   This updates `Cargo.toml`, `Cargo.lock`, `CONTRIBUTING.md`, and
+   `RELEASING.md` in one step. See `scripts/bump-version.sh` for details.
+2. Review the changes: `git diff`.
 3. Verify all CI checks pass on the PR.
 4. Run the local gate:
    ```bash
