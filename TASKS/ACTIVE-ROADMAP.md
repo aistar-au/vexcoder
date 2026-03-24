@@ -22,7 +22,7 @@ Current task-dispatch dependency state:
 | `ADR-030` | Active | Task-state-owned orchestration invariants and 2026-03-17 control-flow fixes are active requirements for downstream runtime work. |
 | `ADR-031` | Active | Extends the operator surface overhaul with adaptive timeline/transcript/composer behavior, task-state-visible selection, and merge-gated UI batching on top of ADR-030 task-state ownership. |
 | `ADR-032` | Active | Prompt-area interactivity and context-budget guard behavior are now on `main`; downstream retrieval and UI work must preserve the landed picker, focus, and context-recovery contracts. |
-| `ADR-033` | Active | Phase 1 structural search and Phase 2 semantic reranking are on `main`; the current remote review batch carries Phase 3 write guards and Phase 4 conversation-history condensing. |
+| `ADR-033` | Active | Phase 1 structural search, Phase 2 semantic reranking, and the Phase 3/4 write-guard plus history-condensing baseline are on `main`; downstream follow-up should keep model guidance and docs aligned with that landed behavior. |
 
 ADR-025, ADR-026, ADR-028, ADR-029, ADR-030, ADR-031, ADR-032, and ADR-033 are the active post-gate ADR set.
 
@@ -37,17 +37,17 @@ remains sequenced only by their documented dependencies.
 
 ## Current Next Work Batch
 
-The current work batch continues ADR-033 hybrid-retrieval follow-up on top of the active ADR-028 facade boundary and the landed ADR-031/ADR-032 operator-surface work.
+The current work batch is ADR-033 prompt and documentation alignment on top of the active ADR-028 facade boundary and the landed ADR-031/ADR-032 operator-surface work.
 
 - Milestone-1 validation remains the recorded Phase I gate result in `adr/ADR-022-free-open-coding-agent-roadmap.md`.
 - ADR-025 now has the canonical runtime handoff types, schemas, normalization layer, and BatchMode parity tests in the current tree.
 - ADR-026 now has the loopback HTTP transport adapter, schema bundle endpoint, transport/security guards, and PI-16 validation coverage in the current tree.
 - ADR-028 now has its phase-1/phase-2 facade split and the 2026-03-17 debug fixes for localhost protocol routing, full-screen task activity visibility, and live orchestration rows in the current tree.
 - ADR-031 Batch A follow-up and ADR-032 prompt-area interactivity work are now on `main`; their earlier review branches no longer carry unique diff against current `main`.
-- ADR-033 now has Phase 1 structural search and Phase 2 semantic reranking on `main`.
-- The current ADR-033 next batch is Phase 3 write guards plus Phase 4 conversation-history condensing: prefer or reject oversized `write_file` calls, and condense old tool results according to `VEX_HISTORY_KEEP_TURNS`.
-- `src/state/conversation/tools.rs` remains the enforcement point for large-file edit guidance, while `src/state/conversation/history.rs` remains the contract point for condensed historical tool-result context.
-- Keep documentation refresh and descriptive PR motivation text in scope for ADR-033 follow-up batches so retrieval branches do not land with stale ADR/task-roadmap state.
+- ADR-033 now has Phases 1 through 4 baseline behavior on `main`, including large-file `write_file` guardrails and condensed historical tool results.
+- The current ADR-033 next batch is integration cleanup: keep the system prompt, operator docs, and task-roadmap language aligned with the landed large-file edit and history-condensing contracts.
+- `src/api/client.rs` remains the model-guidance enforcement point, while `src/state/conversation/tools.rs` and `src/state/conversation/history.rs` remain the runtime contract points for those guardrails.
+- Keep documentation refresh and descriptive PR motivation text in scope for ADR-033 follow-up batches so retrieval changes do not land with stale ADR/task-roadmap state.
 - Continue preserving ADR-028 facade boundaries and ADR-030 task-state/orchestrator ownership while ADR-033 follow-up work lands.
 
 ## Other Open ADRs Tracked In This Repo

@@ -67,8 +67,8 @@ The current work batch continues ADR-033 hybrid-retrieval follow-up and ADR-028 
 - Treat ADR-028 as the active boundary/workstream for the post-gate Phase I follow-up work.
 - Treat ADR-030 as the control-flow ADR for the post-gate runtime work: provider events normalize into canonical runtime events, task state owns truth, and orchestrator decisions remain runtime-owned.
 - Treat ADR-031 and ADR-032 as landed operator-surface prerequisites that downstream retrieval work must preserve.
-- Treat ADR-033 as the current retrieval ADR: Phase 1 structural search and Phase 2 semantic reranking are on `main`, while the active remote branch carries Phase 3 write guards and Phase 4 context condensing.
-- The useful remaining remote batch is `work/vexcoder-adr-033-phase3-4`; the old ADR-031 Batch A and ADR-032 prompt-interactivity review branches no longer differ from current `main`.
+- Treat ADR-033 as the current retrieval ADR: Phases 1 through 4 baseline behavior are on `main`, including structural search, semantic reranking, large-file write guards, and context condensing.
+- The useful remaining follow-up batch is prompt/documentation alignment for those landed ADR-033 contracts; the old ADR-031 Batch A, ADR-032 prompt-interactivity, and ADR-033 Phase 3/4 review branches no longer differ from current `main`.
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
 current reference for full-screen rendering and interactive command-session
@@ -85,5 +85,6 @@ capture behavior.
   and the full ADR-023 implementation track (`EL-01` through `EL-13`) are now
   on `main`. Milestone-1 validation passed on `2026-03-15`; ADR-026 `PI-13`
   through `PI-16` are now implemented in the current tree, ADR-031 Batch A and
-  ADR-032 prompt interactivity are on `main`, and ADR-033 Phase 3/4 is the
-  remaining active remote follow-up batch under the ADR-028 facade boundary.
+  ADR-032 prompt interactivity are on `main`, and ADR-033 now has its Phase 3/4
+  baseline on `main`; prompt/documentation alignment is the remaining follow-up
+  batch under the ADR-028 facade boundary.
