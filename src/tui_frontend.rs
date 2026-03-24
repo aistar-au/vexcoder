@@ -551,7 +551,7 @@ pub fn build_slash_overlay(
     let end = (start + window).min(matches.len());
 
     lines.push(PickerOverlayLine {
-        text: format!("[slash] {} command(s)", matches.len()),
+        text: format!("/ {} command(s)", matches.len()),
         selected: false,
     });
 
@@ -667,7 +667,7 @@ pub fn render_slash_picker_hint(matches: &[SlashPickerMatch], selected: usize) -
     let end = (start + window).min(matches.len());
 
     if start > 0 {
-        lines.push(format!("[slash] {start} earlier command(s)"));
+        lines.push(format!("{start} earlier command(s)"));
     }
 
     for (offset, entry) in matches[start..end].iter().enumerate() {
@@ -677,7 +677,7 @@ pub fn render_slash_picker_hint(matches: &[SlashPickerMatch], selected: usize) -
     }
 
     if end < matches.len() {
-        lines.push(format!("[slash] {} more command(s)", matches.len() - end));
+        lines.push(format!("{} more command(s)", matches.len() - end));
     }
     lines.join("\n")
 }

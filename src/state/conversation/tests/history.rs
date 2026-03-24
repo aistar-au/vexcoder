@@ -602,3 +602,87 @@ fn test_truncate_to_lines_is_idempotent() {
     let second = super::history::truncate_to_lines(&first, 5);
     assert_eq!(first, second, "truncate_to_lines must be idempotent");
 }
+#[test]
+fn test_compact_for_context_overflow_keeps_recent_messages() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let executor = ToolOperator::new(std::path::PathBuf::from("."));
+    let mut manager = ConversationManager::new(mock_api_client, executor);
+
+    manager.api_messages = vec![
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("old-u0".to_string()),
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("old-a0".to_string()),
+        },
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("old-u1".to_string()),
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("old-a1".to_string()),
+        },
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("recent-u2".to_string()),
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("recent-a2".to_string()),
+        },
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("current-u3".to_string()),
+        },
+    ];
+
+    manager.compact_for_context_overflow();
+
+    assert_eq!(
+        manager.api_messages.len(),
+        3,
+        "compact should keep last 4 but re-anchor to user: {:?}",
+        manager
+            .api_messages
+            .iter()
+            .map(|m| format!("{}:{:?}", m.role, m.content))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(manager.api_messages[0].role, "user");
+    assert!(
+        format!("{:?}", manager.api_messages.last().unwrap().content).contains("current-u3"),
+        "current user message must be preserved"
+    );
+}
+#[test]
+fn test_compact_for_context_overflow_noop_when_small() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let executor = ToolOperator::new(std::path::PathBuf::from("."));
+    let mut manager = ConversationManager::new(mock_api_client, executor);
+
+    manager.api_messages = vec![
+        ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text("u0".to_string()),
+        },
+        ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text("a0".to_string()),
+        },
+    ];
+
+    manager.compact_for_context_overflow();
+
+    assert_eq!(
+        manager.api_messages.len(),
+        2,
+        "small conversation must not be compacted"
+    );
+}

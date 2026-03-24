@@ -952,19 +952,19 @@ mod tests {
         let matches = vec![
             SlashPickerMatch {
                 command: "/edit ".into(),
-                label: "[slash] /edit <instruction> · edit + inspect · edit loop that may patch files"
+                label: "/edit <instruction> · edit + inspect · edit loop that may patch files"
                     .into(),
             },
             SlashPickerMatch {
                 command: "/explain ".into(),
-                label: "[slash] /explain [path] · retrieve + context · read-only explanation with context assembly"
+                label: "/explain [path] · retrieve + context · read-only explanation with context assembly"
                     .into(),
             },
         ];
         let hint = render_slash_picker_hint(&matches, 0);
         assert!(hint.contains("mode: slash"), "hint: {hint}");
-        assert!(hint.contains("> [slash] /edit"), "selected marker: {hint}");
-        assert!(hint.contains("  [slash] /explain"), "unselected: {hint}");
+        assert!(hint.contains("> /edit"), "selected marker: {hint}");
+        assert!(hint.contains("  /explain"), "unselected: {hint}");
     }
 
     #[test]
@@ -980,10 +980,10 @@ mod tests {
 
         let matches = vec![SlashPickerMatch {
             command: "/edit ".into(),
-            label: "[slash] /edit".into(),
+            label: "/edit".into(),
         }];
         let hint = render_slash_picker_hint(&matches, 999);
-        assert!(hint.contains("> [slash] /edit"), "should clamp: {hint}");
+        assert!(hint.contains("> /edit"), "should clamp: {hint}");
     }
 
     #[test]
@@ -1091,11 +1091,11 @@ mod tests {
         let matches = vec![
             SlashPickerMatch {
                 command: "/edit ".into(),
-                label: "[slash] /edit <instruction>".into(),
+                label: "/edit <instruction>".into(),
             },
             SlashPickerMatch {
                 command: "/explain ".into(),
-                label: "[slash] /explain [path]".into(),
+                label: "/explain [path]".into(),
             },
         ];
         let overlay = build_slash_overlay(&matches, 0);

@@ -6,6 +6,17 @@ use std::path::Path;
 const MAX_PROMPT_HINT_FILE_MATCHES: usize = 12;
 const MAX_FILE_PROMPT_MATCH_CANDIDATES: usize = 100;
 
+/// Directories excluded from the @ file picker.  `.github/` and `.agents/`
+/// are intentionally kept because the server works with workflow and agent
+/// configuration files inside them.
+const PICKER_EXCLUDED_PREFIXES: &[&str] = &[".git/", "target/", "node_modules/"];
+
+fn is_picker_excluded_path(entry: &str) -> bool {
+    PICKER_EXCLUDED_PREFIXES
+        .iter()
+        .any(|prefix| entry.starts_with(prefix))
+}
+
 impl TuiMode {
     pub(super) fn mode_status_label(&self) -> &'static str {
         if self.overlay_active() {
@@ -32,10 +43,11 @@ impl TuiMode {
             return Vec::new();
         };
 
-        let mut entries = paths
+        let mut entries: Vec<String> = paths
             .into_iter()
             .map(|path| operator.to_workspace_relative_display(&path))
-            .collect::<Vec<_>>();
+            .filter(|entry| !is_picker_excluded_path(entry))
+            .collect();
 
         // Derive directory entries from file paths so the picker shows both
         // files and directories (ADR-032 §7).
@@ -395,7 +407,7 @@ impl TuiMode {
                 SlashPickerMatch {
                     command: format!("{command_word} "),
                     label: format!(
-                        "[slash] {} · {} · {}",
+                        "{} · {} · {}",
                         spec.display,
                         slash_command_menu_group(spec.id),
                         slash_command_mode_summary(spec.id)
@@ -411,13 +423,42 @@ impl TuiMode {
                 .take(3)
                 .map(|command| SlashPickerMatch {
                     command: format!("/{} ", command.name),
-                    label: format!(
-                        "[slash] {} · custom · {}",
-                        command.display(),
-                        command.description
-                    ),
+                    label: format!("{} · custom · {}", command.display(), command.description),
                 }),
         );
         rows
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn picker_excludes_git_internals() {
+        assert!(is_picker_excluded_path(".git/HEAD"));
+        assert!(is_picker_excluded_path(".git/config"));
+        assert!(is_picker_excluded_path(".git/refs/heads/main"));
+    }
+
+    #[test]
+    fn picker_excludes_target_dir() {
+        assert!(is_picker_excluded_path("target/debug/.cargo-lock"));
+        assert!(is_picker_excluded_path("target/.rustc_info.json"));
+    }
+
+    #[test]
+    fn picker_keeps_github_and_agents() {
+        assert!(!is_picker_excluded_path(".github/workflows/ci.yml"));
+        assert!(!is_picker_excluded_path(".github/agents/profile.md"));
+        assert!(!is_picker_excluded_path(".agents/skill.md"));
+        assert!(!is_picker_excluded_path(".vex/config.toml"));
+    }
+
+    #[test]
+    fn picker_keeps_source_files() {
+        assert!(!is_picker_excluded_path("src/main.rs"));
+        assert!(!is_picker_excluded_path("Cargo.toml"));
+        assert!(!is_picker_excluded_path("adr/ADR-README.md"));
     }
 }
