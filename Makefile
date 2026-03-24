@@ -32,6 +32,7 @@ endif
   commit-debug-gate \
   check-boundary check-routing check-imports check-names check-module-names check-arch \
   test test-nextest test-targets test-single \
+  bump \
   release \
   gate gate-fast \
   fix \
@@ -63,6 +64,7 @@ help:
 	  "  test-single        run one test by name: make test-single T=test_fn_name" \
 	  "  gate               full gate: fmt + lint + arch + nextest + tests" \
 	  "  gate-fast          full gate (identical to gate)" \
+	  "  bump               bump version: make bump V=0.1.0-alpha.4" \
 	  "  release            package one target: make release TARGET=x86_64-unknown-linux-gnu" \
 	  "  fix                rustfmt + taplo + renorm (all auto-fixable in one pass)" \
 	  "  clean              cargo clean"
@@ -278,6 +280,16 @@ fix: _require-taplo
 	git add --renormalize .
 	@echo ""
 	@echo "fix: applied — run 'make gate' to verify"
+
+
+# ------------------------------------------------------------------------------
+# Version bump
+# ------------------------------------------------------------------------------
+bump:
+ifndef V
+	$(error Usage: make bump V=0.1.0-alpha.4)
+endif
+	@bash scripts/bump-version.sh "$(V)"
 
 
 # ------------------------------------------------------------------------------
