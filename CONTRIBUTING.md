@@ -68,8 +68,10 @@ Use path-based module entry files across `src/`.
 | Top-level module entry | `src/<module>.rs` |
 | Nested module | `src/<module>/<submodule>.rs` |
 
-Do not introduce new `src/*/mod.rs` files unless an external tool or macro
-requires that layout.
+Do not introduce new `src/*/mod.rs` files for production modules unless an
+external tool or macro requires that layout. Test-only module directories such
+as `src/app/tests/mod.rs` and `src/state/conversation/tests/mod.rs` are allowed
+when they are used only to split oversized test suites.
 
 ---
 

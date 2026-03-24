@@ -25,17 +25,17 @@ endif
 .SHELLFLAGS := -euo pipefail -c
 
 .PHONY: help \
-	_require-taplo _require-rg _require-nextest \
-        build check \
-        fmt fmt-check \
-        lint \
-        commit-debug-gate \
-        check-boundary check-routing check-imports check-names check-module-names check-arch \
-	test test-nextest test-targets test-single \
-        release \
-        gate gate-fast \
-        fix \
-        clean
+  _require-taplo _require-rg _require-nextest \
+  build check \
+  fmt fmt-check \
+  lint \
+  commit-debug-gate \
+  check-boundary check-routing check-imports check-names check-module-names check-arch \
+  test test-nextest test-targets test-single \
+  release \
+  gate gate-fast \
+  fix \
+  clean
 
 
 # ------------------------------------------------------------------------------
@@ -55,7 +55,7 @@ help:
 	  "  check-routing      assert no alternate routing patterns (ADR-007, ADR-014)" \
 	  "  check-imports      assert no forbidden cross-layer imports (ADR-007)" \
 	  "  check-names        assert no proprietary vendor brand names (ADR-023)" \
-	  "  check-module-names assert Rust 2018 path-based modules — no mod.rs files" \
+	  "  check-module-names assert Rust 2018 path-based modules for production modules" \
 	  "  check-arch         all architecture boundary checks" \
 	  "  test               cargo test --all with VEX_MODEL_TOKEN=\"\" (ci.yml variant)" \
 	  "  test-nextest       cargo nextest run -j 7" \
@@ -243,24 +243,24 @@ test-single:
 # gate / gate-fast  = ci.yml + arch-contracts.yml (identical)
 # ------------------------------------------------------------------------------
 gate: \
-  fmt-check \
-  lint \
-  check \
-  check-arch \
-  test \
+	fmt-check \
+	lint \
+	check \
+	check-arch \
+	test \
 	test-nextest \
-  test-targets
+	test-targets
 	@echo ""
 	@echo "gate: all checks passed"
 
 gate-fast: \
-  fmt-check \
-  lint \
-  check \
-  check-arch \
-  test \
+	fmt-check \
+	lint \
+	check \
+	check-arch \
+	test \
 	test-nextest \
-  test-targets
+	test-targets
 	@echo ""
 	@echo "gate-fast: passed"
 

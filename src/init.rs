@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::path::Path;
 
-const INIT_CONFIG_TEMPLATE: &str = concat!(
+pub const INIT_CONFIG_TEMPLATE: &str = concat!(
     "# vex workspace config\n",
     "# uncomment only the keys you need for this workspace\n",
     "# model_name = \"local/default\"\n",
@@ -51,18 +51,60 @@ const INIT_CONFIG_TEMPLATE: &str = concat!(
     "# Authorization = \"${MCP_PRIVATE_SEARCH_TOKEN}\"\n",
 );
 
-const INIT_AGENTS_TEMPLATE: &str = concat!(
+pub const INIT_AGENTS_TEMPLATE: &str = concat!(
     "# Project Agents\n",
     "\n",
     "Fill in project-specific guidance for coding agents working in this repository.\n",
 );
 
-const INIT_VALIDATE_TEMPLATE: &str = concat!(
+pub const INIT_VALIDATE_TEMPLATE: &str = concat!(
     "# validation commands applied by `vex validate`\n",
     "# [[commands]]\n",
     "# name = \"example\"\n",
     "# command = \"cargo test --all-targets\"\n",
 );
+
+pub const INIT_CONFIG_NORMATIVE_KEYS: &[&str] = &[
+    "model_name",
+    "model_url",
+    "working_dir",
+    "model_backend",
+    "model_protocol",
+    "tool_call_mode",
+    "model_profile",
+    "max_project_instructions_tokens",
+    "max_memory_tokens",
+    "notes_path",
+    "sandbox",
+    "sandbox_profile",
+    "sandbox_require",
+    "model_headers",
+    "api",
+    "api.transport",
+    "api.host",
+    "api.port",
+    "api.socket",
+    "api.key",
+    "api.tls_cert",
+    "api.tls_key",
+    "api.tls_ca_cert",
+    "api.tls_skip_verify",
+    "api.vpn_trust",
+    "hooks",
+    "hooks.event",
+    "hooks.tool",
+    "hooks.command",
+    "hooks.args",
+    "hooks.on_fail",
+    "mcp_servers",
+    "mcp_servers.name",
+    "mcp_servers.transport",
+    "mcp_servers.command",
+    "mcp_servers.args",
+    "mcp_servers.url",
+    "mcp_servers.headers",
+    "mcp_servers.headers.Authorization",
+];
 
 pub fn scaffold_workspace(cwd: &Path) -> Result<Vec<String>> {
     let vex_dir = cwd.join(".vex");
@@ -90,4 +132,59 @@ pub fn scaffold_workspace(cwd: &Path) -> Result<Vec<String>> {
 
     summary.push("[init] done".to_string());
     Ok(summary)
+}
+
+pub fn run_init(cwd: &Path) -> Result<Vec<String>> {
+    scaffold_workspace(cwd)
+}
+
+pub fn extract_init_template_keys(content: &str) -> std::collections::BTreeSet<String> {
+    let mut section: Option<&str> = None;
+    let mut keys = std::collections::BTreeSet::new();
+
+    for raw_line in content.lines() {
+        let Some(line) = raw_line.trim().strip_prefix('#') else {
+            continue;
+        };
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        match line {
+            "[api]" => {
+                section = Some("api");
+                keys.insert("api".to_string());
+                continue;
+            }
+            "[[hooks]]" => {
+                section = Some("hooks");
+                keys.insert("hooks".to_string());
+                continue;
+            }
+            "[[mcp_servers]]" => {
+                section = Some("mcp_servers");
+                keys.insert("mcp_servers".to_string());
+                continue;
+            }
+            "[mcp_servers.headers]" => {
+                section = Some("mcp_servers.headers");
+                keys.insert("mcp_servers.headers".to_string());
+                continue;
+            }
+            _ => {}
+        }
+
+        let Some((key, _)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        let full_key = match section {
+            Some(prefix) => format!("{prefix}.{key}"),
+            None => key.to_string(),
+        };
+        keys.insert(full_key);
+    }
+
+    keys
 }

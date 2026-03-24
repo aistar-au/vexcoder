@@ -1119,7 +1119,7 @@ mod tests {
     #[test]
     fn test_tests_only_policy_allows_rust_tests_module_paths() {
         let input = json!({
-            "path": "src/state/conversation/tests.rs",
+            "path": "src/state/conversation/tests/mod.rs",
             "content": "#[test]\nfn keeps_guard_happy() {}\n",
         });
 
@@ -1131,7 +1131,7 @@ mod tests {
             ),
             None
         );
-        assert!(is_test_target_path("src/state/conversation/tests.rs"));
+        assert!(is_test_target_path("src/state/conversation/tests/mod.rs"));
         assert!(is_test_target_path("src/runtime/test.rs"));
     }
 

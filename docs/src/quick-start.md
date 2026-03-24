@@ -86,6 +86,9 @@ Batch mode:
 make gate-fast
 ```
 
+The local pre-push hook also runs `cargo nextest run -j 7`, and the Ubuntu CI
+workflow installs `cargo-nextest` before running the same gate.
+
 Once inside an interactive session, the model can explore the codebase using
 `codebase_search` (for functions, types, and code patterns) and `list_files`
 (for directory structure) before making targeted reads.

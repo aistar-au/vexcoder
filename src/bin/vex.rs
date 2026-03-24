@@ -1,111 +1,20 @@
-use anyhow::{bail, Context, Result};
+use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use ratatui::widgets::Clear;
-use std::io::{self, IsTerminal, Write};
-use std::ops::Range;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::time::{Duration, Instant};
-use vexcoder::app::{run_tui_session, serve_facade_local_api, FileMentionPickerState, TuiMode};
-use vexcoder::batch_mode::{run_batch, AutoApproveScope, BatchResult, BatchRunOpts, OutputFormat};
+use vexcoder::app::{run_tui_session, serve_facade_local_api};
+use vexcoder::batch_mode::{run_batch, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
 use vexcoder::doctor::run_doctor;
+use vexcoder::exec::{parse_exec_command, run_exec};
 use vexcoder::export::{render_task_export, write_export_output, ExportFormat};
-use vexcoder::prompts::render_pr_summary_prompt;
-use vexcoder::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
-use vexcoder::runtime::{ContextAssembler, TaskState, TaskStatus};
-use vexcoder::ui::draw::TaskDraw;
-use vexcoder::ui::editor::{file_mention_range, InputAction, InputEditor};
-use vexcoder::ui::layout::split_three_pane_layout;
-use vexcoder::ui::render::{
-    history_content_width_for_area, input_visual_rows, render_input, render_messages,
-    render_overlay_modal_in_area, render_status_line, OverlayModal,
-};
-use vexcoder::util::preferred_plain_http_url_for_local_endpoint;
-
-const STARTUP_NOISE_GUARD: Duration = Duration::from_secs(15);
-
-fn prompt_line(label: &str, current: Option<&str>) -> Result<String> {
-    let mut stdout = io::stdout();
-    match current.filter(|value| !value.trim().is_empty()) {
-        Some(current) => write!(stdout, "{label} [{current}]: ")?,
-        None => write!(stdout, "{label}: ")?,
-    }
-    stdout.flush()?;
-
-    let mut line = String::new();
-    if io::stdin().read_line(&mut line)? == 0 {
-        bail!("{label} is required");
-    }
-
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        return Ok(current.unwrap_or_default().to_string());
-    }
-    Ok(trimmed.to_string())
-}
-
-fn prompt_tui_startup_config(mut config: Config) -> Result<Config> {
-    if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
-        return Ok(config);
-    }
-
-    println!("Interactive session setup");
-    println!("Enter the API base or full endpoint before the fullscreen surface starts.");
-
-    let suggested_api_url = preferred_plain_http_url_for_local_endpoint(&config.model_url)
-        .unwrap_or_else(|| config.model_url.clone());
-    if suggested_api_url != config.model_url {
-        println!(
-            "Detected a local HTTPS endpoint. If your localhost server is plain HTTP, press Enter to use {}.",
-            suggested_api_url
-        );
-    }
-
-    let api_url = prompt_line(
-        "API URL",
-        Some(suggested_api_url.as_str()).filter(|value| !value.trim().is_empty()),
-    )?;
-    if api_url.trim().is_empty() {
-        bail!("API URL is required for interactive sessions");
-    }
-
-    let model_name = prompt_line(
-        "Model name",
-        Some(config.model_name.as_str()).filter(|value| !value.trim().is_empty()),
-    )?;
-
-    if api_url.trim() != config.model_url.trim() || model_name.trim() != config.model_name.trim() {
-        config.apply_interactive_model_selection(api_url, Some(model_name));
-    }
-
-    Ok(config)
-}
-
-fn emit_model_endpoint_warnings(config: &Config) {
-    if config.should_warn_about_model_tls_skip_check() {
-        eprintln!(
-            "[warning] model_url_skip_tls_check is enabled for {}; HTTPS certificate verification is bypassed for this launch",
-            config.model_url
-        );
-    }
-    if let Some(plain_url) =
-        vexcoder::util::preferred_plain_http_url_for_local_endpoint(&config.model_url)
-    {
-        if config
-            .model_url
-            .to_ascii_lowercase()
-            .starts_with("https://")
-        {
-            eprintln!(
-                "[warning] local endpoint '{}' uses HTTPS; plain HTTP is required for local servers. Consider '{}'.",
-                config.model_url, plain_url
-            );
-        }
-    }
-}
+use vexcoder::init::run_init;
+use vexcoder::pr_summary::{run_branch, run_pr_summary};
+use vexcoder::runtime::{TaskState, TaskStatus};
+use vexcoder::startup::{emit_model_endpoint_warnings, prompt_tui_startup_config};
+use vexcoder::tui_frontend::ManagedTuiFrontend;
 
 #[derive(Parser)]
 #[command(name = "vex", about = "vexcoder -- zero-licensing-cost coding agent")]
@@ -231,692 +140,6 @@ enum MigrateCommands {
     },
 }
 
-fn has_numbered_transcript_prefix(line: &str) -> bool {
-    let mut saw_digit = false;
-    let mut chars = line.chars().peekable();
-    while let Some(ch) = chars.peek() {
-        if ch.is_ascii_digit() {
-            saw_digit = true;
-            chars.next();
-            continue;
-        }
-        break;
-    }
-    saw_digit && chars.next() == Some(' ') && chars.next() == Some('|') && chars.next() == Some(' ')
-}
-
-fn transcript_signature_hits(text: &str) -> usize {
-    let lower = text.to_ascii_lowercase();
-    let signatures = [
-        "mode:ready approval:",
-        "view:scrolled",
-        "view:following",
-        "running tests/",
-        "target/debug/deps/",
-        "finished `dev` profile",
-        "running `target/debug/vex`",
-        "test result:",
-        "[error] error sending request for url",
-    ];
-    signatures
-        .iter()
-        .filter(|pattern| lower.contains(*pattern))
-        .count()
-}
-
-fn looks_like_terminal_transcript(text: &str) -> bool {
-    let trimmed = text.trim();
-    if trimmed.is_empty() {
-        return false;
-    }
-
-    let signature_hits = transcript_signature_hits(trimmed);
-    let numbered_lines = trimmed
-        .lines()
-        .take(64)
-        .filter(|line| has_numbered_transcript_prefix(line))
-        .count();
-
-    signature_hits >= 2 || (signature_hits >= 1 && numbered_lines >= 2)
-}
-
-fn should_ignore_startup_paste_text(text: &str, within_startup_guard: bool) -> bool {
-    text.contains('\u{1b}') || (within_startup_guard && looks_like_terminal_transcript(text))
-}
-
-struct ManagedTuiFrontend {
-    terminal: vexcoder::terminal::TerminalType,
-    quit: bool,
-    editor: InputEditor,
-    started_at: Instant,
-    /// Direct ANSI draw engine for the task-state control surface.
-    task_draw: TaskDraw,
-    last_hint_input: String,
-    last_hint_cursor: usize,
-    last_hint_text: String,
-    last_file_picker_prefix: String,
-    selected_file_hint: usize,
-    dismissed_file_picker: Option<(String, Range<usize>)>,
-    cached_file_picker: Option<(String, usize, Option<FileMentionPickerState>)>,
-}
-
-impl ManagedTuiFrontend {
-    fn new() -> Result<Self> {
-        let terminal = vexcoder::terminal::setup()?;
-        Self::drain_startup_events();
-        Ok(Self {
-            terminal,
-            quit: false,
-            editor: InputEditor::new(),
-            started_at: Instant::now(),
-            task_draw: TaskDraw::new(),
-            last_hint_input: String::new(),
-            last_hint_cursor: 0,
-            last_hint_text: String::new(),
-            last_file_picker_prefix: String::new(),
-            selected_file_hint: 0,
-            dismissed_file_picker: None,
-            cached_file_picker: None,
-        })
-    }
-
-    fn current_file_picker(&mut self, mode: &TuiMode) -> Option<FileMentionPickerState> {
-        let input = self.editor.buffer();
-        let cursor = self.editor.cursor();
-        if file_picker_is_dismissed(self.dismissed_file_picker.as_ref(), input, cursor) {
-            return None;
-        }
-        if let Some((cached_input, cached_cursor, cached_picker)) = &self.cached_file_picker {
-            if cached_input == input && *cached_cursor == cursor {
-                return cached_picker.clone();
-            }
-        }
-
-        let picker = active_file_picker(mode, input, cursor);
-        self.cached_file_picker = Some((input.to_string(), cursor, picker.clone()));
-        picker
-    }
-
-    fn dismiss_current_file_picker(&mut self) {
-        self.dismissed_file_picker = file_mention_range(self.editor.buffer(), self.editor.cursor())
-            .map(|range| (self.editor.buffer().to_string(), range));
-        self.cached_file_picker = None;
-        self.last_file_picker_prefix.clear();
-        self.selected_file_hint = 0;
-        self.last_hint_input.clear();
-    }
-
-    fn drain_startup_events() {
-        for _ in 0..1024 {
-            match event::poll(Duration::from_millis(0)) {
-                Ok(true) => {
-                    if event::read().is_err() {
-                        break;
-                    }
-                }
-                Ok(false) | Err(_) => break,
-            }
-        }
-    }
-
-    fn should_ignore_startup_paste(&self, text: &str) -> bool {
-        should_ignore_startup_paste_text(text, self.started_at.elapsed() <= STARTUP_NOISE_GUARD)
-    }
-
-    fn should_ignore_startup_submission(&self, text: &str) -> bool {
-        self.started_at.elapsed() <= STARTUP_NOISE_GUARD && looks_like_terminal_transcript(text)
-    }
-
-    fn map_editor_action(&mut self, action: InputAction) -> Option<UserInputEvent> {
-        match action {
-            InputAction::None => None,
-            InputAction::Interrupt => Some(UserInputEvent::Interrupt),
-            InputAction::Quit => {
-                self.quit = true;
-                None
-            }
-            InputAction::Submit(value) => {
-                if self.should_ignore_startup_submission(&value) {
-                    None
-                } else {
-                    Some(UserInputEvent::Text(value))
-                }
-            }
-        }
-    }
-
-    fn map_overlay_key(&mut self, key: KeyEvent) -> Option<UserInputEvent> {
-        match key.code {
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Interrupt)
-            }
-            KeyCode::Up => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::Overlay,
-                action: ScrollAction::LineUp,
-            }),
-            KeyCode::Down => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::Overlay,
-                action: ScrollAction::LineDown,
-            }),
-            KeyCode::PageUp => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::Overlay,
-                action: ScrollAction::PageUp(10),
-            }),
-            KeyCode::PageDown => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::Overlay,
-                action: ScrollAction::PageDown(10),
-            }),
-            KeyCode::Home => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::Overlay,
-                action: ScrollAction::Home,
-            }),
-            KeyCode::End => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::Overlay,
-                action: ScrollAction::End,
-            }),
-            KeyCode::Esc => Some(UserInputEvent::Text("esc".to_string())),
-            KeyCode::Char(ch)
-                if !key.modifiers.contains(KeyModifiers::CONTROL)
-                    && !key.modifiers.contains(KeyModifiers::ALT) =>
-            {
-                Some(UserInputEvent::Text(ch.to_string()))
-            }
-            _ => None,
-        }
-    }
-
-    fn editor_visual_width(&self) -> usize {
-        self.terminal
-            .size()
-            .map(|size| size.width.saturating_sub(2).max(1) as usize)
-            .unwrap_or(1)
-    }
-
-    fn map_regular_key(&mut self, key: KeyEvent, mode: &TuiMode) -> Option<UserInputEvent> {
-        if key.modifiers.is_empty() {
-            if let Some(picker) = self.current_file_picker(mode) {
-                let last_index = picker.matches.len().saturating_sub(1);
-                self.selected_file_hint = self.selected_file_hint.min(last_index);
-                match key.code {
-                    KeyCode::Up if !picker.matches.is_empty() => {
-                        self.selected_file_hint = self.selected_file_hint.saturating_sub(1);
-                        return None;
-                    }
-                    KeyCode::Down if !picker.matches.is_empty() => {
-                        self.selected_file_hint = (self.selected_file_hint + 1).min(last_index);
-                        return None;
-                    }
-                    KeyCode::Enter if !picker.matches.is_empty() => {
-                        let replacement = &picker.matches[self.selected_file_hint];
-                        apply_file_picker_selection(&mut self.editor, &picker.range, replacement);
-                        self.dismissed_file_picker = None;
-                        self.cached_file_picker = None;
-                        self.last_file_picker_prefix.clear();
-                        self.selected_file_hint = 0;
-                        self.last_hint_input.clear();
-                        return None;
-                    }
-                    KeyCode::Esc => {
-                        self.dismiss_current_file_picker();
-                        return None;
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        match key.code {
-            // Timeline navigation: Alt+Up / Alt+Down.
-            KeyCode::Up if key.modifiers.contains(KeyModifiers::ALT) => {
-                Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::Timeline,
-                    action: ScrollAction::LineUp,
-                })
-            }
-            KeyCode::Down if key.modifiers.contains(KeyModifiers::ALT) => {
-                Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::Timeline,
-                    action: ScrollAction::LineDown,
-                })
-            }
-            // Tab / Shift+Tab also navigate the timeline.
-            KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::Timeline,
-                    action: ScrollAction::LineUp,
-                })
-            }
-            KeyCode::Tab => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::Timeline,
-                action: ScrollAction::LineDown,
-            }),
-            KeyCode::PageUp => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::Output,
-                action: ScrollAction::PageUp(10),
-            }),
-            KeyCode::PageDown => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::Output,
-                action: ScrollAction::PageDown(10),
-            }),
-            KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::Output,
-                    action: ScrollAction::LineUp,
-                })
-            }
-            KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::Output,
-                    action: ScrollAction::LineDown,
-                })
-            }
-            KeyCode::Home if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::Output,
-                    action: ScrollAction::Home,
-                })
-            }
-            KeyCode::End if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::Output,
-                    action: ScrollAction::End,
-                })
-            }
-            KeyCode::Home if key.modifiers.is_empty() => {
-                self.editor
-                    .move_cursor_visual_home(self.editor_visual_width());
-                None
-            }
-            KeyCode::End if key.modifiers.is_empty() => {
-                self.editor
-                    .move_cursor_visual_end(self.editor_visual_width());
-                None
-            }
-            KeyCode::Up if key.modifiers.is_empty() => {
-                if self
-                    .editor
-                    .move_cursor_visual_up(self.editor_visual_width())
-                {
-                    None
-                } else {
-                    let action = self.editor.apply_key(key);
-                    self.map_editor_action(action)
-                }
-            }
-            KeyCode::Down if key.modifiers.is_empty() => {
-                if self
-                    .editor
-                    .move_cursor_visual_down(self.editor_visual_width())
-                {
-                    None
-                } else {
-                    let action = self.editor.apply_key(key);
-                    self.map_editor_action(action)
-                }
-            }
-            _ => {
-                let action = self.editor.apply_key(key);
-                self.map_editor_action(action)
-            }
-        }
-    }
-
-    fn map_command_session_key(&mut self, key: KeyEvent) -> Option<UserInputEvent> {
-        match key.code {
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Interrupt)
-            }
-            KeyCode::PageUp => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::Output,
-                action: ScrollAction::PageUp(10),
-            }),
-            KeyCode::PageDown => Some(UserInputEvent::Scroll {
-                target: ScrollTarget::Output,
-                action: ScrollAction::PageDown(10),
-            }),
-            KeyCode::Home if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::Output,
-                    action: ScrollAction::Home,
-                })
-            }
-            KeyCode::End if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::Output,
-                    action: ScrollAction::End,
-                })
-            }
-            KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::Output,
-                    action: ScrollAction::LineUp,
-                })
-            }
-            KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                Some(UserInputEvent::Scroll {
-                    target: ScrollTarget::Output,
-                    action: ScrollAction::LineDown,
-                })
-            }
-            _ => None,
-        }
-    }
-
-    fn prompt_hint(&mut self, mode: &TuiMode, input: &str, cursor: usize) -> String {
-        if let Some(picker) = self.current_file_picker(mode) {
-            if self.last_file_picker_prefix != picker.prefix {
-                self.last_file_picker_prefix = picker.prefix.clone();
-                self.selected_file_hint = 0;
-            }
-            let selected = self
-                .selected_file_hint
-                .min(picker.matches.len().saturating_sub(1));
-            self.last_hint_input = input.to_string();
-            self.last_hint_text =
-                render_file_picker_hint(&picker.prefix, &picker.matches, selected);
-            return self.last_hint_text.clone();
-        }
-
-        self.last_file_picker_prefix.clear();
-        self.selected_file_hint = 0;
-        if self.last_hint_input != input || self.last_hint_cursor != cursor {
-            self.last_hint_input = input.to_string();
-            self.last_hint_cursor = cursor;
-            self.last_hint_text = mode.prompt_hint_for_input(input, cursor);
-        }
-        self.last_hint_text.clone()
-    }
-}
-
-fn active_file_picker(
-    mode: &TuiMode,
-    buffer: &str,
-    cursor: usize,
-) -> Option<FileMentionPickerState> {
-    let range = file_mention_range(buffer, cursor)?;
-    let token = &buffer[range.clone()];
-    let prefix = token.strip_prefix('@')?.to_string();
-    Some(FileMentionPickerState {
-        range,
-        prefix: prefix.clone(),
-        matches: mode.file_prompt_matches(&prefix),
-    })
-}
-
-fn file_picker_is_dismissed(
-    dismissed: Option<&(String, Range<usize>)>,
-    input: &str,
-    cursor: usize,
-) -> bool {
-    dismissed.is_some_and(|(dismissed_input, dismissed_range)| {
-        dismissed_input == input
-            && file_mention_range(input, cursor)
-                .as_ref()
-                .is_some_and(|current_range| current_range == dismissed_range)
-    })
-}
-
-fn render_file_picker_hint(prefix: &str, matches: &[String], selected: usize) -> String {
-    let mut lines = vec!["Prompt".to_string(), "mode: file mention".to_string()];
-    if matches.is_empty() {
-        if prefix.is_empty() {
-            lines.push("[file] no files available".to_string());
-        } else {
-            lines.push(format!("[file] no matches for {prefix}"));
-        }
-        return lines.join("\n");
-    }
-
-    lines.push(format!("[file] {} match(es)", matches.len()));
-    let selected = selected.min(matches.len().saturating_sub(1));
-    let window = 12.min(matches.len());
-    let start = selected
-        .saturating_sub(window / 2)
-        .min(matches.len() - window);
-    let end = (start + window).min(matches.len());
-
-    if start > 0 {
-        lines.push(format!("[file] {start} earlier match(es)"));
-    }
-
-    for (offset, path) in matches[start..end].iter().enumerate() {
-        let index = start + offset;
-        let marker = if index == selected { '>' } else { ' ' };
-        lines.push(format!("{marker} [file] {path}"));
-    }
-
-    if end < matches.len() {
-        lines.push(format!("[file] {} more match(es)", matches.len() - end));
-    }
-    lines.join("\n")
-}
-
-fn apply_file_picker_selection(editor: &mut InputEditor, range: &Range<usize>, path: &str) {
-    let range =
-        file_mention_range(editor.buffer(), editor.cursor()).unwrap_or_else(|| range.clone());
-    let suffix_needs_space = editor
-        .buffer()
-        .get(range.end..)
-        .map(|rest| rest.is_empty() || !rest.starts_with(char::is_whitespace))
-        .unwrap_or(true);
-    let replacement = if suffix_needs_space {
-        format!("@{path} ")
-    } else {
-        format!("@{path}")
-    };
-    editor.replace_range(range.start, range.end, &replacement);
-}
-
-impl Drop for ManagedTuiFrontend {
-    fn drop(&mut self) {
-        let _ = vexcoder::terminal::restore();
-    }
-}
-
-impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
-    fn poll_user_input(&mut self, mode: &TuiMode) -> Option<UserInputEvent> {
-        if mode.quit_requested() {
-            self.quit = true;
-            return None;
-        }
-
-        let Ok(has_event) = event::poll(Duration::from_millis(16)) else {
-            self.quit = true;
-            return None;
-        };
-        if !has_event {
-            return None;
-        }
-
-        let Ok(ev) = event::read() else {
-            self.quit = true;
-            return None;
-        };
-
-        match ev {
-            Event::Key(key) => {
-                if key.kind == KeyEventKind::Release {
-                    return None;
-                }
-                if mode.overlay_active() {
-                    self.map_overlay_key(key)
-                } else if mode.command_session_active() {
-                    self.map_command_session_key(key)
-                } else {
-                    self.map_regular_key(key, mode)
-                }
-            }
-            Event::Paste(text) => {
-                if mode.overlay_active() {
-                    let trimmed = text.trim();
-                    if trimmed.is_empty() {
-                        None
-                    } else {
-                        Some(UserInputEvent::Text(trimmed.to_string()))
-                    }
-                } else if mode.command_session_active() {
-                    None
-                } else {
-                    if self.should_ignore_startup_paste(&text) {
-                        return None;
-                    }
-                    self.editor.insert_str(&text);
-                    None
-                }
-            }
-            _ => None,
-        }
-    }
-
-    fn render(&mut self, mode: &TuiMode) {
-        let input = self.editor.buffer().to_string();
-        let cursor = self.editor.cursor();
-
-        if let Some(mut task_state) = mode.task_layout_state() {
-            // Direct ANSI draw path — no ratatui buffer allocation.
-            // Get terminal size from the ratatui terminal (already tracks it).
-            task_state.input_hint = self.prompt_hint(mode, &input, cursor);
-            task_state.composer_text = input;
-            task_state.composer_cursor = cursor;
-            task_state.composer_focused = mode.composer_is_focused();
-            let size = self.terminal.size().unwrap_or_default();
-            let mut stdout = std::io::stdout();
-            self.task_draw
-                .draw(&mut stdout, &task_state, size.width, size.height);
-        } else {
-            // Reset the direct-draw state when leaving task mode so the
-            // next turn starts with a clean slate.
-            self.task_draw.reset();
-
-            let _ = self.terminal.draw(|frame| {
-                let area = frame.area();
-                let input_width = area.width.saturating_sub(2).max(1) as usize;
-                let input_rows = input_visual_rows(&input, input_width).max(1) as u16;
-                let panes = split_three_pane_layout(area, input_rows);
-                frame.render_widget(Clear, area);
-                let history_width =
-                    history_content_width_for_area(mode.history_lines(), panes.history);
-                mode.set_history_content_width(history_width);
-
-                let status = mode.status_line();
-                let history_scroll = mode.history_scroll_offset();
-
-                render_status_line(frame, panes.header, &status);
-                render_messages(frame, panes.history, mode.history_lines(), history_scroll);
-                render_input(frame, panes.input, &input, cursor);
-
-                if let Some((patch_preview, scroll_offset)) = mode.pending_patch_overlay() {
-                    render_overlay_modal_in_area(
-                        frame,
-                        area,
-                        OverlayModal::PatchApprove {
-                            patch_preview,
-                            scroll_offset,
-                            viewport_rows: panes.history.height.max(1) as usize,
-                        },
-                    );
-                } else if let Some((tool_name, input_preview, auto_approve_enabled)) =
-                    mode.pending_tool_overlay()
-                {
-                    render_overlay_modal_in_area(
-                        frame,
-                        area,
-                        OverlayModal::ToolPermission {
-                            tool_name,
-                            input_preview,
-                            auto_approve_enabled,
-                        },
-                    );
-                } else if mode.pending_memory_clear_overlay() {
-                    render_overlay_modal_in_area(
-                        frame,
-                        area,
-                        OverlayModal::ToolPermission {
-                            tool_name: "memory clear",
-                            input_preview: "clear all notes? type y to confirm, n to cancel",
-                            auto_approve_enabled: false,
-                        },
-                    );
-                }
-            });
-        }
-    }
-
-    fn should_quit(&self) -> bool {
-        self.quit
-    }
-}
-
-// ── vex exec subcommand ────────────────────────────────────────────────────────
-
-struct ExecArgs {
-    task: String,
-    max_turns: Option<usize>,
-    auto_approve: Option<AutoApproveScope>,
-    output: Option<String>,
-    format: OutputFormat,
-}
-
-fn parse_exec_command(
-    task: Option<String>,
-    task_file: Option<String>,
-    max_turns: Option<usize>,
-    auto_approve: Option<String>,
-    output: Option<String>,
-    format: String,
-) -> Result<ExecArgs> {
-    let task = match (task, task_file) {
-        (Some(task), None) => task,
-        (None, Some(path)) => std::fs::read_to_string(path)?,
-        (None, None) => {
-            anyhow::bail!("vex exec requires --task <TEXT> or --task-file <PATH>")
-        }
-        (Some(_), Some(_)) => unreachable!("clap enforces task/task-file exclusivity"),
-    };
-
-    let auto_approve = match auto_approve.as_deref() {
-        Some("once") => Some(AutoApproveScope::Once),
-        Some("task") => Some(AutoApproveScope::Task),
-        Some(other) => anyhow::bail!("--auto-approve must be 'once' or 'task', got: {other}"),
-        None => None,
-    };
-
-    let format = match format.as_str() {
-        "jsonl" => OutputFormat::Jsonl,
-        "text" => OutputFormat::Text,
-        other => anyhow::bail!("--format must be 'jsonl' or 'text', got: {other}"),
-    };
-
-    Ok(ExecArgs {
-        task,
-        max_turns,
-        auto_approve,
-        output,
-        format,
-    })
-}
-
-async fn run_exec(exec: ExecArgs, config: Config) -> Result<ExitCode> {
-    let opts = BatchRunOpts {
-        max_turns: exec.max_turns,
-        auto_approve: exec.auto_approve,
-        format: exec.format,
-        resume_state: None,
-    };
-
-    let result = run_batch(exec.task, opts, &config).await?;
-
-    let text = result.output_lines.join("\n");
-
-    if let Some(path) = exec.output {
-        std::fs::write(&path, &text)?;
-    } else {
-        print!("{}", text);
-    }
-
-    Ok(exit_code_for_status(result.status))
-}
-
 fn emit_migrate_config_output(output_path: Option<&Path>) -> Result<()> {
     let fragment = vexcoder::config::migrate_config_from_env(&[]);
     if let Some(path) = output_path {
@@ -984,399 +207,10 @@ async fn run_print(
     Ok(exit_code_for_status(result.status))
 }
 
-// ── PJ-04: vex init ────────────────────────────────────────────────────────────
-
-/// Non-destructive workspace scaffolding.  Creates `.vex/config.toml`,
-/// `AGENTS.md`, and `.vex/validate.toml` if they do not already exist.
-const INIT_CONFIG_TEMPLATE: &str = concat!(
-    "# vex workspace config\n",
-    "# uncomment only the keys you need for this workspace\n",
-    "# model_name = \"local/default\"\n",
-    "# model_url = \"https://example.invalid/v1\"\n",
-    "# working_dir = \".\"\n",
-    "# model_backend = \"local-runtime\"\n",
-    "# model_protocol = \"chat-compat\"\n",
-    "# tool_call_mode = \"tagged-fallback\"\n",
-    "# model_profile = \"models/local-balanced.toml\"\n",
-    "# max_project_instructions_tokens = 4096\n",
-    "# max_memory_tokens = 2048\n",
-    "# notes_path = \"~/.config/vex/memory.md\"\n",
-    "# sandbox = \"passthrough\"\n",
-    "# sandbox_profile = \"\"\n",
-    "# sandbox_require = false\n",
-    "# model_headers = '{\"X-Client-Id\":\"vexcoder\"}'\n",
-    "\n",
-    "# [api]\n",
-    "# transport = \"http\"\n",
-    "# host = \"127.0.0.1\"\n",
-    "# port = 6274\n",
-    "# socket = \"\"\n",
-    "# key = \"${VEX_API_KEY}\"\n",
-    "# tls_cert = \"\"\n",
-    "# tls_key = \"\"\n",
-    "# tls_ca_cert = \"\"\n",
-    "# tls_skip_verify = false\n",
-    "# vpn_trust = false\n",
-    "\n",
-    "# user config only:\n",
-    "# [[hooks]]\n",
-    "# event = \"post_tool\"\n",
-    "# tool = \"apply_patch\"\n",
-    "# command = \"cargo\"\n",
-    "# args = [\"fmt\"]\n",
-    "# on_fail = \"warn\"\n",
-    "\n",
-    "# user config only:\n",
-    "# [[mcp_servers]]\n",
-    "# name = \"filesystem\"\n",
-    "# transport = \"stdio\"\n",
-    "# command = \"npx\"\n",
-    "# args = [\"-y\", \"@modelcontextprotocol/server-filesystem\", \"/tmp\"]\n",
-    "# url = \"http://localhost:3000/mcp\"\n",
-    "\n",
-    "# [mcp_servers.headers]\n",
-    "# Authorization = \"${MCP_PRIVATE_SEARCH_TOKEN}\"\n",
-);
-
-const INIT_AGENTS_TEMPLATE: &str = concat!(
-    "# Project Agents\n",
-    "\n",
-    "Fill in project-specific guidance for coding agents working in this repository.\n",
-);
-
-const INIT_VALIDATE_TEMPLATE: &str = concat!(
-    "# validation commands applied by `vex validate`\n",
-    "# [[commands]]\n",
-    "# name = \"example\"\n",
-    "# command = \"cargo test --all-targets\"\n",
-);
-
-#[cfg(test)]
-const INIT_CONFIG_NORMATIVE_KEYS: &[&str] = &[
-    "model_name",
-    "model_url",
-    "working_dir",
-    "model_backend",
-    "model_protocol",
-    "tool_call_mode",
-    "model_profile",
-    "max_project_instructions_tokens",
-    "max_memory_tokens",
-    "notes_path",
-    "sandbox",
-    "sandbox_profile",
-    "sandbox_require",
-    "model_headers",
-    "api",
-    "api.transport",
-    "api.host",
-    "api.port",
-    "api.socket",
-    "api.key",
-    "api.tls_cert",
-    "api.tls_key",
-    "api.tls_ca_cert",
-    "api.tls_skip_verify",
-    "api.vpn_trust",
-    "hooks",
-    "hooks.event",
-    "hooks.tool",
-    "hooks.command",
-    "hooks.args",
-    "hooks.on_fail",
-    "mcp_servers",
-    "mcp_servers.name",
-    "mcp_servers.transport",
-    "mcp_servers.command",
-    "mcp_servers.args",
-    "mcp_servers.url",
-    "mcp_servers.headers",
-    "mcp_servers.headers.Authorization",
-];
-
-fn run_init(cwd: &Path) -> Result<Vec<String>> {
-    let vex_dir = cwd.join(".vex");
-    std::fs::create_dir_all(&vex_dir)?;
-
-    let files: &[(&str, &str)] = &[
-        (".vex/config.toml", INIT_CONFIG_TEMPLATE),
-        ("AGENTS.md", INIT_AGENTS_TEMPLATE),
-        (".vex/validate.toml", INIT_VALIDATE_TEMPLATE),
-    ];
-    let mut summary = Vec::new();
-
-    for (rel_path, content) in files {
-        let full = cwd.join(rel_path);
-        if full.exists() {
-            summary.push(format!("[init] skip (exists): {rel_path}"));
-        } else {
-            if let Some(parent) = full.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::write(&full, content)?;
-            summary.push(format!("[init] created: {rel_path}"));
-        }
-    }
-
-    summary.push("[init] done".to_string());
-    Ok(summary)
-}
-
 fn print_lines(lines: &[String]) {
     for line in lines {
         println!("{line}");
     }
-}
-
-// ── PK-08: vex branch / vex pr-summary ────────────────────────────────────────
-
-async fn run_git_capture(cwd: PathBuf, args: Vec<String>) -> Result<String> {
-    let command_display = format!("git {}", args.join(" "));
-    let output = tokio::task::spawn_blocking(move || {
-        std::process::Command::new("git")
-            .current_dir(cwd)
-            .args(&args)
-            .output()
-    })
-    .await
-    .context("git command task join failed")?
-    .with_context(|| format!("failed to run `{command_display}`"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let detail = if !stderr.is_empty() {
-            stderr
-        } else if !stdout.is_empty() {
-            stdout
-        } else {
-            format!("exit status {}", output.status)
-        };
-        bail!("{command_display} failed: {detail}");
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
-}
-
-fn truncate_lines(text: &str, max_lines: usize) -> (String, bool) {
-    let lines = text.lines().collect::<Vec<_>>();
-    let truncated = lines.len() > max_lines;
-    let mut rendered = lines
-        .iter()
-        .take(max_lines)
-        .copied()
-        .collect::<Vec<_>>()
-        .join("\n");
-    if text.ends_with('\n') && !rendered.is_empty() {
-        rendered.push('\n');
-    }
-    (rendered, truncated)
-}
-
-fn record_branch_on_active_task(cwd: &Path, branch_name: &str) -> Result<Option<String>> {
-    let Some(file) = TaskState::state_files_from(cwd).into_iter().next() else {
-        return Ok(None);
-    };
-
-    let mut state = TaskState::load(&file.dir, &file.id)?;
-    state.branch_name = Some(branch_name.to_string());
-    let task_id = state.id.clone();
-    state.save(&file.dir)?;
-    Ok(Some(task_id))
-}
-
-async fn run_branch(cwd: &Path, name: &str) -> Result<Vec<String>> {
-    run_git_capture(
-        cwd.to_path_buf(),
-        vec!["checkout".to_string(), "-b".to_string(), name.to_string()],
-    )
-    .await?;
-
-    let mut summary = vec![format!("[branch] created: {name}")];
-    match record_branch_on_active_task(cwd, name)? {
-        Some(task_id) => summary.push(format!("[branch] recorded in task: {task_id}")),
-        None => summary.push("[branch] no saved task state found".to_string()),
-    }
-    Ok(summary)
-}
-
-async fn prepare_pr_summary_prompt(cwd: &Path) -> Result<String> {
-    let base_ref = run_git_capture(
-        cwd.to_path_buf(),
-        vec![
-            "symbolic-ref".to_string(),
-            "--quiet".to_string(),
-            "refs/remotes/origin/HEAD".to_string(),
-        ],
-    )
-    .await
-    .context(
-        "failed to detect origin/HEAD; set it first (for example: `git remote set-head origin -a`)",
-    )?
-    .trim()
-    .to_string();
-    if base_ref.is_empty() {
-        bail!("origin/HEAD resolved to an empty ref");
-    }
-
-    let head_ref = run_git_capture(
-        cwd.to_path_buf(),
-        vec![
-            "rev-parse".to_string(),
-            "--abbrev-ref".to_string(),
-            "HEAD".to_string(),
-        ],
-    )
-    .await?
-    .trim()
-    .to_string();
-    let merge_base = run_git_capture(
-        cwd.to_path_buf(),
-        vec![
-            "merge-base".to_string(),
-            "HEAD".to_string(),
-            base_ref.clone(),
-        ],
-    )
-    .await?
-    .trim()
-    .to_string();
-    let diff_stat = run_git_capture(
-        cwd.to_path_buf(),
-        vec![
-            "diff".to_string(),
-            "--stat".to_string(),
-            "--find-renames".to_string(),
-            merge_base.clone(),
-            "HEAD".to_string(),
-        ],
-    )
-    .await?;
-    let diff = run_git_capture(
-        cwd.to_path_buf(),
-        vec![
-            "diff".to_string(),
-            "--find-renames".to_string(),
-            merge_base.clone(),
-            "HEAD".to_string(),
-        ],
-    )
-    .await?;
-
-    if diff.trim().is_empty() {
-        bail!("[pr-summary] no diff from {base_ref}");
-    }
-
-    let max_diff_lines = ContextAssembler::default().max_diff_lines;
-    let (diff_excerpt, truncated) = truncate_lines(&diff, max_diff_lines);
-    let mut diff_context = String::new();
-    diff_context.push_str("## Diff stat\n```text\n");
-    if diff_stat.trim().is_empty() {
-        diff_context.push_str("[pr-summary] diff stat unavailable\n");
-    } else {
-        diff_context.push_str(diff_stat.trim_end());
-        diff_context.push('\n');
-    }
-    diff_context.push_str("```\n\n## Diff\n```diff\n");
-    diff_context.push_str(diff_excerpt.trim_end());
-    if !diff_excerpt.ends_with('\n') {
-        diff_context.push('\n');
-    }
-    diff_context.push_str("```\n");
-    if truncated {
-        diff_context.push_str(&format!(
-            "\n[diff truncated — showing first {max_diff_lines} lines]\n"
-        ));
-    }
-
-    let instruction = format!(
-        "Generate a concise pull request title and body draft for `{head_ref}` relative to `{base_ref}`."
-    );
-    let context = format!("Base ref: {base_ref}\nHead ref: {head_ref}\nMerge base: {merge_base}");
-    Ok(render_pr_summary_prompt(
-        &instruction,
-        &context,
-        &diff_context,
-    ))
-}
-
-async fn run_pr_summary_with_batch<F, Fut>(
-    cwd: &Path,
-    config: Config,
-    batch_runner: F,
-) -> Result<String>
-where
-    F: FnOnce(String, BatchRunOpts, Config) -> Fut,
-    Fut: std::future::Future<Output = Result<BatchResult>>,
-{
-    let prompt = prepare_pr_summary_prompt(cwd).await?;
-    let opts = BatchRunOpts {
-        max_turns: Some(1),
-        auto_approve: None,
-        format: OutputFormat::Text,
-        resume_state: None,
-    };
-    let result = batch_runner(prompt, opts, config).await?;
-    Ok(result.output_lines.join("\n"))
-}
-
-async fn run_pr_summary(cwd: &Path, config: &Config) -> Result<String> {
-    run_pr_summary_with_batch(cwd, config.clone(), |task, opts, config| async move {
-        run_batch(task, opts, &config).await
-    })
-    .await
-}
-
-#[cfg(test)]
-fn extract_init_template_keys(content: &str) -> std::collections::BTreeSet<String> {
-    let mut section: Option<&str> = None;
-    let mut keys = std::collections::BTreeSet::new();
-
-    for raw_line in content.lines() {
-        let Some(line) = raw_line.trim().strip_prefix('#') else {
-            continue;
-        };
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-
-        match line {
-            "[api]" => {
-                section = Some("api");
-                keys.insert("api".to_string());
-                continue;
-            }
-            "[[hooks]]" => {
-                section = Some("hooks");
-                keys.insert("hooks".to_string());
-                continue;
-            }
-            "[[mcp_servers]]" => {
-                section = Some("mcp_servers");
-                keys.insert("mcp_servers".to_string());
-                continue;
-            }
-            "[mcp_servers.headers]" => {
-                section = Some("mcp_servers.headers");
-                keys.insert("mcp_servers.headers".to_string());
-                continue;
-            }
-            _ => {}
-        }
-
-        let Some((key, _)) = line.split_once('=') else {
-            continue;
-        };
-        let key = key.trim();
-        let full_key = match section {
-            Some(prefix) => format!("{prefix}.{key}"),
-            None => key.to_string(),
-        };
-        keys.insert(full_key);
-    }
-
-    keys
 }
 
 // ── main ───────────────────────────────────────────────────────────────────────
@@ -1545,12 +379,8 @@ fn exit_code_for_status(status: TaskStatus) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::{
-        active_file_picker, apply_file_picker_selection, emit_migrate_config_output,
-        extract_init_template_keys, file_mention_range, file_picker_is_dismissed,
-        looks_like_terminal_transcript, prepare_pr_summary_prompt, render_file_picker_hint,
-        resolve_resume_state, run_branch, run_pr_summary_with_batch,
-        should_ignore_startup_paste_text, Cli, Commands, MigrateCommands, SkillsCommands,
-        INIT_CONFIG_NORMATIVE_KEYS,
+        emit_migrate_config_output, resolve_resume_state, Cli, Commands, MigrateCommands,
+        SkillsCommands,
     };
     use clap::Parser;
     use clap_complete::Shell;
@@ -1559,7 +389,17 @@ mod tests {
     use vexcoder::app::TuiMode;
     use vexcoder::batch_mode::{BatchResult, OutputFormat};
     use vexcoder::config::Config;
+    use vexcoder::init::{
+        extract_init_template_keys, run_init, INIT_CONFIG_NORMATIVE_KEYS, INIT_CONFIG_TEMPLATE,
+    };
+    use vexcoder::pr_summary::{prepare_pr_summary_prompt, run_branch, run_pr_summary_with_batch};
     use vexcoder::runtime::{TaskState, TaskStatus};
+    use vexcoder::startup::{looks_like_terminal_transcript, should_ignore_startup_paste_text};
+    use vexcoder::tui_frontend::{
+        active_file_picker, apply_file_picker_selection, file_picker_is_dismissed,
+        render_file_picker_hint,
+    };
+    use vexcoder::ui::editor::file_mention_range;
     use vexcoder::ui::editor::InputEditor;
 
     mod test_support {
@@ -1790,6 +630,117 @@ mod tests {
             dismissed.as_ref(),
             "inspect @input",
             "inspect @input".len()
+        ));
+    }
+
+    // -- @ file picker interactivity tests ------------------------------------
+
+    #[test]
+    fn render_file_picker_hint_empty_matches_no_prefix() {
+        let hint = render_file_picker_hint("", &[], 0);
+        assert!(hint.contains("[file] no files available"), "hint: {hint}");
+    }
+
+    #[test]
+    fn render_file_picker_hint_empty_matches_with_prefix() {
+        let hint = render_file_picker_hint("nonexist", &[], 0);
+        assert!(
+            hint.contains("[file] no matches for nonexist"),
+            "hint: {hint}"
+        );
+    }
+
+    #[test]
+    fn render_file_picker_hint_clamps_selected_past_end() {
+        let hint = render_file_picker_hint(
+            "x",
+            &["src/x.rs".into(), "src/xy.rs".into()],
+            999, // way past end
+        );
+        assert!(
+            hint.contains("> [file] src/xy.rs"),
+            "should clamp to last entry: {hint}"
+        );
+    }
+
+    #[test]
+    fn render_file_picker_hint_single_match() {
+        let hint = render_file_picker_hint("exact", &["src/exact.rs".into()], 0);
+        assert!(hint.contains("[file] 1 match(es)"));
+        assert!(hint.contains("> [file] src/exact.rs"));
+    }
+
+    #[test]
+    fn apply_file_picker_selection_bare_at_replaces_correctly() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("@");
+        let range = file_mention_range(editor.buffer(), editor.cursor()).expect("range");
+        apply_file_picker_selection(&mut editor, &range, "src/main.rs");
+        assert_eq!(editor.buffer(), "@src/main.rs ");
+    }
+
+    #[test]
+    fn apply_file_picker_selection_mid_sentence() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("look at @inp and fix");
+        // Move cursor to be inside "@inp" token
+        editor.input_state.cursor = "look at @inp".len();
+        let range = file_mention_range(editor.buffer(), editor.cursor()).expect("range");
+        apply_file_picker_selection(&mut editor, &range, "src/app/input.rs");
+        assert_eq!(editor.buffer(), "look at @src/app/input.rs and fix");
+    }
+
+    #[test]
+    fn apply_file_picker_selection_already_has_trailing_space() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("@src ");
+        editor.input_state.cursor = 4; // cursor on "src" before space
+        let range = file_mention_range(editor.buffer(), editor.cursor()).expect("range");
+        apply_file_picker_selection(&mut editor, &range, "src/lib.rs");
+        // Should not double-space
+        assert_eq!(editor.buffer(), "@src/lib.rs ");
+    }
+
+    #[test]
+    fn file_picker_is_dismissed_none_returns_false() {
+        assert!(!file_picker_is_dismissed(None, "@test", 5));
+    }
+
+    #[test]
+    fn active_file_picker_no_at_returns_none() {
+        let config = Config::default_for_tui();
+        let mode = TuiMode::new_with_config(None, config);
+
+        assert!(active_file_picker(&mode, "hello world", 5).is_none());
+    }
+
+    #[test]
+    fn active_file_picker_bare_at_returns_all_matches() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("src")).unwrap();
+        std::fs::write(temp.path().join("src/a.rs"), "").unwrap();
+        std::fs::write(temp.path().join("src/b.rs"), "").unwrap();
+
+        let mut config = Config::default_for_tui();
+        config.working_dir = temp.path().to_path_buf();
+        let mode = TuiMode::new_with_config(None, config);
+
+        let picker = active_file_picker(&mode, "@", 1).expect("bare @ picker");
+        assert_eq!(picker.prefix, "");
+        assert!(picker.matches.len() >= 2, "matches: {:?}", picker.matches);
+    }
+
+    #[test]
+    fn dismissed_file_picker_clears_on_new_at_token() {
+        let input = "inspect @inp";
+        let range = file_mention_range(input, input.len()).expect("range");
+        let dismissed = Some((input.to_string(), range));
+
+        // Completely different input — no longer dismissed.
+        assert!(!file_picker_is_dismissed(
+            dismissed.as_ref(),
+            "review @other",
+            "review @other".len()
         ));
     }
 
@@ -2130,14 +1081,14 @@ mod tests {
     #[test]
     fn test_vex_init_creates_vex_dir() {
         let temp = tempfile::tempdir().unwrap();
-        super::run_init(temp.path()).unwrap();
+        run_init(temp.path()).unwrap();
         assert!(temp.path().join(".vex").is_dir());
     }
 
     #[test]
     fn test_vex_init_writes_config_toml_skeleton() {
         let temp = tempfile::tempdir().unwrap();
-        super::run_init(temp.path()).unwrap();
+        run_init(temp.path()).unwrap();
         let content = std::fs::read_to_string(temp.path().join(".vex/config.toml")).unwrap();
         assert!(temp.path().join(".vex/config.toml").exists());
         assert!(content.contains("# model_backend = \"local-runtime\""));
@@ -2153,7 +1104,7 @@ mod tests {
     #[test]
     fn test_vex_init_writes_agents_md_template() {
         let temp = tempfile::tempdir().unwrap();
-        super::run_init(temp.path()).unwrap();
+        run_init(temp.path()).unwrap();
         let content = std::fs::read_to_string(temp.path().join("AGENTS.md")).unwrap();
         assert!(content.contains("Project Agents"));
         assert!(content.contains("project-specific guidance"));
@@ -2170,7 +1121,7 @@ mod tests {
         std::fs::create_dir_all(config_path.parent().unwrap()).unwrap();
         std::fs::write(&config_path, "existing\n").unwrap();
 
-        let summary = super::run_init(temp.path()).unwrap();
+        let summary = run_init(temp.path()).unwrap();
         let content = std::fs::read_to_string(&config_path).unwrap();
         assert_eq!(content, "existing\n", "must not overwrite existing file");
         assert!(
@@ -2184,7 +1135,7 @@ mod tests {
 
     #[test]
     fn test_vex_init_config_keys_match_normative_list() {
-        let keys = extract_init_template_keys(super::INIT_CONFIG_TEMPLATE);
+        let keys = extract_init_template_keys(INIT_CONFIG_TEMPLATE);
         let expected = INIT_CONFIG_NORMATIVE_KEYS
             .iter()
             .map(|value| value.to_string())
@@ -2195,7 +1146,7 @@ mod tests {
     #[test]
     fn test_vex_init_does_not_start_agent_loop() {
         let temp = tempfile::tempdir().unwrap();
-        let summary = super::run_init(temp.path()).unwrap();
+        let summary = run_init(temp.path()).unwrap();
         assert!(!temp.path().join(".vex/state").exists());
         assert_eq!(summary.last().map(String::as_str), Some("[init] done"));
     }
@@ -2203,7 +1154,7 @@ mod tests {
     #[test]
     fn test_vex_init_writes_validate_commands_stub() {
         let temp = tempfile::tempdir().unwrap();
-        super::run_init(temp.path()).unwrap();
+        run_init(temp.path()).unwrap();
         let content = std::fs::read_to_string(temp.path().join(".vex/validate.toml")).unwrap();
         assert!(content.contains("# [[commands]]"));
         assert!(
