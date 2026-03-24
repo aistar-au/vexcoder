@@ -68,9 +68,11 @@ Ignore this section in repository-hosted background sessions.
   All mutable work must be on a `work/vexcoder-<slug>` feature branch in a
   sandbox worktree. The only permitted `main` operation is sync:
   `git fetch origin --prune && git merge --ff-only origin/main`.
-- **Never invoke `gh pr merge`** — merge authority belongs to the user, not
-  the agent. Present merge readiness (CI green, commit-debug gate passed,
-  content-parity OK) and the recommended command; wait for user execution.
+- **`gh pr merge` requires explicit user instruction** — by default, present
+  merge readiness and the recommended command without executing. When the user
+  explicitly instructs the agent to merge in the current conversation, execute
+  `gh pr merge --merge --delete-branch` immediately without re-asking. The
+  user's instruction is the confirmation.
 
 ## Before committing
 
