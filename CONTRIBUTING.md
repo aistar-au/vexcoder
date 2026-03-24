@@ -1,6 +1,6 @@
 # Contributing to vexcoder
 
-> **Version:** This workflow applies from `v0.1.0-alpha2` onward.
+> **Version:** This workflow applies from `v0.1.0-alpha.3` onward.
 > **Architecture decisions** live in [`adr/`](adr/ADR-README.md).
 > The ADRs explain *why* the project is structured this way. Read them before opening a PR.
 >
@@ -117,20 +117,20 @@ bash scripts/check_forbidden_names.sh
 Package release changes on a review branch first, verify them locally, and open the PR without waiting on a duplicate packaging workflow run.
 
 ```bash
-git switch -c work/v0.1.0-alpha2-packaging
+git switch -c work/v0.1.0-alpha.3-packaging
 make gate
 make release TARGET=x86_64-unknown-linux-gnu
-git push -u origin work/v0.1.0-alpha2-packaging
+git push -u origin work/v0.1.0-alpha.3-packaging
 ```
 
 On Windows PowerShell 7, use the native packaging script instead of `make release`:
 
 ```powershell
-git switch -c work/v0.1.0-alpha2-packaging
+git switch -c work/v0.1.0-alpha.3-packaging
 $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
 cargo build --release --bin vex
 .\scripts\release.ps1 -Target x86_64-pc-windows-msvc -RunGate
-git push -u origin work/v0.1.0-alpha2-packaging
+git push -u origin work/v0.1.0-alpha.3-packaging
 ```
 
 Windows packaging is currently an unsigned alpha path. Platform trust warnings are expected until code signing lands; evaluate a compatible signing service only when the packaging ADR set explicitly requires it.
@@ -140,8 +140,8 @@ The packaging scripts derive the archive tag from `Cargo.toml` and reject mismat
 ```bash
 git switch main
 git pull --ff-only origin main
-git tag v0.1.0-alpha2
-git push origin v0.1.0-alpha2
+git tag -a v0.1.0-alpha.3 -m "Release v0.1.0-alpha.3"
+git push origin v0.1.0-alpha.3
 ```
 
 Do not merge packaging work directly from a local debug session; keep the review and merge step explicit.
