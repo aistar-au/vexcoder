@@ -1,0 +1,165 @@
+# Releasing
+
+This document defines the versioning, tagging, and release process for
+`aistar-au/vexcoder`.
+
+---
+
+## Versioning scheme
+
+This project follows [Semantic Versioning 2.0.0](https://semver.org/).
+
+Format: `MAJOR.MINOR.PATCH[-PRERELEASE]`
+
+- **MAJOR** — incompatible API or CLI changes.
+- **MINOR** — backwards-compatible new functionality.
+- **PATCH** — backwards-compatible bug fixes.
+- **PRERELEASE** — optional dot-separated identifiers for pre-release builds
+  (e.g. `alpha.3`, `beta.1`, `rc.1`).
+
+The canonical version lives in `Cargo.toml` under `[package] version`. All
+tags, archive names, and release artifacts derive from this single source.
+
+### Pre-release progression
+
+```
+0.1.0-alpha.1 -> 0.1.0-alpha.2 -> ... -> 0.1.0-beta.1 -> 0.1.0-rc.1 -> 0.1.0
+```
+
+Pre-release versions use dot-separated numeric identifiers after the
+pre-release label. This ensures correct semver precedence ordering:
+`0.1.0-alpha.2 < 0.1.0-alpha.3 < 0.1.0-beta.1 < 0.1.0-rc.1 < 0.1.0`.
+
+---
+
+## Git tag conventions
+
+- Tags use the `v` prefix: `v0.1.0-alpha.3`, `v1.0.0`.
+- Tags are **annotated**, not lightweight, and include a short summary.
+- Tags are applied only to commits on `main` after the PR merge.
+- Tags are never moved or deleted once pushed. If a release is bad, cut a new
+  patch release instead.
+- Tag names must match the `Cargo.toml` version exactly (with the `v` prefix):
+  if `Cargo.toml` says `0.1.0-alpha.3`, the tag is `v0.1.0-alpha.3`.
+
+### Creating a tag
+
+```bash
+git switch main
+git pull --ff-only origin main
+
+# Verify the version in Cargo.toml matches the intended tag
+grep '^version' Cargo.toml
+
+# Create an annotated tag
+git tag -a v0.1.0-alpha.3 -m "Release v0.1.0-alpha.3"
+
+# Push the tag
+git push origin v0.1.0-alpha.3
+```
+
+---
+
+## Release checklist
+
+### Before merge
+
+1. Bump the version in `Cargo.toml` on the feature branch.
+2. Update the version reference in `CONTRIBUTING.md` header.
+3. Verify all CI checks pass on the PR.
+4. Run the local gate:
+   ```bash
+   make gate-fast
+   ```
+5. Run commit-debug if `src/` or `tests/` changed (see `CONTRIBUTING.md`).
+
+### Merge and tag
+
+6. Merge the PR into `main` (squash or merge commit per project convention).
+7. Pull the merge commit locally:
+   ```bash
+   git switch main
+   git pull --ff-only origin main
+   ```
+8. Verify the `Cargo.toml` version on the merge commit.
+9. Create and push the annotated tag (see above).
+
+### After tag push
+
+10. Verify the tag exists on the remote:
+    ```bash
+    git ls-remote --tags origin | grep v0.1.0-alpha.3
+    ```
+11. If the repository has a release workflow, confirm it triggered and
+    completed successfully.
+12. Create the release on the hosting platform if not automated:
+    ```bash
+    gh release create v0.1.0-alpha.3 \
+      --title "v0.1.0-alpha.3" \
+      --prerelease \
+      --notes "See merged PRs since the previous tag for details."
+    ```
+
+---
+
+## Version bump rules
+
+| Change type                        | Bump          | Example                      |
+| :--------------------------------- | :------------ | :--------------------------- |
+| Breaking CLI or API change         | MAJOR         | `1.0.0` -> `2.0.0`          |
+| New feature, backwards-compatible  | MINOR         | `0.1.0` -> `0.2.0`          |
+| Bug fix, no new features           | PATCH         | `0.1.1` -> `0.1.2`          |
+| Pre-release iteration              | PRERELEASE    | `0.1.0-alpha.2` -> `alpha.3`|
+| Stability promotion                | Drop/change   | `0.1.0-rc.1` -> `0.1.0`    |
+
+During the `0.x` series, minor version bumps may include breaking changes as
+the API stabilises. The pre-release suffix tracks iteration within a minor
+version.
+
+---
+
+## Branch and PR conventions for releases
+
+- Version bumps land as part of normal feature PRs, not as standalone
+  "release PRs" (unless a release requires coordinated changes across
+  multiple PRs).
+- The merge commit on `main` is the tagged commit. Do not tag feature
+  branches or intermediate commits.
+- If a release is cut from a stabilisation branch (e.g. `release/0.2`),
+  the same tag rules apply: annotated tag on the branch head after merge.
+
+---
+
+## Hotfix process
+
+1. Branch from the tagged release commit:
+   ```bash
+   git checkout -b hotfix/v0.1.1 v0.1.0
+   ```
+2. Apply the minimal fix.
+3. Bump the PATCH version in `Cargo.toml`.
+4. Open a PR targeting `main` (or the release branch if applicable).
+5. After merge, tag and release as above.
+
+---
+
+## Automated release workflow
+
+When `.github/workflows/release.yml` exists, it triggers on tag pushes
+matching `v*`. The workflow builds release artifacts and publishes them.
+Manual dispatch is available for re-running a failed release without
+re-tagging.
+
+The packaging scripts in `scripts/` derive the archive name from
+`Cargo.toml` and reject mismatched tag inputs to prevent version drift
+between the binary and the tag.
+
+---
+
+## References
+
+- [Semantic Versioning 2.0.0](https://semver.org/)
+- [Conventional Commits](https://www.conventionalcommits.org/) (recommended
+  for commit messages)
+- [Keep a Changelog](https://keepachangelog.com/) (recommended when a
+  CHANGELOG is added)

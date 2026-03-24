@@ -4,7 +4,7 @@ use ratatui::widgets::Clear;
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
-use crate::app::{FileMentionPickerState, TuiMode};
+use crate::app::{FileMentionPickerState, SlashPickerMatch, SlashPickerState, TuiMode};
 use crate::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
 use crate::startup::{
     looks_like_terminal_transcript, should_ignore_startup_paste_text, STARTUP_NOISE_GUARD,
@@ -31,6 +31,10 @@ pub struct ManagedTuiFrontend {
     selected_file_hint: usize,
     dismissed_file_picker: Option<(String, Range<usize>)>,
     cached_file_picker: Option<(String, usize, Option<FileMentionPickerState>)>,
+    selected_slash_hint: usize,
+    last_slash_picker_prefix: String,
+    dismissed_slash_picker: bool,
+    cached_slash_picker: Option<(String, usize, Option<SlashPickerState>)>,
 }
 
 impl ManagedTuiFrontend {
@@ -50,6 +54,10 @@ impl ManagedTuiFrontend {
             selected_file_hint: 0,
             dismissed_file_picker: None,
             cached_file_picker: None,
+            selected_slash_hint: 0,
+            last_slash_picker_prefix: String::new(),
+            dismissed_slash_picker: false,
+            cached_slash_picker: None,
         })
     }
 
@@ -76,6 +84,30 @@ impl ManagedTuiFrontend {
         self.cached_file_picker = None;
         self.last_file_picker_prefix.clear();
         self.selected_file_hint = 0;
+        self.last_hint_input.clear();
+    }
+
+    fn current_slash_picker(&mut self, mode: &TuiMode) -> Option<SlashPickerState> {
+        let input = self.editor.buffer();
+        let cursor = self.editor.cursor();
+        if self.dismissed_slash_picker && slash_prefix_token(input).is_some() {
+            return None;
+        }
+        if let Some((cached_input, cached_cursor, cached_picker)) = &self.cached_slash_picker {
+            if cached_input == input && *cached_cursor == cursor {
+                return cached_picker.clone();
+            }
+        }
+        let picker = active_slash_picker(mode, input);
+        self.cached_slash_picker = Some((input.to_string(), cursor, picker.clone()));
+        picker
+    }
+
+    fn dismiss_current_slash_picker(&mut self) {
+        self.dismissed_slash_picker = true;
+        self.cached_slash_picker = None;
+        self.last_slash_picker_prefix.clear();
+        self.selected_slash_hint = 0;
         self.last_hint_input.clear();
     }
 
@@ -167,6 +199,47 @@ impl ManagedTuiFrontend {
 
     fn map_regular_key(&mut self, key: KeyEvent, mode: &TuiMode) -> Option<UserInputEvent> {
         if key.modifiers.is_empty() {
+            // Slash command picker (triggered by `/` prefix).
+            if let Some(picker) = self.current_slash_picker(mode) {
+                let last_index = picker.matches.len().saturating_sub(1);
+                self.selected_slash_hint = self.selected_slash_hint.min(last_index);
+                match key.code {
+                    KeyCode::Up if !picker.matches.is_empty() => {
+                        self.selected_slash_hint = self.selected_slash_hint.saturating_sub(1);
+                        return None;
+                    }
+                    KeyCode::Down if !picker.matches.is_empty() => {
+                        self.selected_slash_hint = (self.selected_slash_hint + 1).min(last_index);
+                        return None;
+                    }
+                    KeyCode::Enter if !picker.matches.is_empty() => {
+                        let command = &picker.matches[self.selected_slash_hint].command;
+                        apply_slash_picker_selection(&mut self.editor, command);
+                        self.dismissed_slash_picker = false;
+                        self.cached_slash_picker = None;
+                        self.last_slash_picker_prefix.clear();
+                        self.selected_slash_hint = 0;
+                        self.last_hint_input.clear();
+                        return None;
+                    }
+                    KeyCode::Esc => {
+                        self.dismiss_current_slash_picker();
+                        return None;
+                    }
+                    _ => {
+                        // Any other key clears dismiss state so the picker
+                        // reopens as the user keeps typing.
+                        self.dismissed_slash_picker = false;
+                    }
+                }
+            } else {
+                // Reset dismiss state when no longer on a slash prefix.
+                if slash_prefix_token(self.editor.buffer()).is_none() {
+                    self.dismissed_slash_picker = false;
+                }
+            }
+
+            // File mention picker (triggered by `@` prefix).
             if let Some(picker) = self.current_file_picker(mode) {
                 let last_index = picker.matches.len().saturating_sub(1);
                 self.selected_file_hint = self.selected_file_hint.min(last_index);
@@ -336,6 +409,23 @@ impl ManagedTuiFrontend {
     }
 
     fn prompt_hint(&mut self, mode: &TuiMode, input: &str, cursor: usize) -> String {
+        // Slash command picker takes priority when active.
+        if let Some(picker) = self.current_slash_picker(mode) {
+            if self.last_slash_picker_prefix != picker.prefix {
+                self.last_slash_picker_prefix = picker.prefix.clone();
+                self.selected_slash_hint = 0;
+            }
+            let selected = self
+                .selected_slash_hint
+                .min(picker.matches.len().saturating_sub(1));
+            self.last_hint_input = input.to_string();
+            self.last_hint_text = render_slash_picker_hint(&picker.matches, selected);
+            return self.last_hint_text.clone();
+        }
+
+        self.last_slash_picker_prefix.clear();
+        self.selected_slash_hint = 0;
+
         if let Some(picker) = self.current_file_picker(mode) {
             if self.last_file_picker_prefix != picker.prefix {
                 self.last_file_picker_prefix = picker.prefix.clone();
@@ -424,14 +514,72 @@ pub fn render_file_picker_hint(prefix: &str, matches: &[String], selected: usize
     lines.join("\n")
 }
 
+/// Extract the slash prefix token from input (e.g. "/ed" from "/ed something").
+/// Returns `None` if the trimmed input does not start with `/`.
+pub fn slash_prefix_token(input: &str) -> Option<&str> {
+    let trimmed = input.trim_start();
+    if !trimmed.starts_with('/') {
+        return None;
+    }
+    Some(trimmed.split_whitespace().next().unwrap_or(trimmed))
+}
+
+pub fn active_slash_picker(mode: &TuiMode, buffer: &str) -> Option<SlashPickerState> {
+    let token = slash_prefix_token(buffer)?;
+    let matches = mode.slash_picker_matches(token);
+    if matches.is_empty() {
+        return None;
+    }
+    Some(SlashPickerState {
+        prefix: token.to_string(),
+        matches,
+    })
+}
+
+pub fn render_slash_picker_hint(matches: &[SlashPickerMatch], selected: usize) -> String {
+    let mut lines = vec!["Prompt".to_string(), "mode: slash".to_string()];
+    if matches.is_empty() {
+        return lines.join("\n");
+    }
+
+    let selected = selected.min(matches.len().saturating_sub(1));
+    let window = 12.min(matches.len());
+    let start = selected
+        .saturating_sub(window / 2)
+        .min(matches.len() - window);
+    let end = (start + window).min(matches.len());
+
+    if start > 0 {
+        lines.push(format!("[slash] {start} earlier command(s)"));
+    }
+
+    for (offset, entry) in matches[start..end].iter().enumerate() {
+        let index = start + offset;
+        let marker = if index == selected { '>' } else { ' ' };
+        lines.push(format!("{marker} {}", entry.label));
+    }
+
+    if end < matches.len() {
+        lines.push(format!("[slash] {} more command(s)", matches.len() - end));
+    }
+    lines.join("\n")
+}
+
+pub fn apply_slash_picker_selection(editor: &mut InputEditor, command: &str) {
+    editor.replace_range(0, editor.buffer().len(), command);
+}
+
 pub fn apply_file_picker_selection(editor: &mut InputEditor, range: &Range<usize>, path: &str) {
     let range =
         file_mention_range(editor.buffer(), editor.cursor()).unwrap_or_else(|| range.clone());
-    let suffix_needs_space = editor
-        .buffer()
-        .get(range.end..)
-        .map(|rest| rest.is_empty() || !rest.starts_with(char::is_whitespace))
-        .unwrap_or(true);
+    // Directories (trailing /) stay open for drill-down — no trailing space.
+    let is_directory = path.ends_with('/');
+    let suffix_needs_space = !is_directory
+        && editor
+            .buffer()
+            .get(range.end..)
+            .map(|rest| rest.is_empty() || !rest.starts_with(char::is_whitespace))
+            .unwrap_or(true);
     let replacement = if suffix_needs_space {
         format!("@{path} ")
     } else {
