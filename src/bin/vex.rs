@@ -633,6 +633,118 @@ mod tests {
         ));
     }
 
+    // -- @ file picker interactivity tests ------------------------------------
+
+    #[test]
+    fn render_file_picker_hint_empty_matches_no_prefix() {
+        let hint = render_file_picker_hint("", &[], 0);
+        assert!(hint.contains("[file] no files available"), "hint: {hint}");
+    }
+
+    #[test]
+    fn render_file_picker_hint_empty_matches_with_prefix() {
+        let hint = render_file_picker_hint("nonexist", &[], 0);
+        assert!(
+            hint.contains("[file] no matches for nonexist"),
+            "hint: {hint}"
+        );
+    }
+
+    #[test]
+    fn render_file_picker_hint_clamps_selected_past_end() {
+        let hint = render_file_picker_hint(
+            "x",
+            &["src/x.rs".into(), "src/xy.rs".into()],
+            999, // way past end
+        );
+        assert!(
+            hint.contains("> [file] src/xy.rs"),
+            "should clamp to last entry: {hint}"
+        );
+    }
+
+    #[test]
+    fn render_file_picker_hint_single_match() {
+        let hint = render_file_picker_hint("exact", &["src/exact.rs".into()], 0);
+        assert!(hint.contains("[file] 1 match(es)"));
+        assert!(hint.contains("> [file] src/exact.rs"));
+    }
+
+    #[test]
+    fn apply_file_picker_selection_bare_at_replaces_correctly() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("@");
+        let range = file_mention_range(editor.buffer(), editor.cursor()).expect("range");
+        apply_file_picker_selection(&mut editor, &range, "src/main.rs");
+        assert_eq!(editor.buffer(), "@src/main.rs ");
+    }
+
+    #[test]
+    fn apply_file_picker_selection_mid_sentence() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("look at @inp and fix");
+        // Move cursor to be inside "@inp" token
+        editor.input_state.cursor = "look at @inp".len();
+        let range = file_mention_range(editor.buffer(), editor.cursor()).expect("range");
+        apply_file_picker_selection(&mut editor, &range, "src/app/input.rs");
+        assert_eq!(editor.buffer(), "look at @src/app/input.rs and fix");
+    }
+
+    #[test]
+    fn apply_file_picker_selection_already_has_trailing_space() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("@src ");
+        editor.input_state.cursor = 4; // cursor on "src" before space
+        let range = file_mention_range(editor.buffer(), editor.cursor()).expect("range");
+        apply_file_picker_selection(&mut editor, &range, "src/lib.rs");
+        // Should not double-space
+        assert_eq!(editor.buffer(), "@src/lib.rs ");
+    }
+
+    #[test]
+    fn file_picker_is_dismissed_none_returns_false() {
+        assert!(!file_picker_is_dismissed(None, "@test", 5));
+    }
+
+    #[test]
+    fn active_file_picker_no_at_returns_none() {
+        let temp = tempfile::tempdir().unwrap();
+        let config = Config::default_for_tui();
+        let mode = TuiMode::new_with_config(None, config);
+
+        assert!(active_file_picker(&mode, "hello world", 5).is_none());
+    }
+
+    #[test]
+    fn active_file_picker_bare_at_returns_all_matches() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("src")).unwrap();
+        std::fs::write(temp.path().join("src/a.rs"), "").unwrap();
+        std::fs::write(temp.path().join("src/b.rs"), "").unwrap();
+
+        let mut config = Config::default_for_tui();
+        config.working_dir = temp.path().to_path_buf();
+        let mode = TuiMode::new_with_config(None, config);
+
+        let picker = active_file_picker(&mode, "@", 1).expect("bare @ picker");
+        assert_eq!(picker.prefix, "");
+        assert!(picker.matches.len() >= 2, "matches: {:?}", picker.matches);
+    }
+
+    #[test]
+    fn dismissed_file_picker_clears_on_new_at_token() {
+        let input = "inspect @inp";
+        let range = file_mention_range(input, input.len()).expect("range");
+        let dismissed = Some((input.to_string(), range));
+
+        // Completely different input — no longer dismissed.
+        assert!(!file_picker_is_dismissed(
+            dismissed.as_ref(),
+            "review @other",
+            "review @other".len()
+        ));
+    }
+
     // -- PM-01 ----------------------------------------------------------------
 
     #[test]

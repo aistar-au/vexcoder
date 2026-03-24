@@ -298,3 +298,164 @@ fn test_bang_prefix_requires_run_command_approval() {
         .iter()
         .any(|line| { line.contains("[tool approval requested:") }));
 }
+
+// -- @ mention prompt interactivity tests -------------------------------------
+
+#[test]
+fn test_bare_at_submitted_passes_through_as_literal() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("@".to_string(), &mut ctx);
+
+    let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+    assert_eq!(turn_input, "@", "bare @ must pass through unchanged");
+    assert!(mode.is_turn_in_progress());
+}
+
+#[test]
+fn test_at_path_with_trailing_whitespace_still_expands() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("readme.md"), "content\n").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("read @readme.md ".to_string(), &mut ctx);
+
+    let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+    assert!(
+        turn_input.contains("[file: readme.md]"),
+        "trailing space must not prevent expansion: {turn_input}"
+    );
+}
+
+#[test]
+fn test_at_token_adjacent_to_newline_expands() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("a.txt"), "alpha\n").unwrap();
+    std::fs::write(temp.path().join("b.txt"), "beta\n").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("read @a.txt\nand @b.txt".to_string(), &mut ctx);
+
+    let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+    assert!(turn_input.contains("[file: a.txt]"), "first: {turn_input}");
+    assert!(turn_input.contains("[file: b.txt]"), "second: {turn_input}");
+}
+
+#[test]
+fn test_file_prompt_matches_empty_prefix_returns_all_files() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("src")).unwrap();
+    std::fs::write(temp.path().join("src/a.rs"), "").unwrap();
+    std::fs::write(temp.path().join("src/b.rs"), "").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    let matches = mode.file_prompt_matches("");
+    assert!(
+        matches.len() >= 2,
+        "empty prefix should match all files: {:?}",
+        matches
+    );
+    assert!(matches.contains(&"src/a.rs".to_string()));
+    assert!(matches.contains(&"src/b.rs".to_string()));
+}
+
+#[test]
+fn test_file_prompt_matches_case_insensitive() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("docs")).unwrap();
+    std::fs::write(temp.path().join("docs/ReadMe.md"), "").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    let matches = mode.file_prompt_matches("readme");
+    assert!(
+        matches.contains(&"docs/ReadMe.md".to_string()),
+        "case-insensitive match expected: {:?}",
+        matches
+    );
+}
+
+#[test]
+fn test_file_prompt_matches_partial_path_segment() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("src/ui")).unwrap();
+    std::fs::write(temp.path().join("src/ui/editor.rs"), "").unwrap();
+    std::fs::write(temp.path().join("src/ui/render.rs"), "").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    let matches = mode.file_prompt_matches("edit");
+    assert!(
+        matches.contains(&"src/ui/editor.rs".to_string()),
+        "substring match: {:?}",
+        matches
+    );
+    assert!(
+        !matches.contains(&"src/ui/render.rs".to_string()),
+        "non-match should be excluded"
+    );
+}
+
+#[test]
+fn test_prompt_hint_bare_at_shows_file_mention_mode() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("hello.rs"), "").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    let hint = mode.prompt_hint_for_input("@", 1);
+    assert!(
+        hint.contains("mode: file mention"),
+        "bare @ should activate file mention mode: {hint}"
+    );
+    assert!(
+        hint.contains("match(es)") || hint.contains("no files"),
+        "should show match info: {hint}"
+    );
+}
+
+#[test]
+fn test_prompt_hint_at_with_no_matches_shows_no_matches() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("hello.rs"), "").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    let hint = mode.prompt_hint_for_input("@zzzznotexist", "@zzzznotexist".len());
+    assert!(
+        hint.contains("no matches for zzzznotexist"),
+        "should show no matches: {hint}"
+    );
+}
+
+#[test]
+fn test_at_path_with_dot_prefix_expands() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join(".gitignore"), "target/\n").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("check @.gitignore".to_string(), &mut ctx);
+
+    let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
+    assert!(
+        turn_input.contains("[file: .gitignore]"),
+        "dot-prefixed file: {turn_input}"
+    );
+    assert!(turn_input.contains("target/"));
+}

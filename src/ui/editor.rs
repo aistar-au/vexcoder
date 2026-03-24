@@ -552,4 +552,100 @@ mod tests {
         assert_eq!(layout.cursor_col(), 0);
         assert_eq!(layout.row_bounds(1), (4, 5));
     }
+
+    // -- @ mention edge cases -------------------------------------------------
+
+    #[test]
+    fn file_mention_range_bare_at_returns_token() {
+        let range = file_mention_range("@", 1).expect("bare @ is a mention");
+        assert_eq!(range, 0..1);
+    }
+
+    #[test]
+    fn file_mention_range_bare_at_cursor_start() {
+        let range = file_mention_range("@", 0).expect("bare @ cursor at start");
+        assert_eq!(range, 0..1);
+    }
+
+    #[test]
+    fn file_mention_range_empty_buffer_returns_none() {
+        assert!(file_mention_range("", 0).is_none());
+    }
+
+    #[test]
+    fn file_mention_range_whitespace_only_returns_none() {
+        assert!(file_mention_range("   ", 1).is_none());
+    }
+
+    #[test]
+    fn file_mention_range_no_at_prefix_returns_none() {
+        assert!(file_mention_range("hello world", 3).is_none());
+    }
+
+    #[test]
+    fn file_mention_range_at_followed_by_space_cursor_past_space() {
+        // Buffer: "@ ", cursor at 2 (after the space) — no active mention.
+        assert!(file_mention_range("@ ", 2).is_none());
+    }
+
+    #[test]
+    fn file_mention_range_at_followed_by_space_cursor_on_at() {
+        // Buffer: "@ ", cursor at 0 — still on the @ token.
+        let range = file_mention_range("@ ", 0).expect("cursor on @");
+        assert_eq!(range, 0..1);
+    }
+
+    #[test]
+    fn file_mention_range_at_with_path_at_end_of_buffer() {
+        let input = "review @src/app.rs";
+        let range = file_mention_range(input, input.len()).expect("at end");
+        assert_eq!(&input[range], "@src/app.rs");
+    }
+
+    #[test]
+    fn file_mention_range_at_with_path_cursor_in_middle() {
+        let input = "review @src/app.rs more";
+        let cursor = input.find("app").unwrap();
+        let range = file_mention_range(input, cursor).expect("cursor mid-token");
+        assert_eq!(&input[range], "@src/app.rs");
+    }
+
+    #[test]
+    fn file_mention_range_multiple_at_tokens_first() {
+        let input = "@one @two @three";
+        let cursor = 2; // inside "one"
+        let range = file_mention_range(input, cursor).expect("first token");
+        assert_eq!(&input[range], "@one");
+    }
+
+    #[test]
+    fn file_mention_range_multiple_at_tokens_last() {
+        let input = "@one @two @three";
+        let cursor = input.len();
+        let range = file_mention_range(input, cursor).expect("last token");
+        assert_eq!(&input[range], "@three");
+    }
+
+    #[test]
+    fn file_mention_range_unicode_path() {
+        let input = "@données/résumé.txt";
+        let range = file_mention_range(input, input.len()).expect("unicode path");
+        assert_eq!(&input[range], input);
+    }
+
+    #[test]
+    fn file_mention_range_adjacent_to_newline() {
+        let input = "line1\n@file.rs\nline3";
+        let cursor = input.find("file").unwrap() + 2;
+        let range = file_mention_range(input, cursor).expect("after newline");
+        assert_eq!(&input[range], "@file.rs");
+    }
+
+    #[test]
+    fn file_mention_range_bare_at_between_words() {
+        let input = "hello @ world";
+        let cursor = 6; // on the @
+        let range = file_mention_range(input, cursor).expect("bare @ between words");
+        assert_eq!(&input[range], "@");
+    }
 }
