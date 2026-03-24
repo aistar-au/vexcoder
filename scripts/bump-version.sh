@@ -55,8 +55,17 @@ echo "Bumping version: $CURRENT_VERSION -> $NEW_VERSION"
 ESC_OLD=$(echo "$CURRENT_VERSION" | sed 's/[.]/\\./g')
 ESC_NEW="$NEW_VERSION"
 
+# Portable in-place sed: macOS requires -i '', GNU requires -i (no arg).
+sedi() {
+  if sed --version 2>/dev/null | grep -q GNU; then
+    sed -i "$@"
+  else
+    sed -i '' "$@"
+  fi
+}
+
 # 1. Cargo.toml — update the [package] version line.
-sed -i '' "s/^version = \"$ESC_OLD\"/version = \"$ESC_NEW\"/" Cargo.toml
+sedi "s/^version = \"$ESC_OLD\"/version = \"$ESC_NEW\"/" Cargo.toml
 echo "  Updated Cargo.toml"
 
 # 2. Cargo.lock — run cargo check to regenerate.
@@ -65,13 +74,13 @@ echo "  Updated Cargo.lock (via cargo check)"
 
 # 3. CONTRIBUTING.md — version header and packaging examples.
 if [ -f CONTRIBUTING.md ]; then
-  sed -i '' "s/$ESC_OLD/$ESC_NEW/g" CONTRIBUTING.md
+  sedi "s/$ESC_OLD/$ESC_NEW/g" CONTRIBUTING.md
   echo "  Updated CONTRIBUTING.md"
 fi
 
 # 4. RELEASING.md — example version references.
 if [ -f RELEASING.md ]; then
-  sed -i '' "s/$ESC_OLD/$ESC_NEW/g" RELEASING.md
+  sedi "s/$ESC_OLD/$ESC_NEW/g" RELEASING.md
   echo "  Updated RELEASING.md"
 fi
 
