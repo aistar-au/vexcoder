@@ -1,9 +1,8 @@
 # ==============================================================================
 # vexcoder — Makefile v0
 #
-# Wraps the exact gates that already run across ci.yml and arch-contracts.yml,
+# Wraps the exact gates that run across ci.yml and arch-contracts.yml,
 # plus the release packaging entrypoint used by release.yml.
-# No new checks. No phantom targets.
 #
 # Usage:
 #   make gate          full gate (matches ci.yml + arch-contracts.yml combined)
@@ -26,13 +25,13 @@ endif
 .SHELLFLAGS := -euo pipefail -c
 
 .PHONY: help \
-        _require-taplo _require-rg \
+	_require-taplo _require-rg _require-nextest \
         build check \
         fmt fmt-check \
         lint \
         commit-debug-gate \
         check-boundary check-routing check-imports check-names check-module-names check-arch \
-        test test-targets test-single \
+	test test-nextest test-targets test-single \
         release \
         gate gate-fast \
         fix \
@@ -59,9 +58,10 @@ help:
 	  "  check-module-names assert Rust 2018 path-based modules — no mod.rs files" \
 	  "  check-arch         all architecture boundary checks" \
 	  "  test               cargo test --all with VEX_MODEL_TOKEN=\"\" (ci.yml variant)" \
+	  "  test-nextest       cargo nextest run -j 7" \
 	  "  test-targets       cargo test --all-targets" \
 	  "  test-single        run one test by name: make test-single T=test_fn_name" \
-	  "  gate               full gate: fmt + lint + arch + tests" \
+	  "  gate               full gate: fmt + lint + arch + nextest + tests" \
 	  "  gate-fast          full gate (identical to gate)" \
 	  "  release            package one target: make release TARGET=x86_64-unknown-linux-gnu" \
 	  "  fix                rustfmt + taplo + renorm (all auto-fixable in one pass)" \
@@ -97,6 +97,15 @@ _require-rg:
 	  echo "  Install (cargo):  cargo install ripgrep"; \
 	  echo "  Install (apt):    sudo apt-get install ripgrep"; \
 	  echo "  Install (brew):   brew install ripgrep"; \
+	  echo ""; \
+	  exit 1; \
+	}
+
+_require-nextest:
+	@command -v cargo-nextest >/dev/null 2>&1 || { \
+	  echo ""; \
+	  echo "MISSING TOOL: cargo-nextest"; \
+	  echo "  Install: cargo install cargo-nextest --locked"; \
 	  echo ""; \
 	  exit 1; \
 	}
@@ -207,13 +216,19 @@ check-arch: \
 # test         cargo test --all    with VEX_MODEL_TOKEN=""
 #              Source: ci.yml — env guard prevents accidental real API calls
 #
+# test-nextest cargo nextest run -j 7
+#              Source: local pre-push hook + ci.yml consolidated gate
+#
 # test-targets cargo test --all-targets  (no token env override)
 #              Source: arch-contracts.yml — broader target set
 #
-# Both run in make gate. Removing either changes CI coverage semantics.
+# All three run in make gate. Removing any of them changes CI coverage semantics.
 # ------------------------------------------------------------------------------
 test:
 	VEX_MODEL_TOKEN="" cargo test --all
+
+test-nextest: _require-nextest
+	cargo nextest run -j 7
 
 test-targets:
 	cargo test --all-targets
@@ -233,6 +248,7 @@ gate: \
   check \
   check-arch \
   test \
+	test-nextest \
   test-targets
 	@echo ""
 	@echo "gate: all checks passed"
@@ -243,6 +259,7 @@ gate-fast: \
   check \
   check-arch \
   test \
+	test-nextest \
   test-targets
 	@echo ""
 	@echo "gate-fast: passed"

@@ -29,7 +29,7 @@ Runtime-core TUI deployment is gated by ADR-012; no deploy if any ADR-012 item i
 Architecture gates enforcing ADR-007 must remain green:
 `bash scripts/check_no_alternate_routing.sh`
 `bash scripts/check_forbidden_imports.sh`
-Tests that mutate process environment variables must hold `crate::test_support::ENV_LOCK`; `cargo test --all-targets` must pass without `--test-threads=1`. Keep `.git/hooks/pre-push` installed and wired to `cargo nextest run -j 7` for every local push.
+Tests that mutate process environment variables must hold `crate::test_support::ENV_LOCK`; `cargo test --all-targets` must pass without `--test-threads=1`. Keep `.git/hooks/pre-push` installed and wired to `cargo nextest run -j 7` for every local push. The Ubuntu `ci` workflow installs `cargo-nextest` and runs the same gate so the branch-level nextest requirement is checked remotely too.
 
 ---
 

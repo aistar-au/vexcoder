@@ -77,6 +77,10 @@ bash scripts/check_forbidden_names.sh
 Keep `.git/hooks/pre-push` installed so the local push path re-runs
 `cargo nextest run -j 7` automatically.
 
+The Ubuntu `ci` workflow now installs `cargo-nextest` and runs the same
+`make gate-fast` target, so the documented nextest requirement is enforced in
+GitHub CI as well as the local pre-push path.
+
 Commit and push only after these checks pass.
 
 Run `make gate-fast` when the branch touches layout, renderers, tests,
