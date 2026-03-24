@@ -64,6 +64,15 @@ Ignore this section in repository-hosted background sessions.
 - Prefer explicit state over stringly typed control flow.
 - Reuse existing helpers. Avoid speculative refactors.
 - When behavior changes, add or update focused tests.
+- **`main` is read-only for agents** — never commit, merge, or push to `main`.
+  All mutable work must be on a `work/vexcoder-<slug>` feature branch in a
+  sandbox worktree. The only permitted `main` operation is sync:
+  `git fetch origin --prune && git merge --ff-only origin/main`.
+- **`gh pr merge` requires explicit user instruction** — by default, present
+  merge readiness and the recommended command without executing. When the user
+  explicitly instructs the agent to merge in the current conversation, execute
+  `gh pr merge --merge --delete-branch` immediately without re-asking. The
+  user's instruction is the confirmation.
 
 ## Before committing
 
