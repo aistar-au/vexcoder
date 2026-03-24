@@ -10,12 +10,14 @@ impl TuiMode {
     fn grant_task_capabilities(&mut self, capabilities: &[Capability], source: &str) {
         let mut granted = Vec::new();
         for &capability in capabilities {
-            let previous = self
-                .current_task
-                .active_grants
-                .insert(capability, ApprovalScope::Task);
-            if previous != Some(ApprovalScope::Task) {
-                granted.push(capability_to_kebab(capability));
+            match self.current_task.active_grants.get(&capability).copied() {
+                Some(ApprovalScope::Task) | Some(ApprovalScope::Session) => continue,
+                Some(ApprovalScope::Once) | None => {
+                    self.current_task
+                        .active_grants
+                        .insert(capability, ApprovalScope::Task);
+                    granted.push(capability_to_kebab(capability));
+                }
             }
         }
         if !granted.is_empty() {

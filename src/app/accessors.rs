@@ -1,8 +1,10 @@
 use super::*;
 use crate::ui::editor::file_mention_range;
+use std::collections::BinaryHeap;
 use std::path::Path;
 
 const MAX_PROMPT_HINT_FILE_MATCHES: usize = 12;
+const MAX_FILE_PROMPT_MATCH_CANDIDATES: usize = 100;
 
 impl TuiMode {
     pub(super) fn mode_status_label(&self) -> &'static str {
@@ -188,22 +190,30 @@ impl TuiMode {
 
     pub fn file_prompt_matches(&self, prefix: &str) -> Vec<String> {
         let needle = prefix.trim().to_ascii_lowercase();
-        let mut scored = self
-            .cached_file_prompt_entries()
-            .into_iter()
-            .filter_map(|display| {
-                score_file_prompt_entry(&display, &needle).map(|score| (score, display))
-            })
-            .collect::<Vec<_>>();
+        let mut scored = BinaryHeap::new();
 
-        scored.sort_by(|(left_score, left_path), (right_score, right_path)| {
-            left_score
-                .cmp(right_score)
-                .then_with(|| left_path.len().cmp(&right_path.len()))
-                .then_with(|| left_path.cmp(right_path))
-        });
+        for display in self.cached_file_prompt_entries() {
+            let Some((rank, match_len)) = score_file_prompt_entry(&display, &needle) else {
+                continue;
+            };
 
-        scored.into_iter().map(|(_, display)| display).collect()
+            scored.push((rank, match_len, display));
+            if scored.len() > MAX_FILE_PROMPT_MATCH_CANDIDATES {
+                scored.pop();
+            }
+        }
+
+        let mut ranked = scored.into_vec();
+        ranked.sort_by(
+            |(left_rank, left_len, left_path), (right_rank, right_len, right_path)| {
+                left_rank
+                    .cmp(right_rank)
+                    .then_with(|| left_len.cmp(right_len))
+                    .then_with(|| left_path.cmp(right_path))
+            },
+        );
+
+        ranked.into_iter().map(|(_, _, display)| display).collect()
     }
 
     pub fn set_history_content_width(&self, width: usize) {

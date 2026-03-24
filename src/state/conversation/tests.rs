@@ -1362,7 +1362,12 @@ data: {"type":"message_stop"}"#.to_string(),
             first_response_sse,
             second_response_sse,
         ])));
-    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+    let temp = TempDir::new()?;
+    std::fs::write(temp.path().join("README.md"), "workspace root\n")?;
+    let mut manager = ConversationManager::new(
+        mock_api_client,
+        ToolOperator::new(temp.path().to_path_buf()),
+    );
 
     let final_text = manager
         .send_message("summarise this repo briefly".to_string(), None)

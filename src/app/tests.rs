@@ -3325,7 +3325,7 @@ async fn test_tui_review_files_flag_uses_context_assembler() {
     std::fs::write(src_dir.join("lib.rs"), "pub fn answer() -> i32 { 42 }\n").unwrap();
 
     mode.working_dir = temp.path().to_path_buf();
-    mode.on_user_input("/review --files src/*.rs inspect".to_string(), &mut ctx);
+    mode.on_user_input("/review --files @src/*.rs inspect".to_string(), &mut ctx);
 
     wait_for_model_turn(&ctx, "/review --files").await;
 
@@ -3342,8 +3342,39 @@ async fn test_tui_review_files_flag_uses_context_assembler() {
             prompt.contains("[review files] pattern: src/*.rs")
                 && prompt.contains("src/lib.rs")
                 && prompt.contains("pub fn answer() -> i32 { 42 }")
+                && !prompt.contains("@src/*.rs")
         }),
         "/review --files must render assembled file context"
+    );
+}
+
+#[tokio::test]
+async fn test_tui_review_expands_at_path_inside_instruction() {
+    let mut ctx = setup_ctx_with_responses(vec![vec![
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Reviewed\"},\"finish_reason\":\"stop\"}]}"
+            .to_string(),
+    ]]);
+    let temp = tempfile::tempdir().unwrap();
+    init_git_repo(temp.path());
+    std::fs::write(temp.path().join("tracked.txt"), "hello\n").unwrap();
+    git_success(temp.path(), &["add", "tracked.txt"]);
+    git_success(temp.path(), &["commit", "-m", "init"]);
+    std::fs::write(temp.path().join("tracked.txt"), "world\n").unwrap();
+    std::fs::write(temp.path().join("note.txt"), "review context\n").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+    mode.on_user_input("/review inspect @note.txt carefully".to_string(), &mut ctx);
+
+    wait_for_model_turn(&ctx, "/review instruction context").await;
+
+    assert!(
+        mode.last_turn_input.as_deref().is_some_and(|prompt| {
+            prompt.contains("[file: note.txt]")
+                && prompt.contains("review context")
+                && !prompt.contains("inspect @note.txt carefully")
+        }),
+        "/review must expand @path mentions inside the free-form instruction"
     );
 }
 
@@ -3632,6 +3663,42 @@ fn test_edit_command_grants_task_permissions() {
 }
 
 #[test]
+fn test_edit_command_preserves_session_permissions() {
+    let mut mode = TuiMode::new();
+    mode.current_task
+        .active_grants
+        .insert(Capability::WriteFile, ApprovalScope::Session);
+    mode.current_task
+        .active_grants
+        .insert(Capability::ApplyPatch, ApprovalScope::Session);
+    mode.current_task
+        .active_grants
+        .insert(Capability::RunCommand, ApprovalScope::Session);
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("/edit refactor src/app.rs".to_string(), &mut ctx);
+
+    assert_eq!(
+        mode.current_task.active_grants.get(&Capability::WriteFile),
+        Some(&ApprovalScope::Session)
+    );
+    assert_eq!(
+        mode.current_task.active_grants.get(&Capability::ApplyPatch),
+        Some(&ApprovalScope::Session)
+    );
+    assert_eq!(
+        mode.current_task.active_grants.get(&Capability::RunCommand),
+        Some(&ApprovalScope::Session)
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .all(|line| !line.contains("[permissions: /edit task grants")),
+        "/edit must not announce a task grant when the capability is already session-scoped"
+    );
+}
+
+#[test]
 fn test_fix_command_grants_task_permissions() {
     let mut mode = TuiMode::new();
     let mut edit_loop = EditLoop::new("task-1".to_string());
@@ -3662,6 +3729,55 @@ fn test_fix_command_grants_task_permissions() {
     assert_eq!(
         mode.current_task.active_grants.get(&Capability::RunCommand),
         Some(&ApprovalScope::Task)
+    );
+}
+
+#[test]
+fn test_fix_command_preserves_session_permissions() {
+    let mut mode = TuiMode::new();
+    mode.current_task
+        .active_grants
+        .insert(Capability::WriteFile, ApprovalScope::Session);
+    mode.current_task
+        .active_grants
+        .insert(Capability::ApplyPatch, ApprovalScope::Session);
+    mode.current_task
+        .active_grants
+        .insert(Capability::RunCommand, ApprovalScope::Session);
+    let mut edit_loop = EditLoop::new("task-1".to_string());
+    edit_loop.set_last_validation_result(crate::runtime::ValidationResult {
+        passed: false,
+        outputs: vec![crate::runtime::ValidationOutput {
+            label: "cargo test".to_string(),
+            exit_code: 1,
+            stdout_tail: String::new(),
+            stderr_tail: String::new(),
+            stdout_truncated: false,
+            stderr_truncated: false,
+        }],
+    });
+    mode.active_edit_loop = Some(edit_loop);
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("/fix".to_string(), &mut ctx);
+
+    assert_eq!(
+        mode.current_task.active_grants.get(&Capability::WriteFile),
+        Some(&ApprovalScope::Session)
+    );
+    assert_eq!(
+        mode.current_task.active_grants.get(&Capability::ApplyPatch),
+        Some(&ApprovalScope::Session)
+    );
+    assert_eq!(
+        mode.current_task.active_grants.get(&Capability::RunCommand),
+        Some(&ApprovalScope::Session)
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .all(|line| !line.contains("[permissions: /fix task grants")),
+        "/fix must not announce a task grant when the capability is already session-scoped"
     );
 }
 

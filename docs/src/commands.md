@@ -145,9 +145,9 @@ Commands entered inside the interactive UI start with `/`.
 
 - `/edit <instruction>`
   - Expands `@path` mentions inside the instruction before the edit loop starts so picked files can be inlined as context.
-  - Grants task-scoped `write-file`, `apply-patch`, and `run-command` permissions for the active edit workflow.
+  - Grants task-scoped `write-file`, `apply-patch`, and `run-command` permissions for the active edit workflow unless that capability is already session-scoped.
 - `/fix`
-  - Restores the edit loop from the last validation failure and re-seeds the same task-scoped edit permissions.
+  - Restores the edit loop from the last validation failure and re-seeds the same task-scoped edit permissions without narrowing existing session grants.
 
 ### Read-only semantic turns
 
@@ -212,7 +212,7 @@ session totals.
 
 - `@path`
   - Expands a workspace-relative file or directory into the prompt when the turn is submitted.
-  - While composing, the prompt footer searches the entire repo tree, including nested subdirectories, and ranks matches by basename and path relevance instead of limiting suggestions to simple path-prefix hits.
+  - While composing, the prompt footer searches the entire repo tree, including nested subdirectories, ranks matches by basename and path relevance, and keeps a bounded top-ranked candidate set per keystroke instead of sorting the full workspace on every keypress.
   - When a file mention is active, `Up` and `Down` move the suggestion picker through the full match list, `Enter` inserts the selected workspace-relative path into the composer, and `Esc` dismisses the picker so the raw mention can still be submitted unchanged.
   - Files are inlined as fenced text blocks. Missing paths are annotated inline instead of aborting the turn.
   - Directories render a compact workspace-relative listing.
