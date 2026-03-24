@@ -395,6 +395,7 @@ impl TuiMode {
                 .map(|path| path.to_string_lossy().into_owned())
                 .collect(),
             follow_mode: self.timeline_follow_mode,
+            picker_overlay: vec![],
         })
     }
 

@@ -63,6 +63,8 @@ pub struct TaskDraw {
     frame_counter: u64,
     /// Whether the transcript is currently inside a code block.
     in_code_block: bool,
+    /// Number of overlay rows drawn in the previous frame.
+    last_overlay_rows: u16,
 }
 
 impl TaskDraw {
@@ -80,6 +82,7 @@ impl TaskDraw {
             first_frame_done: false,
             frame_counter: 0,
             in_code_block: false,
+            last_overlay_rows: 0,
         }
     }
 
@@ -94,6 +97,7 @@ impl TaskDraw {
         self.last_composer_hash = 0;
         self.first_frame_done = false;
         self.in_code_block = false;
+        self.last_overlay_rows = 0;
     }
 
     /// Draw the full operator workspace surface.
@@ -176,6 +180,9 @@ impl TaskDraw {
             self.last_composer_hash = composer_hash;
         }
 
+        // Picker overlay (always redraw when composer changes — overlays transcript).
+        self.draw_picker_overlay(w, state, &regions);
+
         // Status bar (always redraw — cheap single-line write).
         self.draw_status_bar(w, state, &regions);
 
@@ -207,6 +214,8 @@ impl TaskDraw {
 
         self.draw_composer(w, state, regions);
         self.last_composer_hash = self.compute_composer_hash(state);
+
+        self.draw_picker_overlay(w, state, regions);
 
         self.draw_status_bar(w, state, regions);
 
@@ -721,6 +730,64 @@ impl TaskDraw {
         }
     }
 
+    // ── Picker overlay ────────────────────────────────────────────
+
+    fn draw_picker_overlay<W: Write>(
+        &mut self,
+        w: &mut W,
+        state: &TaskLayoutState,
+        regions: &Regions,
+    ) {
+        let max_rows = (regions.transcript_rows as usize).min(14);
+        let visible = state.picker_overlay.len().min(max_rows) as u16;
+
+        // Clear stale overlay rows from the previous frame.
+        if self.last_overlay_rows > visible {
+            let old_start = regions
+                .composer_start
+                .saturating_sub(self.last_overlay_rows);
+            let new_start = regions.composer_start.saturating_sub(visible);
+            for row in old_start..new_start {
+                if row >= regions.composer_start {
+                    break;
+                }
+                move_to(w, row, 0);
+                clear_line(w);
+            }
+        }
+        self.last_overlay_rows = visible;
+
+        if visible == 0 {
+            return;
+        }
+
+        let start_row = regions.composer_start.saturating_sub(visible);
+
+        for (i, line) in state
+            .picker_overlay
+            .iter()
+            .take(visible as usize)
+            .enumerate()
+        {
+            let row = start_row + i as u16;
+            if row >= regions.composer_start {
+                break;
+            }
+            move_to(w, row, 0);
+            clear_line(w);
+            if line.selected {
+                set_bold(w);
+                set_fg(w, CYAN);
+            } else {
+                set_dim(w);
+                set_fg(w, DIM_GRAY);
+            }
+            let truncated = truncate_to_width(&line.text, regions.cols as usize);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        }
+    }
+
     // ── Status bar ──────────────────────────────────────────────────
 
     fn draw_status_bar<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
@@ -849,6 +916,14 @@ impl TaskDraw {
             .wrapping_add(state.composer_focused as u64);
         if let Some(ref approval) = state.pending_approval {
             h = h.wrapping_mul(31).wrapping_add(simple_hash(approval));
+        }
+        // Include picker overlay in hash so overlay redraws on picker changes.
+        h = h
+            .wrapping_mul(31)
+            .wrapping_add(state.picker_overlay.len() as u64);
+        for line in &state.picker_overlay {
+            h = h.wrapping_mul(31).wrapping_add(simple_hash(&line.text));
+            h = h.wrapping_mul(31).wrapping_add(line.selected as u64);
         }
         h
     }

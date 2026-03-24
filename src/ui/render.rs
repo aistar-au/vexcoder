@@ -1110,6 +1110,7 @@ mod tests {
             composer_cursor: 0,
             composer_focused: true,
             follow_mode: true,
+            picker_overlay: vec![],
         };
 
         terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -1175,6 +1176,7 @@ mod tests {
             composer_cursor: 0,
             composer_focused: true,
             follow_mode: true,
+            picker_overlay: vec![],
         };
 
         terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -1227,6 +1229,7 @@ mod tests {
             composer_cursor: 0,
             composer_focused: true,
             follow_mode: true,
+            picker_overlay: vec![],
         };
 
         terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -1272,6 +1275,7 @@ mod tests {
             composer_cursor: 0,
             composer_focused: true,
             follow_mode: true,
+            picker_overlay: vec![],
         };
 
         terminal.draw(|f| render_task_layout(f, &state)).unwrap();

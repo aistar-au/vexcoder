@@ -21,6 +21,7 @@ fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState
         composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
+        picker_overlay: vec![],
     }
 }
 
@@ -257,6 +258,7 @@ fn changing_selected_inspector_entry_redraws_output() {
         composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
+        picker_overlay: vec![],
     };
     draw.draw(&mut buf, &first, 80, 24);
 
@@ -297,6 +299,7 @@ fn activity_rows_do_not_render_in_fullscreen_transcript_surface() {
         composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
+        picker_overlay: vec![],
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -587,6 +590,7 @@ fn persistent_layout_starts_with_blank_transcript_before_first_turn() {
         composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
+        picker_overlay: vec![],
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -669,6 +673,7 @@ fn fullscreen_surface_hides_top_header_chrome() {
         composer_focused: true,
         changed_files: vec!["src/main.rs".into()],
         follow_mode: true,
+        picker_overlay: vec![],
     };
 
     draw.draw(&mut buf, &state, 100, 24);
@@ -703,6 +708,7 @@ fn inline_approval_renders_in_composer() {
         composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
+        picker_overlay: vec![],
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -762,6 +768,7 @@ fn fullscreen_surface_hides_token_indicator_when_tokens_recorded() {
         composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
+        picker_overlay: vec![],
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -801,6 +808,7 @@ fn header_hides_token_indicator_when_no_turns_completed() {
         composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
+        picker_overlay: vec![],
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -834,6 +842,7 @@ fn composer_renders_live_input_text() {
         composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
+        picker_overlay: vec![],
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -867,6 +876,7 @@ fn composer_header_renders_focus_and_char_count() {
         composer_focused: false,
         changed_files: vec![],
         follow_mode: false,
+        picker_overlay: vec![],
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -926,6 +936,7 @@ fn composer_hash_tracks_live_input_changes() {
         composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
+        picker_overlay: vec![],
     };
     let second = TaskLayoutState {
         composer_text: "second".into(),
@@ -961,6 +972,7 @@ fn composer_hash_tracks_cursor_only_changes() {
         composer_focused: true,
         changed_files: vec![],
         follow_mode: true,
+        picker_overlay: vec![],
     };
     let second = TaskLayoutState {
         composer_cursor: 7,
@@ -1290,5 +1302,183 @@ fn six_space_raw_indent_differentiates_from_four_space() {
     assert_ne!(
         four_idx, six_idx,
         "indent levels must be rendered separately"
+    );
+}
+
+// -- Picker overlay regression tests -----------------------------------------
+
+#[test]
+fn picker_overlay_renders_above_composer() {
+    use crate::app::PickerOverlayLine;
+
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = TaskLayoutState {
+        task_id: "test-picker".into(),
+        status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        activity_rows: vec![],
+        timeline_entries: vec![],
+        selected_step: 0,
+        total_steps: 0,
+        output_title: "Transcript".into(),
+        output_rows: vec!["line 1".into()],
+        output_scroll_offset: 0,
+        output_scroll_anchor: OutputScrollAnchor::Bottom,
+        pending_approval: None,
+        input_hint: "Prompt\nmode: file mention".into(),
+        composer_text: "@".into(),
+        composer_cursor: 1,
+        composer_focused: true,
+        changed_files: vec![],
+        follow_mode: true,
+        picker_overlay: vec![
+            PickerOverlayLine {
+                text: "[file] 3 match(es) — Up/Down to navigate, Enter to select".into(),
+                selected: false,
+            },
+            PickerOverlayLine {
+                text: "> src/a.rs".into(),
+                selected: true,
+            },
+            PickerOverlayLine {
+                text: "  src/b.rs".into(),
+                selected: false,
+            },
+            PickerOverlayLine {
+                text: "  src/c.rs".into(),
+                selected: false,
+            },
+        ],
+    };
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    // Overlay entries must appear in the output
+    assert!(
+        output.contains("src/a.rs"),
+        "overlay entry src/a.rs must render"
+    );
+    assert!(
+        output.contains("src/b.rs"),
+        "overlay entry src/b.rs must render"
+    );
+    assert!(
+        output.contains("src/c.rs"),
+        "overlay entry src/c.rs must render"
+    );
+    // Selected entry rendered with bold+cyan (ANSI: \x1b[1m\x1b[38;5;6m)
+    assert!(
+        output.contains("\x1b[1m\x1b[38;5;6m> src/a.rs"),
+        "selected entry must render bold cyan"
+    );
+}
+
+#[test]
+fn picker_overlay_clears_when_dismissed() {
+    use crate::app::PickerOverlayLine;
+
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+
+    // First frame: overlay active
+    let state_with_overlay = TaskLayoutState {
+        task_id: "test-picker".into(),
+        status_line: "mode:ready".into(),
+        activity_rows: vec![],
+        timeline_entries: vec![],
+        selected_step: 0,
+        total_steps: 0,
+        output_title: "Transcript".into(),
+        output_rows: vec!["line 1".into()],
+        output_scroll_offset: 0,
+        output_scroll_anchor: OutputScrollAnchor::Bottom,
+        pending_approval: None,
+        input_hint: "Prompt\nmode: file mention".into(),
+        composer_text: "@".into(),
+        composer_cursor: 1,
+        composer_focused: true,
+        changed_files: vec![],
+        follow_mode: true,
+        picker_overlay: vec![
+            PickerOverlayLine {
+                text: "[file] 1 match(es)".into(),
+                selected: false,
+            },
+            PickerOverlayLine {
+                text: "> src/a.rs".into(),
+                selected: true,
+            },
+        ],
+    };
+    draw.draw(&mut buf, &state_with_overlay, 80, 24);
+    assert_eq!(draw.last_overlay_rows, 2, "overlay should track 2 rows");
+
+    // Second frame: overlay dismissed
+    let state_no_overlay = TaskLayoutState {
+        input_hint: "Prompt\nsubmit: / commands  @ files  ! shell".into(),
+        composer_text: "hello".into(),
+        composer_cursor: 5,
+        picker_overlay: vec![],
+        ..state_with_overlay
+    };
+    buf.clear();
+    draw.draw(&mut buf, &state_no_overlay, 80, 24);
+    assert_eq!(draw.last_overlay_rows, 0, "overlay rows must reset to 0");
+}
+
+#[test]
+fn picker_overlay_hash_changes_on_selection_move() {
+    use crate::app::PickerOverlayLine;
+
+    let draw = TaskDraw::new();
+    let base = TaskLayoutState {
+        task_id: "test".into(),
+        status_line: "mode:ready".into(),
+        activity_rows: vec![],
+        timeline_entries: vec![],
+        selected_step: 0,
+        total_steps: 0,
+        output_title: "Transcript".into(),
+        output_rows: vec![],
+        output_scroll_offset: 0,
+        output_scroll_anchor: OutputScrollAnchor::Bottom,
+        pending_approval: None,
+        input_hint: "Prompt\nmode: file mention".into(),
+        composer_text: "@".into(),
+        composer_cursor: 1,
+        composer_focused: true,
+        changed_files: vec![],
+        follow_mode: true,
+        picker_overlay: vec![
+            PickerOverlayLine {
+                text: "> src/a.rs".into(),
+                selected: true,
+            },
+            PickerOverlayLine {
+                text: "  src/b.rs".into(),
+                selected: false,
+            },
+        ],
+    };
+
+    let moved = TaskLayoutState {
+        picker_overlay: vec![
+            PickerOverlayLine {
+                text: "  src/a.rs".into(),
+                selected: false,
+            },
+            PickerOverlayLine {
+                text: "> src/b.rs".into(),
+                selected: true,
+            },
+        ],
+        ..base.clone()
+    };
+
+    assert_ne!(
+        draw.compute_composer_hash(&base),
+        draw.compute_composer_hash(&moved),
+        "hash must change when picker selection moves"
     );
 }
