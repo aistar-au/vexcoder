@@ -53,7 +53,7 @@ impl TuiMode {
                 }
                 SlashCommandId::New => self.handle_new_command(ctx),
                 SlashCommandId::Resume => self.handle_resume_command(args, ctx),
-                SlashCommandId::Clear => self.handle_clear_command(ctx),
+                SlashCommandId::Compact => self.handle_compact_command(ctx),
                 SlashCommandId::Fork => self.handle_fork_command(args, ctx),
                 SlashCommandId::Permissions => self.handle_permissions_command(),
                 SlashCommandId::Allow => self.handle_allow_command(args),
@@ -927,13 +927,13 @@ impl TuiMode {
             }
         }
     }
-    pub(super) fn handle_clear_command(&mut self, ctx: &mut RuntimeContext) {
+    pub(super) fn handle_compact_command(&mut self, ctx: &mut RuntimeContext) {
         let task_id = self.current_task.id.clone();
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
         self.reset_conversation_window(ctx);
         self.push_history_line(format!(
-            "[cleared: conversation history reset; task {task_id} continues]"
+            "[compacted: conversation history reset; task {task_id} continues]"
         ));
     }
     pub(super) fn handle_fork_command(&mut self, label: &str, ctx: &mut RuntimeContext) {

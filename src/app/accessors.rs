@@ -39,7 +39,7 @@ impl TuiMode {
         }
 
         let operator = ToolOperator::new(self.working_dir.clone());
-        let Ok(paths) = operator.find_files("**/*") else {
+        let Ok(paths) = operator.find_files("**") else {
             return Vec::new();
         };
 

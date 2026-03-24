@@ -1438,3 +1438,153 @@ async fn test_bang_prefix_cancellation_completes_turn() {
         "expected cancellation feedback for command sessions"
     );
 }
+
+#[test]
+fn test_waiting_indicator_appears_on_turn_start() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("hello world".to_string(), &mut ctx);
+
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[waiting for response...]"),
+        "turn start must show waiting indicator"
+    );
+}
+
+#[test]
+fn test_waiting_indicator_cleared_on_stream_delta() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("test prompt".to_string(), &mut ctx);
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[waiting for response...]"),
+        "waiting indicator must be present before first delta"
+    );
+
+    mode.on_model_update(UiUpdate::StreamDelta("Hello".to_string()), &mut ctx);
+
+    assert!(
+        !mode
+            .history_lines()
+            .iter()
+            .any(|line| line.contains("[waiting for response...]")),
+        "waiting indicator must be cleared after first stream delta"
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("Hello")),
+        "first stream delta content must be visible"
+    );
+}
+
+#[test]
+fn test_waiting_indicator_cleared_on_tool_block() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("test prompt".to_string(), &mut ctx);
+
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "tc-1".to_string(),
+                name: "list_files".to_string(),
+                input: serde_json::json!({}),
+                status: crate::state::ToolStatus::Executing,
+            },
+        },
+        &mut ctx,
+    );
+
+    assert!(
+        !mode
+            .history_lines()
+            .iter()
+            .any(|line| line == "[waiting for response...]"),
+        "waiting indicator must be cleared when a tool block starts"
+    );
+}
+
+#[test]
+fn test_verb_first_read_file_empty_path() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("read something".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "tc-read".to_string(),
+                name: "read_file".to_string(),
+                input: serde_json::json!({}),
+                status: crate::state::ToolStatus::Executing,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 1,
+            block: StreamBlock::ToolResult {
+                tool_call_id: "tc-read".to_string(),
+                output: "I need an explicit file path".to_string(),
+                is_error: true,
+            },
+        },
+        &mut ctx,
+    );
+
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.starts_with("[!] read_file:")),
+        "read_file with empty path and error must show error verb line"
+    );
+}
+
+#[test]
+fn test_verb_first_list_files_empty_path() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("list files".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "tc-list".to_string(),
+                name: "list_files".to_string(),
+                input: serde_json::json!({}),
+                status: crate::state::ToolStatus::Executing,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 1,
+            block: StreamBlock::ToolResult {
+                tool_call_id: "tc-list".to_string(),
+                output: "src/main.rs\nCargo.toml\n".to_string(),
+                is_error: false,
+            },
+        },
+        &mut ctx,
+    );
+
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("Listed workspace")),
+        "list_files with empty path must show 'Listed workspace' verb line"
+    );
+}

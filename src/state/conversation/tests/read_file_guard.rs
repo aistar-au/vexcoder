@@ -13,8 +13,7 @@ fn test_missing_read_only_location_prompt_requires_explicit_paths() {
     let prompt = missing_read_only_location_prompt("read_file", &read_missing)
         .expect("expected clarification for missing read path");
     assert!(prompt.contains("explicit file path"));
-    assert!(prompt.contains("list_files"));
-    assert!(prompt.contains("codebase_search"));
+    assert!(prompt.contains("[file: ...]"));
     assert!(missing_read_only_location_prompt("read_file", &read_blank).is_some());
     assert!(missing_read_only_location_prompt("read_file", &read_ready).is_none());
     assert!(missing_read_only_location_prompt("edit_file", &json!({})).is_none());
@@ -98,8 +97,7 @@ data: {"type":"message_stop"}"#.to_string(),
             block,
             ContentBlock::ToolResult { content, is_error: true, .. }
                 if content.contains("explicit file path")
-                    && content.contains("list_files")
-                    && content.contains("codebase_search")
+                    && content.contains("[file: ...]")
         )));
     } else {
         panic!("expected tool_result blocks");
@@ -182,8 +180,7 @@ data: {"type":"message_stop"}"#.to_string(),
                 if tool_use_id == "toolu_missing_read_parallel"
                     && *is_error
                     && content.contains("explicit file path")
-                    && content.contains("list_files")
-                    && content.contains("codebase_search")
+                    && content.contains("[file: ...]")
                     && !content.contains("requires a non-empty 'path'")
         )));
     } else {

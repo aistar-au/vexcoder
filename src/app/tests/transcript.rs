@@ -252,5 +252,5 @@ fn test_cancel_pending_blocks_stream_delta_appends() {
     mode.on_interrupt(&mut ctx);
     mode.on_model_update(UiUpdate::StreamDelta("stale".to_string()), &mut ctx);
     assert_eq!(mode.history_state.lines[0], "> hello");
-    assert_eq!(mode.history_state.lines[1], "");
+    assert_eq!(mode.history_state.lines[1], "[waiting for response...]");
 }

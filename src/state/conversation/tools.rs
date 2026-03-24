@@ -919,7 +919,7 @@ pub(super) fn missing_read_only_location_prompt(
     match name {
         "read_file" => {
             if missing(&["path", "file_path", "file", "filename"]) {
-                Some("I need an explicit file path before reading a file. Please provide a non-empty `path` such as `src/calculator.rs`. For repository overviews, start with `list_files` at the workspace root or `codebase_search` with a repo-summary query instead. No file changes were made.".to_string())
+                Some("I need an explicit file path before reading a file. Please provide a non-empty `path` such as `src/main.rs` or `adr/ADR-README.md`. If the user referenced a file with `@`, its content is already in the conversation — look for the `[file: ...]` block instead of calling read_file again. Do not retry without a concrete path. No file changes were made.".to_string())
             } else {
                 None
             }

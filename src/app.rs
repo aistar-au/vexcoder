@@ -156,7 +156,7 @@ enum SlashCommandId {
     MemoryClear,
     New,
     Resume,
-    Clear,
+    Compact,
     Fork,
     Permissions,
     Allow,
@@ -384,10 +384,10 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         "resume a saved session",
     ),
     SlashCommandSpec::new(
-        SlashCommandId::Clear,
-        SlashCommandPattern::Exact("/clear"),
-        "/clear",
-        "clear conversation history (keep task)",
+        SlashCommandId::Compact,
+        SlashCommandPattern::Exact("/compact"),
+        "/compact",
+        "compact conversation history (keep task)",
     ),
     SlashCommandSpec::new(
         SlashCommandId::Fork,
@@ -483,7 +483,7 @@ fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
         | SlashCommandId::MemoryClear
         | SlashCommandId::New
         | SlashCommandId::Resume
-        | SlashCommandId::Clear
+        | SlashCommandId::Compact
         | SlashCommandId::Fork
         | SlashCommandId::Quit
         | SlashCommandId::Exit
@@ -514,7 +514,7 @@ fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
         }
         SlashCommandId::New
         | SlashCommandId::Resume
-        | SlashCommandId::Clear
+        | SlashCommandId::Compact
         | SlashCommandId::Fork => "manage saved session state",
         SlashCommandId::Quit | SlashCommandId::Exit => "save state and exit",
         SlashCommandId::About => "show build and environment info",

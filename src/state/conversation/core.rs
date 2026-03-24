@@ -484,8 +484,23 @@ impl ConversationManager {
                     ));
                 }
 
-                if repeated_read_only_rounds >= 2 {
-                    if !repeated_round_nudge_used && rounds < max_tool_rounds {
+                // Stop faster when the round contains empty-path tool calls
+                // (e.g. read_file with no path) — one repeat is enough.
+                let has_empty_path_call = tool_use_blocks.iter().any(|block| {
+                    if let ContentBlock::ToolUse { name, input, .. } = block {
+                        matches!(name.as_str(), "read_file" | "list_files")
+                            && missing_read_only_location_prompt(name, input).is_some()
+                    } else {
+                        false
+                    }
+                });
+                let repeat_threshold = if has_empty_path_call { 1 } else { 2 };
+
+                if repeated_read_only_rounds >= repeat_threshold {
+                    if !repeated_round_nudge_used
+                        && rounds < max_tool_rounds
+                        && !has_empty_path_call
+                    {
                         repeated_round_nudge_used = true;
                         inject_repeated_round_nudge = true;
                     } else {
