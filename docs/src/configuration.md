@@ -203,23 +203,6 @@ condensed: tool results are truncated to their first 5 lines plus a
 `(N more lines)` indicator, keeping the conversation within the context
 budget without losing the thread of earlier work. Default: `10`.
 
-### `VEX_DIFF_PREFERRED_ABOVE_LINES`
-
-Line threshold above which `write_file` emits a warning suggesting
-`apply_patch` or `edit_file` instead. Default: `200`.
-
-### `VEX_WRITE_FILE_MAX_LINES`
-
-Hard line limit for `write_file`. Calls exceeding this are rejected outright
-with an error directing the model to use `apply_patch` or `edit_file`.
-Default: `500`.
-
-### `VEX_HISTORY_KEEP_TURNS`
-
-Number of recent conversation turns kept at full fidelity. Tool results in
-older turns are condensed to their first 5 lines plus a line-count indicator.
-Default: `10`.
-
 ## `vex init` scaffold
 
 `vex init` writes a commented config skeleton. It includes some reserved

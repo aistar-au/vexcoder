@@ -32,8 +32,9 @@ Use codebase_search to find functions, types, and code patterns before reading f
 Prefer search_files for targeted string matches and avoid full-file reads unless required.\n\
 Use list_files/search_files/read_file before saying a file is missing or present.\n\
 For repository summaries or unfamiliar codebases, start with list_files at the workspace root and/or codebase_search; do not call read_file until you have an explicit non-empty path.\n\
-For edit_file, use a focused old_str snippet around the target change and avoid whole-file replacements; if an entire file rewrite is needed, use write_file instead.\n\
-For code edits, prefer this sequence: search_files -> read_file -> edit_file -> read_file (verify).\n\
+For edit_file, use a focused old_str snippet around the target change and avoid whole-file replacements; use write_file only for smaller full-file rewrites that stay under the write-file guard thresholds.\n\
+For large files, prefer apply_patch or edit_file over write_file; if write_file warns or rejects due to line limits, switch tools instead of retrying the same call.\n\
+For code edits, prefer this sequence: search_files -> read_file -> edit_file -> read_file (verify), escalating to apply_patch when the change is too broad for edit_file.\n\
 For read-only requests (show/read/list/count/status/log/diff), use read-only tools and do not call mutating tools unless the user explicitly asks for changes.\n\
 If asked what git tools are available, only list built-in git tools: git_status, git_diff, git_log, git_show, git_add, git_commit.\n\
 Do not claim unsupported git tools like git_clone, git_init, git_remote, git_config, git_pull, git_push, git_branch, git_checkout, or git_stash.\n\
@@ -1339,6 +1340,17 @@ mod tests {
         assert!(BASE_SYSTEM_PROMPT
             .contains("git_status, git_diff, git_log, git_show, git_add, git_commit"));
         assert!(BASE_SYSTEM_PROMPT.contains("Do not claim unsupported git tools"));
+    }
+
+    #[test]
+    fn test_system_prompt_includes_large_file_edit_guidance() {
+        assert!(BASE_SYSTEM_PROMPT.contains(
+            "use write_file only for smaller full-file rewrites that stay under the write-file guard thresholds"
+        ));
+        assert!(BASE_SYSTEM_PROMPT
+            .contains("For large files, prefer apply_patch or edit_file over write_file"));
+        assert!(BASE_SYSTEM_PROMPT
+            .contains("escalating to apply_patch when the change is too broad for edit_file"));
     }
 
     #[test]
