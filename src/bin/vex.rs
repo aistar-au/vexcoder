@@ -793,6 +793,57 @@ mod tests {
         );
     }
 
+    #[test]
+    fn apply_file_picker_selection_directory_keeps_picker_open() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("@src");
+        let range = file_mention_range(editor.buffer(), editor.cursor()).expect("range");
+        apply_file_picker_selection(&mut editor, &range, "src/");
+        // Directory selection should NOT add trailing space — keeps picker open
+        assert_eq!(editor.buffer(), "@src/");
+    }
+
+    #[test]
+    fn apply_file_picker_selection_file_adds_space() {
+        let mut editor = InputEditor::new();
+        editor.insert_str("@src/ui/ed");
+        let range = file_mention_range(editor.buffer(), editor.cursor()).expect("range");
+        apply_file_picker_selection(&mut editor, &range, "src/ui/editor.rs");
+        // File selection adds trailing space
+        assert_eq!(editor.buffer(), "@src/ui/editor.rs ");
+    }
+
+    #[test]
+    fn file_picker_directory_drill_shows_children() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("src/ui")).unwrap();
+        std::fs::write(temp.path().join("src/ui/editor.rs"), "").unwrap();
+        std::fs::write(temp.path().join("src/lib.rs"), "").unwrap();
+
+        let mut config = Config::default_for_tui();
+        config.working_dir = temp.path().to_path_buf();
+        let mode = TuiMode::new_with_config(None, config);
+
+        // @src/ should show immediate children only
+        let picker = active_file_picker(&mode, "@src/", "@src/".len()).expect("picker");
+        assert_eq!(picker.prefix, "src/");
+        assert!(
+            picker.matches.iter().any(|m| m == "src/ui/"),
+            "should include dir: {:?}",
+            picker.matches
+        );
+        assert!(
+            picker.matches.iter().any(|m| m == "src/lib.rs"),
+            "should include file: {:?}",
+            picker.matches
+        );
+        assert!(
+            !picker.matches.iter().any(|m| m == "src/ui/editor.rs"),
+            "should NOT include nested file: {:?}",
+            picker.matches
+        );
+    }
+
     // -- / slash picker interactivity tests ------------------------------------
 
     #[test]

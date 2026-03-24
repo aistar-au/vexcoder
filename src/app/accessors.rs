@@ -206,11 +206,28 @@ impl TuiMode {
     }
 
     pub fn file_prompt_matches(&self, prefix: &str) -> Vec<String> {
-        let needle = prefix.trim().to_ascii_lowercase();
+        let needle = prefix.trim();
+
+        // Directory navigation mode: when prefix contains `/`, show immediate
+        // children of the directory path. This enables hierarchical drill-down:
+        //   @         → fuzzy match all entries
+        //   @src/     → list immediate children of src/
+        //   @src/ui/  → list immediate children of src/ui/
+        //   @src/ui/e → filter children of src/ui/ matching "e"
+        if needle.contains('/') {
+            let (dir_prefix, name_filter) = match needle.rfind('/') {
+                Some(pos) => (&needle[..=pos], &needle[pos + 1..]),
+                None => ("", needle),
+            };
+            return self.directory_filtered_children(dir_prefix, name_filter);
+        }
+
+        // Fuzzy matching for simple (no-slash) prefixes.
+        let needle_lower = needle.to_ascii_lowercase();
         let mut scored = BinaryHeap::new();
 
         for display in self.cached_file_prompt_entries() {
-            let Some((rank, match_len)) = score_file_prompt_entry(&display, &needle) else {
+            let Some((rank, match_len)) = score_file_prompt_entry(&display, &needle_lower) else {
                 continue;
             };
 
@@ -231,6 +248,50 @@ impl TuiMode {
         );
 
         ranked.into_iter().map(|(_, _, display)| display).collect()
+    }
+
+    /// List immediate children of `dir_prefix`, optionally filtered by `name_filter`.
+    ///
+    /// For `dir_prefix = "src/"` and `name_filter = ""`:
+    ///   returns `["src/app/", "src/ui/", "src/lib.rs", ...]`
+    ///
+    /// For `dir_prefix = "src/ui/"` and `name_filter = "ed"`:
+    ///   returns `["src/ui/editor.rs"]`
+    fn directory_filtered_children(&self, dir_prefix: &str, name_filter: &str) -> Vec<String> {
+        let filter_lower = name_filter.to_ascii_lowercase();
+        let dir_lower = dir_prefix.to_ascii_lowercase();
+        let mut children = std::collections::BTreeSet::new();
+
+        for entry in self.cached_file_prompt_entries() {
+            let entry_lower = entry.to_ascii_lowercase();
+            let Some(rest) = entry_lower.strip_prefix(dir_lower.as_str()) else {
+                continue;
+            };
+            if rest.is_empty() {
+                continue;
+            }
+
+            // Extract the immediate child: first path segment after the prefix.
+            let child_end = if let Some(slash_pos) = rest.find('/') {
+                dir_prefix.len() + slash_pos + 1 // include trailing /
+            } else {
+                entry.len() // file child: full path
+            };
+            let child_entry = &entry[..child_end];
+
+            // Filter on the child's own name.
+            let child_name_lower = child_entry[dir_prefix.len()..].to_ascii_lowercase();
+            if !filter_lower.is_empty()
+                && !child_name_lower.starts_with(&filter_lower)
+                && !child_name_lower.contains(&filter_lower)
+            {
+                continue;
+            }
+
+            children.insert(child_entry.to_string());
+        }
+
+        children.into_iter().collect()
     }
 
     pub fn set_history_content_width(&self, width: usize) {

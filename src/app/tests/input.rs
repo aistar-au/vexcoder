@@ -485,6 +485,91 @@ fn test_slash_picker_matches_unknown_returns_empty() {
 }
 
 #[test]
+fn test_file_prompt_matches_directory_drill_down() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("src/ui")).unwrap();
+    std::fs::create_dir_all(temp.path().join("src/app")).unwrap();
+    std::fs::write(temp.path().join("src/ui/editor.rs"), "").unwrap();
+    std::fs::write(temp.path().join("src/ui/render.rs"), "").unwrap();
+    std::fs::write(temp.path().join("src/app/input.rs"), "").unwrap();
+    std::fs::write(temp.path().join("src/lib.rs"), "").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    // `src/` should show immediate children only
+    let matches = mode.file_prompt_matches("src/");
+    assert!(
+        matches.contains(&"src/ui/".to_string()),
+        "should include src/ui/ dir: {:?}",
+        matches
+    );
+    assert!(
+        matches.contains(&"src/app/".to_string()),
+        "should include src/app/ dir: {:?}",
+        matches
+    );
+    assert!(
+        matches.contains(&"src/lib.rs".to_string()),
+        "should include src/lib.rs: {:?}",
+        matches
+    );
+    assert!(
+        !matches.contains(&"src/ui/editor.rs".to_string()),
+        "should NOT include nested file src/ui/editor.rs: {:?}",
+        matches
+    );
+}
+
+#[test]
+fn test_file_prompt_matches_directory_drill_deeper() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("src/ui")).unwrap();
+    std::fs::write(temp.path().join("src/ui/editor.rs"), "").unwrap();
+    std::fs::write(temp.path().join("src/ui/render.rs"), "").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    // `src/ui/` should show files in that directory
+    let matches = mode.file_prompt_matches("src/ui/");
+    assert!(
+        matches.contains(&"src/ui/editor.rs".to_string()),
+        "should include editor.rs: {:?}",
+        matches
+    );
+    assert!(
+        matches.contains(&"src/ui/render.rs".to_string()),
+        "should include render.rs: {:?}",
+        matches
+    );
+}
+
+#[test]
+fn test_file_prompt_matches_directory_with_filter() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("src/ui")).unwrap();
+    std::fs::write(temp.path().join("src/ui/editor.rs"), "").unwrap();
+    std::fs::write(temp.path().join("src/ui/render.rs"), "").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    // `src/ui/ed` should filter to editor.rs only
+    let matches = mode.file_prompt_matches("src/ui/ed");
+    assert!(
+        matches.contains(&"src/ui/editor.rs".to_string()),
+        "should include editor.rs: {:?}",
+        matches
+    );
+    assert!(
+        !matches.contains(&"src/ui/render.rs".to_string()),
+        "should not include render.rs: {:?}",
+        matches
+    );
+}
+
+#[test]
 fn test_file_prompt_matches_includes_directories() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(temp.path().join("src/ui")).unwrap();

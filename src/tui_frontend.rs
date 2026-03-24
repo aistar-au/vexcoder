@@ -572,11 +572,14 @@ pub fn apply_slash_picker_selection(editor: &mut InputEditor, command: &str) {
 pub fn apply_file_picker_selection(editor: &mut InputEditor, range: &Range<usize>, path: &str) {
     let range =
         file_mention_range(editor.buffer(), editor.cursor()).unwrap_or_else(|| range.clone());
-    let suffix_needs_space = editor
-        .buffer()
-        .get(range.end..)
-        .map(|rest| rest.is_empty() || !rest.starts_with(char::is_whitespace))
-        .unwrap_or(true);
+    // Directories (trailing /) stay open for drill-down — no trailing space.
+    let is_directory = path.ends_with('/');
+    let suffix_needs_space = !is_directory
+        && editor
+            .buffer()
+            .get(range.end..)
+            .map(|rest| rest.is_empty() || !rest.starts_with(char::is_whitespace))
+            .unwrap_or(true);
     let replacement = if suffix_needs_space {
         format!("@{path} ")
     } else {
