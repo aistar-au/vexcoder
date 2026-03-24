@@ -43,6 +43,12 @@ jobs:
           source "$HOME/.cargo/env" 2>/dev/null || true
           cargo install taplo-cli --version 0.8.1 --locked
 
+      - name: Install cargo-nextest
+        run: |
+          set -euo pipefail
+          source "$HOME/.cargo/env" 2>/dev/null || true
+          cargo install cargo-nextest --locked
+
       - name: Install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 

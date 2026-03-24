@@ -54,7 +54,7 @@ impl TuiMode {
         }
     }
 
-    fn expand_inline_tokens_in_text(
+    pub(super) fn expand_inline_tokens_in_text(
         &self,
         input: &str,
         operator: &ToolOperator,

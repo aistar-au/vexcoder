@@ -19,7 +19,7 @@
 1. **Identify task** — Check `adr/` for open architecture decisions.
 2. **Anchor test** — Every task has exactly one failing Rust test before work begins. No anchor, no dispatch.
 3. **Module isolation** — Work is confined to the `Target File` named in the task manifest (± one helper file).
-4. **Verification** — Success is `cargo test <anchor_name>` passing, plus `cargo test --all-targets` showing no regressions.
+4. **Verification** — Success is `cargo test <anchor_name>` passing, `cargo nextest run` staying green for the branch, plus `cargo test --all-targets` showing no regressions.
 
 Runtime mode additions and naming-policy changes require explicit confirmation before implementation or documentation. See ADR-007.
 Canonical production dispatch is runtime-core only: `Runtime<M>::run` → `RuntimeMode::on_user_input` → `RuntimeContext::start_turn`.
@@ -29,7 +29,7 @@ Runtime-core TUI deployment is gated by ADR-012; no deploy if any ADR-012 item i
 Architecture gates enforcing ADR-007 must remain green:
 `bash scripts/check_no_alternate_routing.sh`
 `bash scripts/check_forbidden_imports.sh`
-Tests that mutate process environment variables must hold `crate::test_support::ENV_LOCK`; `cargo test --all-targets` must pass without `--test-threads=1`.
+Tests that mutate process environment variables must hold `crate::test_support::ENV_LOCK`; `cargo test --all-targets` must pass without `--test-threads=1`. Keep `.git/hooks/pre-push` installed and wired to `cargo nextest run -j 7` for every local push. The Ubuntu `ci` workflow installs `cargo-nextest` and runs the same gate so the branch-level nextest requirement is checked remotely too.
 
 ---
 
@@ -87,15 +87,21 @@ Canonical dispatch and layering rules are now governed by ADR-007 and ADR-008.
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source "$HOME/.cargo/env"
 
+# 1a. Install the pre-push runner used by the local hook
+cargo install cargo-nextest --locked
+
 # 2. Verify the environment
+cargo nextest run -j 7
 cargo test --all-targets
 
 # 3. Read the relevant ADR in adr/, identify the anchor test
 
 # 4. Implement, then verify
 cargo test test_crit_XX_anchor_name -- --nocapture
+cargo nextest run -j 7
 
 # 5. Confirm no regressions
+cargo nextest run -j 7
 cargo test --all-targets
 bash scripts/check_no_alternate_routing.sh
 bash scripts/check_forbidden_imports.sh
@@ -362,6 +368,8 @@ order.
 3. **C — Commit-debug loop**: run `vexdraft/scripts/commit-debug.py`, fix
   findings, push after every code-bearing fix, verify the remote head SHA,
   and re-run until `PASS`.
+  Keep `.git/hooks/pre-push` active so each push re-runs `cargo nextest run -j 7`
+  before the remote review cycle.
   Before each push from the review branch, run `git fetch origin --prune && git rebase origin/main`
   so the branch is rebased onto the latest moving mainline.
 4. **D — Hide bot comments**: minimize automated reviewer bot comments via

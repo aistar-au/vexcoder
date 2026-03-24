@@ -1336,6 +1336,92 @@ data: {"type":"message_stop"}"#.to_string(),
 }
 
 #[tokio::test]
+async fn test_parallel_read_only_round_clarifies_missing_read_path() -> Result<()> {
+    let first_response_sse = vec![
+        r#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_parallel_missing_read_01","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
+        r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_list_root","name":"list_files","input":{}}}"#.to_string(),
+        r#"event: content_block_stop
+data: {"type":"content_block_stop","index":0}"#.to_string(),
+        r#"event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_missing_read_parallel","name":"read_file","input":{}}}"#.to_string(),
+        r#"event: content_block_stop
+data: {"type":"content_block_stop","index":1}"#.to_string(),
+        r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":6}}"#.to_string(),
+        r#"event: message_stop
+data: {"type":"message_stop"}"#.to_string(),
+    ];
+    let second_response_sse = plain_text_round(
+        "msg_parallel_missing_read_02",
+        "Use list_files or codebase_search first when the file path is unknown.",
+    );
+    let mock_api_client =
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+            first_response_sse,
+            second_response_sse,
+        ])));
+    let temp = TempDir::new()?;
+    std::fs::write(temp.path().join("README.md"), "workspace root\n")?;
+    let mut manager = ConversationManager::new(
+        mock_api_client,
+        ToolOperator::new(temp.path().to_path_buf()),
+    );
+
+    let final_text = manager
+        .send_message("summarise this repo briefly".to_string(), None)
+        .await?;
+
+    assert!(final_text.contains("list_files or codebase_search first"));
+
+    let tool_result_message = manager
+        .api_messages
+        .iter()
+        .find(|message| {
+            message.role == "user"
+                && matches!(message.content, Content::Blocks(_))
+                && message_contains_tool_result(message)
+        })
+        .expect("expected tool_result message in history");
+
+    if let Content::Blocks(blocks) = &tool_result_message.content {
+        let tool_result_ids = blocks
+            .iter()
+            .filter_map(|block| match block {
+                ContentBlock::ToolResult { tool_use_id, .. } => Some(tool_use_id.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            tool_result_ids,
+            vec!["toolu_list_root", "toolu_missing_read_parallel"]
+        );
+        assert!(blocks.iter().any(|block| matches!(
+            block,
+            ContentBlock::ToolResult {
+                tool_use_id,
+                is_error: false,
+                ..
+            } if tool_use_id == "toolu_list_root"
+        )));
+        assert!(blocks.iter().any(|block| matches!(
+            block,
+            ContentBlock::ToolResult { tool_use_id, content, is_error }
+                if tool_use_id == "toolu_missing_read_parallel"
+                    && *is_error
+                    && content.contains("explicit file path")
+                    && content.contains("list_files")
+                    && content.contains("codebase_search")
+                    && !content.contains("requires a non-empty 'path'")
+        )));
+    } else {
+        panic!("expected tool_result blocks");
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_read_only_request_blocks_mutating_tool_without_approval_prompt() -> Result<()> {
     let _env_lock = crate::test_support::ENV_LOCK.lock().await;
     std::env::set_var("VEX_TOOL_CONFIRM", "off");

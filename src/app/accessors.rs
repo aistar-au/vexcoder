@@ -1,7 +1,10 @@
 use super::*;
 use crate::ui::editor::file_mention_range;
-use std::collections::BTreeSet;
+use std::collections::BinaryHeap;
 use std::path::Path;
+
+const MAX_PROMPT_HINT_FILE_MATCHES: usize = 12;
+const MAX_FILE_PROMPT_MATCH_CANDIDATES: usize = 100;
 
 impl TuiMode {
     pub(super) fn mode_status_label(&self) -> &'static str {
@@ -166,7 +169,13 @@ impl TuiMode {
                         lines.push(format!("[file] no matches for {prefix}"));
                     }
                 } else {
-                    lines.extend(suggestions.into_iter().map(|path| format!("[file] {path}")));
+                    lines.push(format!("[file] {} match(es)", suggestions.len()));
+                    lines.extend(
+                        suggestions
+                            .into_iter()
+                            .take(MAX_PROMPT_HINT_FILE_MATCHES)
+                            .map(|path| format!("[file] {path}")),
+                    );
                 }
                 return lines.join("\n");
             }
@@ -180,21 +189,31 @@ impl TuiMode {
     }
 
     pub fn file_prompt_matches(&self, prefix: &str) -> Vec<String> {
-        let mut entries = BTreeSet::new();
+        let needle = prefix.trim().to_ascii_lowercase();
+        let mut scored = BinaryHeap::new();
+
         for display in self.cached_file_prompt_entries() {
-            let basename = Path::new(&display)
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or(display.as_str());
-            if prefix.is_empty() || display.starts_with(prefix) || basename.starts_with(prefix) {
-                entries.insert(display);
-                if entries.len() >= 8 {
-                    break;
-                }
+            let Some((rank, match_len)) = score_file_prompt_entry(&display, &needle) else {
+                continue;
+            };
+
+            scored.push((rank, match_len, display));
+            if scored.len() > MAX_FILE_PROMPT_MATCH_CANDIDATES {
+                scored.pop();
             }
         }
 
-        entries.into_iter().collect()
+        let mut ranked = scored.into_vec();
+        ranked.sort_by(
+            |(left_rank, left_len, left_path), (right_rank, right_len, right_path)| {
+                left_rank
+                    .cmp(right_rank)
+                    .then_with(|| left_len.cmp(right_len))
+                    .then_with(|| left_path.cmp(right_path))
+            },
+        );
+
+        ranked.into_iter().map(|(_, _, display)| display).collect()
     }
 
     pub fn set_history_content_width(&self, width: usize) {
@@ -231,6 +250,40 @@ impl TuiMode {
         }
         count += tool_count;
         count.max(1)
+    }
+}
+
+fn score_file_prompt_entry(display: &str, needle: &str) -> Option<(usize, usize)> {
+    if needle.is_empty() {
+        return Some((0, 0));
+    }
+
+    let display_lower = display.to_ascii_lowercase();
+    let basename = Path::new(display)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(display);
+    let basename_lower = basename.to_ascii_lowercase();
+    let segment_prefix = display_lower
+        .split('/')
+        .any(|segment| segment.starts_with(needle));
+
+    if basename_lower == needle {
+        Some((0, basename_lower.len()))
+    } else if display_lower == needle {
+        Some((1, display_lower.len()))
+    } else if basename_lower.starts_with(needle) {
+        Some((2, basename_lower.len()))
+    } else if segment_prefix {
+        Some((3, display_lower.len()))
+    } else if display_lower.starts_with(needle) {
+        Some((4, display_lower.len()))
+    } else if basename_lower.contains(needle) {
+        Some((5, basename_lower.len()))
+    } else if display_lower.contains(needle) {
+        Some((6, display_lower.len()))
+    } else {
+        None
     }
 }
 
