@@ -612,6 +612,26 @@ mod tests {
     }
 
     #[test]
+    fn active_slash_picker_surfaces_retrieval_guidance() {
+        let config = Config::default_for_tui();
+        let mode = TuiMode::new_with_config(None, config);
+
+        let picker = active_slash_picker(&mode, "/to").expect("active slash picker");
+        assert_eq!(picker.prefix, "/to");
+        assert!(
+            picker.matches.iter().any(|entry| {
+                entry.command == "/tools "
+                    && entry.label.contains("retrieve + context")
+                    && entry
+                        .label
+                        .contains("tool directory plus retrieval workflow guidance")
+            }),
+            "picker matches: {:?}",
+            picker.matches
+        );
+    }
+
+    #[test]
     fn dismissed_file_picker_stays_suppressed_until_input_changes() {
         let input = "inspect @inp";
         let range = file_mention_range(input, input.len()).expect("mention range");
@@ -931,11 +951,13 @@ mod tests {
         let matches = vec![
             SlashPickerMatch {
                 command: "/edit ".into(),
-                label: "[slash] /edit <instruction> · start an edit loop".into(),
+                label: "[slash] /edit <instruction> · edit + inspect · edit loop that may patch files"
+                    .into(),
             },
             SlashPickerMatch {
                 command: "/explain ".into(),
-                label: "[slash] /explain [path] · explain a file".into(),
+                label: "[slash] /explain [path] · retrieve + context · read-only explanation with context assembly"
+                    .into(),
             },
         ];
         let hint = render_slash_picker_hint(&matches, 0);

@@ -460,6 +460,94 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
     ),
 ];
 
+fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
+    match id {
+        SlashCommandId::Plan
+        | SlashCommandId::Explain
+        | SlashCommandId::Review
+        | SlashCommandId::Context
+        | SlashCommandId::Tools
+        | SlashCommandId::GenerateTests => "retrieve + context",
+        SlashCommandId::Edit | SlashCommandId::Fix | SlashCommandId::Diff => "edit + inspect",
+        SlashCommandId::Run | SlashCommandId::Test => "validate + execute",
+        SlashCommandId::Init
+        | SlashCommandId::Model
+        | SlashCommandId::Permissions
+        | SlashCommandId::Allow
+        | SlashCommandId::Deny
+        | SlashCommandId::Usage
+        | SlashCommandId::Commands
+        | SlashCommandId::Help
+        | SlashCommandId::MemoryShow
+        | SlashCommandId::MemoryAdd
+        | SlashCommandId::MemoryClear
+        | SlashCommandId::New
+        | SlashCommandId::Resume
+        | SlashCommandId::Clear
+        | SlashCommandId::Fork
+        | SlashCommandId::Quit
+        | SlashCommandId::Exit
+        | SlashCommandId::About => "session + control",
+    }
+}
+
+fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
+    match id {
+        SlashCommandId::Plan => "read-only plan from current repo context",
+        SlashCommandId::Explain => "read-only explanation with context assembly",
+        SlashCommandId::Review => "read-only review over assembled context",
+        SlashCommandId::Context => "session status, git state, and token summary",
+        SlashCommandId::Tools => "tool directory plus retrieval workflow guidance",
+        SlashCommandId::GenerateTests => "assemble context and draft tests for one path",
+        SlashCommandId::Edit | SlashCommandId::Fix => "edit loop that may patch files",
+        SlashCommandId::Diff => "git diff preview without starting a model turn",
+        SlashCommandId::Run | SlashCommandId::Test => "local validation only; no model turn",
+        SlashCommandId::Init => "write .vex scaffolding in the current workspace",
+        SlashCommandId::Model => "show or switch the active model name",
+        SlashCommandId::Permissions | SlashCommandId::Allow | SlashCommandId::Deny => {
+            "inspect or change capability grants"
+        }
+        SlashCommandId::Usage => "show last-turn and session token counts",
+        SlashCommandId::Commands | SlashCommandId::Help => "show grouped operator command menu",
+        SlashCommandId::MemoryShow | SlashCommandId::MemoryAdd | SlashCommandId::MemoryClear => {
+            "view or update persistent notes"
+        }
+        SlashCommandId::New
+        | SlashCommandId::Resume
+        | SlashCommandId::Clear
+        | SlashCommandId::Fork => "manage saved session state",
+        SlashCommandId::Quit | SlashCommandId::Exit => "save state and exit",
+        SlashCommandId::About => "show build and environment info",
+    }
+}
+
+fn builtin_tool_menu_group(name: &str) -> &'static str {
+    match name {
+        "list_files" | "list_directory" | "find_files" | "search" | "search_content"
+        | "codebase_search" | "read_file" => "retrieve",
+        "write_file" | "edit_file" | "apply_patch" | "rename_file" => "mutate",
+        "git_status" | "git_diff" | "git_log" | "git_show" | "git_add" | "git_commit" => "git",
+        _ => "other",
+    }
+}
+
+fn builtin_tool_usage_hint(name: &str) -> &'static str {
+    match name {
+        "list_files" | "list_directory" => "start broad at the workspace or directory level",
+        "find_files" => "narrow to filename matches before reading content",
+        "search" | "search_content" => "scan exact text or regex hits across files",
+        "codebase_search" => "rank functions, types, and code snippets before opening files",
+        "read_file" => "read exact paths after discovery narrows the target",
+        "write_file" | "edit_file" | "apply_patch" | "rename_file" => {
+            "make targeted workspace mutations"
+        }
+        "git_status" | "git_diff" | "git_log" | "git_show" | "git_add" | "git_commit" => {
+            "inspect and record repository state"
+        }
+        _ => "built-in tool",
+    }
+}
+
 #[derive(Debug, Default, PartialEq, Eq)]
 struct GenerateTestsArgs {
     path: Option<String>,

@@ -395,8 +395,9 @@ impl TuiMode {
                 SlashPickerMatch {
                     command: format!("{command_word} "),
                     label: format!(
-                        "[slash] {} · {}",
+                        "[slash] {} · {} · {}",
                         spec.display,
+                        slash_command_menu_group(spec.id),
                         slash_command_mode_summary(spec.id)
                     ),
                 }
@@ -418,21 +419,5 @@ impl TuiMode {
                 }),
         );
         rows
-    }
-}
-
-fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
-    match id {
-        SlashCommandId::Plan => "read-only · no patch",
-        SlashCommandId::Init => "writes .vex + AGENTS in current workspace",
-        SlashCommandId::Edit | SlashCommandId::Fix => "edit loop · may patch",
-        SlashCommandId::Explain | SlashCommandId::Review => "read-only semantic turn",
-        SlashCommandId::Run | SlashCommandId::Test => "local validation only",
-        SlashCommandId::Permissions | SlashCommandId::Allow | SlashCommandId::Deny => {
-            "session permissions"
-        }
-        SlashCommandId::Model => "session model selection",
-        SlashCommandId::Commands | SlashCommandId::Help => "show command directory",
-        _ => "session command",
     }
 }

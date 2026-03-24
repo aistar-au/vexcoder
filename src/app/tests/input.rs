@@ -133,6 +133,7 @@ fn test_at_path_directory_renders_listing() {
     assert!(turn_input.contains("[dir: src]"));
     assert!(turn_input.contains("src/lib.rs"));
 }
+
 #[test]
 fn test_at_path_missing_file_is_annotated() {
     let temp = tempfile::tempdir().unwrap();
@@ -231,6 +232,7 @@ fn test_at_path_expanded_inside_plan_args() {
     assert!(turn_input.contains("[file: note.txt]"));
     assert!(turn_input.contains("hello from file"));
 }
+
 #[test]
 fn test_file_prompt_matches_include_repo_wide_substring_results() {
     let temp = tempfile::tempdir().unwrap();
@@ -260,6 +262,7 @@ fn test_prompt_hint_for_slash_and_file_mentions() {
     let slash_hint = mode.prompt_hint_for_input("/pl", 3);
     assert!(slash_hint.contains("mode: slash"));
     assert!(slash_hint.contains("/plan <instruction>"));
+    assert!(slash_hint.contains("retrieve + context"));
 
     let file_hint = mode.prompt_hint_for_input("inspect @inp", "inspect @inp".len());
     assert!(file_hint.contains("mode: file mention"));
@@ -459,7 +462,33 @@ fn test_prompt_hint_slash_edit_filters() {
         hint.contains("/edit"),
         "should show /edit suggestion: {hint}"
     );
+    assert!(
+        hint.contains("edit + inspect"),
+        "should show slash grouping: {hint}"
+    );
     assert!(!hint.contains("/quit"), "should not show /quit: {hint}");
+}
+
+#[test]
+fn test_slash_picker_matches_include_retrieval_guidance() {
+    let mode = TuiMode::new();
+    let matches = mode.slash_picker_matches("/to");
+    let tools = matches
+        .iter()
+        .find(|entry| entry.command == "/tools ")
+        .expect("/tools suggestion");
+    assert!(
+        tools.label.contains("retrieve + context"),
+        "{}",
+        tools.label
+    );
+    assert!(
+        tools
+            .label
+            .contains("tool directory plus retrieval workflow guidance"),
+        "{}",
+        tools.label
+    );
 }
 
 #[test]
