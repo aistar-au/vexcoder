@@ -99,6 +99,32 @@ impl ConversationManager {
         }
     }
 
+    /// Aggressively compact conversation history after a context-overflow
+    /// error from the server.  Keeps only the last 4 messages (the current
+    /// user message plus the most recent context), ensuring the history
+    /// starts with a plain user message (no tool_result).
+    pub(super) fn compact_for_context_overflow(&mut self) {
+        const KEEP_MESSAGES: usize = 4;
+        if self.api_messages.len() <= KEEP_MESSAGES {
+            return;
+        }
+        let len = self.api_messages.len();
+        let mut keep_start = len.saturating_sub(KEEP_MESSAGES);
+
+        // MessagesV1 requires the first message to be a plain user message.
+        while keep_start < len {
+            let msg = &self.api_messages[keep_start];
+            if msg.role == "user" && !message_contains_tool_result(msg) {
+                break;
+            }
+            keep_start += 1;
+        }
+
+        if keep_start > 0 && keep_start < len {
+            self.api_messages.drain(0..keep_start);
+        }
+    }
+
     /// Condense tool results in messages older than `keep_turns` recent
     /// message pairs. Each affected tool result is truncated to its first 5
     /// lines plus a `(N more lines)` indicator.

@@ -462,8 +462,7 @@ fn map_api_status_error(
     if is_context_overflow(body) {
         let ctx_hint = if is_local {
             "\n  The conversation has exceeded the server's context window. \
-             Restart the server with a larger context size (e.g. --ctx-size 8192) \
-             or use /clear to reset the conversation."
+             Increase the server context size (e.g. --ctx-size 8192) or use /clear to reset."
         } else {
             "\n  The conversation has exceeded the endpoint's context window. \
              Use /clear to reset the conversation."
@@ -510,7 +509,7 @@ fn map_api_status_error(
 
 /// Returns true when the response body indicates the request exceeded the
 /// server's configured context window.
-fn is_context_overflow(body: &str) -> bool {
+pub fn is_context_overflow(body: &str) -> bool {
     let lower = body.to_ascii_lowercase();
     lower.contains("exceeds the available context size")
         || lower.contains("exceeds context")
