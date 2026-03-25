@@ -16,6 +16,7 @@ use crate::runtime::mode::RuntimeMode;
 use crate::runtime::policy::sanitize_assistant_text;
 use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
 use crate::runtime::r#loop::Runtime;
+use crate::runtime::task_state::SessionNote;
 use crate::runtime::validation::ValidationSuite;
 #[cfg(test)]
 use crate::runtime::CommandResult;

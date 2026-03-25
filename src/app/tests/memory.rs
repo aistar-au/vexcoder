@@ -17,8 +17,11 @@ fn test_tui_memory_renders_empty_notes() {
 }
 #[test]
 fn test_tui_memory_add_appends_to_file() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
     let notes_path = temp.path().join("memory.md");
+    let state_dir = temp.path().join("state");
+    std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str());
     let mut ctx = setup_ctx();
     let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
     mode.on_user_input("/memory add hello world".to_string(), &mut ctx);
@@ -30,7 +33,12 @@ fn test_tui_memory_add_appends_to_file() {
     );
     let content = std::fs::read_to_string(&notes_path).unwrap();
     assert!(content.contains("hello world"));
+    assert_eq!(mode.current_task.session_notes.len(), 1);
+    assert_eq!(mode.current_task.session_notes[0].content, "hello world");
+    let saved = TaskState::load(&state_dir, &mode.current_task_id()).unwrap();
+    assert_eq!(saved.session_notes, mode.current_task.session_notes);
     assert!(!mode.is_turn_in_progress());
+    std::env::remove_var("VEX_STATE_DIR");
 }
 #[test]
 fn test_tui_memory_clear_requires_confirmation() {
@@ -77,6 +85,32 @@ fn test_tui_memory_clear_cancellable() {
         content.contains("keep this note"),
         "file must not be cleared on cancel"
     );
+}
+
+#[test]
+fn test_tui_memory_clear_persists_empty_session_notes() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let notes_path = temp.path().join("memory.md");
+    let state_dir = temp.path().join("state");
+    std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str());
+
+    let mut ctx = setup_ctx();
+    let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
+    mode.on_user_input("/memory add keep this".to_string(), &mut ctx);
+    mode.on_user_input("/memory clear".to_string(), &mut ctx);
+    mode.on_user_input("y".to_string(), &mut ctx);
+
+    let saved = TaskState::load(&state_dir, &mode.current_task_id()).unwrap();
+    assert!(saved.session_notes.is_empty());
+    assert!(mode.current_task.session_notes.is_empty());
+    let content = std::fs::read_to_string(&notes_path).unwrap();
+    assert!(
+        content.trim().is_empty(),
+        "/memory clear must clear file contents"
+    );
+
+    std::env::remove_var("VEX_STATE_DIR");
 }
 #[test]
 fn test_tui_memory_does_not_call_start_turn() {

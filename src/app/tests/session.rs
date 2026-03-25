@@ -240,6 +240,36 @@ fn test_tui_compact_resets_conversation_history() {
     );
     assert!(!mode.is_turn_in_progress());
 }
+
+#[test]
+fn test_tui_compact_persists_cleared_turns() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+    let mut mode = TuiMode::new();
+    mode.current_task.turns.push(TurnEvidenceState {
+        input: "draft a plan".to_string(),
+        response: "plan ready".to_string(),
+        tool_invocations: Vec::new(),
+        changed_files: Vec::new(),
+        command_history: Vec::new(),
+        tokens: Default::default(),
+    });
+    mode.persist_current_task_state();
+
+    let task_id = mode.current_task_id();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("/compact".to_string(), &mut ctx);
+
+    let saved = TaskState::load(temp.path(), &task_id).unwrap();
+    assert!(
+        saved.turns.is_empty(),
+        "/compact must persist cleared turns"
+    );
+
+    std::env::remove_var("VEX_STATE_DIR");
+}
 #[test]
 fn test_tui_compact_preserves_task_id_and_grants() {
     let mut mode = TuiMode::new();
