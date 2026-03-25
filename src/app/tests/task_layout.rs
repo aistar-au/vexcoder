@@ -288,6 +288,73 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
         vec!["edit_file: running...", "validate: running..."]
     );
 }
+
+#[test]
+fn test_task_layout_state_keeps_command_sessions_alongside_other_steps() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("run the validation".to_string(), &mut ctx);
+    mode.current_turn_tool_invocations = vec![ToolInvocationSummary {
+        step_id: 1,
+        name: "read_file".to_string(),
+        outcome: "ok".to_string(),
+    }];
+    mode.pending_turn_tool_calls.insert(
+        "tool-1".to_string(),
+        PendingTurnToolCall {
+            step_id: 2,
+            name: "run_command".to_string(),
+            input_preview: "{}".to_string(),
+            input: serde_json::json!({}),
+        },
+    );
+    mode.command_sessions.push(CommandSessionState {
+        id: 99,
+        command: "cargo nextest run -j 2".to_string(),
+        pid: Some(4242),
+        status: "running".to_string(),
+    });
+
+    let state = mode.task_layout_state().expect("task layout state");
+    let labels = state
+        .timeline_entries
+        .iter()
+        .map(|entry| entry.label.clone())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        labels,
+        vec![
+            "run the validation".to_string(),
+            "read_file · ok · completed".to_string(),
+            "run_command: running...".to_string(),
+            "cargo nextest run -j 2: running".to_string(),
+        ]
+    );
+    assert_eq!(
+        state.activity_rows,
+        vec![
+            "> run the validation".to_string(),
+            "[ok] read_file: ok".to_string(),
+            "[->] run_command: running...".to_string(),
+            "[$$] cargo nextest run -j 2: running".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn test_task_layout_state_clamps_selected_step_when_timeline_is_empty() {
+    let mut mode = TuiMode::new();
+    mode.selected_timeline_index = 42;
+    mode.timeline_follow_mode = false;
+
+    let state = mode.task_layout_state().expect("task layout state");
+
+    assert!(state.timeline_entries.is_empty());
+    assert_eq!(state.total_steps, 0);
+    assert_eq!(state.selected_step, 0);
+}
 #[test]
 fn test_timeline_down_disables_follow_mode_until_end() {
     let mut mode = TuiMode::new();
