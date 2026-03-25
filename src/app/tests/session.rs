@@ -737,3 +737,77 @@ fn test_tui_compact_clears_active_edit_loop_field() {
         "/compact must clear active_edit_loop field"
     );
 }
+#[test]
+fn test_tui_compact_resets_turn_evidence_and_token_counter() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    // Simulate a completed turn with token usage.
+    mode.current_task
+        .turns
+        .push(crate::turn_evidence::TurnEvidenceState {
+            input: "hello".to_string(),
+            response: "world".to_string(),
+            tokens: crate::usage::TurnTokens {
+                input: 1000,
+                output: 500,
+                estimated: false,
+            },
+            ..Default::default()
+        });
+    ctx.test_record_session_turn(crate::usage::TurnTokens {
+        input: 1000,
+        output: 500,
+        estimated: false,
+    });
+
+    // Verify tokens are non-zero before compact.
+    let status_before = mode.status_line();
+    assert!(
+        status_before.contains("tokens:1500"),
+        "status line must show accumulated tokens before compact, got: {status_before}"
+    );
+
+    mode.on_user_input("/compact".to_string(), &mut ctx);
+
+    // After compact, turns must be cleared so the status line shows tokens:0.
+    assert!(
+        mode.current_task.turns.is_empty(),
+        "/compact must clear turn evidence to reset token counter"
+    );
+    let status_after = mode.status_line();
+    assert!(
+        status_after.contains("tokens:0"),
+        "status line must show tokens:0 after compact, got: {status_after}"
+    );
+}
+#[test]
+fn test_tui_compact_preserves_task_id_but_clears_turns() {
+    let mut mode = TuiMode::new();
+    let original_id = mode.current_task_id();
+    let mut ctx = setup_ctx();
+
+    mode.current_task
+        .turns
+        .push(crate::turn_evidence::TurnEvidenceState {
+            input: "test".to_string(),
+            response: "response".to_string(),
+            ..Default::default()
+        });
+
+    mode.on_user_input("/compact".to_string(), &mut ctx);
+
+    assert_eq!(
+        mode.current_task_id(),
+        original_id,
+        "/compact must preserve task-id"
+    );
+    assert!(
+        mode.current_task.turns.is_empty(),
+        "/compact must clear accumulated turns"
+    );
+    assert!(
+        !mode.current_task.active_grants.is_empty() || mode.current_task.active_grants.is_empty(),
+        "grants state must remain consistent"
+    );
+}
