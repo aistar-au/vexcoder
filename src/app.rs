@@ -762,6 +762,8 @@ pub struct TuiMode {
     last_error_message: Option<String>,
     /// Remembers a runtime turn completion event until the last command session exits.
     turn_completion_pending: bool,
+    /// Tracks whether the current turn is a `/plan` command (ADR-029 plan persistence).
+    plan_turn_active: bool,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }

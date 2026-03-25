@@ -359,6 +359,7 @@ fn normalize_turn_tokens(input: &str, response: &str, turn_tokens: TurnTokens) -
             input: estimate_tokens(input),
             output: estimate_tokens(response),
             estimated: true,
+            ..Default::default()
         }
     } else {
         turn_tokens
@@ -462,6 +463,17 @@ fn forward_conversation_update(
         }
         ConversationStreamUpdate::CommandSessionFinished { session_id } => {
             let _ = tx.send(UiUpdate::CommandSessionFinished { session_id });
+        }
+        ConversationStreamUpdate::ContextCompacted {
+            messages_before,
+            messages_after,
+            summary,
+        } => {
+            let _ = tx.send(UiUpdate::ContextCompacted {
+                messages_before,
+                messages_after,
+                summary,
+            });
         }
     }
 }

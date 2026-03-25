@@ -20,6 +20,12 @@ pub enum ConversationStreamUpdate {
     CommandSessionStarted { session_id: u64, command: String },
     CommandSessionAttached { session_id: u64, pid: Option<u32> },
     CommandSessionFinished { session_id: u64 },
+    /// Emitted when conversation history is compacted (ADR-029 session persistence).
+    ContextCompacted {
+        messages_before: usize,
+        messages_after: usize,
+        summary: String,
+    },
 }
 
 pub struct ToolApprovalRequest {

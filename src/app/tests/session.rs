@@ -752,6 +752,7 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
                 input: 1000,
                 output: 500,
                 estimated: false,
+                ..Default::default()
             },
             ..Default::default()
         });
@@ -759,6 +760,7 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
         input: 1000,
         output: 500,
         estimated: false,
+        ..Default::default()
     });
 
     // Verify tokens are non-zero before compact.

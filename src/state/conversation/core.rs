@@ -156,12 +156,21 @@ impl ConversationManager {
                     self.compact_for_context_overflow();
                     let after = self.api_messages.len();
                     compacted_this_turn = true;
+                    let summary = format!(
+                        "compacted {} → {} messages to fit server window",
+                        before, after
+                    );
                     emit_text_update(
                         stream_delta_tx,
-                        format!(
-                            "\n[context: compacted {} → {} messages to fit server window, retrying]\n",
-                            before, after
-                        ),
+                        format!("\n[context: {summary}, retrying]\n"),
+                    );
+                    emit_stream_update(
+                        stream_delta_tx,
+                        ConversationStreamUpdate::ContextCompacted {
+                            messages_before: before,
+                            messages_after: after,
+                            summary,
+                        },
                     );
                     // Do not increment rounds — this is recovery, not a tool round.
                     rounds -= 1;
@@ -1022,5 +1031,15 @@ fn accumulate_usage(turn_tokens: &mut TurnTokens, usage: Option<&ApiUsage>) {
     }
     if let Some(output) = usage.output_tokens {
         turn_tokens.output = turn_tokens.output.saturating_add(output);
+    }
+    if let Some(cache_creation) = usage.cache_creation_input_tokens {
+        turn_tokens.cache_creation_input_tokens = turn_tokens
+            .cache_creation_input_tokens
+            .saturating_add(cache_creation);
+    }
+    if let Some(cache_read) = usage.cache_read_input_tokens {
+        turn_tokens.cache_read_input_tokens = turn_tokens
+            .cache_read_input_tokens
+            .saturating_add(cache_read);
     }
 }

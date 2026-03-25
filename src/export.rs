@@ -161,6 +161,7 @@ mod tests {
                 input: 5,
                 output: 7,
                 estimated: false,
+                ..Default::default()
             },
         });
 

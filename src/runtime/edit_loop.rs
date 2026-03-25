@@ -541,7 +541,8 @@ args = ["/C", "echo still failing 1>&2 && exit /b 1"]
                     | UiUpdate::CommandSessionFinished { .. }
                     | UiUpdate::TurnComplete
                     | UiUpdate::EditLoopComplete { .. }
-                    | UiUpdate::Error(_) => {}
+                    | UiUpdate::Error(_)
+                    | UiUpdate::ContextCompacted { .. } => {}
                 }
             }
         });

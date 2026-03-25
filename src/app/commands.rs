@@ -365,6 +365,7 @@ impl TuiMode {
         let render_assembler = ContextAssembler::default();
         let rendered_context = render_assembler.render(&assembled);
         let prompt = render_plan_prompt(&instruction, &rendered_context, &scope_instruction);
+        self.plan_turn_active = true;
         self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
     }
     pub(super) fn handle_init_command(&mut self, environment: &str) {

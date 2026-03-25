@@ -36,7 +36,8 @@ pub use json_handoff::{
 };
 pub use sandbox::{PassthroughSandbox, SandboxDriver};
 pub use task_state::{
-    CommandEvidence, ConversationCheckpoint, InterruptedCommand, TaskId, TaskState, TaskStatus,
+    CacheUsageStats, CommandEvidence, ContextCompactionRecord, ConversationCheckpoint,
+    InterruptedCommand, TaskId, TaskState, TaskStatus,
 };
 pub use text_util::{truncate_head_bytes, truncate_tail_bytes};
 pub use update::UiUpdate;

@@ -573,7 +573,8 @@ async fn test_execute_tool_run_command_streams_managed_session_updates() -> Resu
             | ConversationStreamUpdate::BlockStart { .. }
             | ConversationStreamUpdate::BlockDelta { .. }
             | ConversationStreamUpdate::BlockComplete { .. }
-            | ConversationStreamUpdate::ToolApprovalRequest(_) => {}
+            | ConversationStreamUpdate::ToolApprovalRequest(_)
+            | ConversationStreamUpdate::ContextCompacted { .. } => {}
         }
     }
 

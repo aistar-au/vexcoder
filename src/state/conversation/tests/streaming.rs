@@ -234,7 +234,8 @@ data: {"type":"message_stop"}"#.to_string(),
                     | ConversationStreamUpdate::TranscriptLine(_)
                     | ConversationStreamUpdate::CommandSessionStarted { .. }
                     | ConversationStreamUpdate::CommandSessionAttached { .. }
-                    | ConversationStreamUpdate::CommandSessionFinished { .. } => {}
+                    | ConversationStreamUpdate::CommandSessionFinished { .. }
+                    | ConversationStreamUpdate::ContextCompacted { .. } => {}
                 }
             }
         }
@@ -385,7 +386,8 @@ data: {"type":"message_stop"}"#.to_string(),
                     | ConversationStreamUpdate::TranscriptLine(_)
                     | ConversationStreamUpdate::CommandSessionStarted { .. }
                     | ConversationStreamUpdate::CommandSessionAttached { .. }
-                    | ConversationStreamUpdate::CommandSessionFinished { .. } => {}
+                    | ConversationStreamUpdate::CommandSessionFinished { .. }
+                    | ConversationStreamUpdate::ContextCompacted { .. } => {}
                 }
             }
         }
