@@ -4,12 +4,12 @@
 //! enforces inward-only dependency direction:
 //!
 //!   CLI (src/bin/) -> Application facade (src/app/) -> Runtime (src/runtime/)
-//!   Transport (src/local_api.rs) -> Application facade (src/app/)
+//!   Transport (src/server/, src/local_api.rs) -> Application facade (src/app/)
 //!
 //! Forbidden directions:
 //!   - Runtime must NOT import CLI, transport, terminal, or TUI frontend
 //!   - State/conversation must NOT import CLI, transport, terminal, or TUI
-//!   - Application facade must NOT import CLI (src/bin/)
+//!   - Application facade must NOT import CLI (src/bin/) or transport (src/server/)
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -151,9 +151,7 @@ fn tools_must_not_import_cli_transport_terminal_or_tui() {
 #[test]
 fn app_facade_must_not_import_cli_binary() {
     let app_dir = src_dir().join("app");
-    // The facade may import local_api (it wraps serve_local_api), but must
-    // never reach back into the CLI binary entrypoint.
-    let forbidden = &["bin"];
+    let forbidden = &["bin", "server"];
     let violations = assert_no_forbidden_imports(&app_dir, forbidden, "app");
     assert!(
         violations.is_empty(),
@@ -199,7 +197,6 @@ fn facade_module_exports_required_entrypoints() {
         "build_facade_runtime",
         "execute_facade_runtime",
         "run_tui_session",
-        "serve_facade_local_api",
     ];
 
     for name in required {

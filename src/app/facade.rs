@@ -1,7 +1,6 @@
 use super::*;
 use crate::api::ApiClient;
 use crate::runtime::frontend::FrontendAdapter;
-use crate::server::serve_local_api;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FacadeBootstrap {
@@ -83,14 +82,5 @@ where
         None => build_runtime(config)?,
     };
     runtime.run(frontend, &mut ctx).await;
-    Ok(())
-}
-
-pub async fn serve_facade_local_api(
-    config: Config,
-    host: Option<String>,
-    port: Option<u16>,
-) -> AppResult<()> {
-    serve_local_api(config, host, port).await?;
     Ok(())
 }
