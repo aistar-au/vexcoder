@@ -995,7 +995,7 @@ fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize,
             (start, end)
         }
         OutputScrollAnchor::Top => {
-            let inspector_height = viewport_height.min(INSPECTOR_VIEWPORT_ROWS).max(1);
+            let inspector_height = viewport_height.clamp(1, INSPECTOR_VIEWPORT_ROWS);
             let start = state.output_scroll_offset.min(total.saturating_sub(1));
             let end = (start + inspector_height).min(total);
             (start, end)
