@@ -7,10 +7,9 @@ use std::net::ToSocketAddrs;
 use std::path::Path;
 use std::sync::Arc;
 
-use super::{
-    ControlResponse, HttpSurfaceSettings, ResolvedHttpSurface, ResolvedServeConfig,
-    ResolvedUnixSurface,
-};
+#[cfg(unix)]
+use super::ResolvedUnixSurface;
+use super::{ControlResponse, HttpSurfaceSettings, ResolvedHttpSurface, ResolvedServeConfig};
 use crate::config::Config;
 
 pub fn resolve_serve_config(
