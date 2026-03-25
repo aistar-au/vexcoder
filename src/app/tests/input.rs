@@ -411,6 +411,34 @@ fn test_file_prompt_matches_partial_path_segment() {
 }
 
 #[test]
+fn test_file_prompt_matches_segment_prefix_prefers_shorter_matching_segment() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("q/feature-long")).unwrap();
+    std::fs::create_dir_all(temp.path().join("very/deep/feature")).unwrap();
+    std::fs::write(temp.path().join("q/feature-long/alpha.rs"), "").unwrap();
+    std::fs::write(temp.path().join("very/deep/feature/beta.rs"), "").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    let matches = mode.file_prompt_matches("feat");
+    let feature_index = matches
+        .iter()
+        .position(|entry| entry == "very/deep/feature/")
+        .expect("feature directory match");
+    let feature_long_index = matches
+        .iter()
+        .position(|entry| entry == "q/feature-long/")
+        .expect("feature-long directory match");
+
+    assert!(
+        feature_index < feature_long_index,
+        "shorter matching segment should rank first: {:?}",
+        matches
+    );
+}
+
+#[test]
 fn test_prompt_hint_bare_at_shows_file_mention_mode() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("hello.rs"), "").unwrap();

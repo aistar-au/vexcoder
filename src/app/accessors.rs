@@ -4,6 +4,8 @@ use std::collections::BinaryHeap;
 use std::path::Path;
 
 const MAX_PROMPT_HINT_FILE_MATCHES: usize = 12;
+// Keep a wider ranked heap than the visible hint window so the top 12 entries
+// stay stable regardless of filesystem walk order.
 const MAX_FILE_PROMPT_MATCH_CANDIDATES: usize = 100;
 
 /// Directories excluded from the @ file picker.  `.github/` and `.agents/`
@@ -354,9 +356,11 @@ fn score_file_prompt_entry(display: &str, needle: &str) -> Option<(usize, usize)
         .and_then(|name| name.to_str())
         .unwrap_or(display);
     let basename_lower = basename.to_ascii_lowercase();
-    let segment_prefix = display_lower
+    let segment_prefix_len = display_lower
         .split('/')
-        .any(|segment| segment.starts_with(needle));
+        .filter(|segment| segment.starts_with(needle))
+        .map(str::len)
+        .min();
 
     if basename_lower == needle {
         Some((0, basename_lower.len()))
@@ -364,8 +368,8 @@ fn score_file_prompt_entry(display: &str, needle: &str) -> Option<(usize, usize)
         Some((1, display_lower.len()))
     } else if basename_lower.starts_with(needle) {
         Some((2, basename_lower.len()))
-    } else if segment_prefix {
-        Some((3, display_lower.len()))
+    } else if let Some(segment_len) = segment_prefix_len {
+        Some((3, segment_len))
     } else if display_lower.starts_with(needle) {
         Some((4, display_lower.len()))
     } else if basename_lower.contains(needle) {

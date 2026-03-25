@@ -106,8 +106,8 @@ _require-rg:
 _require-nextest:
 	@command -v cargo-nextest >/dev/null 2>&1 || { \
 	  echo ""; \
-	  echo "MISSING TOOL: cargo-nextest"; \
-	  echo "  Install: cargo install cargo-nextest --locked"; \
+	  echo "MISSING TOOL: cargo nextest run"; \
+	  echo "  Install cargo-nextest: cargo install cargo-nextest --locked"; \
 	  echo ""; \
 	  exit 1; \
 	}

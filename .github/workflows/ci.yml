@@ -141,7 +141,7 @@ jobs:
           set -euo pipefail
           curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
-      - name: Run tests (nextest, j4)
+      - name: Run tests (nextest, j2)
         env:
           VEX_MODEL_TOKEN: ""
         run: |
