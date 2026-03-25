@@ -1,6 +1,107 @@
 use vexcoder::api::stream::StreamParser;
 use vexcoder::types::{ContentBlock, StreamEvent};
 
+// ---------------------------------------------------------------------------
+// MessagesV1 format tests — native event types
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_messages_v1_message_start_event_parsed() {
+    let mut parser = StreamParser::new();
+
+    let chunk = br#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_01","type":"message","role":"assistant","content":[],"model":"local-model","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":25,"output_tokens":1}}}
+
+"#;
+    let events = parser
+        .process(chunk)
+        .expect("message_start event should parse");
+    assert_eq!(events.len(), 1);
+
+    match &events[0] {
+        StreamEvent::MessageStart { message } => {
+            assert_eq!(message.id, "msg_01");
+            assert_eq!(message.role, "assistant");
+        }
+        other => panic!("expected MessageStart, got: {other:?}"),
+    }
+}
+
+#[test]
+fn test_messages_v1_message_delta_with_stop_reason() {
+    let mut parser = StreamParser::new();
+
+    let chunk = br#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":15}}
+
+"#;
+    let events = parser
+        .process(chunk)
+        .expect("message_delta event should parse");
+    assert_eq!(events.len(), 1);
+
+    match &events[0] {
+        StreamEvent::MessageDelta { delta, usage } => {
+            assert_eq!(delta.stop_reason.as_deref(), Some("end_turn"));
+            assert!(usage.is_some());
+        }
+        other => panic!("expected MessageDelta, got: {other:?}"),
+    }
+}
+
+#[test]
+fn test_messages_v1_content_block_stop_event() {
+    let mut parser = StreamParser::new();
+
+    let chunk = br#"event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+"#;
+    let events = parser
+        .process(chunk)
+        .expect("content_block_stop event should parse");
+    assert_eq!(events.len(), 1);
+
+    match &events[0] {
+        StreamEvent::ContentBlockStop { index } => {
+            assert_eq!(*index, 0);
+        }
+        other => panic!("expected ContentBlockStop, got: {other:?}"),
+    }
+}
+
+#[test]
+fn test_messages_v1_text_content_block_start() {
+    let mut parser = StreamParser::new();
+
+    let chunk = br#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+"#;
+    let events = parser
+        .process(chunk)
+        .expect("text content_block_start should parse");
+    assert_eq!(events.len(), 1);
+
+    match &events[0] {
+        StreamEvent::ContentBlockStart {
+            index,
+            content_block,
+        } => {
+            assert_eq!(*index, 0);
+            match content_block {
+                ContentBlock::Text { text, .. } => assert_eq!(text, ""),
+                other => panic!("expected Text block, got: {other:?}"),
+            }
+        }
+        other => panic!("expected ContentBlockStart, got: {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Existing tests below (ChatCompat + cross-format)
+// ---------------------------------------------------------------------------
+
 #[test]
 fn test_fragmented_events() {
     let mut parser = StreamParser::new();

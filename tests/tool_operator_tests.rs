@@ -255,6 +255,91 @@ fn test_git_tools_status_diff_add_commit_log_show() {
     assert!(show_output.contains("update note"));
 }
 
+#[test]
+fn test_empty_path_rejected_for_all_tool_operations() {
+    let temp = TempDir::new().expect("temp dir");
+    let executor = ToolOperator::new(temp.path().to_path_buf());
+
+    // read_file — empty string (matches live regression where @-mention
+    // resolves to "" when the model omits the path argument)
+    let err = executor
+        .read_file("")
+        .expect_err("empty path should fail for read_file");
+    assert!(
+        err.to_string().contains("Path cannot be empty"),
+        "read_file error: {err}"
+    );
+
+    // write_file
+    let result = executor.write_file("", "content");
+    assert!(result.is_err(), "empty path should fail for write_file");
+
+    // edit_file
+    let err = executor
+        .edit_file("", "old", "new")
+        .expect_err("empty path should fail for edit_file");
+    assert!(
+        err.to_string().contains("Path cannot be empty"),
+        "edit_file error: {err}"
+    );
+
+    // list_files with empty string falls back to workspace root (by design —
+    // resolve_optional_path treats empty as None)
+    assert!(
+        executor.list_files(Some(""), 10).is_ok(),
+        "list_files with empty path should fall back to workspace root"
+    );
+
+    // search_files with empty dir also falls back to workspace root
+    executor
+        .write_file("searchable.txt", "hello world")
+        .expect("seed file for search");
+    let result = executor.search_files("hello", Some(""), 10);
+    assert!(
+        result.is_ok(),
+        "search_files with empty dir should fall back to workspace root"
+    );
+}
+
+#[test]
+fn test_empty_path_variants_all_rejected() {
+    let temp = TempDir::new().expect("temp dir");
+    let executor = ToolOperator::new(temp.path().to_path_buf());
+
+    // Test every whitespace variant the model might produce when the path
+    // argument is missing or malformed.
+    let empty_variants = ["", " ", "  ", "\t", "\n", " \t\n "];
+    for variant in &empty_variants {
+        let err = executor
+            .read_file(variant)
+            .expect_err(&format!("read_file should reject {:?}", variant));
+        assert!(
+            err.to_string().contains("Path cannot be empty"),
+            "read_file({:?}) error: {err}",
+            variant
+        );
+    }
+}
+
+#[test]
+fn test_rename_file_rejects_empty_paths() {
+    let temp = TempDir::new().expect("temp dir");
+    let executor = ToolOperator::new(temp.path().to_path_buf());
+
+    executor
+        .write_file("existing.txt", "content")
+        .expect("seed file");
+
+    assert!(
+        executor.rename_file("", "target.txt").is_err(),
+        "rename should reject empty source"
+    );
+    assert!(
+        executor.rename_file("existing.txt", "").is_err(),
+        "rename should reject empty target"
+    );
+}
+
 fn init_git_repo(path: &Path) {
     run_git(path, &["init"]);
     run_git(path, &["config", "user.email", "vexcoder@example.com"]);
