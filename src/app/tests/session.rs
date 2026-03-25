@@ -743,16 +743,18 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
     let mut ctx = setup_ctx();
 
     // Simulate a completed turn with token usage.
-    mode.current_task.turns.push(crate::turn_evidence::TurnEvidenceState {
-        input: "hello".to_string(),
-        response: "world".to_string(),
-        tokens: crate::usage::TurnTokens {
-            input: 1000,
-            output: 500,
-            estimated: false,
-        },
-        ..Default::default()
-    });
+    mode.current_task
+        .turns
+        .push(crate::turn_evidence::TurnEvidenceState {
+            input: "hello".to_string(),
+            response: "world".to_string(),
+            tokens: crate::usage::TurnTokens {
+                input: 1000,
+                output: 500,
+                estimated: false,
+            },
+            ..Default::default()
+        });
     ctx.test_record_session_turn(crate::usage::TurnTokens {
         input: 1000,
         output: 500,
@@ -785,11 +787,13 @@ fn test_tui_compact_preserves_task_id_but_clears_turns() {
     let original_id = mode.current_task_id();
     let mut ctx = setup_ctx();
 
-    mode.current_task.turns.push(crate::turn_evidence::TurnEvidenceState {
-        input: "test".to_string(),
-        response: "response".to_string(),
-        ..Default::default()
-    });
+    mode.current_task
+        .turns
+        .push(crate::turn_evidence::TurnEvidenceState {
+            input: "test".to_string(),
+            response: "response".to_string(),
+            ..Default::default()
+        });
 
     mode.on_user_input("/compact".to_string(), &mut ctx);
 
@@ -803,8 +807,7 @@ fn test_tui_compact_preserves_task_id_but_clears_turns() {
         "/compact must clear accumulated turns"
     );
     assert!(
-        !mode.current_task.active_grants.is_empty()
-            || mode.current_task.active_grants.is_empty(),
+        !mode.current_task.active_grants.is_empty() || mode.current_task.active_grants.is_empty(),
         "grants state must remain consistent"
     );
 }
