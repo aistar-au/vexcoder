@@ -386,11 +386,13 @@ independent of provider stream completion.
 ADR-028 keeps application/UI surfaces separated from runtime orchestration. This
 ADR reinforces that the app facade is not the source of task truth.
 
-### ADR-029 — stream parser completeness
+### ADR-029 — stream parser completeness (now accepted)
 
 ADR-029 expands and clarifies provider stream parsing. This ADR states that
 parser completeness serves normalization and task-state updates but does not
-itself control orchestration.
+itself control orchestration. ADR-029 also extends TaskState with plan, session
+notes, context compaction, and cache usage — the handoff payload fields that
+make multi-agent task resume lossless.
 
 ## Implementation guidance
 

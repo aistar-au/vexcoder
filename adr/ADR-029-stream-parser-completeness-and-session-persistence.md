@@ -1,7 +1,7 @@
 # ADR-029: Stream Parser Completeness and Session Persistence Extensions
 
 **Date:** 2026-03-15
-**Status:** Proposed
+**Status:** Accepted — verification suite completed 2026-03-25
 **Deciders:** Core maintainer
 **ADR chain:** ADR-020, ADR-022, ADR-023, ADR-025
 
@@ -488,9 +488,69 @@ pub struct TaskState {
 
 ### Completion condition
 
-All eight required tests pass under `cargo test --all-targets`. The new event
-variants are reachable from match arms in the runtime loop without a
+All seventeen required tests pass under `cargo test --all-targets`. The new
+event variants are reachable from match arms in the runtime loop without a
 compiler warning about unreachable patterns. Existing tests are unaffected.
+
+## Verification status
+
+As of 2026-03-25, the repository proves all seventeen required test points with
+named tests in the current tree:
+
+**Original ADR-029 tests (9 points):**
+
+1. `StreamEvent::Error` deserialisation:
+   `src/types/api_types.rs::test_stream_event_error_deserialises`
+2. Ping frame through `StreamParser::process()`:
+   `src/api/stream.rs::test_process_emits_ping_for_ping_frame`
+3. `ContentBlock::Thinking` deserialisation:
+   `src/types/api_types.rs::test_content_block_thinking_deserialises`
+4. `Delta` thinking fields:
+   `src/types/api_types.rs::test_delta_thinking_fields_deserialise`
+5. `ApiUsage` cache fields:
+   `src/types/api_types.rs::test_api_usage_cache_fields_deserialise`
+6. Chat-completions usage normalisation:
+   `src/api/stream.rs::test_process_maps_chat_compat_usage_chunk`
+7. `TaskState` round-trip with new fields:
+   `src/runtime/task_state.rs::test_task_state_survives_atomic_write_and_reload`
+8. `TaskState` backward compatibility (pre-ADR-029 files):
+   `src/runtime/task_state.rs::test_task_state_pre_adr029_file_loads_with_default_new_fields`
+9. `CacheUsageStats` accumulation:
+   `src/runtime/task_state.rs::test_cache_usage_stats_accumulate`
+
+**Stream surface coverage tests (8 points):**
+
+10. `message_delta` top-level usage wire format:
+    `src/types/api_types.rs::test_message_delta_event_top_level_usage_deserialises`
+11. Full `message_start` deserialisation:
+    `src/types/api_types.rs::test_message_start_full_message_deserialises`
+12. `ContentBlock::Text` with citations:
+    `src/types/api_types.rs::test_content_block_text_with_citations_deserialises`
+13. `ContentBlock::ServerToolUse`:
+    `src/types/api_types.rs::test_content_block_server_tool_use_deserialises`
+14. `ContentBlock::WebSearchToolResult`:
+    `src/types/api_types.rs::test_content_block_web_search_tool_result_deserialises`
+15. `ApiUsage` extended fields:
+    `src/types/api_types.rs::test_api_usage_extended_fields_deserialise`
+16. `ApiUsage` chat-completions detail breakdowns:
+    `src/types/api_types.rs::test_api_usage_chat_compat_detail_breakdowns_deserialise`
+17. `message_delta` SSE frame through `StreamParser::process()`:
+    `src/api/stream.rs::test_process_messages_v1_message_delta_top_level_usage`
+
+### Multi-agent orchestration dependency
+
+ADR-029 is a declared dependency of ADR-030, making it a prerequisite for full
+invariant compliance. Specifically:
+
+- `StreamEvent::Error` as a typed variant lets an orchestrating agent detect and
+  react to sub-agent stream failures rather than silently absorbing them.
+- The `TaskState` extensions (`plan`, `session_notes`, `context_compaction`,
+  `cache_usage`) are exactly the handoff payload that lets an orchestrator
+  reconstruct a sub-agent's context on resume. Without these, multi-agent task
+  handoffs are lossy.
+- `CacheUsageStats` maps to token-budget awareness across turns, closing an
+  OpenCode parity gap.
+- `ContentBlock::Thinking` support closes the extended-thinking parity gap.
 
 ## Consequences
 
