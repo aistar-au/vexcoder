@@ -53,6 +53,7 @@ pub struct ConversationManager {
     pub(super) hooks: Vec<HookConfig>,
     pub(super) api_messages: Vec<ApiMessage>,
     pub(super) current_turn_blocks: Vec<StreamBlock>,
+    pub(super) current_turn_applied_mutation: bool,
     pub(super) last_turn_tokens: TurnTokens,
     pub(super) read_file_history_cache: ReadFileSnapshotCache,
     #[cfg(test)]
@@ -75,6 +76,7 @@ impl ConversationManager {
             hooks,
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
+            current_turn_applied_mutation: false,
             last_turn_tokens: TurnTokens::default(),
             read_file_history_cache: ReadFileSnapshotCache::default(),
             #[cfg(test)]
@@ -90,6 +92,7 @@ impl ConversationManager {
             hooks: Vec::new(),
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
+            current_turn_applied_mutation: false,
             last_turn_tokens: TurnTokens::default(),
             read_file_history_cache: ReadFileSnapshotCache::default(),
             mock_tool_operator_responses: Some(Arc::new(Mutex::new(tool_operator_responses))),
@@ -110,6 +113,7 @@ impl ConversationManager {
     pub fn clear_messages(&mut self) {
         self.api_messages.clear();
         self.current_turn_blocks.clear();
+        self.current_turn_applied_mutation = false;
         self.last_turn_tokens = TurnTokens::default();
         self.read_file_history_cache = ReadFileSnapshotCache::default();
     }
@@ -131,6 +135,10 @@ impl ConversationManager {
     }
 
     pub fn current_turn_has_successful_mutation(&self) -> bool {
+        if self.current_turn_applied_mutation {
+            return true;
+        }
+
         let mut mutating_tool_call_ids = std::collections::BTreeSet::new();
         for block in &self.current_turn_blocks {
             if let StreamBlock::ToolCall { id, name, .. } = block {

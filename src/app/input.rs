@@ -95,7 +95,7 @@ impl TuiMode {
                 for session in &mut self.command_sessions {
                     session.status = "cancelling".to_string();
                 }
-                self.current_task.status = TaskStatus::Cancelling;
+                self.set_task_status(TaskStatus::Cancelling);
                 self.push_history_line("[command session cancellation requested]".to_string());
             } else {
                 self.push_history_line("[turn cancellation requested]".to_string());

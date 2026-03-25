@@ -96,6 +96,7 @@ impl ConversationManager {
         turn_tool_policy: TurnToolPolicy,
     ) -> Result<String> {
         self.current_turn_blocks.clear();
+        self.current_turn_applied_mutation = false;
         self.last_turn_tokens = TurnTokens::default();
         let original_user_input = content.clone();
         self.push_user_message(content);
@@ -645,6 +646,14 @@ impl ConversationManager {
                         &self.format_tool_result_for_history(&name, &input, &result),
                         limits.max_tool_result_history_chars,
                     );
+                    if result.is_ok()
+                        && matches!(
+                            name.as_str(),
+                            "write_file" | "apply_patch" | "edit_file" | "rename_file"
+                        )
+                    {
+                        self.current_turn_applied_mutation = true;
+                    }
                     if use_structured_round {
                         tool_result_blocks.push(ContentBlock::ToolResult {
                             tool_use_id: id,
@@ -960,6 +969,14 @@ impl ConversationManager {
                             &self.format_tool_result_for_history(&name, &input, &result),
                             limits.max_tool_result_history_chars,
                         );
+                        if result.is_ok()
+                            && matches!(
+                                name.as_str(),
+                                "write_file" | "apply_patch" | "edit_file" | "rename_file"
+                            )
+                        {
+                            self.current_turn_applied_mutation = true;
+                        }
                         if use_structured_round {
                             tool_result_blocks.push(ContentBlock::ToolResult {
                                 tool_use_id: id,

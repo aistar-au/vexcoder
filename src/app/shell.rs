@@ -43,6 +43,7 @@ impl TuiMode {
                 command: command.to_string(),
             }),
         });
+        self.set_task_status(TaskStatus::AwaitingApproval);
     }
 
     pub(super) fn start_command_session(&mut self, command: String, ctx: &RuntimeContext) {

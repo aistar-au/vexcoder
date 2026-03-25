@@ -44,6 +44,11 @@ This work must preserve the runtime ownership model defined by ADR-030: the
 operator surface is a consumer of canonical runtime events and task-derived
 state only. It must not become the source of truth for execution.
 
+The ADR-030 verification suite completed on 2026-03-25, so ADR-031 now depends
+on an accepted runtime control-flow contract rather than an unverified active
+draft. The remaining merge gate is therefore dependency ordering and state
+consumption, not open control-flow correctness coverage.
+
 ## Decision
 
 Adopt a batched, task-state-first implementation strategy for the operator
