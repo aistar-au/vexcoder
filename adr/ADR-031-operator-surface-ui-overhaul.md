@@ -26,8 +26,8 @@ commands, `@path` expansion, pasted blocks, and long prompts remain usable
 without dropping out of fullscreen task mode, including visual-row cursor
 navigation for wrapped prompt text.
 
-Batch A and Batch B are now landed on `main`, so the remaining ADR-031 scope
-is the post-derivation alignment pass:
+Batch A and Batch B are now merged into `main`, so the remaining ADR-031
+scope is the post-derivation alignment pass:
 
 - aligns transcript/output semantics across `src/app/layout.rs`,
   `src/ui/draw/`, and the fallback renderer paths;
@@ -148,8 +148,8 @@ The operator surface defined by this ADR is a consumer of canonical runtime
 events and task-derived state. It is not allowed to become the source of truth
 for execution.
 
-That means a UI batch cannot introduce merge-time dependence on unlanded
-renderer-local assumptions such as:
+That means a UI batch cannot introduce merge-time dependence on renderer-local
+assumptions that have not been merged into `main`, such as:
 
 - temporary event names
 - temporary pending-step trackers
@@ -157,17 +157,17 @@ renderer-local assumptions such as:
 - temporary command lifecycle flags
 - temporary approval state derived only in the UI layer
 
-If such state is required for the UI, it must first exist in the landed runtime
-or task-state contract, or be derived from already-landed canonical runtime
-events.
+If such state is required for the UI, it must first exist in the runtime or
+task-state contract already merged into `main`, or be derived from canonical
+runtime events already merged into `main`.
 
 ### Batch classes
 
 Implementation batches under this ADR fall into three classes:
 
 **Independent batches**
-These modify behavior that is already supported by the landed task-state
-contract and may merge immediately if tests pass.
+These modify behavior that is already supported by the task-state contract
+already present on `main` and may merge immediately if tests pass.
 
 **Stacked dependent batches**
 These depend on another branch or pending merge. They may be pushed and
@@ -217,7 +217,7 @@ satisfy one of the following:
 
 1. they touch disjoint files or behavior and are independently mergeable; or
 2. they are intentionally stacked on a prerequisite branch and are not merged
-   until that prerequisite has landed on `main`.
+  until that prerequisite has been merged into `main`.
 
 ### Merge-gated rule
 
@@ -262,9 +262,9 @@ Work should be split so that prerequisite batches land first in this order:
 Independent cleanup, tests, and renderer polish may proceed in parallel on
 remote branches, but merges must respect the dependency chain above.
 
-At the time of this update, Batches A and B are already landed on `main`, so
-the active implementation queue for this ADR begins with Batch C. No Batch F is
-currently defined by this ADR; any additional lane requires an ADR update
+At the time of this update, Batches A and B are already merged into `main`, so
+the active implementation queue for this ADR begins with Batch C. No Batch F
+is currently defined by this ADR; any additional lane requires an ADR update
 before dispatch.
 
 ## Batch descriptions
@@ -286,7 +286,7 @@ This is merge-gating.
 
 **Batch B — Derivation layer**
 Maps canonical runtime/task state into UI timeline rows and inspector content.
-This batch is landed on `main`.
+This batch is merged into `main`.
 
 Batch B implementation on main includes stable timeline entries, selected step
 focus, inspector/transcript routing from canonical task state, and unified
@@ -295,7 +295,8 @@ command-session rows remain visible alongside other in-flight task steps.
 
 **Batch C — Full-screen scroll ownership**
 Moves scroll from transcript-only behavior to timeline/output ownership using
-already-landed derivation/state. Can be parallel with B if it only consumes A.
+derivation/state already merged into `main`. Can be parallel with B if it only
+consumes A.
 
 **Batch D — Six-line inspector/dropdown behavior**
 Presentation and interaction behavior for the selected row.
@@ -314,8 +315,8 @@ Operators and coding agents must use this policy:
 - land execution-truth batches first;
 - keep dependent UI batches stacked until prerequisites land;
 - rebase dependent branches onto main before merge;
-- do not merge a renderer batch whose correctness depends on unlanded task-state
-  behavior.
+- do not merge a renderer batch whose correctness depends on task-state
+  behavior that is not yet merged into `main`.
 
 Do not treat "parallel" as permission to merge dependent UI batches out of
 order.
