@@ -931,6 +931,7 @@ impl TuiMode {
         let task_id = self.current_task.id.clone();
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
+        self.current_task.turns.clear();
         self.reset_conversation_window(ctx);
         self.push_history_line(format!(
             "[compacted: conversation history reset; task {task_id} continues]"
