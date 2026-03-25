@@ -979,6 +979,8 @@ fn parse_status_parts(status: &str) -> StatusParts {
 // ── Utilities ───────────────────────────────────────────────────────
 
 fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize, usize) {
+    const INSPECTOR_VIEWPORT_ROWS: usize = 6;
+
     let total = state.output_rows.len();
     if viewport_height == 0 || total == 0 {
         return (0, 0);
@@ -993,8 +995,9 @@ fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize,
             (start, end)
         }
         OutputScrollAnchor::Top => {
+            let inspector_height = viewport_height.min(INSPECTOR_VIEWPORT_ROWS).max(1);
             let start = state.output_scroll_offset.min(total.saturating_sub(1));
-            let end = (start + viewport_height).min(total);
+            let end = (start + inspector_height).min(total);
             (start, end)
         }
     }
