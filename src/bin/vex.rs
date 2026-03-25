@@ -4,7 +4,7 @@ use clap_complete::Shell;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use vexcoder::app::{run_tui_session, serve_facade_local_api};
+use vexcoder::app::run_tui_session;
 use vexcoder::batch_mode::{run_batch, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
 use vexcoder::doctor::run_doctor;
@@ -13,6 +13,7 @@ use vexcoder::export::{render_task_export, write_export_output, ExportFormat};
 use vexcoder::init::run_init;
 use vexcoder::pr_summary::{run_branch, run_pr_summary};
 use vexcoder::runtime::{TaskState, TaskStatus};
+use vexcoder::server::serve_local_api;
 use vexcoder::startup::{emit_model_endpoint_warnings, prompt_tui_startup_config};
 use vexcoder::tui_frontend::ManagedTuiFrontend;
 
@@ -326,7 +327,7 @@ async fn main() -> Result<ExitCode> {
         Some(Commands::Serve { host, port }) => {
             let config = Config::load()?;
             config.validate()?;
-            serve_facade_local_api(config, host, port).await?;
+            serve_local_api(config, host, port).await?;
             return Ok(ExitCode::SUCCESS);
         }
         None => {}

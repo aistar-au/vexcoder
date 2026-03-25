@@ -1,7 +1,7 @@
 # ADR-028: Application facade and transport boundaries
 
 **Date:** 2026-03-15
-**Status:** Active — Phase 1 and Phase 2 debug-committed 2026-03-17
+**Status:** Active — Phase 1, 2, and transport extraction committed 2026-03-25
 **Deciders:** Core maintainer
 **Location:** `adr/ADR-028-application-facade-and-transport-boundaries.md`
 **Amends:** ADR-018, ADR-019, and follow-up runtime/TUI cutover ADRs
@@ -57,6 +57,7 @@ Adopt a layered boundary model with strict inward dependency direction.
 - `src/server/http.rs`
 - `src/server/sse.rs`
 - `src/server/socket.rs`
+- `src/server/handlers.rs`
 - `src/server/util.rs`
 
 **Responsibilities**
@@ -260,9 +261,9 @@ Use the following order to minimize breakage.
 1. **Create the application facade skeleton** under `src/app/` while keeping `src/app.rs` as the module root during transition. Define facade entrypoints plus the shared error and command types. Reuse ADR-025 `RuntimeEnvelope` for machine-readable event streaming rather than introducing a new canonical envelope.
 2. **Refactor `src/app.rs`** by moving shared application coordination and command semantics into facade modules. Keep behavior identical. Use compatibility shims while the cutover is in progress.
 3. **Reduce `src/bin/vex.rs`** to CLI parsing, config loading, startup routing, and facade calls. Do not remove legitimate startup-routing responsibilities, but do remove reusable application semantics from the binary.
-4. **Introduce `src/server.rs` plus `src/server/` submodules** only for the ADR-026-authorized local transports. Server modules consume facade output and frame ADR-025 envelopes for transport.
+4. **Introduce `src/server/` submodules** only for the ADR-026-authorized local transports. Server modules consume facade output and frame ADR-025 envelopes for transport. *(Completed 2026-03-25: `src/server/mod.rs`, `http.rs`, `sse.rs`, `socket.rs`, `handlers.rs`, `util.rs` extracted from `src/local_api.rs`.)*
 5. **Keep direct facade invocation available during transition** for local CLI paths if needed. A self-client or embedded-server path may be introduced later, but it is not required by ADR-028 itself.
-6. **Tighten dependency boundaries** with tests and grep-based contract checks so runtime does not reach outward into CLI or transport.
+6. **Tighten dependency boundaries** with tests and grep-based contract checks so runtime does not reach outward into CLI or transport. *(Completed 2026-03-25: `tests/dependency_direction_tests.rs` enforces 10 boundary rules including server module existence and facade routing.)*
 
 **Backpressure and slow-client policy**
 
