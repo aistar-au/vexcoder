@@ -206,13 +206,13 @@ impl TuiMode {
                 let summary = summarize_tool_approval_context(&tool_name, &input_preview);
                 let step_id = self.pending_tool_step_id(&tool_name, &input_preview);
                 self.push_history_line(format!("[tool approval requested: {summary}]"));
-                self.current_task.status = TaskStatus::AwaitingApproval;
                 self.overlay_state.pending_approval = Some(PendingApproval {
                     step_id,
                     tool_name,
                     input_preview,
                     action: PendingApprovalAction::Tool(response_tx),
                 });
+                self.set_task_status(TaskStatus::AwaitingApproval);
             }
             UiUpdate::EditLoopComplete {
                 outcome,
@@ -236,6 +236,7 @@ impl TuiMode {
                         patch_applied,
                         validate_passed,
                     } => {
+                        self.current_task.status = TaskStatus::Completed;
                         let summary = format!(
                             "[edit loop complete: patch_applied={} validate_passed={}]",
                             patch_applied, validate_passed
@@ -243,6 +244,7 @@ impl TuiMode {
                         self.push_history_line(summary);
                     }
                     EditLoopOutcome::MaxTurnsReached { last_error } => {
+                        self.current_task.status = TaskStatus::MaxTurnsReached;
                         let summary = match last_error {
                             Some(err) => {
                                 format!("[edit loop reached max turns — last error: {err}]")
@@ -252,12 +254,15 @@ impl TuiMode {
                         self.push_history_line(summary);
                     }
                     EditLoopOutcome::ApprovalDenied => {
+                        self.current_task.status = TaskStatus::Cancelled;
                         self.push_history_line("[edit loop aborted: approval denied]".to_string());
                     }
                     EditLoopOutcome::Cancelled => {
+                        self.current_task.status = TaskStatus::Cancelled;
                         self.push_history_line("[edit loop cancelled]".to_string());
                     }
                 }
+                self.persist_current_task_state();
                 if self.history_state.auto_follow {
                     self.set_scroll_to_bottom();
                 } else {
@@ -308,6 +313,7 @@ impl TuiMode {
                 self.history_state.cancel_pending = false;
                 self.push_history_line(format!("[error] {msg}"));
                 self.current_task.status = TaskStatus::Failed;
+                self.persist_current_task_state();
                 self.history_state.turn_in_progress = false;
                 self.history_state.active_assistant_index = None;
                 self.read_only_turn_active = false;

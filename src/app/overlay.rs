@@ -16,13 +16,15 @@ impl TuiMode {
         if let Some(step_id) = step_id {
             self.overlay_state.approved_tool_steps.insert(step_id);
         }
-        self.current_task.status = TaskStatus::Running;
+        self.set_task_status(TaskStatus::Running);
     }
 
     pub(super) fn resolve_pending_approval(&mut self, approved: bool, ctx: &RuntimeContext) {
         if let Some(pending) = self.overlay_state.pending_approval.take() {
             if approved {
                 self.mark_tool_step_approved(pending.step_id);
+            } else {
+                self.set_task_status(TaskStatus::Running);
             }
             match pending.action {
                 PendingApprovalAction::Tool(response_tx) => {

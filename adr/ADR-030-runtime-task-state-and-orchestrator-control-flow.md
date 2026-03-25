@@ -1,6 +1,6 @@
 # ADR-030: Runtime Task State and Orchestrator Control Flow
 
-- **Status:** Active — invariant violations patched 2026-03-17
+- **Status:** Accepted — invariant fixes landed 2026-03-17; verification suite completed 2026-03-25
 - **Date:** 2026-03-16
 - **Deciders:** Maintainers
 - **Depends on:** ADR-023, ADR-025, ADR-027, ADR-028, ADR-029
@@ -31,6 +31,13 @@ a single normative execution model that answers all of the following clearly:
    names?
 6. What is the canonical control flow from streamed provider output to task
    completion?
+
+ADR-031, ADR-032, ADR-033, batch/export derivations, and task handoff/resume
+surfaces all consume this control-flow contract. When one worker or surface
+resumes a task created by another, the handoff depends on the same runtime
+ownership rules: provider-native events remain non-authoritative, managed
+command sessions remain runtime-owned beyond stream chunks, and tool or command
+results re-enter task state before the next turn.
 
 Without a dedicated definition, the architecture can drift toward incorrect
 patterns such as:
@@ -315,6 +322,27 @@ Invalid completion signals include:
   stream-bound reasoning
 - makes retry, validation, and approval flows easier to reason about and test
 
+### Multi-agent orchestration dependency
+
+ADR-030 was originally the control-flow foundation for UI batches. It is now
+also the semantic correctness guarantee for multi-agent handoffs.
+
+When Agent B resumes a task started by Agent A, the six invariants defined here
+are exactly what ensures the handoff is coherent:
+
+- **Invariant 1** (provider events are never task truth) prevents Agent B from
+  inheriting stale provider-native artefacts left by Agent A's session.
+- **Invariant 4** (command sessions outlive provider stream chunks) ensures
+  managed subprocesses survive a handoff boundary and remain runtime-owned.
+- **Invariant 5** (tool results re-enter task state) guarantees that Agent B
+  sees the full tool-result record accumulated by Agent A, not a partial
+  transcript.
+
+Without these invariants proven end-to-end, multi-agent orchestration has
+undefined behaviour at handoff points. The two invariant patches from
+2026-03-17 are in the tree; the full verification suite is completed as of
+2026-03-25.
+
 ### Negative
 
 - requires explicit task-state updates instead of informal propagation
@@ -403,6 +431,38 @@ Coverage should prove at least:
    where policy requires it
 6. max-turn and approval pauses are represented in task state and respected by
    the orchestrator
+
+## Verification status
+
+As of 2026-03-25, the repository proves those six coverage points with named
+tests in the current tree:
+
+1. provider-native stream end does not automatically complete the task:
+   `src/state/conversation/tests/streaming.rs::test_crit_01_protocol_flow`
+2. tool results are written back into task state before the next turn:
+   `src/state/conversation/tests/streaming.rs::test_crit_01_protocol_flow`
+   and
+   `src/state/conversation/tests/tool_execution.rs::test_multi_tool_round_collects_results_after_approval_denial`
+3. managed command sessions remain active until subprocess exit or interruption:
+   `src/state/conversation/tests/tool_execution.rs::test_execute_tool_run_command_streams_managed_session_updates`
+   and `src/app/tests/model_turn.rs::test_turn_complete_waits_for_last_command_session_to_finish`
+4. downstream derivations operate on canonical runtime events rather than
+   provider-native names:
+   `src/runtime/json_handoff.rs::test_pi_10_normalization_projects_ui_updates_and_approval_events`
+   and
+   `src/runtime/json_handoff.rs::test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold`
+5. no-op turns and failed validations cause orchestrator-driven continuation
+   where policy requires it:
+   `src/runtime/edit_loop.rs::test_edit_loop_skips_validation_when_no_patch_is_applied`
+   and
+   `src/runtime/edit_loop.rs::test_edit_loop_validation_failure_retries_after_patch_and_stops_at_max_turns`
+6. max-turn and approval pauses are represented in task state and respected by
+   the orchestrator:
+   `src/app/tests/model_turn.rs::test_tool_approval_updates_task_status_until_turn_resumes`,
+   `src/app/tests/model_turn.rs::test_tool_approval_request_persists_awaiting_approval_status_in_task_state`,
+   `src/app/tests/model_turn.rs::test_tui_edit_loop_completion_persists_max_turn_status_in_task_state`,
+   and
+   `src/runtime/task_state.rs::test_max_turns_reached_is_distinct_from_completed`
 
 ## Invariant violations fixed 2026-03-17
 

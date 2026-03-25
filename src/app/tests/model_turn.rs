@@ -354,6 +354,32 @@ async fn test_tool_approval_updates_task_status_until_turn_resumes() {
         crate::runtime::TaskStatus::Running
     );
 }
+#[tokio::test]
+async fn test_tool_approval_request_persists_awaiting_approval_status_in_task_state() {
+    let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+    let temp = tempfile::tempdir().unwrap();
+    std::env::set_var("VEX_STATE_DIR", temp.path());
+
+    let mut ctx = setup_ctx();
+    let mut mode = TuiMode::new();
+    mode.on_user_input("review the plan".to_string(), &mut ctx);
+
+    let (response_tx, _response_rx) = tokio::sync::oneshot::channel::<bool>();
+    mode.on_model_update(
+        UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
+            tool_name: "read_file".to_string(),
+            input_preview: "{\"path\":\"src/main.rs\"}".to_string(),
+            response_tx,
+        }),
+        &mut ctx,
+    );
+
+    let saved =
+        crate::runtime::TaskState::load(temp.path(), &mode.current_task.id).expect("saved task");
+    assert_eq!(saved.status, crate::runtime::TaskStatus::AwaitingApproval);
+
+    std::env::remove_var("VEX_STATE_DIR");
+}
 // -- PC-01: /model --------------------------------------------------------
 
 #[tokio::test]
@@ -640,6 +666,33 @@ fn test_tui_edit_loop_completion_clears_busy_state() {
             .any(|line| line.contains("[edit loop reached max turns]")),
         "expected loop completion summary"
     );
+}
+#[test]
+fn test_tui_edit_loop_completion_persists_max_turn_status_in_task_state() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    std::env::set_var("VEX_STATE_DIR", temp.path());
+
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("/edit refactor the parser".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::EditLoopComplete {
+            outcome: EditLoopOutcome::MaxTurnsReached { last_error: None },
+            last_validation_result: None,
+        },
+        &mut ctx,
+    );
+
+    let saved =
+        crate::runtime::TaskState::load(temp.path(), &mode.current_task.id).expect("saved task");
+    assert_eq!(
+        mode.current_task.status,
+        crate::runtime::TaskStatus::MaxTurnsReached
+    );
+    assert_eq!(saved.status, crate::runtime::TaskStatus::MaxTurnsReached);
+
+    std::env::remove_var("VEX_STATE_DIR");
 }
 #[tokio::test]
 async fn test_tui_explain_does_not_invoke_edit_loop() {

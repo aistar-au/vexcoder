@@ -58,10 +58,28 @@ impl TuiMode {
         self.last_error_message = None;
     }
 
+    pub(super) fn persist_current_task_state(&mut self) {
+        let dir = TaskState::state_dir();
+        if let Err(_error) = self.current_task.save(&dir) {
+            // Persistence errors are non-fatal.  The in-memory task state
+            // remains authoritative and callers already update status before
+            // calling this method.  Pushing an error line into the transcript
+            // history would pollute the user-facing output (and break
+            // streaming-path tests where the state directory may not exist).
+            #[cfg(debug_assertions)]
+            eprintln!("[state] save failed: {_error}");
+        }
+    }
+
+    pub(super) fn set_task_status(&mut self, status: TaskStatus) {
+        self.current_task.status = status;
+        self.persist_current_task_state();
+    }
+
     pub(super) fn begin_turn_capture(&mut self, input: String) {
         self.reset_turn_capture();
         self.current_turn_input = input;
-        self.current_task.status = TaskStatus::Running;
+        self.set_task_status(TaskStatus::Running);
         self.transcript_scroll_offset = 0;
         self.turn_started_at = Some(Instant::now());
         self.last_error_message = None;
@@ -90,7 +108,7 @@ impl TuiMode {
             pid: None,
             status: "running".to_string(),
         });
-        self.current_task.status = TaskStatus::Running;
+        self.set_task_status(TaskStatus::Running);
     }
 
     pub(super) fn complete_turn_if_idle(&mut self, ctx: &RuntimeContext) -> bool {
@@ -126,6 +144,7 @@ impl TuiMode {
             && self.current_turn_tool_invocations.is_empty()
         {
             self.current_task.status = TaskStatus::Completed;
+            self.persist_current_task_state();
             self.reset_turn_capture();
             return;
         }
@@ -169,10 +188,7 @@ impl TuiMode {
             tokens: ctx.session_tokens_snapshot().last_turn(),
         });
 
-        let dir = TaskState::state_dir();
-        if let Err(error) = self.current_task.save(&dir) {
-            self.push_history_line(format!("[state] save failed: {error}"));
-        }
+        self.persist_current_task_state();
         self.transcript_scroll_offset = 0;
         self.inspector_scroll_offset = 0;
         self.reset_turn_capture();

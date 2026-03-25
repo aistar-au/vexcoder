@@ -116,6 +116,7 @@ impl TuiMode {
         self.active_edit_loop = Some(edit_loop.clone());
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
+        self.set_task_status(TaskStatus::Running);
         #[cfg(test)]
         {
             self.last_turn_input = Some(instruction.clone());
@@ -164,6 +165,7 @@ impl TuiMode {
         self.active_edit_loop = Some(edit_loop.clone());
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
         self.history_state.turn_in_progress = true;
+        self.set_task_status(TaskStatus::Running);
         #[cfg(test)]
         {
             self.last_turn_input = Some(instruction.clone());
