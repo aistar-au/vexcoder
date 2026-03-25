@@ -53,7 +53,7 @@ Adopt a layered boundary model with strict inward dependency direction.
 
 **Target modules**
 
-- `src/server/mod.rs`
+- `src/server.rs`
 - `src/server/http.rs`
 - `src/server/sse.rs`
 - `src/server/socket.rs`

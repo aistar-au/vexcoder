@@ -173,7 +173,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 162 | `src/runtime/validation.rs` | ~514 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/validation.rs> |
 | 163 | `src/server/handlers.rs` | ~240 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/handlers.rs> |
 | 164 | `src/server/http.rs` | ~146 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/http.rs> |
-| 165 | `src/server/mod.rs` | ~137 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/mod.rs> |
+| 165 | `src/server.rs` | ~137 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server.rs> |
 | 166 | `src/server/socket.rs` | ~73 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/socket.rs> |
 | 167 | `src/server/sse.rs` | ~21 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/sse.rs> |
 | 168 | `src/server/tests.rs` | ~421 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests.rs> |

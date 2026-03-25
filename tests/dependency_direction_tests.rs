@@ -251,13 +251,18 @@ fn server_must_not_import_tui_terminal_or_ui() {
 
 #[test]
 fn server_module_exists() {
-    let server_mod = src_dir().join("server").join("mod.rs");
+    let server_rs = src_dir().join("server.rs");
     assert!(
-        server_mod.is_file(),
-        "ADR-028: src/server/mod.rs must exist — transport layer extracted from local_api.rs"
+        server_rs.is_file(),
+        "ADR-028: src/server.rs must exist — transport module root"
+    );
+    let server_dir = src_dir().join("server");
+    assert!(
+        server_dir.is_dir(),
+        "ADR-028: src/server/ must exist — transport layer extracted from local_api.rs"
     );
     for submodule in &["http.rs", "sse.rs", "socket.rs", "handlers.rs", "util.rs"] {
-        let path = src_dir().join("server").join(submodule);
+        let path = server_dir.join(submodule);
         assert!(path.is_file(), "ADR-028: src/server/{submodule} must exist");
     }
 }
