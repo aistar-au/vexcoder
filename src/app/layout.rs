@@ -159,7 +159,10 @@ impl TuiMode {
         entries
     }
 
-    fn task_activity_rows_from(steps: &[TaskStepView], history: &super::HistoryState) -> Vec<String> {
+    fn task_activity_rows_from(
+        steps: &[TaskStepView],
+        history: &super::HistoryState,
+    ) -> Vec<String> {
         const MAX_ACTIVITY_ROWS: usize = 6;
 
         let rows: Vec<String> = steps.iter().map(|step| step.legacy_row.clone()).collect();

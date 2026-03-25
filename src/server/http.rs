@@ -20,6 +20,7 @@ use super::{ControlResponse, HttpSurfaceSettings, ResolvedHttpSurface, HSTS_HEAD
 use crate::config::Config;
 use crate::local_api::LocalApiState;
 
+#[cfg(test)]
 pub fn build_router(config: Config) -> Router {
     build_router_with_state(LocalApiState::new(config))
 }
