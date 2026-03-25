@@ -17,6 +17,7 @@ use super::handlers::{
     approve_handler, health_handler, interrupt_handler, schema_handler, turns_handler,
 };
 use super::{ControlResponse, HttpSurfaceSettings, ResolvedHttpSurface, HSTS_HEADER_VALUE};
+#[cfg(test)]
 use crate::config::Config;
 use crate::local_api::LocalApiState;
 

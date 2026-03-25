@@ -31,8 +31,6 @@ use crate::config::Config;
 use crate::local_api::LocalApiState;
 
 pub(crate) use self::http::{build_http_router, build_router_with_state};
-#[cfg(test)]
-pub(crate) use self::http::build_router;
 pub(crate) use self::util::resolve_serve_config;
 
 const HSTS_HEADER_VALUE: &str = "max-age=31536000";
