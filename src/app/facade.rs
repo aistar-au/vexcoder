@@ -1,7 +1,7 @@
 use super::*;
 use crate::api::ApiClient;
-use crate::local_api::serve_local_api;
 use crate::runtime::frontend::FrontendAdapter;
+use crate::server::serve_local_api;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FacadeBootstrap {

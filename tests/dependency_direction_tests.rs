@@ -163,19 +163,25 @@ fn app_facade_must_not_import_cli_binary() {
 }
 
 // ---------------------------------------------------------------------------
-// ADR-028 Rule: Transport (local_api) reaches runtime ONLY through facade
+// ADR-028 Rule: Transport (server) reaches runtime ONLY through facade
 // ---------------------------------------------------------------------------
 
 #[test]
-fn local_api_uses_facade_entrypoint() {
-    let local_api = src_dir().join("local_api.rs");
-    let imports = extract_crate_imports(&local_api);
-
-    // local_api MUST import from crate::app (the facade layer)
-    let uses_facade = imports.iter().any(|(_, line)| line.contains("crate::app"));
+fn server_uses_facade_entrypoint() {
+    let server_dir = src_dir().join("server");
+    assert!(
+        server_dir.is_dir(),
+        "ADR-028: src/server/ must exist as the transport layer"
+    );
+    let files = collect_rs_files(&server_dir);
+    let uses_facade = files.iter().any(|file| {
+        extract_crate_imports(file)
+            .iter()
+            .any(|(_, line)| line.contains("crate::app"))
+    });
     assert!(
         uses_facade,
-        "ADR-028: local_api.rs must route through the application facade (crate::app)"
+        "ADR-028: server module must route through the application facade (crate::app)"
     );
 }
 
@@ -220,23 +226,16 @@ fn facade_error_types_exist() {
 }
 
 // ---------------------------------------------------------------------------
-// Structural: server module must exist when transport is extracted
-// (This test documents the next migration target — currently local_api.rs
-// holds all transport code inline. When src/server/ is created, this test
-// will verify it doesn't reach back into runtime.)
+// ADR-028 Rule: server module must not import TUI, terminal, or UI
 // ---------------------------------------------------------------------------
 
 #[test]
-fn server_module_direction_if_present() {
+fn server_must_not_import_tui_terminal_or_ui() {
     let server_dir = src_dir().join("server");
-    if !server_dir.is_dir() {
-        // Server module not yet extracted — skip gracefully.
-        eprintln!(
-            "[adr-028] src/server/ does not exist yet — \
-             transport code is still in src/local_api.rs"
-        );
-        return;
-    }
+    assert!(
+        server_dir.is_dir(),
+        "ADR-028: src/server/ must exist as the transport layer"
+    );
     let forbidden = &["tui_frontend", "terminal", "ui"];
     let violations = assert_no_forbidden_imports(&server_dir, forbidden, "server");
     assert!(
@@ -244,4 +243,21 @@ fn server_module_direction_if_present() {
         "ADR-028: server layer has forbidden imports:\n{}",
         violations.join("\n")
     );
+}
+
+// ---------------------------------------------------------------------------
+// Structural: server module must exist (transport extraction complete)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn server_module_exists() {
+    let server_mod = src_dir().join("server").join("mod.rs");
+    assert!(
+        server_mod.is_file(),
+        "ADR-028: src/server/mod.rs must exist — transport layer extracted from local_api.rs"
+    );
+    for submodule in &["http.rs", "sse.rs", "socket.rs", "handlers.rs", "util.rs"] {
+        let path = src_dir().join("server").join(submodule);
+        assert!(path.is_file(), "ADR-028: src/server/{submodule} must exist");
+    }
 }

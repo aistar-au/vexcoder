@@ -13,6 +13,7 @@ pub mod local_api;
 pub mod pr_summary;
 pub mod prompts;
 pub mod runtime;
+pub mod server;
 pub(crate) mod session_notes;
 pub mod skills;
 pub mod startup;
