@@ -30,8 +30,10 @@ use tokio_util::sync::CancellationToken;
 use crate::config::Config;
 use crate::local_api::LocalApiState;
 
-pub use self::http::{build_http_router, build_router, build_router_with_state};
-pub use self::util::resolve_serve_config;
+pub(crate) use self::http::build_http_router;
+#[cfg(unix)]
+pub(crate) use self::http::build_router_with_state;
+pub(crate) use self::util::resolve_serve_config;
 
 const HSTS_HEADER_VALUE: &str = "max-age=31536000";
 const SSE_KEEPALIVE_TEXT: &str = "keepalive";

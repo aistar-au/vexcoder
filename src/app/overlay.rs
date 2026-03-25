@@ -23,9 +23,10 @@ impl TuiMode {
         if let Some(pending) = self.overlay_state.pending_approval.take() {
             if approved {
                 self.mark_tool_step_approved(pending.step_id);
-            } else {
-                self.set_task_status(TaskStatus::Running);
             }
+            // On denial, skip the intermediate Running persist — the edit
+            // loop will set Cancelled via set_task_status() immediately,
+            // closing the crash-resume race window (Finding 7).
             match pending.action {
                 PendingApprovalAction::Tool(response_tx) => {
                     let _ = response_tx.send(approved);

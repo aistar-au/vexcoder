@@ -236,7 +236,7 @@ impl TuiMode {
                         patch_applied,
                         validate_passed,
                     } => {
-                        self.current_task.status = TaskStatus::Completed;
+                        self.set_task_status(TaskStatus::Completed);
                         let summary = format!(
                             "[edit loop complete: patch_applied={} validate_passed={}]",
                             patch_applied, validate_passed
@@ -244,7 +244,7 @@ impl TuiMode {
                         self.push_history_line(summary);
                     }
                     EditLoopOutcome::MaxTurnsReached { last_error } => {
-                        self.current_task.status = TaskStatus::MaxTurnsReached;
+                        self.set_task_status(TaskStatus::MaxTurnsReached);
                         let summary = match last_error {
                             Some(err) => {
                                 format!("[edit loop reached max turns — last error: {err}]")
@@ -254,15 +254,14 @@ impl TuiMode {
                         self.push_history_line(summary);
                     }
                     EditLoopOutcome::ApprovalDenied => {
-                        self.current_task.status = TaskStatus::Cancelled;
+                        self.set_task_status(TaskStatus::Cancelled);
                         self.push_history_line("[edit loop aborted: approval denied]".to_string());
                     }
                     EditLoopOutcome::Cancelled => {
-                        self.current_task.status = TaskStatus::Cancelled;
+                        self.set_task_status(TaskStatus::Cancelled);
                         self.push_history_line("[edit loop cancelled]".to_string());
                     }
                 }
-                self.persist_current_task_state();
                 if self.history_state.auto_follow {
                     self.set_scroll_to_bottom();
                 } else {
@@ -328,8 +327,7 @@ impl TuiMode {
                 self.reset_turn_capture();
                 self.history_state.cancel_pending = false;
                 self.push_history_line(format!("[error] {msg}"));
-                self.current_task.status = TaskStatus::Failed;
-                self.persist_current_task_state();
+                self.set_task_status(TaskStatus::Failed);
                 self.history_state.turn_in_progress = false;
                 self.history_state.active_assistant_index = None;
                 self.read_only_turn_active = false;

@@ -30,17 +30,17 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex as AsyncMutex;
 
 #[derive(Clone)]
-pub struct LocalApiState {
+pub(crate) struct LocalApiState {
     pub config: Config,
     pub tasks: Arc<AsyncMutex<HashMap<String, ActiveTask>>>,
 }
 
-pub struct ActiveTask {
+pub(crate) struct ActiveTask {
     pub interrupt_tx: mpsc::UnboundedSender<FrontendCommand>,
     pub shared: Arc<Mutex<LocalApiTaskShared>>,
 }
 
-pub struct LocalApiTaskShared {
+pub(crate) struct LocalApiTaskShared {
     pub normalizer: RuntimeEnvelopeNormalizer,
     pub envelope_tx: mpsc::UnboundedSender<String>,
     pub pending_approval: Option<PendingApproval>,
@@ -49,17 +49,17 @@ pub struct LocalApiTaskShared {
     pub interrupted: bool,
 }
 
-pub struct PendingApproval {
+pub(crate) struct PendingApproval {
     pub capability: String,
     pub scope: String,
     pub response_tx: tokio::sync::oneshot::Sender<bool>,
 }
 
-pub enum FrontendCommand {
+pub(crate) enum FrontendCommand {
     Interrupt,
 }
 
-pub struct LocalApiFrontend {
+pub(crate) struct LocalApiFrontend {
     initial_input: Option<String>,
     command_rx: mpsc::UnboundedReceiver<FrontendCommand>,
     quit: Arc<AtomicBool>,
@@ -105,7 +105,7 @@ impl FrontendAdapter<LocalApiMode> for LocalApiFrontend {
     }
 }
 
-pub struct LocalApiMode {
+pub(crate) struct LocalApiMode {
     shared: Arc<Mutex<LocalApiTaskShared>>,
 }
 

@@ -13,7 +13,7 @@ use vexcoder::export::{render_task_export, write_export_output, ExportFormat};
 use vexcoder::init::run_init;
 use vexcoder::pr_summary::{run_branch, run_pr_summary};
 use vexcoder::runtime::{TaskState, TaskStatus};
-use vexcoder::server::serve_local_api;
+use vexcoder::serve_local_api;
 use vexcoder::startup::{emit_model_endpoint_warnings, prompt_tui_startup_config};
 use vexcoder::tui_frontend::ManagedTuiFrontend;
 

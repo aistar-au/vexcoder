@@ -1,61 +1,41 @@
 use super::*;
 
-impl TuiMode {
-    pub(super) fn command_session_rows(&self) -> Option<Vec<String>> {
-        if self.command_sessions.is_empty() {
-            return None;
-        }
-        let mut rows = Vec::new();
-        for (i, session) in self.command_sessions.iter().enumerate() {
-            if i > 0 {
-                rows.push(String::new());
-            }
-            rows.push(format!("command: {}", session.command));
-            rows.push(format!(
-                "pid    : {}",
-                session
-                    .pid
-                    .map(|pid| pid.to_string())
-                    .unwrap_or_else(|| "pending".to_string())
-            ));
-            rows.push(format!("status : {}", session.status));
-        }
-        Some(rows)
-    }
+struct TaskStepView {
+    step_id: u64,
+    lifecycle: StepLifecycle,
+    label: String,
+    detail: String,
+    legacy_row: String,
+    session_id: Option<u64>,
+}
 
+impl TuiMode {
     /// Derive structured timeline entries from canonical task state.
     ///
-    /// Each entry carries lifecycle, label, and inspector detail so the
-    /// renderer can highlight the selected step and show its content in
+    /// Implements ADR-031 Batch B by deriving both the structured timeline
+    /// and the legacy activity summary from the same task-owned step views.
+    ///
+    /// Each derived entry carries lifecycle, label, and inspector detail so
+    /// the renderer can highlight the selected step and show its content in
     /// the output/inspector pane.
     ///
     /// When no turn is in progress, entries are derived from the last
     /// completed turn so the four-region layout remains populated.
-    fn task_timeline_entries(&self) -> Vec<TimelineEntry> {
-        let mut entries = Vec::new();
+    fn task_timeline_entries_from(steps: &[TaskStepView]) -> Vec<TimelineEntry> {
+        steps
+            .iter()
+            .map(|step| TimelineEntry {
+                step_id: step.step_id,
+                lifecycle: step.lifecycle.clone(),
+                label: step.label.clone(),
+                detail: step.detail.clone(),
+                session_id: step.session_id,
+            })
+            .collect()
+    }
 
-        // Command sessions get their own entries with session identity.
-        for session in &self.command_sessions {
-            let detail = format!(
-                "command: {}\npid: {}\nstatus: {}",
-                session.command,
-                session
-                    .pid
-                    .map(|pid| pid.to_string())
-                    .unwrap_or_else(|| "pending".to_string()),
-                session.status,
-            );
-            entries.push(TimelineEntry {
-                step_id: session.id,
-                lifecycle: StepLifecycle::CommandSession,
-                label: format!("{}: {}", session.command, session.status),
-                detail,
-                session_id: Some(session.id),
-            });
-        }
-        if !entries.is_empty() {
-            return entries;
-        }
+    fn task_step_views(&self) -> Vec<TaskStepView> {
+        let mut entries = Vec::new();
 
         // Determine which turn data to display: current (in-progress) or
         // last completed turn for persistent display.
@@ -79,11 +59,12 @@ impl TuiMode {
 
         // User input echo — step_id 0 is reserved for the user input row.
         if !input_text.trim().is_empty() {
-            entries.push(TimelineEntry {
+            entries.push(TaskStepView {
                 step_id: 0,
                 lifecycle: StepLifecycle::UserInput,
                 label: input_text.clone(),
                 detail: input_text.clone(),
+                legacy_row: format!("> {}", input_text),
                 session_id: None,
             });
         }
@@ -92,7 +73,8 @@ impl TuiMode {
         // pending call that created them.
         for invocation in tool_invocations {
             let is_error = tool_outcome_is_error(&invocation.outcome);
-            entries.push(TimelineEntry {
+            let legacy_prefix = if is_error { "[!]" } else { "[ok]" };
+            entries.push(TaskStepView {
                 step_id: invocation.step_id,
                 lifecycle: if is_error {
                     StepLifecycle::Failed
@@ -101,6 +83,10 @@ impl TuiMode {
                 },
                 label: timeline_label_for_invocation(invocation),
                 detail: format!("Tool: {}\nOutcome: {}", invocation.name, invocation.outcome,),
+                legacy_row: format!(
+                    "{legacy_prefix} {}: {}",
+                    invocation.name, invocation.outcome
+                ),
                 session_id: None,
             });
         }
@@ -110,7 +96,7 @@ impl TuiMode {
             let mut pending_calls: Vec<&PendingTurnToolCall> =
                 self.pending_turn_tool_calls.values().collect();
             pending_calls.sort_by_key(|pending| pending.step_id);
-            let awaiting_tool_name = self
+            let awaiting_step_id = self
                 .overlay_state
                 .pending_approval
                 .as_ref()
@@ -118,7 +104,7 @@ impl TuiMode {
             for pending in pending_calls {
                 let input_preview = serde_json::to_string_pretty(&pending.input)
                     .unwrap_or_else(|_| pending.input.to_string());
-                let lifecycle = if awaiting_tool_name == Some(pending.step_id) {
+                let lifecycle = if awaiting_step_id == Some(pending.step_id) {
                     StepLifecycle::AwaitingApproval
                 } else if self
                     .overlay_state
@@ -134,88 +120,55 @@ impl TuiMode {
                     StepLifecycle::Approved => "approved",
                     _ => "running...",
                 };
-                entries.push(TimelineEntry {
+                let legacy_prefix = match lifecycle {
+                    StepLifecycle::AwaitingApproval => "[?]",
+                    StepLifecycle::Approved => "[v]",
+                    _ => "[->]",
+                };
+                entries.push(TaskStepView {
                     step_id: pending.step_id,
                     lifecycle,
                     label: format!("{}: {}", pending.name, status),
                     detail: format!("Tool: {}\nInput:\n{}", pending.name, input_preview),
+                    legacy_row: format!("{legacy_prefix} {}: {}", pending.name, status),
                     session_id: None,
                 });
             }
         }
 
+        // Command sessions remain visible alongside the rest of the current
+        // turn timeline instead of replacing it entirely.
+        for session in &self.command_sessions {
+            let pid = session
+                .pid
+                .map(|pid| pid.to_string())
+                .unwrap_or_else(|| "pending".to_string());
+            entries.push(TaskStepView {
+                step_id: session.id,
+                lifecycle: StepLifecycle::CommandSession,
+                label: format!("{}: {}", session.command, session.status),
+                detail: format!(
+                    "command: {}\npid: {}\nstatus: {}",
+                    session.command, pid, session.status,
+                ),
+                legacy_row: format!("[$$] {}: {}", session.command, session.status),
+                session_id: Some(session.id),
+            });
+        }
+
         entries
     }
 
-    fn task_activity_rows(&self) -> Vec<String> {
+    fn task_activity_rows_from(
+        steps: &[TaskStepView],
+        history: &super::HistoryState,
+    ) -> Vec<String> {
         const MAX_ACTIVITY_ROWS: usize = 6;
 
-        if let Some(rows) = self.command_session_rows() {
-            return rows
-                .into_iter()
-                .rev()
-                .take(MAX_ACTIVITY_ROWS)
-                .rev()
-                .collect();
-        }
-
-        let mut rows = Vec::new();
-
-        // Determine source: current turn or last completed turn.
-        let (input_text, tool_invocations) = if self.history_state.turn_in_progress
-            || !self.current_turn_input.trim().is_empty()
-            || !self.current_turn_tool_invocations.is_empty()
-            || !self.pending_turn_tool_calls.is_empty()
-        {
-            (
-                &self.current_turn_input,
-                &self.current_turn_tool_invocations,
-            )
-        } else if !self.last_turn_tool_invocations.is_empty()
-            || !self.last_turn_input_display.is_empty()
-        {
-            (
-                &self.last_turn_input_display,
-                &self.last_turn_tool_invocations,
-            )
-        } else {
-            (
-                &self.current_turn_input,
-                &self.current_turn_tool_invocations,
-            )
-        };
-
-        // Prompt prefix for the turn input.
-        if !input_text.trim().is_empty() {
-            rows.push(format!("> {}", input_text));
-        }
-
-        // Completed tool invocations — prefixed to match render_task_layout
-        // style markers ([ok] / [!]).
-        for invocation in tool_invocations {
-            let prefix = if tool_outcome_is_error(&invocation.outcome) {
-                "[!]"
-            } else {
-                "[ok]"
-            };
-            rows.push(format!(
-                "{prefix} {}: {}",
-                invocation.name, invocation.outcome
-            ));
-        }
-
-        // In-flight tool calls (model sent the call, result not yet received).
-        // Sort by key for stable order.
-        let mut pending_keys: Vec<&String> = self.pending_turn_tool_calls.keys().collect();
-        pending_keys.sort();
-        for key in &pending_keys {
-            let pending = &self.pending_turn_tool_calls[*key];
-            rows.push(format!("[->] {}: running...", pending.name));
-        }
+        let rows: Vec<String> = steps.iter().map(|step| step.legacy_row.clone()).collect();
 
         if rows.is_empty() {
-            return self
-                .history_state
+            return history
                 .lines
                 .iter()
                 .rev()
@@ -248,7 +201,15 @@ impl TuiMode {
     ///   below.
     /// - Before any turn: welcome hint.
     pub(super) fn task_output_view(&self) -> (String, Vec<String>, OutputScrollAnchor) {
-        let entries = self.task_timeline_entries();
+        let steps = self.task_step_views();
+        let entries = Self::task_timeline_entries_from(&steps);
+        self.task_output_view_with(&entries)
+    }
+
+    fn task_output_view_with(
+        &self,
+        entries: &[TimelineEntry],
+    ) -> (String, Vec<String>, OutputScrollAnchor) {
         // Keep the output pane on the accumulated transcript while follow mode
         // is active so prior server responses scroll upward instead of being
         // replaced by the latest inspector view. Manual timeline navigation can
@@ -353,13 +314,15 @@ impl TuiMode {
             })
         };
 
-        let activity_rows = self.task_activity_rows();
-        let timeline_entries = self.task_timeline_entries();
+        let steps = self.task_step_views();
+        let activity_rows = Self::task_activity_rows_from(&steps, &self.history_state);
+        let timeline_entries = Self::task_timeline_entries_from(&steps);
         let total_steps = timeline_entries.len();
         let selected_step = self
             .selected_timeline_index
             .min(total_steps.saturating_sub(1));
-        let (output_title, output_rows, output_scroll_anchor) = self.task_output_view();
+        let (output_title, output_rows, output_scroll_anchor) =
+            self.task_output_view_with(&timeline_entries);
         let output_scroll_offset = match output_scroll_anchor {
             OutputScrollAnchor::Bottom => self.transcript_scroll_offset,
             OutputScrollAnchor::Top => self.inspector_scroll_offset,

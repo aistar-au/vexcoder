@@ -548,8 +548,8 @@ invariant compliance. Specifically:
   `cache_usage`) are exactly the handoff payload that lets an orchestrator
   reconstruct a sub-agent's context on resume. Without these, multi-agent task
   handoffs are lossy.
-- `CacheUsageStats` maps to token-budget awareness across turns, closing an
-  OpenCode parity gap.
+- `CacheUsageStats` maps to token-budget awareness across turns, closing the
+  remaining token-budget parity gap.
 - `ContentBlock::Thinking` support closes the extended-thinking parity gap.
 
 ### Runtime wiring (implemented 2026-03-25)

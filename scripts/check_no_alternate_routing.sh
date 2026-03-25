@@ -32,10 +32,48 @@ for pattern in "${RUNTIME_POLICY_PATTERNS[@]}"; do
     fi
 done
 
+# ADR-028: CLI binary must not import the transport layer directly.
+if [ -f src/bin/vex.rs ]; then
+    if grep -n 'vexcoder::server' src/bin/vex.rs; then
+        echo "FAIL: src/bin/vex.rs imports vexcoder::server directly — use crate-root re-export (ADR-028)"
+        FAIL=1
+    fi
+fi
+
+# ADR-028: local_api.rs internal types must be pub(crate), not pub.
+if [ -f src/local_api.rs ]; then
+    if grep -En '^pub (struct|enum) (LocalApiState|ActiveTask|LocalApiTaskShared|PendingApproval|FrontendCommand|LocalApiFrontend|LocalApiMode) ' src/local_api.rs | grep -v 'pub(crate)'; then
+        echo "FAIL: src/local_api.rs internal types must be pub(crate), not pub (ADR-028)"
+        FAIL=1
+    fi
+fi
+
+# ADR-030: persist_current_task_state must not silence errors in release builds.
+if [ -f src/app/turn.rs ]; then
+    if grep -n 'cfg(debug_assertions)' src/app/turn.rs; then
+        echo "FAIL: src/app/turn.rs uses debug_assertions gate — persist errors must be visible in release (ADR-030)"
+        FAIL=1
+    fi
+fi
+
+# ADR-030: Terminal status changes (Completed, Cancelled, MaxTurnsReached, Failed)
+# in model_update.rs must use set_task_status() for immediate persist, not direct
+# field writes.  Running status is exempt — it is set on the hot streaming path
+# where per-delta persistence would be excessive.  turn.rs is exempt because
+# commit_completed_turn batches multiple field updates before a single persist.
+if [ -f src/app/model_update.rs ]; then
+    if grep -n 'self\.current_task\.status = TaskStatus::' src/app/model_update.rs | grep -v 'TaskStatus::Running'; then
+        echo "FAIL: src/app/model_update.rs uses direct terminal-status writes — use set_task_status() (ADR-030)"
+        FAIL=1
+    fi
+fi
+
 if [ $FAIL -eq 1 ]; then
     echo ""
     echo "Alternate routing is forbidden. See ADR-007."
     echo "Runtime policy centralization is required. See ADR-014."
+    echo "Transport boundary violations are forbidden. See ADR-028."
+    echo "State persistence must not be silenced. See ADR-030."
     exit 1
 fi
 

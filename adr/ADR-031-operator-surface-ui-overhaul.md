@@ -283,6 +283,13 @@ This is merge-gating.
 Maps canonical runtime/task state into UI timeline rows and inspector content.
 Can be developed in parallel, but merge waits for A.
 
+Batch B implementation on main now includes stable timeline entries, selected
+step focus, and inspector/transcript routing from canonical task state. The
+remaining cleanup in this lane is to keep structured timeline entries and
+legacy activity summaries derived from the same step source and to keep command
+session rows visible alongside other in-flight task steps instead of replacing
+the rest of the timeline.
+
 **Batch C — Full-screen scroll ownership**
 Moves scroll from transcript-only behavior to timeline/output ownership using
 already-landed derivation/state. Can be parallel with B if it only consumes A.
