@@ -17,6 +17,8 @@ pub mod sse;
 mod tests;
 pub mod util;
 
+#[cfg(not(unix))]
+use anyhow::bail;
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 use std::path::PathBuf;

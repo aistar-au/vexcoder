@@ -1,11 +1,15 @@
+#[cfg(unix)]
 use anyhow::{bail, Context, Result};
+#[cfg(unix)]
 use axum::Router;
+#[cfg(unix)]
+use std::os::unix::fs::FileTypeExt;
+#[cfg(unix)]
 use std::path::Path;
+#[cfg(unix)]
 use tokio_util::sync::CancellationToken;
 
 #[cfg(unix)]
-use std::os::unix::fs::FileTypeExt;
-
 use super::ResolvedUnixSurface;
 
 #[cfg(unix)]
