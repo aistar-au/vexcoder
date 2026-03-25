@@ -32,6 +32,10 @@ pub struct SessionTokens {
     pub cache_creation_input_tokens: u64,
     #[serde(default)]
     pub cache_read_input_tokens: u64,
+    #[serde(default)]
+    pub last_cache_creation_input_tokens: u64,
+    #[serde(default)]
+    pub last_cache_read_input_tokens: u64,
 }
 
 impl SessionTokens {
@@ -48,6 +52,8 @@ impl SessionTokens {
         self.cache_read_input_tokens = self
             .cache_read_input_tokens
             .saturating_add(turn.cache_read_input_tokens);
+        self.last_cache_creation_input_tokens = turn.cache_creation_input_tokens;
+        self.last_cache_read_input_tokens = turn.cache_read_input_tokens;
     }
 
     pub fn reset(&mut self) {
@@ -63,8 +69,8 @@ impl SessionTokens {
             input: self.last_input,
             output: self.last_output,
             estimated: self.last_estimated,
-            cache_creation_input_tokens: 0,
-            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: self.last_cache_creation_input_tokens,
+            cache_read_input_tokens: self.last_cache_read_input_tokens,
         }
     }
 }
