@@ -552,6 +552,27 @@ invariant compliance. Specifically:
   OpenCode parity gap.
 - `ContentBlock::Thinking` support closes the extended-thinking parity gap.
 
+### Runtime wiring (implemented 2026-03-25)
+
+Three runtime data paths were connected to close the gap between the type
+surface (already defined) and actual use at runtime:
+
+1. **Cache usage accumulation** — `accumulate_usage()` in `core.rs` now
+   extracts `cache_creation_input_tokens` and `cache_read_input_tokens` from
+   `ApiUsage` into `TurnTokens`. `SessionTokens` tracks per-turn and
+   cumulative cache fields. `commit_completed_turn()` in `turn.rs` copies
+   the last turn's cache values into `TaskState.cache_usage`.
+
+2. **Context compaction recording** — `compact_for_context_overflow()` in
+   `core.rs` emits a `ConversationStreamUpdate::ContextCompacted` event.
+   The event flows through `forward_conversation_update()` in `context.rs`
+   as `UiUpdate::ContextCompacted`, and is recorded in
+   `TaskState.context_compaction` by `model_update.rs`.
+
+3. **Plan persistence** — The `/plan` command sets `plan_turn_active` on the
+   TUI mode. When `commit_completed_turn()` runs, the turn's response text
+   is written to `TaskState.plan`.
+
 ## Consequences
 
 ### Benefits
