@@ -114,13 +114,12 @@ Commands entered inside the interactive UI start with `/`.
 
 ### Session and task state
 
-- `/new`
-- `/resume [task-id]`
-- `/compact`
-- `/fork [label]`
-- `/quit`
-- `/exit`
-- `/about`
+- `/new` — save the current task and start a fresh session with a new task ID.
+- `/resume [task-id]` — restore a previously saved task. Lists recent tasks when no ID is given.
+- `/compact` — reset conversation history, turn evidence, and token counters while keeping the current task ID and permission grants. Use this to recover from context-window overflow or to free up context budget.
+- `/fork [label]` — save the current task and start a new task seeded with the same grants.
+- `/quit` / `/exit` — end the session.
+- `/about` — show version and build info.
 
 ### Memory
 
