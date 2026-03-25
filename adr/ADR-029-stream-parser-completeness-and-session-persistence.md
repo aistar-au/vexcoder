@@ -549,7 +549,7 @@ invariant compliance. Specifically:
   reconstruct a sub-agent's context on resume. Without these, multi-agent task
   handoffs are lossy.
 - `CacheUsageStats` maps to token-budget awareness across turns, closing the
-    remaining token-budget parity gap.
+  remaining token-budget parity gap.
 - `ContentBlock::Thinking` support closes the extended-thinking parity gap.
 
 ### Runtime wiring (implemented 2026-03-25)

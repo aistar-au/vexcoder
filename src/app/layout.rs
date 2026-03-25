@@ -21,14 +21,14 @@ impl TuiMode {
     ///
     /// When no turn is in progress, entries are derived from the last
     /// completed turn so the four-region layout remains populated.
-    fn task_timeline_entries(&self) -> Vec<TimelineEntry> {
-        self.task_step_views()
-            .into_iter()
+    fn task_timeline_entries_from(steps: &[TaskStepView]) -> Vec<TimelineEntry> {
+        steps
+            .iter()
             .map(|step| TimelineEntry {
                 step_id: step.step_id,
-                lifecycle: step.lifecycle,
-                label: step.label,
-                detail: step.detail,
+                lifecycle: step.lifecycle.clone(),
+                label: step.label.clone(),
+                detail: step.detail.clone(),
                 session_id: step.session_id,
             })
             .collect()
@@ -159,18 +159,13 @@ impl TuiMode {
         entries
     }
 
-    fn task_activity_rows(&self) -> Vec<String> {
+    fn task_activity_rows_from(steps: &[TaskStepView], history: &super::HistoryState) -> Vec<String> {
         const MAX_ACTIVITY_ROWS: usize = 6;
 
-        let rows: Vec<String> = self
-            .task_step_views()
-            .into_iter()
-            .map(|step| step.legacy_row)
-            .collect();
+        let rows: Vec<String> = steps.iter().map(|step| step.legacy_row.clone()).collect();
 
         if rows.is_empty() {
-            return self
-                .history_state
+            return history
                 .lines
                 .iter()
                 .rev()
@@ -203,7 +198,15 @@ impl TuiMode {
     ///   below.
     /// - Before any turn: welcome hint.
     pub(super) fn task_output_view(&self) -> (String, Vec<String>, OutputScrollAnchor) {
-        let entries = self.task_timeline_entries();
+        let steps = self.task_step_views();
+        let entries = Self::task_timeline_entries_from(&steps);
+        self.task_output_view_with(&entries)
+    }
+
+    fn task_output_view_with(
+        &self,
+        entries: &[TimelineEntry],
+    ) -> (String, Vec<String>, OutputScrollAnchor) {
         // Keep the output pane on the accumulated transcript while follow mode
         // is active so prior server responses scroll upward instead of being
         // replaced by the latest inspector view. Manual timeline navigation can
@@ -308,13 +311,15 @@ impl TuiMode {
             })
         };
 
-        let activity_rows = self.task_activity_rows();
-        let timeline_entries = self.task_timeline_entries();
+        let steps = self.task_step_views();
+        let activity_rows = Self::task_activity_rows_from(&steps, &self.history_state);
+        let timeline_entries = Self::task_timeline_entries_from(&steps);
         let total_steps = timeline_entries.len();
         let selected_step = self
             .selected_timeline_index
             .min(total_steps.saturating_sub(1));
-        let (output_title, output_rows, output_scroll_anchor) = self.task_output_view();
+        let (output_title, output_rows, output_scroll_anchor) =
+            self.task_output_view_with(&timeline_entries);
         let output_scroll_offset = match output_scroll_anchor {
             OutputScrollAnchor::Bottom => self.transcript_scroll_offset,
             OutputScrollAnchor::Top => self.inspector_scroll_offset,

@@ -210,11 +210,12 @@ brand_regex="$(printf '%s|' "${brand_words[@]}")"
 brand_regex="${brand_regex%|}"
 caret_host=$'\x63\x75\x72\x73\x6f\x72\\.com'
 caret_phrase=$'\\b\x63\x75\x72\x73\x6f\x72 ai\\b'
+claude_code_phrase=$'\\b\x63\x6c\x61\x75\x64\x65 \x63\x6f\x64\x65\\b'
 editor_brand=$'\\bVS Code\\b'
 
-PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|peter-evans/create-pull-request|leonardomso/rust-skills|actions/checkout|actions/cache|actions/upload-pages-artifact|actions/deploy-pages|dtolnay/rust-toolchain|uncenter/setup-taplo|\\bvexcoder/vexcoder\\b|${editor_brand}"
+PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|${claude_code_phrase}|peter-evans/create-pull-request|leonardomso/rust-skills|actions/checkout|actions/cache|actions/upload-pages-artifact|actions/deploy-pages|dtolnay/rust-toolchain|uncenter/setup-taplo|\\bvexcoder/vexcoder\\b|${editor_brand}"
 
-BRAND_PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|${editor_brand}"
+BRAND_PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|${claude_code_phrase}|${editor_brand}"
 
 TARGETS=(
   .gitignore
@@ -251,8 +252,27 @@ if scan_path_names "$BRAND_PATTERN" src/prompts models; then
   failed=1
 fi
 
+# Pass 4: ADR-028 architectural boundary checks.
+#   - CLI binary must not import the transport layer (vexcoder::server) directly
+#   - local_api.rs types must be pub(crate), not pub
+#   - app facade must not import server module
+if [[ -f src/bin/vex.rs ]]; then
+  if grep -q 'vexcoder::server' src/bin/vex.rs; then
+    echo "src/bin/vex.rs: ADR-028 violation — CLI imports vexcoder::server directly (use crate-root re-export)"
+    failed=1
+  fi
+fi
+
+if [[ -f src/local_api.rs ]]; then
+  # Types that must be pub(crate), not pub
+  if grep -E '^pub (struct|enum) (LocalApiState|ActiveTask|LocalApiTaskShared|PendingApproval|FrontendCommand|LocalApiFrontend|LocalApiMode) ' src/local_api.rs | grep -v 'pub(crate)' >/dev/null 2>&1; then
+    echo "src/local_api.rs: ADR-028 violation — internal types must be pub(crate), not pub"
+    failed=1
+  fi
+fi
+
 if [[ $failed -ne 0 ]]; then
-  echo "FAIL: forbidden branded names found in ${TARGETS[*]}"
+  echo "FAIL: forbidden branded names or architectural violations found"
   exit 1
 fi
 

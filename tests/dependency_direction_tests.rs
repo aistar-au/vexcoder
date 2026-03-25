@@ -243,6 +243,20 @@ fn server_must_not_import_tui_terminal_or_ui() {
 }
 
 // ---------------------------------------------------------------------------
+// ADR-028 Rule: CLI binary must NOT import the transport layer directly
+// ---------------------------------------------------------------------------
+
+#[test]
+fn cli_binary_must_not_import_transport_layer() {
+    let vex_src =
+        fs::read_to_string(src_dir().join("bin").join("vex.rs")).expect("src/bin/vex.rs must exist");
+    assert!(
+        !vex_src.contains("vexcoder::server"),
+        "ADR-028: src/bin/vex.rs must not import vexcoder::server directly — use the crate-root re-export instead"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Structural: server module must exist (transport extraction complete)
 // ---------------------------------------------------------------------------
 

@@ -14,6 +14,7 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
         vec!["> hi".to_string(), "[waiting for response...]".to_string()]
     );
 }
+
 #[test]
 fn test_task_layout_state_transcript_streaming_with_pending_approval() {
     let mut mode = TuiMode::new();
@@ -56,6 +57,7 @@ fn test_task_layout_state_transcript_streaming_with_pending_approval() {
         "streaming line▌"
     );
 }
+
 #[test]
 fn test_task_layout_state_shows_approved_pending_tool_after_acceptance() {
     let mut mode = TuiMode::new();
@@ -107,6 +109,7 @@ fn test_task_layout_state_shows_approved_pending_tool_after_acceptance() {
         crate::runtime::TaskStatus::Running
     );
 }
+
 #[test]
 fn test_task_layout_state_routes_streamed_response_to_output_pane() {
     let mut mode = TuiMode::new();
@@ -125,6 +128,7 @@ fn test_task_layout_state_routes_streamed_response_to_output_pane() {
         vec!["> hi".to_string(), "hello from model▌".to_string()]
     );
 }
+
 #[test]
 fn test_task_layout_state_preserves_multiline_streamed_response_in_transcript() {
     let mut mode = TuiMode::new();
@@ -146,6 +150,7 @@ fn test_task_layout_state_preserves_multiline_streamed_response_in_transcript() 
         ]
     );
 }
+
 #[test]
 fn test_task_layout_state_keeps_prior_responses_visible_after_turn_completion() {
     let mut mode = TuiMode::new();
@@ -167,6 +172,7 @@ fn test_task_layout_state_keeps_prior_responses_visible_after_turn_completion() 
         vec!["> inspect the file".to_string(), "Done.".to_string()]
     );
 }
+
 #[test]
 fn test_manual_timeline_selection_opens_tool_inspector() {
     let mut mode = TuiMode::new();
@@ -189,6 +195,7 @@ fn test_manual_timeline_selection_opens_tool_inspector() {
         "Outcome: 42 lines read from src/main.rs"
     );
 }
+
 #[test]
 fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
     let mut mode = TuiMode::new();
@@ -250,6 +257,7 @@ fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
         ]
     );
 }
+
 #[test]
 fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
     let mut mode = TuiMode::new();
@@ -355,6 +363,7 @@ fn test_task_layout_state_clamps_selected_step_when_timeline_is_empty() {
     assert_eq!(state.total_steps, 0);
     assert_eq!(state.selected_step, 0);
 }
+
 #[test]
 fn test_timeline_down_disables_follow_mode_until_end() {
     let mut mode = TuiMode::new();
@@ -369,6 +378,7 @@ fn test_timeline_down_disables_follow_mode_until_end() {
     mode.apply_timeline_end(5);
     assert!(mode.timeline_follow_mode);
 }
+
 #[test]
 fn test_timeline_page_down_disables_follow_mode_until_end() {
     let mut mode = TuiMode::new();
@@ -383,6 +393,7 @@ fn test_timeline_page_down_disables_follow_mode_until_end() {
     mode.apply_timeline_scroll_action(ScrollAction::PageDown(10), 10);
     assert!(mode.timeline_follow_mode);
 }
+
 #[test]
 fn test_output_scroll_commands_use_bottom_anchored_prompt_surface() {
     let mut mode = TuiMode::new();
