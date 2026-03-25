@@ -26,13 +26,9 @@ commands, `@path` expansion, pasted blocks, and long prompts remain usable
 without dropping out of fullscreen task mode, including visual-row cursor
 navigation for wrapped prompt text.
 
-The next step is the remaining alignment pass for that UI overhaul. The
-remaining ADR-031 scope:
+Batch A and Batch B are now landed on `main`, so the remaining ADR-031 scope
+is the post-derivation alignment pass:
 
-- extends the canonical runtime/timeline state to support selected-step
-  identity and step lifecycle visibility;
-- derives UI-facing timeline rows from canonical task state rather than ad hoc
-  activity-row assembly;
 - aligns transcript/output semantics across `src/app/layout.rs`,
   `src/ui/draw/`, and the fallback renderer paths;
 - removes obsolete fixed-row assumptions once the adaptive task surface is the
@@ -225,17 +221,21 @@ satisfy one of the following:
 
 ### Merge-gated rule
 
-When Batch B depends on Batch A, the repository treats them as:
+When a dependent batch depends on a prerequisite batch, the repository treats
+them as:
 
 - **parallel-dispatchable**
 - **merge-gated**
 
 This means:
 
-- Batch B may be implemented and pushed to a remote branch before Batch A lands;
-- Batch B may target Batch A during review or be maintained as a stacked branch;
-- Batch B MUST NOT be merged to `main` before Batch A is merged and the branch
-  is rebased or otherwise reconciled with the then-current `main`.
+- the dependent batch may be implemented and pushed to a remote branch before
+  the prerequisite lands;
+- the dependent batch may target the prerequisite during review or be
+  maintained as a stacked branch;
+- the dependent batch MUST NOT be merged to `main` before the prerequisite is
+  merged and the branch is rebased or otherwise reconciled with the then-
+  current `main`.
 
 ### Normative rule
 
@@ -262,6 +262,11 @@ Work should be split so that prerequisite batches land first in this order:
 Independent cleanup, tests, and renderer polish may proceed in parallel on
 remote branches, but merges must respect the dependency chain above.
 
+At the time of this update, Batches A and B are already landed on `main`, so
+the active implementation queue for this ADR begins with Batch C. No Batch F is
+currently defined by this ADR; any additional lane requires an ADR update
+before dispatch.
+
 ## Batch descriptions
 
 **Batch A — Canonical timeline/task-state extension**
@@ -281,14 +286,12 @@ This is merge-gating.
 
 **Batch B — Derivation layer**
 Maps canonical runtime/task state into UI timeline rows and inspector content.
-Can be developed in parallel, but merge waits for A.
+This batch is landed on `main`.
 
-Batch B implementation on main now includes stable timeline entries, selected
-step focus, and inspector/transcript routing from canonical task state. The
-remaining cleanup in this lane is to keep structured timeline entries and
-legacy activity summaries derived from the same step source and to keep command
-session rows visible alongside other in-flight task steps instead of replacing
-the rest of the timeline.
+Batch B implementation on main includes stable timeline entries, selected step
+focus, inspector/transcript routing from canonical task state, and unified
+derivation for structured timeline rows plus legacy activity summaries so
+command-session rows remain visible alongside other in-flight task steps.
 
 **Batch C — Full-screen scroll ownership**
 Moves scroll from transcript-only behavior to timeline/output ownership using
