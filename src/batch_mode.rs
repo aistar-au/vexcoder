@@ -379,6 +379,7 @@ impl RuntimeMode for BatchMode {
             UiUpdate::CommandSessionAttached { .. } => {}
             UiUpdate::CommandSessionFinished { .. } => {}
             UiUpdate::EditLoopComplete { .. } => {}
+            UiUpdate::ContextCompacted { .. } => {}
         }
     }
 
@@ -1201,6 +1202,7 @@ mod tests {
             input: 8,
             output: 4,
             estimated: false,
+            ..Default::default()
         });
         mode.status = TaskStatus::Completed;
         mode.append_summary();
@@ -1299,6 +1301,7 @@ mod tests {
             input: 5,
             output: 7,
             estimated: true,
+            ..Default::default()
         });
 
         let turn_json: serde_json::Value =

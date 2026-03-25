@@ -48,6 +48,7 @@ impl TuiMode {
         self.inspector_scroll_offset = 0;
         self.turn_started_at = None;
         self.turn_completion_pending = false;
+        self.plan_turn_active = false;
     }
 
     pub(super) fn reset_last_turn_display(&mut self) {
@@ -149,6 +150,11 @@ impl TuiMode {
             return;
         }
 
+        // Persist plan response to TaskState if this was a /plan turn (ADR-029).
+        if self.plan_turn_active && !self.current_turn_response.trim().is_empty() {
+            self.current_task.plan = Some(self.current_turn_response.clone());
+        }
+
         // Preserve turn data for persistent display after the turn completes.
         self.last_turn_tool_invocations = self.current_turn_tool_invocations.clone();
         self.last_turn_response = self.current_turn_response.clone();
@@ -179,13 +185,25 @@ impl TuiMode {
             .extend(command_history.iter().cloned());
         self.current_task.instructions_path = self.instructions_path.clone();
         self.current_task.status = TaskStatus::Completed;
+        let turn_tokens = ctx.session_tokens_snapshot().last_turn();
+        // Accumulate cache usage from the turn into task-level totals (ADR-029).
+        self.current_task.cache_usage.total_cache_creation_tokens = self
+            .current_task
+            .cache_usage
+            .total_cache_creation_tokens
+            .saturating_add(turn_tokens.cache_creation_input_tokens);
+        self.current_task.cache_usage.total_cache_read_tokens = self
+            .current_task
+            .cache_usage
+            .total_cache_read_tokens
+            .saturating_add(turn_tokens.cache_read_input_tokens);
         self.current_task.turns.push(TurnEvidenceState {
             input: std::mem::take(&mut self.current_turn_input),
             response: std::mem::take(&mut self.current_turn_response),
             changed_files,
             command_history,
             tool_invocations: std::mem::take(&mut self.current_turn_tool_invocations),
-            tokens: ctx.session_tokens_snapshot().last_turn(),
+            tokens: turn_tokens,
         });
 
         self.persist_current_task_state();

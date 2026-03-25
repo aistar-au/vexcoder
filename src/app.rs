@@ -16,6 +16,7 @@ use crate::runtime::mode::RuntimeMode;
 use crate::runtime::policy::sanitize_assistant_text;
 use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
 use crate::runtime::r#loop::Runtime;
+use crate::runtime::task_state::SessionNote;
 use crate::runtime::validation::ValidationSuite;
 #[cfg(test)]
 use crate::runtime::CommandResult;
@@ -762,6 +763,8 @@ pub struct TuiMode {
     last_error_message: Option<String>,
     /// Remembers a runtime turn completion event until the last command session exits.
     turn_completion_pending: bool,
+    /// Tracks whether the current turn is a `/plan` command (ADR-029 plan persistence).
+    plan_turn_active: bool,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }

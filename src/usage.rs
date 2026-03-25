@@ -6,6 +6,10 @@ pub struct TurnTokens {
     pub output: u64,
     #[serde(default)]
     pub estimated: bool,
+    #[serde(default)]
+    pub cache_creation_input_tokens: u64,
+    #[serde(default)]
+    pub cache_read_input_tokens: u64,
 }
 
 impl TurnTokens {
@@ -24,6 +28,14 @@ pub struct SessionTokens {
     pub last_estimated: bool,
     #[serde(default)]
     pub estimated: bool,
+    #[serde(default)]
+    pub cache_creation_input_tokens: u64,
+    #[serde(default)]
+    pub cache_read_input_tokens: u64,
+    #[serde(default)]
+    pub last_cache_creation_input_tokens: u64,
+    #[serde(default)]
+    pub last_cache_read_input_tokens: u64,
 }
 
 impl SessionTokens {
@@ -34,6 +46,14 @@ impl SessionTokens {
         self.last_output = turn.output;
         self.last_estimated = turn.estimated;
         self.estimated = self.estimated || turn.estimated;
+        self.cache_creation_input_tokens = self
+            .cache_creation_input_tokens
+            .saturating_add(turn.cache_creation_input_tokens);
+        self.cache_read_input_tokens = self
+            .cache_read_input_tokens
+            .saturating_add(turn.cache_read_input_tokens);
+        self.last_cache_creation_input_tokens = turn.cache_creation_input_tokens;
+        self.last_cache_read_input_tokens = turn.cache_read_input_tokens;
     }
 
     pub fn reset(&mut self) {
@@ -49,6 +69,8 @@ impl SessionTokens {
             input: self.last_input,
             output: self.last_output,
             estimated: self.last_estimated,
+            cache_creation_input_tokens: self.last_cache_creation_input_tokens,
+            cache_read_input_tokens: self.last_cache_read_input_tokens,
         }
     }
 }
@@ -80,11 +102,13 @@ mod tests {
             input: 10,
             output: 5,
             estimated: false,
+            ..Default::default()
         });
         session.record_turn(TurnTokens {
             input: 4,
             output: 3,
             estimated: true,
+            ..Default::default()
         });
 
         assert_eq!(session.input, 14);
@@ -102,11 +126,13 @@ mod tests {
             input: 10,
             output: 5,
             estimated: true,
+            ..Default::default()
         });
         session.record_turn(TurnTokens {
             input: 4,
             output: 3,
             estimated: false,
+            ..Default::default()
         });
 
         assert!(

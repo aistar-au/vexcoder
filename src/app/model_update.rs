@@ -302,6 +302,22 @@ impl TuiMode {
                 self.turn_completion_pending = true;
                 self.complete_turn_if_idle(ctx);
             }
+            UiUpdate::ContextCompacted {
+                messages_before,
+                messages_after,
+                summary,
+            } => {
+                use crate::runtime::ContextCompactionRecord;
+                let turn_index = self.current_task.turns.len();
+                self.current_task
+                    .context_compaction
+                    .push(ContextCompactionRecord {
+                        turn_index,
+                        messages_before,
+                        messages_after,
+                        summary,
+                    });
+            }
             UiUpdate::Error(msg) => {
                 self.command_sessions.clear();
                 self.resolve_pending_approval(false, ctx);

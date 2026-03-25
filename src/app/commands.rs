@@ -365,6 +365,7 @@ impl TuiMode {
         let render_assembler = ContextAssembler::default();
         let rendered_context = render_assembler.render(&assembled);
         let prompt = render_plan_prompt(&instruction, &rendered_context, &scope_instruction);
+        self.plan_turn_active = true;
         self.start_single_turn(prompt, ctx, true, Some(self.selected_system_prompt()));
     }
     pub(super) fn handle_init_command(&mut self, environment: &str) {
@@ -934,6 +935,7 @@ impl TuiMode {
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
         self.current_task.turns.clear();
+        self.persist_current_task_state();
         self.reset_conversation_window(ctx);
         self.push_history_line(format!(
             "[compacted: conversation history reset; task {task_id} continues]"
@@ -1017,6 +1019,11 @@ impl TuiMode {
                     self.push_history_line(format!("[memory] error writing: {e}"));
                     return;
                 }
+                self.current_task.session_notes.push(SessionNote {
+                    content: note,
+                    created_at_turn: self.current_task.turns.len(),
+                });
+                self.persist_current_task_state();
                 self.push_history_line("[memory: note added]".to_string());
             }
             Err(e) => {
@@ -1041,6 +1048,8 @@ impl TuiMode {
                         return;
                     }
                 }
+                self.current_task.session_notes.clear();
+                self.persist_current_task_state();
                 self.push_history_line("[memory: cleared]".to_string());
             }
             _ => {

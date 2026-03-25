@@ -407,11 +407,13 @@ fn test_usage_command_uses_last_turn_estimate_flag() {
         input: 10,
         output: 5,
         estimated: true,
+        ..Default::default()
     });
     ctx.test_record_session_turn(crate::usage::TurnTokens {
         input: 4,
         output: 3,
         estimated: false,
+        ..Default::default()
     });
 
     mode.on_user_input("/usage".to_string(), &mut ctx);

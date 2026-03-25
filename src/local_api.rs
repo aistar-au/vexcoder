@@ -203,7 +203,8 @@ impl RuntimeMode for LocalApiMode {
             UiUpdate::CommandSessionStarted { .. }
             | UiUpdate::CommandSessionAttached { .. }
             | UiUpdate::EditLoopComplete { .. }
-            | UiUpdate::CommandSessionFinished { .. } => {}
+            | UiUpdate::CommandSessionFinished { .. }
+            | UiUpdate::ContextCompacted { .. } => {}
         }
     }
 

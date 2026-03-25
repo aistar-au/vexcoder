@@ -55,6 +55,7 @@ impl TuiMode {
             last_turn_duration: None,
             last_error_message: None,
             turn_completion_pending: false,
+            plan_turn_active: false,
             #[cfg(test)]
             last_turn_input: None,
         }

@@ -244,7 +244,8 @@ impl RuntimeEnvelopeNormalizer {
             | UiUpdate::CommandSessionStarted { .. }
             | UiUpdate::CommandSessionAttached { .. }
             | UiUpdate::CommandSessionFinished { .. }
-            | UiUpdate::EditLoopComplete { .. } => Vec::new(),
+            | UiUpdate::EditLoopComplete { .. }
+            | UiUpdate::ContextCompacted { .. } => Vec::new(),
         }
     }
 
@@ -568,6 +569,7 @@ fn turn_tokens_from_usage(usage: &TokenUsageEnvelope) -> TurnTokens {
         input: usage.input,
         output: usage.output,
         estimated: usage.estimated,
+        ..Default::default()
     }
 }
 

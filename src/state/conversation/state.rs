@@ -12,14 +12,36 @@ use tokio::sync::oneshot;
 
 pub enum ConversationStreamUpdate {
     Delta(String),
-    BlockStart { index: usize, block: StreamBlock },
-    BlockDelta { index: usize, delta: String },
-    BlockComplete { index: usize },
+    BlockStart {
+        index: usize,
+        block: StreamBlock,
+    },
+    BlockDelta {
+        index: usize,
+        delta: String,
+    },
+    BlockComplete {
+        index: usize,
+    },
     ToolApprovalRequest(ToolApprovalRequest),
     TranscriptLine(String),
-    CommandSessionStarted { session_id: u64, command: String },
-    CommandSessionAttached { session_id: u64, pid: Option<u32> },
-    CommandSessionFinished { session_id: u64 },
+    CommandSessionStarted {
+        session_id: u64,
+        command: String,
+    },
+    CommandSessionAttached {
+        session_id: u64,
+        pid: Option<u32>,
+    },
+    CommandSessionFinished {
+        session_id: u64,
+    },
+    /// Emitted when conversation history is compacted (ADR-029 session persistence).
+    ContextCompacted {
+        messages_before: usize,
+        messages_after: usize,
+        summary: String,
+    },
 }
 
 pub struct ToolApprovalRequest {
