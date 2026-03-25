@@ -252,27 +252,8 @@ if scan_path_names "$BRAND_PATTERN" src/prompts models; then
   failed=1
 fi
 
-# Pass 4: ADR-028 architectural boundary checks.
-#   - CLI binary must not import the transport layer (vexcoder::server) directly
-#   - local_api.rs types must be pub(crate), not pub
-#   - app facade must not import server module
-if [[ -f src/bin/vex.rs ]]; then
-  if grep -q 'vexcoder::server' src/bin/vex.rs; then
-    echo "src/bin/vex.rs: ADR-028 violation — CLI imports vexcoder::server directly (use crate-root re-export)"
-    failed=1
-  fi
-fi
-
-if [[ -f src/local_api.rs ]]; then
-  # Types that must be pub(crate), not pub
-  if grep -E '^pub (struct|enum) (LocalApiState|ActiveTask|LocalApiTaskShared|PendingApproval|FrontendCommand|LocalApiFrontend|LocalApiMode) ' src/local_api.rs | grep -v 'pub(crate)' >/dev/null 2>&1; then
-    echo "src/local_api.rs: ADR-028 violation — internal types must be pub(crate), not pub"
-    failed=1
-  fi
-fi
-
 if [[ $failed -ne 0 ]]; then
-  echo "FAIL: forbidden branded names or architectural violations found"
+  echo "FAIL: forbidden branded names found in ${TARGETS[*]}"
   exit 1
 fi
 

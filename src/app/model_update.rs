@@ -327,8 +327,7 @@ impl TuiMode {
                 self.reset_turn_capture();
                 self.history_state.cancel_pending = false;
                 self.push_history_line(format!("[error] {msg}"));
-                self.current_task.status = TaskStatus::Failed;
-                self.persist_current_task_state();
+                self.set_task_status(TaskStatus::Failed);
                 self.history_state.turn_in_progress = false;
                 self.history_state.active_assistant_index = None;
                 self.read_only_turn_active = false;
