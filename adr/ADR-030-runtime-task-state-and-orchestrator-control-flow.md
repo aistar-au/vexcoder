@@ -322,6 +322,27 @@ Invalid completion signals include:
   stream-bound reasoning
 - makes retry, validation, and approval flows easier to reason about and test
 
+### Multi-agent orchestration dependency
+
+ADR-030 was originally the control-flow foundation for UI batches. It is now
+also the semantic correctness guarantee for multi-agent handoffs.
+
+When Agent B resumes a task started by Agent A, the six invariants defined here
+are exactly what ensures the handoff is coherent:
+
+- **Invariant 1** (provider events are never task truth) prevents Agent B from
+  inheriting stale provider-native artefacts left by Agent A's session.
+- **Invariant 4** (command sessions outlive provider stream chunks) ensures
+  managed subprocesses survive a handoff boundary and remain runtime-owned.
+- **Invariant 5** (tool results re-enter task state) guarantees that Agent B
+  sees the full tool-result record accumulated by Agent A, not a partial
+  transcript.
+
+Without these invariants proven end-to-end, multi-agent orchestration has
+undefined behaviour at handoff points. The two invariant patches from
+2026-03-17 are in the tree; the full verification suite is completed as of
+2026-03-25.
+
 ### Negative
 
 - requires explicit task-state updates instead of informal propagation
