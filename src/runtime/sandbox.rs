@@ -243,8 +243,13 @@ pub fn resolve_configured_sandbox(
         Err(error) => Ok((
             ConfiguredSandbox::Passthrough(PassthroughSandbox),
             Some(format!(
-                "[sandbox] {} unavailable: {error}; falling back to passthrough",
-                config.kind.as_str()
+                "[sandbox] {} unavailable{}: {error}; falling back to passthrough",
+                config.kind.as_str(),
+                if config.kind == SandboxKind::MacosExec {
+                    " (sandbox-exec is deprecated on modern macOS releases)"
+                } else {
+                    ""
+                }
             )),
         )),
     }

@@ -80,6 +80,13 @@ otherwise non-system-trusted certificates.
 - Emits a startup warning on every launch when enabled.
 - Must not be committed in repo-local `.vex/config.toml`.
 
+For any model endpoint that does not resolve to `localhost`, `127.0.0.1`, or
+`::1`, HTTPS is mandatory. Plain `http://` remote model URLs are rejected at
+startup so prompts, repository context, and model responses are not sent over
+unencrypted network paths. `VEX_MODEL_URL_SKIP_TLS_CHECK` only relaxes
+certificate verification for HTTPS endpoints; it does not permit plain HTTP for
+non-loopback hosts.
+
 ### `VEX_MODEL_NAME`
 
 Model identifier sent to the API.

@@ -338,6 +338,12 @@ impl Config {
                 self.model_url
             );
         }
+        if !local_endpoint && self.model_url.starts_with("http://") {
+            bail!(
+                "Non-loopback model endpoint '{}' must use https://. TLS is required for non-local model connections.",
+                self.model_url
+            );
+        }
         if !local_endpoint && self.model_name.starts_with("local/") {
             bail!("Local models are only allowed for localhost endpoints");
         }
@@ -1321,6 +1327,39 @@ mod tests {
     }
 
     #[test]
+    fn test_config_rejects_non_loopback_http_model_url() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _url = EnvRestore::capture("VEX_MODEL_URL");
+        let _name = EnvRestore::capture("VEX_MODEL_NAME");
+        let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
+
+        std::env::set_var("VEX_MODEL_URL", "http://api.example.internal/v1/messages");
+        std::env::set_var("VEX_MODEL_NAME", "remote-model");
+        std::env::set_var("VEX_MODEL_TOKEN", "token");
+
+        let cfg = Config::load().expect("load failed");
+        let error = cfg
+            .validate()
+            .expect_err("non-loopback http must be rejected");
+        assert!(error.to_string().contains("https://"), "{error:#}");
+    }
+
+    #[test]
+    fn test_config_allows_loopback_http_model_url() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _url = EnvRestore::capture("VEX_MODEL_URL");
+        let _name = EnvRestore::capture("VEX_MODEL_NAME");
+        let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
+
+        std::env::set_var("VEX_MODEL_URL", "http://127.0.0.1:8080/v1/messages");
+        std::env::set_var("VEX_MODEL_NAME", "local-model");
+        std::env::remove_var("VEX_MODEL_TOKEN");
+
+        let cfg = Config::load().expect("load failed");
+        assert!(cfg.validate().is_ok(), "loopback http must remain valid");
+    }
+
+    #[test]
     fn test_config_loads_vex_model_name_without_legacy_prefix() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
@@ -1666,7 +1705,7 @@ mod tests {
     }
 
     #[test]
-    fn test_model_url_skip_tls_check_parses_from_env() {
+    fn test_model_url_skip_tls_check_warns() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         let _skip = EnvRestore::capture("VEX_MODEL_URL_SKIP_TLS_CHECK");
         let _url = EnvRestore::capture("VEX_MODEL_URL");
