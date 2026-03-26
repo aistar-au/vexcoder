@@ -50,28 +50,8 @@ fn render_plain(state: &TaskLayoutState, cols: u16, rows: u16) -> String {
     let mut buf: Vec<u8> = Vec::new();
     let mut draw = TaskDraw::new();
     draw.draw(&mut buf, state, cols, rows);
-    strip_ansi(&String::from_utf8_lossy(&buf))
-}
-
-/// Remove ANSI escape sequences so snapshots are colour-independent.
-fn strip_ansi(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut chars = s.chars();
-    while let Some(c) = chars.next() {
-        if c == '\x1b' {
-            // Consume the CSI sequence: ESC [ ... final byte
-            if let Some('[') = chars.next() {
-                for c2 in chars.by_ref() {
-                    if c2.is_ascii_alphabetic() || c2 == '~' || c2 == 'J' || c2 == 'H' {
-                        break;
-                    }
-                }
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
+    let stripped = strip_ansi_escapes::strip(&buf);
+    String::from_utf8_lossy(&stripped).into_owned()
 }
 
 // ── Snapshot tests ─────────────────────────────────────────────────

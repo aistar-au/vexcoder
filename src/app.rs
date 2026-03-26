@@ -77,8 +77,9 @@ pub use self::facade::{
 };
 pub use self::runtime_build::{build_runtime, build_runtime_with_resume};
 pub use self::task_facade::{
-    facade_delegate_session_task, facade_list_agents, facade_watch_snapshot, FacadeAgentDescriptor,
-    FacadeAgentsListing, FacadeDelegateResult, FacadeTeamDescriptor, FacadeWatchSnapshot,
+    facade_delegate_session_task, facade_list_agents, facade_watch_snapshot, rebuild_live_index,
+    DelegateError, FacadeAgentDescriptor, FacadeAgentsListing, FacadeDelegateResult,
+    FacadeTeamDescriptor, FacadeWatchSnapshot,
 };
 
 use self::overlay::summarize_tool_approval_context;
