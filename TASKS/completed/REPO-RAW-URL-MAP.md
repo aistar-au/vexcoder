@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 223
+- Total tracked files: 224
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -56,6 +56,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 45 | `adr/ADR-031-operator-surface-ui-overhaul.md` | ~360 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-031-operator-surface-ui-overhaul.md> |
 | 46 | `adr/ADR-032-prompt-area-interactivity-and-context-guard.md` | ~116 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-032-prompt-area-interactivity-and-context-guard.md> |
 | 47 | `adr/ADR-033-hybrid-retrieval-context-architecture.md` | ~114 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-033-hybrid-retrieval-context-architecture.md> |
+| 224 | `adr/ADR-034-multi-agent-parallel-task-execution.md` | ~217 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-034-multi-agent-parallel-task-execution.md> |
 | 48 | `adr/ADR-README.md` | ~61 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 49 | `adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
 | 50 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~77 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |
