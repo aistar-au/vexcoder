@@ -236,6 +236,37 @@ This ADR does not:
 - replace the single-agent runtime path for ordinary interactive use;
 - let provider output implicitly create session tasks without orchestrator review.
 
+## Implementation notes (debug-pass fixes — PR #234)
+
+A debug-pass analysis of the Phase B-E baseline identified nine observations
+patched in `work/vexcoder-debug-pass-fixes` (commit `0ba8351`):
+
+In the 2026-03-26 remaining-work inventory, PR `#234` is one of the four Tier 2
+open PRs and serves as the ADR-034 follow-up hardening batch on top of the
+already-merged Phase A / Phase B-E baseline.
+
+- **O-1** — Require `parent_task_id`: reject `None` to prevent orphan state
+  files (`src/app/task_facade.rs`).
+- **O-2** — Replace string-comparison error routing with a typed `DelegateError`
+  enum via `thiserror` (`src/app/task_facade.rs`, `Cargo.toml`).
+- **O-3** — Inline live-count computation in `facade_list_agents`; sidecar
+  index was removed because correct decrement-on-task-completion would require
+  threading `working_dir` through the transition path, and without decrement
+  the cache monotonically inflates (`src/app/task_facade.rs`).
+- **O-4** — Document borrow safety in `validate_team_members`; no logic change
+  (`src/agents.rs`).
+- **O-5** — Replace hand-rolled `strip_ansi` with the `strip-ansi-escapes`
+  crate (`src/app.rs`, `Cargo.toml`).
+- **O-6** — Route internal errors through `tracing::error!` in
+  `internal_anyhow` for structured observability (`src/server/handlers.rs`).
+- **O-7** — Filter comment lines in the dependency-direction enforcement tests
+  to avoid false positives on `//` lines (`tests/dependency_direction_tests.rs`).
+- **O-8** — Replace unchecked `as u64` cast with
+  `try_into().unwrap_or(u64::MAX)` in `now_millis`
+  (`src/runtime/session_task.rs`).
+- **O-9** — Cap agent name length to 64 bytes at config-validation time to
+  prevent `ENAMETOOLONG` on worktree-path construction (`src/agents.rs`).
+
 ## References
 
 - `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md`

@@ -102,7 +102,7 @@ allowed_capabilities = ["read-file"]
                 .uri("/v1/delegate")
                 .header(CONTENT_TYPE, "application/json")
                 .body(Body::from(
-                    r#"{"agent_id":"reviewer","prompt":"inspect docs"}"#,
+                    r#"{"parent_task_id":"test-parent","agent_id":"reviewer","prompt":"inspect docs"}"#,
                 ))
                 .unwrap(),
         )

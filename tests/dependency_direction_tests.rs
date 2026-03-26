@@ -33,6 +33,7 @@ fn collect_rs_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 /// Extract all `use crate::...` imports from a Rust source file.
+/// Lines that are comments (`//`) are filtered out to avoid false positives.
 fn extract_crate_imports(path: &Path) -> Vec<(usize, String)> {
     let content = fs::read_to_string(path).expect("read file");
     content
@@ -40,6 +41,10 @@ fn extract_crate_imports(path: &Path) -> Vec<(usize, String)> {
         .enumerate()
         .filter_map(|(i, line)| {
             let trimmed = line.trim();
+            // Skip single-line comments and doc comments.
+            if trimmed.starts_with("//") {
+                return None;
+            }
             if trimmed.starts_with("use crate::") || trimmed.starts_with("crate::") {
                 Some((i + 1, trimmed.to_string()))
             } else {

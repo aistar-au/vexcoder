@@ -1,8 +1,26 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::path::Path;
+use thiserror::Error;
 
 use crate::agents::{load_agents_config, IsolationPolicy};
 use crate::runtime::{SessionTask, TaskState, WorktreeLeaseManager};
+
+// ---------------------------------------------------------------------------
+// Typed error for facade_delegate_session_task — replaces fragile string
+// matching at the handler level (O-2).
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Error)]
+pub enum DelegateError {
+    #[error("agent_not_found")]
+    AgentNotFound,
+    #[error("agents_config_missing")]
+    AgentsConfigMissing,
+    #[error("parent_task_id_required")]
+    ParentTaskIdRequired,
+    #[error(transparent)]
+    Internal(#[from] anyhow::Error),
+}
 
 // ---------------------------------------------------------------------------
 // Facade return types — thin domain structs the transport layer maps to JSON.
@@ -60,13 +78,28 @@ pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing> {
         });
     };
 
+    // O(n) scan of state files. A sidecar index was considered (O-3) but
+    // removed because correct decrement-on-task-completion requires threading
+    // working_dir through the transition path, and without decrement the
+    // sidecar monotonically inflates. At current scale the scan is adequate.
     let mut live_counts = std::collections::HashMap::<String, usize>::new();
     for file in TaskState::state_files_from(working_dir) {
-        let task_state = TaskState::load(&file.dir, &file.id)?;
-        for session_task in task_state.session_tasks {
-            if session_task.lifecycle_state.is_live() {
-                *live_counts.entry(session_task.agent_id).or_default() += 1;
+        match TaskState::load(&file.dir, &file.id) {
+            Ok(task_state) => {
+                for session_task in &task_state.session_tasks {
+                    if session_task.lifecycle_state.is_live() {
+                        *live_counts
+                            .entry(session_task.agent_id.clone())
+                            .or_default() += 1;
+                    }
+                }
             }
+            Err(error) => tracing::debug!(
+                task_id = %file.id,
+                state_dir = %file.dir.display(),
+                %error,
+                "skipping unreadable task state during live agent scan"
+            ),
         }
     }
 
@@ -102,23 +135,20 @@ pub fn facade_delegate_session_task(
     parent_task_id: Option<String>,
     agent_id: &str,
     prompt: &str,
-) -> Result<FacadeDelegateResult> {
-    let config = load_agents_config(working_dir)?;
-    let Some(config) = config else {
-        return Err(anyhow!("agents_config_missing"));
-    };
-    let Some(agent) = config.agent_profiles.iter().find(|a| a.name == agent_id) else {
-        return Err(anyhow!("agent_not_found"));
+) -> std::result::Result<FacadeDelegateResult, DelegateError> {
+    let parent_task_id = match parent_task_id {
+        Some(id) if !id.trim().is_empty() => id,
+        _ => return Err(DelegateError::ParentTaskIdRequired),
     };
 
-    let parent_task_id = parent_task_id.unwrap_or_else(|| {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let millis = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
-        format!("task-{millis}")
-    });
+    let config = load_agents_config(working_dir)?;
+    let Some(config) = config else {
+        return Err(DelegateError::AgentsConfigMissing);
+    };
+    let Some(agent) = config.agent_profiles.iter().find(|a| a.name == agent_id) else {
+        return Err(DelegateError::AgentNotFound);
+    };
+
     let state_dir = TaskState::state_dir_from(working_dir);
     let mut parent_state = TaskState::load(&state_dir, &parent_task_id)
         .unwrap_or_else(|_| TaskState::new(parent_task_id.clone()));

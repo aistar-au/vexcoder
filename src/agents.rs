@@ -127,12 +127,21 @@ fn validate(config: &AgentsConfig, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Agent names must be non-empty and unique.
+/// Agent names must be non-empty, within filesystem-safe length, and unique.
+const MAX_AGENT_NAME_LEN: usize = 64;
+
 fn validate_agent_names(config: &AgentsConfig, path: &Path) -> Result<()> {
     let mut seen = HashSet::new();
     for agent in &config.agent_profiles {
         if agent.name.is_empty() {
             bail!("agent name must not be empty in '{}'", path.display());
+        }
+        if agent.name.len() > MAX_AGENT_NAME_LEN {
+            bail!(
+                "agent name '{}' exceeds {MAX_AGENT_NAME_LEN}-byte limit in '{}'",
+                agent.name,
+                path.display()
+            );
         }
         if !seen.insert(&agent.name) {
             bail!(
@@ -147,6 +156,8 @@ fn validate_agent_names(config: &AgentsConfig, path: &Path) -> Result<()> {
 
 /// Every team member must reference a declared agent profile.
 fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
+    // Safety: `agent_names` borrows from `config` which is held by shared
+    // reference for the entire function scope — no mutation is possible.
     let agent_names: HashSet<&str> = config
         .agent_profiles
         .iter()
@@ -420,6 +431,26 @@ bogus_field = true
         let err = load_agents_config_from_path(&path).unwrap_err();
         assert!(
             err.to_string().contains("invalid agents config"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
+    fn rejects_overly_long_agent_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let long_name = "a".repeat(MAX_AGENT_NAME_LEN + 1);
+        let path = write_config(
+            dir.path(),
+            &format!(
+                r#"
+[[agents]]
+name = "{long_name}"
+"#,
+            ),
+        );
+        let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("exceeds"),
             "unexpected error: {err}",
         );
     }

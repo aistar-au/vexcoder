@@ -13,7 +13,8 @@ use super::sse::runtime_sse_response;
 use super::util::{bad_request, conflict, internal_error, not_found};
 use super::SSE_KEEPALIVE_INTERVAL;
 use crate::app::{
-    execute_facade_runtime, facade_delegate_session_task, facade_list_agents, facade_watch_snapshot,
+    execute_facade_runtime, facade_delegate_session_task, facade_list_agents,
+    facade_watch_snapshot, DelegateError,
 };
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
@@ -82,7 +83,8 @@ pub struct WatchSnapshot {
     worktree_path: Option<String>,
 }
 
-fn internal_anyhow(_: anyhow::Error) -> (StatusCode, Json<ControlResponse>) {
+fn internal_anyhow(err: anyhow::Error) -> (StatusCode, Json<ControlResponse>) {
+    tracing::error!(%err, "handler returned internal error");
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(ControlResponse {
@@ -157,15 +159,11 @@ pub async fn delegate_handler(
         &request.agent_id,
         &request.prompt,
     )
-    .map_err(|e| {
-        let msg = e.to_string();
-        if msg == "agent_not_found" {
-            not_found("agent_not_found")
-        } else if msg == "agents_config_missing" {
-            bad_request("agents_config_missing")
-        } else {
-            internal_anyhow(e)
-        }
+    .map_err(|e| match e {
+        DelegateError::AgentNotFound => not_found("agent_not_found"),
+        DelegateError::AgentsConfigMissing => bad_request("agents_config_missing"),
+        DelegateError::ParentTaskIdRequired => bad_request("parent_task_id_required"),
+        DelegateError::Internal(inner) => internal_anyhow(inner),
     })?;
 
     Ok(Json(DelegateResponse {
