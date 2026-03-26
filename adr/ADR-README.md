@@ -13,7 +13,7 @@ All ADR files live under `adr/`.
 | **Amended** | Existing ADR amended without superseding the base decision |
 | **Active** | In progress in the current tree; follow-up phases or verification may still remain |
 | **Accepted** | In effect -- code must conform |
-| **Complete** | All scoped implementation items landed; housekeeping move to `completed/` still remains |
+| **Complete** | All scoped implementation items are complete; housekeeping move to `completed/` still remains |
 | **Superseded by ADR-XXX** | Replaced; retained for history |
 | **Locked** | Accepted and immutable -- no further amendments without a new ADR |
 | **Deprecated** | Was accepted, no longer applies |
@@ -27,13 +27,13 @@ All ADR files live under `adr/`.
 | [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed (milestone-1 passed 2026-03-15) | Post-milestone phases G/H |
 | [ADR-023](ADR-023-deterministic-edit-loop.md) | Deterministic edit loop | Locked | 11 items (EL-01 through EL-11) |
 | [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps | Proposed | 16 items across phases D/F/G/H/I/M/P |
-| [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active | Phase 1+2 landed; ongoing alignment |
+| [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active | Phase 1+2 merged; ongoing alignment |
 | [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness | Accepted | Verification follow-up (8 decision items) |
 | [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Accepted | Verification follow-up (6 coverage requirements) |
-| [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Active (Batches A-E merged) | Verification of landed batches |
+| [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Active (Batches A-E merged) | Verification of merged batches |
 | [ADR-032](ADR-032-prompt-area-interactivity-and-context-guard.md) | Prompt area interactivity and context guard | Active | Items 4-5 need verification |
-| [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Active (Phases 1-4 landed) | Follow-up integration |
-| [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E landed) | Follow-up hardening |
+| [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Active (Phases 1-4 merged) | Follow-up integration |
+| [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Follow-up hardening |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 
@@ -42,11 +42,11 @@ the top-level `adr/` directory pending a housekeeping move.
 
 | ADR | Title | Status | Notes |
 | :--- | :--- | :--- | :--- |
-| [ADR-013](ADR-013-tui-completion-deployment-plan.md) | TUI completion and deployment plan | Accepted | All phases landed |
+| [ADR-013](ADR-013-tui-completion-deployment-plan.md) | TUI completion and deployment plan | Accepted | All phases complete |
 | [ADR-018](ADR-018-managed-tui-scrollback-streaming-cell-overlays.md) | Managed TUI scrollback | Superseded by ADR-027 | Retained for history |
 | [ADR-025](ADR-025-runtime-json-handoff-contract.md) | Runtime JSON handoff contract | Complete | PI-09 through PI-12 all delivered |
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding | Complete | PI-13 through PI-16 all delivered |
-| [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI command-session capture | Accepted (landed) | Supersedes ADR-018/019 |
+| [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI command-session capture | Accepted (complete) | Supersedes ADR-018/019 |
 
 ## Remaining Work Summary (60 items across 10 tiers)
 
@@ -60,7 +60,7 @@ Tiers sorted by unblocking impact. Full per-item breakdown in
 | 3 | ADR-024 Phases D/F | 6 | Sandbox drivers and MCP runtime |
 | 4 | ADR-024 | 3 | Workspace tools, MCP HTTP auth, /plan+/context |
 | 5 | ADR-021 P1 | 4 | Unbounded buffers and unhandled errors |
-| 6 | ADR-029/030/032 | 3 | Verification of already-landed work |
+| 6 | ADR-029/030/032 | 3 | Verification of already-implemented work |
 | 7 | ADR-021 P2 | 13 | Code quality and duplication removal |
 | 8 | ADR-021 P3 | 1 | Idle backoff tuning |
 | 9 | ADR-024 G/H + ADR-022 | 7 | Post-milestone release pipeline and packaging |

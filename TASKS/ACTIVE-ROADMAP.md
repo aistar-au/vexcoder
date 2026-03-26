@@ -19,23 +19,23 @@ Last updated: 2026-03-26
 | ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
 | ADR-023 | Locked | 11 (EL-01 through EL-11) | Gates all deterministic commands; EL-12/EL-13 done |
 | ADR-024 | Proposed | 16 items | Parity-gap inventory; PA/PB/PC/PD(partial)/PE/PJ/PK/PL/PM done |
-| ADR-028 | Active | Ongoing alignment | Phase 1+2 landed; facade boundary governs ADR-030/031 |
+| ADR-028 | Active | Ongoing alignment | Phase 1+2 merged; facade boundary governs ADR-030/031 |
 | ADR-029 | Accepted | 8 decision items to re-verify | Feeds ADR-030; verification follow-up remains in Tier 6 |
 | ADR-030 | Accepted | 6 coverage requirements to re-verify | 7 invariants defined; verification evidence remains in Tier 6 |
 | ADR-031 | Active (Batches A-E merged) | Verification | PRs 196/225/226/227 merged |
-| ADR-032 | Active | Items 4-5 | Prompt area; items 1-3, 6-8 landed; item 9 deferred to ADR-033 |
-| ADR-033 | Active (Phases 1-4 landed) | Integration follow-up | PRs 186/191/192/194/199 merged |
-| ADR-034 | Active (Phase A + B-E landed) | Follow-up hardening | PRs 228/229/230 merged |
+| ADR-032 | Active | Items 4-5 | Prompt area; items 1-3 and 6-8 merged; item 9 deferred to ADR-033 |
+| ADR-033 | Active (Phases 1-4 merged) | Integration follow-up | PRs 186/191/192/194/199 merged |
+| ADR-034 | Active (Phase A + B-E merged) | Follow-up hardening | PRs 228/229/230 merged |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 
 | ADR | Status | Notes |
 | :--- | :--- | :--- |
-| ADR-013 | Accepted | All phases landed |
+| ADR-013 | Accepted | All phases complete |
 | ADR-018 | Superseded by ADR-027 | Retained for history |
 | ADR-025 | Complete | PI-09 through PI-12 all delivered |
 | ADR-026 | Complete | PI-13 through PI-16 all delivered |
-| ADR-027 | Accepted (landed) | Supersedes ADR-018/019 |
+| ADR-027 | Accepted (complete) | Supersedes ADR-018/019 |
 
 ---
 
@@ -46,7 +46,7 @@ the most downstream work.
 
 ### Tier 1 -- Edit Loop Foundation (ADR-023) -- 11 items
 
-These gate every deterministic command the agent can execute (/edit, /fix,
+These gate every deterministic command the agent can run (/edit, /fix,
 /explain, /run, /test, /review, /plan). Nothing else in the coding pipeline
 works without these.
 
@@ -62,7 +62,7 @@ works without these.
 - EL-10: /review command (gated on EL-03)
 - EL-11: /plan command (gated on EL-03; cross-ref ADR-024 PI-08)
 
-### Tier 2 -- In-Flight PRs (merge to unblock downstream) -- 4 PRs
+### Tier 2 -- Open PRs (awaiting merge to unblock downstream) -- 4 PRs
 
 Already implemented and pushed. Merging clears the path for dependent work.
 
@@ -100,7 +100,7 @@ exhaustion.
 
 ### Tier 6 -- Verification and Governance -- 3 items
 
-Confirm already-landed work matches ADR specifications.
+Confirm already-implemented work matches ADR specifications.
 
 - ADR-029: Verify all 8 decision items (StreamEvent, ContentBlock, Delta, ApiUsage, MessageDelta, MessageStartData, chat-completions, TaskState) are implemented
 - ADR-030: Verify 6 coverage requirements have test evidence
@@ -144,11 +144,11 @@ Explicitly deferred until after milestone-1.
 
 Move completed ADRs to completed/, update stale status fields.
 
-- Move ADR-013 to completed/ (all work landed, status Accepted)
+- Move ADR-013 to completed/ (all work complete, status Accepted)
 - Move ADR-018 to completed/ (superseded by ADR-027)
 - Move ADR-025 to completed/ (PI-09 through PI-12 all done)
 - Move ADR-026 to completed/ (PI-13 through PI-16 all done)
-- Move ADR-027 to completed/ (fully landed)
+- Move ADR-027 to completed/ (fully complete)
 - Verify ADR-028 remaining work and update status
 - Update ADR-031 status to reflect all batches A-E merged
 - Update ADR-033 status to reflect all phases 1-4 merged
@@ -166,7 +166,7 @@ ADR-022 (Roadmap, milestone-1 passed)
   +-- ADR-027 (Command Sessions) -- COMPLETE
   +-- ADR-031 (UI Overhaul) -- Batches A-E merged
         +-- ADR-032 (Prompt/Context Guard) -- items 4-5 unclear
-              +-- ADR-033 (Hybrid Retrieval) -- Phases 1-4 landed
+              +-- ADR-033 (Hybrid Retrieval) -- Phases 1-4 merged
 
 ADR-029 (Stream Parser) --> ADR-030 (Orchestrator) --> ADR-031
 ADR-028 (Facade) --> ADR-030 --> ADR-031

@@ -1,7 +1,7 @@
 # ADR-026: LocalApiServer transport binding — scoped HTTP/Unix-socket API surface, SSE streaming, TLS boundary, auth model, and schema endpoint for runtime JSON handoff
 
 **Date:** 2026-03-11
-**Status:** Proposed
+**Status:** Complete
 **Deciders:** Core maintainer
 **Location:** `adr/ADR-026-localapiserver-transport-binding.md`
 **ADR chain:** ADR-025 (runtime JSON handoff contract), ADR-024 (Phase I reservation), ADR-006 (runtime mode contracts)

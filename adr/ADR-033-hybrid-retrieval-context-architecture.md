@@ -124,7 +124,7 @@ In the 2026-03-26 remaining-work inventory, ADR-033 no longer contributes a new
 baseline implementation tier. The outstanding work is Tier 2 contract
 reconciliation and documentation maintenance in PR `#233`, plus later
 follow-up to keep the roadmap, ADR index, and model-facing guidance aligned
-with the already-landed Phases 1-4 behavior.
+with the already-implemented Phases 1-4 behavior.
 
 ## References
 

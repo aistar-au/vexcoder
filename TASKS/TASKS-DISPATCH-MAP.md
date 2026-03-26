@@ -28,29 +28,29 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Accepted | Verification follow-up (6 coverage requirements) |
 | `adr/ADR-031-operator-surface-ui-overhaul.md` | Active (A-E merged) | Verification |
 | `adr/ADR-032-prompt-area-interactivity-and-context-guard.md` | Active | Items 4-5 |
-| `adr/ADR-033-hybrid-retrieval-context-architecture.md` | Active (Phases 1-4 landed) | Integration |
-| `adr/ADR-034-multi-agent-parallel-task-execution.md` | Active (Phase A + B-E landed) | Hardening |
+| `adr/ADR-033-hybrid-retrieval-context-architecture.md` | Active (Phases 1-4 merged) | Integration |
+| `adr/ADR-034-multi-agent-parallel-task-execution.md` | Active (Phase A + B-E merged) | Hardening |
 
 ### Implementation-Complete (pending move to completed/)
 
 | ADR source file | Status |
 | :--- | :--- |
-| `adr/ADR-013-tui-completion-deployment-plan.md` | Accepted (all phases landed) |
+| `adr/ADR-013-tui-completion-deployment-plan.md` | Accepted (all phases complete) |
 | `adr/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md` | Superseded by ADR-027 |
 | `adr/ADR-025-runtime-json-handoff-contract.md` | Complete (PI-09 through PI-12) |
 | `adr/ADR-026-localapiserver-transport-binding.md` | Complete (PI-13 through PI-16) |
-| `adr/ADR-027-full-screen-tui-command-session-capture.md` | Accepted (landed) |
+| `adr/ADR-027-full-screen-tui-command-session-capture.md` | Accepted (complete) |
 
 ## Remaining Work Summary (60 items across 10 tiers)
 
 | Tier | Source | Items | Description |
 | :--- | :--- | :--- | :--- |
 | 1 | ADR-023 | 11 | Edit loop foundation |
-| 2 | PRs 231/232/233/234 | 4 | In-flight PRs ready to merge |
+| 2 | PRs 231/232/233/234 | 4 | Open PRs ready to merge |
 | 3 | ADR-024 Phases D/F | 6 | Sandbox drivers and MCP runtime |
 | 4 | ADR-024 | 3 | Workspace tools, MCP HTTP auth, `/plan` + `/context` |
 | 5 | ADR-021 P1 | 4 | Unbounded buffers and unhandled errors |
-| 6 | ADR-029/030/032 | 3 | Verification of already-landed work |
+| 6 | ADR-029/030/032 | 3 | Verification of already-implemented work |
 | 7 | ADR-021 P2 | 13 | Code quality and duplication removal |
 | 8 | ADR-021 P3 | 1 | Idle backoff tuning |
 | 9 | ADR-024 G/H + ADR-022 | 7 | Post-milestone release pipeline and packaging |
@@ -65,7 +65,7 @@ ADR-023 Edit Loop (Tier 1, highest priority):
   EL-03 -> EL-04, EL-05, EL-10, EL-11
   EL-12, EL-13 (complete)
 
-ADR-024 Phases (Tier 3-4, after in-flight PRs merge):
+ADR-024 Phases (Tier 3-4, after open PRs merge):
   PR 231 -> PD-02, PD-03
   PR 232 -> PF-01, PF-02 -> PI-06, PI-07
   PP-01, PM-02, PI-08 (independent)
@@ -75,7 +75,7 @@ Milestone-1 gate (passed 2026-03-15):
   ADR-025 PI-09 through PI-12 (all complete)
   ADR-026 PI-13 through PI-16 (all complete)
   ADR-028 active follow-up
-  ADR-034 Phase A + B-E (landed via PRs 228/229/230)
+  ADR-034 Phase A + B-E (merged via PRs 228/229/230)
 ```
 
 ADR-028 remains the boundary ADR for post-gate work. ADR-029 through ADR-034
@@ -85,7 +85,7 @@ implementation-complete and pending housekeeping move to completed/.
 ## Current Next Work Batch
 
 The highest-priority remaining work is ADR-023 (edit loop, Tier 1), which
-gates all deterministic commands. In parallel, the four in-flight PRs
+gates all deterministic commands. In parallel, the four open PRs
 (231/232/233/234, Tier 2) should be merged to unblock Tier 3 sandbox and MCP
 work. See `TASKS/ACTIVE-ROADMAP.md` for the full 60-item, 10-tier breakdown.
 

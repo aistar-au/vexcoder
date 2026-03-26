@@ -1,7 +1,7 @@
 # ADR-025: Runtime JSON handoff contract — trait-level event envelopes, JSON projection, and adapter-stable serialization
 
 **Date:** 2026-03-11
-**Status:** Proposed
+**Status:** Complete
 **Deciders:** Core maintainer
 **Location:** `adr/ADR-025-runtime-json-handoff-contract.md`
 **ADR chain:** ADR-024 (Phase I reservation), ADR-023 (deterministic edit loop), ADR-006 (runtime mode contracts)
