@@ -118,7 +118,7 @@ pub async fn shutdown_gracefully() -> Result<(), AppError>;
 pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing>;
 pub fn facade_delegate_session_task(
     working_dir: &Path,
-    parent_task_id: &str,
+    parent_task_id: Option<String>,
     agent_id: &str,
     prompt: &str,
 ) -> Result<FacadeDelegateResult>;
