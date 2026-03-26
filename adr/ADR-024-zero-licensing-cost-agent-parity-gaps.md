@@ -1534,8 +1534,8 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PD-03** | `ContainerSandbox` driver | [x] |
 | **PE-01** | `BatchMode: RuntimeMode + FrontendAdapter` | [x] |
 | **PE-02** | `vex exec` sub-command with JSONL/text output | [x] |
-| **PF-01** | `McpRegistry` with STDIO and HTTP transports | [ ] |
-| **PF-02** | `Capability::McpTool` and approval wiring | [ ] |
+| **PF-01** | `McpRegistry` with STDIO and HTTP transports | [x] |
+| **PF-02** | `Capability::McpTool` and approval wiring | [x] |
 | **PG-01** | Hosted release workflow — Linux and macOS targets | [ ] |
 | **PG-02** | Hosted release workflow — Windows (gnu) target | [ ] |
 | **PG-03** | Package-manager tap formula + auto-update dispatch | [ ] |
@@ -1921,7 +1921,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `new_task_id()` uses a monotonic UTC-millisecond generator so rapid `/new` or `/fork` sequences cannot collide on the same state filename.
   - `/fork` sanitizes the optional label before embedding it into the task id, preventing path separator leakage into `VEX_STATE_DIR`.
   - `TaskState::save`/`load`/`state_dir`/`new` signatures confirmed from source before wiring the command surface.
-  - `Capability` enum confirmed: no `McpTool` variant yet; PI-06/PI-07 remain gated on PF-01.
+  - `Capability` enum confirmed: `McpTool` variant delivered in Phase F (this branch); PI-06/PI-07 (`/mcp list`/`/mcp tools`) delivered in the same batch.
 
 ### [PK-01 / PK-02] - /quit, /exit, /about
 - Historical branch name: omitted
@@ -2078,3 +2078,41 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `vex branch` is a thin wrapper over `git checkout -b` and records the branch name on the most recent saved task state when one exists.
   - `vex pr-summary` assembles a merge-base diff against `origin/HEAD`, runs a single batch turn, and prints a `Title:` line plus Markdown body to stdout.
 - This branch also reconciles stale ADR-024 checklist rows for merged PRs `#60`, `#63`, `#71`, `#72`, and `#74`; it later merged as PR `#75` to close `PK-08`.
+
+### [PF-01] - McpRegistry with STDIO and HTTP transports
+- Operator: this branch (`work/vexcoder-adr024-mcp-runtime`)
+- Commit: `bd58471` (Activate MCP runtime with timeout and tool management surface)
+- Files:
+  - `src/mcp.rs` — `McpRegistry`: STDIO subprocess management, HTTP transport, tool table merge with `mcp.<server>.<tool>` namespace prefixing
+  - `src/config.rs` — `[[mcp_servers]]` config table; `McpServerConfig` with `kind`, `command`, `args`, `url`, `headers`
+  - `src/app/ctor.rs` — `McpRegistry` constructed from config at session open
+  - `src/app/facade.rs` — registry injected into `AppFacade`; STDIO servers started on session start
+  - `src/app/runtime_build.rs` — registry wired into session builder
+  - `src/api/client.rs` — MCP tool call dispatch path
+  - `src/state/conversation/tools.rs` — MCP tools merged into dispatch table
+  - `docs/src/configuration.md` — `[[mcp_servers]]` table documentation
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+- Notes:
+  - STDIO servers are launched at session start and terminated at session end; process handles stored in registry.
+  - HTTP servers are connected by URL with optional bearer token via `headers` config.
+  - Tool namespace prefix prevents collisions with built-in tools.
+  - `McpRegistry` is read-only after session start; `/mcp` commands observe only, never mutate.
+
+### [PF-02] - Capability::McpTool and approval wiring
+- Operator: this branch (`work/vexcoder-adr024-mcp-runtime`)
+- Commit: `bd58471` (Activate MCP runtime with timeout and tool management surface)
+- Files:
+  - `src/runtime/approval.rs` — `Capability::McpTool` variant; default approval scope `once`
+  - `src/state/conversation/state.rs` — MCP tool approval check wired into tool dispatch
+  - `src/app/commands.rs` — `/mcp list` and `/mcp tools` slash commands; renders live `McpRegistry` snapshot
+  - `src/app/tests/slash_commands.rs` — ADR anchor tests for PF-01/PF-02 approval and `/mcp` commands
+  - `src/batch_mode.rs` — MCP tool calls propagated through batch execution path
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+- Notes:
+  - `Capability::McpTool` triggers approval prompt by default at `once` scope (prompt once per session per tool).
+  - `/mcp list` renders all loaded MCP servers; `/mcp tools` renders tool names per server.
+  - Phase F (PF-01 + PF-02) is now complete; PI-06/PI-07 (`/mcp list`/`/mcp tools` read-only surface) delivered in the same batch.
