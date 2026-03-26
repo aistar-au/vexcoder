@@ -209,6 +209,7 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         max_memory_tokens: 2048,
         sandbox: crate::runtime::SandboxConfig::default(),
         model_headers: reqwest::header::HeaderMap::new(),
+        mcp_servers: Vec::new(),
         notes_path: Some(notes_path),
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),

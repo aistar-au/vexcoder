@@ -1,6 +1,7 @@
 use crate::api::client::builtin_tool_summaries;
 use crate::config::Config;
 use crate::custom_commands::{load_custom_commands, CustomCommand};
+use crate::mcp::McpRegistrySnapshot;
 use crate::prompts::{
     render_custom_command_instruction, render_edit_prompt, render_explain_prompt,
     render_generate_tests_prompt, render_plan_prompt, render_review_prompt, CODER_SYSTEM_PROMPT,
@@ -133,6 +134,7 @@ struct PendingResumeSelection {
 
 #[derive(Clone)]
 struct ResumeTaskEntry {
+    dir: PathBuf,
     id: String,
     status: String,
 }
@@ -179,6 +181,7 @@ enum SlashCommandId {
     Run,
     Test,
     Context,
+    Mcp,
     Tools,
     Usage,
     GenerateTests,
@@ -320,6 +323,15 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         SlashCommandPattern::Exact("/context"),
         "/context",
         "show session context summary; no model turn",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Mcp,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/mcp",
+            prefix: "/mcp ",
+        },
+        "/mcp [list|show <server>]",
+        "show loaded MCP servers and tools; no model turn",
     ),
     SlashCommandSpec::new(
         SlashCommandId::Tools,
@@ -500,6 +512,7 @@ fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
         | SlashCommandId::Explain
         | SlashCommandId::Review
         | SlashCommandId::Context
+        | SlashCommandId::Mcp
         | SlashCommandId::Tools
         | SlashCommandId::GenerateTests
         | SlashCommandId::Agents
@@ -535,6 +548,7 @@ fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
         SlashCommandId::Explain => "read-only explanation with context assembly",
         SlashCommandId::Review => "read-only review over assembled context",
         SlashCommandId::Context => "session status, git state, and token summary",
+        SlashCommandId::Mcp => "inspect loaded MCP servers and per-server tool inventory",
         SlashCommandId::Tools => "tool directory plus retrieval workflow guidance",
         SlashCommandId::GenerateTests => "assemble context and draft tests for one path",
         SlashCommandId::Agents => "show configured agents, teams, and live session-task counts",
@@ -751,6 +765,7 @@ pub struct TuiMode {
     history_line_cap: usize,
     repo_label: String,
     instructions_path: Option<String>,
+    mcp_snapshot: Option<McpRegistrySnapshot>,
     history_content_width: Cell<usize>,
     active_stream_blocks: std::collections::HashMap<usize, StreamBlock>,
     pending_quit: bool,
@@ -812,6 +827,7 @@ pub struct TuiMode {
 pub const ALL_CAPABILITIES: &[Capability] = &[
     Capability::ApplyPatch,
     Capability::Browser,
+    Capability::McpTool,
     Capability::Network,
     Capability::ReadFile,
     Capability::RunCommand,

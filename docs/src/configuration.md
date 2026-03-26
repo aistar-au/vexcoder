@@ -253,6 +253,13 @@ condensed: tool results are truncated to their first 5 lines plus a
 `(N more lines)` indicator, keeping the conversation within the context
 budget without losing the thread of earlier work. Default: `10`.
 
+### `VEX_MCP_TIMEOUT`
+
+MCP server connection timeout in seconds applied to every configured server
+at session start.  Each server entry may also set `timeout_secs` in the
+config file; the per-server value takes priority over this environment
+variable.  Range: 1–300.  Default: `30`.
+
 ## `vex init` scaffold
 
 `vex init` writes a commented config skeleton. It includes some reserved
@@ -263,12 +270,49 @@ sections for future expansion.
 - `sandbox`, `sandbox_profile`, and `sandbox_require` are active runtime
   features and apply to TUI, batch mode, inline `!command`, hooks, and
   validation subprocesses.
+- `[[mcp_servers]]` is active today. MCP servers are connected at session start,
+  loaded from the user config layer, and merged into the runtime tool registry
+  as `mcp.<server>.<tool>` names. Servers are explicitly shut down when the
+  session ends (TUI exit, batch completion, or API server stop).
 - Commented `[api]` remains a scaffold placeholder in config files.
   `VEX_API_*` environment variables (transport, host, port, socket, key,
   protocol, TLS paths) are active and functional for API server configuration.
-- `[[mcp_servers]]` is still a reserved section on this branch. `vex doctor`
-  reads it to probe configured MCP connectivity without enabling live runtime
-  MCP dispatch.
+- `[[mcp_servers]]` is rejected in repo-local and system config layers to avoid
+  committed or machine-global auto-launch of arbitrary MCP processes.
+
+## MCP servers
+
+Use `[[mcp_servers]]` only in the user config file. Each server is connected at
+session start; load failures abort startup instead of leaving a partial MCP
+registry in memory. Connected servers are explicitly cancelled at session end
+via `McpRegistry::shutdown()`.
+
+HTTP headers may be written literally, as bare `${NAME}` references, or as
+templates that mix literal text with `${NAME}` segments resolved from the
+current process environment.
+
+```toml
+[[mcp_servers]]
+name = "docs"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "."]
+
+[[mcp_servers]]
+name = "remote"
+transport = "http"
+url = "https://mcp.example.internal/mcp"
+timeout_secs = 60
+
+[mcp_servers.headers]
+Authorization = "Bearer ${VEX_MCP_AUTH}"
+```
+
+When MCP servers are loaded successfully:
+
+- `/mcp list` shows the live server inventory.
+- `/mcp show <server>` shows the tool names exported by one server.
+- `/tools` includes both built-in tools and MCP tools.
 
 ## Minimal examples
 

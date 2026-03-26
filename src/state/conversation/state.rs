@@ -1,6 +1,7 @@
 use super::super::stream_block::StreamBlock;
 use crate::api::ApiClient;
 use crate::config::HookConfig;
+use crate::mcp::McpRegistry;
 use crate::runtime::ConfiguredSandbox;
 use crate::tool_preview::ReadFileSnapshotCache;
 use crate::tools::ToolOperator;
@@ -73,6 +74,7 @@ pub enum TurnToolPolicy {
 pub struct ConversationManager {
     pub(super) client: Arc<ApiClient>,
     pub(super) tool_operator: ToolOperator,
+    pub(super) mcp_registry: Option<Arc<McpRegistry>>,
     pub(super) sandbox: ConfiguredSandbox,
     pub(super) hooks: Vec<HookConfig>,
     pub(super) api_messages: Vec<ApiMessage>,
@@ -97,6 +99,7 @@ impl ConversationManager {
         Self {
             client: Arc::new(client),
             tool_operator: operator,
+            mcp_registry: None,
             sandbox: ConfiguredSandbox::default(),
             hooks,
             api_messages: Vec::new(),
@@ -107,6 +110,15 @@ impl ConversationManager {
             #[cfg(test)]
             mock_tool_operator_responses: None,
         }
+    }
+
+    pub fn new_with_hooks_and_mcp(
+        client: ApiClient,
+        operator: ToolOperator,
+        hooks: Vec<HookConfig>,
+        mcp_registry: Option<Arc<McpRegistry>>,
+    ) -> Self {
+        Self::new_with_hooks(client, operator, hooks).with_mcp_registry(mcp_registry)
     }
 
     pub fn new_with_hooks_and_sandbox(
@@ -123,11 +135,23 @@ impl ConversationManager {
         self
     }
 
+    pub fn with_mcp_registry(mut self, mcp_registry: Option<Arc<McpRegistry>>) -> Self {
+        self.mcp_registry = mcp_registry;
+        self
+    }
+
+    pub async fn shutdown_resources(&mut self) {
+        if let Some(mcp_registry) = self.mcp_registry.take() {
+            mcp_registry.shutdown().await;
+        }
+    }
+
     #[cfg(test)]
     pub fn new_mock(client: ApiClient, tool_operator_responses: HashMap<String, String>) -> Self {
         Self {
             client: Arc::new(client),
             tool_operator: ToolOperator::new(std::env::temp_dir()), // Cross-platform temp dir
+            mcp_registry: None,
             sandbox: ConfiguredSandbox::default(),
             hooks: Vec::new(),
             api_messages: Vec::new(),

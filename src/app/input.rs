@@ -6,6 +6,9 @@ impl TuiMode {
             if self.overlay_state.pending_memory_clear {
                 self.handle_memory_clear_input(&input);
                 return;
+            } else if self.overlay_state.pending_resume_selection.is_some() {
+                self.handle_resume_selection_input(&input, ctx);
+                return;
             } else if self.patch_overlay_active() {
                 self.handle_patch_overlay_input(&input);
                 return;

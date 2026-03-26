@@ -713,6 +713,7 @@ fn test_build_runtime_with_resume_restores_task() {
         max_memory_tokens: 2048,
         sandbox: crate::runtime::SandboxConfig::default(),
         model_headers: reqwest::header::HeaderMap::new(),
+        mcp_servers: Vec::new(),
         notes_path: None,
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),

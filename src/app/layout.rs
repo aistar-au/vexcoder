@@ -406,7 +406,7 @@ fn tool_outcome_is_error(outcome: &str) -> bool {
         || lowered.starts_with("canceled")
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 fn tool_scope_detail(tool_name: &str) -> String {
     builtin_tool_summaries()
         .into_iter()

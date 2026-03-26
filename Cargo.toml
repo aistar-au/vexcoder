@@ -19,6 +19,7 @@ bytes = "1"
 crossterm = "0.28"
 futures = "0.3"
 hyper = { version = "1", features = ["http1", "server"] }
+http = "1"
 hyper-util = { version = "0.1", features = [
   "http1",
   "server-auto",
@@ -30,6 +31,12 @@ reqwest = { version = "0.12", default-features = false, features = [
   "json",
   "stream",
   "rustls-tls",
+] }
+rmcp = { version = "1.2.0", default-features = false, features = [
+  "client",
+  "reqwest",
+  "transport-child-process",
+  "transport-streamable-http-client-reqwest",
 ] }
 rustls = { version = "0.23", default-features = false, features = [
   "ring",

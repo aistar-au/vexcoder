@@ -111,6 +111,59 @@ pub struct TaskStateFile {
     pub modified_millis: u128,
 }
 
+fn state_file_path(dir: &Path, id: &str) -> PathBuf {
+    dir.join(format!("{id}.json"))
+}
+
+#[derive(Debug, Deserialize)]
+struct TaskStateLiveSummary {
+    #[serde(default)]
+    session_tasks: Vec<SessionTaskLiveSummary>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SessionTaskLiveSummary {
+    agent_id: String,
+    lifecycle_state: SessionTaskStatus,
+}
+
+fn write_pretty_json_atomic<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<()> {
+    let dir = path.parent().ok_or_else(|| {
+        anyhow!(
+            "missing parent directory for {} '{}'",
+            label,
+            path.display()
+        )
+    })?;
+    std::fs::create_dir_all(dir).with_context(|| {
+        format!(
+            "Failed to create directory for {}: {}",
+            label,
+            dir.display()
+        )
+    })?;
+
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| anyhow!("invalid file name for {} '{}'", label, path.display()))?;
+    let temp_path = dir.join(format!("{file_name}.tmp"));
+
+    let json = serde_json::to_vec_pretty(value)
+        .with_context(|| format!("Failed to serialize {label}: {}", path.display()))?;
+    let mut file = std::fs::File::create(&temp_path)
+        .with_context(|| format!("Failed to create temp {}: {}", label, temp_path.display()))?;
+    file.write_all(&json)
+        .with_context(|| format!("Failed to write temp {}: {}", label, temp_path.display()))?;
+    file.sync_all()
+        .with_context(|| format!("Failed to flush temp {}: {}", label, temp_path.display()))?;
+    drop(file);
+
+    std::fs::rename(&temp_path, path)
+        .with_context(|| format!("Failed to rename {} to: {}", label, path.display()))?;
+    Ok(())
+}
+
 impl TaskState {
     pub fn new(id: TaskId) -> Self {
         let now = now_millis();
@@ -185,31 +238,36 @@ impl TaskState {
         Ok(None)
     }
 
+    pub fn live_session_task_counts_from(working_dir: &Path) -> Result<HashMap<String, usize>> {
+        let mut counts = HashMap::new();
+        for file in Self::state_files_from(working_dir) {
+            match Self::load_live_summary(&file.dir, &file.id) {
+                Ok(summary) => {
+                    for session_task in summary.session_tasks {
+                        if session_task.lifecycle_state.is_live() {
+                            *counts.entry(session_task.agent_id).or_default() += 1;
+                        }
+                    }
+                }
+                Err(error) => tracing::debug!(
+                    task_id = %file.id,
+                    state_dir = %file.dir.display(),
+                    %error,
+                    "skipping unreadable task state during inline live agent scan"
+                ),
+            }
+        }
+        Ok(counts)
+    }
+
     pub fn save(&self, dir: &Path) -> Result<()> {
-        std::fs::create_dir_all(dir)
-            .with_context(|| format!("Failed to create state directory: {}", dir.display()))?;
-
-        let temp_path = dir.join(format!("{}.tmp", self.id));
-        let final_path = dir.join(format!("{}.json", self.id));
-
-        let json = serde_json::to_vec_pretty(self).context("Failed to serialize task state")?;
-        let mut file = std::fs::File::create(&temp_path).with_context(|| {
-            format!("Failed to create temp state file: {}", temp_path.display())
-        })?;
-        file.write_all(&json)
-            .with_context(|| format!("Failed to write temp state file: {}", temp_path.display()))?;
-        file.sync_all()
-            .with_context(|| format!("Failed to flush temp state file: {}", temp_path.display()))?;
-        drop(file);
-
-        std::fs::rename(&temp_path, &final_path)
-            .with_context(|| format!("Failed to rename state file to: {}", final_path.display()))?;
-
+        let final_path = state_file_path(dir, &self.id);
+        write_pretty_json_atomic(&final_path, self, "task state")?;
         Ok(())
     }
 
     pub fn load(dir: &Path, id: &str) -> Result<Self> {
-        let path = dir.join(format!("{}.json", id));
+        let path = state_file_path(dir, id);
         let content = std::fs::read_to_string(&path)
             .with_context(|| format!("Failed to read state file: {}", path.display()))?;
 
@@ -275,34 +333,7 @@ impl TaskState {
     pub fn state_files_from(working_dir: &Path) -> Vec<TaskStateFile> {
         let mut files = Self::state_search_dirs_from(working_dir)
             .into_iter()
-            .flat_map(|dir| {
-                let Ok(entries) = std::fs::read_dir(&dir) else {
-                    return Vec::new();
-                };
-
-                entries
-                    .filter_map(|entry| entry.ok())
-                    .filter_map(|entry| {
-                        let path = entry.path();
-                        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
-                            return None;
-                        }
-                        let id = path.file_stem()?.to_str()?.to_string();
-                        let modified_millis = entry
-                            .metadata()
-                            .ok()
-                            .and_then(|meta| meta.modified().ok())
-                            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-                            .map(|duration| duration.as_millis())
-                            .unwrap_or(0);
-                        Some(TaskStateFile {
-                            dir: dir.clone(),
-                            id,
-                            modified_millis,
-                        })
-                    })
-                    .collect::<Vec<_>>()
-            })
+            .flat_map(|dir| Self::state_files_in_dir(&dir))
             .collect::<Vec<_>>();
 
         files.sort_by(|left, right| right.modified_millis.cmp(&left.modified_millis));
@@ -325,6 +356,43 @@ impl TaskState {
         }
 
         Err(anyhow!("task state '{id}' not found"))
+    }
+
+    fn load_live_summary(dir: &Path, id: &str) -> Result<TaskStateLiveSummary> {
+        let path = state_file_path(dir, id);
+        let content = std::fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read state file: {}", path.display()))?;
+        serde_json::from_str(&content)
+            .with_context(|| format!("Failed to deserialize state file: {}", path.display()))
+    }
+
+    fn state_files_in_dir(dir: &Path) -> Vec<TaskStateFile> {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return Vec::new();
+        };
+
+        entries
+            .filter_map(|entry| entry.ok())
+            .filter_map(|entry| {
+                let path = entry.path();
+                if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                    return None;
+                }
+                let id = path.file_stem()?.to_str()?.to_string();
+                let modified_millis = entry
+                    .metadata()
+                    .ok()
+                    .and_then(|meta| meta.modified().ok())
+                    .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|duration| duration.as_millis())
+                    .unwrap_or(0);
+                Some(TaskStateFile {
+                    dir: dir.to_path_buf(),
+                    id,
+                    modified_millis,
+                })
+            })
+            .collect()
     }
 }
 
@@ -611,6 +679,26 @@ mod tests {
     }
 
     #[test]
+    fn test_live_session_task_counts_from_reads_inline_state_summary() {
+        let _env_lock = ENV_LOCK.blocking_lock();
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let state_dir = TaskState::state_dir_from(temp.path());
+
+        let mut state = TaskState::new("task-live".to_string());
+        state.add_session_task(SessionTask::new(
+            "task-live",
+            "reviewer",
+            "review docs",
+            None,
+        ));
+        state.save(&state_dir).unwrap();
+
+        let counts = TaskState::live_session_task_counts_from(temp.path()).unwrap();
+        assert_eq!(counts.get("reviewer"), Some(&1));
+    }
+
+    #[test]
     fn test_state_files_prefer_newest_copy_of_duplicate_task_ids() {
         use filetime::{set_file_mtime, FileTime};
 
@@ -644,6 +732,52 @@ mod tests {
         let files = TaskState::state_files_from(&nested);
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].dir, legacy_state_dir);
+    }
+
+    #[test]
+    fn test_live_session_task_counts_prefer_newest_copy_of_duplicate_task_ids() {
+        use filetime::{set_file_mtime, FileTime};
+
+        let _env_lock = ENV_LOCK.blocking_lock();
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let nested = temp.path().join("src/nested");
+        let repo_state_dir = temp.path().join(".vex/state");
+        let legacy_state_dir = nested.join(".vex/state");
+        std::fs::create_dir_all(&legacy_state_dir).unwrap();
+
+        let mut legacy = TaskState::new("task-dup".to_string());
+        legacy.add_session_task(SessionTask::new(
+            "task-dup",
+            "legacy-reviewer",
+            "review docs",
+            None,
+        ));
+        legacy.save(&legacy_state_dir).unwrap();
+        set_file_mtime(
+            legacy_state_dir.join("task-dup.json"),
+            FileTime::from_unix_time(1_700_000_002, 0),
+        )
+        .unwrap();
+
+        std::fs::create_dir_all(&repo_state_dir).unwrap();
+        let mut repo = TaskState::new("task-dup".to_string());
+        repo.add_session_task(SessionTask::new(
+            "task-dup",
+            "repo-reviewer",
+            "review docs",
+            None,
+        ));
+        repo.save(&repo_state_dir).unwrap();
+        set_file_mtime(
+            repo_state_dir.join("task-dup.json"),
+            FileTime::from_unix_time(1_700_000_001, 0),
+        )
+        .unwrap();
+
+        let counts = TaskState::live_session_task_counts_from(&nested).unwrap();
+        assert_eq!(counts.get("legacy-reviewer"), Some(&1));
+        assert!(!counts.contains_key("repo-reviewer"));
     }
 
     #[test]

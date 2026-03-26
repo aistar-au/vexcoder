@@ -1,4 +1,5 @@
 use super::*;
+use crate::mcp::{McpRegistrySnapshot, McpServerSnapshot, McpToolSummary};
 
 #[test]
 fn test_history_cap_env_invalid_uses_default() {
@@ -426,7 +427,7 @@ fn test_tui_tools_renders_builtin_tools() {
     assert!(mode
         .history_lines()
         .iter()
-        .any(|line| line.contains("built-in tools only")));
+        .any(|line| line.contains("live registry: built-in tools only")));
     assert!(mode.history_lines().iter().any(|line| line.contains(
         "discovery flow: list_files/find_files -> search_content/codebase_search -> read_file"
     )));
@@ -443,6 +444,67 @@ fn test_tui_tools_renders_builtin_tools() {
             tool.name
         );
     }
+}
+
+#[test]
+fn test_tui_tools_lists_loaded_mcp_tools() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let mut mode = TuiMode::new();
+    mode.mcp_snapshot = Some(McpRegistrySnapshot {
+        servers: vec![McpServerSnapshot {
+            name: "docs".to_string(),
+            transport: "stdio".to_string(),
+            tools: vec![McpToolSummary {
+                full_name: "mcp.docs.search".to_string(),
+                short_name: "search".to_string(),
+                description: "Search documentation".to_string(),
+            }],
+        }],
+    });
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("/tools desc".to_string(), &mut ctx);
+
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line == "[tools:mcp]"));
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line.contains("mcp.docs.search") && line.contains("Search documentation")));
+}
+
+#[test]
+fn test_tui_mcp_list_and_show_commands() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let mut mode = TuiMode::new();
+    mode.mcp_snapshot = Some(McpRegistrySnapshot {
+        servers: vec![McpServerSnapshot {
+            name: "docs".to_string(),
+            transport: "stdio".to_string(),
+            tools: vec![McpToolSummary {
+                full_name: "mcp.docs.search".to_string(),
+                short_name: "search".to_string(),
+                description: "Search documentation".to_string(),
+            }],
+        }],
+    });
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("/mcp list".to_string(), &mut ctx);
+    mode.on_user_input("/mcp show docs".to_string(), &mut ctx);
+
+    assert!(mode.history_lines().iter().any(|line| line == "[mcp]"));
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line.contains("1 server(s), 1 tool(s) loaded")));
+    assert!(mode.history_lines().iter().any(|line| line == "[mcp:docs]"));
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line.contains("mcp.docs.search") && line.contains("Search documentation")));
 }
 #[test]
 fn test_tui_tools_desc_includes_descriptions() {

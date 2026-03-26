@@ -33,6 +33,34 @@ async fn test_ref_03_tui_mode_overlay_blocks_input() {
         "dispatch should resume after overlay clears"
     );
 }
+
+#[test]
+fn resume_selection_overlay_routes_numeric_input_to_task_resume() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+
+    let saved = TaskState::new("task-resume-overlay".to_string());
+    saved.save(temp.path()).unwrap();
+
+    let mut ctx = setup_ctx();
+    let mut mode = TuiMode::new();
+    mode.prompt_resume_selection(vec![ResumeTaskEntry {
+        dir: temp.path().to_path_buf(),
+        id: "task-resume-overlay".to_string(),
+        status: "Ready".to_string(),
+    }]);
+
+    mode.on_user_input("1".to_string(), &mut ctx);
+
+    assert_eq!(mode.current_task_id(), "task-resume-overlay");
+    assert!(
+        !mode.overlay_active(),
+        "resume overlay should clear on selection"
+    );
+    std::env::remove_var("VEX_STATE_DIR");
+}
+
 #[test]
 fn overlay_blocks_submit() {
     let overlay_none = overlay_event_to_user_input(Event::Key(KeyEvent::new(

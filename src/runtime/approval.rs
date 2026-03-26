@@ -9,6 +9,7 @@ pub enum Capability {
     WriteFile,
     ApplyPatch,
     RunCommand,
+    McpTool,
     Network,
     Browser,
 }
@@ -57,6 +58,8 @@ struct CapabilityTable {
     apply_patch: Option<String>,
     #[serde(default, rename = "RunCommand", alias = "run_command")]
     run_command: Option<String>,
+    #[serde(default, rename = "McpTool", alias = "mcp_tool")]
+    mcp_tool: Option<String>,
     #[serde(default, rename = "Network", alias = "network")]
     network: Option<String>,
     #[serde(default, rename = "Browser", alias = "browser")]
@@ -78,6 +81,10 @@ impl FileApprovalPolicy {
         );
         rules.insert(
             Capability::RunCommand,
+            PolicyAction::Prompt(ApprovalScope::Once),
+        );
+        rules.insert(
+            Capability::McpTool,
             PolicyAction::Prompt(ApprovalScope::Once),
         );
         rules.insert(
@@ -143,6 +150,7 @@ impl ApprovalPolicy for FileApprovalPolicy {
                 Capability::RunCommand,
                 config.capabilities.run_command.as_deref(),
             ),
+            (Capability::McpTool, config.capabilities.mcp_tool.as_deref()),
             (Capability::Network, config.capabilities.network.as_deref()),
             (Capability::Browser, config.capabilities.browser.as_deref()),
         ] {
