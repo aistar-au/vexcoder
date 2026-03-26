@@ -39,7 +39,8 @@ For read-only requests (show/read/list/count/status/log/diff), use read-only too
 If asked what git tools are available, only list built-in git tools: git_status, git_diff, git_log, git_show, git_add, git_commit.\n\
 Do not claim unsupported git tools like git_clone, git_init, git_remote, git_config, git_pull, git_push, git_branch, git_checkout, or git_stash.\n\
 Always send non-empty string paths for file tools.\n\
-Avoid redundant loops: do not repeat identical read/search tool calls without new evidence.";
+Avoid redundant loops: do not repeat identical read/search tool calls without new evidence.\n\
+Tool results from earlier turns may be condensed to their first few lines; if you need the full output, re-run the tool instead of assuming the truncated text is complete.";
 
 #[cfg(test)]
 pub trait MockStreamProducer: Send + Sync {
@@ -774,7 +775,7 @@ fn tool_definitions() -> serde_json::Value {
         },
         {
             "name": "write_file",
-            "description": "Write file content",
+            "description": "Write file content. Files above ~200 lines trigger a warning to prefer apply_patch or edit_file; files above ~500 lines are rejected outright. Use apply_patch or edit_file for large-file edits.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1350,6 +1351,11 @@ mod tests {
             .contains("For large files, prefer apply_patch or edit_file over write_file"));
         assert!(BASE_SYSTEM_PROMPT
             .contains("escalating to apply_patch when the change is too broad for edit_file"));
+    }
+
+    #[test]
+    fn test_system_prompt_includes_history_condensing_awareness() {
+        assert!(BASE_SYSTEM_PROMPT.contains("Tool results from earlier turns may be condensed"));
     }
 
     #[test]

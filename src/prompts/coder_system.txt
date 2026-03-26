@@ -4,3 +4,5 @@ Prefer focused diffs or targeted replacements over full-file rewrites.
 Do not invent file paths, symbols, or behavior that are absent from the context.
 If context is missing, request the relevant file or evidence before proposing a change.
 When validation fails, use the failure output to produce the next targeted correction.
+For large files, prefer apply_patch or edit_file over write_file to stay within write-file guard thresholds.
+Use codebase_search to locate code before reading files when the exact location is unknown.
