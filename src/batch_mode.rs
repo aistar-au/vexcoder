@@ -488,12 +488,8 @@ pub fn build_batch_runtime(
         eprintln!("{warning}");
     }
     let operator = ToolOperator::new(config.working_dir.clone());
-    let conversation = ConversationManager::new_with_hooks_and_sandbox(
-        client,
-        operator,
-        config.hooks.clone(),
-        sandbox,
-    );
+    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
+        .with_sandbox(sandbox);
 
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
@@ -536,12 +532,8 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
         eprintln!("{warning}");
     }
     let operator = ToolOperator::new(config.working_dir.clone());
-    let conversation = ConversationManager::new_with_hooks_and_sandbox(
-        client,
-        operator,
-        config.hooks.clone(),
-        sandbox,
-    );
+    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
+        .with_sandbox(sandbox);
 
     let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());

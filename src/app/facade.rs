@@ -56,12 +56,8 @@ pub fn build_facade_runtime<M: RuntimeMode>(
     bootstrap.sandbox = sandbox.clone();
     bootstrap.sandbox_warning = sandbox_warning;
     let operator = ToolOperator::new(config.working_dir.clone());
-    let conversation = ConversationManager::new_with_hooks_and_sandbox(
-        client,
-        operator,
-        config.hooks.clone(),
-        sandbox,
-    );
+    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
+        .with_sandbox(sandbox);
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
     let runtime = Runtime::new(mode, update_rx);

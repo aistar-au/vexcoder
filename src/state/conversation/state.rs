@@ -86,7 +86,7 @@ pub struct ConversationManager {
 
 impl ConversationManager {
     pub fn new(client: ApiClient, operator: ToolOperator) -> Self {
-        Self::new_with_hooks_and_sandbox(client, operator, Vec::new(), ConfiguredSandbox::default())
+        Self::new_with_hooks(client, operator, Vec::new())
     }
 
     pub fn new_with_hooks(
@@ -94,19 +94,10 @@ impl ConversationManager {
         operator: ToolOperator,
         hooks: Vec<HookConfig>,
     ) -> Self {
-        Self::new_with_hooks_and_sandbox(client, operator, hooks, ConfiguredSandbox::default())
-    }
-
-    pub fn new_with_hooks_and_sandbox(
-        client: ApiClient,
-        operator: ToolOperator,
-        hooks: Vec<HookConfig>,
-        sandbox: ConfiguredSandbox,
-    ) -> Self {
         Self {
             client: Arc::new(client),
             tool_operator: operator,
-            sandbox,
+            sandbox: ConfiguredSandbox::default(),
             hooks,
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
@@ -116,6 +107,20 @@ impl ConversationManager {
             #[cfg(test)]
             mock_tool_operator_responses: None,
         }
+    }
+
+    pub fn new_with_hooks_and_sandbox(
+        client: ApiClient,
+        operator: ToolOperator,
+        hooks: Vec<HookConfig>,
+        sandbox: ConfiguredSandbox,
+    ) -> Self {
+        Self::new_with_hooks(client, operator, hooks).with_sandbox(sandbox)
+    }
+
+    pub fn with_sandbox(mut self, sandbox: ConfiguredSandbox) -> Self {
+        self.sandbox = sandbox;
+        self
     }
 
     #[cfg(test)]

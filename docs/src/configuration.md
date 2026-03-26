@@ -146,18 +146,22 @@ Selects the command sandbox driver. Accepted values: `passthrough`,
 
 - `passthrough` preserves the current process-spawn behavior.
 - `macos-exec` wraps commands with `sandbox-exec` on macOS.
-- `container` wraps commands with `docker run` and requires
+- `container` wraps commands with the installed container runtime and requires
   `VEX_SANDBOX_PROFILE` to name the container image.
+- The built-in `macos-exec` default is intentionally compatibility-first: it
+  allows broad file access, network access, process spawning, IPC lookups, and
+  signals so common development tools continue to work. Use a custom profile if
+  you need stricter containment than process wrapping plus policy hooks.
 
 ### `VEX_SANDBOX_PROFILE`
 
 Optional sandbox driver parameter.
 
 - For `macos-exec`, this is a profile path. When unset, the runtime uses a
-  built-in default policy string.
-- For `container`, this is the image name passed to `docker run`.
-  Startup runs `docker run --rm <image> true` so the selected image is
-  validated before the first wrapped command.
+  built-in compatibility-focused policy string.
+- For `container`, this is the image name passed to the container runtime.
+  Startup runs a short `run --rm <image> true` probe through that runtime so
+  the selected image is validated before the first wrapped command.
 
 ### `VEX_SANDBOX_REQUIRE`
 

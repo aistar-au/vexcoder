@@ -118,7 +118,7 @@ Introduce an opt-in `SandboxDriver` abstraction as a required pre-dispatch wrapp
 | :--- | :--- |
 | `PassthroughSandbox` | No containment. Default. Preserves current behaviour. |
 | `MacosSandboxExec` | Wraps command in `sandbox-exec -p <profile>`. Best-effort only — see deprecation note. |
-| `ContainerSandbox` | Wraps commands in a container-runtime invocation against the configured image. Recommended stable containment path. |
+| `ContainerSandbox` | Wraps command through the container runtime using `run --rm <image> <args>`. Recommended stable containment path. |
 
 **`sandbox-exec` deprecation note:** `sandbox-exec` has been deprecated since macOS 10.15. `MacosSandboxExec` is best-effort: if `sandbox-exec` is unavailable or returns a non-zero exit on the probe call, the runtime must emit a clear warning and fall back to `PassthroughSandbox`. The fallback is suppressed and the runtime must instead abort if the operator sets `sandbox_require = true` in config. This distinction is critical: silent containment failure is a safety issue.
 
@@ -1849,7 +1849,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Operator: this branch (`work/vexcoder-adr024-sandbox-drivers`)
 - Commit: `3090d1c8202cce785ddc765284154cfd97fabd45`
 - Files:
-  - `src/runtime/sandbox.rs` — `ContainerSandbox` struct + `SandboxDriver` impl; wraps commands via the configured container runtime
+  - `src/runtime/sandbox.rs` — `ContainerSandbox` struct + `SandboxDriver` impl; wraps commands through the container runtime
   - `src/config.rs` -- `SandboxKind::Container` variant; `sandbox_profile` names the container image
   - `src/app/facade.rs` — `ConfiguredSandbox::Container` arm at runtime build
   - `src/runtime/validation.rs` — HTTPS enforcement for non-loopback endpoints added alongside
@@ -1858,7 +1858,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `cargo test --all-targets` : pass
 - Notes:
   - `sandbox.sandbox_profile` must name the container image; driver rejects empty values.
-  - A probe validates image availability before the session begins.
+  - A short `run --rm <image> true` probe is executed at session open to validate image availability.
   - Network isolation depends on the container image and host configuration; no additional flags are injected.
 
 ### [PA-03 / PA-04] - vex migrate config + migration doc

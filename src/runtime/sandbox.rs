@@ -254,7 +254,6 @@ pub fn resolve_configured_sandbox(
 
     match preferred.probe() {
         Ok(()) => Ok((preferred, None)),
-        Err(error) if config.kind == SandboxKind::Passthrough => Err(error),
         Err(error) if config.require => Err(error.context(format!(
             "sandbox '{}' is required and no fallback is allowed",
             config.kind.as_str()
