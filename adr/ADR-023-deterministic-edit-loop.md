@@ -394,7 +394,7 @@ active_edit_loop: Option<EditLoop>,  // carries last_validation_result between /
       {{context}}       The git_status_summary if available; empty string otherwise.
 
     Typical use: operator runs /plan, reads the plan, then issues /edit with
-    the same instruction to execute it. /plan output is never automatically
+    the same instruction to run it. /plan output is never automatically
     forwarded to /edit; the operator decides whether to proceed.
 
 /context
@@ -543,7 +543,7 @@ ADR-016 caps raw tool-call depth at the conversation layer; the edit loop operat
 
 ### Why does `/plan` not start an `EditLoop` or accept patches?
 
-`/plan` is the deliberation step that precedes `/edit`. Its value is producing a human-readable plan the operator can verify and modify before any file is changed. Starting an `EditLoop` would bypass that gate. Silently dropping any `PendingPatch` the model produces keeps `/plan` safe to run at any point — including on a dirty working tree — without risk of unintended writes. The operator-confirms-then-executes pattern is the correct design for a planning command: produce the plan, let the operator decide, then execute only on explicit instruction.
+`/plan` is the deliberation step that precedes `/edit`. Its value is producing a human-readable plan the operator can verify and modify before any file is changed. Starting an `EditLoop` would bypass that gate. Silently dropping any `PendingPatch` the model produces keeps `/plan` safe to run at any point — including on a dirty working tree — without risk of unintended writes. The operator-confirms-then-runs pattern is the correct design for a planning command: produce the plan, let the operator decide, then run it only on explicit instruction.
 
 ### Why does `/context` start no model turn?
 
@@ -642,17 +642,17 @@ Rejected. `TaskState`'s `CommandEvidence` struct records execution facts, not st
 
 | ID | Task | Gate | Status |
 | :--- | :--- | :--- | :--- |
-| **EL-01** | `ContextAssembler` stub — named path snapshots, git summary, git timeout | Must be green before EL-03 | [ ] |
-| **EL-02** | `ValidationSuite` — `CommandRunner` mock, `format_for_retry`, multi-lang inference | Must be green before EL-03 | [ ] |
-| **EL-03** | `EditLoop::run` skeleton — `max_turns` guard, `Cancelled` outcome, workspace-dirty check | Must be green before EL-04 | [ ] |
-| **EL-04** | `/edit` and `/fix` wired via `try_handle_slash_command`; `active_edit_loop` field on `TuiMode`; `/fix` no-prior-result guard | Must be green before EL-05 | [ ] |
-| **EL-05** | `/explain`, `/run`, `/test` — no `EditLoop` invocation (note: `/review` is introduced separately in EL-10) | Must be green before EL-06 | [ ] |
-| **EL-06** | `src/prompts/` templates; `coder_system.txt` injection on loop activation only; `docs/` updates | Must be green before EL-07 | [ ] |
-| **EL-07** | `ModelProfile` struct; `models/*.toml` files; `default_for_backend` fallback | Must be green; EL-08 gated separately | [ ] |
-| **EL-08** | `ModelProfile` config integration via layered config | **Gated: ADR-022 Phase 1 must be complete** | [ ] |
-| **EL-09** | `scripts/check_forbidden_names.sh` — covers `src/prompts/` and `models/`; added to CI | Must pass for all items EL-06 onward | [ ] |
-| **EL-10** | `/review` — `review_template.txt`; `--base`/`--files` flag parsing; ref validation; PendingPatch drop; diff assembly via `spawn_blocking` | Must be green after EL-05; gated on EL-06 for template | [ ] |
-| **EL-11** | `/plan` — `plan_template.txt`; `{{scope}}` assembly via `ContextAssembler`; PendingPatch drop; no EditLoop invocation | Must be green after EL-05; gated on EL-06 for template | [ ] |
+| **EL-01** | `ContextAssembler` stub — named path snapshots, git summary, git timeout | Must be green before EL-03 | [x] |
+| **EL-02** | `ValidationSuite` — `CommandRunner` mock, `format_for_retry`, multi-lang inference | Must be green before EL-03 | [x] |
+| **EL-03** | `EditLoop::run` skeleton — `max_turns` guard, `Cancelled` outcome, workspace-dirty check | Must be green before EL-04 | [x] |
+| **EL-04** | `/edit` and `/fix` wired via `try_handle_slash_command`; `active_edit_loop` field on `TuiMode`; `/fix` no-prior-result guard | Must be green before EL-05 | [x] |
+| **EL-05** | `/explain`, `/run`, `/test` — no `EditLoop` invocation (note: `/review` is introduced separately in EL-10) | Must be green before EL-06 | [x] |
+| **EL-06** | `src/prompts/` templates; `coder_system.txt` injection on loop activation only; `docs/` updates | Must be green before EL-07 | [x] |
+| **EL-07** | `ModelProfile` struct; `models/*.toml` files; `default_for_backend` fallback | Must be green; EL-08 gated separately | [x] |
+| **EL-08** | `ModelProfile` config integration via layered config | **Gated: ADR-022 Phase 1 must be complete** | [x] |
+| **EL-09** | `scripts/check_forbidden_names.sh` — covers `src/prompts/` and `models/`; added to CI | Must pass for all items EL-06 onward | [x] |
+| **EL-10** | `/review` — `review_template.txt`; `--base`/`--files` flag parsing; ref validation; PendingPatch drop; diff assembly via `spawn_blocking` | Must be green after EL-05; gated on EL-06 for template | [x] |
+| **EL-11** | `/plan` — `plan_template.txt`; `{{scope}}` assembly via `ContextAssembler`; PendingPatch drop; no EditLoop invocation | Must be green after EL-05; gated on EL-06 for template | [x] |
 | **EL-12** | `/context` — zero-turn status render; token estimate; `active_grants` count; git summary; no model turn | Must be green after EL-05 | [x] |
 | **EL-13** | `/commands` and `/help` alias — runtime-generated from dispatch table; description registration; compile-error for missing descriptions | Must be green after EL-04 | [x] |
 
@@ -676,6 +676,114 @@ When checking a box above, append an evidence block under this section:
 - Notes:
   - <what was built and why>
 ```
+
+### [EL-01 / EL-02 / EL-03] - context assembly, validation, and bounded edit loop
+- Operator: coding agent
+- Commit: `19c688b846892651ab4e81d8a74eab8c601601c3`
+- Files changed:
+    - `src/runtime/context_assembler.rs` (existing — already present on `main`)
+    - `src/runtime/validation.rs` (existing — already present on `main`)
+    - `src/runtime/edit_loop.rs` (existing — already present on `main`)
+- Line references:
+    - `src/runtime/context_assembler.rs:60`
+    - `src/runtime/context_assembler.rs:162`
+    - `src/runtime/context_assembler.rs:388`
+    - `src/runtime/validation.rs:104`
+    - `src/runtime/validation.rs:151`
+    - `src/runtime/edit_loop.rs:79`
+    - `src/runtime/edit_loop.rs:172`
+- Validation:
+    - `cargo test --all-targets` : pass
+    - `bash scripts/check_no_alternate_routing.sh` : pass
+    - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+    - `ContextAssembler` already assembles named path snapshots, inferred related paths, git status, and bounded diff context with non-git and timeout fallback on `main`.
+    - `ValidationSuite` already formats retry context and infers repo-default validation commands from the current tree.
+    - `EditLoop::run` already enforces the bounded assemble -> model -> validate -> retry cycle, cancellation, and workspace-dirty warning behavior described by ADR-023.
+
+### [EL-04 / EL-05] - slash-command edit loop and read-only semantic turns
+- Operator: coding agent
+- Commit: `19c688b846892651ab4e81d8a74eab8c601601c3`
+- Files changed:
+    - `src/app/commands.rs` (existing — already present on `main`)
+    - `src/app/turn_start.rs` (existing — already present on `main`)
+    - `src/app/tests/model_turn.rs` (existing — already present on `main`)
+    - `src/app/tests/slash_commands.rs` (existing — already present on `main`)
+- Line references:
+    - `src/app/commands.rs:31`
+    - `src/app/commands.rs:178`
+    - `src/app/commands.rs:354`
+    - `src/app/commands.rs:392`
+    - `src/app/commands.rs:415`
+    - `src/app/turn_start.rs:49`
+    - `src/app/tests/model_turn.rs:573`
+    - `src/app/tests/model_turn.rs:698`
+    - `src/app/tests/slash_commands.rs:49`
+- Validation:
+    - `cargo test --all-targets` : pass
+    - `bash scripts/check_no_alternate_routing.sh` : pass
+    - `bash scripts/check_forbidden_imports.sh` : pass
+- Notes:
+    - `/edit` and `/fix` already dispatch through `try_handle_slash_command`, carry the active-loop reentrancy guard, and reuse the most recent validation result for `/fix`.
+    - `/explain`, `/run`, and `/test` already stay out of `EditLoop` and use assembled context or validation directly.
+
+### [EL-06 / EL-07 / EL-08 / EL-09] - prompt templates, profiles, config wiring, and neutral-name guard
+- Operator: coding agent
+- Commit: `19c688b846892651ab4e81d8a74eab8c601601c3`
+- Files changed:
+    - `src/prompts.rs` (existing — already present on `main`)
+    - `src/runtime/context.rs` (existing — already present on `main`)
+    - `src/types/model_profile.rs` (existing — already present on `main`)
+    - `src/config.rs` (existing — already present on `main`)
+    - `scripts/check_forbidden_names.sh` (existing — already present on `main`)
+    - `docs/src/commands.md` (existing — already present on `main`)
+    - `models/api-structured.toml` (existing — already present on `main`)
+    - `models/local-tagged.toml` (existing — already present on `main`)
+- Line references:
+    - `src/prompts.rs:35`
+    - `src/prompts.rs:160`
+    - `src/runtime/context.rs:582`
+    - `src/types/model_profile.rs:34`
+    - `src/types/model_profile.rs:142`
+    - `src/config.rs:884`
+    - `src/config.rs:983`
+    - `src/config.rs:1670`
+    - `scripts/check_forbidden_names.sh:250`
+    - `tests/integration_test.rs:305`
+- Validation:
+    - `cargo test --all-targets` : pass
+    - `bash scripts/check_no_alternate_routing.sh` : pass
+    - `bash scripts/check_forbidden_imports.sh` : pass
+    - `bash scripts/check_forbidden_names.sh` : pass
+- Notes:
+    - Prompt templates are already compiled into the binary and are injected only during edit-loop or semantic-command turns.
+    - `ModelProfile` plus the repo-tracked `models/*.toml` fixtures are already in the tree, including backend defaults and structured-tools fallback behavior.
+    - Layered config already resolves `model_profile` through the ADR-022 config merge path.
+    - `check_forbidden_names.sh` already enforces neutral prompt/profile naming across `src/prompts/` and `models/`.
+
+### [EL-10 / EL-11] - review and plan single-turn surfaces
+- Operator: coding agent
+- Commit: `19c688b846892651ab4e81d8a74eab8c601601c3`
+- Files changed:
+    - `src/app/commands.rs` (existing — already present on `main`)
+    - `src/prompts.rs` (existing — already present on `main`)
+    - `docs/src/commands.md` (existing — already present on `main`)
+    - `src/app/tests/model_turn.rs` (existing — already present on `main`)
+- Line references:
+    - `src/app/commands.rs:204`
+    - `src/app/commands.rs:354`
+    - `src/prompts.rs:49`
+    - `src/prompts.rs:86`
+    - `src/app/tests/model_turn.rs:791`
+    - `src/app/tests/model_turn.rs:1003`
+- Validation:
+    - `cargo test --all-targets` : pass
+    - `bash scripts/check_no_alternate_routing.sh` : pass
+    - `bash scripts/check_forbidden_imports.sh` : pass
+    - `bash scripts/check_forbidden_names.sh` : pass
+- Notes:
+    - `/review` already assembles diff or file-scoped context, drops pending patch state, and starts a single read-only turn.
+    - `/plan` already assembles scope context via `ContextAssembler`, renders `plan_template.txt`, and never starts an `EditLoop`.
 
 ### EL-12 - /context zero-turn status render
 - Operator: coding agent

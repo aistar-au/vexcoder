@@ -107,6 +107,25 @@ snippets with file:line references.
 Phase 1 is the minimum viable delivery: Tree-sitter structural index +
 `codebase_search` tool. Phases 2-4 are additive and can land independently.
 
+## Implementation status
+
+All four phases are implemented on `main` as of 2026-03-26.
+
+| Phase | Feature | Key source files |
+| :--- | :--- | :--- |
+| 1 | Structural search (`codebase_search`) | `src/api/client.rs` (tool definition), `src/state/conversation/tools.rs` (index lifecycle) |
+| 2 | Semantic vector search | `src/state/conversation/tools.rs` (embedding config readers) |
+| 3 | Write guards | `src/state/conversation/tools.rs` (`write_file_diff_preferred_above_lines`, `write_file_max_lines`), `src/api/client.rs` (tool description) |
+| 4 | Context condensing | `src/state/conversation/history.rs` (`condense_old_tool_results`, `compact_for_context_overflow`), `src/api/client.rs` (system prompt guidance) |
+
+System prompt guidance and tool descriptions now reference all four phases.
+
+In the 2026-03-26 remaining-work inventory, ADR-033 no longer contributes a new
+baseline implementation tier. The outstanding work is Tier 2 contract
+reconciliation and documentation maintenance in PR `#233`, plus later
+follow-up to keep the roadmap, ADR index, and model-facing guidance aligned
+with the already-implemented Phases 1-4 behavior.
+
 ## References
 
 - [ADR-032](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-032-prompt-area-interactivity-and-context-guard.md) — prompt area interactivity and context guard

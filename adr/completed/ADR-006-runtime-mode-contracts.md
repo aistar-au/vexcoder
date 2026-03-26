@@ -90,7 +90,7 @@ impl RuntimeContext {
     /// Begin a new conversation turn. Spawns the async API task.
     pub fn start_turn(&mut self, input: String);
 
-    /// Signal the in-flight turn to stop emitting updates.
+    /// Signal the active turn to stop emitting updates.
     /// Does not force-stop the task; the task drains cleanly then sends TurnComplete.
     pub fn cancel_turn(&mut self);
 }

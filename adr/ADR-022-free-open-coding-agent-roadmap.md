@@ -454,7 +454,7 @@ phase be authored or reviewed serially on one branch.
 Parallel remote implementation is allowed when batches are either independent or
 explicitly stacked. A dependent batch may be pushed for review before its
 prerequisite lands, but merge order must still follow the roadmap dependency
-chain and leave `main` green after each landed batch.
+chain and leave `main` green after each merged batch.
 
 In other words:
 

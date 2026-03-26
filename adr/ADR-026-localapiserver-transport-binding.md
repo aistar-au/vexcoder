@@ -1,7 +1,7 @@
 # ADR-026: LocalApiServer transport binding — scoped HTTP/Unix-socket API surface, SSE streaming, TLS boundary, auth model, and schema endpoint for runtime JSON handoff
 
 **Date:** 2026-03-11
-**Status:** Proposed
+**Status:** Complete
 **Deciders:** Core maintainer
 **Location:** `adr/ADR-026-localapiserver-transport-binding.md`
 **ADR chain:** ADR-025 (runtime JSON handoff contract), ADR-024 (Phase I reservation), ADR-006 (runtime mode contracts)
@@ -226,7 +226,7 @@ Request body:
 
 Response:
 
-- `{"ok":true}` if the `task_id` corresponds to an active in-flight turn.
+- `{"ok":true}` if the `task_id` corresponds to an active turn.
 - `{"ok":false,"reason":"task_not_found"}` with HTTP `404` if the `task_id` does not correspond to an active turn (including already-completed turns). Interrupt of a completed or unknown task is not silently treated as success.
 
 Interrupt does not use SSE. It is a control endpoint.

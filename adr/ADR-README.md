@@ -10,53 +10,80 @@ All ADR files live under `adr/`.
 | Status | Meaning |
 | :--- | :--- |
 | **Proposed** | Under discussion and dispatchable |
+| **Amended** | Existing ADR amended without superseding the base decision |
 | **Active** | In progress in the current tree; follow-up phases or verification may still remain |
-| **Accepted** | In effect — code must conform |
+| **Accepted** | In effect -- code must conform |
+| **Complete** | All scoped implementation items are complete; housekeeping move to `completed/` still remains |
 | **Superseded by ADR-XXX** | Replaced; retained for history |
-| **Locked** | Accepted and immutable — no further amendments without a new ADR |
+| **Locked** | Accepted and immutable -- no further amendments without a new ADR |
 | **Deprecated** | Was accepted, no longer applies |
 
 ## Open ADRs (Dispatch)
 
-| ADR | Title | Status |
-| :--- | :--- | :--- |
-| [ADR-013](ADR-013-tui-completion-deployment-plan.md) | TUI completion and deployment plan | Proposed |
-| [ADR-018](ADR-018-managed-tui-scrollback-streaming-cell-overlays.md) | Managed TUI scrollback, streaming cell, overlays | Superseded by ADR-027 |
-| [ADR-021](ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md) | Codebase audit: dead weight, duplication, and shared-code opportunities | Accepted (follow-up maintenance items remain) |
-| [ADR-022 amendment](ADR-022-amendment-2026-03-13.md) | ADR-022 command-execution amendment for full-screen command capture alignment | Proposed |
-| [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed |
-| [ADR-023](ADR-023-deterministic-edit-loop.md) | Deterministic edit loop — context assembly, patch-apply-validate cycle | Locked |
-| [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps — sandboxing, headless, layered config, MCP | Proposed |
-| [ADR-025](ADR-025-runtime-json-handoff-contract.md) | Runtime JSON handoff contract — trait-level event envelopes, JSON projection, and adapter-stable serialization | Proposed |
-| [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding — scoped HTTP/Unix-socket API surface, SSE streaming, TLS boundary, auth model, and schema endpoint for runtime JSON handoff | Proposed |
-| [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI with command-session capture | Accepted |
-| [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active |
-| [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness and session persistence extensions | Accepted — prerequisite for ADR-030 invariant compliance |
-| [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Accepted — load-bearing for multi-agent orchestration |
-| [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Active |
-| [ADR-032](ADR-032-prompt-area-interactivity-and-context-guard.md) | Prompt area interactivity and context guard | Active |
-| [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Active |
-| [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Proposed |
+| ADR | Title | Status | Remaining |
+| :--- | :--- | :--- | :--- |
+| [ADR-021](ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md) | Codebase audit | Accepted | 17 items (3 P1, 13 P2, 1 P3) |
+| [ADR-022 amendment](ADR-022-amendment-2026-03-13.md) | Command-execution amendment | Amended | Amendment only |
+| [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed (milestone-1 passed 2026-03-15) | Post-milestone phases G/H |
+| [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps | Proposed | 16 items across phases D/F/G/H/I/M/P |
+| [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active | Phase 1+2 merged; ongoing alignment |
+| [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness | Accepted | Verification follow-up (8 decision items) |
+| [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Accepted | Verification follow-up (6 coverage requirements) |
+| [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Active (Batches A-E merged) | Verification of merged batches |
+| [ADR-032](ADR-032-prompt-area-interactivity-and-context-guard.md) | Prompt area interactivity and context guard | Active | Items 4-5 need verification |
+| [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Active (Phases 1-4 merged) | Follow-up integration |
+| [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Follow-up hardening |
+
+## Implementation-Complete ADRs (pending move to completed/)
+
+These ADRs have all implementation items delivered but their files remain in
+the top-level `adr/` directory pending a housekeeping move.
+
+| ADR | Title | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| [ADR-013](ADR-013-tui-completion-deployment-plan.md) | TUI completion and deployment plan | Accepted | All phases complete |
+| [ADR-018](ADR-018-managed-tui-scrollback-streaming-cell-overlays.md) | Managed TUI scrollback | Superseded by ADR-027 | Retained for history |
+| [ADR-023](ADR-023-deterministic-edit-loop.md) | Deterministic edit loop | Complete | EL-01 through EL-13 all delivered |
+| [ADR-025](ADR-025-runtime-json-handoff-contract.md) | Runtime JSON handoff contract | Complete | PI-09 through PI-12 all delivered |
+| [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding | Complete | PI-13 through PI-16 all delivered |
+| [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI command-session capture | Accepted (complete) | Supersedes ADR-018/019 |
+
+## Remaining Work Summary (49 items across 9 tiers)
+
+Tiers sorted by unblocking impact. Full per-item breakdown in
+`TASKS/ACTIVE-ROADMAP.md`.
+
+| Tier | Source | Items | Description |
+| :--- | :--- | :--- | :--- |
+| 1 | PRs 231/232/233/234 | 4 | Open PRs ready to merge |
+| 2 | ADR-024 Phases D/F | 6 | Sandbox drivers and MCP runtime |
+| 3 | ADR-024 | 3 | Workspace tools, MCP HTTP auth, /plan+/context |
+| 4 | ADR-021 P1 | 4 | Unbounded buffers and unhandled errors |
+| 5 | ADR-029/030/032 | 3 | Verification of already-implemented work |
+| 6 | ADR-021 P2 | 13 | Code quality and duplication removal |
+| 7 | ADR-021 P3 | 1 | Idle backoff tuning |
+| 8 | ADR-024 G/H + ADR-022 | 7 | Post-milestone release pipeline and packaging |
+| 9 | Multiple | 8 | Housekeeping: move completed ADRs, update status fields |
 
 ## Completed ADR Records
 
 | ADR | Title | Status |
 | :--- | :--- | :--- |
-| [ADR-001](completed/ADR-001-tdm-agentic-manifest-strategy.md) | Test-Driven Manifest (TDM) as primary agentic development methodology | Accepted |
-| [ADR-002](completed/ADR-002-lexical-path-normalization.md) | Lexical path normalization over `fs::canonicalize()` in tool executor | Accepted |
-| [ADR-003](completed/ADR-003-dual-protocol-api-auto-detection.md) | Dual-protocol API client with URL-inferred protocol selection | Accepted |
-| [ADR-004](completed/ADR-004-runtime-seam-headless-first.md) | Runtime seam refactor — headless-first architecture (REF track) | Superseded operationally by ADR-006 and ADR-007 |
-| [ADR-005](completed/ADR-005-cfg-test-mock-injection.md) | `#[cfg(test)]` mock injection field on production `ApiClient` struct | Accepted |
-| [ADR-006](completed/ADR-006-runtime-mode-contracts.md) | Runtime mode contracts — `RuntimeMode`, `RuntimeContext`, `RuntimeEvent`, `FrontendAdapter` | Accepted |
-| [ADR-007](completed/ADR-007-runtime-canonical-dispatch-no-alt-routing.md) | Runtime-core canonical dispatch — no alternate routing | Accepted |
+| [ADR-001](completed/ADR-001-tdm-agentic-manifest-strategy.md) | Test-Driven Manifest (TDM) | Accepted |
+| [ADR-002](completed/ADR-002-lexical-path-normalization.md) | Lexical path normalization | Accepted |
+| [ADR-003](completed/ADR-003-dual-protocol-api-auto-detection.md) | Dual-protocol API auto-detection | Accepted |
+| [ADR-004](completed/ADR-004-runtime-seam-headless-first.md) | Runtime seam headless-first | Superseded by ADR-006/007 |
+| [ADR-005](completed/ADR-005-cfg-test-mock-injection.md) | cfg-test mock injection | Accepted |
+| [ADR-006](completed/ADR-006-runtime-mode-contracts.md) | Runtime mode contracts | Accepted |
+| [ADR-007](completed/ADR-007-runtime-canonical-dispatch-no-alt-routing.md) | Canonical dispatch no-alt-routing | Accepted |
 | [ADR-008](completed/ADR-008-runtime-cutover-parity-guardrails.md) | Runtime cutover parity guardrails | Accepted |
-| [ADR-009](completed/ADR-009-runtime-core-tui-interaction-contract.md) | Runtime-core TUI interaction contract | Accepted |
-| [ADR-010](completed/ADR-010-runtime-core-tui-viewport-and-transcript.md) | Runtime-core TUI viewport and transcript model | Accepted |
-| [ADR-011](completed/ADR-011-runtime-core-tui-render-loop-and-lifecycle.md) | Runtime-core TUI render loop and lifecycle | Accepted |
-| [ADR-012](completed/ADR-012-runtime-core-tui-deployment-gate.md) | Runtime-core TUI deployment gate | Accepted |
-| [ADR-014](completed/ADR-014-runtime-core-policy-dedup-and-enforcement.md) | Runtime-core policy deduplication and enforcement | Accepted |
-| [ADR-015](completed/ADR-015-local-endpoint-text-protocol-default.md) | Local endpoint text-protocol default for tool loop reliability | Accepted |
-| [ADR-016](completed/ADR-016-local-tool-loop-guard-and-correction.md) | Local tool-loop guard and correction path | Accepted |
-| [ADR-017](completed/ADR-017-append-terminal-single-session.md) | Append-terminal single session runtime | Superseded by ADR-018 |
-| [ADR-019](completed/ADR-019-adr-018-follow-up-correctness-cutover-cleanup.md) | ADR-018 follow-up sequencing for correctness, cutover, and cleanup | Superseded by ADR-027 |
-| [ADR-020](completed/ADR-020-looping-architecture-enriched-response-correctness.md) | Looping architecture and enriched tool response correctness | Accepted |
+| [ADR-009](completed/ADR-009-runtime-core-tui-interaction-contract.md) | TUI interaction contract | Accepted |
+| [ADR-010](completed/ADR-010-runtime-core-tui-viewport-and-transcript.md) | TUI viewport and transcript | Accepted |
+| [ADR-011](completed/ADR-011-runtime-core-tui-render-loop-and-lifecycle.md) | TUI render loop and lifecycle | Accepted |
+| [ADR-012](completed/ADR-012-runtime-core-tui-deployment-gate.md) | TUI deployment gate | Accepted |
+| [ADR-014](completed/ADR-014-runtime-core-policy-dedup-and-enforcement.md) | Policy dedup and enforcement | Accepted |
+| [ADR-015](completed/ADR-015-local-endpoint-text-protocol-default.md) | Local endpoint text-protocol default | Accepted |
+| [ADR-016](completed/ADR-016-local-tool-loop-guard-and-correction.md) | Local tool-loop guard and correction | Accepted |
+| [ADR-017](completed/ADR-017-append-terminal-single-session.md) | Append-terminal single session | Superseded by ADR-018 |
+| [ADR-019](completed/ADR-019-adr-018-follow-up-correctness-cutover-cleanup.md) | ADR-018 follow-up correctness cutover | Superseded by ADR-027 |
+| [ADR-020](completed/ADR-020-looping-architecture-enriched-response-correctness.md) | Looping architecture enriched response | Accepted |

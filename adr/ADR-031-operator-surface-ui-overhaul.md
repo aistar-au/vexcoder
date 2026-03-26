@@ -15,7 +15,7 @@ established the application facade and transport boundary model. ADR-030
 defined the runtime as a task-state-owned orchestrator.
 
 The current implementation has reached the point where the adaptive timeline
-reflects in-flight tool calls (ADR-030 invariant 6 fix), the direct ANSI
+reflects pending tool calls (ADR-030 invariant 6 fix), the direct ANSI
 renderer owns a human-readable header plus transcript/composer path, and the
 task surface includes structured prefix styling, inline approval cards, and a
 cumulative context indicator in the header.
@@ -290,7 +290,7 @@ This batch is merged into `main`.
 Batch B implementation on main includes stable timeline entries, selected step
 focus, inspector/transcript routing from canonical task state, and unified
 derivation for structured timeline rows so command-session rows remain
-visible alongside other in-flight task steps. The legacy `activity_rows`
+visible alongside other in-progress task steps. The legacy `activity_rows`
 derivation was removed in Batch E.
 
 **Batch C — Full-screen scroll ownership**
@@ -315,8 +315,8 @@ Operators and coding agents must use this policy:
 
 - split work aggressively for parallel remote development;
 - identify which batches modify execution truth versus presentation only;
-- land execution-truth batches first;
-- keep dependent UI batches stacked until prerequisites land;
+- merge execution-truth batches first;
+- keep dependent UI batches stacked until prerequisites merge;
 - rebase dependent branches onto main before merge;
 - do not merge a renderer batch whose correctness depends on task-state
   behavior that is not yet merged into `main`.
@@ -328,7 +328,7 @@ Use this rule instead:
 
 - **build in parallel where possible**
 - **merge in dependency order**
-- **rebase dependent batches onto `main` after prerequisites land**
+- **rebase dependent batches onto `main` after prerequisites merge**
 
 Temporary branch structure is allowed.
 Temporary execution truth is not.
@@ -362,7 +362,7 @@ This distinction is what ADR-030 is designed to protect.
 
 - requires additional task-state surface area for selected-step identity
 - adds merge-gating complexity for dependent batches
-- batch E (fallback removal) landed after the full rendering path was proven
+- batch E (fallback removal) merged after the full rendering path was proven
   end-to-end across Batches A–D
 
 ## Non-goals

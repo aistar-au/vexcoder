@@ -35,7 +35,7 @@ input handling. Hidden input loss is unacceptable for operator trust.
 
 ## Consequences
 
-1. Runtime mode/frontend must track compose state and in-flight turn state with
+1. Runtime mode/frontend must track compose state and active turn state with
    explicit transitions.
 2. Approval UI needs dedicated key routing.
 3. Tests must verify non-lossy input and interrupt policy.

@@ -9,7 +9,7 @@ The next dependency-sequenced batch is ADR-026 Phase I transport binding (`PI-13
 
 Milestone-1 validation passed on 2026-03-15 and is recorded in
 `adr/ADR-022-free-open-coding-agent-roadmap.md`. The ADR-025 Phase I kickoff
-(PI-09 and PI-11) landed in PR #99 and established the canonical runtime
+(PI-09 and PI-11) merged in PR #99 and established the canonical runtime
 handoff types, normative tool-call grammar, and versioned schema assets.
 
 The next work batch is the ADR-025 Phase I continuation. The dependency

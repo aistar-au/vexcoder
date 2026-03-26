@@ -1,6 +1,6 @@
 # ADR-030: Runtime Task State and Orchestrator Control Flow
 
-- **Status:** Accepted — invariant fixes landed 2026-03-17; verification suite completed 2026-03-25
+- **Status:** Accepted — invariant fixes merged 2026-03-17; verification suite completed 2026-03-25
 - **Date:** 2026-03-16
 - **Deciders:** Maintainers
 - **Depends on:** ADR-023, ADR-025, ADR-027, ADR-028, ADR-029
@@ -482,15 +482,15 @@ of the principle that provider-native values must not determine runtime truth.
 The fix limits the heuristic to bare `/v1` base URLs only.  Explicit `/messages`
 path suffixes are treated as authoritative MessagesV1 declarations.
 
-### Invariant 6 violation — UI did not observe canonical task state for in-flight steps
+### Invariant 6 violation — UI did not observe canonical task state for in-progress steps
 
 `task_activity_rows()` derived its display from `current_turn_tool_invocations`
-(completed tool results) but ignored `pending_turn_tool_calls` (in-flight tool
+(completed tool results) but ignored `pending_turn_tool_calls` (pending tool
 calls recorded in task state).  The activity pane therefore showed a blank or
 stale view while a tool was executing — the UI was not continuously reflecting
 task state as required by this ADR.
 
-The fix includes in-flight tool calls from `pending_turn_tool_calls` in the
+The fix includes pending tool calls from `pending_turn_tool_calls` in the
 activity row derivation, ensuring the orchestration view remains accurate from
 tool-call start through tool-result receipt.  The row set is capped at 6 for
 display stability.
