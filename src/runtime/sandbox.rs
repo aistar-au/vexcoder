@@ -138,8 +138,12 @@ pub struct ContainerSandbox {
 }
 
 impl ContainerSandbox {
-    pub fn new(image: String) -> Self {
-        Self { image }
+    pub fn new(image: String) -> Result<Self> {
+        let image = image.trim().to_string();
+        if image.is_empty() {
+            bail!("container sandbox requires sandbox_profile to name the image");
+        }
+        Ok(Self { image })
     }
 
     fn probe_command(&self) -> Result<std::process::Command> {
@@ -249,7 +253,7 @@ pub fn resolve_configured_sandbox(
         }
         SandboxKind::Container => ConfiguredSandbox::Container(ContainerSandbox::new(
             config.profile.clone().unwrap_or_default(),
-        )),
+        )?),
     };
 
     match preferred.probe() {
@@ -307,8 +311,9 @@ mod tests {
 
     #[test]
     fn container_wraps_command_in_container_invocation() {
-        let sandbox =
-            ConfiguredSandbox::Container(super::ContainerSandbox::new("alpine:3".to_string()));
+        let sandbox = ConfiguredSandbox::Container(
+            super::ContainerSandbox::new("alpine:3".to_string()).expect("container sandbox"),
+        );
         let wrapped = sandbox
             .wrap(CommandRequest {
                 program: "echo".into(),
@@ -323,7 +328,8 @@ mod tests {
 
     #[test]
     fn container_probe_validates_selected_image_with_run_true() {
-        let sandbox = super::ContainerSandbox::new("alpine:3".to_string());
+        let sandbox =
+            super::ContainerSandbox::new("alpine:3".to_string()).expect("container sandbox");
         let command = sandbox.probe_command().expect("build probe command");
         let args = command
             .get_args()
@@ -332,5 +338,11 @@ mod tests {
 
         assert_eq!(command.get_program().to_string_lossy(), "docker");
         assert_eq!(args, vec!["run", "--rm", "alpine:3", "true"]);
+    }
+
+    #[test]
+    fn container_constructor_rejects_empty_image() {
+        let error = super::ContainerSandbox::new("   ".to_string()).unwrap_err();
+        assert!(error.to_string().contains("sandbox_profile"));
     }
 }
