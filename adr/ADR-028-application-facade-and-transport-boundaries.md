@@ -370,7 +370,7 @@ during active turns).  `render_task_layout` rendered activity rows as
 monochrome `Line::from` strings with no structured prefix styling.
 
 **Fix:**
-- `task_activity_rows()` now appends in-flight calls from
+- `task_activity_rows()` now appends pending tool calls from
   `pending_turn_tool_calls` with `[->] name: running…` prefix.
 - The list is capped at `MAX_ACTIVITY_ROWS = 6` for a stable 6-line pipeline
   dropdown appearance.
@@ -380,7 +380,7 @@ monochrome `Line::from` strings with no structured prefix styling.
   structured live-pipeline appearance without copying proprietary CLI tool
   names or logos.
 - `render_task_layout` activity title now reflects state: "Orchestrating" when
-  in-flight steps exist, "Steps" otherwise.
+  pending steps exist, "Steps" otherwise.
 
 > **Implementation note (ADR-031 Batch E):** The `task_activity_rows()` function
 > and the `activity_rows` field described above were removed in ADR-031 Batch E.

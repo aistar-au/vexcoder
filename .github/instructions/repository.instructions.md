@@ -149,7 +149,7 @@ gh pr checks <pr> --watch
   SHAs, and the changed-path list before handoff.
 - If a hosted run opens a non-review branch or ends with only a planning
   commit and no file diff, treat it as draft-only evidence. Do not claim the
-  implementation landed until code-bearing commits are promoted onto the
+  implementation is merged until code-bearing commits are promoted onto the
   review branch.
 - If `main` moves while hosted shards are still running, do not require the
   running hosted sessions to rebase in place. Refresh the shared integration
