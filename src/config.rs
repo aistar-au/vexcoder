@@ -340,7 +340,7 @@ impl Config {
         }
         if !local_endpoint && self.model_url.starts_with("http://") {
             bail!(
-                "Non-loopback model endpoint '{}' must use https://. TLS is required for non-local model connections.",
+                "Non-loopback model endpoint '{}' must use https://. Plain HTTP remains allowed for same-machine local runtimes on localhost, 127.x.x.x, ::1, or 0.0.0.0.",
                 self.model_url
             );
         }

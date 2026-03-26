@@ -60,6 +60,9 @@ The full model endpoint URL.
   localhost URLs such as `http://localhost:8000/v1/messages`. If you enter an
   HTTPS localhost URL in the interactive startup prompt, `vex` now suggests the
   equivalent plain-HTTP localhost endpoint before the fullscreen session starts.
+- Same-machine local runtimes such as Ollama and llama.cpp commonly expose only
+  plain HTTP. That remains supported when you connect via `localhost`,
+  `127.x.x.x`, `::1`, or `0.0.0.0`.
 - If a local endpoint returns HTTP 400 due to context overflow, the error now
   shows the server's message verbatim and suggests increasing `--ctx-size` on
   the server or using `/compact` to reset the conversation.
@@ -80,11 +83,13 @@ otherwise non-system-trusted certificates.
 - Emits a startup warning on every launch when enabled.
 - Must not be committed in repo-local `.vex/config.toml`.
 
-For any model endpoint that does not resolve to `localhost`, `127.0.0.1`, or
-`::1`, HTTPS is mandatory. Plain `http://` remote model URLs are rejected at
-startup so prompts, repository context, and model responses are not sent over
-unencrypted network paths. `VEX_MODEL_URL_SKIP_TLS_CHECK` only relaxes
-certificate verification for HTTPS endpoints; it does not permit plain HTTP for
+For any model endpoint that does not resolve to `localhost`, `127.x.x.x`,
+`::1`, or `0.0.0.0`, HTTPS is mandatory. Plain `http://` remote model URLs are
+rejected at startup so prompts, repository context, and model responses are not
+sent over unencrypted network paths. This rule does not block same-machine
+local servers such as Ollama or llama.cpp when they are reached over one of the
+local addresses above. `VEX_MODEL_URL_SKIP_TLS_CHECK` only relaxes certificate
+verification for HTTPS endpoints; it does not permit plain HTTP for
 non-loopback hosts.
 
 ### `VEX_MODEL_NAME`
