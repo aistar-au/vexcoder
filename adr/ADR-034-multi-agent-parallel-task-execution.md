@@ -1,6 +1,6 @@
-# ADR-034: Multi-Agent / Parallel Task Execution — worktree-isolated agent definitions, orchestrator-owned child tasks, watch surfaces, and background lifecycle
+# ADR-034: Multi-Agent / Parallel Task Execution — worktree-isolated agent definitions, orchestrator-owned session tasks, watch surfaces, and background lifecycle
 
-- **Status:** Proposed
+- **Status:** Active (Phase A + Phase B-E baseline implemented; see PR #229 and PR #230)
 - **Date:** 2026-03-26
 - **Deciders:** Core maintainer
 - **Depends on:** ADR-024, ADR-025, ADR-026, ADR-030, ADR-033
@@ -15,7 +15,7 @@ too important to leave implicit:
 
 1. per-agent git worktree isolation for concurrent code-bearing work;
 2. pluggable agent definitions and team composition;
-3. orchestrator-owned child-task lifecycle, including background execution;
+3. orchestrator-owned session-task lifecycle, including background execution;
 4. operator-visible watch and task-management surfaces.
 
 The current tree already contains the foundations that a multi-agent lane must
@@ -32,14 +32,14 @@ questions below:
 
 1. Where are agent roles and teams configured?
 2. How are concurrent agents isolated from each other at the filesystem layer?
-3. Which layer is allowed to spawn, suspend, resume, or terminate child tasks?
-4. How do operators inspect live child-task progress without making the UI the
+3. Which layer is allowed to spawn, suspend, resume, or terminate session tasks?
+4. How do operators inspect live session-task progress without making the UI the
    source of execution truth?
 5. What information must survive export, resume, and cross-surface handoff?
 
 Without a dedicated ADR, the architecture can drift toward unsafe patterns such
 as multiple agents mutating one worktree, provider output implicitly launching
-child tasks, background jobs outliving task-state tracking, or ad-hoc task
+session tasks, background jobs outliving task-state tracking, or ad-hoc task
 management commands inventing contracts outside ADR-025 and ADR-030.
 
 ## Decision
@@ -52,15 +52,15 @@ creating a second execution model.
 
 The runtime orchestrator remains the only authority allowed to:
 
-- decompose a parent task into child tasks;
-- assign a child task to an agent definition;
-- mark a child task as pending, running, blocked, failed, cancelled, or
+- decompose a parent task into session tasks;
+- assign a session task to an agent definition;
+- mark a session task as pending, running, blocked, failed, cancelled, or
   completed;
-- determine whether a background child task is still live;
-- merge child-task results back into parent task state.
+- determine whether a background session task is still live;
+- merge session-task results back into parent task state.
 
 Provider-native stream events, UI state, and transport-specific sessions MUST
-NOT become the source of truth for child-task lifecycle.
+NOT become the source of truth for session-task lifecycle.
 
 ### 2. Agent definitions are explicit and repo-readable
 
@@ -103,9 +103,9 @@ run in a dedicated git worktree leased by the orchestrator.
 Normative rules:
 
 - one mutable agent task per leased worktree;
-- no two concurrent mutable child tasks may share the same worktree;
-- read-only child tasks may reuse the parent worktree only when no mutating
-  child task is executing there;
+- no two concurrent mutable session tasks may share the same worktree;
+- read-only session tasks may reuse the parent worktree only when no mutating
+  session task is executing there;
 - worktree lease ownership is recorded in task state and survives resume.
 
 Worktree paths are runtime-managed state, not user-authored config. The
@@ -114,7 +114,7 @@ to persisted task metadata.
 
 ### 4. Background lifecycle is part of task state
 
-Background child tasks are first-class task-state entries, not detached process
+Background session tasks are first-class task-state entries, not detached process
 side effects.
 
 Task state must record, at minimum:
@@ -127,7 +127,7 @@ Task state must record, at minimum:
 - last heartbeat or stream sequence observed
 - handoff/export summary
 
-Resuming a parent task must reconstruct its child-task graph from task state
+Resuming a parent task must reconstruct its session-task graph from task state
 before any UI or transport surface renders live status.
 
 ### 5. Operator surfaces are observational, not authoritative
@@ -135,11 +135,11 @@ before any UI or transport surface renders live status.
 The initial operator command surface for this ADR is:
 
 - `/agents` — list configured agents, teams, and live assignment status;
-- `/delegate <agent> <prompt>` — request a child task assignment from the
+- `/delegate <agent> <prompt>` — request a session task assignment from the
   orchestrator;
-- `/watch [task-id|agent-id]` — follow a child-task transcript or status board;
-- `vex tasks list` — list persisted parent/child tasks and lifecycle state;
-- `vex tasks watch <task-id>` — stream child-task progress in a non-TUI surface.
+- `/watch [task-id|agent-id]` — follow a session-task transcript or status board;
+- `vex tasks list` — list persisted parent/session tasks and lifecycle state;
+- `vex tasks watch <task-id>` — stream session-task progress in a non-TUI surface.
 
 These commands observe and request orchestrator actions. They do not directly
 rewrite task state or bypass approval/sandbox policy.
@@ -152,9 +152,9 @@ and ADR-030 task-state ownership.
 Implications:
 
 - exported task graphs must serialize parent/child relationships explicitly;
-- background child-task progress exposed via `LocalApiServer` must be projected
+- background session-task progress exposed via `LocalApiServer` must be projected
   from canonical runtime/task state rather than provider-native wire values;
-- resume must restore child-task metadata before replaying any live status to
+- resume must restore session-task metadata before replaying any live status to
   the UI or transport surface.
 
 ## Implementation phases
@@ -166,12 +166,12 @@ repo-local discovery.
 
 ### Phase B — Worktree lease manager and task-state extensions
 
-Add orchestrator-managed worktree leasing plus the child-task metadata required
+Add orchestrator-managed worktree leasing plus the session-task metadata required
 for background lifecycle tracking.
 
 ### Phase C — Child-task orchestration
 
-Add the parent/child task graph, scheduler decisions, and runtime-owned child
+Add the parent/session task graph, scheduler decisions, and runtime-owned child
 task lifecycle transitions.
 
 ### Phase D — Operator task-management surface
@@ -181,11 +181,39 @@ top of the Phase A-C runtime contract.
 
 ### Phase E — Export / LocalApi projection
 
-Project child-task status, watch streams, and exported task graphs through the
+Project session-task status, watch streams, and exported task graphs through the
 existing batch/export and `LocalApiServer` surfaces.
 
 Merge order is strict: Phase A and Phase B are prerequisites for any
 code-bearing parallel execution lane.
+
+## Implementation notes (Phase A + B-E baseline)
+
+Phase A (PR `#229`) delivered `.vex/agents.toml` parsing, validation, and
+team composition rules.
+
+Phase B-E baseline (PR `#230`) delivered:
+
+- `src/runtime/session_task.rs` — persisted session-task model
+  (`SessionTask`, `SessionTaskStatus`, UUID-scoped IDs to avoid clock-skew
+  collisions, heartbeat and handoff-summary tracking);
+- `src/runtime/worktree_lease.rs` — orchestrator-managed lease records backed
+  by `git worktree add --detach` with a plain-directory fallback for non-git
+  test contexts;
+- `src/runtime/task_state.rs` — extended with `session_tasks`, `parent_task_id`,
+  `agent_id`, `worktree_path`, and backward-compat `child_tasks` serde alias;
+- `/agents`, `/delegate`, `/watch/{id}` HTTP routes and handlers in
+  `src/server/handlers.rs`, routed through the **ADR-028 application facade**
+  via new entrypoints `facade_list_agents`, `facade_delegate_session_task`, and
+  `facade_watch_snapshot` in `src/app/task_facade.rs`;
+- `/agents`, `/delegate <agent> <prompt>`, `/watch [id]` slash commands in
+  `src/app/commands.rs`;
+- `vex tasks list` / `vex tasks watch <id>` sub-commands in `src/bin/vex.rs`;
+- session-task state wired into batch-mode JSONL summary, Markdown export, and
+  existing `TurnEvidence` records.
+
+The `dependency_direction_tests::server_must_not_import_runtime_directly` test
+was added to gate future regressions of the ADR-028 boundary.
 
 ## Consequences
 
@@ -194,7 +222,7 @@ code-bearing parallel execution lane.
 - The repository gains a normative configuration format for pluggable agents
   and teams.
 - Concurrent code-bearing work gets a mandatory isolation boundary.
-- Background child tasks become resumable and exportable instead of ephemeral.
+- Background session tasks become resumable and exportable instead of ephemeral.
 - The command surface for task management becomes specified before code lands.
 
 ## Non-goals
@@ -206,7 +234,7 @@ This ADR does not:
 - permit multiple concurrent mutable agents in one worktree;
 - define browser-specific UI behavior or GUI dashboards;
 - replace the single-agent runtime path for ordinary interactive use;
-- let provider output implicitly create child tasks without orchestrator review.
+- let provider output implicitly create session tasks without orchestrator review.
 
 ## References
 

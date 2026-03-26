@@ -64,6 +64,7 @@ mod overlay;
 mod runtime_build;
 mod scroll;
 mod shell;
+pub(crate) mod task_facade;
 #[cfg(test)]
 mod tests;
 mod turn;
@@ -75,6 +76,10 @@ pub use self::facade::{
     FacadeBootstrap,
 };
 pub use self::runtime_build::{build_runtime, build_runtime_with_resume};
+pub use self::task_facade::{
+    facade_delegate_session_task, facade_list_agents, facade_watch_snapshot, FacadeAgentDescriptor,
+    FacadeAgentsListing, FacadeDelegateResult, FacadeTeamDescriptor, FacadeWatchSnapshot,
+};
 
 use self::overlay::summarize_tool_approval_context;
 #[cfg(test)]
@@ -176,6 +181,9 @@ enum SlashCommandId {
     Tools,
     Usage,
     GenerateTests,
+    Agents,
+    Delegate,
+    Watch,
     Commands,
     Help,
 }
@@ -421,6 +429,30 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         "view or edit persistent user notes",
     ),
     SlashCommandSpec::new(
+        SlashCommandId::Agents,
+        SlashCommandPattern::Exact("/agents"),
+        "/agents",
+        "show configured agents and teams",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Delegate,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/delegate",
+            prefix: "/delegate ",
+        },
+        "/delegate <agent> <prompt>",
+        "create a session task for a configured agent",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::Watch,
+        SlashCommandPattern::ExactOrPrefix {
+            exact: "/watch",
+            prefix: "/watch ",
+        },
+        "/watch [task-id|agent-id]",
+        "show session-task status for the current repo",
+    ),
+    SlashCommandSpec::new(
         SlashCommandId::Commands,
         SlashCommandPattern::Exact("/commands"),
         "/commands",
@@ -468,9 +500,13 @@ fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
         | SlashCommandId::Review
         | SlashCommandId::Context
         | SlashCommandId::Tools
-        | SlashCommandId::GenerateTests => "retrieve + context",
+        | SlashCommandId::GenerateTests
+        | SlashCommandId::Agents
+        | SlashCommandId::Watch => "retrieve + context",
         SlashCommandId::Edit | SlashCommandId::Fix | SlashCommandId::Diff => "edit + inspect",
-        SlashCommandId::Run | SlashCommandId::Test => "validate + execute",
+        SlashCommandId::Run | SlashCommandId::Test | SlashCommandId::Delegate => {
+            "validate + execute"
+        }
         SlashCommandId::Init
         | SlashCommandId::Model
         | SlashCommandId::Permissions
@@ -500,9 +536,12 @@ fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
         SlashCommandId::Context => "session status, git state, and token summary",
         SlashCommandId::Tools => "tool directory plus retrieval workflow guidance",
         SlashCommandId::GenerateTests => "assemble context and draft tests for one path",
+        SlashCommandId::Agents => "show configured agents, teams, and live session-task counts",
+        SlashCommandId::Watch => "inspect persisted session-task status by id or agent",
         SlashCommandId::Edit | SlashCommandId::Fix => "edit loop that may patch files",
         SlashCommandId::Diff => "git diff preview without starting a model turn",
         SlashCommandId::Run | SlashCommandId::Test => "local validation only; no model turn",
+        SlashCommandId::Delegate => "create a persisted session task for a configured agent",
         SlashCommandId::Init => "write .vex scaffolding in the current workspace",
         SlashCommandId::Model => "show or switch the active model name",
         SlashCommandId::Permissions | SlashCommandId::Allow | SlashCommandId::Deny => {

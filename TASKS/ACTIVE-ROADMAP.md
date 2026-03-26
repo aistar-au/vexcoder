@@ -23,9 +23,9 @@ Current task-dispatch dependency state:
 | `ADR-031` | Active | Extends the operator surface overhaul with adaptive timeline/transcript/composer behavior, task-state-visible selection, and merge-gated UI batching on top of ADR-030 task-state ownership. |
 | `ADR-032` | Active | Prompt-area interactivity and context-budget guard behavior are now on `main`; downstream retrieval and UI work must preserve the landed picker, focus, and context-recovery contracts. |
 | `ADR-033` | Active | Phase 1 structural search, Phase 2 semantic reranking, and the Phase 3/4 write-guard plus history-condensing baseline are on `main`; downstream follow-up should keep model guidance and docs aligned with that landed behavior. |
-| `ADR-034` | Proposed | Defines the post-milestone multi-agent execution lane: explicit agent definitions, worktree isolation, orchestrator-owned child tasks, and watch/task-management surfaces. |
+| `ADR-034` | Active | Phase A (PR #229) and Phase B-E baseline (PR #230) landed: session-task lifecycle, UUID-scoped IDs, git-worktree lease manager, ADR-028 facade entrypoints for delegate/watch, operator slash commands, CLI task-inspection sub-commands, and LocalApiServer projection. ADR-028 enforcement test extended to block direct crate::runtime imports from the server layer. |
 
-ADR-025, ADR-026, ADR-028, ADR-029, ADR-030, ADR-031, ADR-032, and ADR-033 are the active post-gate ADR set. ADR-034 is tracked as a proposed post-milestone lane.
+ADR-025, ADR-026, ADR-028, ADR-029, ADR-030, ADR-031, ADR-032, ADR-033, and ADR-034 are the active post-gate ADR set.
 
 ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
 `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`. `PK-08` (`vex branch` and
@@ -47,7 +47,7 @@ The current work batch is ADR-034 specification and roadmap alignment for post-m
 - ADR-031 Batch A follow-up and ADR-032 prompt-area interactivity work are now on `main`; their earlier review branches no longer carry unique diff against current `main`.
 - ADR-033 now has Phases 1 through 4 baseline behavior on `main`, including large-file `write_file` guardrails and condensed historical tool results.
 - The current ADR-033 next batch is integration cleanup: keep the system prompt, operator docs, and task-roadmap language aligned with the landed large-file edit and history-condensing contracts.
-- ADR-034 now defines the missing dedicated multi-agent / parallel-task execution lane that ADR-024 had deferred; no implementation lane should bypass its worktree-isolation and child-task lifecycle rules. Phase A (agent definition surface) delivers `.vex/agents.toml` parsing, validation, and `insta` snapshot tests for the ANSI draw engine.
+- ADR-034 now defines the missing dedicated multi-agent / parallel-task execution lane that ADR-024 had deferred; no implementation lane should bypass its worktree-isolation and session-task lifecycle rules. Phase A delivers `.vex/agents.toml` parsing, validation, and `insta` snapshot tests for the ANSI draw engine. The current Phase B-E baseline adds persisted session-task metadata, worktree lease records, `/agents` `/delegate` `/watch` operator surfaces, `vex tasks list/watch`, and LocalApiServer projection for delegated session-task state.
 - `src/api/client.rs` remains the model-guidance enforcement point, while `src/state/conversation/tools.rs` and `src/state/conversation/history.rs` remain the runtime contract points for those guardrails.
 - Keep documentation refresh and descriptive PR motivation text in scope for ADR-033 follow-up batches so retrieval changes do not land with stale ADR/task-roadmap state.
 - Continue preserving ADR-028 facade boundaries and ADR-030 task-state/orchestrator ownership while ADR-033 follow-up work lands.

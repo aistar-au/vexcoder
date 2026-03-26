@@ -542,6 +542,7 @@ pub fn derive_batch_records(
             total_turns: turns.len(),
             instructions_path,
             changed_files: all_changed_files.into_iter().collect(),
+            session_tasks: Vec::new(),
         })
     });
 

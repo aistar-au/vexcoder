@@ -1,8 +1,8 @@
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -12,7 +12,9 @@ use tokio::sync::mpsc;
 use super::sse::runtime_sse_response;
 use super::util::{bad_request, conflict, internal_error, not_found};
 use super::SSE_KEEPALIVE_INTERVAL;
-use crate::app::execute_facade_runtime;
+use crate::app::{
+    execute_facade_runtime, facade_delegate_session_task, facade_list_agents, facade_watch_snapshot,
+};
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
 };
@@ -34,6 +36,62 @@ pub struct SchemaBundle {
     envelope_schema: Value,
 }
 
+#[derive(Debug, Serialize)]
+pub struct AgentsResponse {
+    available: bool,
+    agents: Vec<AgentDescriptor>,
+    teams: Vec<TeamDescriptor>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AgentDescriptor {
+    name: String,
+    profile: String,
+    isolation: String,
+    live_session_tasks: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TeamDescriptor {
+    name: String,
+    members: Vec<String>,
+    scheduler: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DelegateRequest {
+    parent_task_id: Option<String>,
+    agent_id: String,
+    prompt: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DelegateResponse {
+    ok: bool,
+    parent_task_id: String,
+    session_task_id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WatchSnapshot {
+    kind: &'static str,
+    id: String,
+    parent_task_id: Option<String>,
+    agent_id: Option<String>,
+    status: String,
+    worktree_path: Option<String>,
+}
+
+fn internal_anyhow(_: anyhow::Error) -> (StatusCode, Json<ControlResponse>) {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ControlResponse {
+            ok: false,
+            reason: Some("internal_error"),
+        }),
+    )
+}
+
 pub async fn health_handler() -> Json<HealthResponse> {
     Json(HealthResponse {
         ok: true,
@@ -53,6 +111,85 @@ pub async fn schema_handler() -> Result<Json<SchemaBundle>, (StatusCode, Json<Co
         version: 1,
         request_schema,
         envelope_schema,
+    }))
+}
+
+pub async fn agents_handler(
+    State(state): State<LocalApiState>,
+) -> Result<Json<AgentsResponse>, (StatusCode, Json<ControlResponse>)> {
+    let listing = facade_list_agents(&state.config.working_dir).map_err(internal_anyhow)?;
+
+    Ok(Json(AgentsResponse {
+        available: listing.available,
+        agents: listing
+            .agents
+            .into_iter()
+            .map(|a| AgentDescriptor {
+                name: a.name,
+                profile: a.profile,
+                isolation: a.isolation,
+                live_session_tasks: a.live_session_tasks,
+            })
+            .collect(),
+        teams: listing
+            .teams
+            .into_iter()
+            .map(|t| TeamDescriptor {
+                name: t.name,
+                members: t.members,
+                scheduler: t.scheduler,
+            })
+            .collect(),
+    }))
+}
+
+pub async fn delegate_handler(
+    State(state): State<LocalApiState>,
+    Json(request): Json<DelegateRequest>,
+) -> Result<Json<DelegateResponse>, (StatusCode, Json<ControlResponse>)> {
+    if request.agent_id.trim().is_empty() || request.prompt.trim().is_empty() {
+        return Err(bad_request("invalid_delegate_request"));
+    }
+
+    let result = facade_delegate_session_task(
+        &state.config.working_dir,
+        request.parent_task_id,
+        &request.agent_id,
+        &request.prompt,
+    )
+    .map_err(|e| {
+        let msg = e.to_string();
+        if msg == "agent_not_found" {
+            not_found("agent_not_found")
+        } else if msg == "agents_config_missing" {
+            bad_request("agents_config_missing")
+        } else {
+            internal_anyhow(e)
+        }
+    })?;
+
+    Ok(Json(DelegateResponse {
+        ok: true,
+        parent_task_id: result.parent_task_id,
+        session_task_id: result.session_task_id,
+    }))
+}
+
+pub async fn watch_handler(
+    State(state): State<LocalApiState>,
+    Path(id): Path<String>,
+) -> Result<Json<WatchSnapshot>, (StatusCode, Json<ControlResponse>)> {
+    let snapshot = facade_watch_snapshot(&state.config.working_dir, &id)
+        .map_err(internal_anyhow)?
+        .ok_or_else(|| not_found("task_not_found"))?;
+
+    Ok(Json(WatchSnapshot {
+        kind: snapshot.kind,
+        id: snapshot.id,
+        parent_task_id: snapshot.parent_task_id,
+        agent_id: snapshot.agent_id,
+        status: snapshot.status,
+        worktree_path: snapshot.worktree_path,
     }))
 }
 

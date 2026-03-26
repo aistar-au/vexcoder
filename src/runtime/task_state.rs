@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::runtime::session_task::{now_millis, SessionTask, SessionTaskStatus};
 use crate::runtime::{ApprovalScope, Capability};
 use crate::turn_evidence::{normalize_tool_invocation_step_ids, TurnEvidenceState};
 
@@ -66,6 +67,20 @@ pub struct CacheUsageStats {
 pub struct TaskState {
     pub id: TaskId,
     pub status: TaskStatus,
+    #[serde(default)]
+    pub parent_task_id: Option<TaskId>,
+    #[serde(default)]
+    pub agent_id: Option<String>,
+    #[serde(default)]
+    pub worktree_path: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<u64>,
+    #[serde(default)]
+    pub updated_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_heartbeat: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub handoff_summary: Option<String>,
     pub active_grants: HashMap<Capability, ApprovalScope>,
     pub changed_files: Vec<PathBuf>,
     pub command_history: Vec<CommandEvidence>,
@@ -85,6 +100,8 @@ pub struct TaskState {
     pub context_compaction: Vec<ContextCompactionRecord>,
     #[serde(default)]
     pub cache_usage: CacheUsageStats,
+    #[serde(default, alias = "child_tasks")]
+    pub session_tasks: Vec<SessionTask>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,9 +113,17 @@ pub struct TaskStateFile {
 
 impl TaskState {
     pub fn new(id: TaskId) -> Self {
+        let now = now_millis();
         Self {
             id,
             status: TaskStatus::Ready,
+            parent_task_id: None,
+            agent_id: None,
+            worktree_path: None,
+            started_at: Some(now),
+            updated_at: now,
+            last_heartbeat: None,
+            handoff_summary: None,
             active_grants: HashMap::new(),
             changed_files: Vec::new(),
             command_history: Vec::new(),
@@ -111,7 +136,53 @@ impl TaskState {
             session_notes: Vec::new(),
             context_compaction: Vec::new(),
             cache_usage: CacheUsageStats::default(),
+            session_tasks: Vec::new(),
         }
+    }
+
+    pub fn touch(&mut self) {
+        self.updated_at = now_millis();
+    }
+
+    pub fn record_heartbeat(&mut self) {
+        let now = now_millis();
+        self.last_heartbeat = Some(now);
+        self.updated_at = now;
+    }
+
+    pub fn add_session_task(&mut self, session_task: SessionTask) {
+        self.session_tasks.push(session_task);
+        self.touch();
+    }
+
+    pub fn session_task(&self, id: &str) -> Option<&SessionTask> {
+        self.session_tasks.iter().find(|task| task.id == id)
+    }
+
+    pub fn session_task_mut(&mut self, id: &str) -> Option<&mut SessionTask> {
+        self.session_tasks.iter_mut().find(|task| task.id == id)
+    }
+
+    pub fn update_session_task_status(&mut self, id: &str, status: SessionTaskStatus) -> bool {
+        let Some(task) = self.session_task_mut(id) else {
+            return false;
+        };
+        task.transition_to(status);
+        self.touch();
+        true
+    }
+
+    pub fn find_session_task_in_saved_states(
+        working_dir: &Path,
+        session_task_id: &str,
+    ) -> Result<Option<(TaskState, SessionTask)>> {
+        for file in Self::state_files_from(working_dir) {
+            let state = Self::load(&file.dir, &file.id)?;
+            if let Some(task) = state.session_task(session_task_id).cloned() {
+                return Ok(Some((state, task)));
+            }
+        }
+        Ok(None)
     }
 
     pub fn save(&self, dir: &Path) -> Result<()> {
@@ -149,6 +220,10 @@ impl TaskState {
             if evidence.exit_code.is_none() {
                 evidence.interrupted = true;
             }
+        }
+
+        if state.updated_at == 0 {
+            state.updated_at = now_millis();
         }
 
         normalize_tool_invocation_step_ids(&mut state.turns);
@@ -265,6 +340,13 @@ mod tests {
         let state = TaskState {
             id: "task-001".to_string(),
             status: TaskStatus::Completed,
+            parent_task_id: Some("parent-root".to_string()),
+            agent_id: Some("reviewer".to_string()),
+            worktree_path: Some(PathBuf::from(".vex/state/worktrees/task-001")),
+            started_at: Some(123),
+            updated_at: 456,
+            last_heartbeat: Some(789),
+            handoff_summary: Some("child summary".to_string()),
             active_grants: HashMap::from([(Capability::ApplyPatch, ApprovalScope::Once)]),
             changed_files: vec![PathBuf::from("src/main.rs")],
             command_history: vec![CommandEvidence {
@@ -302,6 +384,12 @@ mod tests {
                 total_cache_creation_tokens: 500,
                 total_cache_read_tokens: 1200,
             },
+            session_tasks: vec![SessionTask::new(
+                "task-001",
+                "reviewer",
+                "inspect task-state",
+                Some(PathBuf::from(".vex/state/worktrees/task-001-reviewer")),
+            )],
         };
 
         state.save(dir.path()).expect("save failed");
@@ -318,6 +406,11 @@ mod tests {
         assert_eq!(loaded.session_notes, state.session_notes);
         assert_eq!(loaded.context_compaction, state.context_compaction);
         assert_eq!(loaded.cache_usage, state.cache_usage);
+        assert_eq!(loaded.parent_task_id, state.parent_task_id);
+        assert_eq!(loaded.agent_id, state.agent_id);
+        assert_eq!(loaded.worktree_path, state.worktree_path);
+        assert_eq!(loaded.handoff_summary, state.handoff_summary);
+        assert_eq!(loaded.session_tasks.len(), 1);
     }
 
     #[test]
@@ -340,6 +433,8 @@ mod tests {
         assert!(loaded.session_notes.is_empty());
         assert!(loaded.context_compaction.is_empty());
         assert_eq!(loaded.cache_usage, CacheUsageStats::default());
+        assert!(loaded.session_tasks.is_empty());
+        assert_eq!(loaded.parent_task_id, None);
     }
 
     #[test]
@@ -398,6 +493,13 @@ mod tests {
         let state = TaskState {
             id: "task-456".to_string(),
             status: TaskStatus::Running,
+            parent_task_id: None,
+            agent_id: None,
+            worktree_path: None,
+            started_at: Some(1),
+            updated_at: 2,
+            last_heartbeat: None,
+            handoff_summary: None,
             active_grants: HashMap::new(),
             changed_files: Vec::new(),
             command_history: vec![CommandEvidence {
@@ -414,6 +516,7 @@ mod tests {
             session_notes: Vec::new(),
             context_compaction: Vec::new(),
             cache_usage: CacheUsageStats::default(),
+            session_tasks: Vec::new(),
         };
 
         state.save(dir.path()).expect("save failed");
@@ -541,5 +644,30 @@ mod tests {
         let files = TaskState::state_files_from(&nested);
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].dir, legacy_state_dir);
+    }
+
+    #[test]
+    fn test_add_and_update_session_task() {
+        let mut state = TaskState::new("task-parent".to_string());
+        let session_task = SessionTask::new(
+            "task-parent",
+            "docs-reviewer",
+            "review docs",
+            Some(PathBuf::from(
+                ".vex/state/worktrees/task-parent-docs-reviewer",
+            )),
+        );
+        let session_task_id = session_task.id.clone();
+
+        state.add_session_task(session_task);
+        assert_eq!(state.session_tasks.len(), 1);
+
+        assert!(state.update_session_task_status(&session_task_id, SessionTaskStatus::Running));
+        assert_eq!(
+            state
+                .session_task(&session_task_id)
+                .map(|task| &task.lifecycle_state),
+            Some(&SessionTaskStatus::Running)
+        );
     }
 }

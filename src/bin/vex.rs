@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
+use serde::Serialize;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -72,6 +73,11 @@ enum Commands {
         #[command(subcommand)]
         sub: SkillsCommands,
     },
+    /// Inspect persisted parent tasks and session tasks.
+    Tasks {
+        #[command(subcommand)]
+        sub: TaskCommands,
+    },
     /// Scaffold a new vex workspace (`.vex/config.toml`, `AGENTS.md`,
     /// `.vex/validate.toml`).  Non-destructive: skips files that already exist.
     Init {
@@ -127,6 +133,21 @@ enum SkillsCommands {
     Remove {
         /// Name of the skill to remove.
         name: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum TaskCommands {
+    /// List persisted tasks and nested session tasks.
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show one persisted task or session-task snapshot.
+    Watch {
+        id: String,
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -214,6 +235,100 @@ fn print_lines(lines: &[String]) {
     }
 }
 
+#[derive(Serialize)]
+struct TaskListEntry {
+    id: String,
+    status: String,
+    kind: &'static str,
+    parent_task_id: Option<String>,
+    agent_id: Option<String>,
+}
+
+fn collect_task_entries(working_dir: &Path) -> Result<Vec<TaskListEntry>> {
+    let mut entries = Vec::new();
+    for file in TaskState::state_files_from(working_dir) {
+        let state = TaskState::load(&file.dir, &file.id)?;
+        entries.push(TaskListEntry {
+            id: state.id.clone(),
+            status: format!("{:?}", state.status),
+            kind: "task",
+            parent_task_id: state.parent_task_id.clone(),
+            agent_id: state.agent_id.clone(),
+        });
+        for session_task in &state.session_tasks {
+            entries.push(TaskListEntry {
+                id: session_task.id.clone(),
+                status: format!("{:?}", session_task.lifecycle_state),
+                kind: "session-task",
+                parent_task_id: Some(state.id.clone()),
+                agent_id: Some(session_task.agent_id.clone()),
+            });
+        }
+    }
+    Ok(entries)
+}
+
+fn run_tasks_list(working_dir: &Path, json: bool) -> Result<ExitCode> {
+    let entries = collect_task_entries(working_dir)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&entries)?);
+    } else if entries.is_empty() {
+        println!("[tasks] no saved tasks found");
+    } else {
+        for entry in entries {
+            match (entry.kind, entry.parent_task_id, entry.agent_id) {
+                ("task", _, _) => println!("task {} status={}", entry.id, entry.status),
+                (_, Some(parent), Some(agent)) => println!(
+                    "session-task {} parent={} agent={} status={}",
+                    entry.id, parent, agent, entry.status
+                ),
+                _ => println!("{} {} status={}", entry.kind, entry.id, entry.status),
+            }
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn run_tasks_watch(working_dir: &Path, id: &str, json: bool) -> Result<ExitCode> {
+    if let Ok(state) = TaskState::load_from_search_dirs_from(working_dir, id) {
+        if json {
+            println!("{}", serde_json::to_string_pretty(&state)?);
+        } else {
+            println!("task {} status={:?}", state.id, state.status);
+            for session_task in state.session_tasks {
+                println!(
+                    "  session-task {} agent={} status={:?}",
+                    session_task.id, session_task.agent_id, session_task.lifecycle_state
+                );
+            }
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    if let Some((state, session_task)) =
+        TaskState::find_session_task_in_saved_states(working_dir, id)?
+    {
+        if json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "parent_task_id": state.id,
+                    "session_task": session_task,
+                }))?
+            );
+        } else {
+            println!(
+                "session-task {} parent={} agent={} status={:?}",
+                session_task.id, state.id, session_task.agent_id, session_task.lifecycle_state
+            );
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    eprintln!("[watch] task or session-task '{}' not found", id);
+    Ok(ExitCode::FAILURE)
+}
+
 // ── main ───────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -265,6 +380,13 @@ async fn main() -> Result<ExitCode> {
                 }
             }
             return Ok(ExitCode::SUCCESS);
+        }
+        Some(Commands::Tasks { sub }) => {
+            let cwd = std::env::current_dir()?;
+            return match sub {
+                TaskCommands::List { json } => run_tasks_list(&cwd, json),
+                TaskCommands::Watch { id, json } => run_tasks_watch(&cwd, &id, json),
+            };
         }
         Some(Commands::Init { dir }) => {
             let cwd = match dir {

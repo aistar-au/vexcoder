@@ -11,10 +11,12 @@ pub mod mode;
 pub mod policy;
 pub mod project_instructions;
 pub mod sandbox;
+pub mod session_task;
 pub mod task_state;
 pub mod text_util;
 pub mod update;
 pub mod validation;
+pub mod worktree_lease;
 
 pub use approval::{
     load_policy_from_env, ApprovalPolicy, ApprovalScope, Capability, FileApprovalPolicy,
@@ -35,6 +37,7 @@ pub use json_handoff::{
     RuntimeEnvelope, RuntimeEvent, RuntimeRequest, TokenUsageEnvelope, ValidationOutputEnvelope,
 };
 pub use sandbox::{PassthroughSandbox, SandboxDriver};
+pub use session_task::{SessionTask, SessionTaskId, SessionTaskStatus};
 pub use task_state::{
     CacheUsageStats, CommandEvidence, ContextCompactionRecord, ConversationCheckpoint,
     InterruptedCommand, TaskId, TaskState, TaskStatus,
@@ -42,6 +45,7 @@ pub use task_state::{
 pub use text_util::{truncate_head_bytes, truncate_tail_bytes};
 pub use update::UiUpdate;
 pub use validation::{ValidationCommand, ValidationOutput, ValidationResult, ValidationSuite};
+pub use worktree_lease::{WorktreeLease, WorktreeLeaseManager};
 
 #[cfg(test)]
 mod tests {

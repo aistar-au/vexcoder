@@ -14,7 +14,8 @@ use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 
 use super::handlers::{
-    approve_handler, health_handler, interrupt_handler, schema_handler, turns_handler,
+    agents_handler, approve_handler, delegate_handler, health_handler, interrupt_handler,
+    schema_handler, turns_handler, watch_handler,
 };
 use super::{ControlResponse, HttpSurfaceSettings, ResolvedHttpSurface, HSTS_HEADER_VALUE};
 #[cfg(test)]
@@ -30,7 +31,10 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
     Router::new()
         .route("/v1/health", get(health_handler))
         .route("/v1/schema", get(schema_handler))
+        .route("/v1/agents", get(agents_handler))
+        .route("/v1/delegate", post(delegate_handler))
         .route("/v1/turns", post(turns_handler))
+        .route("/v1/watch/{id}", get(watch_handler))
         .route("/v1/interrupt", post(interrupt_handler))
         .route("/v1/approve", post(approve_handler))
         .with_state(state)

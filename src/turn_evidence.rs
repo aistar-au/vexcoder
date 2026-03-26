@@ -22,6 +22,8 @@ pub struct SummaryRecord {
     pub total_turns: usize,
     pub instructions_path: Option<String>,
     pub changed_files: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub session_tasks: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
