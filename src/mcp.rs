@@ -176,8 +176,17 @@ impl McpRegistry {
             return Ok(None);
         }
 
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            return tokio::task::block_in_place(|| handle.block_on(Self::connect_all(configs)));
+        if tokio::runtime::Handle::try_current().is_ok() {
+            let configs = configs.to_vec();
+            return std::thread::spawn(move || -> Result<Option<Arc<Self>>> {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .context("failed to create Tokio runtime for MCP startup")?;
+                runtime.block_on(Self::connect_all(&configs))
+            })
+            .join()
+            .map_err(|_| anyhow!("MCP startup thread panicked"))?;
         }
 
         let runtime = tokio::runtime::Runtime::new()
@@ -313,10 +322,22 @@ fn format_tool_result(full_name: &str, result: &CallToolResult) -> Result<String
 
 pub fn resolve_mcp_header_env(value: &str) -> Result<String> {
     let trimmed = value.trim();
-    if let Some(name) = trimmed
-        .strip_prefix("${")
-        .and_then(|rest| rest.strip_suffix('}'))
-    {
+    let mut rendered = String::with_capacity(trimmed.len());
+    let mut rest = trimmed;
+
+    while let Some(start) = rest.find("${") {
+        rendered.push_str(&rest[..start]);
+        let tail = &rest[start + 2..];
+        let end = tail.find('}').ok_or_else(|| {
+            anyhow!(
+                "unterminated environment variable reference in MCP headers: '{}'",
+                trimmed
+            )
+        })?;
+        let name = &tail[..end];
+        if name.is_empty() {
+            bail!("empty environment variable reference in MCP headers");
+        }
         let resolved = std::env::var(name).with_context(|| {
             format!(
                 "missing environment variable '{}' referenced in MCP headers",
@@ -330,14 +351,20 @@ pub fn resolve_mcp_header_env(value: &str) -> Result<String> {
                 name
             );
         }
-        return Ok(resolved);
+        rendered.push_str(&resolved);
+        rest = &tail[end + 1..];
     }
-    Ok(trimmed.to_string())
+    rendered.push_str(rest);
+    Ok(rendered)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_mcp_header_env, resolve_mcp_timeout, DEFAULT_MCP_TIMEOUT_SECS};
+    use super::{
+        resolve_mcp_header_env, resolve_mcp_timeout, McpRegistry, DEFAULT_MCP_TIMEOUT_SECS,
+    };
+    use crate::config::{McpServerConfig, McpTransport};
+    use std::collections::BTreeMap;
     use std::time::Duration;
 
     #[test]
@@ -347,6 +374,17 @@ mod tests {
         assert_eq!(
             resolve_mcp_header_env("${VEX_MCP_TOKEN}").unwrap(),
             "secret-token"
+        );
+        std::env::remove_var("VEX_MCP_TOKEN");
+    }
+
+    #[test]
+    fn test_resolve_mcp_header_env_expands_templated_reference() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_MCP_TOKEN", "secret-token");
+        assert_eq!(
+            resolve_mcp_header_env("Bearer ${VEX_MCP_TOKEN}").unwrap(),
+            "Bearer secret-token"
         );
         std::env::remove_var("VEX_MCP_TOKEN");
     }
@@ -383,5 +421,20 @@ mod tests {
         std::env::remove_var("VEX_MCP_TIMEOUT");
         assert_eq!(resolve_mcp_timeout(Some(0)), Duration::from_secs(1));
         assert_eq!(resolve_mcp_timeout(Some(999)), Duration::from_secs(300));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_connect_all_blocking_avoids_current_thread_runtime_panic() {
+        let configs = vec![McpServerConfig {
+            name: "bad".to_string(),
+            transport: McpTransport::Stdio,
+            command: None,
+            args: Vec::new(),
+            url: None,
+            headers: BTreeMap::new(),
+            timeout_secs: Some(1),
+        }];
+
+        assert!(McpRegistry::connect_all_blocking(&configs).is_err());
     }
 }

@@ -285,9 +285,9 @@ Use `[[mcp_servers]]` only in the user config file. Each server is connected at
 session start; load failures abort startup instead of leaving a partial MCP
 registry in memory.
 
-HTTP headers may be written literally or with `${VAR}` placeholders that
-resolve from the current process environment. Literal text may be mixed with
-placeholders in the same value.
+HTTP headers may be written literally, as bare `${NAME}` references, or as
+templates that mix literal text with `${NAME}` segments resolved from the
+current process environment.
 
 ```toml
 [[mcp_servers]]

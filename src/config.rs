@@ -867,7 +867,7 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
     }
 
     if let Some(ref servers) = layer.mcp_servers {
-        validate_mcp_servers(servers.clone()).with_context(|| {
+        validate_mcp_servers_for_layer(servers).with_context(|| {
             format!(
                 "config file '{}': invalid [[mcp_servers]] entry",
                 path.display()
@@ -1095,7 +1095,18 @@ fn resolve_secret_reference(value: Option<String>) -> Option<String> {
     Some(trimmed.to_string())
 }
 
+fn validate_mcp_servers_for_layer(servers: &[McpServerConfig]) -> Result<()> {
+    validate_mcp_servers_with_mode(servers.to_vec(), false).map(|_| ())
+}
+
 fn validate_mcp_servers(servers: Vec<McpServerConfig>) -> Result<Vec<McpServerConfig>> {
+    validate_mcp_servers_with_mode(servers, true)
+}
+
+fn validate_mcp_servers_with_mode(
+    servers: Vec<McpServerConfig>,
+    expand_header_env: bool,
+) -> Result<Vec<McpServerConfig>> {
     let mut validated = Vec::new();
     let mut seen_names = HashSet::new();
 
@@ -1174,7 +1185,11 @@ fn validate_mcp_servers(servers: Vec<McpServerConfig>) -> Result<Vec<McpServerCo
                     if name.is_empty() {
                         bail!("http MCP server '{}' has an empty header name", server.name);
                     }
-                    let value = crate::mcp::resolve_mcp_header_env(&value)?;
+                    let value = if expand_header_env {
+                        crate::mcp::resolve_mcp_header_env(&value)?
+                    } else {
+                        value.trim().to_string()
+                    };
                     headers.insert(name, value);
                 }
                 server.command = None;
