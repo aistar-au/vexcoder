@@ -74,6 +74,11 @@ fn render_jsonl(state: &TaskState) -> Result<String> {
             .iter()
             .map(|path| path.to_string_lossy().into_owned())
             .collect(),
+        session_tasks: state
+            .session_tasks
+            .iter()
+            .map(|task| format!("{}:{:?}", task.id, task.lifecycle_state))
+            .collect(),
     })?);
 
     Ok(lines.join("\n"))
@@ -110,6 +115,19 @@ fn render_markdown(state: &TaskState) -> String {
                 .map(|code| code.to_string())
                 .unwrap_or_else(|| "interrupted".to_string());
             out.push_str(&format!("- `{}` — exit `{exit}`\n", command.program));
+        }
+        out.push('\n');
+    }
+
+    out.push_str("## Session tasks\n\n");
+    if state.session_tasks.is_empty() {
+        out.push_str("_None_\n\n");
+    } else {
+        for task in &state.session_tasks {
+            out.push_str(&format!(
+                "- `{}` — agent `{}` status `{:?}`\n",
+                task.id, task.agent_id, task.lifecycle_state
+            ));
         }
         out.push('\n');
     }

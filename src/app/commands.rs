@@ -72,6 +72,9 @@ impl TuiMode {
                 SlashCommandId::Tools => self.handle_tools_command(args),
                 SlashCommandId::Usage => self.handle_usage_command(ctx),
                 SlashCommandId::GenerateTests => self.handle_generate_tests_command(args, ctx),
+                SlashCommandId::Agents => self.handle_agents_command(),
+                SlashCommandId::Delegate => self.handle_delegate_command(args),
+                SlashCommandId::Watch => self.handle_watch_command(args),
                 SlashCommandId::Commands | SlashCommandId::Help => self.handle_commands_command(),
             }
 
@@ -664,6 +667,161 @@ impl TuiMode {
             "  session     : {} in / {} out{}",
             usage.input, usage.output, session_estimated
         ));
+    }
+    pub(super) fn handle_agents_command(&mut self) {
+        let Ok(config) = crate::agents::load_agents_config(&self.working_dir) else {
+            self.push_history_line("[agents] failed to load .vex/agents.toml".to_string());
+            return;
+        };
+        let Some(config) = config else {
+            self.push_history_line("[agents] no .vex/agents.toml found".to_string());
+            return;
+        };
+
+        self.push_history_line("[agents]".to_string());
+        for agent in &config.agent_profiles {
+            let live_count = self
+                .current_task
+                .session_tasks
+                .iter()
+                .filter(|task| task.agent_id == agent.name && task.lifecycle_state.is_live())
+                .count();
+            self.push_history_line(format!(
+                "  {} profile={} isolation={:?} max_parallel={} live={}",
+                agent.name, agent.profile, agent.isolation, agent.max_parallel_tasks, live_count
+            ));
+        }
+        if !config.team_definitions.is_empty() {
+            self.push_history_line("[teams]".to_string());
+            for team in &config.team_definitions {
+                self.push_history_line(format!(
+                    "  {} members={} scheduler={:?}",
+                    team.name,
+                    team.members.join(", "),
+                    team.scheduler
+                ));
+            }
+        }
+    }
+    pub(super) fn handle_delegate_command(&mut self, args: &str) {
+        let mut parts = args.trim().splitn(2, char::is_whitespace);
+        let Some(agent_id) = parts.next().filter(|value| !value.is_empty()) else {
+            self.push_history_line("[delegate] usage: /delegate <agent> <prompt>".to_string());
+            return;
+        };
+        let Some(prompt) = parts
+            .next()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            self.push_history_line("[delegate] usage: /delegate <agent> <prompt>".to_string());
+            return;
+        };
+
+        let Ok(config) = crate::agents::load_agents_config(&self.working_dir) else {
+            self.push_history_line("[delegate] failed to load .vex/agents.toml".to_string());
+            return;
+        };
+        let Some(config) = config else {
+            self.push_history_line("[delegate] no .vex/agents.toml found".to_string());
+            return;
+        };
+
+        let Some(agent) = config
+            .agent_profiles
+            .iter()
+            .find(|agent| agent.name == agent_id)
+        else {
+            self.push_history_line(format!("[delegate] unknown agent '{agent_id}']"));
+            return;
+        };
+
+        let state_dir = TaskState::state_dir_from(&self.working_dir);
+        let mut session_task = crate::runtime::SessionTask::new(
+            self.current_task.id.clone(),
+            agent.name.clone(),
+            prompt.to_string(),
+            None,
+        );
+
+        if agent.isolation == crate::agents::IsolationPolicy::Worktree {
+            let lease_manager = crate::runtime::WorktreeLeaseManager::new(&state_dir);
+            match lease_manager.lease_for_task(&session_task.id, Some(&self.current_task.id)) {
+                Ok(lease) => {
+                    session_task.worktree_path = Some(lease.path);
+                }
+                Err(error) => {
+                    self.push_history_line(format!("[delegate] failed to lease worktree: {error}"));
+                    return;
+                }
+            }
+        }
+
+        self.current_task.add_session_task(session_task.clone());
+        self.persist_current_task_state();
+        self.push_history_line(format!(
+            "[delegate] session task {} assigned to {}",
+            session_task.id, session_task.agent_id
+        ));
+    }
+    pub(super) fn handle_watch_command(&mut self, args: &str) {
+        let selector = args.trim();
+        if selector.is_empty() {
+            if self.current_task.session_tasks.is_empty() {
+                self.push_history_line("[watch] no session tasks recorded".to_string());
+                return;
+            }
+            self.push_history_line("[watch] current task session tasks:".to_string());
+            let lines = self
+                .current_task
+                .session_tasks
+                .iter()
+                .map(|task| {
+                    format!(
+                        "  {} agent={} status={:?}",
+                        task.id, task.agent_id, task.lifecycle_state
+                    )
+                })
+                .collect::<Vec<_>>();
+            for line in lines {
+                self.push_history_line(line);
+            }
+            return;
+        }
+
+        if let Some(task) = self
+            .current_task
+            .session_tasks
+            .iter()
+            .find(|task| task.id == selector || task.agent_id == selector)
+        {
+            self.push_history_line(format!(
+                "[watch] {} agent={} status={:?} worktree={}",
+                task.id,
+                task.agent_id,
+                task.lifecycle_state,
+                task.worktree_path
+                    .as_ref()
+                    .map(|path| path.display().to_string())
+                    .unwrap_or_else(|| "shared".to_string())
+            ));
+            return;
+        }
+
+        match TaskState::find_session_task_in_saved_states(&self.working_dir, selector) {
+            Ok(Some((state, task))) => {
+                self.push_history_line(format!(
+                    "[watch] {} parent={} agent={} status={:?}",
+                    task.id, state.id, task.agent_id, task.lifecycle_state
+                ));
+            }
+            Ok(None) => {
+                self.push_history_line(format!("[watch] no session task found for '{selector}'"));
+            }
+            Err(error) => {
+                self.push_history_line(format!("[watch] error: {error}"));
+            }
+        }
     }
     pub(super) fn handle_custom_command(
         &mut self,

@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 234
+- Total tracked files: 236
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -243,3 +243,5 @@ Canonical raw URL index for every tracked file in this repository.
 | 232 | `tests/snapshots/tui_draw_snapshots__snapshot_small_terminal_40x12.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_small_terminal_40x12.snap> |
 | 233 | `tests/snapshots/tui_draw_snapshots__snapshot_very_small_terminal_20x5.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_very_small_terminal_20x5.snap> |
 | 234 | `tests/snapshots/tui_draw_snapshots__snapshot_with_changed_files_80x24.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_with_changed_files_80x24.snap> |
+| 235 | `src/runtime/session_task.rs` | ~118 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/session_task.rs> |
+| 236 | `src/runtime/worktree_lease.rs` | ~133 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/worktree_lease.rs> |

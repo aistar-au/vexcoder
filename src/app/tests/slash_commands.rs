@@ -193,6 +193,69 @@ fn test_tui_commands_renders_all_registered_commands() {
         );
     }
 }
+
+#[test]
+fn test_agents_and_delegate_commands_manage_session_tasks() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    std::env::remove_var("VEX_STATE_DIR");
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join(".vex")).unwrap();
+    std::fs::write(
+        temp.path().join(".vex/agents.toml"),
+        r#"
+[[agents]]
+name = "reviewer"
+isolation = "worktree"
+allowed_capabilities = ["read-file"]
+
+[[teams]]
+name = "review-team"
+members = ["reviewer"]
+"#,
+    )
+    .unwrap();
+
+    let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("/agents".to_string(), &mut ctx);
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line.contains("reviewer profile=")));
+
+    mode.on_user_input("/delegate reviewer inspect docs".to_string(), &mut ctx);
+    assert_eq!(mode.current_task.session_tasks.len(), 1);
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line.contains("[delegate] session task")));
+}
+
+#[test]
+fn test_watch_command_reports_saved_session_task() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    std::env::remove_var("VEX_STATE_DIR");
+    let temp = tempfile::tempdir().unwrap();
+    let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+    let mut ctx = setup_ctx();
+
+    let session_task = crate::runtime::SessionTask::new(
+        mode.current_task.id.clone(),
+        "reviewer",
+        "inspect docs",
+        None,
+    );
+    let session_task_id = session_task.id.clone();
+    mode.current_task.add_session_task(session_task);
+    mode.persist_current_task_state();
+
+    mode.on_user_input(format!("/watch {session_task_id}"), &mut ctx);
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line.contains("[watch]")));
+}
 #[test]
 fn test_tui_help_is_alias_for_commands() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();

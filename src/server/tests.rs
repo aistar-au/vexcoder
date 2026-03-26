@@ -54,6 +54,82 @@ async fn test_schema_endpoint_returns_bundle() {
 }
 
 #[tokio::test]
+async fn test_agents_endpoint_returns_available_false_without_config() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut config = Config::default_for_tui();
+    config.working_dir = temp.path().to_path_buf();
+    let router = build_router(config);
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .uri("/v1/agents")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload.get("available"), Some(&Value::Bool(false)));
+}
+
+#[tokio::test]
+async fn test_delegate_and_watch_routes_create_session_task_snapshot() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join(".vex")).unwrap();
+    std::fs::write(
+        temp.path().join(".vex/agents.toml"),
+        r#"
+[[agents]]
+name = "reviewer"
+isolation = "worktree"
+allowed_capabilities = ["read-file"]
+"#,
+    )
+    .unwrap();
+
+    let mut config = Config::default_for_tui();
+    config.working_dir = temp.path().to_path_buf();
+    let router = build_router(config);
+
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/delegate")
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"agent_id":"reviewer","prompt":"inspect docs"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    let session_task_id = payload
+        .get("session_task_id")
+        .and_then(Value::as_str)
+        .unwrap()
+        .to_string();
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .uri(format!("/v1/watch/{session_task_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
 async fn test_http_router_requires_bearer_token() {
     let mut config = Config::default_for_tui();
     config.api.key = Some("token-123".to_string());

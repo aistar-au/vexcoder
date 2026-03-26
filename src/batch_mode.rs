@@ -215,6 +215,7 @@ impl BatchMode {
                 total_turns: self.current_turn,
                 instructions_path: self.instructions_path.clone(),
                 changed_files: self.task_changed_files.iter().cloned().collect(),
+                session_tasks: Vec::new(),
             };
             let line = serde_json::to_string(&record)
                 .expect("batch JSONL summary record serialization must succeed");
