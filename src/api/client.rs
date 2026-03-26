@@ -775,7 +775,7 @@ fn tool_definitions() -> serde_json::Value {
         },
         {
             "name": "write_file",
-            "description": "Write file content. Files above ~200 lines trigger a warning to prefer apply_patch or edit_file; files above ~500 lines are rejected outright. Use apply_patch or edit_file for large-file edits.",
+            "description": "Write file content. Files that exceed the diff-preferred threshold trigger a warning to prefer apply_patch or edit_file; files that exceed the max line limit are rejected outright. Use apply_patch or edit_file for large-file edits.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1351,6 +1351,24 @@ mod tests {
             .contains("For large files, prefer apply_patch or edit_file over write_file"));
         assert!(BASE_SYSTEM_PROMPT
             .contains("escalating to apply_patch when the change is too broad for edit_file"));
+    }
+
+    #[test]
+    fn test_write_file_tool_description_uses_guard_names_instead_of_hardcoded_numbers() {
+        let definitions = tool_definitions();
+        let description = definitions
+            .as_array()
+            .expect("tool definitions must be an array")
+            .iter()
+            .find(|entry| entry.get("name").and_then(|v| v.as_str()) == Some("write_file"))
+            .and_then(|entry| entry.get("description"))
+            .and_then(|value| value.as_str())
+            .expect("write_file description must be present");
+
+        assert!(description.contains("diff-preferred threshold"));
+        assert!(description.contains("max line limit"));
+        assert!(!description.contains("~200"));
+        assert!(!description.contains("~500"));
     }
 
     #[test]
