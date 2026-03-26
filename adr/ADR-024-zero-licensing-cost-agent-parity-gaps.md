@@ -175,11 +175,12 @@ TOML key names mirror `VEX_*` variable names in snake_case (e.g. `model_url`, `m
 
 Resolution errors (malformed TOML, unknown keys) are hard failures at startup with a diagnostic pointing to the offending file and key. A missing config file at any layer is not an error.
 
-**`model_url` non-loopback TLS rule (normative):** the sensitive-payload rule in ADR-026 §3.1 applies symmetrically to the outbound model connection. Prompts, repo contents, session state, and model responses crossing any non-local network path are sensitive payloads. When `model_url` resolves to a non-loopback host, the URL must use `https://`. A non-loopback `http://` `model_url` must be rejected at config load time with a diagnostic identifying the offending URL and explaining that TLS is required for non-loopback model endpoints.
+**`model_url` outbound TLS rule (normative):** the sensitive-payload rule in ADR-026 §3.1 applies symmetrically to the outbound model connection. Prompts, repo contents, session state, and model responses crossing a public network path are sensitive payloads. When `model_url` resolves to a public-internet host, the URL must use `https://`. A public-internet `http://` `model_url` must be rejected at config load time with a diagnostic identifying the offending URL and explaining that TLS is required for public endpoints.
 
 **Allowed exceptions:**
 
-- `model_url` resolving to `127.0.0.1`, `::1`, or `localhost` may use `http://`.
+- `model_url` resolving to `127.0.0.1`, `::1`, `localhost`, or `0.0.0.0` may use `http://`.
+- `model_url` resolving to RFC 1918 private addresses (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) or link-local addresses (`169.254.0.0/16`) may use `http://`. Local inference servers commonly expose only plain HTTP, and operators commonly reach them via LAN IP when the server binds on `0.0.0.0`.
 - `model_url_skip_tls_check = true` / `VEX_MODEL_URL_SKIP_TLS_CHECK=true` is a development-only escape hatch for self-signed or otherwise non-system-trusted HTTPS model endpoints. It must emit a startup warning on every launch and must not be allowed in repo-local config.
 
 **Reserved VPN carve-out:** a future VPN-specific relaxation for outbound model connections requires the same dedicated ADR as `api.vpn_trust`. Until that ADR exists, VPN virtual IP model endpoints still require `https://`.

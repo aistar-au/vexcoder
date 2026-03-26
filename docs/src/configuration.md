@@ -62,7 +62,10 @@ The full model endpoint URL.
   equivalent plain-HTTP localhost endpoint before the fullscreen session starts.
 - Same-machine local inference runtimes commonly expose only plain HTTP. That
   remains supported when you connect via `localhost`,
-  `127.x.x.x`, `::1`, or `0.0.0.0`.
+  `127.x.x.x`, `::1`, or `0.0.0.0`. LAN-reachable model servers on
+  RFC 1918 private addresses (`192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`)
+  and link-local addresses (`169.254.x.x`) are also allowed over plain HTTP.
+  Only truly remote (public-internet) endpoints require HTTPS.
 - If a local endpoint returns HTTP 400 due to context overflow, the error now
   shows the server's message verbatim and suggests increasing `--ctx-size` on
   the server or using `/compact` to reset the conversation.
@@ -83,14 +86,14 @@ otherwise non-system-trusted certificates.
 - Emits a startup warning on every launch when enabled.
 - Must not be committed in repo-local `.vex/config.toml`.
 
-For any model endpoint that does not resolve to `localhost`, `127.x.x.x`,
-`::1`, or `0.0.0.0`, HTTPS is mandatory. Plain `http://` remote model URLs are
-rejected at startup so prompts, repository context, and model responses are not
-sent over unencrypted network paths. This rule does not block same-machine
-local inference servers when they are reached over one of the local addresses
-above. `VEX_MODEL_URL_SKIP_TLS_CHECK` only relaxes certificate
-verification for HTTPS endpoints; it does not permit plain HTTP for
-non-loopback hosts.
+For any model endpoint outside local and private networks, HTTPS is mandatory.
+Plain `http://` model URLs are rejected at startup for public-internet hosts so
+prompts, repository context, and model responses are not sent over unencrypted
+network paths. This rule does not block local inference servers reached via
+`localhost`, `127.x.x.x`, `::1`, `0.0.0.0`, or RFC 1918 / link-local LAN
+addresses (`192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`, `169.254.x.x`).
+`VEX_MODEL_URL_SKIP_TLS_CHECK` only relaxes certificate verification for HTTPS
+endpoints; it does not permit plain HTTP for public-internet hosts.
 
 ### `VEX_MODEL_NAME`
 

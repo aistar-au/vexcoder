@@ -4,6 +4,10 @@ use std::path::PathBuf;
 
 use crate::runtime::CommandRequest;
 
+/// Default macOS sandbox profile. Denies most operations by default but
+/// allows broad file access because sandbox-exec'd commands need to read
+/// and write project files. Operators who need tighter filesystem
+/// containment should supply a custom profile via `sandbox_profile`.
 const DEFAULT_MACOS_PROFILE: &str =
     "(version 1)\n(deny default)\n(allow process*)\n(allow file-read*)\n(allow file-write*)\n";
 

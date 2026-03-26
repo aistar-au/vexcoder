@@ -340,7 +340,7 @@ impl Config {
         }
         if !local_endpoint && self.model_url.starts_with("http://") {
             bail!(
-                "Non-loopback model endpoint '{}' must use https://. Plain HTTP remains allowed for same-machine local runtimes on localhost, 127.x.x.x, ::1, or 0.0.0.0.",
+                "Model endpoint '{}' must use https://. Plain HTTP is allowed for local and private-network endpoints (localhost, 127.x.x.x, ::1, 0.0.0.0, and RFC 1918 LAN addresses like 192.168.x.x, 10.x.x.x, 172.16-31.x.x).",
                 self.model_url
             );
         }
@@ -1357,6 +1357,25 @@ mod tests {
 
         let cfg = Config::load().expect("load failed");
         assert!(cfg.validate().is_ok(), "loopback http must remain valid");
+    }
+
+    #[test]
+    fn test_config_allows_private_network_http_model_url() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _url = EnvRestore::capture("VEX_MODEL_URL");
+        let _name = EnvRestore::capture("VEX_MODEL_NAME");
+        let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
+
+        // LAN-reachable model server on a private RFC 1918 address
+        std::env::set_var("VEX_MODEL_URL", "http://192.168.1.100:11434/v1");
+        std::env::set_var("VEX_MODEL_NAME", "local-model");
+        std::env::remove_var("VEX_MODEL_TOKEN");
+
+        let cfg = Config::load().expect("load failed");
+        assert!(
+            cfg.validate().is_ok(),
+            "private-network http must remain valid"
+        );
     }
 
     #[test]
