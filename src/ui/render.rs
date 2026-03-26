@@ -274,27 +274,18 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     frame.render_widget(Clear, frame.area());
 
     // --- Output / Inspector pane ---
-    let output_lines: Vec<Line> = state
-        .output_rows
+    let (output_start, output_end) = task_output_window(state, layout.output.height as usize);
+    let output_lines: Vec<Line> = state.output_rows[output_start..output_end]
         .iter()
         .map(|row| transcript_output_line(row))
         .collect();
-    let output_scroll = match state.output_scroll_anchor {
-        crate::app::OutputScrollAnchor::Bottom => output_lines
-            .len()
-            .saturating_sub(layout.output.height.max(1) as usize + state.output_scroll_offset)
-            as u16,
-        crate::app::OutputScrollAnchor::Top => {
-            state.output_scroll_offset.min(u16::MAX as usize) as u16
-        }
-    };
-
-    frame.render_widget(
-        Paragraph::new(Text::from(output_lines))
-            .scroll((output_scroll, 0))
-            .wrap(Wrap { trim: false }),
-        layout.output,
-    );
+    let output_area = task_output_render_area(state, layout.output, output_lines.len());
+    if output_area.height > 0 {
+        frame.render_widget(
+            Paragraph::new(Text::from(output_lines)).wrap(Wrap { trim: false }),
+            output_area,
+        );
+    }
 
     // --- Input pane ---
     if state.pending_approval.is_none() {
@@ -924,6 +915,60 @@ fn truncate_line(input: &str, width: usize) -> String {
     out
 }
 
+fn task_output_window(state: &TaskLayoutState, viewport_height: usize) -> (usize, usize) {
+    const INSPECTOR_VIEWPORT_ROWS: usize = 6;
+
+    let total = state.output_rows.len();
+    if viewport_height == 0 || total == 0 {
+        return (0, 0);
+    }
+
+    match state.output_scroll_anchor {
+        crate::app::OutputScrollAnchor::Bottom => {
+            let max_offset = total.saturating_sub(viewport_height);
+            let offset = state.output_scroll_offset.min(max_offset);
+            let start = total.saturating_sub(viewport_height.saturating_add(offset));
+            let end = (start + viewport_height).min(total);
+            (start, end)
+        }
+        crate::app::OutputScrollAnchor::Top => {
+            let inspector_height = viewport_height.clamp(1, INSPECTOR_VIEWPORT_ROWS);
+            let start = state.output_scroll_offset.min(total.saturating_sub(1));
+            let end = (start + inspector_height).min(total);
+            (start, end)
+        }
+    }
+}
+
+fn task_output_render_area(state: &TaskLayoutState, area: Rect, visible_rows: usize) -> Rect {
+    if area.height == 0 || visible_rows == 0 {
+        return Rect {
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: 0,
+        };
+    }
+
+    if state.output_scroll_anchor == crate::app::OutputScrollAnchor::Bottom
+        && visible_rows < area.height as usize
+    {
+        return Rect {
+            x: area.x,
+            y: area.y + area.height.saturating_sub(visible_rows as u16),
+            width: area.width,
+            height: visible_rows as u16,
+        };
+    }
+
+    Rect {
+        x: area.x,
+        y: area.y,
+        width: area.width,
+        height: visible_rows.min(area.height as usize) as u16,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1248,7 +1293,7 @@ mod tests {
     }
 
     #[test]
-    fn task_layout_without_changed_files_starts_transcript_at_top_row() {
+    fn task_layout_without_changed_files_bottom_anchors_short_transcript() {
         let backend = TestBackend::new(60, 16);
         let mut terminal = Terminal::new(backend).unwrap();
         let state = crate::app::TaskLayoutState {
@@ -1281,16 +1326,23 @@ mod tests {
         terminal.draw(|f| render_task_layout(f, &state)).unwrap();
 
         let rendered = terminal.backend().buffer().clone();
-        let first_row_text = rendered
+        let rows: Vec<String> = rendered
             .content()
+            .chunks(60)
+            .map(|row| {
+                row.iter()
+                    .map(|cell| cell.symbol())
+                    .collect::<Vec<_>>()
+                    .join("")
+            })
+            .collect();
+        let first_non_empty = rows
             .iter()
-            .take(60)
-            .map(|cell| cell.symbol())
-            .collect::<Vec<_>>()
-            .join("");
+            .position(|row| row.contains("body row"))
+            .expect("body row must appear in rendered output");
         assert!(
-            first_row_text.contains("body row"),
-            "without a top header, the transcript should begin on the first row"
+            first_non_empty > 0,
+            "short transcript should hug the prompt edge instead of starting at the top row"
         );
     }
 

@@ -916,6 +916,19 @@ fn short_bottom_anchored_transcript_hugs_prompt_edge() {
 }
 
 #[test]
+fn inspector_uses_six_line_window() {
+    let mut state = make_state(vec![], vec![]);
+    state.output_title = "Inspector".into();
+    state.output_scroll_anchor = OutputScrollAnchor::Top;
+    state.output_rows = (0..10).map(|i| format!("detail-line-{i}")).collect();
+
+    let (visible_start, visible_end) = transcript_window(&state, 12);
+
+    assert_eq!(visible_start, 0);
+    assert_eq!(visible_end, 6);
+}
+
+#[test]
 fn composer_hash_tracks_live_input_changes() {
     let draw = TaskDraw::new();
     let first = TaskLayoutState {
