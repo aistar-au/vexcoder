@@ -1104,6 +1104,17 @@ fn validate_mcp_servers(servers: Vec<McpServerConfig>) -> Result<Vec<McpServerCo
         if server.name.is_empty() {
             bail!("mcp_servers.name must not be empty");
         }
+        if !server
+            .name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+        {
+            bail!(
+                "mcp_servers.name '{}' contains invalid characters; \
+                 only ASCII letters, digits, hyphens, and underscores are allowed",
+                server.name
+            );
+        }
         if !seen_names.insert(server.name.clone()) {
             bail!("duplicate mcp server name '{}'", server.name);
         }

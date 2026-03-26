@@ -195,7 +195,7 @@ impl ConversationManager {
         } else if name == "codebase_search" {
             execute_codebase_search_tool(&self.tool_operator, input).await
         } else if name.starts_with("mcp.") {
-            execute_mcp_tool(self.mcp_registry.as_ref(), name, input).await
+            execute_mcp_tool(self.mcp_registry.as_ref(), name, input, tool_timeout).await
         } else {
             let task_name = tool_name.clone();
             let task_input = input.clone();
@@ -377,9 +377,16 @@ async fn execute_mcp_tool(
     registry: Option<&std::sync::Arc<McpRegistry>>,
     name: &str,
     input: &serde_json::Value,
+    tool_timeout: Duration,
 ) -> Result<String> {
     let registry = registry.ok_or_else(|| anyhow::anyhow!("MCP registry not loaded"))?;
-    registry.call_tool(name, input).await
+    match tokio::time::timeout(tool_timeout, registry.call_tool(name, input)).await {
+        Ok(result) => result,
+        Err(_) => Err(anyhow::anyhow!(
+            "Tool execution timed out after {}s for {name}",
+            tool_timeout.as_secs()
+        )),
+    }
 }
 
 async fn execute_run_command_tool(
@@ -1473,6 +1480,9 @@ pub(super) fn is_mutating_tool_round(blocks: &[ContentBlock]) -> bool {
 }
 
 pub(super) fn tool_requires_confirmation(name: &str) -> bool {
+    if name.starts_with("mcp.") {
+        return true;
+    }
     matches!(
         name,
         "write_file"

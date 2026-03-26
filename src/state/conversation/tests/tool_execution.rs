@@ -84,6 +84,9 @@ fn test_tool_requires_confirmation_for_mutating_tools() {
     assert!(tool_requires_confirmation("git_add"));
     assert!(tool_requires_confirmation("git_commit"));
 
+    assert!(tool_requires_confirmation("mcp.myserver.some_tool"));
+    assert!(tool_requires_confirmation("mcp.fs.write"));
+
     assert!(!tool_requires_confirmation("read_file"));
     assert!(!tool_requires_confirmation("search_files"));
     assert!(!tool_requires_confirmation("list_files"));

@@ -81,13 +81,13 @@ impl McpRegistry {
         }
 
         let mut snapshots = Vec::new();
-        let mut servers = Vec::new();
+        let mut servers: Vec<McpConnectedServer> = Vec::new();
         let mut tool_definitions = Vec::new();
         let mut tool_lookup = HashMap::new();
 
         for (server_index, config) in configs.iter().enumerate() {
             let timeout = resolve_mcp_timeout(config.timeout_secs);
-            let runtime = tokio::time::timeout(timeout, connect_server(config))
+            let connect_result = tokio::time::timeout(timeout, connect_server(config))
                 .await
                 .map_err(|_| {
                     anyhow!(
@@ -95,11 +95,36 @@ impl McpRegistry {
                         config.name,
                         timeout.as_secs()
                     )
-                })?
-                .with_context(|| format!("failed to connect MCP server '{}'", config.name))?;
-            let tools = runtime.peer().list_all_tools().await.with_context(|| {
-                format!("failed to list tools for MCP server '{}'", config.name)
-            })?;
+                })
+                .and_then(|inner| {
+                    inner.with_context(|| format!("failed to connect MCP server '{}'", config.name))
+                });
+
+            let runtime = match connect_result {
+                Ok(rt) => rt,
+                Err(error) => {
+                    // Explicitly cancel already-connected servers before propagating.
+                    for connected in servers.drain(..) {
+                        let rt = connected.runtime.into_inner();
+                        let _ = rt.cancel().await;
+                    }
+                    return Err(error);
+                }
+            };
+
+            let tools = match runtime.peer().list_all_tools().await {
+                Ok(t) => t,
+                Err(error) => {
+                    let _ = runtime.cancel().await;
+                    for connected in servers.drain(..) {
+                        let rt = connected.runtime.into_inner();
+                        let _ = rt.cancel().await;
+                    }
+                    return Err(error).with_context(|| {
+                        format!("failed to list tools for MCP server '{}'", config.name)
+                    });
+                }
+            };
 
             let mut server_tools = Vec::new();
             for tool in tools {
