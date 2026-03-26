@@ -25,7 +25,7 @@ Current task-dispatch dependency state:
 | `ADR-033` | Active | Phase 1 structural search, Phase 2 semantic reranking, and the Phase 3/4 write-guard plus history-condensing baseline are on `main`; downstream follow-up should keep model guidance and docs aligned with that landed behavior. |
 | `ADR-034` | Proposed | Defines the post-milestone multi-agent execution lane: explicit agent definitions, worktree isolation, orchestrator-owned child tasks, and watch/task-management surfaces. |
 
-ADR-025, ADR-026, ADR-028, ADR-029, ADR-030, ADR-031, ADR-032, ADR-033, and ADR-034 are the active post-gate ADR set.
+ADR-025, ADR-026, ADR-028, ADR-029, ADR-030, ADR-031, ADR-032, and ADR-033 are the active post-gate ADR set. ADR-034 is tracked as a proposed post-milestone lane.
 
 ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
 `#71`, `#72`, `#74`, `#75`, `#78`, and `#79`. `PK-08` (`vex branch` and
