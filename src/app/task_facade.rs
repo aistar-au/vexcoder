@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::collections::HashMap;
 use std::path::Path;
 use thiserror::Error;
 
@@ -66,56 +65,6 @@ pub struct FacadeWatchSnapshot {
 }
 
 // ---------------------------------------------------------------------------
-// Live-count sidecar index (O-3) — avoids O(n) state-file scan on every
-// `facade_list_agents` call.
-// ---------------------------------------------------------------------------
-
-fn live_index_path(working_dir: &Path) -> std::path::PathBuf {
-    TaskState::state_dir_from(working_dir).join("_live-counts.idx")
-}
-
-/// Rebuild the live-count index from all state files on disk.
-pub fn rebuild_live_index(working_dir: &Path) -> Result<HashMap<String, usize>> {
-    let mut counts = HashMap::<String, usize>::new();
-    for file in TaskState::state_files_from(working_dir) {
-        let task_state = TaskState::load(&file.dir, &file.id)?;
-        for st in &task_state.session_tasks {
-            if st.lifecycle_state.is_live() {
-                *counts.entry(st.agent_id.clone()).or_default() += 1;
-            }
-        }
-    }
-    let path = live_index_path(working_dir);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let json = serde_json::to_vec_pretty(&counts)?;
-    std::fs::write(&path, json)?;
-    Ok(counts)
-}
-
-/// Read the cached live-count sidecar.  Returns `None` if the file is absent
-/// or corrupt — callers should fall back to [`rebuild_live_index`].
-fn read_live_index(working_dir: &Path) -> Option<HashMap<String, usize>> {
-    let content = std::fs::read_to_string(live_index_path(working_dir)).ok()?;
-    serde_json::from_str(&content).ok()
-}
-
-/// Increment the cached live count for `agent_id` in the sidecar.
-/// This is a best-effort read-modify-write update.
-fn increment_live_count(working_dir: &Path, agent_id: &str) -> Result<()> {
-    let mut counts = read_live_index(working_dir).unwrap_or_default();
-    *counts.entry(agent_id.to_owned()).or_default() += 1;
-    let path = live_index_path(working_dir);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let json = serde_json::to_vec_pretty(&counts)?;
-    std::fs::write(&path, json)?;
-    Ok(())
-}
-
-// ---------------------------------------------------------------------------
 // Facade entrypoints — called by handlers, never by-passed.
 // ---------------------------------------------------------------------------
 
@@ -129,8 +78,22 @@ pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing> {
         });
     };
 
-    let mut live_counts = read_live_index(working_dir)
-        .unwrap_or_else(|| rebuild_live_index(working_dir).unwrap_or_default());
+    // O(n) scan of state files. A sidecar index was considered (O-3) but
+    // removed because correct decrement-on-task-completion requires threading
+    // working_dir through the transition path, and without decrement the
+    // sidecar monotonically inflates. At current scale the scan is adequate.
+    let mut live_counts = std::collections::HashMap::<String, usize>::new();
+    for file in TaskState::state_files_from(working_dir) {
+        if let Ok(task_state) = TaskState::load(&file.dir, &file.id) {
+            for session_task in &task_state.session_tasks {
+                if session_task.lifecycle_state.is_live() {
+                    *live_counts
+                        .entry(session_task.agent_id.clone())
+                        .or_default() += 1;
+                }
+            }
+        }
+    }
 
     Ok(FacadeAgentsListing {
         available: true,
@@ -191,12 +154,8 @@ pub fn facade_delegate_session_task(
     }
 
     let session_task_id = session_task.id.clone();
-    let agent_id_owned = agent_id.to_owned();
     parent_state.add_session_task(session_task);
     parent_state.save(&state_dir)?;
-
-    // Best-effort sidecar update — never fails the delegate call.
-    let _ = increment_live_count(working_dir, &agent_id_owned);
 
     Ok(FacadeDelegateResult {
         parent_task_id,

@@ -249,8 +249,10 @@ already-merged Phase A / Phase B-E baseline.
   files (`src/app/task_facade.rs`).
 - **O-2** — Replace string-comparison error routing with a typed `DelegateError`
   enum via `thiserror` (`src/app/task_facade.rs`, `Cargo.toml`).
-- **O-3** — Add sidecar live-count index for `facade_list_agents` to avoid an
-  O(n) scan of all task-state files (`src/app/task_facade.rs`).
+- **O-3** — Inline live-count computation in `facade_list_agents`; sidecar
+  index was removed because correct decrement-on-task-completion would require
+  threading `working_dir` through the transition path, and without decrement
+  the cache monotonically inflates (`src/app/task_facade.rs`).
 - **O-4** — Document borrow safety in `validate_team_members`; no logic change
   (`src/agents.rs`).
 - **O-5** — Replace hand-rolled `strip_ansi` with the `strip-ansi-escapes`
