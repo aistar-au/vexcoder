@@ -72,5 +72,5 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
   code-bearing commit SHAs so the operator can promote the diff.
 - If the hosted run finishes with only a planning commit or no file diff,
   report that no code was published and do not describe the implementation as
-  landed.
+  merged.
 - Do not delegate `cargo`, `cargo clippy`, `cargo test`, `cargo check`, or `make gate-fast` to another hosted agent or subagent. Leave those commands to the local operator or CI because nested delegation is unreliable in the hosted runtime.

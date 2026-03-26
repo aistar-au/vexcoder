@@ -365,7 +365,7 @@ Apply a single correctness sweep… (L1–L6 unchanged)
 ## Evidence
 ### L1–L6 – Loop/enriched response correctness sweep
 - Operator: automation-agent  
-- Commit: (already landed)  
+- Commit: (already merged)  
 - Files changed: `src/state/conversation.rs` (+367 -56), `src/state/stream_block.rs` (+1 -0)  
 - Validation: `cargo test --all-targets` + clippy pass
 

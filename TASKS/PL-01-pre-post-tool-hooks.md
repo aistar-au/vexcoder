@@ -121,7 +121,7 @@ fn test_hook_repo_local_config_rejected_at_load() {
 
 ---
 
-## Dispatch Verification (dispatch only — implementation not yet landed)
+## Dispatch Verification (dispatch only — implementation not yet merged into current `main`)
 
 ### [PL-01] - Pre/post-tool-call hooks
 

@@ -21,9 +21,9 @@ Current task-dispatch dependency state:
 | `ADR-029` | Proposed | Extends the active ADR set with stream-parser completeness and session-persistence follow-up work without changing the milestone-1 gate result. |
 | `ADR-030` | Active | Task-state-owned orchestration invariants and 2026-03-17 control-flow fixes are active requirements for downstream runtime work. |
 | `ADR-031` | Active | Extends the operator surface overhaul with adaptive timeline/transcript/composer behavior, task-state-visible selection, and merge-gated UI batching on top of ADR-030 task-state ownership. |
-| `ADR-032` | Active | Prompt-area interactivity and context-budget guard behavior are now on `main`; downstream retrieval and UI work must preserve the landed picker, focus, and context-recovery contracts. |
-| `ADR-033` | Active | Phase 1 structural search, Phase 2 semantic reranking, and the Phase 3/4 write-guard plus history-condensing baseline are on `main`; downstream follow-up should keep model guidance and docs aligned with that landed behavior. |
-| `ADR-034` | Active | Phase A (PR #229) and Phase B-E baseline (PR #230) landed: session-task lifecycle, UUID-scoped IDs, git-worktree lease manager, ADR-028 facade entrypoints for delegate/watch, operator slash commands, CLI task-inspection sub-commands, and LocalApiServer projection. ADR-028 enforcement test extended to block direct crate::runtime imports from the server layer. |
+| `ADR-032` | Active | Prompt-area interactivity and context-budget guard behavior are now on `main`; downstream retrieval and UI work must preserve the merged picker, focus, and context-recovery contracts. |
+| `ADR-033` | Active | Phase 1 structural search, Phase 2 semantic reranking, and the Phase 3/4 write-guard plus history-condensing baseline are on `main`; downstream follow-up should keep model guidance and docs aligned with that merged behavior. |
+| `ADR-034` | Active | Phase A (PR #229) and Phase B-E baseline (PR #230) are merged: session-task lifecycle, UUID-scoped IDs, git-worktree lease manager, ADR-028 facade entrypoints for delegate/watch, operator slash commands, CLI task-inspection sub-commands, and LocalApiServer projection. ADR-028 enforcement test extended to block direct crate::runtime imports from the server layer. |
 
 ADR-025, ADR-026, ADR-028, ADR-029, ADR-030, ADR-031, ADR-032, ADR-033, and ADR-034 are the active post-gate ADR set.
 
@@ -38,7 +38,7 @@ remains sequenced only by their documented dependencies.
 
 ## Current Next Work Batch
 
-The current work batch is ADR-034 specification and roadmap alignment for post-milestone multi-agent execution, while ADR-033 prompt and documentation alignment remains follow-up maintenance on top of the active ADR-028 facade boundary and the landed ADR-031/ADR-032 operator-surface work.
+The current work batch is ADR-034 specification and roadmap alignment for post-milestone multi-agent execution, while ADR-033 prompt and documentation alignment remains follow-up maintenance on top of the active ADR-028 facade boundary and the merged ADR-031/ADR-032 operator-surface work.
 
 - Milestone-1 validation remains the recorded Phase I gate result in `adr/ADR-022-free-open-coding-agent-roadmap.md`.
 - ADR-025 now has the canonical runtime handoff types, schemas, normalization layer, and BatchMode parity tests in the current tree.
@@ -46,11 +46,11 @@ The current work batch is ADR-034 specification and roadmap alignment for post-m
 - ADR-028 now has its phase-1/phase-2 facade split and the 2026-03-17 debug fixes for localhost protocol routing, full-screen task activity visibility, and live orchestration rows in the current tree.
 - ADR-031 Batch A follow-up and ADR-032 prompt-area interactivity work are now on `main`; their earlier review branches no longer carry unique diff against current `main`.
 - ADR-033 now has Phases 1 through 4 baseline behavior on `main`, including large-file `write_file` guardrails and condensed historical tool results.
-- The current ADR-033 next batch is integration cleanup: keep the system prompt, operator docs, and task-roadmap language aligned with the landed large-file edit and history-condensing contracts.
+- The current ADR-033 next batch is integration cleanup: keep the system prompt, operator docs, and task-roadmap language aligned with the merged large-file edit and history-condensing contracts.
 - ADR-034 now defines the missing dedicated multi-agent / parallel-task execution lane that ADR-024 had deferred; no implementation lane should bypass its worktree-isolation and session-task lifecycle rules. Phase A delivers `.vex/agents.toml` parsing, validation, and `insta` snapshot tests for the ANSI draw engine. The current Phase B-E baseline adds persisted session-task metadata, worktree lease records, `/agents` `/delegate` `/watch` operator surfaces, `vex tasks list/watch`, and LocalApiServer projection for delegated session-task state.
 - `src/api/client.rs` remains the model-guidance enforcement point, while `src/state/conversation/tools.rs` and `src/state/conversation/history.rs` remain the runtime contract points for those guardrails.
-- Keep documentation refresh and descriptive PR motivation text in scope for ADR-033 follow-up batches so retrieval changes do not land with stale ADR/task-roadmap state.
-- Continue preserving ADR-028 facade boundaries and ADR-030 task-state/orchestrator ownership while ADR-033 follow-up work lands.
+- Keep documentation refresh and descriptive PR motivation text in scope for ADR-033 follow-up batches so retrieval changes do not merge with stale ADR/task-roadmap state.
+- Continue preserving ADR-028 facade boundaries and ADR-030 task-state/orchestrator ownership while ADR-033 follow-up work merges.
 
 ## Other Open ADRs Tracked In This Repo
 

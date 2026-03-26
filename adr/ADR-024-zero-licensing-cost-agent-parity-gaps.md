@@ -1548,7 +1548,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
 | **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [x] |
 | **PJ-04** | `vex init` — scaffolds `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [x] |
-| **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [x] (save wiring landed in the PI-04 batch) |
+| **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [x] (save wiring merged in the PI-04 batch) |
 | **PK-02** | `/about` — build metadata display; `build.rs` compile-time injection | [x] |
 | **PK-03** | `@<path>` inline injection — workspace-confined; truncation annotation; multi-token | [x] |
 | **PK-04** | `!<command>` passthrough — SandboxDriver + ApprovalPolicy; no model turn | [x] |
@@ -1675,7 +1675,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - `vex completions`, `vex install-hooks` / `vex uninstall-hooks`, and `vex skills` landed on this operator branch and now match the ADR-024 surface contract.
+  - `vex completions`, `vex install-hooks` / `vex uninstall-hooks`, and `vex skills` merged on this operator branch and now match the ADR-024 surface contract.
   - Follow-up commit `7f7cdbed65633c787d137ed3937cf782495b9f24` preserves resume compatibility for legacy subdirectory task-state paths, adds fish and powershell completion parsing coverage, and changes the installed-skill version sentinel from `0.0.0` to `unknown`.
   - Hook installation remains worktree-aware and repo-root anchoring stays in place for `.vex/state` and `.agents/skills/registry.toml`.
 
@@ -1816,7 +1816,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - PD-02 (`MacosSandboxExec`) and PD-03 (`DockerSandbox`) remain deferred.
 
 ### [PA-03 / PA-04] - vex migrate config + migration doc
-- Operator: reconciliation on a prior integration branch; implementation landed earlier
+- Operator: reconciliation on a prior integration branch; implementation merged earlier
 - Commit: `c14d695160e58209365e2728ff16ac14d0f9acce`
 - Files changed:
   - `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — PA-03, PA-04 rows flipped to [x] on this branch
@@ -1915,7 +1915,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Notes:
   - `/permissions`, `/allow`, and `/deny` now render and mutate in-memory approval grants without starting a model turn.
   - `--resume` loads a saved task before TUI startup, and `-p` / `--print` routes a single turn through `BatchMode` with plain-text stdout.
-  - The merged PR landed the command surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
+  - The merged PR delivered the command surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
 
 ### [PC-01 / PJ-04 / PK-07] - model switching, workspace init, and diff helpers
 - Historical branch name: omitted
@@ -1955,7 +1955,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Notes:
   - `@path` now expands workspace-confined file and directory context inline before a model turn starts.
   - `!command` routes shell passthrough through the existing approval and sandbox path with no model turn.
-  - The merged PR landed this surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
+  - The merged PR delivered this surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
 
 ### [PK-05 / PK-06 / PK-09] - custom commands, /tools, and /generate-tests
 - Historical branch name: omitted
