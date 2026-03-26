@@ -84,14 +84,22 @@ pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing> {
     // sidecar monotonically inflates. At current scale the scan is adequate.
     let mut live_counts = std::collections::HashMap::<String, usize>::new();
     for file in TaskState::state_files_from(working_dir) {
-        if let Ok(task_state) = TaskState::load(&file.dir, &file.id) {
-            for session_task in &task_state.session_tasks {
-                if session_task.lifecycle_state.is_live() {
-                    *live_counts
-                        .entry(session_task.agent_id.clone())
-                        .or_default() += 1;
+        match TaskState::load(&file.dir, &file.id) {
+            Ok(task_state) => {
+                for session_task in &task_state.session_tasks {
+                    if session_task.lifecycle_state.is_live() {
+                        *live_counts
+                            .entry(session_task.agent_id.clone())
+                            .or_default() += 1;
+                    }
                 }
             }
+            Err(error) => tracing::debug!(
+                task_id = %file.id,
+                state_dir = %file.dir.display(),
+                %error,
+                "skipping unreadable task state during live agent scan"
+            ),
         }
     }
 
