@@ -4,8 +4,12 @@ pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext
     let mode = TuiMode::new_with_config(config.notes_path.clone(), config.clone());
     let (mut runtime, ctx, bootstrap) = build_facade_runtime(&config, mode)?;
     runtime.mode.instructions_path = bootstrap.instructions_path;
+    runtime.mode.sandbox = bootstrap.sandbox;
     runtime.mode.current_task.instructions_path = runtime.mode.instructions_path.clone();
     if let Some(warning) = bootstrap.notes_warning {
+        runtime.mode.push_history_line(warning);
+    }
+    if let Some(warning) = bootstrap.sandbox_warning {
         runtime.mode.push_history_line(warning);
     }
     Ok((runtime, ctx))

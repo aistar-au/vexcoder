@@ -23,7 +23,7 @@ use crate::runtime::CommandResult;
 use crate::runtime::{
     format_command_session_cancelled, format_command_session_exit, format_command_session_output,
     format_command_session_started, truncate_head_bytes, ApprovalScope, Capability, CommandRequest,
-    CommandRunner, DefaultCommandRunner, EditLoopOutcome, PassthroughSandbox, SandboxDriver,
+    CommandRunner, ConfiguredSandbox, DefaultCommandRunner, EditLoopOutcome, SandboxDriver,
     TaskState, TaskStatus, UiUpdate,
 };
 #[cfg(test)]
@@ -765,6 +765,7 @@ pub struct TuiMode {
     model_profile: ModelProfile,
     /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
+    sandbox: ConfiguredSandbox,
     file_prompt_entries: RefCell<Option<Vec<String>>>,
     custom_commands: Vec<CustomCommand>,
     last_assembled_context: Option<AssembledContext>,

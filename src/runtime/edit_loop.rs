@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tokio_util::sync::CancellationToken;
 
+use crate::runtime::ConfiguredSandbox;
 use crate::runtime::ModelBackendKind;
 use crate::types::ModelProfile;
 
@@ -21,6 +22,7 @@ pub struct EditLoop {
     pub stop_on_clean_validate: bool,
     pub profile: ModelProfile,
     working_dir: PathBuf,
+    sandbox: ConfiguredSandbox,
     last_validation_result: Option<ValidationResult>,
 }
 
@@ -45,6 +47,7 @@ impl EditLoop {
             stop_on_clean_validate: true,
             profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
             working_dir: std::env::current_dir().unwrap_or_else(|_| std::env::temp_dir()),
+            sandbox: ConfiguredSandbox::default(),
             last_validation_result: None,
         }
     }
@@ -65,6 +68,11 @@ impl EditLoop {
 
     pub fn with_working_dir(mut self, working_dir: PathBuf) -> Self {
         self.working_dir = working_dir;
+        self
+    }
+
+    pub fn with_sandbox(mut self, sandbox: ConfiguredSandbox) -> Self {
+        self.sandbox = sandbox;
         self
     }
 
@@ -146,7 +154,9 @@ impl EditLoop {
 
             // Validate: run the project validation suite concurrently.
             ctx.emit_transcript_line("[edit loop: running validation]".to_string());
-            let validation_result = validation_suite.run_in_dir(&runner, Some(&root)).await?;
+            let validation_result = validation_suite
+                .run_in_dir_with_sandbox(&runner, &self.sandbox, Some(&root))
+                .await?;
             self.set_last_validation_result(validation_result.clone());
 
             if validation_result.passed {

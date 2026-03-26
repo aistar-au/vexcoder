@@ -711,6 +711,7 @@ fn test_build_runtime_with_resume_restores_task() {
         ),
         max_project_instructions_tokens: 4096,
         max_memory_tokens: 2048,
+        sandbox: crate::runtime::SandboxConfig::default(),
         model_headers: reqwest::header::HeaderMap::new(),
         notes_path: None,
         api: crate::config::ApiConfig::default(),

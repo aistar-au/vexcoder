@@ -59,15 +59,10 @@ impl TuiMode {
         let ctx = ctx.clone();
         let cancel = ctx.turn_cancellation_token();
         let working_dir = self.working_dir.clone();
+        let sandbox = self.sandbox.clone();
         tokio::spawn(async move {
             let runner = DefaultCommandRunner::new();
-            // User-initiated !command execution — the Capability::RunCommand
-            // approval gate is the security boundary.  PassthroughSandbox is
-            // intentional here; a future ADR-024 follow-up may thread the
-            // operator-configured sandbox driver through TuiMode.
-            let request = match PassthroughSandbox
-                .wrap(shell_command_request(command.clone(), working_dir))
-            {
+            let request = match sandbox.wrap(shell_command_request(command.clone(), working_dir)) {
                 Ok(request) => request,
                 Err(error) => {
                     ctx.emit_transcript_line(format!("[command session] error: {error}"));

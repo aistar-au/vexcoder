@@ -4,7 +4,7 @@ use std::path::Path;
 use tokio::time::{timeout, Duration};
 
 use crate::runtime::text_util::truncate_tail_bytes;
-use crate::runtime::{CommandRequest, CommandRunner};
+use crate::runtime::{CommandRequest, CommandRunner, SandboxDriver};
 
 const DEFAULT_TIMEOUT_SECS: u64 = 60;
 pub const VALIDATION_TAIL_BYTES: usize = 8_192;
@@ -82,6 +82,45 @@ impl ValidationSuite {
             .commands
             .iter()
             .map(|command| run_validation_command(command, runner, working_dir))
+            .collect();
+
+        let results = futures::future::join_all(futures).await;
+
+        let mut passed = true;
+        let mut outputs = Vec::with_capacity(results.len());
+        for output in results {
+            if output.exit_code != 0 {
+                passed = false;
+            }
+            outputs.push(output);
+        }
+
+        Ok(ValidationResult { passed, outputs })
+    }
+
+    pub async fn run_in_dir_with_sandbox<R, S>(
+        &self,
+        runner: &R,
+        sandbox: &S,
+        working_dir: Option<&Path>,
+    ) -> Result<ValidationResult>
+    where
+        R: CommandRunner + ?Sized,
+        S: SandboxDriver + ?Sized,
+    {
+        if self.commands.is_empty() {
+            return Ok(ValidationResult {
+                passed: true,
+                outputs: Vec::new(),
+            });
+        }
+
+        let futures: Vec<_> = self
+            .commands
+            .iter()
+            .map(|command| {
+                run_validation_command_with_sandbox(command, runner, sandbox, working_dir)
+            })
             .collect();
 
         let results = futures::future::join_all(futures).await;
@@ -285,6 +324,75 @@ where
             exit_code: -1,
             stdout_tail: String::new(),
             stderr_tail: format!("validation command timed out after {}s", timeout_secs),
+            stdout_truncated: false,
+            stderr_truncated: false,
+        },
+    }
+}
+
+async fn run_validation_command_with_sandbox<R, S>(
+    command: &ValidationCommand,
+    runner: &R,
+    sandbox: &S,
+    working_dir: Option<&Path>,
+) -> ValidationOutput
+where
+    R: CommandRunner + ?Sized,
+    S: SandboxDriver + ?Sized,
+{
+    let base_request = CommandRequest {
+        program: command.program.clone(),
+        args: command.args.clone(),
+        working_dir: working_dir.map(|dir| dir.to_path_buf()),
+    };
+    let wrapped_request = match sandbox.wrap(base_request) {
+        Ok(req) => req,
+        Err(error) => {
+            return ValidationOutput {
+                label: command.label.clone(),
+                exit_code: -1,
+                stdout_tail: String::new(),
+                stderr_tail: error.to_string(),
+                stdout_truncated: false,
+                stderr_truncated: false,
+            };
+        }
+    };
+
+    let result = timeout(
+        Duration::from_secs(command.timeout_secs),
+        runner.run_one_shot(wrapped_request),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(result)) => {
+            let (stdout_tail, stdout_truncated) =
+                truncate_tail_bytes(&result.stdout, VALIDATION_TAIL_BYTES);
+            let (stderr_tail, stderr_truncated) =
+                truncate_tail_bytes(&result.stderr, VALIDATION_TAIL_BYTES);
+            ValidationOutput {
+                label: command.label.clone(),
+                exit_code: result.exit_code,
+                stdout_tail,
+                stderr_tail,
+                stdout_truncated,
+                stderr_truncated,
+            }
+        }
+        Ok(Err(error)) => ValidationOutput {
+            label: command.label.clone(),
+            exit_code: -1,
+            stdout_tail: String::new(),
+            stderr_tail: error.to_string(),
+            stdout_truncated: false,
+            stderr_truncated: false,
+        },
+        Err(_) => ValidationOutput {
+            label: command.label.clone(),
+            exit_code: -1,
+            stdout_tail: String::new(),
+            stderr_tail: format!("timed out after {}s", command.timeout_secs),
             stdout_truncated: false,
             stderr_truncated: false,
         },

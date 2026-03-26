@@ -36,7 +36,10 @@ pub use edit_loop::{EditLoop, EditLoopOutcome};
 pub use json_handoff::{
     RuntimeEnvelope, RuntimeEvent, RuntimeRequest, TokenUsageEnvelope, ValidationOutputEnvelope,
 };
-pub use sandbox::{PassthroughSandbox, SandboxDriver};
+pub use sandbox::{
+    resolve_configured_sandbox, ConfiguredSandbox, PassthroughSandbox, SandboxConfig,
+    SandboxDriver, SandboxKind,
+};
 pub use session_task::{SessionTask, SessionTaskId, SessionTaskStatus};
 pub use task_state::{
     CacheUsageStats, CommandEvidence, ContextCompactionRecord, ConversationCheckpoint,

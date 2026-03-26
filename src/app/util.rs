@@ -186,13 +186,12 @@ pub(super) fn format_inline_block(
 pub(super) async fn run_validation_suite_capture(
     suite: ValidationSuite,
     working_dir: PathBuf,
+    sandbox: crate::runtime::ConfiguredSandbox,
 ) -> Result<crate::runtime::ValidationResult> {
-    // Validation commands are operator-defined build/test steps from the
-    // project config.  They run under the same user session that launched vex,
-    // so no sandbox wrapping is applied.  A future ADR-024 follow-up may
-    // thread the operator-configured sandbox driver into validation execution.
     let runner = DefaultCommandRunner::new();
-    suite.run_in_dir(&runner, Some(&working_dir)).await
+    suite
+        .run_in_dir_with_sandbox(&runner, &sandbox, Some(&working_dir))
+        .await
 }
 
 pub(super) fn new_task_id() -> String {

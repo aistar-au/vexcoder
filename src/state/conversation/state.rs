@@ -1,6 +1,7 @@
 use super::super::stream_block::StreamBlock;
 use crate::api::ApiClient;
 use crate::config::HookConfig;
+use crate::runtime::ConfiguredSandbox;
 use crate::tool_preview::ReadFileSnapshotCache;
 use crate::tools::ToolOperator;
 use crate::types::{ApiMessage, Content};
@@ -72,6 +73,7 @@ pub enum TurnToolPolicy {
 pub struct ConversationManager {
     pub(super) client: Arc<ApiClient>,
     pub(super) tool_operator: ToolOperator,
+    pub(super) sandbox: ConfiguredSandbox,
     pub(super) hooks: Vec<HookConfig>,
     pub(super) api_messages: Vec<ApiMessage>,
     pub(super) current_turn_blocks: Vec<StreamBlock>,
@@ -84,7 +86,7 @@ pub struct ConversationManager {
 
 impl ConversationManager {
     pub fn new(client: ApiClient, operator: ToolOperator) -> Self {
-        Self::new_with_hooks(client, operator, Vec::new())
+        Self::new_with_hooks_and_sandbox(client, operator, Vec::new(), ConfiguredSandbox::default())
     }
 
     pub fn new_with_hooks(
@@ -92,9 +94,19 @@ impl ConversationManager {
         operator: ToolOperator,
         hooks: Vec<HookConfig>,
     ) -> Self {
+        Self::new_with_hooks_and_sandbox(client, operator, hooks, ConfiguredSandbox::default())
+    }
+
+    pub fn new_with_hooks_and_sandbox(
+        client: ApiClient,
+        operator: ToolOperator,
+        hooks: Vec<HookConfig>,
+        sandbox: ConfiguredSandbox,
+    ) -> Self {
         Self {
             client: Arc::new(client),
             tool_operator: operator,
+            sandbox,
             hooks,
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
@@ -111,6 +123,7 @@ impl ConversationManager {
         Self {
             client: Arc::new(client),
             tool_operator: ToolOperator::new(std::env::temp_dir()), // Cross-platform temp dir
+            sandbox: ConfiguredSandbox::default(),
             hooks: Vec::new(),
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
