@@ -17,7 +17,6 @@ Last updated: 2026-03-26
 | ADR-021 | Accepted | 17 (3 P1, 13 P2, 1 P3) | Standalone audit; findings feed later ADRs |
 | ADR-022 amendment | Amended | Amendment only | Tightens milestone-1 command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
-| ADR-023 | Locked | 11 (EL-01 through EL-11) | Gates all deterministic commands; EL-12/EL-13 done |
 | ADR-024 | Proposed | 16 items | Parity-gap inventory; PA/PB/PC/PD(partial)/PE/PJ/PK/PL/PM done |
 | ADR-028 | Active | Ongoing alignment | Phase 1+2 merged; facade boundary governs ADR-030/031 |
 | ADR-029 | Accepted | 8 decision items to re-verify | Feeds ADR-030; verification follow-up remains in Tier 6 |
@@ -33,36 +32,19 @@ Last updated: 2026-03-26
 | :--- | :--- | :--- |
 | ADR-013 | Accepted | All phases complete |
 | ADR-018 | Superseded by ADR-027 | Retained for history |
+| ADR-023 | Complete | EL-01 through EL-13 all delivered |
 | ADR-025 | Complete | PI-09 through PI-12 all delivered |
 | ADR-026 | Complete | PI-13 through PI-16 all delivered |
 | ADR-027 | Accepted (complete) | Supersedes ADR-018/019 |
 
 ---
 
-## Remaining Work: 60 Items Across 10 Tiers
+## Remaining Work: 49 Items Across 9 Tiers
 
 Tiers sorted by unblocking impact -- what, if implemented first, unblocks
 the most downstream work.
 
-### Tier 1 -- Edit Loop Foundation (ADR-023) -- 11 items
-
-These gate every deterministic command the agent can run (/edit, /fix,
-/explain, /run, /test, /review, /plan). Nothing else in the coding pipeline
-works without these.
-
-- EL-01: ContextAssembler stub -- gates EL-02, EL-03, EL-04, EL-05
-- EL-07: ModelProfile struct + models/*.toml -- gates EL-08
-- EL-02: ValidationSuite (cargo check/test/clippy) -- gates EL-04, EL-05, EL-10
-- EL-03: EditLoop::run skeleton (turn lifecycle) -- gates all command wiring
-- EL-06: src/prompts/ templates + docs updates
-- EL-09: check_forbidden_names.sh CI coverage
-- EL-04: /edit and /fix wired through edit loop
-- EL-05: /explain, /run, /test wired
-- EL-08: ModelProfile config integration (gated on EL-07 + ADR-022 Phase 1)
-- EL-10: /review command (gated on EL-03)
-- EL-11: /plan command (gated on EL-03; cross-ref ADR-024 PI-08)
-
-### Tier 2 -- Open PRs (awaiting merge to unblock downstream) -- 4 PRs
+### Tier 1 -- Open PRs (awaiting merge to unblock downstream) -- 4 PRs
 
 Already implemented and pushed. Merging clears the path for dependent work.
 
@@ -71,7 +53,7 @@ Already implemented and pushed. Merging clears the path for dependent work.
 - PR 232: ADR-024 Phase F MCP runtime (PF-01 McpRegistry, PF-02 Capability::McpTool approval)
 - PR 233: ADR-032/033 doc reconcile (system prompt, tool descriptions, documentation aligned)
 
-### Tier 3 -- Sandbox and MCP Completion (ADR-024) -- 6 items
+### Tier 2 -- Sandbox and MCP Completion (ADR-024) -- 6 items
 
 After PRs 231/232 merge, verify and fill remaining gaps.
 
@@ -82,13 +64,13 @@ After PRs 231/232 merge, verify and fill remaining gaps.
 - PI-06: /mcp list command (depends on PF-01/PF-02)
 - PI-07: /mcp show <server> command (depends on PF-01/PF-02)
 
-### Tier 4 -- Workspace Tools and MCP Extensions (ADR-024) -- 3 items
+### Tier 3 -- Workspace Tools and MCP Extensions (ADR-024) -- 3 items
 
 - PP-01: search_files, list_dir, glob_files tools (workspace exploration)
 - PM-02: MCP HTTP [mcp_servers.headers] auth (extends Gap 5)
 - PI-08: /plan and /context commands (cross-ref ADR-023 EL-11)
 
-### Tier 5 -- Security Hardening (ADR-021 P1) -- 4 items
+### Tier 4 -- Security Hardening (ADR-021 P1) -- 4 items
 
 Unbounded buffers and unhandled errors that could cause crashes or resource
 exhaustion.
@@ -98,7 +80,7 @@ exhaustion.
 - Item 19: SSE parse failures not surfaced to UI (user-visible)
 - Item 8: Post-cutover comment debt (code hygiene)
 
-### Tier 6 -- Verification and Governance -- 3 items
+### Tier 5 -- Verification and Governance -- 3 items
 
 Confirm already-implemented work matches ADR specifications.
 
@@ -106,7 +88,7 @@ Confirm already-implemented work matches ADR specifications.
 - ADR-030: Verify 6 coverage requirements have test evidence
 - ADR-032: Verify items 4 (character count indicator) and 5 (focus indicator) are implemented
 
-### Tier 7 -- Code Quality (ADR-021 P2) -- 13 items
+### Tier 6 -- Code Quality (ADR-021 P2) -- 13 items
 
 Duplication removal, race condition fixes, and design follow-ups.
 
@@ -124,11 +106,11 @@ Duplication removal, race condition fixes, and design follow-ups.
 - Item 28: Read-only intent heuristic false positives
 - Item 32: KeyEventKind::Release filtering
 
-### Tier 8 -- Tuning (ADR-021 P3) -- 1 item
+### Tier 7 -- Tuning (ADR-021 P3) -- 1 item
 
 - Item 33: IDLE_LOOP_BACKOFF tuning
 
-### Tier 9 -- Post-Milestone (ADR-024 G/H + ADR-022) -- 7 items
+### Tier 8 -- Post-Milestone (ADR-024 G/H + ADR-022) -- 7 items
 
 Explicitly deferred until after milestone-1.
 
@@ -140,7 +122,7 @@ Explicitly deferred until after milestone-1.
 - PH-03: macOS code signing + notarisation + .dmg
 - ADR-022 Decision 11: Native packaging (post-milestone-1)
 
-### Tier 10 -- Housekeeping -- 8 items
+### Tier 9 -- Housekeeping -- 8 items
 
 Move completed ADRs to completed/, update stale status fields.
 
@@ -159,7 +141,7 @@ Move completed ADRs to completed/, update stale status fields.
 
 ```
 ADR-022 (Roadmap, milestone-1 passed)
-  +-- ADR-023 (Edit Loop) -- 11/13 items remaining
+  +-- ADR-023 (Edit Loop) -- COMPLETE (EL-01 through EL-13)
   +-- ADR-024 (Parity Gaps) -- 16/56 items remaining
   |     +-- ADR-025 (Handoff Contract) -- COMPLETE
   |     +-- ADR-026 (Transport Binding) -- COMPLETE

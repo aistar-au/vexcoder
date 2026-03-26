@@ -21,7 +21,6 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md` | Accepted | 17 items (3 P1, 13 P2, 1 P3) |
 | `adr/ADR-022-amendment-2026-03-13.md` | Amended | Amendment only |
 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed (milestone-1 passed) | Post-milestone G/H |
-| `adr/ADR-023-deterministic-edit-loop.md` | Locked | 11 items (EL-01 through EL-11) |
 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed | 16 items |
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active | Ongoing alignment |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Accepted | Verification follow-up (8 decision items) |
@@ -37,41 +36,36 @@ Source of truth: `adr/ADR-README.md`.
 | :--- | :--- |
 | `adr/ADR-013-tui-completion-deployment-plan.md` | Accepted (all phases complete) |
 | `adr/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md` | Superseded by ADR-027 |
+| `adr/ADR-023-deterministic-edit-loop.md` | Complete (EL-01 through EL-13) |
 | `adr/ADR-025-runtime-json-handoff-contract.md` | Complete (PI-09 through PI-12) |
 | `adr/ADR-026-localapiserver-transport-binding.md` | Complete (PI-13 through PI-16) |
 | `adr/ADR-027-full-screen-tui-command-session-capture.md` | Accepted (complete) |
 
-## Remaining Work Summary (60 items across 10 tiers)
+## Remaining Work Summary (49 items across 9 tiers)
 
 | Tier | Source | Items | Description |
 | :--- | :--- | :--- | :--- |
-| 1 | ADR-023 | 11 | Edit loop foundation |
-| 2 | PRs 231/232/233/234 | 4 | Open PRs ready to merge |
-| 3 | ADR-024 Phases D/F | 6 | Sandbox drivers and MCP runtime |
-| 4 | ADR-024 | 3 | Workspace tools, MCP HTTP auth, `/plan` + `/context` |
-| 5 | ADR-021 P1 | 4 | Unbounded buffers and unhandled errors |
-| 6 | ADR-029/030/032 | 3 | Verification of already-implemented work |
-| 7 | ADR-021 P2 | 13 | Code quality and duplication removal |
-| 8 | ADR-021 P3 | 1 | Idle backoff tuning |
-| 9 | ADR-024 G/H + ADR-022 | 7 | Post-milestone release pipeline and packaging |
-| 10 | Multiple | 8 | Housekeeping: move completed ADRs, update status fields |
+| 1 | PRs 231/232/233/234 | 4 | Open PRs ready to merge |
+| 2 | ADR-024 Phases D/F | 6 | Sandbox drivers and MCP runtime |
+| 3 | ADR-024 | 3 | Workspace tools, MCP HTTP auth, `/plan` + `/context` |
+| 4 | ADR-021 P1 | 4 | Unbounded buffers and unhandled errors |
+| 5 | ADR-029/030/032 | 3 | Verification of already-implemented work |
+| 6 | ADR-021 P2 | 13 | Code quality and duplication removal |
+| 7 | ADR-021 P3 | 1 | Idle backoff tuning |
+| 8 | ADR-024 G/H + ADR-022 | 7 | Post-milestone release pipeline and packaging |
+| 9 | Multiple | 8 | Housekeeping: move completed ADRs, update status fields |
 
 ## Immediate Dependency Notes
 
 ```text
-ADR-023 Edit Loop (Tier 1, highest priority):
-  EL-01 -> EL-02, EL-03, EL-04, EL-05
-  EL-07 -> EL-08
-  EL-03 -> EL-04, EL-05, EL-10, EL-11
-  EL-12, EL-13 (complete)
-
-ADR-024 Phases (Tier 3-4, after open PRs merge):
+ADR-024 Phases (Tier 2-3, after open PRs merge):
   PR 231 -> PD-02, PD-03
   PR 232 -> PF-01, PF-02 -> PI-06, PI-07
   PP-01, PM-02, PI-08 (independent)
 
 Milestone-1 gate (passed 2026-03-15):
   ADR-022 phases 1-8 validated end-to-end
+  ADR-023 EL-01 through EL-13 (all complete)
   ADR-025 PI-09 through PI-12 (all complete)
   ADR-026 PI-13 through PI-16 (all complete)
   ADR-028 active follow-up
@@ -84,10 +78,9 @@ implementation-complete and pending housekeeping move to completed/.
 
 ## Current Next Work Batch
 
-The highest-priority remaining work is ADR-023 (edit loop, Tier 1), which
-gates all deterministic commands. In parallel, the four open PRs
-(231/232/233/234, Tier 2) should be merged to unblock Tier 3 sandbox and MCP
-work. See `TASKS/ACTIVE-ROADMAP.md` for the full 60-item, 10-tier breakdown.
+The highest-priority remaining work is merging the four open PRs
+(231/232/233/234, Tier 1) to unblock Tier 2 sandbox and MCP
+work. See `TASKS/ACTIVE-ROADMAP.md` for the full 49-item, 9-tier breakdown.
 
 ## Tracking Notes
 

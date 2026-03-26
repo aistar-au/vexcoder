@@ -25,7 +25,6 @@ All ADR files live under `adr/`.
 | [ADR-021](ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md) | Codebase audit | Accepted | 17 items (3 P1, 13 P2, 1 P3) |
 | [ADR-022 amendment](ADR-022-amendment-2026-03-13.md) | Command-execution amendment | Amended | Amendment only |
 | [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed (milestone-1 passed 2026-03-15) | Post-milestone phases G/H |
-| [ADR-023](ADR-023-deterministic-edit-loop.md) | Deterministic edit loop | Locked | 11 items (EL-01 through EL-11) |
 | [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps | Proposed | 16 items across phases D/F/G/H/I/M/P |
 | [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active | Phase 1+2 merged; ongoing alignment |
 | [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness | Accepted | Verification follow-up (8 decision items) |
@@ -44,27 +43,27 @@ the top-level `adr/` directory pending a housekeeping move.
 | :--- | :--- | :--- | :--- |
 | [ADR-013](ADR-013-tui-completion-deployment-plan.md) | TUI completion and deployment plan | Accepted | All phases complete |
 | [ADR-018](ADR-018-managed-tui-scrollback-streaming-cell-overlays.md) | Managed TUI scrollback | Superseded by ADR-027 | Retained for history |
+| [ADR-023](ADR-023-deterministic-edit-loop.md) | Deterministic edit loop | Complete | EL-01 through EL-13 all delivered |
 | [ADR-025](ADR-025-runtime-json-handoff-contract.md) | Runtime JSON handoff contract | Complete | PI-09 through PI-12 all delivered |
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding | Complete | PI-13 through PI-16 all delivered |
 | [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI command-session capture | Accepted (complete) | Supersedes ADR-018/019 |
 
-## Remaining Work Summary (60 items across 10 tiers)
+## Remaining Work Summary (49 items across 9 tiers)
 
 Tiers sorted by unblocking impact. Full per-item breakdown in
 `TASKS/ACTIVE-ROADMAP.md`.
 
 | Tier | Source | Items | Description |
 | :--- | :--- | :--- | :--- |
-| 1 | ADR-023 | 11 | Edit loop foundation (EL-01 through EL-11) |
-| 2 | PRs 231/232/233/234 | 4 | In-flight PRs ready to merge |
-| 3 | ADR-024 Phases D/F | 6 | Sandbox drivers and MCP runtime |
-| 4 | ADR-024 | 3 | Workspace tools, MCP HTTP auth, /plan+/context |
-| 5 | ADR-021 P1 | 4 | Unbounded buffers and unhandled errors |
-| 6 | ADR-029/030/032 | 3 | Verification of already-implemented work |
-| 7 | ADR-021 P2 | 13 | Code quality and duplication removal |
-| 8 | ADR-021 P3 | 1 | Idle backoff tuning |
-| 9 | ADR-024 G/H + ADR-022 | 7 | Post-milestone release pipeline and packaging |
-| 10 | Multiple | 8 | Housekeeping: move completed ADRs, update status fields |
+| 1 | PRs 231/232/233/234 | 4 | Open PRs ready to merge |
+| 2 | ADR-024 Phases D/F | 6 | Sandbox drivers and MCP runtime |
+| 3 | ADR-024 | 3 | Workspace tools, MCP HTTP auth, /plan+/context |
+| 4 | ADR-021 P1 | 4 | Unbounded buffers and unhandled errors |
+| 5 | ADR-029/030/032 | 3 | Verification of already-implemented work |
+| 6 | ADR-021 P2 | 13 | Code quality and duplication removal |
+| 7 | ADR-021 P3 | 1 | Idle backoff tuning |
+| 8 | ADR-024 G/H + ADR-022 | 7 | Post-milestone release pipeline and packaging |
+| 9 | Multiple | 8 | Housekeeping: move completed ADRs, update status fields |
 
 ## Completed ADR Records
 
