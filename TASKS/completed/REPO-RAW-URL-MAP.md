@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 224
+- Total tracked files: 234
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -104,6 +104,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 92 | `src/api/logging.rs` | ~85 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/logging.rs> |
 | 93 | `src/api/mock_client.rs` | ~47 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
 | 94 | `src/api/stream.rs` | ~573 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
+| 225 | `src/agents.rs` | ~444 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/agents.rs> |
 | 95 | `src/app.rs` | ~837 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
 | 96 | `src/app/accessors.rs` | ~464 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/accessors.rs> |
 | 97 | `src/app/commands.rs` | ~1048 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/commands.rs> |
@@ -233,3 +234,12 @@ Canonical raw URL index for every tracked file in this repository.
 | 221 | `tests/stream_parser_tests.rs` | ~191 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/stream_parser_tests.rs> |
 | 222 | `tests/dependency_direction_tests.rs` | ~263 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/dependency_direction_tests.rs> |
 | 223 | `tests/tool_operator_tests.rs` | ~276 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |
+| 226 | `tests/agents_config_tests.rs` | ~100 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/agents_config_tests.rs> |
+| 227 | `tests/tui_draw_snapshots.rs` | ~155 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tui_draw_snapshots.rs> |
+| 228 | `tests/snapshots/tui_draw_snapshots__snapshot_empty_state_80x24.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_empty_state_80x24.snap> |
+| 229 | `tests/snapshots/tui_draw_snapshots__snapshot_multiple_steps_80x24.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_multiple_steps_80x24.snap> |
+| 230 | `tests/snapshots/tui_draw_snapshots__snapshot_pending_approval_80x24.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_pending_approval_80x24.snap> |
+| 231 | `tests/snapshots/tui_draw_snapshots__snapshot_single_running_tool_80x24.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_single_running_tool_80x24.snap> |
+| 232 | `tests/snapshots/tui_draw_snapshots__snapshot_small_terminal_40x12.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_small_terminal_40x12.snap> |
+| 233 | `tests/snapshots/tui_draw_snapshots__snapshot_very_small_terminal_20x5.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_very_small_terminal_20x5.snap> |
+| 234 | `tests/snapshots/tui_draw_snapshots__snapshot_with_changed_files_80x24.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_with_changed_files_80x24.snap> |

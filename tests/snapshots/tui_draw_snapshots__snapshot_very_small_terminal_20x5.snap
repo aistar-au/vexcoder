@@ -1,0 +1,5 @@
+---
+source: tests/tui_draw_snapshots.rs
+expression: rendered
+---
+ │ hiPrompt› submit: / commands PgUp/PgDn transcript  Shift+Enter newline  Enter submittask:snap-001
