@@ -6,7 +6,6 @@ fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState
     TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:streaming approval:none repo:vexcoder inst:AGENTS.md".into(),
-        activity_rows: vec![],
         total_steps: entries.len(),
         timeline_entries: entries,
         selected_step: 0,
@@ -228,7 +227,6 @@ fn changing_selected_inspector_entry_redraws_output() {
     let first = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:streaming approval:none repo:vexcoder inst:none".into(),
-        activity_rows: vec![],
         timeline_entries: vec![
             TimelineEntry {
                 step_id: 1,
@@ -278,13 +276,12 @@ fn changing_selected_inspector_entry_redraws_output() {
 }
 
 #[test]
-fn activity_rows_do_not_render_in_fullscreen_transcript_surface() {
+fn empty_timeline_renders_separator_and_transcript() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:streaming approval:none repo:vexcoder inst:none".into(),
-        activity_rows: vec!["[->] validate: running...".into(), "> ship it".into()],
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -306,8 +303,6 @@ fn activity_rows_do_not_render_in_fullscreen_transcript_surface() {
     let output = String::from_utf8_lossy(&buf);
 
     assert!(output.contains("line 1"));
-    assert!(!output.contains("validate: running"));
-    assert!(!output.contains("ship it"));
 }
 
 #[test]
@@ -575,7 +570,6 @@ fn persistent_layout_starts_with_blank_transcript_before_first_turn() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
-        activity_rows: vec![],
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -652,7 +646,6 @@ fn fullscreen_surface_hides_top_header_chrome() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:streaming approval:none repo:myrepo inst:AGENTS.md".into(),
-        activity_rows: vec![],
         timeline_entries: vec![TimelineEntry {
             step_id: 1,
             lifecycle: StepLifecycle::Running,
@@ -693,7 +686,6 @@ fn inline_approval_renders_in_composer() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:overlay approval:pending repo:vexcoder inst:none".into(),
-        activity_rows: vec![],
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -753,7 +745,6 @@ fn fullscreen_surface_hides_token_indicator_when_tokens_recorded() {
         // tokens:2500 — just over 2k so the label rounds to "~2.5k ctx"
         status_line: "mode:ready approval:none history:2 repo:vexcoder inst:none tokens:2500"
             .into(),
-        activity_rows: vec![],
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -793,7 +784,6 @@ fn header_hides_token_indicator_when_no_turns_completed() {
         // tokens:0 — no turns completed yet
         status_line: "mode:ready approval:none history:0 repo:vexcoder inst:none tokens:0"
             .into(),
-        activity_rows: vec![],
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -827,7 +817,6 @@ fn composer_renders_live_input_text() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
-        activity_rows: vec![],
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -861,7 +850,6 @@ fn composer_header_renders_focus_and_char_count() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
-        activity_rows: vec![],
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -934,7 +922,6 @@ fn composer_hash_tracks_live_input_changes() {
     let first = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
-        activity_rows: vec![],
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -970,7 +957,6 @@ fn composer_hash_tracks_cursor_only_changes() {
     let first = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
-        activity_rows: vec![],
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -1329,7 +1315,6 @@ fn picker_overlay_renders_above_composer() {
     let state = TaskLayoutState {
         task_id: "test-picker".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
-        activity_rows: vec![],
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -1398,7 +1383,6 @@ fn picker_overlay_clears_when_dismissed() {
     let state_with_overlay = TaskLayoutState {
         task_id: "test-picker".into(),
         status_line: "mode:ready".into(),
-        activity_rows: vec![],
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -1448,7 +1432,6 @@ fn picker_overlay_hash_changes_on_selection_move() {
     let base = TaskLayoutState {
         task_id: "test".into(),
         status_line: "mode:ready".into(),
-        activity_rows: vec![],
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,

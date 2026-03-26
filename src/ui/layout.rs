@@ -46,13 +46,12 @@ pub fn split_four_region_layout(area: Rect, header_rows: u16, input_rows: u16) -
     let input_rows = input_rows
         .clamp(1, FIXED_FULLSCREEN_INPUT_ROWS)
         .min(max_input_rows);
-    let activity_rows = 0;
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(header_rows),
-            Constraint::Length(activity_rows),
+            Constraint::Length(0),
             Constraint::Min(1),
             Constraint::Length(input_rows),
         ])

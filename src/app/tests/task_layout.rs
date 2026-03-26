@@ -8,7 +8,6 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
     mode.on_user_input("hi".to_string(), &mut ctx);
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert_eq!(state.activity_rows, vec!["> hi".to_string()]);
     assert_eq!(
         state.output_rows,
         vec!["> hi".to_string(), "[waiting for response...]".to_string()]
@@ -122,7 +121,6 @@ fn test_task_layout_state_routes_streamed_response_to_output_pane() {
     );
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert_eq!(state.activity_rows, vec!["> hi".to_string()]);
     assert_eq!(
         state.output_rows,
         vec!["> hi".to_string(), "hello from model▌".to_string()]
@@ -197,7 +195,7 @@ fn test_manual_timeline_selection_opens_tool_inspector() {
 }
 
 #[test]
-fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
+fn test_task_layout_state_shows_pending_tool_call_in_timeline() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
@@ -241,20 +239,9 @@ fn test_task_layout_state_shows_pending_tool_call_and_caps_activity_rows() {
 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(
-        state.activity_rows.len(),
-        6,
-        "activity pane should clamp to six rows"
-    );
-    assert_eq!(
-        state.activity_rows,
-        vec![
-            "[ok] read_file: ok".to_string(),
-            "[ok] edit_file: ok".to_string(),
-            "[ok] run_command: ok".to_string(),
-            "[ok] write_file: ok".to_string(),
-            "[ok] apply_patch: ok".to_string(),
-            "[->] validate: running...".to_string(),
-        ]
+        state.timeline_entries.len(),
+        7,
+        "timeline should contain user input + 5 completed + 1 pending"
     );
 }
 
@@ -338,15 +325,6 @@ fn test_task_layout_state_keeps_command_sessions_alongside_other_steps() {
             "read_file · ok · completed".to_string(),
             "run_command: running...".to_string(),
             "cargo nextest run -j 2: running".to_string(),
-        ]
-    );
-    assert_eq!(
-        state.activity_rows,
-        vec![
-            "> run the validation".to_string(),
-            "[ok] read_file: ok".to_string(),
-            "[->] run_command: running...".to_string(),
-            "[$$] cargo nextest run -j 2: running".to_string(),
         ]
     );
 }

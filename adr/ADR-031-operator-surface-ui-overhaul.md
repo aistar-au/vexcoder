@@ -262,10 +262,9 @@ Work should be split so that prerequisite batches land first in this order:
 Independent cleanup, tests, and renderer polish may proceed in parallel on
 remote branches, but merges must respect the dependency chain above.
 
-At the time of this update, Batches A and B are already merged into `main`, so
-the active implementation queue for this ADR begins with Batch C. No Batch F
-is currently defined by this ADR; any additional lane requires an ADR update
-before dispatch.
+Batches A through E are merged into `main`. The implementation queue for
+this ADR is complete. No Batch F is currently defined by this ADR; any
+additional lane requires an ADR update before dispatch.
 
 ## Batch descriptions
 
@@ -290,8 +289,9 @@ This batch is merged into `main`.
 
 Batch B implementation on main includes stable timeline entries, selected step
 focus, inspector/transcript routing from canonical task state, and unified
-derivation for structured timeline rows plus legacy activity summaries so
-command-session rows remain visible alongside other in-flight task steps.
+derivation for structured timeline rows so command-session rows remain
+visible alongside other in-flight task steps. The legacy `activity_rows`
+derivation was removed in Batch E.
 
 **Batch C — Full-screen scroll ownership**
 Moves scroll from transcript-only behavior to timeline/output ownership using
@@ -302,9 +302,12 @@ consumes A.
 Presentation and interaction behavior for the selected row.
 Parallel-dispatchable, merge-gated by A and whatever derivation it consumes.
 
-**Batch E — Fallback removal / prompt-yield cleanup**
-Removes legacy behavior once the new state and rendering path are proven.
-Should merge last.
+**Batch E — Fallback removal / prompt-yield cleanup** *(merged)*
+Removed legacy `activity_rows` derivation (`task_activity_rows_from()`),
+fallback rendering paths (`draw_timeline_fallback()`,
+`draw_legacy_activity_row()`), and the `legacy_row` field from
+`TaskStepView`. The structured timeline renderer is now the sole rendering
+path.
 
 ## Compliance note for operators and agents
 
@@ -359,8 +362,8 @@ This distinction is what ADR-030 is designed to protect.
 
 - requires additional task-state surface area for selected-step identity
 - adds merge-gating complexity for dependent batches
-- batch E (fallback removal) cannot land until the full rendering path is
-  proven
+- batch E (fallback removal) landed after the full rendering path was proven
+  end-to-end across Batches A–D
 
 ## Non-goals
 

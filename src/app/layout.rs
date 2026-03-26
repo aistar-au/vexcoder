@@ -5,7 +5,6 @@ struct TaskStepView {
     lifecycle: StepLifecycle,
     label: String,
     detail: String,
-    legacy_row: String,
     session_id: Option<u64>,
 }
 
@@ -64,7 +63,6 @@ impl TuiMode {
                 lifecycle: StepLifecycle::UserInput,
                 label: input_text.clone(),
                 detail: input_text.clone(),
-                legacy_row: format!("> {}", input_text),
                 session_id: None,
             });
         }
@@ -73,7 +71,6 @@ impl TuiMode {
         // pending call that created them.
         for invocation in tool_invocations {
             let is_error = tool_outcome_is_error(&invocation.outcome);
-            let legacy_prefix = if is_error { "[!]" } else { "[ok]" };
             entries.push(TaskStepView {
                 step_id: invocation.step_id,
                 lifecycle: if is_error {
@@ -83,10 +80,6 @@ impl TuiMode {
                 },
                 label: timeline_label_for_invocation(invocation),
                 detail: format!("Tool: {}\nOutcome: {}", invocation.name, invocation.outcome,),
-                legacy_row: format!(
-                    "{legacy_prefix} {}: {}",
-                    invocation.name, invocation.outcome
-                ),
                 session_id: None,
             });
         }
@@ -120,17 +113,11 @@ impl TuiMode {
                     StepLifecycle::Approved => "approved",
                     _ => "running...",
                 };
-                let legacy_prefix = match lifecycle {
-                    StepLifecycle::AwaitingApproval => "[?]",
-                    StepLifecycle::Approved => "[v]",
-                    _ => "[->]",
-                };
                 entries.push(TaskStepView {
                     step_id: pending.step_id,
                     lifecycle,
                     label: format!("{}: {}", pending.name, status),
                     detail: format!("Tool: {}\nInput:\n{}", pending.name, input_preview),
-                    legacy_row: format!("{legacy_prefix} {}: {}", pending.name, status),
                     session_id: None,
                 });
             }
@@ -151,43 +138,11 @@ impl TuiMode {
                     "command: {}\npid: {}\nstatus: {}",
                     session.command, pid, session.status,
                 ),
-                legacy_row: format!("[$$] {}: {}", session.command, session.status),
                 session_id: Some(session.id),
             });
         }
 
         entries
-    }
-
-    fn task_activity_rows_from(
-        steps: &[TaskStepView],
-        history: &super::HistoryState,
-    ) -> Vec<String> {
-        const MAX_ACTIVITY_ROWS: usize = 6;
-
-        let rows: Vec<String> = steps.iter().map(|step| step.legacy_row.clone()).collect();
-
-        if rows.is_empty() {
-            return history
-                .lines
-                .iter()
-                .rev()
-                .filter(|line| !line.trim().is_empty())
-                .take(MAX_ACTIVITY_ROWS)
-                .cloned()
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect();
-        }
-
-        // Clamp to the most-recent MAX_ACTIVITY_ROWS lines for a stable
-        // 6-line dropdown appearance.
-        rows.into_iter()
-            .rev()
-            .take(MAX_ACTIVITY_ROWS)
-            .rev()
-            .collect()
     }
 
     /// Derive output/inspector rows for the output pane.
@@ -315,7 +270,6 @@ impl TuiMode {
         };
 
         let steps = self.task_step_views();
-        let activity_rows = Self::task_activity_rows_from(&steps, &self.history_state);
         let timeline_entries = Self::task_timeline_entries_from(&steps);
         let total_steps = timeline_entries.len();
         let selected_step = self
@@ -338,7 +292,6 @@ impl TuiMode {
         Some(TaskLayoutState {
             task_id: self.current_task.id.clone(),
             status_line: self.status_line(),
-            activity_rows,
             timeline_entries,
             selected_step,
             total_steps,

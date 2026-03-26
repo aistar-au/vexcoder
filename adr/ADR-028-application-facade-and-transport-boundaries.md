@@ -368,6 +368,11 @@ monochrome `Line::from` strings with no structured prefix styling.
 - `render_task_layout` activity title now reflects state: "Orchestrating" when
   in-flight steps exist, "Steps" otherwise.
 
+> **Implementation note (ADR-031 Batch E):** The `task_activity_rows()` function
+> and the `activity_rows` field described above were removed in ADR-031 Batch E.
+> The structured timeline renderer now derives all step rows directly from
+> canonical task state, superseding the legacy activity-row derivation.
+
 ---
 
 ## References
