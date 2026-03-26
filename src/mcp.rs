@@ -71,7 +71,22 @@ pub struct McpRegistry {
 }
 
 struct McpConnectedServer {
-    runtime: tokio::sync::Mutex<RunningService<RoleClient, ()>>,
+    runtime: tokio::sync::Mutex<Option<RunningService<RoleClient, ()>>>,
+}
+
+impl McpConnectedServer {
+    async fn shutdown(&self) {
+        let runtime = self.runtime.lock().await.take();
+        if let Some(runtime) = runtime {
+            let _ = runtime.cancel().await;
+        }
+    }
+
+    async fn shutdown_owned(self) {
+        if let Some(runtime) = self.runtime.into_inner() {
+            let _ = runtime.cancel().await;
+        }
+    }
 }
 
 impl McpRegistry {
@@ -104,10 +119,7 @@ impl McpRegistry {
                 Ok(rt) => rt,
                 Err(error) => {
                     // Explicitly cancel already-connected servers before propagating.
-                    for connected in servers.drain(..) {
-                        let rt = connected.runtime.into_inner();
-                        let _ = rt.cancel().await;
-                    }
+                    shutdown_connected_servers(std::mem::take(&mut servers)).await;
                     return Err(error);
                 }
             };
@@ -116,10 +128,7 @@ impl McpRegistry {
                 Ok(t) => t,
                 Err(error) => {
                     let _ = runtime.cancel().await;
-                    for connected in servers.drain(..) {
-                        let rt = connected.runtime.into_inner();
-                        let _ = rt.cancel().await;
-                    }
+                    shutdown_connected_servers(std::mem::take(&mut servers)).await;
                     return Err(error).with_context(|| {
                         format!("failed to list tools for MCP server '{}'", config.name)
                     });
@@ -157,7 +166,7 @@ impl McpRegistry {
                 tools: server_tools,
             });
             servers.push(McpConnectedServer {
-                runtime: tokio::sync::Mutex::new(runtime),
+                runtime: tokio::sync::Mutex::new(Some(runtime)),
             });
         }
 
@@ -202,6 +211,12 @@ impl McpRegistry {
         self.tool_definitions.clone()
     }
 
+    pub async fn shutdown(&self) {
+        for server in self.servers.iter() {
+            server.shutdown().await;
+        }
+    }
+
     pub async fn call_tool(&self, full_name: &str, input: &Value) -> Result<String> {
         let (server_index, short_name) = self
             .tool_lookup
@@ -218,7 +233,10 @@ impl McpRegistry {
             .servers
             .get(server_index)
             .ok_or_else(|| anyhow!("missing MCP server index for '{full_name}'"))?;
-        let runtime = server.runtime.lock().await;
+        let mut runtime = server.runtime.lock().await;
+        let runtime = runtime
+            .as_mut()
+            .ok_or_else(|| anyhow!("MCP server for '{full_name}' is shutting down"))?;
         let params = if arguments.is_empty() {
             CallToolRequestParams::new(short_name)
         } else {
@@ -231,6 +249,40 @@ impl McpRegistry {
             .with_context(|| format!("failed to execute MCP tool '{full_name}'"))?;
         format_tool_result(full_name, &result)
     }
+}
+
+impl Drop for McpRegistry {
+    fn drop(&mut self) {
+        if self.servers.is_empty() {
+            return;
+        }
+
+        spawn_shutdown_thread(Arc::clone(&self.servers));
+    }
+}
+
+async fn shutdown_connected_servers(servers: Vec<McpConnectedServer>) {
+    for server in servers {
+        server.shutdown_owned().await;
+    }
+}
+
+fn spawn_shutdown_thread(servers: Arc<Vec<McpConnectedServer>>) {
+    let _ = std::thread::Builder::new()
+        .name("vex-mcp-shutdown".to_string())
+        .spawn(move || {
+            let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            else {
+                return;
+            };
+            runtime.block_on(async move {
+                for server in servers.iter() {
+                    server.shutdown().await;
+                }
+            });
+        });
 }
 
 async fn connect_server(config: &McpServerConfig) -> Result<RunningService<RoleClient, ()>> {

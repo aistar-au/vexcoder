@@ -140,6 +140,12 @@ impl ConversationManager {
         self
     }
 
+    pub async fn shutdown_resources(&mut self) {
+        if let Some(mcp_registry) = self.mcp_registry.take() {
+            mcp_registry.shutdown().await;
+        }
+    }
+
     #[cfg(test)]
     pub fn new_mock(client: ApiClient, tool_operator_responses: HashMap<String, String>) -> Self {
         Self {

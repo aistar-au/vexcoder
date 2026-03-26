@@ -1161,7 +1161,7 @@ impl TuiMode {
     }
     pub(super) fn handle_resume_command(&mut self, task_id: &str, ctx: &mut RuntimeContext) {
         if task_id.is_empty() {
-            let entries = list_recent_task_entries(5);
+            let entries = list_recent_task_entries(&self.working_dir, 5);
             if entries.is_empty() {
                 self.push_history_line("[resume] no saved tasks found".to_string());
                 return;
@@ -1169,7 +1169,7 @@ impl TuiMode {
             self.prompt_resume_selection(entries);
             return;
         }
-        match TaskState::load_from_search_dirs(task_id) {
+        match TaskState::load_from_search_dirs_from(&self.working_dir, task_id) {
             Ok(state) => self.apply_resumed_task(state, ctx),
             Err(_) => {
                 self.push_history_line(format!("[resume: task '{task_id}' not found]"));

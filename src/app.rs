@@ -134,6 +134,7 @@ struct PendingResumeSelection {
 
 #[derive(Clone)]
 struct ResumeTaskEntry {
+    dir: PathBuf,
     id: String,
     status: String,
 }

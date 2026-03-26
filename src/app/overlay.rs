@@ -154,7 +154,7 @@ impl TuiMode {
         };
 
         self.overlay_state.pending_resume_selection = None;
-        match TaskState::load_from_search_dirs(&entry.id) {
+        match TaskState::load(&entry.dir, &entry.id) {
             Ok(state) => self.apply_resumed_task(state, ctx),
             Err(_) => {
                 self.push_history_line(format!("[resume: task '{}' not found]", entry.id));

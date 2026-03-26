@@ -4,7 +4,7 @@ use super::{
     MAX_HISTORY_LINES_ENV, SLASH_COMMANDS,
 };
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(super) fn builtin_slash_command_names() -> Vec<String> {
     let mut names = SLASH_COMMANDS
@@ -290,16 +290,18 @@ pub(super) fn summarize_tool_outcome(output: &str, is_error: bool) -> &'static s
     }
 }
 
-pub(super) fn list_recent_task_entries(limit: usize) -> Vec<ResumeTaskEntry> {
-    TaskState::state_files()
+pub(super) fn list_recent_task_entries(working_dir: &Path, limit: usize) -> Vec<ResumeTaskEntry> {
+    TaskState::state_files_from(working_dir)
         .into_iter()
         .take(limit)
         .map(|file| match TaskState::load(&file.dir, &file.id) {
             Ok(state) => ResumeTaskEntry {
+                dir: file.dir,
                 id: state.id,
                 status: format!("{:?}", state.status),
             },
             Err(_) => ResumeTaskEntry {
+                dir: file.dir,
                 id: file.id,
                 status: "Unreadable".to_string(),
             },

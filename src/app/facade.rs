@@ -88,6 +88,7 @@ where
 {
     let (mut runtime, mut ctx, bootstrap) = build_facade_runtime(config, mode)?;
     runtime.run(frontend, &mut ctx).await;
+    ctx.shutdown_resources().await;
     Ok(bootstrap)
 }
 
@@ -104,5 +105,6 @@ where
         None => build_runtime(config)?,
     };
     runtime.run(frontend, &mut ctx).await;
+    ctx.shutdown_resources().await;
     Ok(())
 }

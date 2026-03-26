@@ -268,6 +268,13 @@ impl RuntimeContext {
         self.cancel = CancellationToken::new();
     }
 
+    pub async fn shutdown_resources(&mut self) {
+        self.cancel.cancel();
+        let mut conversation = self.conversation.lock().await;
+        conversation.shutdown_resources().await;
+        self.cancel = CancellationToken::new();
+    }
+
     pub fn turn_cancellation_token(&self) -> CancellationToken {
         self.cancel.child_token()
     }

@@ -567,6 +567,7 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
     mode.on_user_input(task, &mut ctx);
 
     if mode.is_done() {
+        ctx.shutdown_resources().await;
         return Ok(BatchResult {
             status: mode.status,
             output_lines: mode.output_lines,
@@ -582,6 +583,8 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
             break;
         }
     }
+
+    ctx.shutdown_resources().await;
 
     Ok(BatchResult {
         status: mode.status,
