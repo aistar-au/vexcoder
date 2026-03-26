@@ -1,7 +1,7 @@
 # ADR-024: Zero-Licensing-Cost Agent Parity Gaps — Sandboxing, Headless Mode, Layered Config, MCP, Distribution, Skills, and Migration
 
 **Date:** 2026-03-03  
-**Status:** Proposed  
+**Status:** Active
 **Deciders:** Core maintainer  
 **Location:** `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md`
 **ADR chain:** ADR-022 (as amended 2026-03-03 — amendment status: Proposed, must be locked before Phases G–H begin), ADR-023 (deterministic edit loop), ADR-014, ADR-006
@@ -38,7 +38,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 2 | No non-interactive execution mode | Proposed |
 | 3 | No layered configuration | Proposed |
 | 4 | No project instructions file | Proposed |
-| 5 | No MCP server integration | Proposed |
+| 5 | No MCP server integration | Active |
 | 6 | No shell completions | Proposed |
 | 7 | No git commit attribution | Proposed |
 | 8 | No runtime model switching | Proposed |
@@ -48,14 +48,14 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 12 | Code search / indexing | Formally deferred |
 | 13 | No interactive permission-control command surface | Proposed |
 | 14 | No session-lifecycle command surface | Proposed |
-| 15 | No MCP command-level management surface | Proposed (extends Gap 5) |
+| 15 | No MCP command-level management surface | Active (extends Gap 5) |
 | 16 | No user persistent notes (`/memory`) | Proposed |
 | 17 | No project bootstrapping sub-command (`vex init`) | Proposed |
 | 18 | No graceful exit command or session metadata display | Proposed |
 | 19 | No `@<path>` inline file injection | Proposed |
 | 20 | No `!<command>` inline shell passthrough | Proposed |
 | 21 | No user-defined slash commands | Proposed |
-| 22 | No `/tools` active tool enumeration | Proposed |
+| 22 | No `/tools` active tool enumeration | Active |
 | 23 | No `/diff` zero-turn working-tree diff display | Proposed |
 | 24 | No git workflow integration beyond commit attribution | Proposed |
 | 25 | No test generation semantic command (`/generate-tests`) | Proposed |
@@ -64,7 +64,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 28 | No session-level token counter | Proposed |
 | 29 | No conversation and task export sub-command (`vex export`) | Proposed |
 | 30 | No `--resume` CLI startup flag | Proposed |
-| 31 | No MCP HTTP server authentication headers | Proposed (extends Gap 5) |
+| 31 | No MCP HTTP server authentication headers | Active (extends Gap 5) |
 | 32 | No `-p`/`--print` one-shot plain-text flag | Proposed |
 | 35 | No model-callable workspace exploration tools (`search_files`, `list_dir`, `glob_files`) | Proposed |
 
@@ -486,23 +486,23 @@ Gap 5 defined `McpRegistry` config and tool dispatch. Reference CLIs additionall
 
 ```
 /mcp list
-    Renders all loaded MCP servers from the live McpRegistry to transcript.
+    Renders all loaded MCP servers from the live McpRegistry snapshot to transcript.
     No model turn. Output format:
-      [mcp servers]
-        my-server   : running  (12 tools)
-        other-server: running  (3 tools)
-    If McpRegistry is empty: "[mcp] no MCP servers configured".
-    If McpRegistry is not yet loaded (session startup still in progress):
-    "[mcp] registry not yet available".
+      [mcp]
+      [mcp] 2 server(s), 15 tool(s) loaded
+        my-server transport=stdio tools=12
+        other-server transport=http tools=3
+    If McpRegistry is empty: "[mcp] no MCP servers loaded".
 
 /mcp show <server-name>
     Renders all tool names advertised by the named server.
     Output format:
-      [mcp: my-server]
+      [mcp:my-server]
+      [mcp:my-server] transport=stdio tools=12
         mcp.my-server.read_file
         mcp.my-server.write_file
         ...
-    Unknown server name → "[mcp: '<name>' not found]".
+    Unknown server name → "[mcp] unknown server '<name>'".
 ```
 
 **Constraints:**
@@ -716,17 +716,20 @@ Operators need to inspect what tools the agent can invoke in the current session
 
 ```
 /tools [desc]
-    Renders all registered tools from the live dispatch table.
+    Renders built-in tools plus any loaded MCP tools.
     No model turn. Output format:
       [tools]
+        [tools] live registry: 18 built-in tool(s), 2 MCP server(s), 15 MCP tool(s)
+      [tools:mcp]
+        mcp.my-server.read_file
+        mcp.my-server.write_file
+      [tools:retrieve]
         read_file
         write_file
         apply_patch
         run_command
-        mcp.my-server.read_file
-        mcp.my-server.write_file
     /tools desc — includes one-line description per tool from the tool schema.
-    If McpRegistry is not yet loaded: "[tools] MCP registry not yet available; built-in tools only".
+    If no MCP servers are loaded: "[tools] live registry: built-in tools only".
 ```
 
 **Constraints:** `/tools` and `/tools desc` must never start a model turn. Tool list must be read from the live dispatch table, not a hardcoded list. MCP-namespaced tools use the same `mcp.<server>.<tool>` format as `/mcp show`.

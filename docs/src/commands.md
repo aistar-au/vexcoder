@@ -168,7 +168,16 @@ Commands entered inside the interactive UI start with `/`.
   - Scaffolds `.vex/config.toml`, `.vex/validate.toml`, and `AGENTS.md` in the current workspace.
   - Reports the selected environment label in the transcript when one is supplied.
 - `/context`
+- `/mcp [list|show <server>]`
+  - Zero-turn MCP inspection surface.
+  - `/mcp` and `/mcp list` show loaded servers, transports, and tool counts.
+  - `/mcp show <server>` lists the server's fully qualified `mcp.<server>.<tool>` names.
+  - If no servers are loaded, the transcript shows `[mcp] no MCP servers loaded`.
 - `/tools [desc]`
+  - Zero-turn tool inventory.
+  - Always shows built-in tools and retrieval/mutation guidance.
+  - Includes loaded MCP tools under a dedicated `[tools:mcp]` section.
+  - `/tools desc` adds one-line descriptions from the tool schemas.
 - `/usage`
 - `/commands`
 - `/help`
