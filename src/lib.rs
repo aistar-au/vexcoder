@@ -11,6 +11,7 @@ pub mod export;
 pub mod git_hooks;
 pub mod init;
 pub(crate) mod local_api;
+pub mod mcp;
 pub mod pr_summary;
 pub mod prompts;
 pub mod runtime;

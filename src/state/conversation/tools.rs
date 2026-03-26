@@ -1,6 +1,7 @@
 use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, TurnToolPolicy};
 use crate::config::{HookEvent, HookOnFail};
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
+use crate::mcp::McpRegistry;
 use crate::runtime::{
     format_command_session_cancelled, format_command_session_exit, format_command_session_output,
     format_command_session_started, CommandRequest, CommandRunner, ConfiguredSandbox,
@@ -193,6 +194,8 @@ impl ConversationManager {
             .await
         } else if name == "codebase_search" {
             execute_codebase_search_tool(&self.tool_operator, input).await
+        } else if name.starts_with("mcp.") {
+            execute_mcp_tool(self.mcp_registry.as_ref(), name, input).await
         } else {
             let task_name = tool_name.clone();
             let task_input = input.clone();
@@ -368,6 +371,15 @@ async fn execute_codebase_search_tool(
     };
 
     Ok(search::format_search_results(query, &merged_results))
+}
+
+async fn execute_mcp_tool(
+    registry: Option<&std::sync::Arc<McpRegistry>>,
+    name: &str,
+    input: &serde_json::Value,
+) -> Result<String> {
+    let registry = registry.ok_or_else(|| anyhow::anyhow!("MCP registry not loaded"))?;
+    registry.call_tool(name, input).await
 }
 
 async fn execute_run_command_tool(

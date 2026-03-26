@@ -1,6 +1,7 @@
 use anyhow::{bail, Context, Result};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::runtime::{ModelBackendKind, ModelProtocol, SandboxConfig, SandboxKind, ToolCallMode};
@@ -38,6 +39,37 @@ pub struct HookConfig {
     pub args: Vec<String>,
     #[serde(default = "default_hook_on_fail")]
     pub on_fail: HookOnFail,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum McpTransport {
+    Stdio,
+    Http,
+}
+
+impl McpTransport {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Stdio => "stdio",
+            Self::Http => "http",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct McpServerConfig {
+    pub name: String,
+    pub transport: McpTransport,
+    pub command: Option<String>,
+    #[serde(default)]
+    pub args: Vec<String>,
+    pub url: Option<String>,
+    #[serde(default)]
+    pub headers: BTreeMap<String, String>,
+    /// Per-server connection timeout in seconds.  Falls back to
+    /// `VEX_MCP_TIMEOUT` env var, then the built-in default (30 s).
+    pub timeout_secs: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -114,6 +146,8 @@ pub struct Config {
     pub api: ApiConfig,
     #[serde(default)]
     pub hooks: Vec<HookConfig>,
+    #[serde(default)]
+    pub mcp_servers: Vec<McpServerConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,6 +188,7 @@ struct ConfigLayer {
     notes_path: Option<PathBuf>,
     api: Option<ApiConfigLayer>,
     hooks: Option<Vec<HookConfig>>,
+    mcp_servers: Option<Vec<McpServerConfig>>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -263,6 +298,28 @@ impl Config {
 
         if repo_layer
             .as_ref()
+            .map(|l| l.mcp_servers.is_some())
+            .unwrap_or(false)
+        {
+            bail!(
+                "'[[mcp_servers]]' found in repo-local config '{}': MCP servers must be set in user config layer only",
+                repo_cfg.unwrap_or(Path::new("<unknown>")).display()
+            );
+        }
+
+        if system_layer
+            .as_ref()
+            .map(|l| l.mcp_servers.is_some())
+            .unwrap_or(false)
+        {
+            bail!(
+                "'[[mcp_servers]]' found in system config '{}': MCP servers must be set in user config layer only",
+                system_cfg.unwrap_or(Path::new("<unknown>")).display()
+            );
+        }
+
+        if repo_layer
+            .as_ref()
             .and_then(|layer| layer.api.as_ref())
             .and_then(|api| api.key.as_ref())
             .is_some()
@@ -315,6 +372,7 @@ impl Config {
             notes_path: None,
             api: ApiConfig::default(),
             hooks: Vec::new(),
+            mcp_servers: Vec::new(),
         }
     }
 
@@ -498,6 +556,7 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
         notes_path: over.notes_path.or(base.notes_path),
         api: apply_api_over(base.api, over.api),
         hooks: over.hooks.or(base.hooks),
+        mcp_servers: over.mcp_servers.or(base.mcp_servers),
     }
 }
 
@@ -669,6 +728,7 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
             .map(PathBuf::from),
         max_project_instructions_tokens,
         max_memory_tokens,
+        mcp_servers: None,
         notes_path: None,
         api: Some(ApiConfigLayer {
             transport: api_transport,
@@ -804,6 +864,15 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
                 path.display()
             );
         }
+    }
+
+    if let Some(ref servers) = layer.mcp_servers {
+        validate_mcp_servers(servers.clone()).with_context(|| {
+            format!(
+                "config file '{}': invalid [[mcp_servers]] entry",
+                path.display()
+            )
+        })?;
     }
 
     Ok(Some(layer))
@@ -948,6 +1017,7 @@ fn resolve_config(
         require: merged.sandbox_require.unwrap_or(false),
     };
     let api = resolve_api_config(merged.api)?;
+    let mcp_servers = validate_mcp_servers(merged.mcp_servers.unwrap_or_default())?;
 
     Ok(Config {
         model_token: env_token,
@@ -966,6 +1036,7 @@ fn resolve_config(
         notes_path: merged.notes_path.map(expand_home),
         api,
         hooks: merged.hooks.unwrap_or_default(),
+        mcp_servers,
     })
 }
 
@@ -1022,6 +1093,89 @@ fn resolve_secret_reference(value: Option<String>) -> Option<String> {
             .filter(|env| !env.is_empty());
     }
     Some(trimmed.to_string())
+}
+
+fn validate_mcp_servers(servers: Vec<McpServerConfig>) -> Result<Vec<McpServerConfig>> {
+    let mut validated = Vec::new();
+    let mut seen_names = HashSet::new();
+
+    for mut server in servers {
+        server.name = server.name.trim().to_string();
+        if server.name.is_empty() {
+            bail!("mcp_servers.name must not be empty");
+        }
+        if !seen_names.insert(server.name.clone()) {
+            bail!("duplicate mcp server name '{}'", server.name);
+        }
+
+        server.args = server
+            .args
+            .into_iter()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .collect();
+
+        match server.transport {
+            McpTransport::Stdio => {
+                let command = server
+                    .command
+                    .take()
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("stdio MCP server '{}' requires 'command'", server.name)
+                    })?;
+                if server
+                    .url
+                    .as_ref()
+                    .is_some_and(|value| !value.trim().is_empty())
+                {
+                    bail!("stdio MCP server '{}' must not set 'url'", server.name);
+                }
+                if !server.headers.is_empty() {
+                    bail!("stdio MCP server '{}' must not set headers", server.name);
+                }
+                server.command = Some(command);
+                server.url = None;
+            }
+            McpTransport::Http => {
+                let url = server
+                    .url
+                    .take()
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("http MCP server '{}' requires 'url'", server.name)
+                    })?;
+                if server
+                    .command
+                    .as_ref()
+                    .is_some_and(|value| !value.trim().is_empty())
+                {
+                    bail!("http MCP server '{}' must not set 'command'", server.name);
+                }
+                if !server.args.is_empty() {
+                    bail!("http MCP server '{}' must not set 'args'", server.name);
+                }
+                let mut headers = BTreeMap::new();
+                for (name, value) in server.headers {
+                    let name = name.trim().to_string();
+                    if name.is_empty() {
+                        bail!("http MCP server '{}' has an empty header name", server.name);
+                    }
+                    let value = crate::mcp::resolve_mcp_header_env(&value)?;
+                    headers.insert(name, value);
+                }
+                server.command = None;
+                server.url = Some(url);
+                server.headers = headers;
+            }
+        }
+
+        validated.push(server);
+    }
+
+    Ok(validated)
 }
 
 fn resolve_working_dir(working_dir: Option<PathBuf>, fallback_cwd: &Path) -> PathBuf {

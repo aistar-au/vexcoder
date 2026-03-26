@@ -4,6 +4,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::Config;
+use crate::mcp::McpRegistry;
 use crate::runtime::{
     context::RuntimeContext,
     frontend::{FrontendAdapter, UserInputEvent},
@@ -480,7 +481,15 @@ pub fn build_batch_runtime(
     let (sandbox, sandbox_warning) = resolve_configured_sandbox(&config.sandbox)?;
     let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
     let (client, notes_warning) = build_api_client_with_notes(config)?;
-    let client = client.with_project_instructions(instructions_text);
+    let mcp_registry = McpRegistry::connect_all_blocking(&config.mcp_servers)?;
+    let client = client
+        .with_project_instructions(instructions_text)
+        .with_extra_tool_definitions(
+            mcp_registry
+                .as_ref()
+                .map(|registry| registry.tool_definitions())
+                .unwrap_or_default(),
+        );
     if let Some(warning) = notes_warning {
         eprintln!("{warning}");
     }
@@ -489,7 +498,8 @@ pub fn build_batch_runtime(
     }
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
-        .with_sandbox(sandbox);
+        .with_sandbox(sandbox)
+        .with_mcp_registry(mcp_registry);
 
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
@@ -524,7 +534,15 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
     let (sandbox, sandbox_warning) = resolve_configured_sandbox(&config.sandbox)?;
     let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
     let (client, notes_warning) = build_api_client_with_notes(config)?;
-    let client = client.with_project_instructions(instructions_text);
+    let mcp_registry = McpRegistry::connect_all_blocking(&config.mcp_servers)?;
+    let client = client
+        .with_project_instructions(instructions_text)
+        .with_extra_tool_definitions(
+            mcp_registry
+                .as_ref()
+                .map(|registry| registry.tool_definitions())
+                .unwrap_or_default(),
+        );
     if let Some(warning) = notes_warning {
         eprintln!("{warning}");
     }
@@ -533,7 +551,8 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
     }
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
-        .with_sandbox(sandbox);
+        .with_sandbox(sandbox)
+        .with_mcp_registry(mcp_registry);
 
     let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
@@ -835,6 +854,7 @@ mod tests {
             max_memory_tokens: 2048,
             sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
             notes_path: Some(notes_path.clone()),
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1112,6 +1132,7 @@ mod tests {
             max_memory_tokens: 2048,
             sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
             notes_path: Some(notes_path),
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1148,6 +1169,7 @@ mod tests {
             max_memory_tokens: 2048,
             sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1179,6 +1201,7 @@ mod tests {
             max_memory_tokens: 2048,
             sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),

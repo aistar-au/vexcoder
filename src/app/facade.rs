@@ -1,5 +1,6 @@
 use super::*;
 use crate::api::ApiClient;
+use crate::mcp::{McpRegistry, McpRegistrySnapshot};
 use crate::runtime::frontend::FrontendAdapter;
 use crate::runtime::{resolve_configured_sandbox, ConfiguredSandbox};
 
@@ -9,6 +10,7 @@ pub struct FacadeBootstrap {
     pub notes_warning: Option<String>,
     pub sandbox: ConfiguredSandbox,
     pub sandbox_warning: Option<String>,
+    pub mcp_snapshot: Option<McpRegistrySnapshot>,
 }
 
 pub fn build_facade_client(config: &Config) -> AppResult<(ApiClient, FacadeBootstrap)> {
@@ -43,6 +45,7 @@ pub fn build_facade_client(config: &Config) -> AppResult<(ApiClient, FacadeBoots
             notes_warning,
             sandbox: ConfiguredSandbox::default(),
             sandbox_warning: None,
+            mcp_snapshot: None,
         },
     ))
 }
@@ -52,12 +55,22 @@ pub fn build_facade_runtime<M: RuntimeMode>(
     mode: M,
 ) -> AppResult<(Runtime<M>, RuntimeContext, FacadeBootstrap)> {
     let (sandbox, sandbox_warning) = resolve_configured_sandbox(&config.sandbox)?;
+    let mcp_registry = McpRegistry::connect_all_blocking(&config.mcp_servers)?;
+    let mcp_snapshot = mcp_registry.as_ref().map(|registry| registry.snapshot());
     let (client, mut bootstrap) = build_facade_client(config)?;
+    let client = client.with_extra_tool_definitions(
+        mcp_registry
+            .as_ref()
+            .map(|registry| registry.tool_definitions())
+            .unwrap_or_default(),
+    );
     bootstrap.sandbox = sandbox.clone();
     bootstrap.sandbox_warning = sandbox_warning;
+    bootstrap.mcp_snapshot = mcp_snapshot;
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
-        .with_sandbox(sandbox);
+        .with_sandbox(sandbox)
+        .with_mcp_registry(mcp_registry);
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
     let runtime = Runtime::new(mode, update_rx);

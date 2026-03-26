@@ -5,6 +5,7 @@ pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext
     let (mut runtime, ctx, bootstrap) = build_facade_runtime(&config, mode)?;
     runtime.mode.instructions_path = bootstrap.instructions_path;
     runtime.mode.sandbox = bootstrap.sandbox;
+    runtime.mode.mcp_snapshot = bootstrap.mcp_snapshot;
     runtime.mode.current_task.instructions_path = runtime.mode.instructions_path.clone();
     if let Some(warning) = bootstrap.notes_warning {
         runtime.mode.push_history_line(warning);

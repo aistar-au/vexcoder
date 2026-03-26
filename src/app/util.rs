@@ -101,6 +101,7 @@ pub fn capability_to_kebab(cap: Capability) -> &'static str {
         Capability::WriteFile => "write-file",
         Capability::ApplyPatch => "apply-patch",
         Capability::RunCommand => "run-command",
+        Capability::McpTool => "mcp-tool",
         Capability::Network => "network",
         Capability::Browser => "browser",
     }
@@ -112,6 +113,7 @@ pub fn kebab_to_capability(s: &str) -> Option<Capability> {
         "write-file" => Some(Capability::WriteFile),
         "apply-patch" => Some(Capability::ApplyPatch),
         "run-command" => Some(Capability::RunCommand),
+        "mcp-tool" => Some(Capability::McpTool),
         "network" => Some(Capability::Network),
         "browser" => Some(Capability::Browser),
         _ => None,
@@ -127,6 +129,7 @@ pub(super) fn capability_for_tool_name(tool_name: &str) -> Option<Capability> {
         "write_file" | "edit_file" | "rename_file" => Some(Capability::WriteFile),
         "apply_patch" | "git_add" | "git_commit" => Some(Capability::ApplyPatch),
         "run_command" => Some(Capability::RunCommand),
+        _ if tool_name.starts_with("mcp.") => Some(Capability::McpTool),
         _ => None,
     }
 }

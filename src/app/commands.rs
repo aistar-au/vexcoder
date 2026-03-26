@@ -69,6 +69,7 @@ impl TuiMode {
                 SlashCommandId::Run => self.handle_run_command(args),
                 SlashCommandId::Test => self.handle_test_command(),
                 SlashCommandId::Context => self.handle_context_command(ctx),
+                SlashCommandId::Mcp => self.handle_mcp_command(args),
                 SlashCommandId::Tools => self.handle_tools_command(args),
                 SlashCommandId::Usage => self.handle_usage_command(ctx),
                 SlashCommandId::GenerateTests => self.handle_generate_tests_command(args, ctx),
@@ -599,6 +600,62 @@ impl TuiMode {
             }
         }
     }
+
+    pub(super) fn handle_mcp_command(&mut self, args: &str) {
+        let trimmed = args.trim();
+        let Some(snapshot) = self
+            .mcp_snapshot
+            .clone()
+            .filter(|snapshot| !snapshot.is_empty())
+        else {
+            self.push_history_line("[mcp] no MCP servers loaded".to_string());
+            return;
+        };
+
+        if trimmed.is_empty() || trimmed == "list" {
+            self.push_history_line("[mcp]".to_string());
+            self.push_history_line(format!(
+                "[mcp] {} server(s), {} tool(s) loaded",
+                snapshot.servers.len(),
+                snapshot.all_tools().len()
+            ));
+            for server in &snapshot.servers {
+                self.push_history_line(format!(
+                    "  {} transport={} tools={}",
+                    server.name,
+                    server.transport,
+                    server.tools.len()
+                ));
+            }
+            return;
+        }
+
+        let mut parts = trimmed.split_whitespace();
+        match (parts.next(), parts.next(), parts.next()) {
+            (Some("show"), Some(server_name), None) => {
+                let Some(server) = snapshot
+                    .servers
+                    .iter()
+                    .find(|server| server.name == server_name)
+                else {
+                    self.push_history_line(format!("[mcp] unknown server '{server_name}'"));
+                    return;
+                };
+                self.push_history_line(format!("[mcp:{}]", server.name));
+                self.push_history_line(format!(
+                    "[mcp:{}] transport={} tools={}",
+                    server.name,
+                    server.transport,
+                    server.tools.len()
+                ));
+                for tool in &server.tools {
+                    self.push_history_line(format!("  {} — {}", tool.full_name, tool.description));
+                }
+            }
+            _ => self.push_history_line("[mcp] usage: /mcp [list|show <server>]".to_string()),
+        }
+    }
+
     pub(super) fn handle_tools_command(&mut self, args: &str) {
         let include_descriptions = match args.trim() {
             "" => false,
@@ -610,9 +667,20 @@ impl TuiMode {
         };
 
         self.push_history_line("[tools]".to_string());
-        self.push_history_line(
-            "[tools] MCP registry not yet available; built-in tools only".to_string(),
-        );
+        if let Some(snapshot) = self
+            .mcp_snapshot
+            .clone()
+            .filter(|snapshot| !snapshot.is_empty())
+        {
+            self.push_history_line(format!(
+                "[tools] live registry: {} built-in tool(s), {} MCP server(s), {} MCP tool(s)",
+                builtin_tool_summaries().len(),
+                snapshot.servers.len(),
+                snapshot.all_tools().len()
+            ));
+        } else {
+            self.push_history_line("[tools] live registry: built-in tools only".to_string());
+        }
         self.push_history_line(
             "[tools] discovery flow: list_files/find_files -> search_content/codebase_search -> read_file"
                 .to_string(),
@@ -624,6 +692,23 @@ impl TuiMode {
 
         let groups = ["retrieve", "mutate", "git", "other"];
         let tools = builtin_tool_summaries();
+        if let Some(snapshot) = self
+            .mcp_snapshot
+            .clone()
+            .filter(|snapshot| !snapshot.is_empty())
+        {
+            self.push_history_line("[tools:mcp]".to_string());
+            for tool in snapshot.all_tools() {
+                if include_descriptions {
+                    self.push_history_line(format!(
+                        "  {:24} — {} [server tool]",
+                        tool.full_name, tool.description
+                    ));
+                } else {
+                    self.push_history_line(format!("  {:24} [server tool]", tool.full_name));
+                }
+            }
+        }
         for group in groups {
             let grouped = tools
                 .iter()

@@ -66,6 +66,7 @@ pub struct ApiClient {
     /// Project instructions block appended to the base prompt when present.
     project_instructions: Option<String>,
     notes_content: Option<String>,
+    extra_tool_definitions: Vec<Value>,
     #[cfg(test)]
     mock_stream_producer: Option<Arc<dyn MockStreamProducer>>,
 }
@@ -98,6 +99,7 @@ impl ApiClient {
             reasoning_budget: config.model_profile.reasoning_budget,
             project_instructions: None,
             notes_content: None,
+            extra_tool_definitions: Vec::new(),
             #[cfg(test)]
             mock_stream_producer: None,
         })
@@ -124,12 +126,18 @@ impl ApiClient {
             reasoning_budget: 0,
             project_instructions: None,
             notes_content: None,
+            extra_tool_definitions: Vec::new(),
             mock_stream_producer: Some(mock_producer),
         }
     }
 
     pub fn with_notes_content(mut self, content: Option<String>) -> Self {
         self.notes_content = content;
+        self
+    }
+
+    pub fn with_extra_tool_definitions(mut self, extra_tools: Vec<Value>) -> Self {
+        self.extra_tool_definitions = extra_tools;
         self
     }
 
@@ -278,7 +286,10 @@ impl ApiClient {
                         .as_object_mut()
                         .expect("payload must be a JSON object");
                     payload_object.insert("tool_choice".to_string(), json!({ "type": "auto" }));
-                    payload_object.insert("tools".to_string(), tool_definitions());
+                    payload_object.insert(
+                        "tools".to_string(),
+                        tool_definitions_with_extra(&self.extra_tool_definitions),
+                    );
                 }
                 if !self.stop_sequences.is_empty() {
                     let payload_object = payload
@@ -302,7 +313,10 @@ impl ApiClient {
                         .as_object_mut()
                         .expect("payload must be a JSON object");
                     payload_object.insert("tool_choice".to_string(), json!("auto"));
-                    payload_object.insert("tools".to_string(), tool_definitions_chat_compat());
+                    payload_object.insert(
+                        "tools".to_string(),
+                        tool_definitions_chat_compat_with_extra(&self.extra_tool_definitions),
+                    );
                 }
                 if !self.stop_sequences.is_empty() {
                     let payload_object = payload
@@ -708,30 +722,9 @@ fn tool_input_to_json_string(value: &Value) -> String {
     }
 }
 
+#[allow(dead_code)]
 fn tool_definitions_chat_compat() -> Value {
-    let base = tool_definitions();
-    let converted = base
-        .as_array()
-        .map(|tools| {
-            tools
-                .iter()
-                .map(|tool| {
-                    json!({
-                        "type": "function",
-                        "function": {
-                            "name": tool.get("name").cloned().unwrap_or_else(|| json!("")),
-                            "description": tool.get("description").cloned().unwrap_or_else(|| json!("")),
-                            "parameters": tool
-                                .get("input_schema")
-                                .cloned()
-                                .unwrap_or_else(|| json!({ "type": "object" })),
-                        }
-                    })
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    Value::Array(converted)
+    tool_definitions_chat_compat_with_extra(&[])
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -973,6 +966,38 @@ fn tool_definitions() -> serde_json::Value {
     ])
 }
 
+fn tool_definitions_with_extra(extra: &[Value]) -> serde_json::Value {
+    let mut definitions = tool_definitions().as_array().cloned().unwrap_or_default();
+    definitions.extend(extra.iter().cloned());
+    Value::Array(definitions)
+}
+
+fn tool_definitions_chat_compat_with_extra(extra: &[Value]) -> Value {
+    let base = tool_definitions_with_extra(extra);
+    let converted = base
+        .as_array()
+        .map(|tools| {
+            tools
+                .iter()
+                .map(|tool| {
+                    json!({
+                        "type": "function",
+                        "function": {
+                            "name": tool.get("name").cloned().unwrap_or_else(|| json!("")),
+                            "description": tool.get("description").cloned().unwrap_or_else(|| json!("")),
+                            "parameters": tool
+                                .get("input_schema")
+                                .cloned()
+                                .unwrap_or_else(|| json!({ "type": "object" })),
+                        }
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    Value::Array(converted)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1009,6 +1034,7 @@ mod tests {
             max_memory_tokens: 2048,
             sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1038,6 +1064,7 @@ mod tests {
             max_memory_tokens: 2048,
             sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1067,6 +1094,7 @@ mod tests {
             max_memory_tokens: 2048,
             sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1099,6 +1127,7 @@ mod tests {
             max_memory_tokens: 2048,
             sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1130,6 +1159,7 @@ mod tests {
             max_memory_tokens: 2048,
             sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1218,6 +1248,7 @@ mod tests {
             max_memory_tokens: 2048,
             sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1248,6 +1279,7 @@ mod tests {
             max_memory_tokens: 2048,
             sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1277,6 +1309,7 @@ mod tests {
             max_memory_tokens: 2048,
             sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
