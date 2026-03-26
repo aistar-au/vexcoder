@@ -1,0 +1,5 @@
+---
+source: tests/tui_draw_snapshots.rs
+expression: rendered
+---
+ │ Fix the config loaderReading src/config.rs...Found 3 issues.Generating patch...Prompt                                                         focused · 0 chars› submit: / commands  @ files  ! shell   PgUp/PgDn transcript  Shift+Enter newline  Enter submit          task:snap-001

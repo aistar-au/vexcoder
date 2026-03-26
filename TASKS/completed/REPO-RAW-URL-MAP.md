@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 224
+- Total tracked files: 234
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -56,7 +56,6 @@ Canonical raw URL index for every tracked file in this repository.
 | 45 | `adr/ADR-031-operator-surface-ui-overhaul.md` | ~360 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-031-operator-surface-ui-overhaul.md> |
 | 46 | `adr/ADR-032-prompt-area-interactivity-and-context-guard.md` | ~116 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-032-prompt-area-interactivity-and-context-guard.md> |
 | 47 | `adr/ADR-033-hybrid-retrieval-context-architecture.md` | ~114 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-033-hybrid-retrieval-context-architecture.md> |
-| 224 | `adr/ADR-034-multi-agent-parallel-task-execution.md` | ~217 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-034-multi-agent-parallel-task-execution.md> |
 | 48 | `adr/ADR-README.md` | ~61 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 49 | `adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
 | 50 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~77 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |
@@ -233,3 +232,14 @@ Canonical raw URL index for every tracked file in this repository.
 | 221 | `tests/stream_parser_tests.rs` | ~191 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/stream_parser_tests.rs> |
 | 222 | `tests/dependency_direction_tests.rs` | ~263 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/dependency_direction_tests.rs> |
 | 223 | `tests/tool_operator_tests.rs` | ~276 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |
+| 224 | `adr/ADR-034-multi-agent-parallel-task-execution.md` | ~217 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-034-multi-agent-parallel-task-execution.md> |
+| 225 | `src/agents.rs` | ~460 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/agents.rs> |
+| 226 | `tests/agents_config_tests.rs` | ~100 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/agents_config_tests.rs> |
+| 227 | `tests/tui_draw_snapshots.rs` | ~155 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tui_draw_snapshots.rs> |
+| 228 | `tests/snapshots/tui_draw_snapshots__snapshot_empty_state_80x24.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_empty_state_80x24.snap> |
+| 229 | `tests/snapshots/tui_draw_snapshots__snapshot_multiple_steps_80x24.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_multiple_steps_80x24.snap> |
+| 230 | `tests/snapshots/tui_draw_snapshots__snapshot_pending_approval_80x24.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_pending_approval_80x24.snap> |
+| 231 | `tests/snapshots/tui_draw_snapshots__snapshot_single_running_tool_80x24.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_single_running_tool_80x24.snap> |
+| 232 | `tests/snapshots/tui_draw_snapshots__snapshot_small_terminal_40x12.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_small_terminal_40x12.snap> |
+| 233 | `tests/snapshots/tui_draw_snapshots__snapshot_very_small_terminal_20x5.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_very_small_terminal_20x5.snap> |
+| 234 | `tests/snapshots/tui_draw_snapshots__snapshot_with_changed_files_80x24.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_with_changed_files_80x24.snap> |
