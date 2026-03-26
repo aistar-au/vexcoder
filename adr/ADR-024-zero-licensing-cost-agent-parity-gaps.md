@@ -1521,8 +1521,8 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PB-03** | `vex skills list\|install\|remove` + `registry.toml` | [x] |
 | **PC-01** | `/model <name>` runtime model switching | [x] |
 | **PD-01** | `SandboxDriver` trait + `PassthroughSandbox` | [x] |
-| **PD-02** | `MacosSandboxExec` driver (best-effort + require flag) | [ ] |
-| **PD-03** | Container sandbox driver | [ ] |
+| **PD-02** | `MacosSandboxExec` driver (best-effort + require flag) | [x] |
+| **PD-03** | Container sandbox driver | [x] |
 | **PE-01** | `BatchMode: RuntimeMode + FrontendAdapter` | [x] |
 | **PE-02** | `vex exec` sub-command with JSONL/text output | [x] |
 | **PF-01** | `McpRegistry` with STDIO and HTTP transports | [ ] |
@@ -1820,7 +1820,40 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `cargo test --all-targets` : pass
 - Notes:
   - Trait and default driver scaffolded during PL-01 hooks work.
-  - PD-02 (`MacosSandboxExec`) and PD-03 (container sandbox driver) remain deferred.
+  - PD-02 (`MacosSandboxExec`) and PD-03 (container sandbox driver) delivered in this branch.
+
+### [PD-02] - MacosSandboxExec driver (best-effort + require flag)
+- Operator: this branch (`work/vexcoder-adr024-sandbox-drivers`)
+- Commit: `3090d1c8202cce785ddc765284154cfd97fabd45`
+- Files:
+  - `src/runtime/sandbox.rs` — `MacosSandboxExec` driver implementation using `sandbox-exec`
+  - `src/config.rs` — `SandboxKind::MacosExec` variant and require-mode config wiring
+  - `src/app/facade.rs` — runtime bootstrap wiring for the configured sandbox
+  - `src/app/runtime_build.rs` — sandbox driver injection into the session builder
+  - `docs/src/configuration.md` — operator docs for `sandbox.kind = "macos-exec"` and `sandbox.require`
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+- Notes:
+  - Best-effort mode logs a warning and falls back to passthrough when `sandbox-exec` is unavailable.
+  - Require mode returns an error if the sandbox binary is missing rather than falling back.
+  - Custom sandbox profiles are specified via `sandbox.sandbox_profile` in config.
+
+### [PD-03] - Container sandbox driver
+- Operator: this branch (`work/vexcoder-adr024-sandbox-drivers`)
+- Commit: `3090d1c8202cce785ddc765284154cfd97fabd45`
+- Files:
+  - `src/runtime/sandbox.rs` — container sandbox driver implementation and probe logic
+  - `src/config.rs` — container sandbox kind and image-profile configuration
+  - `src/app/facade.rs` — configured container sandbox wiring at runtime build
+  - `src/runtime/validation.rs` — HTTPS enforcement for non-loopback endpoints added alongside
+- Validation:
+  - `cargo test docker_wraps_command_in_container_invocation --all-targets` : pass
+  - `cargo test --all-targets` : pass
+- Notes:
+  - `sandbox.sandbox_profile` must name the container image; the driver rejects empty values.
+  - A probe validates image availability before the session begins.
+  - Network isolation depends on the container image and host configuration; no additional flags are injected.
 
 ### [PA-03 / PA-04] - vex migrate config + migration doc
 - Operator: reconciliation on a prior integration branch; implementation merged earlier
