@@ -261,9 +261,8 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
 
 /// Render the four-region task-first layout.
 ///
-/// The activity pane uses structured `timeline_entries` when available,
-/// falling back to legacy `activity_rows` for backward compatibility.
-/// The selected timeline entry is highlighted and its detail is shown
+/// The activity pane uses structured `timeline_entries` to render
+/// the selected timeline entry highlighted with its detail shown
 /// in the output/inspector pane.
 pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     let layout = split_four_region_layout(
@@ -504,7 +503,7 @@ fn centered_modal_area(size: Rect, preferred_height: u16) -> Rect {
 }
 
 /// Render a single pipeline activity row with prefix-based colour coding.
-/// Matches the prefixes produced by `task_activity_rows()`:
+/// Matches the prefixes used in transcript content lines:
 ///   `[ok]`  → green   (completed step)
 ///   `[!]`   → red     (failed/error step)
 ///   `[->]`  → cyan    (in-flight orchestration step)
@@ -1134,7 +1133,6 @@ mod tests {
         let state = crate::app::TaskLayoutState {
             task_id: "task-001".into(),
             status_line: "AwaitingApproval".into(),
-            activity_rows: vec!["[?] ApplyPatch: src/main.rs".into()],
             timeline_entries: vec![crate::app::TimelineEntry {
                 step_id: 1,
                 lifecycle: crate::app::StepLifecycle::AwaitingApproval,
@@ -1188,10 +1186,6 @@ mod tests {
         let state = crate::app::TaskLayoutState {
             task_id: "task-002".into(),
             status_line: "Running".into(),
-            activity_rows: vec![
-                "[ok] read_file: ok".into(),
-                "[->] validate: running...".into(),
-            ],
             timeline_entries: vec![
                 crate::app::TimelineEntry {
                     step_id: 1,
@@ -1259,7 +1253,6 @@ mod tests {
         let state = crate::app::TaskLayoutState {
             task_id: "task-003".into(),
             status_line: "Running".into(),
-            activity_rows: vec![],
             timeline_entries,
             selected_step: 8,
             total_steps: 12,
@@ -1299,7 +1292,6 @@ mod tests {
         let state = crate::app::TaskLayoutState {
             task_id: "task-004".into(),
             status_line: "Running".into(),
-            activity_rows: vec![],
             timeline_entries: vec![crate::app::TimelineEntry {
                 step_id: 1,
                 lifecycle: crate::app::StepLifecycle::Completed,

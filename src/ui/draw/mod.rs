@@ -242,7 +242,11 @@ impl TaskDraw {
         let visible_slots = (regions.timeline_rows.saturating_sub(1)) as usize; // -1 for separator
 
         if state.timeline_entries.is_empty() {
-            self.draw_timeline_fallback(w, state, regions);
+            // No entries — draw separator only.
+            let sep_row = regions.transcript_start.saturating_sub(1);
+            if sep_row >= regions.timeline_start {
+                draw_labeled_separator(w, sep_row, regions.cols, &state.output_title);
+            }
             return;
         }
 
@@ -345,34 +349,6 @@ impl TaskDraw {
         }
     }
 
-    fn draw_timeline_fallback<W: Write>(
-        &self,
-        w: &mut W,
-        state: &TaskLayoutState,
-        regions: &Regions,
-    ) {
-        let visible_slots = (regions.timeline_rows.saturating_sub(1)) as usize;
-
-        for slot in 0..visible_slots {
-            let row = regions.timeline_start + slot as u16;
-            if row >= regions.transcript_start {
-                break;
-            }
-            move_to(w, row, 0);
-            clear_line(w);
-
-            if let Some(activity_row) = state.activity_rows.get(slot) {
-                self.draw_legacy_activity_row(w, activity_row, regions.cols);
-            }
-        }
-
-        // Separator — star accent.
-        let sep_row = regions.transcript_start.saturating_sub(1);
-        if sep_row >= regions.timeline_start {
-            draw_labeled_separator(w, sep_row, regions.cols, &state.output_title);
-        }
-    }
-
     fn draw_timeline_entry<W: Write>(
         &self,
         w: &mut W,
@@ -419,63 +395,6 @@ impl TaskDraw {
         let truncated = truncate_to_width(&entry.label, remaining);
         let _ = write!(w, "{truncated}");
         reset_style(w);
-    }
-
-    fn draw_legacy_activity_row<W: Write>(&self, w: &mut W, row: &str, cols: u16) {
-        if let Some(rest) = row.strip_prefix("[ok]") {
-            set_bold(w);
-            set_fg(w, GREEN);
-            let _ = write!(w, "   \u{2605}"); // ★
-            reset_style(w);
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(6));
-            let _ = write!(w, " {truncated}");
-            reset_style(w);
-        } else if let Some(rest) = row.strip_prefix("[!]") {
-            set_bold(w);
-            set_fg(w, RED);
-            let _ = write!(w, "   \u{2716}"); // ✖
-            reset_style(w);
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(6));
-            let _ = write!(w, " {truncated}");
-            reset_style(w);
-        } else if let Some(rest) = row.strip_prefix("[->]") {
-            let idx = (self.frame_counter as usize) % SPINNER_FRAMES.len();
-            set_bold(w);
-            set_fg(w, CYAN);
-            let _ = write!(w, "   {}", SPINNER_FRAMES[idx]);
-            reset_style(w);
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(6));
-            let _ = write!(w, " {truncated}");
-            reset_style(w);
-        } else if let Some(rest) = row.strip_prefix("[?]") {
-            set_bold(w);
-            set_fg(w, YELLOW);
-            let _ = write!(w, "   \u{2606}"); // ☆
-            reset_style(w);
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(rest.trim_start(), (cols as usize).saturating_sub(6));
-            let _ = write!(w, " {truncated}");
-            reset_style(w);
-        } else if let Some(rest) = row.strip_prefix("> ") {
-            set_dim(w);
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, "   \u{203a} "); // ›
-            reset_style(w);
-            set_dim(w);
-            set_fg(w, GRAY);
-            let truncated = truncate_to_width(rest, (cols as usize).saturating_sub(5));
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
-        } else {
-            set_fg(w, GRAY);
-            let _ = write!(w, "   ");
-            let truncated = truncate_to_width(row, (cols as usize).saturating_sub(3));
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
-        }
     }
 
     // ── Transcript (flowing) ────────────────────────────────────────
@@ -841,20 +760,6 @@ impl TaskDraw {
             .timeline_entries
             .iter()
             .any(|e| e.lifecycle == StepLifecycle::Running);
-        // Legacy activity rows with [->] also animate.
-        let has_running_legacy = state.activity_rows.iter().any(|r| r.starts_with("[->]"));
-
-        if state.timeline_entries.is_empty() {
-            let mut h = state.activity_rows.len() as u64;
-            for row in &state.activity_rows {
-                h = h.wrapping_mul(31).wrapping_add(simple_hash(row));
-            }
-            // Include frame counter when running to force spinner redraws.
-            if has_running_legacy {
-                h = h.wrapping_mul(31).wrapping_add(self.frame_counter);
-            }
-            return h;
-        }
 
         let mut h: u64 = state.selected_step as u64;
         h = h

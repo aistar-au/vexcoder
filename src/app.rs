@@ -648,8 +648,6 @@ pub enum OutputScrollAnchor {
 pub struct TaskLayoutState {
     pub task_id: String,
     pub status_line: String,
-    /// Legacy string rows kept for backward-compatible rendering paths.
-    pub activity_rows: Vec<String>,
     /// Structured timeline entries derived from canonical task state.
     pub timeline_entries: Vec<TimelineEntry>,
     /// Index of the selected timeline entry (for inspector focus).
