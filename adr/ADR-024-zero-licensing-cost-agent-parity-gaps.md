@@ -1230,6 +1230,12 @@ fallback to `PassthroughSandbox`, and routes inline shell commands, hooks,
 validation commands, edit-loop validation, and `run_command` tool execution
 through the configured `SandboxDriver`.
 
+Roadmap alignment (2026-03-26): this branch is the Tier 2 PR `#231` merge
+blocker in the 60-item / 10-tier inventory and delivers the Phase D runtime
+items `PD-02` and `PD-03`. After merge, the remaining ADR-024 runtime backlog
+shifts to MCP completion (`PF-01`, `PF-02`, `PI-06`, `PI-07`) plus the later
+Tier 4 and Tier 9 items.
+
 ### Phase E — Non-interactive execution mode
 
 | Objective | Completion condition |
