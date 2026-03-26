@@ -272,7 +272,8 @@ sections for future expansion.
   validation subprocesses.
 - `[[mcp_servers]]` is active today. MCP servers are connected at session start,
   loaded from the user config layer, and merged into the runtime tool registry
-  as `mcp.<server>.<tool>` names.
+  as `mcp.<server>.<tool>` names. Servers are explicitly shut down when the
+  session ends (TUI exit, batch completion, or API server stop).
 - Commented `[api]` remains a scaffold placeholder in config files.
   `VEX_API_*` environment variables (transport, host, port, socket, key,
   protocol, TLS paths) are active and functional for API server configuration.
@@ -283,7 +284,8 @@ sections for future expansion.
 
 Use `[[mcp_servers]]` only in the user config file. Each server is connected at
 session start; load failures abort startup instead of leaving a partial MCP
-registry in memory.
+registry in memory. Connected servers are explicitly cancelled at session end
+via `McpRegistry::shutdown()`.
 
 HTTP headers may be written literally, as bare `${NAME}` references, or as
 templates that mix literal text with `${NAME}` segments resolved from the
