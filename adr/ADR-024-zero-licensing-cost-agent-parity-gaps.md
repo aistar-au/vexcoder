@@ -1257,6 +1257,13 @@ Tier 4 and Tier 9 items.
 | Clean shutdown | Server terminates at session exit |
 | Repo-local prohibition | `[[mcp_servers]]` in repo-local config rejected with diagnostic |
 
+Roadmap alignment (2026-03-26): this branch is the Tier 2 PR `#232` merge
+blocker in the 60-item / 10-tier inventory. It closes the Phase F runtime items
+`PF-01` and `PF-02` and clears the immediate dependency chain into the `/mcp`
+inspection surface, leaving Tier 4 ADR-024 extensions (`PP-01`, `PM-02`,
+`PI-08`) and the post-milestone Tier 9 items as the remaining backlog after
+merge.
+
 ### Phase G — Binary distribution pipeline
 
 | Objective | Completion condition |
