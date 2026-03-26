@@ -101,7 +101,8 @@ fn read_live_index(working_dir: &Path) -> Option<HashMap<String, usize>> {
     serde_json::from_str(&content).ok()
 }
 
-/// Atomically increment the live count for `agent_id` in the sidecar.
+/// Increment the cached live count for `agent_id` in the sidecar.
+/// This is a best-effort read-modify-write update.
 fn increment_live_count(working_dir: &Path, agent_id: &str) -> Result<()> {
     let mut counts = read_live_index(working_dir).unwrap_or_default();
     *counts.entry(agent_id.to_owned()).or_default() += 1;

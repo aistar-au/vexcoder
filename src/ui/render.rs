@@ -506,7 +506,7 @@ fn centered_modal_area(size: Rect, preferred_height: u16) -> Rect {
 /// Matches the prefixes used in transcript content lines:
 ///   `[ok]`  → green   (completed step)
 ///   `[!]`   → red     (failed/error step)
-///   `[->]`  → cyan    (in-flight orchestration step)
+///   `[->]`  → cyan    (in-progress orchestration step)
 ///   `[?]`   → yellow  (approval request)
 ///   `> …`   → dim gray (user prompt echo)
 fn pipeline_activity_line(row: &str) -> Line<'static> {
