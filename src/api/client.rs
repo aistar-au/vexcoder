@@ -4,9 +4,7 @@ use crate::runtime::backend::{
     ByteStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode,
 };
 use crate::types::{ApiMessage, Content, ContentBlock};
-use crate::util::{
-    is_local_endpoint_url, parse_bool_flag, preferred_plain_http_url_for_local_endpoint,
-};
+use crate::util::{is_local_endpoint_url, preferred_plain_http_url_for_local_endpoint};
 use anyhow::anyhow;
 use anyhow::Result;
 use futures::StreamExt;
@@ -537,20 +535,6 @@ fn local_plain_http_hint(request_url: &str) -> String {
     preferred_plain_http_url_for_local_endpoint(request_url)
         .map(|http_url| format!(" Try '{}'.", http_url))
         .unwrap_or_default()
-}
-
-#[allow(dead_code)]
-fn resolve_structured_tool_protocol(api_url: &str) -> bool {
-    if let Some(value) = std::env::var("VEX_STRUCTURED_TOOL_PROTOCOL")
-        .ok()
-        .and_then(parse_bool_flag)
-    {
-        return value;
-    }
-
-    // Local endpoints default to text-protocol fallback because many local servers
-    // do not implement structured tool call blocks consistently.
-    !is_local_endpoint_url(api_url)
 }
 
 fn resolve_max_tokens(default_max_tokens: u32) -> u32 {
