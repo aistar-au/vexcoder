@@ -2102,7 +2102,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `cargo test --all-targets` : pass
   - `make gate-fast` : pass
 - Notes:
-  - STDIO servers are launched at session start and terminated at session end; process handles stored in registry.
+  - STDIO servers are spawned at session start and terminated at session end; process handles stored in registry.
   - HTTP servers are connected by URL with optional bearer token via `headers` config.
   - Tool namespace prefix prevents collisions with built-in tools.
   - `McpRegistry` is read-only after session start; `/mcp` commands observe only, never mutate.
