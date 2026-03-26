@@ -1,67 +1,193 @@
 # Active Roadmap
 
-Descriptive index for the ADRs and task manifests that are currently active in
-this repository.
+Single canonical source for what is active. Both `onboarding.md` Section 2b
+and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate it.
 
-## Dispatch-Facing Active ADR Set
+Updated by the merge workflow after each ADR-scoped PR lands on main.
+Do not edit manually except via the standard exact-diff workflow.
 
-Current task-dispatch dependency state:
+Last updated: 2026-03-26
 
-| ADR | Status | Dependency note |
+---
+
+## Active ADRs
+
+| ADR | Status | Remaining items | Dependency note |
+| :--- | :--- | :--- | :--- |
+| ADR-021 | Accepted | 17 (3 P1, 13 P2, 1 P3) | Standalone audit; findings feed later ADRs |
+| ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
+| ADR-023 | Locked | 11 (EL-01 through EL-11) | Gates all deterministic commands; EL-12/EL-13 done |
+| ADR-024 | Proposed | 16 items | Parity-gap inventory; PA/PB/PC/PD(partial)/PE/PJ/PK/PL/PM done |
+| ADR-028 | Active | Ongoing alignment | Phase 1+2 landed; facade boundary governs ADR-030/031 |
+| ADR-029 | Proposed | Verification needed | 8 decision items; feeds ADR-030 |
+| ADR-030 | Active | 6 coverage requirements | 7 invariants defined; 2 violations patched 2026-03-17 |
+| ADR-031 | Active (Batches A-E merged) | Verification | PRs 196/225/226/227 merged |
+| ADR-032 | Active | Items 4-5 | Prompt area; items 1-3, 6-8 landed; item 9 deferred to ADR-033 |
+| ADR-033 | Active (Phases 1-4 landed) | Integration follow-up | PRs 186/191/192/194/199 merged |
+| ADR-034 | Active (Phase A + B-E landed) | Follow-up hardening | PRs 228/229/230 merged |
+
+## Implementation-Complete ADRs (pending move to completed/)
+
+| ADR | Status | Notes |
 | :--- | :--- | :--- |
-| `ADR-021` | Accepted, follow-up maintenance remains | Audit and cleanup items can still affect `src/`, tests, or docs shape. |
-| `ADR-022 amendment` | Proposed | Constrains first-milestone scope relative to `ADR-022`. |
-| `ADR-022` | Proposed | Free/open roadmap target and config/interface decision surface. |
-| `ADR-023` | Locked | `EL-08` through `EL-13` are now on `main`. The ADR-023 implementation track is complete; milestone-1 validation has passed and the post-gate ADR-025 Phase I work is now active. |
-| `ADR-024` | Proposed | Parity-gap inventory, command surface, and deferred work. |
-| `ADR-025` | Proposed | Phase I kickoff (`PI-09`, `PI-11`) and continuation (`PI-10`, `PI-12`) are implemented in the current tree; ADR-026 `PI-13` through `PI-16` are implemented, and ADR-028 follow-up work now runs against the active facade boundary. |
-| `ADR-026` | Proposed | `PI-13` through `PI-16` are implemented in the current tree; downstream CLI and LocalApiServer changes must now preserve the active ADR-028 facade boundary. |
-| `ADR-027` | Accepted | Defines the current full-screen TUI with command-session capture; supersedes the ADR-018/019 path. |
-| `ADR-028` | Active | Phase 1 / Phase 2 facade extraction and 2026-03-17 debug fixes are in the current tree; remaining work continues to shrink `src/app.rs` and harden facade/transport seams. |
-| `ADR-029` | Proposed | Extends the active ADR set with stream-parser completeness and session-persistence follow-up work without changing the milestone-1 gate result. |
-| `ADR-030` | Active | Task-state-owned orchestration invariants and 2026-03-17 control-flow fixes are active requirements for downstream runtime work. |
-| `ADR-031` | Active | Extends the operator surface overhaul with adaptive timeline/transcript/composer behavior, task-state-visible selection, and merge-gated UI batching on top of ADR-030 task-state ownership. |
-| `ADR-032` | Active | Prompt-area interactivity and context-budget guard behavior are now on `main`; downstream retrieval and UI work must preserve the landed picker, focus, and context-recovery contracts. |
-| `ADR-033` | Active | Phase 1 structural search, Phase 2 semantic reranking, and the Phase 3/4 write-guard plus history-condensing baseline are on `main`; downstream follow-up should keep model guidance and docs aligned with that landed behavior. |
-| `ADR-034` | Active | Phase A (PR #229) and Phase B-E baseline (PR #230) landed: session-task lifecycle, UUID-scoped IDs, git-worktree lease manager, ADR-028 facade entrypoints for delegate/watch, operator slash commands, CLI task-inspection sub-commands, and LocalApiServer projection. ADR-028 enforcement test extended to block direct crate::runtime imports from the server layer. |
+| ADR-013 | Accepted | All phases landed |
+| ADR-018 | Superseded by ADR-027 | Retained for history |
+| ADR-025 | Complete | PI-09 through PI-12 all delivered |
+| ADR-026 | Complete | PI-13 through PI-16 all delivered |
+| ADR-027 | Accepted (landed) | Supersedes ADR-018/019 |
 
-ADR-025, ADR-026, ADR-028, ADR-029, ADR-030, ADR-031, ADR-032, ADR-033, and ADR-034 are the active post-gate ADR set.
+---
 
-ADR-024 checklist reconciliation is current through merged PRs `#60`, `#63`,
-`#71`, `#72`, `#74`, `#75`, `#78`, and `#79`. `PK-08` (`vex branch` and
-`vex pr-summary`), the ADR-027 command-session follow-up, and the full
-ADR-023 implementation track (`EL-01` through `EL-13`) are now on `main`.
-Milestone-1 validation passed on `2026-03-15` and remains recorded in
-`adr/ADR-022-free-open-coding-agent-roadmap.md`; the ADR-025, ADR-026,
-ADR-028, ADR-029, ADR-030, ADR-031, ADR-032, and ADR-033 post-gate work now
-remains sequenced only by their documented dependencies.
+## Remaining Work: 60 Items Across 10 Tiers
 
-## Current Next Work Batch
+Tiers sorted by unblocking impact -- what, if implemented first, unblocks
+the most downstream work.
 
-The current work batch is ADR-034 specification and roadmap alignment for post-milestone multi-agent execution, while ADR-033 prompt and documentation alignment remains follow-up maintenance on top of the active ADR-028 facade boundary and the landed ADR-031/ADR-032 operator-surface work.
+### Tier 1 -- Edit Loop Foundation (ADR-023) -- 11 items
 
-- Milestone-1 validation remains the recorded Phase I gate result in `adr/ADR-022-free-open-coding-agent-roadmap.md`.
-- ADR-025 now has the canonical runtime handoff types, schemas, normalization layer, and BatchMode parity tests in the current tree.
-- ADR-026 now has the loopback HTTP transport adapter, schema bundle endpoint, transport/security guards, and PI-16 validation coverage in the current tree.
-- ADR-028 now has its phase-1/phase-2 facade split and the 2026-03-17 debug fixes for localhost protocol routing, full-screen task activity visibility, and live orchestration rows in the current tree.
-- ADR-031 Batch A follow-up and ADR-032 prompt-area interactivity work are now on `main`; their earlier review branches no longer carry unique diff against current `main`.
-- ADR-033 now has Phases 1 through 4 baseline behavior on `main`, including large-file `write_file` guardrails and condensed historical tool results.
-- The current ADR-033 next batch is integration cleanup: the system prompt, operator docs, `write_file` tool description, and `coder_system.txt` template now reference all four Phase 1-4 contracts (structural search, semantic reranking, write guards, context condensing).
-- ADR-034 now defines the missing dedicated multi-agent / parallel-task execution lane that ADR-024 had deferred; no implementation lane should bypass its worktree-isolation and session-task lifecycle rules. Phase A delivers `.vex/agents.toml` parsing, validation, and `insta` snapshot tests for the ANSI draw engine. The current Phase B-E baseline adds persisted session-task metadata, worktree lease records, `/agents` `/delegate` `/watch` operator surfaces, `vex tasks list/watch`, and LocalApiServer projection for delegated session-task state.
-- `src/api/client.rs` remains the model-guidance enforcement point, while `src/state/conversation/tools.rs` and `src/state/conversation/history.rs` remain the runtime contract points for those guardrails.
-- Keep documentation refresh and descriptive PR motivation text in scope for ADR-033 follow-up batches so retrieval changes do not land with stale ADR/task-roadmap state.
-- Continue preserving ADR-028 facade boundaries and ADR-030 task-state/orchestrator ownership while ADR-033 follow-up work lands.
+These gate every deterministic command the agent can execute (/edit, /fix,
+/explain, /run, /test, /review, /plan). Nothing else in the coding pipeline
+works without these.
 
-## Other Open ADRs Tracked In This Repo
+- EL-01: ContextAssembler stub -- gates EL-02, EL-03, EL-04, EL-05
+- EL-07: ModelProfile struct + models/*.toml -- gates EL-08
+- EL-02: ValidationSuite (cargo check/test/clippy) -- gates EL-04, EL-05, EL-10
+- EL-03: EditLoop::run skeleton (turn lifecycle) -- gates all command wiring
+- EL-06: src/prompts/ templates + docs updates
+- EL-09: check_forbidden_names.sh CI coverage
+- EL-04: /edit and /fix wired through edit loop
+- EL-05: /explain, /run, /test wired
+- EL-08: ModelProfile config integration (gated on EL-07 + ADR-022 Phase 1)
+- EL-10: /review command (gated on EL-03)
+- EL-11: /plan command (gated on EL-03; cross-ref ADR-024 PI-08)
 
-`adr/ADR-README.md` also lists these tracked ADRs outside the current
-dispatch-facing active set:
+### Tier 2 -- In-Flight PRs (merge to unblock downstream) -- 4 PRs
 
-| ADR | Status | Note |
+Already implemented and pushed. Merging clears the path for dependent work.
+
+- PR 234: Debug-pass observations O-1 through O-9 (orphan state guard, DelegateError, sidecar index, strip-ansi, tracing, now_millis, agent name cap)
+- PR 231: ADR-024 Phase D sandbox drivers (PD-01 done, PD-02 MacosSandboxExec, PD-03 DockerSandbox)
+- PR 232: ADR-024 Phase F MCP runtime (PF-01 McpRegistry, PF-02 Capability::McpTool approval)
+- PR 233: ADR-032/033 doc reconcile (system prompt, tool descriptions, documentation aligned)
+
+### Tier 3 -- Sandbox and MCP Completion (ADR-024) -- 6 items
+
+After PRs 231/232 merge, verify and fill remaining gaps.
+
+- PD-02: MacosSandboxExec driver (in PR 231)
+- PD-03: DockerSandbox driver (in PR 231)
+- PF-01: McpRegistry STDIO + HTTP transports (in PR 232)
+- PF-02: Capability::McpTool approval wiring (in PR 232)
+- PI-06: /mcp list command (depends on PF-01/PF-02)
+- PI-07: /mcp show <server> command (depends on PF-01/PF-02)
+
+### Tier 4 -- Workspace Tools and MCP Extensions (ADR-024) -- 3 items
+
+- PP-01: search_files, list_dir, glob_files tools (workspace exploration)
+- PM-02: MCP HTTP [mcp_servers.headers] auth (extends Gap 5)
+- PI-08: /plan and /context commands (cross-ref ADR-023 EL-11)
+
+### Tier 5 -- Security Hardening (ADR-021 P1) -- 4 items
+
+Unbounded buffers and unhandled errors that could cause crashes or resource
+exhaustion.
+
+- Item 18: Unbounded input buffer in editor (memory safety)
+- Item 26: SSE parser buffer unbounded without delimiter (memory safety)
+- Item 19: SSE parse failures not surfaced to UI (user-visible)
+- Item 8: Post-cutover comment debt (code hygiene)
+
+### Tier 6 -- Verification and Governance -- 3 items
+
+Confirm already-landed work matches ADR specifications.
+
+- ADR-029: Verify all 8 decision items (StreamEvent, ContentBlock, Delta, ApiUsage, MessageDelta, MessageStartData, chat-completions, TaskState) are implemented
+- ADR-030: Verify 6 coverage requirements have test evidence
+- ADR-032: Verify items 4 (character count indicator) and 5 (focus indicator) are implemented
+
+### Tier 7 -- Code Quality (ADR-021 P2) -- 13 items
+
+Duplication removal, race condition fixes, and design follow-ups.
+
+- Item 9: Tool error dispatch block repeated
+- Item 10: Scroll handling duplication
+- Item 11: Approval input parsing duplicated
+- Item 12: Diff row styling logic duplicated
+- Item 13: required_tool_string variants overlapping
+- Item 14: Auto-follow reconciliation repeated
+- Item 15: MAX_INPUT_PANE_ROWS not applied in prod
+- Item 20: edit_file TOCTOU race condition
+- Item 22: StreamBlock::ToolCall deltas ignored
+- Item 24: Startup event draining heuristics
+- Item 25: Late StreamDelta dropped
+- Item 28: Read-only intent heuristic false positives
+- Item 32: KeyEventKind::Release filtering
+
+### Tier 8 -- Tuning (ADR-021 P3) -- 1 item
+
+- Item 33: IDLE_LOOP_BACKOFF tuning
+
+### Tier 9 -- Post-Milestone (ADR-024 G/H + ADR-022) -- 7 items
+
+Explicitly deferred until after milestone-1.
+
+- PG-01: Release workflow -- Linux/macOS targets
+- PG-02: Release workflow -- Windows (gnu) target
+- PG-03: Package-manager tap formula
+- PH-01: macOS app layer -- process management
+- PH-02: macOS app layer -- keychain credential storage
+- PH-03: macOS code signing + notarisation + .dmg
+- ADR-022 Decision 11: Native packaging (post-milestone-1)
+
+### Tier 10 -- Housekeeping -- 8 items
+
+Move completed ADRs to completed/, update stale status fields.
+
+- Move ADR-013 to completed/ (all work landed, status Accepted)
+- Move ADR-018 to completed/ (superseded by ADR-027)
+- Move ADR-025 to completed/ (PI-09 through PI-12 all done)
+- Move ADR-026 to completed/ (PI-13 through PI-16 all done)
+- Move ADR-027 to completed/ (fully landed)
+- Verify ADR-028 remaining work and update status
+- Update ADR-031 status to reflect all batches A-E merged
+- Update ADR-033 status to reflect all phases 1-4 merged
+
+---
+
+## Dependency Graph
+
+```
+ADR-022 (Roadmap, milestone-1 passed)
+  +-- ADR-023 (Edit Loop) -- 11/13 items remaining
+  +-- ADR-024 (Parity Gaps) -- 16/56 items remaining
+  |     +-- ADR-025 (Handoff Contract) -- COMPLETE
+  |     +-- ADR-026 (Transport Binding) -- COMPLETE
+  +-- ADR-027 (Command Sessions) -- COMPLETE
+  +-- ADR-031 (UI Overhaul) -- Batches A-E merged
+        +-- ADR-032 (Prompt/Context Guard) -- items 4-5 unclear
+              +-- ADR-033 (Hybrid Retrieval) -- Phases 1-4 landed
+
+ADR-029 (Stream Parser) --> ADR-030 (Orchestrator) --> ADR-031
+ADR-028 (Facade) --> ADR-030 --> ADR-031
+ADR-034 (Multi-Agent) --> ADR-028, ADR-030
+```
+
+---
+
+## Completed ADRs (reference only)
+
+| ADR | Completed | Notes |
 | :--- | :--- | :--- |
-| `ADR-013` | Proposed | TUI completion and deployment plan. |
-| `ADR-018` | Superseded by ADR-027 | Earlier managed-TUI overlay path retained for history only. |
+| ADR-001 through ADR-020 | See adr/completed/ | Full history in completed/ directory |
 
-## Repo-Local Task Manifests
+---
 
-- `TASKS/PJ-03-memory-notes-injection.md` — `ADR-024` Gap 16, depends on `PA-01`, describes the `/memory` command surface and session-note injection requirements.
+## How this file is updated
+
+After each ADR-scoped PR merges to main, the follow-up PR updates:
+
+1. This file -- current phase / remaining items for the relevant ADR
+2. Nothing else -- do not touch onboarding or dispatch map in the same edit
+
+The PR body for a roadmap update uses the motivation template from
+vex-local-bash/SKILL.md with ADR reference pointing to this file.
