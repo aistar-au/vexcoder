@@ -15,12 +15,13 @@ Last updated: 2026-03-26
 | ADR | Status | Remaining items | Dependency note |
 | :--- | :--- | :--- | :--- |
 | ADR-021 | Accepted | 17 (3 P1, 13 P2, 1 P3) | Standalone audit; findings feed later ADRs |
+| ADR-022 amendment | Amended | Amendment only | Tightens milestone-1 command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
 | ADR-023 | Locked | 11 (EL-01 through EL-11) | Gates all deterministic commands; EL-12/EL-13 done |
 | ADR-024 | Proposed | 16 items | Parity-gap inventory; PA/PB/PC/PD(partial)/PE/PJ/PK/PL/PM done |
 | ADR-028 | Active | Ongoing alignment | Phase 1+2 landed; facade boundary governs ADR-030/031 |
-| ADR-029 | Proposed | Verification needed | 8 decision items; feeds ADR-030 |
-| ADR-030 | Active | 6 coverage requirements | 7 invariants defined; 2 violations patched 2026-03-17 |
+| ADR-029 | Accepted | 8 decision items to re-verify | Feeds ADR-030; verification follow-up remains in Tier 6 |
+| ADR-030 | Accepted | 6 coverage requirements to re-verify | 7 invariants defined; verification evidence remains in Tier 6 |
 | ADR-031 | Active (Batches A-E merged) | Verification | PRs 196/225/226/227 merged |
 | ADR-032 | Active | Items 4-5 | Prompt area; items 1-3, 6-8 landed; item 9 deferred to ADR-033 |
 | ADR-033 | Active (Phases 1-4 landed) | Integration follow-up | PRs 186/191/192/194/199 merged |

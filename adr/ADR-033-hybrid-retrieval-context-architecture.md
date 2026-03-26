@@ -120,6 +120,12 @@ All four phases are implemented on `main` as of 2026-03-26.
 
 System prompt guidance and tool descriptions now reference all four phases.
 
+In the 2026-03-26 remaining-work inventory, ADR-033 no longer contributes a new
+baseline implementation tier. The outstanding work is Tier 2 contract
+reconciliation and documentation maintenance in PR `#233`, plus later
+follow-up to keep the roadmap, ADR index, and model-facing guidance aligned
+with the already-landed Phases 1-4 behavior.
+
 ## References
 
 - [ADR-032](https://github.com/aistar-au/vexcoder/blob/main/adr/ADR-032-prompt-area-interactivity-and-context-guard.md) — prompt area interactivity and context guard

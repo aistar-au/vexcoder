@@ -10,8 +10,10 @@ All ADR files live under `adr/`.
 | Status | Meaning |
 | :--- | :--- |
 | **Proposed** | Under discussion and dispatchable |
+| **Amended** | Existing ADR amended without superseding the base decision |
 | **Active** | In progress in the current tree; follow-up phases or verification may still remain |
 | **Accepted** | In effect -- code must conform |
+| **Complete** | All scoped implementation items landed; housekeeping move to `completed/` still remains |
 | **Superseded by ADR-XXX** | Replaced; retained for history |
 | **Locked** | Accepted and immutable -- no further amendments without a new ADR |
 | **Deprecated** | Was accepted, no longer applies |
@@ -21,13 +23,13 @@ All ADR files live under `adr/`.
 | ADR | Title | Status | Remaining |
 | :--- | :--- | :--- | :--- |
 | [ADR-021](ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md) | Codebase audit | Accepted | 17 items (3 P1, 13 P2, 1 P3) |
-| [ADR-022 amendment](ADR-022-amendment-2026-03-13.md) | Command-execution amendment | Proposed | Amendment only |
+| [ADR-022 amendment](ADR-022-amendment-2026-03-13.md) | Command-execution amendment | Amended | Amendment only |
 | [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed (milestone-1 passed 2026-03-15) | Post-milestone phases G/H |
 | [ADR-023](ADR-023-deterministic-edit-loop.md) | Deterministic edit loop | Locked | 11 items (EL-01 through EL-11) |
 | [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps | Proposed | 16 items across phases D/F/G/H/I/M/P |
 | [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active | Phase 1+2 landed; ongoing alignment |
-| [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness | Proposed | Verification needed (8 decision items) |
-| [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Active | Verification needed (6 coverage requirements) |
+| [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness | Accepted | Verification follow-up (8 decision items) |
+| [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Accepted | Verification follow-up (6 coverage requirements) |
 | [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Active (Batches A-E merged) | Verification of landed batches |
 | [ADR-032](ADR-032-prompt-area-interactivity-and-context-guard.md) | Prompt area interactivity and context guard | Active | Items 4-5 need verification |
 | [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Active (Phases 1-4 landed) | Follow-up integration |
