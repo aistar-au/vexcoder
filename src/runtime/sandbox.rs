@@ -6,10 +6,19 @@ use crate::runtime::CommandRequest;
 
 /// Default macOS sandbox profile. Denies most operations by default but
 /// allows broad file access because sandbox-exec'd commands need to read
-/// and write project files. Operators who need tighter filesystem
-/// containment should supply a custom profile via `sandbox_profile`.
-const DEFAULT_MACOS_PROFILE: &str =
-    "(version 1)\n(deny default)\n(allow process*)\n(allow file-read*)\n(allow file-write*)\n";
+/// and write project files. Network, IPC, and sysctl-read are required for
+/// common development tools (cargo build, git fetch, npm install).
+/// Operators who need tighter containment should supply a custom profile
+/// via `sandbox_profile`.
+const DEFAULT_MACOS_PROFILE: &str = "(version 1)\n\
+    (deny default)\n\
+    (allow process*)\n\
+    (allow file-read*)\n\
+    (allow file-write*)\n\
+    (allow network*)\n\
+    (allow sysctl-read)\n\
+    (allow mach-lookup)\n\
+    (allow signal)\n";
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
@@ -17,7 +26,7 @@ pub enum SandboxKind {
     #[default]
     Passthrough,
     MacosExec,
-    Docker,
+    Container,
 }
 
 impl SandboxKind {
@@ -25,7 +34,7 @@ impl SandboxKind {
         match self {
             Self::Passthrough => "passthrough",
             Self::MacosExec => "macos-exec",
-            Self::Docker => "docker",
+            Self::Container => "container",
         }
     }
 }
@@ -124,18 +133,18 @@ impl SandboxDriver for MacosSandboxExec {
 }
 
 #[derive(Debug, Clone)]
-pub struct DockerSandbox {
+pub struct ContainerSandbox {
     image: String,
 }
 
-impl DockerSandbox {
+impl ContainerSandbox {
     pub fn new(image: String) -> Self {
         Self { image }
     }
 
     fn probe_command(&self) -> Result<std::process::Command> {
         if self.image.trim().is_empty() {
-            bail!("docker sandbox requires sandbox_profile to name the image");
+            bail!("container sandbox requires sandbox_profile to name the image");
         }
         let mut command = std::process::Command::new("docker");
         command.args(["run", "--rm", &self.image, "true"]);
@@ -143,10 +152,10 @@ impl DockerSandbox {
     }
 }
 
-impl SandboxDriver for DockerSandbox {
+impl SandboxDriver for ContainerSandbox {
     fn wrap(&self, req: CommandRequest) -> Result<CommandRequest> {
         if self.image.trim().is_empty() {
-            bail!("docker sandbox requires sandbox_profile to name the image");
+            bail!("container sandbox requires sandbox_profile to name the image");
         }
         let host_dir = req
             .working_dir
@@ -176,11 +185,11 @@ impl SandboxDriver for DockerSandbox {
         let status = self
             .probe_command()?
             .status()
-            .context("failed to execute docker probe")?;
+            .context("failed to execute container probe")?;
         if status.success() {
             Ok(())
         } else {
-            bail!("docker probe exited with status {status}")
+            bail!("container probe exited with status {status}")
         }
     }
 }
@@ -189,7 +198,7 @@ impl SandboxDriver for DockerSandbox {
 pub enum ConfiguredSandbox {
     Passthrough(PassthroughSandbox),
     MacosExec(MacosSandboxExec),
-    Docker(DockerSandbox),
+    Container(ContainerSandbox),
 }
 
 impl Default for ConfiguredSandbox {
@@ -203,7 +212,7 @@ impl ConfiguredSandbox {
         match self {
             Self::Passthrough(_) => SandboxKind::Passthrough,
             Self::MacosExec(_) => SandboxKind::MacosExec,
-            Self::Docker(_) => SandboxKind::Docker,
+            Self::Container(_) => SandboxKind::Container,
         }
     }
 }
@@ -213,7 +222,7 @@ impl SandboxDriver for ConfiguredSandbox {
         match self {
             Self::Passthrough(driver) => driver.wrap(req),
             Self::MacosExec(driver) => driver.wrap(req),
-            Self::Docker(driver) => driver.wrap(req),
+            Self::Container(driver) => driver.wrap(req),
         }
     }
 
@@ -221,7 +230,7 @@ impl SandboxDriver for ConfiguredSandbox {
         match self {
             Self::Passthrough(driver) => driver.probe(),
             Self::MacosExec(driver) => driver.probe(),
-            Self::Docker(driver) => driver.probe(),
+            Self::Container(driver) => driver.probe(),
         }
     }
 }
@@ -238,7 +247,7 @@ pub fn resolve_configured_sandbox(
         SandboxKind::MacosExec => {
             ConfiguredSandbox::MacosExec(MacosSandboxExec::new(config.profile.clone()))
         }
-        SandboxKind::Docker => ConfiguredSandbox::Docker(DockerSandbox::new(
+        SandboxKind::Container => ConfiguredSandbox::Container(ContainerSandbox::new(
             config.profile.clone().unwrap_or_default(),
         )),
     };
@@ -298,8 +307,9 @@ mod tests {
     }
 
     #[test]
-    fn docker_wraps_command_in_container_invocation() {
-        let sandbox = ConfiguredSandbox::Docker(super::DockerSandbox::new("alpine:3".to_string()));
+    fn container_wraps_command_in_container_invocation() {
+        let sandbox =
+            ConfiguredSandbox::Container(super::ContainerSandbox::new("alpine:3".to_string()));
         let wrapped = sandbox
             .wrap(CommandRequest {
                 program: "echo".into(),
@@ -313,8 +323,8 @@ mod tests {
     }
 
     #[test]
-    fn docker_probe_validates_selected_image_with_run_true() {
-        let sandbox = super::DockerSandbox::new("alpine:3".to_string());
+    fn container_probe_validates_selected_image_with_run_true() {
+        let sandbox = super::ContainerSandbox::new("alpine:3".to_string());
         let command = sandbox.probe_command().expect("build probe command");
         let args = command
             .get_args()

@@ -776,7 +776,7 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
     if let Some(ref s) = layer.sandbox {
         if parse_sandbox_kind(s.clone()).is_none() {
             bail!(
-                "config file '{}': invalid sandbox '{}': expected one of passthrough, macos-exec, macos_exec, docker",
+                "config file '{}': invalid sandbox '{}': expected one of passthrough, macos-exec, macos_exec, container",
                 path.display(),
                 s
             );
@@ -1186,7 +1186,7 @@ fn parse_sandbox_kind(value: String) -> Option<SandboxKind> {
     match value.trim().to_ascii_lowercase().as_str() {
         "passthrough" => Some(SandboxKind::Passthrough),
         "macos-exec" | "macos_exec" => Some(SandboxKind::MacosExec),
-        "docker" => Some(SandboxKind::Docker),
+        "container" => Some(SandboxKind::Container),
         _ => None,
     }
 }

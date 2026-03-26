@@ -35,8 +35,8 @@ These keys are read by the current runtime from config files:
 | `model_profile` | Path to a repo-tracked profile under `models/` | backend default profile |
 | `max_project_instructions_tokens` | Project instructions token budget | `4096` |
 | `max_memory_tokens` | Notes token budget | `2048` |
-| `sandbox` | Command sandbox driver: `passthrough`, `macos-exec`, or `docker` | `passthrough` |
-| `sandbox_profile` | Sandbox profile path or Docker image name | unset |
+| `sandbox` | Command sandbox driver: `passthrough`, `macos-exec`, or `container` | `passthrough` |
+| `sandbox_profile` | Sandbox profile path or container image name | unset |
 | `sandbox_require` | Abort startup instead of falling back to passthrough when the sandbox probe fails | `false` |
 | `notes_path` | Notes file used by `/memory` | unset |
 
@@ -142,11 +142,11 @@ Overrides the notes token budget.
 ### `VEX_SANDBOX`
 
 Selects the command sandbox driver. Accepted values: `passthrough`,
-`macos-exec`, `docker`.
+`macos-exec`, `container`.
 
 - `passthrough` preserves the current process-spawn behavior.
 - `macos-exec` wraps commands with `sandbox-exec` on macOS.
-- `docker` wraps commands with `docker run` and requires
+- `container` wraps commands with `docker run` and requires
   `VEX_SANDBOX_PROFILE` to name the container image.
 
 ### `VEX_SANDBOX_PROFILE`
@@ -155,9 +155,7 @@ Optional sandbox driver parameter.
 
 - For `macos-exec`, this is a profile path. When unset, the runtime uses a
   built-in default policy string.
-- For `docker`, this is the image name passed to `docker run`.
-  Startup runs `docker run --rm <image> true` so the selected image is
-  validated before the first wrapped command.
+- For `container`, this is the image name passed to `docker run`.
   Startup runs `docker run --rm <image> true` so the selected image is
   validated before the first wrapped command.
 
