@@ -132,6 +132,15 @@ impl DockerSandbox {
     pub fn new(image: String) -> Self {
         Self { image }
     }
+
+    fn probe_command(&self) -> Result<std::process::Command> {
+        if self.image.trim().is_empty() {
+            bail!("docker sandbox requires sandbox_profile to name the image");
+        }
+        let mut command = std::process::Command::new("docker");
+        command.args(["run", "--rm", &self.image, "true"]);
+        Ok(command)
+    }
 }
 
 impl SandboxDriver for DockerSandbox {
@@ -164,11 +173,8 @@ impl SandboxDriver for DockerSandbox {
     }
 
     fn probe(&self) -> Result<()> {
-        if self.image.trim().is_empty() {
-            bail!("docker sandbox requires sandbox_profile to name the image");
-        }
-        let status = std::process::Command::new("docker")
-            .args(["info", "--format", "{{.ServerVersion}}"])
+        let status = self
+            .probe_command()?
             .status()
             .context("failed to execute docker probe")?;
         if status.success() {
@@ -304,5 +310,18 @@ mod tests {
         assert_eq!(wrapped.program, "docker");
         assert!(wrapped.args.iter().any(|arg| arg == "alpine:3"));
         assert!(wrapped.args.iter().any(|arg| arg == "echo"));
+    }
+
+    #[test]
+    fn docker_probe_validates_selected_image_with_run_true() {
+        let sandbox = super::DockerSandbox::new("alpine:3".to_string());
+        let command = sandbox.probe_command().expect("build probe command");
+        let args = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(command.get_program().to_string_lossy(), "docker");
+        assert_eq!(args, vec!["run", "--rm", "alpine:3", "true"]);
     }
 }

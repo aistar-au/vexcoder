@@ -156,6 +156,10 @@ Optional sandbox driver parameter.
 - For `macos-exec`, this is a profile path. When unset, the runtime uses a
   built-in default policy string.
 - For `docker`, this is the image name passed to `docker run`.
+  Startup runs `docker run --rm <image> true` so the selected image is
+  validated before the first wrapped command.
+  Startup runs `docker run --rm <image> true` so the selected image is
+  validated before the first wrapped command.
 
 ### `VEX_SANDBOX_REQUIRE`
 
