@@ -88,6 +88,7 @@ For the current ADR chain, transport means the ADR-026 `LocalApiServer` surface 
 - `src/app/context.rs`
 - `src/app/errors.rs`
 - `src/app/util.rs`
+- `src/app/task_facade.rs`        # ADR-034 session-task facade entrypoints
 
 **Responsibilities**
 
@@ -112,6 +113,19 @@ For the current ADR chain, transport means the ADR-026 `LocalApiServer` surface 
 pub async fn execute_command(req: CommandRequest) -> Result<CommandResponse, AppError>;
 pub fn subscribe_runtime_events() -> impl futures_core::Stream<Item = RuntimeEnvelope>;
 pub async fn shutdown_gracefully() -> Result<(), AppError>;
+
+// src/app/task_facade.rs  (ADR-034 session-task management — added PR #230)
+pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing>;
+pub fn facade_delegate_session_task(
+    working_dir: &Path,
+    parent_task_id: &str,
+    agent_id: &str,
+    prompt: &str,
+) -> Result<FacadeDelegateResult>;
+pub fn facade_watch_snapshot(
+    working_dir: &Path,
+    id: &str,
+) -> Result<Option<FacadeWatchSnapshot>>;
 ```
 
 **Facade rule**
@@ -372,6 +386,46 @@ monochrome `Line::from` strings with no structured prefix styling.
 > and the `activity_rows` field described above were removed in ADR-031 Batch E.
 > The structured timeline renderer now derives all step rows directly from
 > canonical task state, superseding the legacy activity-row derivation.
+
+---
+
+## Implementation note — ADR-034 session-task facade additions (PR #230)
+
+As part of ADR-034 Phase B-E baseline (PR #230), the application facade was
+extended with three new synchronous entrypoints for multi-agent session-task
+management.  These entrypoints live in the new module `src/app/task_facade.rs`
+and are re-exported from `src/app.rs`.
+
+### New module: `src/app/task_facade.rs`
+
+| Entrypoint | Purpose |
+|---|---|
+| `facade_list_agents` | Loads the agents config from `working_dir` and returns a thin `FacadeAgentsListing` describing available agents and teams. |
+| `facade_delegate_session_task` | Acquires a worktree lease (via `WorktreeLeaseManager`), creates a `SessionTask` record with a UUID-scoped ID, and returns `FacadeDelegateResult { parent_task_id, session_task_id }`. |
+| `facade_watch_snapshot` | Searches saved task-state directories for an existing session task by ID and returns `Option<FacadeWatchSnapshot>` with current status and worktree path. |
+
+### Transport-side changes
+
+`src/server/handlers.rs` was refactored to remove all direct `crate::runtime`
+imports from the `agents`, `delegate`, and `watch` route handlers.  Those three
+handlers now call only `facade_list_agents`, `facade_delegate_session_task`, and
+`facade_watch_snapshot` respectively.  The only remaining `crate::runtime`
+import in the server layer is the ADR-025 transport contract
+(`crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, RuntimeRequest,
+TurnEndContext}`), which ADR-028 explicitly permits.
+
+The `watch` handler was also changed from SSE framing (one-shot channel) to a
+plain `Json<WatchSnapshot>` response, matching the snapshot-style semantics of
+the endpoint.
+
+### Enforcement test
+
+A new test `server_must_not_import_runtime_directly` was added to
+`tests/dependency_direction_tests.rs`.  It iterates all files under `src/server/`,
+skips lines that import the permitted `crate::runtime::json_handoff` contract,
+and fails the build if any other `crate::runtime` import is found in the server
+layer.  This mechanically enforces the "Transport must not reach runtime except
+through facade-owned entrypoints" rule for the session-task surface.
 
 ---
 

@@ -732,7 +732,7 @@ impl TuiMode {
             .iter()
             .find(|agent| agent.name == agent_id)
         else {
-            self.push_history_line(format!("[delegate] unknown agent '{agent_id}']"));
+            self.push_history_line(format!("[delegate] unknown agent '{agent_id}'"));
             return;
         };
 

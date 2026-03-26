@@ -48,8 +48,26 @@ impl WorktreeLeaseManager {
             .with_context(|| format!("failed to create {}", self.metadata_root().display()))?;
 
         let path = self.lease_root().join(task_id);
-        std::fs::create_dir_all(&path)
-            .with_context(|| format!("failed to create {}", path.display()))?;
+
+        // Attempt real git worktree; fall back to plain directory if not in a
+        // git repository (e.g. tests or non-git working directories).
+        let git_status = std::process::Command::new("git")
+            .args(["worktree", "add", "--detach"])
+            .arg(&path)
+            .arg("HEAD")
+            .current_dir(&self.state_dir)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+
+        match git_status {
+            Ok(status) if status.success() => { /* real worktree created */ }
+            _ => {
+                // Fallback: plain directory (tests, non-git contexts).
+                std::fs::create_dir_all(&path)
+                    .with_context(|| format!("failed to create {}", path.display()))?;
+            }
+        }
 
         let lease = WorktreeLease {
             task_id: task_id.to_string(),
@@ -70,8 +88,20 @@ impl WorktreeLeaseManager {
         if metadata_path.exists() {
             let lease = self.load(task_id)?;
             if lease.path.exists() {
-                std::fs::remove_dir_all(&lease.path)
-                    .with_context(|| format!("failed to remove {}", lease.path.display()))?;
+                // Try git worktree remove first; fall back to plain removal.
+                let removed_via_git = std::process::Command::new("git")
+                    .args(["worktree", "remove", "--force"])
+                    .arg(&lease.path)
+                    .current_dir(&self.state_dir)
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false);
+                if !removed_via_git {
+                    std::fs::remove_dir_all(&lease.path)
+                        .with_context(|| format!("failed to remove {}", lease.path.display()))?;
+                }
             }
             std::fs::remove_file(metadata_path)
                 .with_context(|| format!("failed to remove lease metadata for {task_id}"))?;

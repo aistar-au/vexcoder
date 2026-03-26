@@ -184,6 +184,37 @@ fn server_uses_facade_entrypoint() {
 }
 
 // ---------------------------------------------------------------------------
+// ADR-028 Rule: server must not reach runtime types directly (except
+// json_handoff which is the transport-level envelope contract).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn server_must_not_import_runtime_directly() {
+    let server_dir = src_dir().join("server");
+    let files = collect_rs_files(&server_dir);
+    let mut violations = Vec::new();
+
+    for file in &files {
+        for (lineno, line) in extract_crate_imports(file) {
+            // json_handoff is the transport-level envelope contract — allowed.
+            if line.contains("crate::runtime::json_handoff") {
+                continue;
+            }
+            if line.contains("crate::runtime") {
+                violations.push(format!("  {}:{lineno}: {line}", file.display()));
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "ADR-028: server layer must not import crate::runtime directly \
+         (route through crate::app facade):\n{}",
+        violations.join("\n")
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Structural: key facade entrypoints must exist
 // ---------------------------------------------------------------------------
 

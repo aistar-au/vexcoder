@@ -127,6 +127,16 @@ allowed_capabilities = ["read-file"]
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let watch: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        watch.get("kind"),
+        Some(&Value::String("session-task".into()))
+    );
+    assert_eq!(
+        watch.get("id"),
+        Some(&Value::String(session_task_id.clone()))
+    );
 }
 
 #[tokio::test]

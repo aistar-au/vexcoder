@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 236
+- Total tracked files: 237
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -245,3 +245,4 @@ Canonical raw URL index for every tracked file in this repository.
 | 234 | `tests/snapshots/tui_draw_snapshots__snapshot_with_changed_files_80x24.snap` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_with_changed_files_80x24.snap> |
 | 235 | `src/runtime/session_task.rs` | ~118 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/session_task.rs> |
 | 236 | `src/runtime/worktree_lease.rs` | ~133 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/worktree_lease.rs> |
+| 237 | `src/app/task_facade.rs` | ~176 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/task_facade.rs> |

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
 pub type SessionTaskId = String;
 
@@ -52,7 +53,12 @@ impl SessionTask {
         let parent_task_id = parent_task_id.into();
         let agent_id = agent_id.into();
         let now = now_millis();
-        let id = format!("{}-{}-{}", parent_task_id, agent_id, now);
+        let id = format!(
+            "{}-{}-{}",
+            parent_task_id,
+            agent_id,
+            Uuid::new_v4().as_hyphenated()
+        );
 
         Self {
             id,

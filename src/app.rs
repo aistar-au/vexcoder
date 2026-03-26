@@ -64,6 +64,7 @@ mod overlay;
 mod runtime_build;
 mod scroll;
 mod shell;
+pub(crate) mod task_facade;
 #[cfg(test)]
 mod tests;
 mod turn;
@@ -75,6 +76,10 @@ pub use self::facade::{
     FacadeBootstrap,
 };
 pub use self::runtime_build::{build_runtime, build_runtime_with_resume};
+pub use self::task_facade::{
+    facade_delegate_session_task, facade_list_agents, facade_watch_snapshot, FacadeAgentDescriptor,
+    FacadeAgentsListing, FacadeDelegateResult, FacadeTeamDescriptor, FacadeWatchSnapshot,
+};
 
 use self::overlay::summarize_tool_approval_context;
 #[cfg(test)]

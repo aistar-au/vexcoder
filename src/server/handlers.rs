@@ -12,13 +12,13 @@ use tokio::sync::mpsc;
 use super::sse::runtime_sse_response;
 use super::util::{bad_request, conflict, internal_error, not_found};
 use super::SSE_KEEPALIVE_INTERVAL;
-use crate::agents::{load_agents_config, IsolationPolicy};
-use crate::app::execute_facade_runtime;
+use crate::app::{
+    execute_facade_runtime, facade_delegate_session_task, facade_list_agents, facade_watch_snapshot,
+};
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
 };
 use crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, RuntimeRequest, TurnEndContext};
-use crate::runtime::{SessionTask, TaskState, WorktreeLeaseManager};
 
 use super::ControlResponse;
 
@@ -117,47 +117,27 @@ pub async fn schema_handler() -> Result<Json<SchemaBundle>, (StatusCode, Json<Co
 pub async fn agents_handler(
     State(state): State<LocalApiState>,
 ) -> Result<Json<AgentsResponse>, (StatusCode, Json<ControlResponse>)> {
-    let config = load_agents_config(&state.config.working_dir).map_err(internal_anyhow)?;
-    let Some(config) = config else {
-        return Ok(Json(AgentsResponse {
-            available: false,
-            agents: Vec::new(),
-            teams: Vec::new(),
-        }));
-    };
-
-    let mut live_counts = std::collections::HashMap::<String, usize>::new();
-    for file in TaskState::state_files_from(&state.config.working_dir) {
-        let task_state = TaskState::load(&file.dir, &file.id).map_err(internal_anyhow)?;
-        for session_task in task_state.session_tasks {
-            if session_task.lifecycle_state.is_live() {
-                *live_counts.entry(session_task.agent_id).or_default() += 1;
-            }
-        }
-    }
+    let listing = facade_list_agents(&state.config.working_dir).map_err(internal_anyhow)?;
 
     Ok(Json(AgentsResponse {
-        available: true,
-        agents: config
-            .agent_profiles
+        available: listing.available,
+        agents: listing
+            .agents
             .into_iter()
-            .map(|agent| AgentDescriptor {
-                live_session_tasks: live_counts.remove(&agent.name).unwrap_or_default(),
-                name: agent.name,
-                profile: agent.profile,
-                isolation: match agent.isolation {
-                    IsolationPolicy::Worktree => "worktree".to_string(),
-                    IsolationPolicy::Shared => "shared".to_string(),
-                },
+            .map(|a| AgentDescriptor {
+                name: a.name,
+                profile: a.profile,
+                isolation: a.isolation,
+                live_session_tasks: a.live_session_tasks,
             })
             .collect(),
-        teams: config
-            .team_definitions
+        teams: listing
+            .teams
             .into_iter()
-            .map(|team| TeamDescriptor {
-                name: team.name,
-                members: team.members,
-                scheduler: format!("{:?}", team.scheduler),
+            .map(|t| TeamDescriptor {
+                name: t.name,
+                members: t.members,
+                scheduler: t.scheduler,
             })
             .collect(),
     }))
@@ -171,95 +151,46 @@ pub async fn delegate_handler(
         return Err(bad_request("invalid_delegate_request"));
     }
 
-    let config = load_agents_config(&state.config.working_dir).map_err(internal_anyhow)?;
-    let Some(config) = config else {
-        return Err(bad_request("agents_config_missing"));
-    };
-    let Some(agent) = config
-        .agent_profiles
-        .iter()
-        .find(|agent| agent.name == request.agent_id)
-    else {
-        return Err(not_found("agent_not_found"));
-    };
-
-    let parent_task_id = request.parent_task_id.unwrap_or_else(new_server_task_id);
-    let state_dir = TaskState::state_dir_from(&state.config.working_dir);
-    let mut parent_state = TaskState::load(&state_dir, &parent_task_id)
-        .unwrap_or_else(|_| TaskState::new(parent_task_id.clone()));
-
-    let mut session_task = SessionTask::new(
-        parent_task_id.clone(),
-        request.agent_id,
-        request.prompt,
-        None,
-    );
-    if agent.isolation == IsolationPolicy::Worktree {
-        let lease_manager = WorktreeLeaseManager::new(&state_dir);
-        let lease = lease_manager
-            .lease_for_task(&session_task.id, Some(&parent_task_id))
-            .map_err(internal_anyhow)?;
-        session_task.worktree_path = Some(lease.path);
-    }
-
-    let session_task_id = session_task.id.clone();
-    parent_state.add_session_task(session_task);
-    parent_state.save(&state_dir).map_err(internal_anyhow)?;
+    let result = facade_delegate_session_task(
+        &state.config.working_dir,
+        request.parent_task_id,
+        &request.agent_id,
+        &request.prompt,
+    )
+    .map_err(|e| {
+        let msg = e.to_string();
+        if msg == "agent_not_found" {
+            not_found("agent_not_found")
+        } else if msg == "agents_config_missing" {
+            bad_request("agents_config_missing")
+        } else {
+            internal_anyhow(e)
+        }
+    })?;
 
     Ok(Json(DelegateResponse {
         ok: true,
-        parent_task_id,
-        session_task_id,
+        parent_task_id: result.parent_task_id,
+        session_task_id: result.session_task_id,
     }))
 }
 
 pub async fn watch_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ControlResponse>)> {
-    let snapshot = if let Ok(task_state) =
-        TaskState::load_from_search_dirs_from(&state.config.working_dir, &id)
-    {
-        WatchSnapshot {
-            kind: "task",
-            id: task_state.id,
-            parent_task_id: task_state.parent_task_id,
-            agent_id: task_state.agent_id,
-            status: format!("{:?}", task_state.status),
-            worktree_path: task_state
-                .worktree_path
-                .as_ref()
-                .map(|path| path.display().to_string()),
-        }
-    } else if let Some((parent_state, session_task)) =
-        TaskState::find_session_task_in_saved_states(&state.config.working_dir, &id)
-            .map_err(internal_anyhow)?
-    {
-        WatchSnapshot {
-            kind: "session-task",
-            id: session_task.id,
-            parent_task_id: Some(parent_state.id),
-            agent_id: Some(session_task.agent_id),
-            status: format!("{:?}", session_task.lifecycle_state),
-            worktree_path: session_task
-                .worktree_path
-                .as_ref()
-                .map(|path| path.display().to_string()),
-        }
-    } else {
-        return Err(not_found("task_not_found"));
-    };
+) -> Result<Json<WatchSnapshot>, (StatusCode, Json<ControlResponse>)> {
+    let snapshot = facade_watch_snapshot(&state.config.working_dir, &id)
+        .map_err(internal_anyhow)?
+        .ok_or_else(|| not_found("task_not_found"))?;
 
-    let (tx, rx) = mpsc::unbounded_channel::<String>();
-    let payload = serde_json::to_string(&snapshot).map_err(internal_error)?;
-    let _ = tx.send(payload);
-    drop(tx);
-
-    Ok((
-        StatusCode::OK,
-        [(axum::http::header::CACHE_CONTROL, "no-cache")],
-        runtime_sse_response(rx, SSE_KEEPALIVE_INTERVAL),
-    ))
+    Ok(Json(WatchSnapshot {
+        kind: snapshot.kind,
+        id: snapshot.id,
+        parent_task_id: snapshot.parent_task_id,
+        agent_id: snapshot.agent_id,
+        status: snapshot.status,
+        worktree_path: snapshot.worktree_path,
+    }))
 }
 
 pub async fn turns_handler(
