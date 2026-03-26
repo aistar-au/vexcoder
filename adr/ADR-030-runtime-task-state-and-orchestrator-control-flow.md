@@ -495,6 +495,11 @@ activity row derivation, ensuring the orchestration view remains accurate from
 tool-call start through tool-result receipt.  The row set is capped at 6 for
 display stability.
 
+> **Implementation note (ADR-031 Batch E):** `task_activity_rows()` and the
+> `activity_rows` field were removed in ADR-031 Batch E.  The structured
+> timeline renderer now derives step rows directly from canonical task state,
+> resolving this invariant violation at the source.
+
 ---
 
 ## References
