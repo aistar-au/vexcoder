@@ -193,18 +193,37 @@ fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Shared isolation is only valid when max_parallel_tasks == 1 (read-only
-/// access guarantee per ADR-034 §3).
+/// Capabilities that mutate repository state — agents with shared isolation
+/// must not declare any of these (ADR-034 §3: "only permitted for read-only
+/// tasks").
+const MUTABLE_CAPABILITIES: &[&str] = &["apply-patch", "run-command", "write-file"];
+
+/// Shared isolation is only valid when max_parallel_tasks == 1 **and** the
+/// agent declares no mutable capabilities (read-only access guarantee per
+/// ADR-034 §3).
 fn validate_isolation_invariants(config: &AgentsConfig, path: &Path) -> Result<()> {
     for agent in &config.agent_profiles {
-        if agent.isolation == IsolationPolicy::Shared && agent.max_parallel_tasks > 1 {
-            bail!(
-                "agent '{}' uses shared isolation but max_parallel_tasks={} in '{}'; \
-                 shared isolation requires max_parallel_tasks=1",
-                agent.name,
-                agent.max_parallel_tasks,
-                path.display(),
-            );
+        if agent.isolation == IsolationPolicy::Shared {
+            if agent.max_parallel_tasks > 1 {
+                bail!(
+                    "agent '{}' uses shared isolation but max_parallel_tasks={} in '{}'; \
+                     shared isolation requires max_parallel_tasks=1",
+                    agent.name,
+                    agent.max_parallel_tasks,
+                    path.display(),
+                );
+            }
+            for cap in &agent.allowed_capabilities {
+                if MUTABLE_CAPABILITIES.contains(&cap.as_str()) {
+                    bail!(
+                        "agent '{}' uses shared isolation but declares mutable capability \
+                         '{}' in '{}'; shared isolation is read-only per ADR-034 §3",
+                        agent.name,
+                        cap,
+                        path.display(),
+                    );
+                }
+            }
         }
     }
     Ok(())
@@ -364,6 +383,25 @@ max_parallel_tasks = 3
         assert!(
             err.to_string()
                 .contains("shared isolation requires max_parallel_tasks=1"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
+    fn rejects_shared_with_mutable_capability() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(
+            dir.path(),
+            r#"
+[[agents]]
+name = "bad"
+isolation = "shared"
+allowed_capabilities = ["read-file", "apply-patch"]
+"#,
+        );
+        let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("shared isolation is read-only"),
             "unexpected error: {err}",
         );
     }
