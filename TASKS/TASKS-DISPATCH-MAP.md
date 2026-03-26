@@ -68,7 +68,7 @@ The current work batch continues ADR-033 hybrid-retrieval follow-up and ADR-028 
 - Treat ADR-030 as the control-flow ADR for the post-gate runtime work: provider events normalize into canonical runtime events, task state owns truth, and orchestrator decisions remain runtime-owned.
 - Treat ADR-031 and ADR-032 as landed operator-surface prerequisites that downstream retrieval work must preserve.
 - Treat ADR-033 as the current retrieval ADR: Phases 1 through 4 baseline behavior are on `main`, including structural search, semantic reranking, large-file write guards, and context condensing.
-- The useful remaining follow-up batch is prompt/documentation alignment for those landed ADR-033 contracts; the old ADR-031 Batch A, ADR-032 prompt-interactivity, and ADR-033 Phase 3/4 review branches no longer differ from current `main`.
+- The useful remaining follow-up batch is prompt/documentation alignment for those landed ADR-033 contracts; system prompt, tool descriptions, and prompt templates now reflect all four phases. The old ADR-031 Batch A, ADR-032 prompt-interactivity, and ADR-033 Phase 3/4 review branches no longer differ from current `main`.
 
 ADR-027 supersedes the older ADR-018/019 managed-TUI direction and is the
 current reference for full-screen rendering and interactive command-session
