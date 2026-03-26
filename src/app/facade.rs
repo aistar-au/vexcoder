@@ -1,11 +1,14 @@
 use super::*;
 use crate::api::ApiClient;
 use crate::runtime::frontend::FrontendAdapter;
+use crate::runtime::{resolve_configured_sandbox, ConfiguredSandbox};
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default)]
 pub struct FacadeBootstrap {
     pub instructions_path: Option<String>,
     pub notes_warning: Option<String>,
+    pub sandbox: ConfiguredSandbox,
+    pub sandbox_warning: Option<String>,
 }
 
 pub fn build_facade_client(config: &Config) -> AppResult<(ApiClient, FacadeBootstrap)> {
@@ -38,6 +41,8 @@ pub fn build_facade_client(config: &Config) -> AppResult<(ApiClient, FacadeBoots
         FacadeBootstrap {
             instructions_path,
             notes_warning,
+            sandbox: ConfiguredSandbox::default(),
+            sandbox_warning: None,
         },
     ))
 }
@@ -46,9 +51,13 @@ pub fn build_facade_runtime<M: RuntimeMode>(
     config: &Config,
     mode: M,
 ) -> AppResult<(Runtime<M>, RuntimeContext, FacadeBootstrap)> {
-    let (client, bootstrap) = build_facade_client(config)?;
+    let (sandbox, sandbox_warning) = resolve_configured_sandbox(&config.sandbox)?;
+    let (client, mut bootstrap) = build_facade_client(config)?;
+    bootstrap.sandbox = sandbox.clone();
+    bootstrap.sandbox_warning = sandbox_warning;
     let operator = ToolOperator::new(config.working_dir.clone());
-    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone());
+    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
+        .with_sandbox(sandbox);
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
     let runtime = Runtime::new(mode, update_rx);

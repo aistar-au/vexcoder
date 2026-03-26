@@ -23,9 +23,9 @@ ADR-022 locked the first-milestone roadmap for `vexcoder` as a coding agent whos
 
 Every direct dependency of `vexcoder` must be licensed under a permissive, royalty-free license — specifically MIT, Apache 2.0, or a dual MIT/Apache 2.0 offering — such that building, distributing, and operating the application imposes no licensing fee, royalty obligation, or copyright assignment requirement on any party. This is the operative reason the project uses Rust (MIT/Apache 2.0) and ratatui (MIT): neither the language toolchain, the TUI framework, nor any crate in the dependency graph charges a licensing fee or restricts redistribution. Crates introduced directly by this ADR: `clap_complete` (Gap 6, MIT/Apache 2.0). All satisfy the constraint. The same constraint applies to all future Rust crate dependencies added under this ADR. Any crate carrying a commercial license, a copyleft license that would require source disclosure of this codebase, or a license that conditions use on a paid tier is prohibited without a dedicated ADR recording an explicit exception and its legal basis.
 
-**Operational and runtime dependency scope:** This ADR also introduces optional operational dependencies — a container runtime (Apache 2.0 in the reference setup, used by the current container-driver path), npm-distributed MCP server packages (licenses vary per package), a package-manager tap ecosystem (BSD 2-Clause in the reference setup), and CI-platform workflow tooling (license varies per component). These are not Rust crate dependencies compiled into the binary; they are operator-provided runtime components or CI infrastructure. The licensing constraint for these is therefore different: they are not required for the binary to build or run in `PassthroughSandbox` mode, and operators who use them accept their respective license terms independently. However, for long-term multi-year legal clarity the following rules apply:
+**Operational and runtime dependency scope:** This ADR also introduces optional operational dependencies — a container runtime (licensed under MIT in the reference setup, used by `ContainerSandbox`), npm-distributed MCP server packages (licenses vary per package), a package-manager tap ecosystem (BSD 2-Clause in the reference setup), and CI-platform workflow tooling (license varies per component). These are not Rust crate dependencies compiled into the binary; they are operator-provided runtime components or CI infrastructure. The licensing constraint for these is therefore different: they are not required for the binary to build or run in `PassthroughSandbox` mode, and operators who use them accept their respective license terms independently. However, for long-term multi-year legal clarity the following rules apply:
 
-- **Container runtime:** the reference container runtime is Apache 2.0 for the community edition, while some desktop distributions have separate commercial terms for certain business uses. The ADR does not bundle any container runtime; operators install it independently. Documentation must note that operators are responsible for verifying the licensing terms of the specific distribution they use.
+- **Container runtime (`ContainerSandbox`):** the reference container runtime is licensed under MIT in the reference setup, while some desktop distributions have separate commercial terms for certain business uses. The ADR does not bundle any container runtime; operators install it independently. Documentation must note that operators are responsible for verifying the licensing terms of the specific distribution they use.
 - **MCP server packages:** The `[[mcp_servers]]` config allows operators to configure arbitrary npm packages as tool servers. `vexcoder` makes no representation about the licenses of third-party MCP packages. Documentation must note that operators are responsible for verifying the license of any MCP server package they configure.
 - **CI tooling (CI platform workflows, cross-compilation tool, mingw toolchain):** These are build and release infrastructure, not runtime components. Their licensing does not affect the distributed binary's license obligations. **mingw runtime library exception:** the mingw runtime libraries (`libgcc`, `libwinpthread`) are distributed under the GCC Runtime Library Exception, which explicitly permits static linking into permissively-licensed binaries without copyleft propagation. No licensing obligation is imposed on the distributed `vex` binary by the mingw toolchain.
 - **Package-manager tap:** The tap formula is maintained under the same license as the `vexcoder` repository.
@@ -34,7 +34,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 | # | Gap | Status |
 | :--- | :--- | :--- |
-| 1 | No OS-level sandboxing | Proposed |
+| 1 | No OS-level sandboxing | Active |
 | 2 | No non-interactive execution mode | Proposed |
 | 3 | No layered configuration | Proposed |
 | 4 | No project instructions file | Proposed |
@@ -118,7 +118,7 @@ Introduce an opt-in `SandboxDriver` abstraction as a required pre-dispatch wrapp
 | :--- | :--- |
 | `PassthroughSandbox` | No containment. Default. Preserves current behaviour. |
 | `MacosSandboxExec` | Wraps command in `sandbox-exec -p <profile>`. Best-effort only — see deprecation note. |
-| `Container sandbox driver` | Wraps command in a container-runtime invocation against the configured image. Recommended stable containment path. |
+| `ContainerSandbox` | Wraps command through the container runtime using `run --rm <image> <args>`. Recommended stable containment path. |
 
 **`sandbox-exec` deprecation note:** `sandbox-exec` has been deprecated since macOS 10.15. `MacosSandboxExec` is best-effort: if `sandbox-exec` is unavailable or returns a non-zero exit on the probe call, the runtime must emit a clear warning and fall back to `PassthroughSandbox`. The fallback is suppressed and the runtime must instead abort if the operator sets `sandbox_require = true` in config. This distinction is critical: silent containment failure is a safety issue.
 
@@ -135,7 +135,7 @@ pub trait SandboxDriver: Send + Sync {
 pub enum SandboxKind {
     Passthrough,
     MacosSandboxExec,
-    Docker,
+    Container,
 }
 ```
 
@@ -175,11 +175,12 @@ TOML key names mirror `VEX_*` variable names in snake_case (e.g. `model_url`, `m
 
 Resolution errors (malformed TOML, unknown keys) are hard failures at startup with a diagnostic pointing to the offending file and key. A missing config file at any layer is not an error.
 
-**`model_url` non-loopback TLS rule (normative):** the sensitive-payload rule in ADR-026 §3.1 applies symmetrically to the outbound model connection. Prompts, repo contents, session state, and model responses crossing any non-local network path are sensitive payloads. When `model_url` resolves to a non-loopback host, the URL must use `https://`. A non-loopback `http://` `model_url` must be rejected at config load time with a diagnostic identifying the offending URL and explaining that TLS is required for non-loopback model endpoints.
+**`model_url` outbound TLS rule (normative):** the sensitive-payload rule in ADR-026 §3.1 applies symmetrically to the outbound model connection. Prompts, repo contents, session state, and model responses crossing a public network path are sensitive payloads. When `model_url` resolves to a public-internet host, the URL must use `https://`. A public-internet `http://` `model_url` must be rejected at config load time with a diagnostic identifying the offending URL and explaining that TLS is required for public endpoints.
 
 **Allowed exceptions:**
 
-- `model_url` resolving to `127.0.0.1`, `::1`, or `localhost` may use `http://`.
+- `model_url` resolving to `127.0.0.1`, `::1`, `localhost`, or `0.0.0.0` may use `http://`.
+- `model_url` resolving to RFC 1918 private addresses (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) or link-local addresses (`169.254.0.0/16`) may use `http://`. Local inference servers commonly expose only plain HTTP, and operators commonly reach them via LAN IP when the server binds on `0.0.0.0`.
 - `model_url_skip_tls_check = true` / `VEX_MODEL_URL_SKIP_TLS_CHECK=true` is a development-only escape hatch for self-signed or otherwise non-system-trusted HTTPS model endpoints. It must emit a startup warning on every launch and must not be allowed in repo-local config.
 
 **Reserved VPN carve-out:** a future VPN-specific relaxation for outbound model connections requires the same dedicated ADR as `api.vpn_trust`. Until that ADR exists, VPN virtual IP model endpoints still require `https://`.
@@ -1105,7 +1106,7 @@ A `src/index/` module providing structured code search, symbol lookup, or semant
 
 | Variable | Purpose | Default |
 | :--- | :--- | :--- |
-| `VEX_SANDBOX` | Sandbox driver: `passthrough`, `macos-exec`, `docker` | `passthrough` |
+| `VEX_SANDBOX` | Sandbox driver: `passthrough`, `macos-exec`, `container` | `passthrough` |
 | `VEX_SANDBOX_PROFILE` | Path to `sandbox-exec` profile or container image name | `""` (built-in default) |
 | `VEX_SANDBOX_REQUIRE` | Abort rather than fall back if sandbox is unavailable: `true`/`false` | `false` |
 | `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS` | Token budget for project instructions injection | `4096` |
@@ -1148,7 +1149,7 @@ enum Capability {
 ```toml
 # .vex/config.toml (repo-local) or ~/.config/vex/config.toml (user)
 
-sandbox          = "passthrough"   # or "macos-exec", "docker"
+sandbox          = "passthrough"   # or "macos-exec", "container"
 sandbox_profile  = ""              # path or image name; empty = built-in default
 sandbox_require  = false           # abort rather than fall back if sandbox unavailable
 
@@ -1220,8 +1221,20 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | :--- | :--- |
 | `SandboxDriver` trait + `PassthroughSandbox` | Passthrough is behaviourally identical to current codebase |
 | `MacosSandboxExec` (best-effort) | Wraps `RunCommand`; warns and falls back when unavailable; aborts when `sandbox_require = true` |
-| `Container sandbox driver` | Runs commands in a container when enabled; reports a clear error if the current container runtime is unavailable |
+| `ContainerSandbox` | Runs commands in a container when enabled; reports a clear error if the current container runtime is unavailable |
 | Evidence | Sandbox kind visible in TUI session header and `BatchMode` JSONL output |
+
+This branch completes the Phase D runtime wiring: startup resolves the selected
+driver from layered config or environment, emits an explicit warning before any
+fallback to `PassthroughSandbox`, and routes inline shell commands, hooks,
+validation commands, edit-loop validation, and `run_command` tool execution
+through the configured `SandboxDriver`.
+
+Roadmap alignment (2026-03-26): this branch is the Tier 2 PR `#231` merge
+blocker in the 60-item / 10-tier inventory and delivers the Phase D runtime
+items `PD-02` and `PD-03`. After merge, the remaining ADR-024 runtime backlog
+shifts to MCP completion (`PF-01`, `PF-02`, `PI-06`, `PI-07`) plus the later
+Tier 4 and Tier 9 items.
 
 ### Phase E — Non-interactive execution mode
 
@@ -1484,7 +1497,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 - Release workflow must cross-compile for five targets. The gnu Windows target avoids a Windows runner but produces binaries that depend on the mingw runtime.
 - macOS wrapper requires a Developer ID certificate and App Store Connect API key stored as CI secrets. Loss of these credentials blocks future signed releases.
 - MCP server lifecycle adds async surface area to the session start/stop path. STDIO server crashes must be handled gracefully.
-- Sandbox drivers are platform-specific. `MacosSandboxExec` is deprecated upstream; the current container-driver path requires a separately installed container runtime. Both absent conditions must be clearly reported at startup.
+- Sandbox drivers are platform-specific. `MacosSandboxExec` is deprecated upstream; `ContainerSandbox` requires a container runtime. Both absent conditions must be clearly reported at startup.
 
 **Constraints imposed on future work:**
 - `VEX_MODEL_TOKEN` must never be read from any config file layer. Files containing `model_token` must be rejected with a diagnostic at load time.
@@ -1514,8 +1527,8 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PB-03** | `vex skills list\|install\|remove` + `registry.toml` | [x] |
 | **PC-01** | `/model <name>` runtime model switching | [x] |
 | **PD-01** | `SandboxDriver` trait + `PassthroughSandbox` | [x] |
-| **PD-02** | `MacosSandboxExec` driver (best-effort + require flag) | [ ] |
-| **PD-03** | Container sandbox driver | [ ] |
+| **PD-02** | `MacosSandboxExec` driver (best-effort + require flag) | [x] |
+| **PD-03** | `ContainerSandbox` driver | [x] |
 | **PE-01** | `BatchMode: RuntimeMode + FrontendAdapter` | [x] |
 | **PE-02** | `vex exec` sub-command with JSONL/text output | [x] |
 | **PF-01** | `McpRegistry` with STDIO and HTTP transports | [ ] |
@@ -1548,7 +1561,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PJ-02** | `/fork [<label>]` — saves parent; creates new task-id; copies grants; does not copy conversation | [x] |
 | **PJ-03** | `/memory`, `/memory add`, `/memory clear` — notes file; session injection; token budget | [x] |
 | **PJ-04** | `vex init` — scaffolds `.vex/config.toml`, `AGENTS.md`, `.vex/validate.toml`; non-destructive | [x] |
-| **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [x] (save wiring merged in the PI-04 batch) |
+| **PK-01** | `/quit`, `/exit` — graceful shutdown with TaskState::save and EditLoop cancel | [x] (save wiring completed in the PI-04 batch) |
 | **PK-02** | `/about` — build metadata display; `build.rs` compile-time injection | [x] |
 | **PK-03** | `@<path>` inline injection — workspace-confined; truncation annotation; multi-token | [x] |
 | **PK-04** | `!<command>` passthrough — SandboxDriver + ApprovalPolicy; no model turn | [x] |
@@ -1675,7 +1688,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - `vex completions`, `vex install-hooks` / `vex uninstall-hooks`, and `vex skills` merged on this operator branch and now match the ADR-024 surface contract.
+  - `vex completions`, `vex install-hooks` / `vex uninstall-hooks`, and `vex skills` were implemented on this operator branch and now match the ADR-024 surface contract.
   - Follow-up commit `7f7cdbed65633c787d137ed3937cf782495b9f24` preserves resume compatibility for legacy subdirectory task-state paths, adds fish and powershell completion parsing coverage, and changes the installed-skill version sentinel from `0.0.0` to `unknown`.
   - Hook installation remains worktree-aware and repo-root anchoring stays in place for `.vex/state` and `.agents/skills/registry.toml`.
 
@@ -1813,7 +1826,40 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `cargo test --all-targets` : pass
 - Notes:
   - Trait and default driver scaffolded during PL-01 hooks work.
-  - PD-02 (`MacosSandboxExec`) and PD-03 (container sandbox driver) remain deferred.
+  - PD-02 (`MacosSandboxExec`) and PD-03 (`ContainerSandbox`) delivered in this branch.
+
+### [PD-02] - MacosSandboxExec driver (best-effort + require flag)
+- Operator: this branch (`work/vexcoder-adr024-sandbox-drivers`)
+- Commit: `3090d1c8202cce785ddc765284154cfd97fabd45`
+- Files:
+  - `src/runtime/sandbox.rs` — `MacosSandboxExec` driver implementation using `sandbox-exec`
+  - `src/config.rs` — `SandboxKind::MacosExec` variant and require-mode config wiring
+  - `src/app/facade.rs` — runtime bootstrap wiring for the configured sandbox
+  - `src/app/runtime_build.rs` — sandbox driver injection into the session builder
+  - `docs/src/configuration.md` — operator docs for `sandbox.kind = "macos-exec"` and `sandbox.require`
+- Validation:
+  - `cargo test --all-targets` : pass
+  - `make gate-fast` : pass
+- Notes:
+  - Best-effort mode logs a warning and falls back to passthrough when `sandbox-exec` is unavailable.
+  - Require mode returns an error if the sandbox binary is missing rather than falling back.
+  - Custom sandbox profiles are specified via `sandbox.sandbox_profile` in config.
+
+### [PD-03] - ContainerSandbox driver
+- Operator: this branch (`work/vexcoder-adr024-sandbox-drivers`)
+- Commit: `3090d1c8202cce785ddc765284154cfd97fabd45`
+- Files:
+  - `src/runtime/sandbox.rs` — `ContainerSandbox` struct + `SandboxDriver` impl; wraps commands through the container runtime
+  - `src/config.rs` -- `SandboxKind::Container` variant; `sandbox_profile` names the container image
+  - `src/app/facade.rs` — `ConfiguredSandbox::Container` arm at runtime build
+  - `src/runtime/validation.rs` — HTTPS enforcement for non-loopback endpoints added alongside
+- Validation:
+  - `cargo test container_wraps_command_in_container_invocation --all-targets` : pass
+  - `cargo test --all-targets` : pass
+- Notes:
+  - `sandbox.sandbox_profile` must name the container image; driver rejects empty values.
+  - A short `run --rm <image> true` probe is executed at session open to validate image availability.
+  - Network isolation depends on the container image and host configuration; no additional flags are injected.
 
 ### [PA-03 / PA-04] - vex migrate config + migration doc
 - Operator: reconciliation on a prior integration branch; implementation merged earlier
@@ -1915,7 +1961,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Notes:
   - `/permissions`, `/allow`, and `/deny` now render and mutate in-memory approval grants without starting a model turn.
   - `--resume` loads a saved task before TUI startup, and `-p` / `--print` routes a single turn through `BatchMode` with plain-text stdout.
-  - The merged PR delivered the command surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
+  - The merged PR added the command surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
 
 ### [PC-01 / PJ-04 / PK-07] - model switching, workspace init, and diff helpers
 - Historical branch name: omitted
@@ -1955,7 +2001,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Notes:
   - `@path` now expands workspace-confined file and directory context inline before a model turn starts.
   - `!command` routes shell passthrough through the existing approval and sandbox path with no model turn.
-  - The merged PR delivered this surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
+  - The merged PR added this surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
 
 ### [PK-05 / PK-06 / PK-09] - custom commands, /tools, and /generate-tests
 - Historical branch name: omitted

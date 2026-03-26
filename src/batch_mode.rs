@@ -10,6 +10,7 @@ use crate::runtime::{
     mode::RuntimeMode,
     project_instructions::{load_project_instructions, LoadResult},
     r#loop::Runtime,
+    resolve_configured_sandbox,
     task_state::{CommandEvidence, TaskId, TaskStatus},
     TaskState, UiUpdate,
 };
@@ -476,14 +477,19 @@ pub fn build_batch_runtime(
         .as_ref()
         .map(|state| state.id.clone())
         .unwrap_or_else(uuid_task_id);
+    let (sandbox, sandbox_warning) = resolve_configured_sandbox(&config.sandbox)?;
     let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
     let (client, notes_warning) = build_api_client_with_notes(config)?;
     let client = client.with_project_instructions(instructions_text);
     if let Some(warning) = notes_warning {
         eprintln!("{warning}");
     }
+    if let Some(warning) = sandbox_warning {
+        eprintln!("{warning}");
+    }
     let operator = ToolOperator::new(config.working_dir.clone());
-    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone());
+    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
+        .with_sandbox(sandbox);
 
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
@@ -515,14 +521,19 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
         .as_ref()
         .map(|state| state.id.clone())
         .unwrap_or_else(uuid_task_id);
+    let (sandbox, sandbox_warning) = resolve_configured_sandbox(&config.sandbox)?;
     let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
     let (client, notes_warning) = build_api_client_with_notes(config)?;
     let client = client.with_project_instructions(instructions_text);
     if let Some(warning) = notes_warning {
         eprintln!("{warning}");
     }
+    if let Some(warning) = sandbox_warning {
+        eprintln!("{warning}");
+    }
     let operator = ToolOperator::new(config.working_dir.clone());
-    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone());
+    let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
+        .with_sandbox(sandbox);
 
     let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
@@ -822,6 +833,7 @@ mod tests {
             ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
+            sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: Some(notes_path.clone()),
             api: crate::config::ApiConfig::default(),
@@ -1098,6 +1110,7 @@ mod tests {
             ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
+            sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: Some(notes_path),
             api: crate::config::ApiConfig::default(),
@@ -1133,6 +1146,7 @@ mod tests {
             ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
+            sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
@@ -1163,6 +1177,7 @@ mod tests {
             ),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
+            sandbox: crate::runtime::SandboxConfig::default(),
             model_headers: reqwest::header::HeaderMap::new(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),

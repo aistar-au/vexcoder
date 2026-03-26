@@ -3,7 +3,7 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-use crate::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode};
+use crate::runtime::{ModelBackendKind, ModelProtocol, SandboxConfig, SandboxKind, ToolCallMode};
 use crate::types::ModelProfile;
 use crate::util::{is_local_endpoint_url, parse_bool_flag};
 
@@ -107,6 +107,7 @@ pub struct Config {
     /// Estimated token budget for notes injection (byte len / 4).
     /// Controlled by `VEX_MAX_MEMORY_TOKENS`. Default: 2048.
     pub max_memory_tokens: usize,
+    pub sandbox: SandboxConfig,
     #[serde(skip)]
     pub model_headers: HeaderMap,
     pub notes_path: Option<PathBuf>,
@@ -141,6 +142,9 @@ struct ConfigLayer {
     model_url: Option<String>,
     model_url_skip_tls_check: Option<bool>,
     working_dir: Option<PathBuf>,
+    sandbox: Option<String>,
+    sandbox_profile: Option<String>,
+    sandbox_require: Option<bool>,
     model_backend: Option<String>,
     model_protocol: Option<String>,
     tool_call_mode: Option<String>,
@@ -306,6 +310,7 @@ impl Config {
             model_profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
+            sandbox: SandboxConfig::default(),
             model_headers: HeaderMap::new(),
             notes_path: None,
             api: ApiConfig::default(),
@@ -330,6 +335,12 @@ impl Config {
         if !local_endpoint && self.model_token.is_none() {
             bail!(
                 "VEX_MODEL_TOKEN must be set for non-local endpoints (url: '{}')",
+                self.model_url
+            );
+        }
+        if !local_endpoint && self.model_url.starts_with("http://") {
+            bail!(
+                "Model endpoint '{}' must use https://. Plain HTTP is allowed for local and private-network endpoints (localhost, 127.x.x.x, ::1, 0.0.0.0, and RFC 1918 LAN addresses like 192.168.x.x, 10.x.x.x, 172.16-31.x.x).",
                 self.model_url
             );
         }
@@ -473,6 +484,9 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
             .model_url_skip_tls_check
             .or(base.model_url_skip_tls_check),
         working_dir: over.working_dir.or(base.working_dir),
+        sandbox: over.sandbox.or(base.sandbox),
+        sandbox_profile: over.sandbox_profile.or(base.sandbox_profile),
+        sandbox_require: over.sandbox_require.or(base.sandbox_require),
         model_backend: over.model_backend.or(base.model_backend),
         model_protocol: over.model_protocol.or(base.model_protocol),
         tool_call_mode: over.tool_call_mode.or(base.tool_call_mode),
@@ -630,6 +644,22 @@ fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
             .ok()
             .filter(|v| !v.trim().is_empty())
             .map(PathBuf::from),
+        sandbox: std::env::var("VEX_SANDBOX")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
+        sandbox_profile: std::env::var("VEX_SANDBOX_PROFILE")
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty()),
+        sandbox_require: match std::env::var("VEX_SANDBOX_REQUIRE") {
+            Ok(v) if !v.trim().is_empty() => Some(parse_bool_flag(v.clone()).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Invalid VEX_SANDBOX_REQUIRE '{}': expected true/false/1/0",
+                    v
+                )
+            })?),
+            _ => None,
+        },
         model_backend,
         model_protocol,
         tool_call_mode,
@@ -738,6 +768,15 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
                 "config file '{}': invalid tool_call_mode '{}': expected one of \
                  structured, structured-tool-calls, structured_tool_calls, \
                  tagged-fallback, tagged_fallback, fallback, tagged",
+                path.display(),
+                s
+            );
+        }
+    }
+    if let Some(ref s) = layer.sandbox {
+        if parse_sandbox_kind(s.clone()).is_none() {
+            bail!(
+                "config file '{}': invalid sandbox '{}': expected one of passthrough, macos-exec, macos_exec, container",
                 path.display(),
                 s
             );
@@ -900,6 +939,14 @@ fn resolve_config(
     };
     let max_project_instructions_tokens = merged.max_project_instructions_tokens.unwrap_or(4096);
     let max_memory_tokens = merged.max_memory_tokens.unwrap_or(2048);
+    let sandbox = SandboxConfig {
+        kind: merged
+            .sandbox
+            .and_then(parse_sandbox_kind)
+            .unwrap_or(SandboxKind::Passthrough),
+        profile: merged.sandbox_profile,
+        require: merged.sandbox_require.unwrap_or(false),
+    };
     let api = resolve_api_config(merged.api)?;
 
     Ok(Config {
@@ -914,6 +961,7 @@ fn resolve_config(
         model_profile,
         max_project_instructions_tokens,
         max_memory_tokens,
+        sandbox,
         model_headers: parse_model_headers_json()?,
         notes_path: merged.notes_path.map(expand_home),
         api,
@@ -1134,6 +1182,15 @@ fn parse_api_transport(value: String) -> Option<ApiTransport> {
     }
 }
 
+fn parse_sandbox_kind(value: String) -> Option<SandboxKind> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "passthrough" => Some(SandboxKind::Passthrough),
+        "macos-exec" | "macos_exec" => Some(SandboxKind::MacosExec),
+        "container" => Some(SandboxKind::Container),
+        _ => None,
+    }
+}
+
 fn infer_model_protocol(api_url: &str) -> ModelProtocol {
     let normalized = api_url.trim().to_ascii_lowercase();
     if normalized.contains("/chat/completions") || normalized.ends_with("/v1") {
@@ -1267,6 +1324,58 @@ mod tests {
                 None => std::env::remove_var(self.key),
             }
         }
+    }
+
+    #[test]
+    fn test_config_rejects_non_loopback_http_model_url() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _url = EnvRestore::capture("VEX_MODEL_URL");
+        let _name = EnvRestore::capture("VEX_MODEL_NAME");
+        let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
+
+        std::env::set_var("VEX_MODEL_URL", "http://api.example.internal/v1/messages");
+        std::env::set_var("VEX_MODEL_NAME", "remote-model");
+        std::env::set_var("VEX_MODEL_TOKEN", "token");
+
+        let cfg = Config::load().expect("load failed");
+        let error = cfg
+            .validate()
+            .expect_err("non-loopback http must be rejected");
+        assert!(error.to_string().contains("https://"), "{error:#}");
+    }
+
+    #[test]
+    fn test_config_allows_loopback_http_model_url() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _url = EnvRestore::capture("VEX_MODEL_URL");
+        let _name = EnvRestore::capture("VEX_MODEL_NAME");
+        let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
+
+        std::env::set_var("VEX_MODEL_URL", "http://127.0.0.1:8080/v1/messages");
+        std::env::set_var("VEX_MODEL_NAME", "local-model");
+        std::env::remove_var("VEX_MODEL_TOKEN");
+
+        let cfg = Config::load().expect("load failed");
+        assert!(cfg.validate().is_ok(), "loopback http must remain valid");
+    }
+
+    #[test]
+    fn test_config_allows_private_network_http_model_url() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _url = EnvRestore::capture("VEX_MODEL_URL");
+        let _name = EnvRestore::capture("VEX_MODEL_NAME");
+        let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
+
+        // LAN-reachable model server on a private RFC 1918 address
+        std::env::set_var("VEX_MODEL_URL", "http://192.168.1.100:11434/v1");
+        std::env::set_var("VEX_MODEL_NAME", "local-model");
+        std::env::remove_var("VEX_MODEL_TOKEN");
+
+        let cfg = Config::load().expect("load failed");
+        assert!(
+            cfg.validate().is_ok(),
+            "private-network http must remain valid"
+        );
     }
 
     #[test]
@@ -1615,7 +1724,7 @@ mod tests {
     }
 
     #[test]
-    fn test_model_url_skip_tls_check_parses_from_env() {
+    fn test_model_url_skip_tls_check_warns() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         let _skip = EnvRestore::capture("VEX_MODEL_URL_SKIP_TLS_CHECK");
         let _url = EnvRestore::capture("VEX_MODEL_URL");

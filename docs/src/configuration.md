@@ -35,6 +35,9 @@ These keys are read by the current runtime from config files:
 | `model_profile` | Path to a repo-tracked profile under `models/` | backend default profile |
 | `max_project_instructions_tokens` | Project instructions token budget | `4096` |
 | `max_memory_tokens` | Notes token budget | `2048` |
+| `sandbox` | Command sandbox driver: `passthrough`, `macos-exec`, or `container` | `passthrough` |
+| `sandbox_profile` | Sandbox profile path or container image name | unset |
+| `sandbox_require` | Abort startup instead of falling back to passthrough when the sandbox probe fails | `false` |
 | `notes_path` | Notes file used by `/memory` | unset |
 
 `notes_path` is user-config only.
@@ -57,6 +60,12 @@ The full model endpoint URL.
   localhost URLs such as `http://localhost:8000/v1/messages`. If you enter an
   HTTPS localhost URL in the interactive startup prompt, `vex` now suggests the
   equivalent plain-HTTP localhost endpoint before the fullscreen session starts.
+- Same-machine local inference runtimes commonly expose only plain HTTP. That
+  remains supported when you connect via `localhost`,
+  `127.x.x.x`, `::1`, or `0.0.0.0`. LAN-reachable model servers on
+  RFC 1918 private addresses (`192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`)
+  and link-local addresses (`169.254.x.x`) are also allowed over plain HTTP.
+  Only truly remote (public-internet) endpoints require HTTPS.
 - If a local endpoint returns HTTP 400 due to context overflow, the error now
   shows the server's message verbatim and suggests increasing `--ctx-size` on
   the server or using `/compact` to reset the conversation.
@@ -76,6 +85,15 @@ otherwise non-system-trusted certificates.
 - Accepts `true`, `false`, `1`, or `0`.
 - Emits a startup warning on every launch when enabled.
 - Must not be committed in repo-local `.vex/config.toml`.
+
+For any model endpoint outside local and private networks, HTTPS is mandatory.
+Plain `http://` model URLs are rejected at startup for public-internet hosts so
+prompts, repository context, and model responses are not sent over unencrypted
+network paths. This rule does not block local inference servers reached via
+`localhost`, `127.x.x.x`, `::1`, `0.0.0.0`, or RFC 1918 / link-local LAN
+addresses (`192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`, `169.254.x.x`).
+`VEX_MODEL_URL_SKIP_TLS_CHECK` only relaxes certificate verification for HTTPS
+endpoints; it does not permit plain HTTP for public-internet hosts.
 
 ### `VEX_MODEL_NAME`
 
@@ -120,6 +138,38 @@ Overrides the project instructions token budget.
 ### `VEX_MAX_MEMORY_TOKENS`
 
 Overrides the notes token budget.
+
+### `VEX_SANDBOX`
+
+Selects the command sandbox driver. Accepted values: `passthrough`,
+`macos-exec`, `container`.
+
+- `passthrough` preserves the current process-spawn behavior.
+- `macos-exec` wraps commands with `sandbox-exec` on macOS.
+- `container` wraps commands with the installed container runtime and requires
+  `VEX_SANDBOX_PROFILE` to name the container image.
+- The built-in `macos-exec` default is intentionally compatibility-first: it
+  allows broad file access, network access, process spawning, IPC lookups, and
+  signals so common development tools continue to work. Use a custom profile if
+  you need stricter containment than process wrapping plus policy hooks.
+
+### `VEX_SANDBOX_PROFILE`
+
+Optional sandbox driver parameter.
+
+- For `macos-exec`, this is a profile path. When unset, the runtime uses a
+  built-in compatibility-focused policy string.
+- For `container`, this is the image name passed to the container runtime.
+  Startup runs a short `run --rm <image> true` probe through that runtime so
+  the selected image is validated before the first wrapped command.
+
+### `VEX_SANDBOX_REQUIRE`
+
+Controls startup fallback when the selected sandbox probe fails.
+
+- Accepts `true`, `false`, `1`, or `0`.
+- When `false`, startup emits a warning and falls back to `passthrough`.
+- When `true`, startup aborts instead of running without containment.
 
 ### `VEX_MAX_TOKENS`
 
@@ -210,12 +260,15 @@ sections for future expansion.
 
 - The active runtime keys are the top-level keys listed above.
 - `[[hooks]]` is active today.
+- `sandbox`, `sandbox_profile`, and `sandbox_require` are active runtime
+  features and apply to TUI, batch mode, inline `!command`, hooks, and
+  validation subprocesses.
 - Commented `[api]` remains a scaffold placeholder in config files.
   `VEX_API_*` environment variables (transport, host, port, socket, key,
   protocol, TLS paths) are active and functional for API server configuration.
-- `[[mcp_servers]]` and `sandbox_require` are not active runtime features yet,
-  but `vex doctor` reads them to probe MCP connectivity and report sandbox
-  fallback status.
+- `[[mcp_servers]]` is still a reserved section on this branch. `vex doctor`
+  reads it to probe configured MCP connectivity without enabling live runtime
+  MCP dispatch.
 
 ## Minimal examples
 

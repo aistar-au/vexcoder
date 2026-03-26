@@ -32,6 +32,7 @@ impl TuiMode {
             model_backend: config.model_backend,
             model_profile: config.model_profile.clone(),
             working_dir: config.working_dir.clone(),
+            sandbox: ConfiguredSandbox::default(),
             file_prompt_entries: RefCell::new(None),
             custom_commands,
             last_assembled_context: None,

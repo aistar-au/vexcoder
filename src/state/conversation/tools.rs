@@ -3,8 +3,8 @@ use crate::config::{HookEvent, HookOnFail};
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::runtime::{
     format_command_session_cancelled, format_command_session_exit, format_command_session_output,
-    format_command_session_started, CommandRequest, CommandRunner, DefaultCommandRunner,
-    PassthroughSandbox, SandboxDriver,
+    format_command_session_started, CommandRequest, CommandRunner, ConfiguredSandbox,
+    DefaultCommandRunner, SandboxDriver,
 };
 use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
 use crate::tools::embed::EmbeddingConfig;
@@ -183,8 +183,14 @@ impl ConversationManager {
             .await?;
 
         let tool_result = if name == "run_command" {
-            execute_run_command_tool(&self.tool_operator, input, tool_timeout, stream_delta_tx)
-                .await
+            execute_run_command_tool(
+                &self.tool_operator,
+                &self.sandbox,
+                input,
+                tool_timeout,
+                stream_delta_tx,
+            )
+            .await
         } else if name == "codebase_search" {
             execute_codebase_search_tool(&self.tool_operator, input).await
         } else {
@@ -256,7 +262,7 @@ impl ConversationManager {
             .and_then(|value| value.as_str())
             .unwrap_or("");
         let runner = DefaultCommandRunner::new();
-        let sandbox = PassthroughSandbox;
+        let sandbox = self.sandbox.clone();
 
         for hook in &self.hooks {
             if hook.event != event || hook.tool != tool_name {
@@ -366,6 +372,7 @@ async fn execute_codebase_search_tool(
 
 async fn execute_run_command_tool(
     tool_operator: &ToolOperator,
+    sandbox: &ConfiguredSandbox,
     input: &serde_json::Value,
     tool_timeout: Duration,
     stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
@@ -395,7 +402,7 @@ async fn execute_run_command_tool(
         });
     }
 
-    let request = PassthroughSandbox.wrap(CommandRequest {
+    let request = sandbox.wrap(CommandRequest {
         program: program.to_string(),
         args,
         working_dir: Some(tool_operator.working_dir().to_path_buf()),
