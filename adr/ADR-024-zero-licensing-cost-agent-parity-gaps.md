@@ -34,7 +34,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 | # | Gap | Status |
 | :--- | :--- | :--- |
-| 1 | No OS-level sandboxing | Proposed |
+| 1 | No OS-level sandboxing | Active |
 | 2 | No non-interactive execution mode | Proposed |
 | 3 | No layered configuration | Proposed |
 | 4 | No project instructions file | Proposed |
@@ -1222,6 +1222,12 @@ args      = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | `MacosSandboxExec` (best-effort) | Wraps `RunCommand`; warns and falls back when unavailable; aborts when `sandbox_require = true` |
 | `Container sandbox driver` | Runs commands in a container when enabled; reports a clear error if the current container runtime is unavailable |
 | Evidence | Sandbox kind visible in TUI session header and `BatchMode` JSONL output |
+
+This branch completes the Phase D runtime wiring: startup resolves the selected
+driver from layered config or environment, emits an explicit warning before any
+fallback to `PassthroughSandbox`, and routes inline shell commands, hooks,
+validation commands, edit-loop validation, and `run_command` tool execution
+through the configured `SandboxDriver`.
 
 ### Phase E — Non-interactive execution mode
 

@@ -35,6 +35,9 @@ These keys are read by the current runtime from config files:
 | `model_profile` | Path to a repo-tracked profile under `models/` | backend default profile |
 | `max_project_instructions_tokens` | Project instructions token budget | `4096` |
 | `max_memory_tokens` | Notes token budget | `2048` |
+| `sandbox` | Command sandbox driver: `passthrough`, `macos-exec`, or `docker` | `passthrough` |
+| `sandbox_profile` | Sandbox profile path or Docker image name | unset |
+| `sandbox_require` | Abort startup instead of falling back to passthrough when the sandbox probe fails | `false` |
 | `notes_path` | Notes file used by `/memory` | unset |
 
 `notes_path` is user-config only.
@@ -120,6 +123,32 @@ Overrides the project instructions token budget.
 ### `VEX_MAX_MEMORY_TOKENS`
 
 Overrides the notes token budget.
+
+### `VEX_SANDBOX`
+
+Selects the command sandbox driver. Accepted values: `passthrough`,
+`macos-exec`, `docker`.
+
+- `passthrough` preserves the current process-spawn behavior.
+- `macos-exec` wraps commands with `sandbox-exec` on macOS.
+- `docker` wraps commands with `docker run` and requires
+  `VEX_SANDBOX_PROFILE` to name the container image.
+
+### `VEX_SANDBOX_PROFILE`
+
+Optional sandbox driver parameter.
+
+- For `macos-exec`, this is a profile path. When unset, the runtime uses a
+  built-in default policy string.
+- For `docker`, this is the image name passed to `docker run`.
+
+### `VEX_SANDBOX_REQUIRE`
+
+Controls startup fallback when the selected sandbox probe fails.
+
+- Accepts `true`, `false`, `1`, or `0`.
+- When `false`, startup emits a warning and falls back to `passthrough`.
+- When `true`, startup aborts instead of running without containment.
 
 ### `VEX_MAX_TOKENS`
 
@@ -210,12 +239,15 @@ sections for future expansion.
 
 - The active runtime keys are the top-level keys listed above.
 - `[[hooks]]` is active today.
+- `sandbox`, `sandbox_profile`, and `sandbox_require` are active runtime
+  features and apply to TUI, batch mode, inline `!command`, hooks, and
+  validation subprocesses.
 - Commented `[api]` remains a scaffold placeholder in config files.
   `VEX_API_*` environment variables (transport, host, port, socket, key,
   protocol, TLS paths) are active and functional for API server configuration.
-- `[[mcp_servers]]` and `sandbox_require` are not active runtime features yet,
-  but `vex doctor` reads them to probe MCP connectivity and report sandbox
-  fallback status.
+- `[[mcp_servers]]` is still a reserved section on this branch. `vex doctor`
+  reads it to probe configured MCP connectivity without enabling live runtime
+  MCP dispatch.
 
 ## Minimal examples
 
