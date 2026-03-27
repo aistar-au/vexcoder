@@ -6,7 +6,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
 - Total tracked files: 242
-- Last updated: 2026-03-27 (Tier 4 security hardening batch — file count unchanged)
+- Last updated: 2026-03-28 (post-247 docs batch — line-count refresh for stream.rs and editor.rs)
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -99,7 +99,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 87 | `src/api/client.rs` | ~1410 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client.rs> |
 | 88 | `src/api/logging.rs` | ~74 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/logging.rs> |
 | 89 | `src/api/mock_client.rs` | ~42 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
-| 90 | `src/api/stream.rs` | ~517 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
+| 90 | `src/api/stream.rs` | ~632 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
 | 91 | `src/app.rs` | ~851 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
 | 92 | `src/app/accessors.rs` | ~410 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/accessors.rs> |
 | 93 | `src/app/commands.rs` | ~1264 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/commands.rs> |
@@ -221,7 +221,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 209 | `src/ui/draw/regions.rs` | ~68 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/regions.rs> |
 | 210 | `src/ui/draw/tests.rs` | ~1323 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/tests.rs> |
 | 211 | `src/ui/draw/transcript.rs` | ~1006 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/transcript.rs> |
-| 212 | `src/ui/editor.rs` | ~562 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/editor.rs> |
+| 212 | `src/ui/editor.rs` | ~686 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/editor.rs> |
 | 213 | `src/ui/input_metrics.rs` | ~196 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/input_metrics.rs> |
 | 214 | `src/ui/layout.rs` | ~111 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/layout.rs> |
 | 215 | `src/ui/render.rs` | ~1282 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render.rs> |
