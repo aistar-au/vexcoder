@@ -766,17 +766,21 @@ impl TuiMode {
             return;
         };
 
+        let Ok(mut live_counts) = TaskState::live_session_task_counts_from(&self.working_dir)
+        else {
+            self.push_history_line("[agents] failed to read saved task state".to_string());
+            return;
+        };
+
         self.push_history_line("[agents]".to_string());
         for agent in &config.agent_profiles {
-            let live_count = self
-                .current_task
-                .session_tasks
-                .iter()
-                .filter(|task| task.agent_id == agent.name && task.lifecycle_state.is_live())
-                .count();
             self.push_history_line(format!(
                 "  {} profile={} isolation={:?} max_parallel={} live={}",
-                agent.name, agent.profile, agent.isolation, agent.max_parallel_tasks, live_count
+                agent.name,
+                agent.profile,
+                agent.isolation,
+                agent.max_parallel_tasks,
+                live_counts.remove(&agent.name).unwrap_or_default()
             ));
         }
         if !config.team_definitions.is_empty() {
@@ -896,20 +900,27 @@ impl TuiMode {
             return;
         }
 
-        match TaskState::find_session_task_in_saved_states(&self.working_dir, selector) {
-            Ok(Some((state, task))) => {
-                self.push_history_line(format!(
-                    "[watch] {} parent={} agent={} status={:?}",
-                    task.id, state.id, task.agent_id, task.lifecycle_state
-                ));
-            }
-            Ok(None) => {
-                self.push_history_line(format!("[watch] no session task found for '{selector}'"));
-            }
-            Err(error) => {
-                self.push_history_line(format!("[watch] error: {error}"));
-            }
+        let saved_match = TaskState::state_files_from(&self.working_dir)
+            .into_iter()
+            .find_map(|file| {
+                let state = TaskState::load(&file.dir, &file.id).ok()?;
+                let task = state
+                    .session_tasks
+                    .iter()
+                    .find(|task| task.id == selector || task.agent_id == selector)?
+                    .clone();
+                Some((state, task))
+            });
+
+        if let Some((state, task)) = saved_match {
+            self.push_history_line(format!(
+                "[watch] {} parent={} agent={} status={:?}",
+                task.id, state.id, task.agent_id, task.lifecycle_state
+            ));
+            return;
         }
+
+        self.push_history_line(format!("[watch] no session task found for '{selector}'"));
     }
     pub(super) fn handle_custom_command(
         &mut self,
