@@ -1,4 +1,5 @@
 use super::*;
+use crate::ui::render::MAX_INPUT_PANE_ROWS;
 
 #[test]
 fn test_render_not_called_when_state_unchanged() {
