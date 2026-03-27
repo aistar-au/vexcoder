@@ -262,7 +262,7 @@ jobs:
         shell: pwsh
         run: cargo clippy --all-targets -- -D warnings
 
-  # ── 7. Windows tests (--all + --all-targets combined) ──────────────
+  # ── 7. Windows tests (nextest, j2) ─────────────────────────────────
   windows-test:
     runs-on: windows-latest
     steps:
@@ -290,15 +290,23 @@ jobs:
           key: windows-test-${{ hashFiles('Cargo.lock') }}
           restore-keys: windows-test-
 
-      - name: Run tests (--all)
+      - name: Install cargo-nextest (prebuilt, version-pinned)
+        shell: pwsh
+        env:
+          NEXTEST_VERSION: "0.9.132"
+        run: |
+          $archive = "cargo-nextest-${env:NEXTEST_VERSION}-x86_64-pc-windows-msvc.zip"
+          $url = "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${env:NEXTEST_VERSION}/${archive}"
+          $dest = Join-Path $env:TEMP $archive
+          Invoke-WebRequest -Uri $url -OutFile $dest
+          Expand-Archive -Path $dest -DestinationPath "$env:USERPROFILE\.cargo\bin" -Force
+          Remove-Item $dest
+
+      - name: Run tests (nextest, j2)
         shell: pwsh
         run: |
           $env:VEX_MODEL_TOKEN = ""
-          cargo test --all
-
-      - name: Run tests (--all-targets)
-        shell: pwsh
-        run: cargo test --all-targets
+          cargo nextest run -j 2
 
   # ── 8. Windows package (build + smoke test) ────────────────────────
   windows-package:

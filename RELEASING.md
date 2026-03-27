@@ -34,13 +34,13 @@ pre-release label. This ensures correct semver precedence ordering:
 
 ## Git tag conventions
 
-- Tags use the `v` prefix: `v0.1.0-alpha.3`, `v1.0.0`.
+- Tags use the `v` prefix: `v0.1.0-beta.1`, `v1.0.0`.
 - Tags are **annotated**, not lightweight, and include a short summary.
 - Tags are applied only to commits on `main` after the PR merge.
 - Tags are never moved or deleted once pushed. If a release is bad, cut a new
   patch release instead.
 - Tag names must match the `Cargo.toml` version exactly (with the `v` prefix):
-  if `Cargo.toml` says `0.1.0-alpha.3`, the tag is `v0.1.0-alpha.3`.
+  if `Cargo.toml` says `0.1.0-beta.1`, the tag is `v0.1.0-beta.1`.
 
 ### Creating a tag
 
@@ -52,10 +52,10 @@ git pull --ff-only origin main
 grep '^version' Cargo.toml
 
 # Create an annotated tag
-git tag -a v0.1.0-alpha.3 -m "Release v0.1.0-alpha.3"
+git tag -a v0.1.0-beta.1 -m "Release v0.1.0-beta.1"
 
 # Push the tag
-git push origin v0.1.0-alpha.3
+git push origin v0.1.0-beta.1
 ```
 
 ---
@@ -66,7 +66,7 @@ git push origin v0.1.0-alpha.3
 
 1. Run the automated version bump on the feature branch:
    ```bash
-   make bump V=0.2.0-alpha.1
+  make bump V=<new-version>
    ```
    This updates `Cargo.toml`, `Cargo.lock`, `CONTRIBUTING.md`, and
    `RELEASING.md` in one step. See `scripts/bump-version.sh` for details.
@@ -93,17 +93,11 @@ git push origin v0.1.0-alpha.3
 
 10. Verify the tag exists on the remote:
     ```bash
-    git ls-remote --tags origin | grep v0.1.0-alpha.3
+  git ls-remote --tags origin | grep v0.1.0-beta.1
     ```
-11. If the repository has a release workflow, confirm it triggered and
-    completed successfully.
-12. Create the release on the hosting platform if not automated:
-    ```bash
-    gh release create v0.1.0-alpha.3 \
-      --title "v0.1.0-alpha.3" \
-      --prerelease \
-      --notes "See merged PRs since the previous tag for details."
-    ```
+11. Confirm `.github/workflows/release.yml` completed successfully for the tag.
+12. Verify the workflow published the release entry, attached the platform
+  archives, and uploaded the matching `CHANGELOG-v0.1.0-beta.1.md` asset.
 
 ---
 
@@ -139,7 +133,7 @@ version.
 
 1. Branch from the tagged release commit:
    ```bash
-   git checkout -b hotfix/v0.1.1 v0.1.0
+  git checkout -b hotfix/v0.1.1 v0.1.0
    ```
 2. Apply the minimal fix.
 3. Bump the PATCH version in `Cargo.toml`.
@@ -154,7 +148,7 @@ The `version-bump` workflow (`.github/workflows/version-bump.yml`) is a
 manual dispatch workflow that automates the version bump process:
 
 1. Go to **Actions > version-bump > Run workflow**.
-2. Enter the new version (e.g. `0.1.0-alpha.4`). No `v` prefix.
+2. Enter the new version (e.g. `0.1.0-beta.1`). No `v` prefix.
 3. The workflow runs `scripts/bump-version.sh`, commits the changes, and
    opens a PR targeting `main`.
 4. Review and merge the PR.
@@ -173,9 +167,10 @@ The workflow:
 1. Builds release archives for 5 targets (Linux musl x86\_64 + aarch64,
    macOS x86\_64 + aarch64, Windows MSVC).
 2. Signs archives with Sigstore cosign (keyless OIDC-backed bundles).
-3. Creates a GitHub Release with auto-generated notes and attaches all
-   archives, checksums, and signature bundles.
-4. Pre-release tags (containing `alpha`, `beta`, or `rc`) are
+3. Generates release notes from the previous semver tag to the pushed tag.
+4. Creates or updates the release entry and attaches all archives, checksums,
+  signature bundles, and a generated `CHANGELOG-<tag>.md` asset.
+5. Pre-release tags (containing `alpha`, `beta`, or `rc`) are
    automatically marked as pre-releases.
 
 Manual dispatch is available for re-running a failed release without
@@ -192,5 +187,5 @@ between the binary and the tag.
 - [Semantic Versioning 2.0.0](https://semver.org/)
 - [Conventional Commits](https://www.conventionalcommits.org/) (recommended
   for commit messages)
-- [Keep a Changelog](https://keepachangelog.com/) (recommended when a
-  CHANGELOG is added)
+- [Keep a Changelog](https://keepachangelog.com/) (useful guidance for the
+  generated release notes format)
