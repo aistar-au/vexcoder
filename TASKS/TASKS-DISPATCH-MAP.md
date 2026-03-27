@@ -18,10 +18,10 @@ Source of truth: `adr/ADR-README.md`.
 
 | ADR source file | Status | Remaining |
 | :--- | :--- | :--- |
-| `adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md` | Accepted | 17 items (3 P1, 13 P2, 1 P3) |
+| `adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md` | Accepted | 13 items (0 P1, 12 P2, 1 P3) |
 | `adr/ADR-022-amendment-2026-03-13.md` | Amended | Amendment only |
 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed (milestone-1 passed) | Post-milestone G/H |
-| `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed | 16 items |
+| `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-milestone complete) | 7 items (all post-milestone) |
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active | Ongoing alignment |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Accepted | Verification follow-up (8 decision items) |
 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Accepted | Verification follow-up (6 coverage requirements) |
@@ -30,20 +30,14 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-033-hybrid-retrieval-context-architecture.md` | Active (Phases 1-4 merged) | Integration |
 | `adr/ADR-034-multi-agent-parallel-task-execution.md` | Active (Phase A + B-E merged) | Hardening |
 
-### Implementation-Complete (pending move to completed/)
+### Moved to completed/ (2026-03-27)
 
-| ADR source file | Status |
-| :--- | :--- |
-| `adr/ADR-013-tui-completion-deployment-plan.md` | Accepted (all phases complete) |
-| `adr/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md` | Superseded by ADR-027 |
-| `adr/ADR-023-deterministic-edit-loop.md` | Complete (EL-01 through EL-13) |
-| `adr/ADR-025-runtime-json-handoff-contract.md` | Complete (PI-09 through PI-12) |
-| `adr/ADR-026-localapiserver-transport-binding.md` | Complete (PI-13 through PI-16) |
-| `adr/ADR-027-full-screen-tui-command-session-capture.md` | Accepted (complete) |
+ADR-013, ADR-018, ADR-025, ADR-026, ADR-027 moved to `adr/completed/`.
+ADR-023 is complete (EL-01 through EL-13) and remains in `adr/`.
 
-## Remaining Work Summary (32 items across 6 active tiers)
+## Remaining Work Summary (27 items across 5 active tiers)
 
-Tiers 1–4 are complete; 32 items remain across Tiers 5–9.
+Tiers 1–4 are complete; 27 items remain across Tiers 5–9.
 
 | Tier | Source | Items | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
@@ -55,7 +49,7 @@ Tiers 1–4 are complete; 32 items remain across Tiers 5–9.
 | 6 | ADR-021 P2 | 13 | Open | Code quality and duplication removal |
 | 7 | ADR-021 P3 | 1 | Open | Idle backoff tuning |
 | 8 | ADR-024 G/H + ADR-022 | 7 | Open | Post-milestone release pipeline and packaging |
-| 9 | Multiple | 8 | Open | Housekeeping: move completed ADRs, update status fields |
+| 9 | Multiple | 3 | Open | Housekeeping: update status fields for ADR-031, ADR-033; verify ADR-028 |
 
 ## Immediate Dependency Notes
 
@@ -75,8 +69,8 @@ Milestone-1 gate (passed 2026-03-15):
 ```
 
 ADR-028 remains the boundary ADR for post-gate work. ADR-029 through ADR-034
-are the active post-gate ADR set. ADR-025, ADR-026, and ADR-027 are
-implementation-complete and pending housekeeping move to completed/.
+are the active post-gate ADR set. ADR-025, ADR-026, and ADR-027 have been
+moved to `adr/completed/` as of 2026-03-27.
 
 ## Current Next Work Batch
 
@@ -86,7 +80,7 @@ confirm that `StreamEvent`, `ContentBlock`, `Delta`, `ApiUsage`,
 all implemented (ADR-029); that 6 coverage requirements have test evidence
 (ADR-030); and that character-count and focus indicators are present
 (ADR-032 items 4 and 5).  See `TASKS/ACTIVE-ROADMAP.md` for the full
-32-item, 6-active-tier breakdown.
+27-item, 5-active-tier breakdown.
 
 ## Tracking Notes
 
