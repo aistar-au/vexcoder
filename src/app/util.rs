@@ -122,10 +122,9 @@ pub fn kebab_to_capability(s: &str) -> Option<Capability> {
 
 pub(super) fn capability_for_tool_name(tool_name: &str) -> Option<Capability> {
     match tool_name {
-        "read_file" | "list_files" | "list_directory" | "search" | "search_files"
-        | "search_content" | "find_files" | "git_status" | "git_diff" | "git_log" | "git_show" => {
-            Some(Capability::ReadFile)
-        }
+        "read_file" | "list_files" | "list_directory" | "list_dir" | "glob_files" | "search"
+        | "search_files" | "search_content" | "find_files" | "git_status" | "git_diff"
+        | "git_log" | "git_show" => Some(Capability::ReadFile),
         "write_file" | "edit_file" | "rename_file" => Some(Capability::WriteFile),
         "apply_patch" | "git_add" | "git_commit" => Some(Capability::ApplyPatch),
         "run_command" => Some(Capability::RunCommand),

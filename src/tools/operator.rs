@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
+use super::workspace_ignore::WorkspaceIgnore;
 use crate::edit_diff::format_edit_hunks;
 
 const MAX_EDIT_SNIPPET_CHARS: usize = 2_000;
@@ -42,7 +43,7 @@ impl ToolOperator {
         }
     }
 
-    fn resolve_path(&self, path: &str) -> Result<PathBuf> {
+    pub(super) fn resolve_path(&self, path: &str) -> Result<PathBuf> {
         let path = path.trim();
         if path.is_empty() {
             bail!("Path cannot be empty");
@@ -66,7 +67,7 @@ impl ToolOperator {
         Ok(normalized)
     }
 
-    fn ensure_path_is_within_workspace(&self, path: &Path) -> Result<()> {
+    pub(super) fn ensure_path_is_within_workspace(&self, path: &Path) -> Result<()> {
         let guard_path = if path.exists() {
             path.to_path_buf()
         } else {
@@ -449,7 +450,7 @@ impl ToolOperator {
         }
     }
 
-    fn resolve_optional_path(&self, path: Option<&str>) -> Result<PathBuf> {
+    pub(super) fn resolve_optional_path(&self, path: Option<&str>) -> Result<PathBuf> {
         match path.and_then(non_empty_trimmed) {
             None => Ok(self.working_dir.clone()),
             Some(".") => Ok(self.working_dir.clone()),
@@ -564,11 +565,28 @@ impl ToolOperator {
     }
 
     fn walk_workspace_files(&self, root: &Path) -> Result<Vec<PathBuf>> {
+        let ignore = WorkspaceIgnore::load(&self.working_dir);
+        self.walk_workspace_files_ignoring(root, &ignore)
+    }
+
+    pub(super) fn walk_workspace_files_ignoring(
+        &self,
+        root: &Path,
+        ignore: &WorkspaceIgnore,
+    ) -> Result<Vec<PathBuf>> {
         let mut files = Vec::new();
         let mut stack = vec![root.to_path_buf()];
 
         while let Some(path) = stack.pop() {
             if self.ensure_path_is_within_workspace(&path).is_err() {
+                continue;
+            }
+
+            let rel = path
+                .strip_prefix(&self.working_dir)
+                .map(path_to_repo_relative_string)
+                .unwrap_or_default();
+            if !rel.is_empty() && ignore.is_ignored(&rel) {
                 continue;
             }
 

@@ -12,7 +12,7 @@ use crate::tools::embed::EmbeddingConfig;
 use crate::tools::index::{self, IndexChunk};
 use crate::tools::search;
 use crate::tools::semantic;
-use crate::tools::{ToolOperator, WriteFileOutcome};
+use crate::tools::{glob_files, list_dir, ToolOperator, WriteFileOutcome};
 use crate::types::ContentBlock;
 use crate::util::parse_bool_flag;
 use anyhow::{bail, Context, Result};
@@ -749,6 +749,20 @@ pub(super) fn execute_tool_dispatch(
             first_tool_string(input, &["path", "dir", "directory", "root"]),
             first_tool_usize(input, &["max_entries", "max_results", "limit"]).unwrap_or(100),
         ),
+        "list_dir" => list_dir(
+            tool_operator,
+            first_tool_string(input, &["path", "dir", "directory"]),
+            first_tool_usize(input, &["max_entries", "max_results", "limit"]).unwrap_or(200),
+        ),
+        "glob_files" => {
+            let pattern =
+                required_tool_string_any(input, name, "pattern", &["pattern", "glob", "query"])?;
+            glob_files(
+                tool_operator,
+                pattern,
+                first_tool_usize(input, &["max_results", "limit", "max_entries"]).unwrap_or(50),
+            )
+        }
         "search_files" | "search" => {
             let query = required_tool_string_any(
                 input,
@@ -1034,7 +1048,7 @@ pub(super) fn mutating_tool_read_only_conflict_prompt(
     }
 
     Some(format!(
-        "Blocked mutating tool call `{tool_name}` because this request appears read-only. Use read-only tools (`read_file`, `search_files`, `list_files`, `git_status`, `git_diff`, `git_log`, `git_show`) and answer from those results. No file changes were made."
+        "Blocked mutating tool call `{tool_name}` because this request appears read-only. Use read-only tools (`read_file`, `search_files`, `list_files`, `list_dir`, `glob_files`, `git_status`, `git_diff`, `git_log`, `git_show`) and answer from those results. No file changes were made."
     ))
 }
 
@@ -1433,6 +1447,8 @@ pub(super) fn is_read_only_tool_name(name: &str) -> bool {
             | "codebase_search"
             | "list_files"
             | "list_directory"
+            | "list_dir"
+            | "glob_files"
             | "git_status"
             | "git_diff"
             | "git_log"
