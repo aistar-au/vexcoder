@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::runtime::session_task::{now_millis, SessionTask, SessionTaskStatus};
@@ -127,41 +126,9 @@ struct SessionTaskLiveSummary {
     lifecycle_state: SessionTaskStatus,
 }
 
+/// Delegates to [`crate::util::write_json_atomic`].
 fn write_pretty_json_atomic<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<()> {
-    let dir = path.parent().ok_or_else(|| {
-        anyhow!(
-            "missing parent directory for {} '{}'",
-            label,
-            path.display()
-        )
-    })?;
-    std::fs::create_dir_all(dir).with_context(|| {
-        format!(
-            "Failed to create directory for {}: {}",
-            label,
-            dir.display()
-        )
-    })?;
-
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| anyhow!("invalid file name for {} '{}'", label, path.display()))?;
-    let temp_path = dir.join(format!("{file_name}.tmp"));
-
-    let json = serde_json::to_vec_pretty(value)
-        .with_context(|| format!("Failed to serialize {label}: {}", path.display()))?;
-    let mut file = std::fs::File::create(&temp_path)
-        .with_context(|| format!("Failed to create temp {}: {}", label, temp_path.display()))?;
-    file.write_all(&json)
-        .with_context(|| format!("Failed to write temp {}: {}", label, temp_path.display()))?;
-    file.sync_all()
-        .with_context(|| format!("Failed to flush temp {}: {}", label, temp_path.display()))?;
-    drop(file);
-
-    std::fs::rename(&temp_path, path)
-        .with_context(|| format!("Failed to rename {} to: {}", label, path.display()))?;
-    Ok(())
+    crate::util::write_json_atomic(path, value, label)
 }
 
 impl TaskState {
@@ -414,7 +381,7 @@ mod tests {
             started_at: Some(123),
             updated_at: 456,
             last_heartbeat: Some(789),
-            handoff_summary: Some("child summary".to_string()),
+            handoff_summary: Some("session summary".to_string()),
             active_grants: HashMap::from([(Capability::ApplyPatch, ApprovalScope::Once)]),
             changed_files: vec![PathBuf::from("src/main.rs")],
             command_history: vec![CommandEvidence {

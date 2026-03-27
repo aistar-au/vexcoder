@@ -52,6 +52,6 @@ The long-term architecture work is tracked in the ADR set under `adr/`.
 
 - ADR-032 adds prompt-area interactivity: interactive `/` slash command picker and `@path` file picker with `Up`/`Down`/`Enter`/`Esc` navigation and hierarchical directory drill-down, `!command` shell execution, pasted-block handling, and a context guard that limits project-instructions and notes token budgets.
 - ADR-033 introduces the hybrid retrieval context architecture: a `codebase_search` tool (Phase 1) backed by structural keyword indexing, optional semantic vector search via an external embedding endpoint (Phase 2), write guards that steer `write_file` toward `apply_patch`/`edit_file` for large files (Phase 3), and history condensing that compresses older tool results to stay within the context budget (Phase 4).
-- ADR-034 defines the proposed post-milestone multi-agent lane: worktree-isolated agent definitions, orchestrator-owned child-task lifecycle, `/agents` and `/watch` operator surfaces, and background task management built on the canonical ADR-025/ADR-030 contracts.
+- ADR-034 defines the proposed post-milestone multi-agent lane: worktree-isolated agent definitions, orchestrator-owned session-task lifecycle, `/agents` and `/watch` operator surfaces, and background task management built on the canonical ADR-025/ADR-030 contracts.
 
 The transport layer (`src/server/`) now reaches the runtime exclusively through the application facade (`src/app/`), and `src/local_api.rs` retains only the `LocalApiMode` / `LocalApiFrontend` runtime-mode bridge types.

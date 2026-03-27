@@ -4,7 +4,7 @@ use rmcp::service::RunningService;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
 use rmcp::transport::{ConfigureCommandExt, StreamableHttpClientTransport, TokioChildProcess};
 use rmcp::{RoleClient, ServiceExt};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -76,15 +76,18 @@ struct McpConnectedServer {
 
 impl McpConnectedServer {
     async fn shutdown(&self) {
-        let runtime = self.runtime.lock().await.take();
-        if let Some(runtime) = runtime {
-            let _ = runtime.cancel().await;
+        let service = self.runtime.lock().await.take();
+        if let Some(service) = service {
+            // The cancel path may fail if the underlying STDIO process has
+            // already exited (crash, signal, etc.).  A 5-second grace period
+            // prevents a hung server from blocking session teardown.
+            let _ = tokio::time::timeout(Duration::from_secs(5), service.cancel()).await;
         }
     }
 
     async fn shutdown_owned(self) {
-        if let Some(runtime) = self.runtime.into_inner() {
-            let _ = runtime.cancel().await;
+        if let Some(service) = self.runtime.into_inner() {
+            let _ = tokio::time::timeout(Duration::from_secs(5), service.cancel()).await;
         }
     }
 }
@@ -147,11 +150,11 @@ impl McpRegistry {
                         format!("MCP tool '{}' from server '{}'", short_name, config.name)
                     });
                 let schema = Value::Object((*tool.input_schema).clone());
-                tool_definitions.push(json!({
-                    "name": full_name,
-                    "description": description,
-                    "input_schema": schema,
-                }));
+                tool_definitions.push(crate::util::tool_definition_entry(
+                    &full_name,
+                    &description,
+                    schema,
+                ));
                 server_tools.push(McpToolSummary {
                     full_name: full_name.clone(),
                     short_name: short_name.clone(),
@@ -242,11 +245,20 @@ impl McpRegistry {
         } else {
             CallToolRequestParams::new(short_name).with_arguments(arguments)
         };
-        let result = runtime
-            .peer()
-            .call_tool(params)
-            .await
-            .with_context(|| format!("failed to execute MCP tool '{full_name}'"))?;
+        let result =
+            match tokio::time::timeout(Duration::from_secs(300), runtime.peer().call_tool(params))
+                .await
+            {
+                Ok(Ok(r)) => r,
+                Ok(Err(err)) => {
+                    bail!(
+                        "MCP tool '{full_name}' failed (server process may have exited): {err:#}"
+                    );
+                }
+                Err(_) => {
+                    bail!("MCP tool '{full_name}' timed out after 300s");
+                }
+            };
         format_tool_result(full_name, &result)
     }
 }
