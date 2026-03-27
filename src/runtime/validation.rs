@@ -340,6 +340,7 @@ where
     R: CommandRunner + ?Sized,
     S: SandboxDriver + ?Sized,
 {
+    let timeout_secs = normalize_timeout(command.timeout_secs);
     let base_request = CommandRequest {
         program: command.program.clone(),
         args: command.args.clone(),
@@ -360,7 +361,7 @@ where
     };
 
     let result = timeout(
-        Duration::from_secs(command.timeout_secs),
+        Duration::from_secs(timeout_secs),
         runner.run_one_shot(wrapped_request),
     )
     .await;
@@ -392,7 +393,7 @@ where
             label: command.label.clone(),
             exit_code: -1,
             stdout_tail: String::new(),
-            stderr_tail: format!("timed out after {}s", command.timeout_secs),
+            stderr_tail: format!("timed out after {}s", timeout_secs),
             stdout_truncated: false,
             stderr_truncated: false,
         },
@@ -442,6 +443,7 @@ mod tests {
         load_validate_toml, makefile_has_test_target, ValidationCommand, ValidationOutput,
         ValidationResult, ValidationSuite,
     };
+    use crate::runtime::PassthroughSandbox;
     use std::fs;
 
     #[tokio::test]
@@ -616,6 +618,46 @@ mod tests {
                 .stdout_tail
                 .contains(&workspace.path().display().to_string()),
             "validation command must run from requested working dir: {:?}",
+            result.outputs[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_validation_suite_run_in_dir_with_sandbox_normalizes_zero_timeout() {
+        use crate::runtime::command::DefaultCommandRunner;
+
+        let workspace = tempfile::tempdir().expect("tempdir");
+        let suite = ValidationSuite {
+            commands: vec![ValidationCommand {
+                label: "print working dir".to_string(),
+                #[cfg(windows)]
+                program: "cmd".to_string(),
+                #[cfg(not(windows))]
+                program: "pwd".to_string(),
+                #[cfg(windows)]
+                args: vec!["/C".to_string(), "cd".to_string()],
+                #[cfg(not(windows))]
+                args: Vec::new(),
+                timeout_secs: 0,
+            }],
+        };
+        let runner = DefaultCommandRunner::new();
+
+        let result = suite
+            .run_in_dir_with_sandbox(&runner, &PassthroughSandbox, Some(workspace.path()))
+            .await
+            .expect("sandboxed validation suite must run");
+
+        assert!(
+            result.passed,
+            "zero timeout should normalize to the default"
+        );
+        assert_eq!(result.outputs.len(), 1);
+        assert!(
+            result.outputs[0]
+                .stdout_tail
+                .contains(&workspace.path().display().to_string()),
+            "sandboxed validation command must run from requested working dir: {:?}",
             result.outputs[0]
         );
     }

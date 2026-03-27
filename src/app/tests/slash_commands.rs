@@ -234,6 +234,45 @@ members = ["reviewer"]
 }
 
 #[test]
+fn test_agents_command_counts_live_assignments_from_saved_task_state() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    std::env::remove_var("VEX_STATE_DIR");
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join(".vex")).unwrap();
+    std::fs::write(
+        temp.path().join(".vex/agents.toml"),
+        r#"
+[[agents]]
+name = "reviewer"
+isolation = "worktree"
+allowed_capabilities = ["read-file"]
+"#,
+    )
+    .unwrap();
+
+    let state_dir = crate::runtime::TaskState::state_dir_from(temp.path());
+    let mut saved = crate::runtime::TaskState::new("task-other".to_string());
+    saved.add_session_task(crate::runtime::SessionTask::new(
+        "task-other",
+        "reviewer",
+        "inspect docs",
+        None,
+    ));
+    saved.save(&state_dir).unwrap();
+
+    let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+    let mut ctx = setup_ctx();
+    mode.on_user_input("/agents".to_string(), &mut ctx);
+
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("reviewer") && line.contains("live=1")),
+        "expected /agents to count live assignments from saved task state",
+    );
+}
+
+#[test]
 fn test_watch_command_reports_saved_session_task() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     std::env::remove_var("VEX_STATE_DIR");
@@ -256,6 +295,34 @@ fn test_watch_command_reports_saved_session_task() {
         .history_lines()
         .iter()
         .any(|line| line.contains("[watch]")));
+}
+
+#[test]
+fn test_watch_command_finds_saved_session_task_by_agent_id() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    std::env::remove_var("VEX_STATE_DIR");
+    let temp = tempfile::tempdir().unwrap();
+    let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
+    let mut ctx = setup_ctx();
+
+    let state_dir = crate::runtime::TaskState::state_dir_from(temp.path());
+    let mut saved = crate::runtime::TaskState::new("task-other".to_string());
+    saved.add_session_task(crate::runtime::SessionTask::new(
+        "task-other",
+        "reviewer",
+        "inspect docs",
+        None,
+    ));
+    saved.save(&state_dir).unwrap();
+
+    mode.on_user_input("/watch reviewer".to_string(), &mut ctx);
+
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("[watch]") && line.contains("agent=reviewer")),
+        "expected /watch reviewer to resolve a saved session task by agent id",
+    );
 }
 #[test]
 fn test_tui_help_is_alias_for_commands() {
