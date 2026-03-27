@@ -66,10 +66,15 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ripgrep
 
-      - name: Install Taplo (Unix)
+      - name: Install Taplo (non-Windows)
         if: runner.os != 'Windows'
         shell: bash
         run: cargo install taplo-cli --version 0.8.1 --locked
+
+      - name: Install cargo-nextest (non-Windows)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: cargo install cargo-nextest --version 0.9.132 --locked
 
       - name: Verify tag matches Cargo package version
         if: github.ref_type == 'tag'
@@ -84,12 +89,12 @@ jobs:
             exit 1
           fi
 
-      - name: Run gate (Unix)
+      - name: Run gate (non-Windows)
         if: runner.os != 'Windows'
         shell: bash
         run: make gate-fast
 
-      - name: Package release archive (Unix)
+      - name: Package release archive (non-Windows)
         if: runner.os != 'Windows'
         shell: bash
         env:

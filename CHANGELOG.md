@@ -12,9 +12,9 @@ To preview the generated changelog locally:
 
 ```bash
 python3 scripts/generate_release_notes.py \
-  v0.1.0-beta.1 \
+  v0.1.0-beta.2 \
   dist/release-notes.md \
-  dist/CHANGELOG-v0.1.0-beta.1.md
+  dist/CHANGELOG-v0.1.0-beta.2.md
 ```
 
 The published release entry is the authoritative changelog for each cut.
