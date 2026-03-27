@@ -66,7 +66,7 @@ git push origin v0.1.0-beta.1
 
 1. Run the automated version bump on the feature branch:
    ```bash
-  make bump V=0.1.0-beta.1
+  make bump V=<new-version>
    ```
    This updates `Cargo.toml`, `Cargo.lock`, `CONTRIBUTING.md`, and
    `RELEASING.md` in one step. See `scripts/bump-version.sh` for details.
@@ -133,7 +133,7 @@ version.
 
 1. Branch from the tagged release commit:
    ```bash
-  git checkout -b hotfix/v0.1.1 v0.1.0-beta.1
+  git checkout -b hotfix/v0.1.1 v0.1.0
    ```
 2. Apply the minimal fix.
 3. Bump the PATCH version in `Cargo.toml`.

@@ -290,10 +290,17 @@ jobs:
           key: windows-test-${{ hashFiles('Cargo.lock') }}
           restore-keys: windows-test-
 
-      - name: Install cargo-nextest (prebuilt)
+      - name: Install cargo-nextest (prebuilt, version-pinned)
         shell: pwsh
+        env:
+          NEXTEST_VERSION: "0.9.132"
         run: |
-          Invoke-RestMethod https://get.nexte.st/latest/windows | Invoke-Expression
+          $archive = "cargo-nextest-${env:NEXTEST_VERSION}-x86_64-pc-windows-msvc.zip"
+          $url = "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${env:NEXTEST_VERSION}/${archive}"
+          $dest = Join-Path $env:TEMP $archive
+          Invoke-WebRequest -Uri $url -OutFile $dest
+          Expand-Archive -Path $dest -DestinationPath "$env:USERPROFILE\.cargo\bin" -Force
+          Remove-Item $dest
 
       - name: Run tests (nextest, j2)
         shell: pwsh

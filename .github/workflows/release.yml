@@ -227,7 +227,7 @@ jobs:
             "${TAG}" \
             dist/release-notes.md \
             "dist/CHANGELOG-${TAG}.md"
-          if [[ "${TAG}" == *-* ]]; then
+          if [[ "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-.+ ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
@@ -247,6 +247,12 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
 
+          changelog="dist/CHANGELOG-${TAG}.md"
+          if [[ ! -f "${changelog}" ]]; then
+            echo "FAIL: expected changelog asset not found: ${changelog}" >&2
+            exit 1
+          fi
+
           files=(
             dist/*.tar.gz
             dist/*.tar.gz.sha256
@@ -254,8 +260,8 @@ jobs:
             dist/*.zip
             dist/*.zip.sha256
             dist/*.zip.sigstore.json
-            "dist/CHANGELOG-${TAG}.md"
           )
+          files+=("${changelog}")
 
           if [[ ${#files[@]} -eq 0 ]]; then
             echo "FAIL: no release assets found in dist/" >&2
