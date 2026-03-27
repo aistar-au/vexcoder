@@ -22,7 +22,7 @@ Last updated: 2026-03-28
 | ADR-029 | Accepted | 8 decision items to re-verify | Feeds ADR-030; verification follow-up remains in Tier 6 |
 | ADR-030 | Accepted | 6 coverage requirements to re-verify | 7 invariants defined; verification evidence remains in Tier 6 |
 | ADR-031 | Complete (Batches A-E merged) | Tier 9: update status field | PRs 196/225/226/227 merged |
-| ADR-032 | Active | Items 4-5 | Prompt area; items 1-3 and 6-8 merged; item 9 deferred to ADR-033 |
+| ADR-032 | Active | Items 4-5 | Prompt area; items 1-3 and 6-8 merged; item 9 deferred to ADR-033; fullscreen auto-fit docs synced 2026-03-28 |
 | ADR-033 | Complete (Phases 1-4 merged) | Tier 9: update status field | PRs 186/191/192/194/199 merged |
 | ADR-034 | Active (Phase A + B-E merged) | Follow-up hardening | PRs 228/229/230 merged |
 
@@ -74,6 +74,7 @@ All 3 verification items confirmed in-tree:
 - ADR-029: All 8 decision items verified present (StreamEvent, ContentBlock, Delta, ApiUsage, MessageDelta, MessageStartData, chat-completions, TaskState)
 - ADR-030: All 6 coverage requirements have named tests in the tree
 - ADR-032: Items 4 (character count indicator) and 5 (focus indicator) verified implemented in src/ui/draw/mod.rs
+- ADR-031/ADR-032/docs: fullscreen composer auto-fit behavior documented consistently for live row/column resize and snapped terminal layouts
 
 ### Tier 6 -- Code Quality (ADR-021 P2) -- 11 items
 
@@ -85,7 +86,7 @@ Duplication removal, race condition fixes, and design follow-ups.
 - Item 12: Diff row styling logic duplicated
 - Item 13: required_tool_string variants overlapping
 - Item 14: Auto-follow reconciliation repeated
-- ~~Item 15: MAX_INPUT_PANE_ROWS not applied in prod~~ (done 2026-03-28)
+- ~~Item 15: MAX_INPUT_PANE_ROWS not applied in prod~~ (done 2026-03-28; fullscreen composer now auto-fits within the live terminal viewport)
 - Item 20: edit_file TOCTOU race condition
 - ~~Item 22: StreamBlock::ToolCall deltas ignored~~ (done 2026-03-28)
 - Item 24: Startup event draining heuristics
@@ -130,7 +131,7 @@ ADR-022 (Roadmap, milestone-1 passed)
   |     +-- ADR-026 (Transport Binding) -- COMPLETE
   +-- ADR-027 (Command Sessions) -- COMPLETE
   +-- ADR-031 (UI Overhaul) -- Batches A-E merged
-        +-- ADR-032 (Prompt/Context Guard) -- items 4-5 unclear
+        +-- ADR-032 (Prompt/Context Guard) -- items 4-5 verified; fullscreen auto-fit docs synced
               +-- ADR-033 (Hybrid Retrieval) -- Phases 1-4 merged
 
 ADR-029 (Stream Parser) --> ADR-030 (Orchestrator) --> ADR-031

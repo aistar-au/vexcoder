@@ -25,8 +25,8 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active | Ongoing alignment |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Accepted | All 8 decision items verified (2026-03-28) |
 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Accepted | All 6 coverage requirements verified (2026-03-28) |
-| `adr/ADR-031-operator-surface-ui-overhaul.md` | Active (A-E merged) | Verification |
-| `adr/ADR-032-prompt-area-interactivity-and-context-guard.md` | Active | Items 4-5 verified (2026-03-28); remaining items 1-3, 6-8 merged; item 9 deferred |
+| `adr/ADR-031-operator-surface-ui-overhaul.md` | Active (A-E merged) | Verification; fullscreen auto-fit behavior documented for resize and snapped-window layouts |
+| `adr/ADR-032-prompt-area-interactivity-and-context-guard.md` | Active | Items 4-5 verified (2026-03-28); remaining items 1-3, 6-8 merged; item 9 deferred; auto-fit prompt surface docs synced |
 | `adr/ADR-033-hybrid-retrieval-context-architecture.md` | Active (Phases 1-4 merged) | Integration |
 | `adr/ADR-034-multi-agent-parallel-task-execution.md` | Active (Phase A + B-E merged) | Hardening |
 

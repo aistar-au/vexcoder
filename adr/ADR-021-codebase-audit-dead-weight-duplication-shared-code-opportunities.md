@@ -127,10 +127,14 @@ git diff --numstat -- src/ui/editor.rs src/app.rs src/bin/vex.rs src/ui.rs src/u
   - `on_model_update` branches in `src/app.rs` repeat follow/clamp behavior.
 
 ### 15) `MAX_INPUT_PANE_ROWS` not applied in production path
-- **Status**: **Confirmed**
+- **Status**: **Completed (2026-03-28)**
 - **Evidence**:
-  - Constant + clamp helper are test-only in `src/app.rs`.
-  - Production render in `src/bin/vex.rs` computes input rows without that cap.
+  - `src/ui/layout.rs` exports `MAX_INPUT_PANE_ROWS` for shared production use.
+  - `src/tui_frontend.rs` clamps the live composer against that shared cap.
+  - `src/ui/render.rs` and `src/ui/draw/regions.rs` recompute composer height
+    from wrapped content and live terminal geometry, so the fullscreen surface
+    auto-fits to row and column changes instead of reserving a fixed prompt
+    block.
 
 ## P3 — Architectural Opportunities
 
