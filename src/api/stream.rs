@@ -467,7 +467,7 @@ fn looks_like_raw_json_frame(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::StreamParser;
+    use super::{StreamParser, MAX_SSE_BUFFER_BYTES};
     use crate::types::StreamEvent;
 
     #[test]
