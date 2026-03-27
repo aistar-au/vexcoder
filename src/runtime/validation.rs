@@ -52,7 +52,6 @@ struct ValidateConfig {
 impl ValidationSuite {
     /// Run all commands in the suite **concurrently** and collect results.
     ///
-    /// Wired by EL-03 (`EditLoop::run` step 6) and EL-05 (`/run`, `/test`).
     /// Commands are spawned in parallel; results are collected in declaration
     /// order so retry formatting is stable.
     pub async fn run<R>(&self, runner: &R) -> Result<ValidationResult>
@@ -138,8 +137,6 @@ impl ValidationSuite {
     }
 
     /// Format a failed `ValidationResult` as a structured retry-context block.
-    ///
-    /// Wired by EL-03 (`EditLoop::run` step 7).
     pub fn format_for_retry(&self, result: &ValidationResult) -> String {
         if result.passed {
             return "[validation passed]".to_string();
@@ -185,8 +182,6 @@ impl ValidationSuite {
     }
 
     /// Infer a validation suite from standard project files at `root`.
-    ///
-    /// Wired by EL-03 and EL-05 when no `.vex/validate.toml` is present.
     pub fn infer_from_repo(root: &Path) -> Self {
         let mut commands = Vec::new();
         let has_cargo = root.join("Cargo.toml").is_file();
@@ -229,8 +224,6 @@ impl ValidationSuite {
     }
 
     /// Load from `.vex/validate.toml` if present and valid, otherwise fall back to inference.
-    ///
-    /// Wired by EL-03 and EL-05.
     pub fn load_or_infer(root: &Path) -> Self {
         let config_path = root.join(".vex/validate.toml");
         if config_path.is_file() {

@@ -482,6 +482,11 @@ fn forward_conversation_update(
                 summary,
             });
         }
+        // Surface stream errors (API errors, SSE parse failures) to the UI.
+        // ADR-021 Item 19.
+        ConversationStreamUpdate::StreamError(msg) => {
+            let _ = tx.send(UiUpdate::Error(msg));
+        }
     }
 }
 

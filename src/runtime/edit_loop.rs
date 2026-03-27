@@ -90,7 +90,7 @@ impl EditLoop {
         ctx: &mut RuntimeContext,
         cancel: &CancellationToken,
     ) -> Result<EditLoopOutcome> {
-        // EL-03 step 1: workspace-dirty warning.
+        // Workspace-dirty warning: alert if there are uncommitted changes before edits land.
         match Self::check_workspace_dirty(&self.working_dir, &[]) {
             Ok(true) => {
                 ctx.emit_transcript_line(
@@ -106,7 +106,7 @@ impl EditLoop {
             }
         }
 
-        // EL-04: assemble → model → apply → validate → retry cycle.
+        // Core assemble → model → apply → validate → retry cycle.
         let root = self.working_dir.clone();
         let validation_suite = ValidationSuite::load_or_infer(&root);
         let runner = DefaultCommandRunner::new();

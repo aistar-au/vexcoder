@@ -397,6 +397,17 @@ impl ConversationManager {
                                     format!("\n* Event: stream_error type={}\n", error.error_type),
                                 );
                             }
+                            // Surface all stream errors (API errors and SSE
+                            // parse failures) to the UI so the user observes
+                            // the failure rather than a silently stalled turn.
+                            // ADR-021 Item 19.
+                            emit_stream_update(
+                                stream_delta_tx,
+                                ConversationStreamUpdate::StreamError(format!(
+                                    "stream error ({}): {}",
+                                    error.error_type, error.message
+                                )),
+                            );
                         }
                         StreamEvent::Unknown => {
                             if !use_structured_blocks && stream_server_events {

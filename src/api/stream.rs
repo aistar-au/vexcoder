@@ -1,10 +1,17 @@
 use super::logging::emit_sse_parse_error;
 use crate::types::{
-    ApiUsage, ContentBlock, Delta, MessageDelta, MessageStartData, StreamChunkMetadata,
-    StreamEvent, ToolUseMetadata,
+    ApiStreamError, ApiUsage, ContentBlock, Delta, MessageDelta, MessageStartData,
+    StreamChunkMetadata, StreamEvent, ToolUseMetadata,
 };
 use anyhow::Result;
 use serde::Deserialize;
+
+/// Maximum number of bytes the SSE intra-frame accumulation buffer may hold.
+/// Chunks are drained as soon as a frame delimiter (`\n\n` or `\r\n\r\n`) is
+/// found, so this bound is only reached when the upstream stream emits no
+/// delimiters.  A 1 MiB ceiling matches the editor cap and is far above any
+/// real SSE frame.  ADR-021 Item 26.
+const MAX_SSE_BUFFER_BYTES: usize = 1_048_576;
 
 #[derive(Default)]
 pub struct StreamParser {
@@ -99,9 +106,16 @@ impl StreamParser {
     }
 
     pub fn process(&mut self, chunk: &[u8]) -> Result<Vec<StreamEvent>> {
-        const MAX_BUFFER_SIZE: usize = 1024 * 1024; // 1MB limit
-        if self.buffer.len() + chunk.len() > MAX_BUFFER_SIZE {
-            anyhow::bail!("Stream buffer limit exceeded");
+        if self.buffer.len() + chunk.len() > MAX_SSE_BUFFER_BYTES {
+            return Ok(vec![StreamEvent::Error {
+                error: ApiStreamError {
+                    error_type: "sse_buffer_overflow".to_string(),
+                    message: format!(
+                        "SSE intra-frame buffer exceeded {MAX_SSE_BUFFER_BYTES} bytes without a \
+                         frame delimiter; the upstream stream may be malformed"
+                    ),
+                },
+            }]);
         }
         self.buffer.extend_from_slice(chunk);
 
@@ -161,7 +175,15 @@ impl StreamParser {
                     Ok(chat_compat_events)
                 } else {
                     emit_sse_parse_error(event_type.as_deref(), &json_data, &messages_v1_error);
-                    Ok(Vec::new())
+                    // Emit a structured error event so the runtime can surface
+                    // the failure to the UI rather than silently dropping the
+                    // frame.  ADR-021 Item 19.
+                    Ok(vec![StreamEvent::Error {
+                        error: ApiStreamError {
+                            error_type: "sse_parse_error".to_string(),
+                            message: messages_v1_error.to_string(),
+                        },
+                    }])
                 }
             }
         }
@@ -569,5 +591,43 @@ mod tests {
         assert!(matches!(events[0], StreamEvent::MessageStart { .. }));
         assert!(matches!(events[1], StreamEvent::ContentBlockDelta { .. }));
         assert!(matches!(events[2], StreamEvent::MessageDelta { .. }));
+    }
+
+    // -- ADR-021 Item 19: parse failures surface as StreamEvent::Error --------
+
+    #[test]
+    fn test_process_emits_error_event_on_unparseable_frame() {
+        let mut parser = StreamParser::new();
+        // A frame that is valid JSON but matches neither StreamEvent nor ChatCompatChunk.
+        let events = parser
+            .process(b"data: {\"totally\":\"unknown\"}\n\n")
+            .unwrap();
+
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            StreamEvent::Error { error } => {
+                assert_eq!(error.error_type, "sse_parse_error");
+            }
+            other => panic!("expected StreamEvent::Error, got {other:?}"),
+        }
+    }
+
+    // -- ADR-021 Item 26: buffer overflow surfaces as StreamEvent::Error ------
+
+    #[test]
+    fn test_process_emits_error_event_on_buffer_overflow() {
+        let mut parser = StreamParser::new();
+        // Send MAX_SSE_BUFFER_BYTES bytes with no delimiter so the buffer fills,
+        // then send one more byte to trigger the overflow guard.
+        let big_chunk = vec![b'x'; MAX_SSE_BUFFER_BYTES];
+        let events = parser.process(&big_chunk).unwrap();
+
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            StreamEvent::Error { error } => {
+                assert_eq!(error.error_type, "sse_buffer_overflow");
+            }
+            other => panic!("expected StreamEvent::Error on overflow, got {other:?}"),
+        }
     }
 }

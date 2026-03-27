@@ -44,6 +44,9 @@ pub enum ConversationStreamUpdate {
         messages_after: usize,
         summary: String,
     },
+    /// A structured stream error (API error or SSE parse failure) that the
+    /// runtime must surface to the UI.  ADR-021 Item 19.
+    StreamError(String),
 }
 
 pub struct ToolApprovalRequest {
