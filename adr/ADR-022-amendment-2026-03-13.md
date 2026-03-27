@@ -13,7 +13,7 @@ Command execution uses **full capture** for agent observability:
 
 - `Stdio::piped()` for stdout/stderr (not inherit)
 - Output rendered inside the managed transcript from captured stdout/stderr
-- Agent maintains full visibility of captured subprocess output
+- Agent maintains full visibility of captured session output
 - Enables mid-task approvals, interruptions, reasoning
 
 ### Implementation Details
