@@ -2,6 +2,8 @@ use crate::edit_diff::format_edit_hunks;
 use serde_json::Value;
 use std::collections::HashMap;
 
+const PARTIAL_TOOL_INPUT_PREVIEW_CHAR_LIMIT: usize = 240;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolPreviewStyle {
     Compact,
@@ -329,6 +331,26 @@ pub fn preview_tool_input(
     }
 }
 
+pub fn preview_partial_tool_input(tool_name: &str, raw_input: &str) -> String {
+    let compact = raw_input.trim();
+    if compact.is_empty() {
+        return format!("{tool_name}: waiting for streamed input");
+    }
+
+    let char_count = compact.chars().count();
+    let preview = compact
+        .chars()
+        .take(PARTIAL_TOOL_INPUT_PREVIEW_CHAR_LIMIT)
+        .collect::<String>();
+    let suffix = if char_count > PARTIAL_TOOL_INPUT_PREVIEW_CHAR_LIMIT {
+        "..."
+    } else {
+        ""
+    };
+
+    format!("{tool_name}: partial streamed input\n{preview}{suffix}\n(awaiting valid JSON)")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,6 +449,14 @@ mod tests {
             stream,
             "content changed: 9 chars/2 lines -> 10 chars/2 lines"
         );
+    }
+
+    #[test]
+    fn test_preview_partial_tool_input_shows_streaming_state() {
+        let preview = preview_partial_tool_input("read_file", r#"{"path":"src/"#);
+        assert!(preview.contains("read_file: partial streamed input"));
+        assert!(preview.contains(r#"{"path":"src/"#));
+        assert!(preview.contains("awaiting valid JSON"));
     }
 
     #[test]

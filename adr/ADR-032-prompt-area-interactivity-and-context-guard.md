@@ -17,9 +17,12 @@ generic protocol-hint message instead of the actionable context-overflow
 diagnosis.
 
 The prompt area also lacked interactive feedback: no character count, no
-focus indicator, and no in-session context recovery path. Users running
+focus indicator, no responsive fullscreen reflow contract for the multiline
+composer, and no in-session context recovery path. Users running
 small-context local models had no way to know they were approaching the limit
-or to recover without restarting.
+or to recover without restarting, and resizing the terminal could leave the
+prompt area described as a fixed reservation instead of a viewport-fitted
+surface.
 
 ## Decision
 
@@ -105,6 +108,9 @@ or to recover without restarting.
 - `/compact` becomes the documented recovery path for context exhaustion,
   both as a manual command and as an automatic server-side recovery step.
 - Prompt area focus and character count reduce guesswork during input.
+- The fullscreen composer now reflows within the live terminal row and column
+  budget so prompt-area affordances remain visible when the window is resized,
+  including half-screen and quarter-screen terminal snaps.
 - Context-proportional auto-cap prevents file reads from exhausting small
   context windows while allowing generous reads on large contexts.
 - The hybrid retrieval target ensures the architecture scales to massive

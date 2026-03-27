@@ -1641,3 +1641,71 @@ fn test_verb_first_list_files_empty_path() {
         "list_files with empty path must show 'Listed workspace' verb line"
     );
 }
+#[test]
+fn test_stream_block_delta_updates_pending_tool_call_input() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.history_state.turn_in_progress = true;
+
+    // Start a ToolCall block with empty input.
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "tc1".to_string(),
+                name: "read_file".to_string(),
+                input: serde_json::Value::Object(Default::default()),
+                status: crate::state::ToolStatus::Pending,
+            },
+        },
+        &mut ctx,
+    );
+
+    assert!(
+        mode.pending_turn_tool_calls.contains_key("tc1"),
+        "StreamBlockStart must register pending tool call"
+    );
+
+    // First partial delta — not yet valid JSON.
+    mode.on_model_update(
+        UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: r#"{"path":"#.to_string(),
+        },
+        &mut ctx,
+    );
+    // Input should remain the initial empty object, but the preview should
+    // surface the streamed fragment while the JSON is incomplete.
+    assert_eq!(
+        mode.pending_turn_tool_calls["tc1"].input,
+        serde_json::Value::Object(Default::default()),
+        "partial delta must not update pending tool call input"
+    );
+    assert!(
+        mode.pending_turn_tool_calls["tc1"]
+            .input_preview
+            .contains(r#"{"path":"#),
+        "partial delta must update the pending tool call preview"
+    );
+
+    // Second delta completes the JSON.
+    mode.on_model_update(
+        UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: r#""foo.rs"}"#.to_string(),
+        },
+        &mut ctx,
+    );
+    assert_eq!(
+        mode.pending_turn_tool_calls["tc1"].input,
+        serde_json::json!({"path": "foo.rs"}),
+        "complete delta must update pending tool call input with parsed value"
+    );
+    assert!(
+        mode.pending_turn_tool_calls["tc1"]
+            .input_preview
+            .contains("foo.rs"),
+        "complete delta must replace the partial preview with the parsed preview"
+    );
+}

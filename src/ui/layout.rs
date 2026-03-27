@@ -1,6 +1,7 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
-pub(crate) const FIXED_FULLSCREEN_INPUT_ROWS: u16 = 3;
+pub const MAX_INPUT_PANE_ROWS: usize = 6;
+pub(crate) const MIN_FULLSCREEN_INPUT_ROWS: u16 = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ThreePaneLayout {
@@ -35,8 +36,13 @@ pub struct FourRegionLayout {
     pub input: Rect,
 }
 
+#[cfg(test)]
 pub(crate) fn preferred_four_region_input_rows(_rows: u16) -> u16 {
-    FIXED_FULLSCREEN_INPUT_ROWS
+    preferred_four_region_input_rows_for_content(_rows, 1)
+}
+
+pub(crate) fn preferred_four_region_input_rows_for_content(_rows: u16, desired_rows: u16) -> u16 {
+    desired_rows.clamp(MIN_FULLSCREEN_INPUT_ROWS, MAX_INPUT_PANE_ROWS as u16)
 }
 
 pub fn split_four_region_layout(area: Rect, header_rows: u16, input_rows: u16) -> FourRegionLayout {
@@ -44,7 +50,7 @@ pub fn split_four_region_layout(area: Rect, header_rows: u16, input_rows: u16) -
     let available_body = area.height.saturating_sub(header_rows);
     let max_input_rows = available_body.saturating_sub(1).max(1);
     let input_rows = input_rows
-        .clamp(1, FIXED_FULLSCREEN_INPUT_ROWS)
+        .clamp(1, MAX_INPUT_PANE_ROWS as u16)
         .min(max_input_rows);
 
     let chunks = Layout::default()
@@ -117,6 +123,13 @@ mod tests {
         assert_eq!(preferred_four_region_input_rows(24), 3);
         assert_eq!(preferred_four_region_input_rows(30), 3);
         assert_eq!(preferred_four_region_input_rows(40), 3);
+    }
+
+    #[test]
+    fn preferred_input_rows_expand_for_wrapped_content() {
+        assert_eq!(preferred_four_region_input_rows_for_content(24, 1), 3);
+        assert_eq!(preferred_four_region_input_rows_for_content(24, 4), 4);
+        assert_eq!(preferred_four_region_input_rows_for_content(24, 9), 6);
     }
 
     #[test]

@@ -3,7 +3,7 @@ use crate::ui::input_metrics::{
     char_display_width, cursor_row_col, truncate_to_display_width, visual_row_count,
     visual_window_start, wrap_input_lines,
 };
-use crate::ui::layout::{preferred_four_region_input_rows, split_four_region_layout};
+use crate::ui::layout::{preferred_four_region_input_rows_for_content, split_four_region_layout};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -11,6 +11,8 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
+
+pub use crate::ui::layout::MAX_INPUT_PANE_ROWS;
 
 pub enum OverlayModal<'a> {
     PatchApprove {
@@ -265,10 +267,14 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
 /// the selected timeline entry highlighted with its detail shown
 /// in the output/inspector pane.
 pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
+    let input_width = frame.area().width.saturating_sub(2).max(1) as usize;
     let layout = split_four_region_layout(
         frame.area(),
         0,
-        preferred_four_region_input_rows(frame.area().height),
+        preferred_four_region_input_rows_for_content(
+            frame.area().height,
+            input_visual_rows(&state.composer_text, input_width) as u16,
+        ),
     );
     frame.render_widget(Clear, frame.area());
 
