@@ -25,6 +25,7 @@ impl TuiMode {
             mcp_snapshot: None,
             history_content_width: Cell::new(HISTORY_CONTENT_WIDTH_FALLBACK),
             active_stream_blocks: std::collections::HashMap::new(),
+            tool_input_raw_buffers: std::collections::HashMap::new(),
             pending_quit: false,
             quit_requested: false,
             notes_path,

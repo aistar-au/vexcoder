@@ -25,6 +25,9 @@ pub enum OverlayModal<'a> {
     },
 }
 
+/// Maximum number of visual rows the input pane may occupy. ADR-021 Item 15.
+pub const MAX_INPUT_PANE_ROWS: usize = 6;
+
 pub fn input_visual_rows(input: &str, width: usize) -> usize {
     visual_row_count(input, width)
 }

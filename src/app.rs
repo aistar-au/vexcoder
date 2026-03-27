@@ -40,7 +40,7 @@ use crate::turn_evidence::{
     TurnEvidenceState,
 };
 use crate::types::ModelProfile;
-use crate::ui::render::history_visual_line_count;
+use crate::ui::render::{history_visual_line_count, MAX_INPUT_PANE_ROWS};
 use anyhow::Result;
 #[cfg(test)]
 use crossterm::event::{Event, KeyCode, KeyModifiers};
@@ -152,8 +152,6 @@ enum ApprovalSelection {
 const DEFAULT_MAX_HISTORY_LINES: usize = usize::MAX;
 const MAX_HISTORY_LINES_ENV: &str = "VEX_MAX_HISTORY_LINES";
 const HISTORY_CONTENT_WIDTH_FALLBACK: usize = usize::MAX;
-#[cfg(test)]
-const MAX_INPUT_PANE_ROWS: usize = 6;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SlashCommandId {
@@ -771,6 +769,9 @@ pub struct TuiMode {
     mcp_snapshot: Option<McpRegistrySnapshot>,
     history_content_width: Cell<usize>,
     active_stream_blocks: std::collections::HashMap<usize, StreamBlock>,
+    /// Raw partial-JSON accumulator for streaming tool-call input, keyed by block index.
+    /// Cleared when the block completes or the turn ends. ADR-021 Item 22.
+    tool_input_raw_buffers: std::collections::HashMap<usize, String>,
     pending_quit: bool,
     quit_requested: bool,
     notes_path: Option<PathBuf>,

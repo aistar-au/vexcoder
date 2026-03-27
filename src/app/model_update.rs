@@ -83,6 +83,7 @@ impl TuiMode {
                                 input: input.clone(),
                             },
                         );
+                        self.tool_input_raw_buffers.insert(index, String::new());
                         // Auto-advance timeline selection when follow mode is on.
                         if self.timeline_follow_mode {
                             let total = self.timeline_entry_count();
@@ -145,7 +146,29 @@ impl TuiMode {
                     match block {
                         StreamBlock::Thinking { content, .. } => content.push_str(&delta),
                         StreamBlock::FinalText { content } => content.push_str(&delta),
-                        StreamBlock::ToolCall { .. } | StreamBlock::ToolResult { .. } => {}
+                        StreamBlock::ToolCall { id, .. } => {
+                            let tool_id = id.clone();
+                            if let Some(buf) = self.tool_input_raw_buffers.get_mut(&index) {
+                                buf.push_str(&delta);
+                                if let Ok(parsed) =
+                                    serde_json::from_str::<serde_json::Value>(buf)
+                                {
+                                    if let Some(pending) =
+                                        self.pending_turn_tool_calls.get_mut(&tool_id)
+                                    {
+                                        pending.input = parsed.clone();
+                                        pending.input_preview =
+                                            crate::tool_preview::preview_tool_input(
+                                                &pending.name.clone(),
+                                                &parsed,
+                                                crate::tool_preview::ToolPreviewStyle::Compact,
+                                                crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
+                                            );
+                                    }
+                                }
+                            }
+                        }
+                        StreamBlock::ToolResult { .. } => {}
                     }
                 }
             }
@@ -153,6 +176,7 @@ impl TuiMode {
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
                 }
+                self.tool_input_raw_buffers.remove(&index);
                 self.active_stream_blocks.remove(&index);
             }
             UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
@@ -228,6 +252,7 @@ impl TuiMode {
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
+                self.tool_input_raw_buffers.clear();
                 self.history_state.cancel_pending = false;
                 self.history_state.turn_in_progress = false;
                 self.history_state.active_assistant_index = None;
@@ -322,6 +347,7 @@ impl TuiMode {
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
+                self.tool_input_raw_buffers.clear();
                 self.last_turn_duration = self.turn_started_at.map(|started| started.elapsed());
                 self.last_error_message = Some(msg.clone());
                 self.reset_turn_capture();
