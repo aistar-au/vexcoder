@@ -71,10 +71,23 @@ jobs:
         shell: bash
         run: cargo install taplo-cli --version 0.8.1 --locked
 
-      - name: Install cargo-nextest (non-Windows)
-        if: runner.os != 'Windows'
+      - name: Install cargo-nextest (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: cargo install cargo-nextest --version 0.9.132 --locked
+
+      - name: Install cargo-nextest (macOS prebuilt)
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          NEXTEST_VERSION: 0.9.132
+        run: |
+          set -euo pipefail
+          bin_dir="${CARGO_HOME:-$HOME/.cargo}/bin"
+          mkdir -p "${bin_dir}"
+          curl -LsSf "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${NEXTEST_VERSION}/cargo-nextest-${NEXTEST_VERSION}-universal-apple-darwin.tar.gz" \
+            | tar -xzf - -C "${bin_dir}" cargo-nextest
+          chmod +x "${bin_dir}/cargo-nextest"
 
       - name: Verify tag matches Cargo package version
         if: github.ref_type == 'tag'
@@ -279,46 +292,17 @@ jobs:
           fi
 
           if gh release view "${TAG}" >/dev/null 2>&1; then
-            set +e
-            python3 - "$TAG" "${files[@]}" <<'PY'
-            import json
-            import pathlib
-            import subprocess
-            import sys
-
-            tag = sys.argv[1]
-            expected = {pathlib.Path(arg).name for arg in sys.argv[2:]}
-            release = json.loads(
-                subprocess.check_output(
-                    ["gh", "release", "view", tag, "--json", "assets,isImmutable"],
-                    text=True,
-                )
-            )
-            existing = {asset["name"] for asset in release.get("assets", [])}
-            missing = sorted(expected - existing)
-            if not missing:
-                print(f"Release {tag} already contains every expected asset; nothing to upload.")
-                sys.exit(0)
-            if release.get("isImmutable"):
-                print(
-                    "FAIL: immutable release is missing expected assets: "
-                    + ", ".join(missing),
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-            print(
-                "Release exists and is mutable; missing assets remain: "
-                + ", ".join(missing)
-            )
-            sys.exit(2)
-            PY
-            status=$?
-            set -e
-            if [[ ${status} -eq 0 ]]; then
-              exit 0
-            fi
-            if [[ ${status} -ne 2 ]]; then
-              exit "${status}"
+            existing_release_is_immutable="$(gh release view "${TAG}" --json isImmutable --jq '.isImmutable')"
+            if [[ "${existing_release_is_immutable}" == "true" ]]; then
+              mapfile -t expected_assets < <(for file in "${files[@]}"; do basename "${file}"; done | sort -u)
+              mapfile -t existing_assets < <(gh release view "${TAG}" --json assets --jq '.assets[].name' | sort -u)
+              missing_assets="$(comm -23 <(printf '%s\n' "${expected_assets[@]}") <(printf '%s\n' "${existing_assets[@]}"))"
+              if [[ -z "${missing_assets}" ]]; then
+                echo "Release ${TAG} already contains every expected asset; nothing to upload."
+                exit 0
+              fi
+              echo "FAIL: immutable release is missing expected assets: ${missing_assets//$'\n'/, }" >&2
+              exit 1
             fi
             gh release edit "${TAG}" \
               --title "${TAG}" \
