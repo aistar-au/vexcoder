@@ -598,9 +598,10 @@ mod tests {
     #[test]
     fn test_process_emits_error_event_on_unparseable_frame() {
         let mut parser = StreamParser::new();
-        // A frame that is valid JSON but matches neither StreamEvent nor ChatCompatChunk.
+        // Non-JSON text in a well-formed SSE frame: fails both StreamEvent
+        // and ChatCompatChunk parsers, so the error path must fire.
         let events = parser
-            .process(b"data: {\"totally\":\"unknown\"}\n\n")
+            .process(b"data: not-a-json-value\n\n")
             .unwrap();
 
         assert_eq!(events.len(), 1);
@@ -617,9 +618,9 @@ mod tests {
     #[test]
     fn test_process_emits_error_event_on_buffer_overflow() {
         let mut parser = StreamParser::new();
-        // Send MAX_SSE_BUFFER_BYTES bytes with no delimiter so the buffer fills,
-        // then send one more byte to trigger the overflow guard.
-        let big_chunk = vec![b'x'; MAX_SSE_BUFFER_BYTES];
+        // Send MAX_SSE_BUFFER_BYTES + 1 bytes with no delimiter so the buffer
+        // exceeds the limit on the first call, triggering the overflow guard.
+        let big_chunk = vec![b'x'; MAX_SSE_BUFFER_BYTES + 1];
         let events = parser.process(&big_chunk).unwrap();
 
         assert_eq!(events.len(), 1);
