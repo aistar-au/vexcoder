@@ -150,9 +150,7 @@ impl TuiMode {
                             let tool_id = id.clone();
                             if let Some(buf) = self.tool_input_raw_buffers.get_mut(&index) {
                                 buf.push_str(&delta);
-                                if let Ok(parsed) =
-                                    serde_json::from_str::<serde_json::Value>(buf)
-                                {
+                                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(buf) {
                                     if let Some(pending) =
                                         self.pending_turn_tool_calls.get_mut(&tool_id)
                                     {

@@ -40,7 +40,7 @@ use crate::turn_evidence::{
     TurnEvidenceState,
 };
 use crate::types::ModelProfile;
-use crate::ui::render::{history_visual_line_count, MAX_INPUT_PANE_ROWS};
+use crate::ui::render::history_visual_line_count;
 use anyhow::Result;
 #[cfg(test)]
 use crossterm::event::{Event, KeyCode, KeyModifiers};

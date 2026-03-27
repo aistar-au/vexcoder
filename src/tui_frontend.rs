@@ -791,7 +791,8 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                 let area = frame.area();
                 let input_width = area.width.saturating_sub(2).max(1) as usize;
                 let input_rows = input_visual_rows(&input, input_width)
-                    .clamp(1, crate::ui::render::MAX_INPUT_PANE_ROWS) as u16;
+                    .clamp(1, crate::ui::render::MAX_INPUT_PANE_ROWS)
+                    as u16;
                 let panes = split_three_pane_layout(area, input_rows);
                 frame.render_widget(Clear, area);
                 let history_width =
