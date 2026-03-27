@@ -30,7 +30,7 @@ style full-screen session model:
 
 3. **Command execution uses one runtime contract**
    - Working directory validation is mandatory before spawn.
-   - Subprocess cleanup uses `kill_on_drop(true)` and process-tree termination on cancel.
+   - Session cleanup uses `kill_on_drop(true)` and process-tree termination on cancel.
    - Validation and model-visible `run_command` calls use the same command runner contract as inline command sessions.
 
 4. **Interactive terminal tools remain a distinct path**
