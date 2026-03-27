@@ -15,7 +15,7 @@ Format: `MAJOR.MINOR.PATCH[-PRERELEASE]`
 - **MINOR** — backwards-compatible new functionality.
 - **PATCH** — backwards-compatible bug fixes.
 - **PRERELEASE** — optional dot-separated identifiers for pre-release builds
-  (e.g. `alpha.3`, `beta.2`, `rc.1`).
+  (e.g. `alpha.3`, `beta.3`, `rc.1`).
 
 The canonical version lives in `Cargo.toml` under `[package] version`. All
 tags, archive names, and release artifacts derive from this single source.
@@ -23,12 +23,12 @@ tags, archive names, and release artifacts derive from this single source.
 ### Pre-release progression
 
 ```
-0.1.0-alpha.1 -> 0.1.0-alpha.2 -> ... -> 0.1.0-beta.1 -> 0.1.0-beta.2 -> 0.1.0-rc.1 -> 0.1.0
+0.1.0-alpha.1 -> 0.1.0-alpha.2 -> ... -> 0.1.0-beta.1 -> 0.1.0-beta.2 -> 0.1.0-beta.3 -> 0.1.0-rc.1 -> 0.1.0
 ```
 
 Pre-release versions use dot-separated numeric identifiers after the
 pre-release label. This ensures correct semver precedence ordering:
-`0.1.0-alpha.2 < 0.1.0-alpha.3 < 0.1.0-beta.1 < 0.1.0-beta.2 < 0.1.0-rc.1 < 0.1.0`.
+`0.1.0-alpha.2 < 0.1.0-alpha.3 < 0.1.0-beta.1 < 0.1.0-beta.2 < 0.1.0-beta.3 < 0.1.0-rc.1 < 0.1.0`.
 
 ---
 
@@ -41,7 +41,7 @@ pre-release label. This ensures correct semver precedence ordering:
   fails after the tag is published, land the fix and cut the next prerelease
   or patch tag instead of retagging an existing version.
 - Tag names must match the `Cargo.toml` version exactly (with the `v` prefix):
-  if `Cargo.toml` says `0.1.0-beta.2`, the tag is `v0.1.0-beta.2`.
+  if `Cargo.toml` says `0.1.0-beta.3`, the tag is `v0.1.0-beta.3`.
 
 ### Creating a tag
 
@@ -53,10 +53,10 @@ git pull --ff-only origin main
 grep '^version' Cargo.toml
 
 # Create an annotated tag
-git tag -a v0.1.0-beta.2 -m "Release v0.1.0-beta.2"
+git tag -a v0.1.0-beta.3 -m "Release v0.1.0-beta.3"
 
 # Push the tag
-git push origin v0.1.0-beta.2
+git push origin v0.1.0-beta.3
 ```
 
 ---
@@ -94,11 +94,11 @@ git push origin v0.1.0-beta.2
 
 10. Verify the tag exists on the remote:
     ```bash
-  git ls-remote --tags origin | grep v0.1.0-beta.2
+  git ls-remote --tags origin | grep v0.1.0-beta.3
     ```
 11. Confirm `.github/workflows/release.yml` completed successfully for the tag.
 12. Verify the workflow published the release entry, attached the platform
-  archives, and uploaded the matching `CHANGELOG-v0.1.0-beta.2.md` asset.
+  archives, and uploaded the matching `CHANGELOG-v0.1.0-beta.3.md` asset.
 
 ---
 
@@ -149,7 +149,7 @@ The `version-bump` workflow (`.github/workflows/version-bump.yml`) is a
 manual dispatch workflow that automates the version bump process:
 
 1. Go to **Actions > version-bump > Run workflow**.
-2. Enter the new version (e.g. `0.1.0-beta.2`). No `v` prefix.
+2. Enter the new version (e.g. `0.1.0-beta.3`). No `v` prefix.
 3. The workflow runs `scripts/bump-version.sh`, commits the changes, and
    opens a PR targeting `main`.
 4. Review and merge the PR.
@@ -169,15 +169,20 @@ The workflow:
    macOS x86\_64 + aarch64, Windows MSVC).
 2. Signs archives with Sigstore cosign (keyless OIDC-backed bundles).
 3. Generates release notes from the previous semver tag to the pushed tag.
-4. Creates or updates the release entry and attaches all archives, checksums,
-  signature bundles, and a generated `CHANGELOG-<tag>.md` asset.
-5. Pre-release tags (containing `alpha`, `beta`, or `rc`) are
+4. Creates new release entries with the full asset set in a single publish
+  step so immutable releases are populated on first publish, and verifies
+  existing releases already contain the expected asset set before treating a
+  re-run as complete.
+5. Attaches all archives, checksums, signature bundles, and a generated
+  `CHANGELOG-<tag>.md` asset.
+6. Pre-release tags (containing `alpha`, `beta`, or `rc`) are
    automatically marked as pre-releases.
 
 Manual dispatch is available for re-running a failed release without
-re-tagging when the tagged commit already contains the required fix. If the
-failure requires a repository change after the tag is pushed, land the fix and
-cut the next prerelease or patch tag instead of moving the existing tag.
+re-tagging when the tagged commit already contains the required fix and the
+expected assets were published with the original release entry. If an immutable
+release already exists without the required assets, land the fix and cut the
+next prerelease or patch tag instead of moving the existing tag.
 
 The packaging scripts in `scripts/` derive the archive name from
 `Cargo.toml` and reject mismatched tag inputs to prevent version drift
