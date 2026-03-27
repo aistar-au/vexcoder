@@ -120,11 +120,18 @@ fn test_fragmented_events() {
 fn test_parse_error_handling() {
     let mut parser = StreamParser::new();
 
+    // ADR-021 Item 19: parse failures now surface as StreamEvent::Error
+    // rather than being silently swallowed (previously returned 0 events).
     let chunk = b"event: message_start\ndata: {invalid json}\n\n";
     let events = parser
         .process(chunk)
         .expect("error handling should not fail parser");
-    assert_eq!(events.len(), 0);
+    assert_eq!(events.len(), 1);
+    assert!(
+        matches!(events[0], StreamEvent::Error { ref error } if error.error_type == "sse_parse_error"),
+        "expected StreamEvent::Error with sse_parse_error type, got {:?}",
+        events[0]
+    );
 }
 
 #[test]

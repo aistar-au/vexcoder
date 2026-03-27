@@ -600,9 +600,7 @@ mod tests {
         let mut parser = StreamParser::new();
         // Non-JSON text in a well-formed SSE frame: fails both StreamEvent
         // and ChatCompatChunk parsers, so the error path must fire.
-        let events = parser
-            .process(b"data: not-a-json-value\n\n")
-            .unwrap();
+        let events = parser.process(b"data: not-a-json-value\n\n").unwrap();
 
         assert_eq!(events.len(), 1);
         match &events[0] {
