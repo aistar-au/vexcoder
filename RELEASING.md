@@ -23,12 +23,12 @@ tags, archive names, and release artifacts derive from this single source.
 ### Pre-release progression
 
 ```
-0.1.0-alpha.1 -> 0.1.0-alpha.2 -> ... -> 0.1.0-beta.1 -> 0.1.0-beta.2 -> 0.1.0-beta.3 -> 0.1.0-beta.4 -> 0.1.0-beta.5 -> 0.1.0-rc.1 -> 0.1.0
+0.1.0-alpha.1 -> 0.1.0-alpha.2 -> ... -> 0.1.0-beta.1 -> 0.1.0-beta.2 -> 0.1.0-beta.3 -> 0.1.0-beta.4 -> 0.1.0-beta.6 -> 0.1.0-rc.1 -> 0.1.0
 ```
 
 Pre-release versions use dot-separated numeric identifiers after the
 pre-release label. This ensures correct semver precedence ordering:
-`0.1.0-alpha.2 < 0.1.0-alpha.3 < 0.1.0-beta.1 < 0.1.0-beta.2 < 0.1.0-beta.3 < 0.1.0-beta.4 < 0.1.0-beta.5 < 0.1.0-rc.1 < 0.1.0`.
+`0.1.0-alpha.2 < 0.1.0-alpha.3 < 0.1.0-beta.1 < 0.1.0-beta.2 < 0.1.0-beta.3 < 0.1.0-beta.4 < 0.1.0-beta.6 < 0.1.0-rc.1 < 0.1.0`.
 
 ---
 
@@ -41,7 +41,7 @@ pre-release label. This ensures correct semver precedence ordering:
   fails after the tag is published, land the fix and cut the next prerelease
   or patch tag instead of retagging an existing version.
 - Tag names must match the `Cargo.toml` version exactly (with the `v` prefix):
-  if `Cargo.toml` says `0.1.0-beta.5`, the tag is `v0.1.0-beta.5`.
+  if `Cargo.toml` says `0.1.0-beta.6`, the tag is `v0.1.0-beta.6`.
 
 ### Creating a tag
 
@@ -53,10 +53,10 @@ git pull --ff-only origin main
 grep '^version' Cargo.toml
 
 # Create an annotated tag
-git tag -a v0.1.0-beta.5 -m "Release v0.1.0-beta.5"
+git tag -a v0.1.0-beta.6 -m "Release v0.1.0-beta.6"
 
 # Push the tag
-git push origin v0.1.0-beta.5
+git push origin v0.1.0-beta.6
 ```
 
 ---
@@ -94,11 +94,11 @@ git push origin v0.1.0-beta.5
 
 10. Verify the tag exists on the remote:
     ```bash
-  git ls-remote --tags origin | grep v0.1.0-beta.5
+  git ls-remote --tags origin | grep v0.1.0-beta.6
     ```
 11. Confirm `.github/workflows/release.yml` completed successfully for the tag.
 12. Verify the workflow published the release entry, attached the platform
-  archives, and uploaded the matching `CHANGELOG-v0.1.0-beta.5.md` asset.
+  archives, and uploaded the matching `CHANGELOG-v0.1.0-beta.6.md` asset.
 
 ---
 
@@ -149,7 +149,7 @@ The `version-bump` workflow (`.github/workflows/version-bump.yml`) is a
 manual dispatch workflow that automates the version bump process:
 
 1. Go to **Actions > version-bump > Run workflow**.
-2. Enter the new version (e.g. `0.1.0-beta.5`). No `v` prefix.
+2. Enter the new version (e.g. `0.1.0-beta.6`). No `v` prefix.
 3. The workflow runs `scripts/bump-version.sh`, commits the changes, and
    opens a PR targeting `main`.
 4. Review and merge the PR.
