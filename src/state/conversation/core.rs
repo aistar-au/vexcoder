@@ -1001,6 +1001,7 @@ impl ConversationManager {
 /// depending on the protocol in use.  The caller handles the
 /// `use_structured_blocks` path (status update + push_tool_result_block)
 /// before calling this function.
+#[allow(clippy::too_many_arguments)]
 fn emit_tool_error(
     stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     tool_name: &str,
