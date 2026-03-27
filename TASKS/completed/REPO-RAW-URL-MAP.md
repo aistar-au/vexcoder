@@ -30,7 +30,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 19 | `adr/ADR-022-amendment-2026-03-13.md` | ~55 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-13.md> |
 | 20 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | ~388 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-free-open-coding-agent-roadmap.md> |
 | 21 | `adr/ADR-023-deterministic-edit-loop.md` | ~720 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-023-deterministic-edit-loop.md> |
-| 22 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | ~1668 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md> |
+| 22 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | ~2193 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md> |
 | 23 | `adr/ADR-025-runtime-json-handoff-contract.md` | ~744 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-025-runtime-json-handoff-contract.md> |
 | 24 | `adr/ADR-026-localapiserver-transport-binding.md` | ~545 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-026-localapiserver-transport-binding.md> |
 | 25 | `adr/ADR-027-full-screen-tui-command-session-capture.md` | ~82 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-027-full-screen-tui-command-session-capture.md> |
@@ -67,12 +67,12 @@ Canonical raw URL index for every tracked file in this repository.
 | 56 | `Cargo.toml` | ~65 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.toml> |
 | 57 | `CHANGELOG.md` | ~14 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CHANGELOG.md> |
 | 58 | `CONTRIBUTING.md` | ~446 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
-| 59 | `docs/src/architecture.md` | ~43 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/architecture.md> |
-| 60 | `docs/src/commands.md` | ~234 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/commands.md> |
+| 59 | `docs/src/architecture.md` | ~59 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/architecture.md> |
+| 60 | `docs/src/commands.md` | ~318 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/commands.md> |
 | 61 | `docs/src/configuration.md` | ~247 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/configuration.md> |
 | 62 | `docs/src/introduction.md` | ~12 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/introduction.md> |
 | 63 | `docs/src/migration.md` | ~10 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/migration.md> |
-| 64 | `docs/src/quick-start.md` | ~69 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/quick-start.md> |
+| 64 | `docs/src/quick-start.md` | ~100 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/quick-start.md> |
 | 65 | `docs/src/SUMMARY.md` | ~9 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/SUMMARY.md> |
 | 66 | `grammars/tool_call.gbnf` | ~48 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/grammars/tool_call.gbnf> |
 | 67 | `LICENSE` | ~17 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/LICENSE> |
@@ -227,7 +227,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 216 | `src/usage.rs` | ~133 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/usage.rs> |
 | 217 | `src/util.rs` | ~174 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/util.rs> |
 | 218 | `src/workspace.rs` | ~38 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/workspace.rs> |
-| 219 | `TASKS/ACTIVE-ROADMAP.md` | ~128 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
+| 219 | `TASKS/ACTIVE-ROADMAP.md` | ~163 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
 | 220 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~253 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 221 | `TASKS/PE-01-batch-mode.md` | ~201 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PE-01-batch-mode.md> |
 | 222 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | ~153 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PI-10-PI-12-adr025-phase1-continuation.md> |

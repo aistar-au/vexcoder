@@ -39,7 +39,7 @@ Last updated: 2026-03-27
 
 ---
 
-## Remaining Work: 36 Items Across 7 Tiers
+## Remaining Work: 31 Items Across 6 Tiers
 
 Tiers sorted by unblocking impact -- what, if implemented first, unblocks
 the most downstream work.

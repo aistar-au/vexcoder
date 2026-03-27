@@ -21,6 +21,8 @@ Most interactive application coordination still lives in `src/app.rs`. The runti
 - `src/tools/search.rs` implements the `codebase_search` tool using a Tree-sitter-based structural index for Rust source files. The index extracts functions, structs, enums, impls, traits, modules, constants, and type aliases, and ranks results by exact name match, substring match, parent-scope match, and content keyword match.
 - `src/tools/semantic.rs` manages the optional semantic vector index persisted at `.vex/index/`. When `VEX_EMBEDDING_PROVIDER` is configured, chunks are embedded at logical boundaries and results are reranked by cosine similarity merged with structural scores.
 - `src/tools/embed.rs` provides the embedding client for the `/v1/embeddings`-compatible endpoint used by semantic search.
+- `src/tools/workspace_explore.rs` provides the `list_dir` and `glob_files` tools for workspace exploration. Both are workspace-confined, `.gitignore`-aware, and bounded to prevent unbounded output.
+- `src/tools/workspace_ignore.rs` implements `WorkspaceIgnore`, a pure-std `.gitignore` parser used by `walk_workspace_files` so that `search_files`, `list_dir`, `glob_files`, and `find_files` all skip ignored paths.
 
 ## Streaming protocol coverage
 

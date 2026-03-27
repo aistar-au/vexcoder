@@ -66,7 +66,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 30 | No `--resume` CLI startup flag | Proposed |
 | 31 | No MCP HTTP server authentication headers | Active (extends Gap 5) |
 | 32 | No `-p`/`--print` one-shot plain-text flag | Proposed |
-| 35 | No model-callable workspace exploration tools (`search_files`, `list_dir`, `glob_files`) | Proposed |
+| 35 | No model-callable workspace exploration tools (`search_files`, `list_dir`, `glob_files`) | Complete |
 
 ### Gaps intentionally deferred by this ADR
 
