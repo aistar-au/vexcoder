@@ -279,16 +279,57 @@ jobs:
           fi
 
           if gh release view "${TAG}" >/dev/null 2>&1; then
+            set +e
+            python3 - "$TAG" "${files[@]}" <<'PY'
+import json
+import pathlib
+import subprocess
+import sys
+
+tag = sys.argv[1]
+expected = {pathlib.Path(arg).name for arg in sys.argv[2:]}
+release = json.loads(
+    subprocess.check_output(
+        ["gh", "release", "view", tag, "--json", "assets,isImmutable"],
+        text=True,
+    )
+)
+existing = {asset["name"] for asset in release.get("assets", [])}
+missing = sorted(expected - existing)
+if not missing:
+    print(f"Release {tag} already contains every expected asset; nothing to upload.")
+    sys.exit(0)
+if release.get("isImmutable"):
+    print(
+        "FAIL: immutable release is missing expected assets: "
+        + ", ".join(missing),
+        file=sys.stderr,
+    )
+    sys.exit(1)
+print(
+    "Release exists and is mutable; missing assets remain: "
+    + ", ".join(missing)
+)
+sys.exit(2)
+PY
+            status=$?
+            set -e
+            if [[ ${status} -eq 0 ]]; then
+              exit 0
+            fi
+            if [[ ${status} -ne 2 ]]; then
+              exit "${status}"
+            fi
             gh release edit "${TAG}" \
               --title "${TAG}" \
               "${prerelease_flag[@]}" \
               --notes-file dist/release-notes.md
+            gh release upload "${TAG}" "${files[@]}" --clobber
           else
             gh release create "${TAG}" \
               --title "${TAG}" \
               --verify-tag \
               "${prerelease_flag[@]}" \
-              --notes-file dist/release-notes.md
+              --notes-file dist/release-notes.md \
+              "${files[@]}"
           fi
-
-          gh release upload "${TAG}" "${files[@]}" --clobber
