@@ -27,7 +27,7 @@ function Show-Usage {
     @"
 Usage:
   `$env:TARGET='x86_64-pc-windows-msvc'; .\scripts\release.ps1
-    .\scripts\release.ps1 -Version v0.1.0-alpha.2 -Target x86_64-pc-windows-msvc -OutDir dist
+        .\scripts\release.ps1 -Version v0.1.0-beta.5 -Target x86_64-pc-windows-msvc -OutDir dist
 
 Inputs:
   VERSION / arg1   optional semver version or tag; defaults to the Cargo package tag
@@ -269,7 +269,7 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 }
 
 if ($Version -notmatch '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$') {
-    throw "FAIL: VERSION must look like v0.1.0 or v0.1.0-alpha.2"
+    throw "FAIL: VERSION must look like v0.1.0 or v0.1.0-beta.5"
 }
 
 if ($Version -ne $expectedVersion) {
