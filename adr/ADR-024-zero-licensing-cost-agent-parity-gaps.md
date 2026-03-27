@@ -1053,8 +1053,8 @@ list_dir(path: &str) -> DirListing
 
 glob_files(pattern: &str) -> GlobResult
     Returns all workspace-relative paths matching <pattern> (standard glob syntax:
-    *, **, ?). Bounded to MAX_GLOB_RESULTS (default: 100) paths. Workspace-root
-    confinement applies.
+    *, **, ?, and bracket character classes [abc], [a-z], [^x]). Bounded to
+    MAX_GLOB_RESULTS (default: 200) paths. Workspace-root confinement applies.
 ```
 
 **Capability tier:** These tools are read-only and require no subprocess execution.
@@ -1091,7 +1091,10 @@ no subprocess calls.
 `test_glob_files_returns_matching_paths`;
 `test_glob_files_bounded_results`;
 `test_workspace_tools_do_not_start_model_turn`;
-`test_workspace_tools_out_of_workspace_path_returns_error`.
+`test_workspace_tools_out_of_workspace_path_returns_error`;
+`test_character_class_literal`;
+`test_character_class_range`;
+`test_workspace_ignore_character_class_pattern`.
 
 ---
 

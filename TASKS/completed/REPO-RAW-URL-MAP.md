@@ -208,7 +208,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 197 | `src/tools/search.rs` | ~341 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/search.rs> |
 | 198 | `src/tools/semantic.rs` | ~420 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/semantic.rs> |
 | 199 | `src/tools/workspace_explore.rs` | ~441 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/workspace_explore.rs> |
-| 200 | `src/tools/workspace_ignore.rs` | ~253 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/workspace_ignore.rs> |
+| 200 | `src/tools/workspace_ignore.rs` | ~333 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/workspace_ignore.rs> |
 | 201 | `src/tui_frontend.rs` | ~781 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_frontend.rs> |
 | 202 | `src/turn_evidence.rs` | ~189 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/turn_evidence.rs> |
 | 203 | `src/types.rs` | ~4 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types.rs> |

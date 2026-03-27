@@ -250,8 +250,8 @@ session/capability auto-approval grant).
 | `search_files` | Search text across files and return matching lines. |
 | `search` | Alias for `search_files`. |
 | `find_files` | Find files by name pattern (glob) within the workspace. |
-| `list_dir` | Non-recursive directory listing. Workspace-confined and `.gitignore`-aware. |
-| `glob_files` | Workspace-wide glob matching. `.gitignore`-aware with bounded results. |
+| `list_dir` | Non-recursive directory listing. Workspace-confined and `.gitignore`-aware. Optional `path` (defaults to workspace root); optional `max_entries` (default 200, hard cap 500). |
+| `glob_files` | Workspace-wide glob matching. `.gitignore`-aware with bounded results. Required `pattern` (supports `*`, `**`, `?`, `[abc]`, `[a-z]`, `[^x]`); optional `max_results` (default 50, hard cap 200). |
 | `codebase_search` | Search the structural index for functions, types, and code patterns by name or keyword. Returns ranked code snippets with file paths and line numbers. When embeddings are configured, also performs semantic reranking. Prefer this over `read_file` for exploring unfamiliar code. |
 | `git_status` | Show git repository status. |
 | `git_diff` | Show git diff output. |
