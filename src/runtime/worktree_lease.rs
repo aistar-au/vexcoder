@@ -76,9 +76,7 @@ impl WorktreeLeaseManager {
             acquired_at: now_millis(),
         };
 
-        let payload = serde_json::to_vec_pretty(&lease).context("serialize worktree lease")?;
-        std::fs::write(self.metadata_path(task_id), payload)
-            .with_context(|| format!("failed to persist lease for {task_id}"))?;
+        crate::util::write_json_atomic(&self.metadata_path(task_id), &lease, "worktree lease")?;
 
         Ok(lease)
     }
@@ -149,14 +147,16 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let manager = WorktreeLeaseManager::new(temp.path());
 
-        let lease = manager.lease_for_task("child-1", Some("parent-1")).unwrap();
+        let lease = manager
+            .lease_for_task("session-1", Some("parent-1"))
+            .unwrap();
         assert!(lease.path.exists());
 
-        let loaded = manager.load("child-1").unwrap();
+        let loaded = manager.load("session-1").unwrap();
         assert_eq!(loaded.parent_task_id.as_deref(), Some("parent-1"));
         assert_eq!(manager.list().unwrap().len(), 1);
 
-        manager.release("child-1").unwrap();
+        manager.release("session-1").unwrap();
         assert!(manager.list().unwrap().is_empty());
         assert!(!lease.path.exists());
     }

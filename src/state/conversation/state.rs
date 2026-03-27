@@ -52,18 +52,6 @@ pub struct ToolApprovalRequest {
     pub response_tx: oneshot::Sender<bool>,
 }
 
-#[cfg(test)]
-impl ToolApprovalRequest {
-    pub fn test_stub() -> Self {
-        let (response_tx, _response_rx) = oneshot::channel::<bool>();
-        Self {
-            tool_name: "read_file".to_string(),
-            input_preview: "{}".to_string(),
-            response_tx,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum TurnToolPolicy {
     #[default]
