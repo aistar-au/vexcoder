@@ -205,25 +205,79 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download signed artifacts
         uses: actions/download-artifact@v4
         with:
           name: dist-signed
           path: dist
 
+      - name: Generate release notes and changelog
+        id: metadata
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          python3 scripts/generate_release_notes.py \
+            "${TAG}" \
+            dist/release-notes.md \
+            "dist/CHANGELOG-${TAG}.md"
+          if [[ "${TAG}" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: List dist contents
         shell: bash
         run: ls -lh dist/
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          files: |
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ steps.metadata.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          files=(
             dist/*.tar.gz
             dist/*.tar.gz.sha256
             dist/*.tar.gz.sigstore.json
             dist/*.zip
             dist/*.zip.sha256
             dist/*.zip.sigstore.json
+            "dist/CHANGELOG-${TAG}.md"
+          )
+
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "FAIL: no release assets found in dist/" >&2
+            exit 1
+          fi
+
+          prerelease_flag=()
+          if [[ "${PRERELEASE}" == "true" ]]; then
+            prerelease_flag+=(--prerelease)
+          fi
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release edit "${TAG}" \
+              --title "${TAG}" \
+              "${prerelease_flag[@]}" \
+              --notes-file dist/release-notes.md
+          else
+            gh release create "${TAG}" \
+              --title "${TAG}" \
+              --verify-tag \
+              "${prerelease_flag[@]}" \
+              --notes-file dist/release-notes.md
+          fi
+
+          gh release upload "${TAG}" "${files[@]}" --clobber

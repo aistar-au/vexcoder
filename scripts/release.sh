@@ -6,7 +6,7 @@ usage() {
 Usage:
   TARGET=x86_64-unknown-linux-gnu make release
   TARGET=x86_64-unknown-linux-gnu bash scripts/release.sh
-  VERSION=v0.1.0-alpha2 TARGET=x86_64-unknown-linux-gnu bash scripts/release.sh
+  VERSION=v0.1.0-alpha.2 TARGET=x86_64-unknown-linux-gnu bash scripts/release.sh
 
 Inputs:
   VERSION / arg1   optional semver version or tag; defaults to the Cargo package tag
@@ -58,7 +58,7 @@ else
 fi
 
 if [[ ! "${VERSION}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
-  echo "FAIL: VERSION must look like v0.1.0 or v0.1.0-alpha2" >&2
+  echo "FAIL: VERSION must look like v0.1.0 or v0.1.0-alpha.2" >&2
   exit 1
 fi
 
