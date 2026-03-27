@@ -105,7 +105,8 @@ fn parse_line(line: &str) -> Option<IgnorePattern> {
 }
 
 /// Glob match using `*` (matches any segment chars except `/`), `**`
-/// (matches across `/`), and `?` (matches one non-`/` char).
+/// (matches across `/`), `?` (matches one non-`/` char), and bracket
+/// character classes such as `[abc]`, `[a-z]`, and `[^x]`.
 ///
 /// Simple linear scan — no backtracking across `**`; sufficient for the
 /// patterns found in real `.gitignore` files.
@@ -160,6 +161,18 @@ fn gitignore_glob(mut pat: &[u8], mut txt: &[u8]) -> bool {
                 pat = &pat[1..];
                 txt = &txt[1..];
             }
+            (Some(b'['), Some(t)) => match match_char_class(pat, *t) {
+                Some((true, consumed)) => {
+                    pat = &pat[consumed..];
+                    txt = &txt[1..];
+                }
+                Some((false, _)) => return false,
+                None if *t == b'[' => {
+                    pat = &pat[1..];
+                    txt = &txt[1..];
+                }
+                None => return false,
+            },
             (Some(p), Some(t)) if p == t => {
                 pat = &pat[1..];
                 txt = &txt[1..];
@@ -167,6 +180,52 @@ fn gitignore_glob(mut pat: &[u8], mut txt: &[u8]) -> bool {
             _ => return false,
         }
     }
+}
+
+fn match_char_class(pat: &[u8], ch: u8) -> Option<(bool, usize)> {
+    if pat.first() != Some(&b'[') {
+        return None;
+    }
+
+    let mut idx = 1;
+    let negated = matches!(pat.get(idx), Some(b'!') | Some(b'^'));
+    if negated {
+        idx += 1;
+    }
+
+    let mut matched = false;
+    let mut saw_entry = false;
+
+    while idx < pat.len() {
+        let current = pat[idx];
+        if current == b']' && saw_entry {
+            let in_class = ch != b'/' && matched;
+            let final_match = if negated {
+                !in_class && ch != b'/'
+            } else {
+                in_class
+            };
+            return Some((final_match, idx + 1));
+        }
+
+        saw_entry = true;
+
+        if idx + 2 < pat.len() && pat[idx + 1] == b'-' && pat[idx + 2] != b']' {
+            let start = current;
+            let end = pat[idx + 2];
+            if start <= ch && ch <= end {
+                matched = true;
+            }
+            idx += 3;
+        } else {
+            if current == ch {
+                matched = true;
+            }
+            idx += 1;
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -200,6 +259,18 @@ mod tests {
         assert!(gitignore_glob_match("file?.txt", "file1.txt"));
         assert!(!gitignore_glob_match("file?.txt", "file12.txt"));
         assert!(!gitignore_glob_match("file?.txt", "file/.txt"));
+    }
+
+    #[test]
+    fn test_character_class_literal() {
+        assert!(gitignore_glob_match(".session[a]rea", ".sessionarea"));
+        assert!(!gitignore_glob_match(".session[a]rea", ".sessionbrea"));
+    }
+
+    #[test]
+    fn test_character_class_range() {
+        assert!(gitignore_glob_match("file[0-9].txt", "file7.txt"));
+        assert!(!gitignore_glob_match("file[0-9].txt", "filex.txt"));
     }
 
     #[test]
@@ -249,5 +320,14 @@ mod tests {
         let ign = WorkspaceIgnore::load(dir.path());
         assert!(ign.is_ignored("CHANGELOG.md"));
         assert!(!ign.is_ignored("docs/CHANGELOG.md"));
+    }
+
+    #[test]
+    fn test_workspace_ignore_character_class_pattern() {
+        let dir = workspace_with(".session[a]rea/\n");
+        let ign = WorkspaceIgnore::load(dir.path());
+        assert!(ign.is_ignored(".sessionarea"));
+        assert!(ign.is_ignored(".sessionarea/settings.json"));
+        assert!(!ign.is_ignored(".sessionbrea/settings.json"));
     }
 }
