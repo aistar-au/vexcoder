@@ -379,6 +379,15 @@ fn verb_first_tool_paragraph(
                 format!("{name}: ok")
             }
         }
+        "glob_files" => {
+            let pattern = str_arg(&["pattern", "glob", "query"]);
+            let count = output.lines().count();
+            if !pattern.is_empty() {
+                format!("Globbed {pattern:?} ({count} files)")
+            } else {
+                format!("{name}: ok")
+            }
+        }
         "read_file" => {
             let path = str_arg(&["path", "file"]);
             let lines = output.lines().count();
@@ -388,7 +397,7 @@ fn verb_first_tool_paragraph(
                 "Read: (no path given)".to_string()
             }
         }
-        "list_files" | "list_directory" => {
+        "list_files" | "list_directory" | "list_dir" => {
             let path = str_arg(&["path", "dir", "directory", "root"]);
             let count = output.lines().count();
             if !path.is_empty() {

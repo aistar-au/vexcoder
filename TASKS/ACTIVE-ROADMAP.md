@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-26
+Last updated: 2026-03-27
 
 ---
 
@@ -17,58 +17,46 @@ Last updated: 2026-03-26
 | ADR-021 | Accepted | 17 (3 P1, 13 P2, 1 P3) | Standalone audit; findings feed later ADRs |
 | ADR-022 amendment | Amended | Amendment only | Tightens milestone-1 command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
-| ADR-024 | Proposed | 16 items | Parity-gap inventory; PA/PB/PC/PD(partial)/PE/PJ/PK/PL/PM done |
+| ADR-024 | Proposed (pre-milestone complete) | 7 items (all post-milestone) | PA–PM and PP done; PG/PH post-milestone deferred |
 | ADR-028 | Active | Ongoing alignment | Phase 1+2 merged; facade boundary governs ADR-030/031 |
 | ADR-029 | Accepted | 8 decision items to re-verify | Feeds ADR-030; verification follow-up remains in Tier 6 |
 | ADR-030 | Accepted | 6 coverage requirements to re-verify | 7 invariants defined; verification evidence remains in Tier 6 |
-| ADR-031 | Active (Batches A-E merged) | Verification | PRs 196/225/226/227 merged |
+| ADR-031 | Complete (Batches A-E merged) | Tier 9: update status field | PRs 196/225/226/227 merged |
 | ADR-032 | Active | Items 4-5 | Prompt area; items 1-3 and 6-8 merged; item 9 deferred to ADR-033 |
-| ADR-033 | Active (Phases 1-4 merged) | Integration follow-up | PRs 186/191/192/194/199 merged |
+| ADR-033 | Complete (Phases 1-4 merged) | Tier 9: update status field | PRs 186/191/192/194/199 merged |
 | ADR-034 | Active (Phase A + B-E merged) | Follow-up hardening | PRs 228/229/230 merged |
 
-## Implementation-Complete ADRs (pending move to completed/)
+## Implementation-Complete ADRs (moved to completed/)
 
 | ADR | Status | Notes |
 | :--- | :--- | :--- |
-| ADR-013 | Accepted | All phases complete |
-| ADR-018 | Superseded by ADR-027 | Retained for history |
+| ADR-013 | Accepted — moved to completed/ | All phases complete |
+| ADR-018 | Superseded — moved to completed/ | Superseded by ADR-027 |
 | ADR-023 | Complete | EL-01 through EL-13 all delivered |
-| ADR-025 | Complete | PI-09 through PI-12 all delivered |
-| ADR-026 | Complete | PI-13 through PI-16 all delivered |
-| ADR-027 | Accepted (complete) | Supersedes ADR-018/019 |
+| ADR-025 | Complete — moved to completed/ | PI-09 through PI-12 all delivered |
+| ADR-026 | Complete — moved to completed/ | PI-13 through PI-16 all delivered |
+| ADR-027 | Accepted (complete) — moved to completed/ | Supersedes ADR-018/019 |
 
 ---
 
-## Remaining Work: 49 Items Across 9 Tiers
+## Remaining Work: 31 Items Across 6 Tiers
 
 Tiers sorted by unblocking impact -- what, if implemented first, unblocks
 the most downstream work.
 
-### Tier 1 -- Open PRs (awaiting merge to unblock downstream) -- 4 PRs
+### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
 
-Already implemented and pushed. Merging clears the path for dependent work.
+PRs 231, 232, 233, 234 all merged to main.
 
-- PR 234: Debug-pass observations O-1 through O-9 (orphan state guard, DelegateError, sidecar index, strip-ansi, tracing, now_millis, agent name cap)
-- PR 231: ADR-024 Phase D sandbox drivers (PD-01 done, PD-02 MacosSandboxExec, PD-03 DockerSandbox)
-- PR 232: ADR-024 Phase F MCP runtime (PF-01 McpRegistry, PF-02 Capability::McpTool approval)
-- PR 233: ADR-032/033 doc reconcile (system prompt, tool descriptions, documentation aligned)
+### ~~Tier 2 -- Sandbox and MCP Completion (ADR-024)~~ (cleared 2026-03-27)
 
-### Tier 2 -- Sandbox and MCP Completion (ADR-024) -- 6 items
+PD-02, PD-03 (PR 231), PF-01, PF-02 (PR 232), PI-06, PI-07 (this PR) all complete.
 
-After PRs 231/232 merge, verify and fill remaining gaps.
+### ~~Tier 3 -- Workspace Tools and MCP Extensions (ADR-024)~~ (cleared 2026-03-27)
 
-- PD-02: MacosSandboxExec driver (in PR 231)
-- PD-03: DockerSandbox driver (in PR 231)
-- PF-01: McpRegistry STDIO + HTTP transports (in PR 232)
-- PF-02: Capability::McpTool approval wiring (in PR 232)
-- PI-06: /mcp list command (depends on PF-01/PF-02)
-- PI-07: /mcp show <server> command (depends on PF-01/PF-02)
-
-### Tier 3 -- Workspace Tools and MCP Extensions (ADR-024) -- 3 items
-
-- PP-01: search_files, list_dir, glob_files tools (workspace exploration)
-- PM-02: MCP HTTP [mcp_servers.headers] auth (extends Gap 5)
-- PI-08: /plan and /context commands (cross-ref ADR-023 EL-11)
+PP-01 (`list_dir`, `glob_files`, gitignore-aware `search_files`) delivered in this PR.
+PM-02 (MCP HTTP headers env-var substitution) delivered in PR 236.
+PI-08 (`/plan`, `/context`) delivered in ADR-023 batch.
 
 ### Tier 4 -- Security Hardening (ADR-021 P1) -- 4 items
 
@@ -122,15 +110,11 @@ Explicitly deferred until after milestone-1.
 - PH-03: macOS code signing + notarisation + .dmg
 - ADR-022 Decision 11: Native packaging (post-milestone-1)
 
-### Tier 9 -- Housekeeping -- 8 items
+### Tier 9 -- Housekeeping -- 3 items (5 of 8 cleared 2026-03-27)
 
-Move completed ADRs to completed/, update stale status fields.
+ADR-013, ADR-018, ADR-025, ADR-026, ADR-027 moved to completed/.
 
-- Move ADR-013 to completed/ (all work complete, status Accepted)
-- Move ADR-018 to completed/ (superseded by ADR-027)
-- Move ADR-025 to completed/ (PI-09 through PI-12 all done)
-- Move ADR-026 to completed/ (PI-13 through PI-16 all done)
-- Move ADR-027 to completed/ (fully complete)
+Remaining:
 - Verify ADR-028 remaining work and update status
 - Update ADR-031 status to reflect all batches A-E merged
 - Update ADR-033 status to reflect all phases 1-4 merged
@@ -142,7 +126,7 @@ Move completed ADRs to completed/, update stale status fields.
 ```
 ADR-022 (Roadmap, milestone-1 passed)
   +-- ADR-023 (Edit Loop) -- COMPLETE (EL-01 through EL-13)
-  +-- ADR-024 (Parity Gaps) -- 16/56 items remaining
+  +-- ADR-024 (Parity Gaps) -- 7/56 items remaining (all post-milestone PG/PH deferred)
   |     +-- ADR-025 (Handoff Contract) -- COMPLETE
   |     +-- ADR-026 (Transport Binding) -- COMPLETE
   +-- ADR-027 (Command Sessions) -- COMPLETE
@@ -162,6 +146,9 @@ ADR-034 (Multi-Agent) --> ADR-028, ADR-030
 | ADR | Completed | Notes |
 | :--- | :--- | :--- |
 | ADR-001 through ADR-020 | See adr/completed/ | Full history in completed/ directory |
+| ADR-025 | 2026-03-27 | PI-09 through PI-12 all delivered; moved to completed/ |
+| ADR-026 | 2026-03-27 | PI-13 through PI-16 all delivered; moved to completed/ |
+| ADR-027 | 2026-03-27 | Command sessions complete; supersedes ADR-018/019; moved to completed/ |
 
 ---
 

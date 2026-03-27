@@ -66,7 +66,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 30 | No `--resume` CLI startup flag | Proposed |
 | 31 | No MCP HTTP server authentication headers | Active (extends Gap 5) |
 | 32 | No `-p`/`--print` one-shot plain-text flag | Proposed |
-| 35 | No model-callable workspace exploration tools (`search_files`, `list_dir`, `glob_files`) | Proposed |
+| 35 | No model-callable workspace exploration tools (`search_files`, `list_dir`, `glob_files`) | Complete |
 
 ### Gaps intentionally deferred by this ADR
 
@@ -1554,9 +1554,9 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-03** | `/deny <cap>` — removes capability from active_grants | [x] |
 | **PI-04** | `/new` — saves current TaskState, resets session, new TaskId | [x] |
 | **PI-05** | `/resume [<task-id>]` — loads TaskState; grants restored; conversation not restored | [x] |
-| **PI-06** | `/mcp list` — renders loaded servers and tool counts from McpRegistry | [ ] |
-| **PI-07** | `/mcp show <server>` — renders full-namespace tool names for named server | [ ] |
-| **PI-08** | `/plan` and `/context` — see ADR-023 EL-11/EL-12 (tracked there; listed here for cross-ref) | [ ] |
+| **PI-06** | `/mcp list` — renders loaded servers and tool counts from McpRegistry | [x] |
+| **PI-07** | `/mcp show <server>` — renders full-namespace tool names for named server | [x] |
+| **PI-08** | `/plan` and `/context` — see ADR-023 EL-11/EL-12 (tracked there; listed here for cross-ref) | [x] |
 | **PI-09** | Canonical runtime JSON handoff types in `src/runtime/json_handoff.rs`, including `RuntimeRequest`, `RuntimeEnvelope`, `RuntimeEvent`, `TokenUsageEnvelope`, `ValidationOutputEnvelope`, and `grammars/tool_call.gbnf` | [x] |
 | **PI-10** | Normalization layer from provider/native stream updates into canonical runtime envelopes; runtime owns `ToolCall.id`; provider ids do not cross the canonical boundary | [x] |
 | **PI-11** | `schemas/runtime_envelope_v1.json` and `schemas/runtime_request_v1.json`, including MCP tool-name namespace validation and approval request variants | [x] |
@@ -1585,9 +1585,9 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PL-03** | Session token counter — turn accumulator; `/usage` command; `BatchMode` JSONL `tokens` field | [x] |
 | **PL-04** | `vex export <task-id>` — JSONL and Markdown formats; read-only; `--output`/`--force` flags | [x] |
 | **PM-01** | `--resume [<task-id>]` startup flag — `TaskState::load` before TUI init; non-zero exit on failure | [x] |
-| **PM-02** | MCP HTTP `[mcp_servers.headers]` — env-var substitution; STDIO rejection; startup failure on unset var | [ ] |
+| **PM-02** | MCP HTTP `[mcp_servers.headers]` — env-var substitution; STDIO rejection; startup failure on unset var | [x] |
 | **PM-03** | `-p`/`--print` flag — `BatchMode` single-turn; stdin pipe; plain-text stdout; gated on Gap 2 | [x] |
-| **PP-01** | `search_files`, `list_dir`, `glob_files` — workspace-confined; `.gitignore`-aware; bounded results; registered in dispatch table; gated on workspace ignore mechanism being available | [ ] |
+| **PP-01** | `search_files`, `list_dir`, `glob_files` — workspace-confined; `.gitignore`-aware; bounded results; registered in dispatch table; gated on workspace ignore mechanism being available | [x] |
 
 ## Implementation reporting contract (mandatory per checklist item)
 
@@ -2123,3 +2123,71 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `Capability::McpTool` triggers approval prompt by default at `once` scope (prompt once per session per tool).
   - `/mcp list` renders all loaded MCP servers; `/mcp tools` renders tool names per server.
   - Phase F (PF-01 + PF-02) is now complete; PI-06/PI-07 (`/mcp list`/`/mcp tools` read-only surface) delivered in the same batch.
+
+### [PI-06] - /mcp list slash command
+- Operator: work/vexcoder-adr024-tier2
+- Commit: delivered in Phase F batch (PR 232 / work/vexcoder-adr024-mcp-runtime)
+- Files changed:
+  - `src/app/commands.rs` — `handle_mcp_command` handles `list` subcommand
+- Validation:
+  - `cargo nextest run -j 2` : pass (anchor tests in slash_commands.rs)
+- Notes:
+  - `/mcp` and `/mcp list` both trigger the list path; renders server count, tool count, and per-server summary.
+
+### [PI-07] - /mcp show <server> slash command
+- Operator: work/vexcoder-adr024-tier2
+- Commit: delivered in Phase F batch (PR 232 / work/vexcoder-adr024-mcp-runtime)
+- Files changed:
+  - `src/app/commands.rs` — `handle_mcp_command` handles `show <server>` subcommand
+- Validation:
+  - `cargo nextest run -j 2` : pass
+- Notes:
+  - `/mcp show <name>` renders transport, tool count, and full-namespace tool list for named server.
+  - Unknown server name returns `[mcp] unknown server '<name>'`.
+
+### [PI-08] - /plan and /context commands (cross-ref)
+- Operator: ADR-023 EL-11/EL-12
+- Commit: delivered in ADR-023 implementation batch
+- Files changed:
+  - `src/app/commands.rs` — `handle_plan_command`, `handle_context_command`
+- Notes:
+  - Tracked in ADR-023; listed here for cross-reference only.
+
+### [PM-02] - MCP HTTP headers env-var substitution + STDIO rejection
+- Operator: work/vexcoder-adr024-tier2
+- Commit: delivered in Phase M batch (PR 236 / work/vexcoder-adr024-mcp-followup)
+- Files changed:
+  - `src/mcp.rs` — `resolve_mcp_header_env` expands `${VAR}` in header values; fails on unset or empty var
+  - `src/config.rs` — STDIO server with non-empty `headers` rejected at config validation time
+- Validation:
+  - `cargo nextest run -j 2` : pass
+  - `bash scripts/check_forbidden_names.sh` : pass
+- Notes:
+  - Mixed literal + env segments supported (`Bearer ${TOKEN}`).
+  - Empty variable reference (`${}`) and unterminated reference both produce hard errors.
+  - STDIO rejection is enforced during the structural config validation pass.
+
+### [PP-01] - search_files, list_dir, glob_files workspace exploration tools
+- Operator: work/vexcoder-adr024-tier2
+- Commit: this branch
+- Files changed:
+  - `src/tools/workspace_ignore.rs` (+195 lines) — `WorkspaceIgnore` parses workspace-root `.gitignore`; pure std; no subprocess
+  - `src/tools/workspace_explore.rs` (+290 lines) — `list_dir` and `glob_files` handler functions; all anchor tests
+  - `src/tools/operator.rs` — `walk_workspace_files` now loads `WorkspaceIgnore` and skips ignored paths; helper methods exposed `pub(super)` for workspace_explore
+  - `src/tools.rs` — `workspace_ignore` and `workspace_explore` modules declared; `list_dir` and `glob_files` re-exported
+  - `src/state/conversation/tools.rs` — `list_dir` and `glob_files` wired into tool dispatch; added to `is_read_only_tool_name`
+  - `src/api/client.rs` — tool definitions added for `list_dir` and `glob_files`; dispatch coverage test updated
+  - `src/app/util.rs` — `list_dir`, `glob_files` added to `capability_for_tool_name` under `ReadFile`
+  - `src/runtime/json_handoff.rs` — `list_dir`, `glob_files` added to capability name map
+  - `src/app.rs` — `list_dir`, `glob_files` added to `builtin_tool_menu_group` (retrieve) and `builtin_tool_usage_hint`
+  - `src/app/model_update.rs` — activity summary display for `list_dir` and `glob_files`
+  - `src/tool_preview.rs` — structured preview format for `list_dir` and `glob_files`
+- Validation:
+  - `cargo check --all-targets` : pass, zero warnings
+  - Anchor tests: `test_list_dir_returns_immediate_contents`, `test_list_dir_does_not_recurse`, `test_list_dir_out_of_workspace_path_returns_error`, `test_list_dir_respects_gitignore`, `test_list_dir_truncation_annotation`, `test_glob_files_returns_matching_paths`, `test_glob_files_bounded_results`, `test_glob_files_no_match_returns_empty_message`, `test_glob_files_respects_gitignore`, `test_glob_files_out_of_workspace_path_returns_error`, `test_search_files_returns_matching_lines`, `test_search_files_respects_workspace_root`, `test_search_files_skips_gitignore_excluded_paths`, `test_search_files_literal_match_no_partial_regex_interpretation`, `test_workspace_tools_do_not_start_model_turn`
+- Notes:
+  - Workspace ignore implemented in pure std (no `ignore` crate); pattern matching via in-process glob, no `str::process::Command`.
+  - `list_dir` lists only immediate children (non-recursive); gitignore rules applied.
+  - `glob_files` walks full workspace, filters by glob pattern; gitignore-aware.
+  - `search_files` now gitignore-aware via `walk_workspace_files` → `walk_workspace_files_ignoring`.
+  - All three tools gated under `Capability::ReadFile`.

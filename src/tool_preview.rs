@@ -279,13 +279,24 @@ pub fn preview_tool_input(
                 .unwrap_or("<missing>");
             format!("old_path: {old_path}\nnew_path: {new_path}")
         }
-        (ToolPreviewStyle::Structured, "list_files" | "list_directory") => {
+        (ToolPreviewStyle::Structured, "list_files" | "list_directory" | "list_dir") => {
             let path = input.get("path").and_then(|v| v.as_str()).unwrap_or(".");
             let max_entries = input
                 .get("max_entries")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(100);
             format!("path: {path}\nmax_entries: {max_entries}")
+        }
+        (ToolPreviewStyle::Structured, "glob_files") => {
+            let pattern = input
+                .get("pattern")
+                .and_then(|v| v.as_str())
+                .unwrap_or("<missing>");
+            let max_results = input
+                .get("max_results")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(50);
+            format!("pattern: {pattern}\nmax_results: {max_results}")
         }
         (ToolPreviewStyle::Structured, "search_files" | "search") => {
             let query = input

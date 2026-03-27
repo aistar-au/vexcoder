@@ -585,10 +585,9 @@ pub fn runtime_approval_request_event(request: &ToolApprovalRequest) -> RuntimeE
 
 fn capability_name_for_tool(tool_name: &str) -> Option<&'static str> {
     match tool_name {
-        "read_file" | "list_files" | "list_directory" | "search" | "search_files"
-        | "search_content" | "find_files" | "git_status" | "git_diff" | "git_log" | "git_show" => {
-            Some("read-file")
-        }
+        "read_file" | "list_files" | "list_directory" | "list_dir" | "glob_files" | "search"
+        | "search_files" | "search_content" | "find_files" | "git_status" | "git_diff"
+        | "git_log" | "git_show" => Some("read-file"),
         "write_file" | "edit_file" | "rename_file" => Some("write-file"),
         "apply_patch" | "git_add" | "git_commit" => Some("apply-patch"),
         "run_command" => Some("run-command"),

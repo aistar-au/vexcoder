@@ -821,8 +821,31 @@ fn tool_definitions() -> serde_json::Value {
                     }
                 },
                 {
+                    "name": "list_dir",
+                    "description": "List immediate contents of a workspace directory. Not recursive. Respects .gitignore.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "path": { "type": "string" },
+                            "max_entries": { "type": "integer", "minimum": 1, "maximum": 500 }
+                        }
+                    }
+                },
+                {
+                    "name": "glob_files",
+                    "description": "Return workspace-relative file paths matching a glob pattern. Use * for single-segment wildcards and ** for cross-directory matches. Respects .gitignore.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "pattern": { "type": "string" },
+                            "max_results": { "type": "integer", "minimum": 1, "maximum": 200 }
+                        },
+                        "required": ["pattern"]
+                    }
+                },
+                {
                     "name": "search_files",
-                    "description": "Search text across files and return matching lines.",
+                    "description": "Search text across files and return matching lines. Respects .gitignore.",
                     "input_schema": {
                         "type": "object",
                         "properties": {
@@ -1191,6 +1214,8 @@ mod tests {
             "rename_file",
             "list_files",
             "list_directory",
+            "list_dir",
+            "glob_files",
             "search_files",
             "search",
             "git_status",

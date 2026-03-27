@@ -578,8 +578,8 @@ fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
 
 fn builtin_tool_menu_group(name: &str) -> &'static str {
     match name {
-        "list_files" | "list_directory" | "find_files" | "search" | "search_content"
-        | "codebase_search" | "read_file" => "retrieve",
+        "list_files" | "list_directory" | "list_dir" | "glob_files" | "find_files" | "search"
+        | "search_files" | "search_content" | "codebase_search" | "read_file" => "retrieve",
         "write_file" | "edit_file" | "apply_patch" | "rename_file" => "mutate",
         "git_status" | "git_diff" | "git_log" | "git_show" | "git_add" | "git_commit" => "git",
         _ => "other",
@@ -588,7 +588,10 @@ fn builtin_tool_menu_group(name: &str) -> &'static str {
 
 fn builtin_tool_usage_hint(name: &str) -> &'static str {
     match name {
-        "list_files" | "list_directory" => "start broad at the workspace or directory level",
+        "list_files" | "list_directory" | "list_dir" => {
+            "start broad at the workspace or directory level"
+        }
+        "glob_files" => "find files by name pattern across the workspace",
         "find_files" => "narrow to filename matches before reading content",
         "search" | "search_content" => "scan exact text or regex hits across files",
         "codebase_search" => "rank functions, types, and code snippets before opening files",
