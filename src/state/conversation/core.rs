@@ -720,24 +720,16 @@ impl ConversationManager {
                                     format!("\n- [tool_error] {name}: {clarification}\n"),
                                 );
                             }
-                            emit_text_update(stream_delta_tx, clarification.clone());
-                            let history_content = truncate_for_history(
+                            emit_tool_error(
+                                stream_delta_tx,
+                                &name,
                                 &clarification,
+                                id,
+                                use_structured_round,
                                 limits.max_tool_result_history_chars,
+                                &mut tool_result_blocks,
+                                &mut text_protocol_tool_results,
                             );
-                            if use_structured_round {
-                                tool_result_blocks.push(ContentBlock::ToolResult {
-                                    tool_use_id: id,
-                                    content: history_content,
-                                    is_error: true,
-                                });
-                            } else {
-                                let rendered = format!("tool_error {name}:\n{history_content}");
-                                text_protocol_tool_results.push(truncate_for_history(
-                                    &rendered,
-                                    limits.max_tool_result_history_chars,
-                                ));
-                            }
                             continue;
                         }
 
@@ -763,24 +755,16 @@ impl ConversationManager {
                                     format!("\n- [tool_error] {name}: {clarification}\n"),
                                 );
                             }
-                            emit_text_update(stream_delta_tx, clarification.clone());
-                            let history_content = truncate_for_history(
+                            emit_tool_error(
+                                stream_delta_tx,
+                                &name,
                                 &clarification,
+                                id,
+                                use_structured_round,
                                 limits.max_tool_result_history_chars,
+                                &mut tool_result_blocks,
+                                &mut text_protocol_tool_results,
                             );
-                            if use_structured_round {
-                                tool_result_blocks.push(ContentBlock::ToolResult {
-                                    tool_use_id: id,
-                                    content: history_content,
-                                    is_error: true,
-                                });
-                            } else {
-                                let rendered = format!("tool_error {name}:\n{history_content}");
-                                text_protocol_tool_results.push(truncate_for_history(
-                                    &rendered,
-                                    limits.max_tool_result_history_chars,
-                                ));
-                            }
                             continue;
                         }
 
@@ -807,24 +791,16 @@ impl ConversationManager {
                                     format!("\n- [tool_error] {name}: {read_only_guard}\n"),
                                 );
                             }
-                            emit_text_update(stream_delta_tx, read_only_guard.clone());
-                            let history_content = truncate_for_history(
+                            emit_tool_error(
+                                stream_delta_tx,
+                                &name,
                                 &read_only_guard,
+                                id,
+                                use_structured_round,
                                 limits.max_tool_result_history_chars,
+                                &mut tool_result_blocks,
+                                &mut text_protocol_tool_results,
                             );
-                            if use_structured_round {
-                                tool_result_blocks.push(ContentBlock::ToolResult {
-                                    tool_use_id: id,
-                                    content: history_content,
-                                    is_error: true,
-                                });
-                            } else {
-                                let rendered = format!("tool_error {name}:\n{history_content}");
-                                text_protocol_tool_results.push(truncate_for_history(
-                                    &rendered,
-                                    limits.max_tool_result_history_chars,
-                                ));
-                            }
                             continue;
                         }
 
@@ -851,24 +827,16 @@ impl ConversationManager {
                                     format!("\n- [tool_error] {name}: {test_only_guard}\n"),
                                 );
                             }
-                            emit_text_update(stream_delta_tx, test_only_guard.clone());
-                            let history_content = truncate_for_history(
+                            emit_tool_error(
+                                stream_delta_tx,
+                                &name,
                                 &test_only_guard,
+                                id,
+                                use_structured_round,
                                 limits.max_tool_result_history_chars,
+                                &mut tool_result_blocks,
+                                &mut text_protocol_tool_results,
                             );
-                            if use_structured_round {
-                                tool_result_blocks.push(ContentBlock::ToolResult {
-                                    tool_use_id: id,
-                                    content: history_content,
-                                    is_error: true,
-                                });
-                            } else {
-                                let rendered = format!("tool_error {name}:\n{history_content}");
-                                text_protocol_tool_results.push(truncate_for_history(
-                                    &rendered,
-                                    limits.max_tool_result_history_chars,
-                                ));
-                            }
                             continue;
                         }
 
@@ -922,22 +890,16 @@ impl ConversationManager {
                                     format!("\n- [tool_error] {name}: {denial}\n"),
                                 );
                             }
-                            emit_text_update(stream_delta_tx, denial.clone());
-                            let history_content =
-                                truncate_for_history(&denial, limits.max_tool_result_history_chars);
-                            if use_structured_round {
-                                tool_result_blocks.push(ContentBlock::ToolResult {
-                                    tool_use_id: id,
-                                    content: history_content,
-                                    is_error: true,
-                                });
-                            } else {
-                                let rendered = format!("tool_error {name}:\n{history_content}");
-                                text_protocol_tool_results.push(truncate_for_history(
-                                    &rendered,
-                                    limits.max_tool_result_history_chars,
-                                ));
-                            }
+                            emit_tool_error(
+                                stream_delta_tx,
+                                &name,
+                                &denial,
+                                id,
+                                use_structured_round,
+                                limits.max_tool_result_history_chars,
+                                &mut tool_result_blocks,
+                                &mut text_protocol_tool_results,
+                            );
                             continue;
                         }
 
@@ -1029,6 +991,40 @@ impl ConversationManager {
                 });
             }
         }
+    }
+}
+
+/// Centralizes the repeated guard-error tail pattern (ADR-021 Item 9).
+///
+/// After a tool-guard fires, this helper emits the clarification text to the
+/// stream and pushes the result into the appropriate history collection
+/// depending on the protocol in use.  The caller handles the
+/// `use_structured_blocks` path (status update + push_tool_result_block)
+/// before calling this function.
+fn emit_tool_error(
+    stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
+    tool_name: &str,
+    clarification: &str,
+    tool_use_id: String,
+    use_structured_round: bool,
+    max_tool_result_history_chars: usize,
+    tool_result_blocks: &mut Vec<ContentBlock>,
+    text_protocol_tool_results: &mut Vec<String>,
+) {
+    emit_text_update(stream_delta_tx, clarification.to_string());
+    let history_content = truncate_for_history(clarification, max_tool_result_history_chars);
+    if use_structured_round {
+        tool_result_blocks.push(ContentBlock::ToolResult {
+            tool_use_id,
+            content: history_content,
+            is_error: true,
+        });
+    } else {
+        let rendered = format!("tool_error {tool_name}:\n{history_content}");
+        text_protocol_tool_results.push(truncate_for_history(
+            &rendered,
+            max_tool_result_history_chars,
+        ));
     }
 }
 

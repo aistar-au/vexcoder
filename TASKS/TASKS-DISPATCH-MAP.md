@@ -18,7 +18,7 @@ Source of truth: `adr/ADR-README.md`.
 
 | ADR source file | Status | Remaining |
 | :--- | :--- | :--- |
-| `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | Accepted | 11 items (0 P1, 10 P2, 1 P3) |
+| `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | Accepted | 4 items (0 P1, 4 P2, 0 P3); Tier 6 batch completed Items 9/13/20/24/25/28/32/33 |
 | `adr/ADR-022-amendment-2026-03-13.md` | Amended | Amendment only |
 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed (milestone-1 passed) | Post-milestone G/H |
 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-milestone complete) | 7 items (all post-milestone) |
@@ -35,9 +35,9 @@ Source of truth: `adr/ADR-README.md`.
 ADR-013, ADR-018, ADR-025, ADR-026, ADR-027 moved to `adr/completed/`.
 ADR-023 is complete (EL-01 through EL-13) and remains in `adr/`.
 
-## Remaining Work Summary (25 items across 4 active tiers)
+## Remaining Work Summary (18 items across 2 active tiers)
 
-Tiers 1–5 are complete; 25 items remain across Tiers 6–9.
+Tiers 1–7 are complete or mostly complete; 18 items remain across Tiers 8–9.
 
 | Tier | Source | Items | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
@@ -46,8 +46,8 @@ Tiers 1–5 are complete; 25 items remain across Tiers 6–9.
 | ~~3~~ | ADR-024 | ~~3~~ | Complete | Workspace tools, MCP HTTP auth, `/plan` + `/context` |
 | ~~4~~ | ADR-021 P1 | ~~4~~ | Complete | Unbounded buffers, unhandled errors, comment debt |
 | ~~5~~ | ADR-029/030/032 | ~~3~~ | Complete | Verification of already-implemented work (2026-03-28) |
-| 6 | ADR-021 P2 | 11 | Open | Code quality and duplication removal |
-| 7 | ADR-021 P3 | 1 | Open | Idle backoff tuning |
+| 6 | ADR-021 P2 | ~~8~~ + 4 remaining | Mostly complete (2026-03-28) | Items 9/13/20/24/25/28/32 done; Items 10/11/12/14 deferred |
+| ~~7~~ | ADR-021 P3 | ~~1~~ | Complete (2026-03-28) | Item 33 idle backoff tuning comment added |
 | 8 | ADR-024 G/H + ADR-022 | 7 | Open | Post-milestone release pipeline and packaging |
 | 9 | Multiple | 3 | Open | Housekeeping: update status fields for ADR-031, ADR-033; verify ADR-028 |
 
@@ -74,10 +74,10 @@ moved to `adr/completed/` as of 2026-03-27.
 
 ## Current Next Work Batch
 
-Tiers 1–5 are complete.  The current batch is Tier 6 code quality (ADR-021
-P2): duplication removal, race condition fixes, and design follow-ups.
-Items 15 and 22 are done; 11 items remain.  See `TASKS/ACTIVE-ROADMAP.md`
-for the full 25-item, 4-active-tier breakdown.
+Tiers 1–7 are complete or mostly complete.  Tier 6 (ADR-021 P2) batch
+completed Items 9/13/20/24/25/28/32/33 on 2026-03-28; Items 10/11/12/14
+(larger refactors) are deferred to a future batch.  See `TASKS/ACTIVE-ROADMAP.md`
+for the breakdown.
 
 ## Tracking Notes
 

@@ -126,12 +126,24 @@ impl ManagedTuiFrontend {
         }
     }
 
+    /// Returns true when the startup paste filter is active (default: on).
+    /// Set `VEX_DISABLE_STARTUP_FILTER=1` to disable for observability.
+    fn startup_filter_active() -> bool {
+        std::env::var("VEX_DISABLE_STARTUP_FILTER").as_deref() != Ok("1")
+    }
+
     fn should_ignore_startup_paste(&self, text: &str) -> bool {
-        should_ignore_startup_paste_text(text, self.started_at.elapsed() <= STARTUP_NOISE_GUARD)
+        Self::startup_filter_active()
+            && should_ignore_startup_paste_text(
+                text,
+                self.started_at.elapsed() <= STARTUP_NOISE_GUARD,
+            )
     }
 
     fn should_ignore_startup_submission(&self, text: &str) -> bool {
-        self.started_at.elapsed() <= STARTUP_NOISE_GUARD && looks_like_terminal_transcript(text)
+        Self::startup_filter_active()
+            && self.started_at.elapsed() <= STARTUP_NOISE_GUARD
+            && looks_like_terminal_transcript(text)
     }
 
     fn map_editor_action(&mut self, action: InputAction) -> Option<UserInputEvent> {

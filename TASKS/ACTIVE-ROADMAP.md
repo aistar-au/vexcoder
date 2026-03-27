@@ -14,7 +14,7 @@ Last updated: 2026-03-28
 
 | ADR | Status | Remaining items | Dependency note |
 | :--- | :--- | :--- | :--- |
-| ADR-021 | Accepted | 9 (0 P1, 8 P2, 1 P3) | Tier 4 P1 items resolved (Items 8/18/19/26); Items 15+22 completed in Tier 5 verification; P2 and P3 remain |
+| ADR-021 | Accepted | 4 (0 P1, 4 P2, 0 P3) | Tier 6 batch completed Items 9/13/20/24/25/28/32/33; Items 10/11/12/14 remain (larger refactors, deferred) |
 | ADR-022 amendment | Amended | Amendment only | Tightens milestone-1 command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
 | ADR-024 | Proposed (pre-milestone complete) | 7 items (all post-milestone) | PA–PM and PP done; PG/PH post-milestone deferred |
@@ -76,27 +76,27 @@ All 3 verification items confirmed in-tree:
 - ADR-032: Items 4 (character count indicator) and 5 (focus indicator) verified implemented in src/ui/draw/mod.rs
 - ADR-031/ADR-032/docs: fullscreen composer auto-fit behavior documented consistently for live row/column resize and snapped terminal layouts
 
-### Tier 6 -- Code Quality (ADR-021 P2) -- 11 items
+### Tier 6 -- Code Quality (ADR-021 P2) -- 11 items (8 done; 4 remain)
 
 Duplication removal, race condition fixes, and design follow-ups.
 
-- Item 9: Tool error dispatch block repeated
+- ~~Item 9: Tool error dispatch block repeated~~ (done 2026-03-28; `emit_tool_error` helper added in core.rs)
 - Item 10: Scroll handling duplication
 - Item 11: Approval input parsing duplicated
 - Item 12: Diff row styling logic duplicated
-- Item 13: required_tool_string variants overlapping
-- Item 14: Auto-follow reconciliation repeated
+- ~~Item 13: required_tool_string variants overlapping~~ (done 2026-03-28; `required_tool_string` delegates to `required_tool_string_any`)
+- Item 14: Auto-follow behavior duplication
 - ~~Item 15: MAX_INPUT_PANE_ROWS not applied in prod~~ (done 2026-03-28; fullscreen composer now auto-fits within the live terminal viewport)
-- Item 20: edit_file TOCTOU race condition
+- ~~Item 20: edit_file TOCTOU race condition~~ (done 2026-03-28; TOCTOU risk documented with structured comment)
 - ~~Item 22: StreamBlock::ToolCall deltas ignored~~ (done 2026-03-28)
-- Item 24: Startup event draining heuristics
-- Item 25: Late StreamDelta dropped
-- Item 28: Read-only intent heuristic false positives
-- Item 32: KeyEventKind::Release filtering
+- ~~Item 24: Startup event draining heuristics~~ (done 2026-03-28; `VEX_DISABLE_STARTUP_FILTER=1` env gate added)
+- ~~Item 25: Late StreamDelta dropped~~ (done 2026-03-28; debug observability added under `#[cfg(debug_assertions)]`)
+- ~~Item 28: Read-only intent heuristic false positives~~ (done 2026-03-28; `VEX_FORCE_MUTATING_TURN=1` env gate added)
+- ~~Item 32: KeyEventKind::Release filtering~~ (done earlier; confirmed 2026-03-28; filter in tui_frontend.rs)
 
-### Tier 7 -- Tuning (ADR-021 P3) -- 1 item
+### Tier 7 -- Tuning (ADR-021 P3) -- 1 item (done)
 
-- Item 33: IDLE_LOOP_BACKOFF tuning
+- ~~Item 33: IDLE_LOOP_BACKOFF tuning~~ (done 2026-03-28; tuning comment added noting 62Hz practical cap)
 
 ### Tier 8 -- Post-Milestone (ADR-024 G/H + ADR-022) -- 7 items
 

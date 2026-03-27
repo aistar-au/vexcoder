@@ -30,6 +30,8 @@ impl TuiMode {
                     Some(idx) => idx,
                     None => {
                         if !self.history_state.turn_in_progress {
+                            #[cfg(debug_assertions)]
+                            eprintln!("[vex:debug] stale StreamDelta dropped ({} bytes)", text.len());
                             return;
                         }
                         self.push_history_line(String::new());
