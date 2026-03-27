@@ -252,8 +252,94 @@ if scan_path_names "$BRAND_PATTERN" src/prompts models; then
   failed=1
 fi
 
+# ── Pass 4: non-neutral tone words ──────────────────────────────────
+# These words are not brand names but carry non-neutral connotations that
+# do not belong in user-facing documentation, ADRs, or task descriptions.
+# Scoped to documentation targets only so legitimate Rust API names
+# (e.g. child.kill(), kill_on_drop) in src/ and tests/ are not flagged.
+tone_words=(
+  $'\x64\x65\x61\x64'
+  $'\x6b\x69\x6c\x6c'
+  $'\x73\x69\x62\x6c\x69\x6e\x67'
+  $'\x6f\x72\x70\x68\x61\x6e'
+  $'\x72\x65\x63\x6f\x6e\x63\x69\x6c\x65'
+  $'\x64\x65\x6c\x69\x76\x65\x72\x73'
+)
+tone_regex="$(printf '%s|' "${tone_words[@]}")"
+tone_regex="${tone_regex%|}"
+TONE_PATTERN="\\b(${tone_regex})\\b"
+
+DOC_TARGETS=(
+  AGENTS.md
+  CONTRIBUTING.md
+  TASKS
+  adr
+  docs/src
+)
+
+# Tone-word scan needs extra exclusions for ADRs that quote Rust/Unix
+# process-management APIs (child.kill(), kill_on_drop, kill -9).
+scan_tone_targets() {
+  local pattern="$1"
+  shift
+  if [[ "$SCAN_BACKEND" == "rg" ]]; then
+    "$RG_BIN" -n --hidden -i \
+      --glob '!.git' \
+      --glob '!scripts/check_forbidden_names.sh' \
+      --glob '!TASKS/completed/REPO-RAW-URL-MAP.md' \
+      --glob '!adr/ADR-022-amendment-2026-03-13.md' \
+      --glob '!adr/ADR-023-deterministic-edit-loop.md' \
+      --glob '!adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md' \
+      --glob '!adr/completed/ADR-027-full-screen-tui-command-session-capture.md' \
+      "$pattern" "$@" | sed 's#\\#/#g'
+    return
+  fi
+
+  "${PYTHON_BIN[@]}" - "$pattern" "$@" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+_TONE_EXCLUDES = {
+    "scripts/check_forbidden_names.sh",
+    "TASKS/completed/REPO-RAW-URL-MAP.md",
+    "adr/ADR-022-amendment-2026-03-13.md",
+    "adr/ADR-023-deterministic-edit-loop.md",
+    "adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md",
+    "adr/completed/ADR-027-full-screen-tui-command-session-capture.md",
+}
+pattern = re.compile(sys.argv[1], re.IGNORECASE)
+roots = [Path(arg) for arg in sys.argv[2:]]
+matched = False
+
+for root in roots:
+    if not root.exists():
+        continue
+    paths = [root] if root.is_file() else [p for p in root.rglob("*") if p.is_file()]
+    for path in paths:
+        rel = path.as_posix()
+        if rel in _TONE_EXCLUDES or rel.startswith(".git/") or rel.startswith(".github/workflows/"):
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError as exc:
+            print(f"FAIL: unable to read {rel}: {exc}", file=sys.stderr)
+            sys.exit(2)
+        for line_number, line in enumerate(lines, start=1):
+            if pattern.search(line):
+                print(f"{rel}:{line_number}:{line}")
+                matched = True
+
+sys.exit(0 if matched else 1)
+PY
+}
+
+if scan_tone_targets "$TONE_PATTERN" "${DOC_TARGETS[@]}"; then
+  failed=1
+fi
+
 if [[ $failed -ne 0 ]]; then
-  echo "FAIL: forbidden branded names found in ${TARGETS[*]}"
+  echo "FAIL: forbidden names found in scanned targets"
   exit 1
 fi
 

@@ -26,7 +26,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 14 | `.gitignore` | ~29 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitignore> |
 | 15 | `adr/ADR-013-tui-completion-deployment-plan.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-013-tui-completion-deployment-plan.md> |
 | 16 | `adr/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md` | ~96 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md> |
-| 17 | `adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md` | ~352 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md> |
+| 17 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | ~352 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md> |
 | 18 | `adr/ADR-022-amendment-2026-03-03.md` | ~47 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-03.md> |
 | 19 | `adr/ADR-022-amendment-2026-03-13.md` | ~55 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-13.md> |
 | 20 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | ~388 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-free-open-coding-agent-roadmap.md> |

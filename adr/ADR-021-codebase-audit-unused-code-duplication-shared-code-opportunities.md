@@ -1,4 +1,4 @@
-# ADR-021: Codebase Audit — Dead Weight, Duplication, and Shared-Code Opportunities
+# ADR-021: Codebase Audit — Unused Code, Duplication, and Shared-Code Opportunities
 
 - **Status**: Accepted (P0 items 1–4 implemented)
 - **Date**: 2026-02-22
@@ -239,19 +239,17 @@ git diff --numstat -- src/runtime/loop.rs
 - **Priority**: **N/A**
 
 ### 22) `StreamBlock::ToolCall` deltas ignored in `TuiMode::on_model_update`
-- **Status**: **Partially accurate**
+- **Status**: **Completed (2026-03-28)**
 - **Evidence**:
-  - `src/app.rs` ignores `StreamBlockDelta` payload for
-    `StreamBlock::ToolCall`/`StreamBlock::ToolResult`.
-  - This does not break current UX because approval/preview surfaces are fed by
-    explicit tool approval/update paths, not incremental tool-call text render.
-- **Risk posture**:
-  - Potential future mismatch if UI begins to rely on incremental tool-call
-    JSON in `active_stream_blocks`.
-- **Priority**: **P2**
-- **Follow-up**:
-  - Either document this as intentional or implement incremental tool-call
-    input accumulation in `active_stream_blocks`.
+  - `src/app/model_update.rs` now accumulates `StreamBlockDelta` payloads for
+    `StreamBlock::ToolCall` into a turn-scoped `tool_input_raw_buffers` map.
+  - While the accumulated JSON is incomplete, `preview_partial_tool_input`
+    surfaces the streamed fragment in the pending tool preview.
+  - Once the payload parses as valid JSON, the pending tool call's `input` and
+    `input_preview` are replaced with the parsed structure.
+  - Buffers are cleared on block completion, turn end, and error paths.
+  - Regression test in `src/app/tests/model_turn.rs` covers the partial and
+    complete streaming scenarios.
 
 ### 23) UTF-8 safety concern in `strip_incomplete_tool_tag_suffix`
 - **Status**: **Not accurate (current tree)**

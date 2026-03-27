@@ -312,7 +312,7 @@ streaming.
 - `Alt+Up` and `Alt+Down` move the selected entry in the adaptive task timeline.
 - `Tab` and `Shift+Tab` also move timeline selection forward and backward while the task surface is active.
 - The visible timeline window scales with terminal height instead of staying fixed at six rows.
-- The composer auto-fits to the live terminal row and column budget, so snapping the terminal to half-screen or quarter-screen sizes reflows the prompt surface instead of overflowing or leaving dead space.
+- The composer auto-fits to the live terminal row and column budget, so snapping the terminal to half-screen or quarter-screen sizes reflows the prompt surface instead of overflowing or leaving empty space.
 - `PageUp`, `PageDown`, `Ctrl+Up`, and `Ctrl+Down` scroll the transcript/output pane upward from the prompt edge instead of moving the cursor.
 - `Ctrl+Home` jumps to the oldest visible transcript content, and `Ctrl+End` returns to the live bottom edge.
 - The transcript pane keeps the full session scrollback visible while follow mode is on; new model responses append at the bottom instead of replacing the prior response view.

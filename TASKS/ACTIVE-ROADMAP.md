@@ -14,7 +14,7 @@ Last updated: 2026-03-28
 
 | ADR | Status | Remaining items | Dependency note |
 | :--- | :--- | :--- | :--- |
-| ADR-021 | Accepted | 11 (0 P1, 10 P2, 1 P3) | Tier 4 P1 items resolved (Items 8/18/19/26); Items 15+22 done in Tier 6; P2 and P3 remain |
+| ADR-021 | Accepted | 9 (0 P1, 8 P2, 1 P3) | Tier 4 P1 items resolved (Items 8/18/19/26); Items 15+22 completed in Tier 5 verification; P2 and P3 remain |
 | ADR-022 amendment | Amended | Amendment only | Tightens milestone-1 command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
 | ADR-024 | Proposed (pre-milestone complete) | 7 items (all post-milestone) | PA–PM and PP done; PG/PH post-milestone deferred |

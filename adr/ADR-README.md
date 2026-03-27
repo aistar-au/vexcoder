@@ -22,7 +22,7 @@ All ADR files live under `adr/`.
 
 | ADR | Title | Status | Remaining |
 | :--- | :--- | :--- | :--- |
-| [ADR-021](ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md) | Codebase audit | Accepted | 11 items (0 P1, 10 P2, 1 P3) |
+| [ADR-021](ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md) | Codebase audit (unused code) | Accepted | 11 items (0 P1, 10 P2, 1 P3) |
 | [ADR-022 amendment](ADR-022-amendment-2026-03-13.md) | Command-execution amendment | Amended | Amendment only |
 | [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed (milestone-1 passed 2026-03-15) | Post-milestone phases G/H |
 | [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps | Proposed | 16 items across phases D/F/G/H/I/M/P |

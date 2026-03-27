@@ -18,7 +18,7 @@ Source of truth: `adr/ADR-README.md`.
 
 | ADR source file | Status | Remaining |
 | :--- | :--- | :--- |
-| `adr/ADR-021-codebase-audit-dead-weight-duplication-shared-code-opportunities.md` | Accepted | 11 items (0 P1, 10 P2, 1 P3) |
+| `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | Accepted | 11 items (0 P1, 10 P2, 1 P3) |
 | `adr/ADR-022-amendment-2026-03-13.md` | Amended | Amendment only |
 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed (milestone-1 passed) | Post-milestone G/H |
 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-milestone complete) | 7 items (all post-milestone) |
