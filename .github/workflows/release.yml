@@ -110,7 +110,7 @@ jobs:
           TARGET: ${{ matrix.target }}
           OUT_DIR: dist
         run: |
-          .\scripts\release.ps1 -Target $env:TARGET -OutDir $env:OUT_DIR -RunGate
+          .\scripts\release.ps1 -Target $env:TARGET -OutDir $env:OUT_DIR
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4

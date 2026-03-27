@@ -279,17 +279,6 @@ jobs:
         run: |
           "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Restore cargo cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~\.cargo\registry\index
-            ~\.cargo\registry\cache
-            ~\.cargo\git\db
-            target
-          key: windows-test-${{ hashFiles('Cargo.lock') }}
-          restore-keys: windows-test-
-
       - name: Install cargo-nextest (prebuilt, version-pinned)
         shell: pwsh
         env:
