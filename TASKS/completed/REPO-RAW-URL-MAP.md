@@ -6,6 +6,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
 - Total tracked files: 242
+- Last updated: 2026-03-27 (Tier 4 security hardening batch — file count unchanged)
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |

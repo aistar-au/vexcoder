@@ -14,7 +14,7 @@ Last updated: 2026-03-27
 
 | ADR | Status | Remaining items | Dependency note |
 | :--- | :--- | :--- | :--- |
-| ADR-021 | Accepted | 17 (3 P1, 13 P2, 1 P3) | Standalone audit; findings feed later ADRs |
+| ADR-021 | Accepted | 13 (0 P1, 12 P2, 1 P3) | Tier 4 P1 items resolved (Items 8/18/19/26); P2 and P3 remain |
 | ADR-022 amendment | Amended | Amendment only | Tightens milestone-1 command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
 | ADR-024 | Proposed (pre-milestone complete) | 7 items (all post-milestone) | PA–PM and PP done; PG/PH post-milestone deferred |
@@ -39,7 +39,7 @@ Last updated: 2026-03-27
 
 ---
 
-## Remaining Work: 31 Items Across 6 Tiers
+## Remaining Work: 27 Items Across 5 Active Tiers
 
 Tiers sorted by unblocking impact -- what, if implemented first, unblocks
 the most downstream work.
@@ -58,15 +58,15 @@ PP-01 (`list_dir`, `glob_files`, gitignore-aware `search_files`) delivered in th
 PM-02 (MCP HTTP headers env-var substitution) delivered in PR 236.
 PI-08 (`/plan`, `/context`) delivered in ADR-023 batch.
 
-### Tier 4 -- Security Hardening (ADR-021 P1) -- 4 items
+### ~~Tier 4 -- Security Hardening (ADR-021 P1)~~ (cleared 2026-03-27)
 
-Unbounded buffers and unhandled errors that could cause crashes or resource
-exhaustion.
-
-- Item 18: Unbounded input buffer in editor (memory safety)
-- Item 26: SSE parser buffer unbounded without delimiter (memory safety)
-- Item 19: SSE parse failures not surfaced to UI (user-visible)
-- Item 8: Post-cutover comment debt (code hygiene)
+- Item 18: editor MAX_INPUT_BYTES cap in src/ui/editor.rs
+- Item 26: SSE buffer renamed to MAX_SSE_BUFFER_BYTES; overflow now emits
+  StreamEvent::Error instead of bail!, surfacing cleanly to UiUpdate::Error
+- Item 19: parse_frame_bytes emits StreamEvent::Error on failure;
+  ConversationStreamUpdate::StreamError added; context.rs forwards to
+  UiUpdate::Error
+- Item 8: stale REF-07/EL-0X task-ID comments removed from production source
 
 ### Tier 5 -- Verification and Governance -- 3 items
 
