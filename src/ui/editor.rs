@@ -3,6 +3,12 @@ use std::ops::Range;
 
 use crate::ui::input_metrics::{cursor_row_col, visual_layout, visual_row_bounds};
 
+/// Hard upper bound on the editor buffer size (bytes).  Large pastes or
+/// runaway inserts are silently capped at this limit.  1 MiB is comfortably
+/// above any realistic interactive prompt while preventing unbounded growth.
+/// ADR-021 Item 18.
+pub const MAX_INPUT_BYTES: usize = 1_048_576;
+
 pub fn prev_char_boundary_in(buffer: &str, idx: usize) -> usize {
     let mut normalized = idx.min(buffer.len());
     while normalized > 0 && !buffer.is_char_boundary(normalized) {
@@ -173,6 +179,9 @@ impl InputEditor {
         self.input_state.history_index = None;
         self.input_state.history_stash = None;
         let cursor = self.clamp_cursor_to_boundary_left(self.input_state.cursor);
+        if self.input_state.buffer.len() + value.len() > MAX_INPUT_BYTES {
+            return;
+        }
         self.push_undo();
         self.input_state.buffer.insert_str(cursor, value);
         self.input_state.cursor = cursor + value.len();
@@ -408,7 +417,7 @@ impl Default for InputEditor {
 
 #[cfg(test)]
 mod tests {
-    use super::{file_mention_range, prev_char_boundary_in, InputEditor};
+    use super::{file_mention_range, prev_char_boundary_in, InputEditor, MAX_INPUT_BYTES};
     use crate::ui::input_metrics::{cursor_row_col, visual_layout, visual_row_bounds};
 
     #[test]
@@ -647,5 +656,31 @@ mod tests {
         let cursor = 6; // on the @
         let range = file_mention_range(input, cursor).expect("bare @ between words");
         assert_eq!(&input[range], "@");
+    }
+
+    // -- ADR-021 Item 18: buffer cap ------------------------------------------
+
+    #[test]
+    fn insert_str_silently_drops_input_above_cap() {
+        let mut editor = InputEditor::new();
+        // Fill to exactly the cap.
+        let filler = "x".repeat(MAX_INPUT_BYTES);
+        editor.input_state.buffer = filler.clone();
+        editor.input_state.cursor = MAX_INPUT_BYTES;
+        // Attempt to insert one more byte — must be silently ignored.
+        editor.insert_str("z");
+        assert_eq!(editor.input_state.buffer.len(), MAX_INPUT_BYTES);
+        assert_eq!(editor.input_state.buffer, filler);
+    }
+
+    #[test]
+    fn insert_str_allows_input_up_to_cap() {
+        let mut editor = InputEditor::new();
+        let filler = "x".repeat(MAX_INPUT_BYTES - 1);
+        editor.input_state.buffer = filler;
+        editor.input_state.cursor = MAX_INPUT_BYTES - 1;
+        // One byte below the cap — must succeed.
+        editor.insert_str("z");
+        assert_eq!(editor.input_state.buffer.len(), MAX_INPUT_BYTES);
     }
 }

@@ -176,7 +176,6 @@ mod tests {
         }
     }
 
-    /// REF-07: renamed to async to match `run()` signature change.
     #[tokio::test]
     async fn test_ref_05_headless_loop_terminates() {
         let mock = Arc::new(MockApiClient::new(vec![]));

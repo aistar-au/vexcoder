@@ -41,19 +41,21 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-026-localapiserver-transport-binding.md` | Complete (PI-13 through PI-16) |
 | `adr/ADR-027-full-screen-tui-command-session-capture.md` | Accepted (complete) |
 
-## Remaining Work Summary (49 items across 9 tiers)
+## Remaining Work Summary (32 items across 6 active tiers)
 
-| Tier | Source | Items | Description |
-| :--- | :--- | :--- | :--- |
-| 1 | PRs 231/232/233/234 | 4 | Open PRs ready to merge |
-| 2 | ADR-024 Phases D/F | 6 | Sandbox drivers and MCP runtime |
-| 3 | ADR-024 | 3 | Workspace tools, MCP HTTP auth, `/plan` + `/context` |
-| 4 | ADR-021 P1 | 4 | Unbounded buffers and unhandled errors |
-| 5 | ADR-029/030/032 | 3 | Verification of already-implemented work |
-| 6 | ADR-021 P2 | 13 | Code quality and duplication removal |
-| 7 | ADR-021 P3 | 1 | Idle backoff tuning |
-| 8 | ADR-024 G/H + ADR-022 | 7 | Post-milestone release pipeline and packaging |
-| 9 | Multiple | 8 | Housekeeping: move completed ADRs, update status fields |
+Tiers 1–4 are complete; 32 items remain across Tiers 5–9.
+
+| Tier | Source | Items | Status | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| ~~1~~ | PRs 231/232/233/234 | ~~4~~ | Complete | Open PRs merged |
+| ~~2~~ | ADR-024 Phases D/F | ~~6~~ | Complete | Sandbox drivers and MCP runtime |
+| ~~3~~ | ADR-024 | ~~3~~ | Complete | Workspace tools, MCP HTTP auth, `/plan` + `/context` |
+| ~~4~~ | ADR-021 P1 | ~~4~~ | Complete | Unbounded buffers, unhandled errors, comment debt |
+| 5 | ADR-029/030/032 | 3 | Open | Verification of already-implemented work |
+| 6 | ADR-021 P2 | 13 | Open | Code quality and duplication removal |
+| 7 | ADR-021 P3 | 1 | Open | Idle backoff tuning |
+| 8 | ADR-024 G/H + ADR-022 | 7 | Open | Post-milestone release pipeline and packaging |
+| 9 | Multiple | 8 | Open | Housekeeping: move completed ADRs, update status fields |
 
 ## Immediate Dependency Notes
 
@@ -78,9 +80,13 @@ implementation-complete and pending housekeeping move to completed/.
 
 ## Current Next Work Batch
 
-The highest-priority remaining work is merging the four open PRs
-(231/232/233/234, Tier 1) to unblock Tier 2 sandbox and MCP
-work. See `TASKS/ACTIVE-ROADMAP.md` for the full 49-item, 9-tier breakdown.
+Tiers 1–4 are complete.  The current batch is Tier 5 verification:
+confirm that `StreamEvent`, `ContentBlock`, `Delta`, `ApiUsage`,
+`MessageDelta`, `MessageStartData`, chat-completions, and `TaskState` are
+all implemented (ADR-029); that 6 coverage requirements have test evidence
+(ADR-030); and that character-count and focus indicators are present
+(ADR-032 items 4 and 5).  See `TASKS/ACTIVE-ROADMAP.md` for the full
+32-item, 6-active-tier breakdown.
 
 ## Tracking Notes
 

@@ -55,8 +55,6 @@ impl Default for ContextAssembler {
 
 impl ContextAssembler {
     /// Assemble context for the given instruction.
-    ///
-    /// Wired by EL-03 (`EditLoop::run` step 1) and EL-05 (`/explain`, `/run`, `/test`).
     pub fn assemble(&self, instruction: &str, operator: &ToolOperator) -> Result<AssembledContext> {
         let timeout_ms = resolve_git_timeout_ms(self.git_timeout_ms);
         let mut file_snapshots = Vec::new();
@@ -157,8 +155,6 @@ impl ContextAssembler {
     }
 
     /// Render an `AssembledContext` to a markdown string for injection into a turn.
-    ///
-    /// Wired by EL-03 (`EditLoop::run` step 3).
     pub fn render(&self, ctx: &AssembledContext) -> String {
         let mut out = String::new();
         out.push_str("## Context\n");
