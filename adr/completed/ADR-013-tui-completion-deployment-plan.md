@@ -11,7 +11,7 @@
 
 ## Context
 
-REF-08 merged on 2026-02-19 and delivered:
+REF-08 merged on 2026-02-19 and added:
 
 - Canonical runtime dispatch: `Runtime<M>::run` → `RuntimeMode::on_user_input` → `RuntimeContext::start_turn`
 - `TuiMode` with overlay state, approval handling, `InputEditor` with undo/redo and
@@ -19,7 +19,7 @@ REF-08 merged on 2026-02-19 and delivered:
 - Architecture contract CI: `check_no_alternate_routing.sh`, `check_forbidden_imports.sh`
 - Env-test determinism via `crate::test_support::ENV_LOCK`
 
-What REF-08 did **not** deliver — and ADR-012 requires before TUI deployment — falls
+What REF-08 did **not** include — and ADR-012 requires before TUI deployment — falls
 into two categories:
 
 **Category A — Existing task manifests already written, not yet dispatched:**
@@ -32,7 +32,7 @@ Five runtime/lifecycle items identified during ADR-012 review that have no task
 manifest. New manifests CORE-12 through CORE-14 and FEAT-15 through FEAT-16 are
 created alongside this ADR.
 
-### What the existing tasks deliver
+### What the existing tasks implement
 
 **CORE-09** groups `App`'s ad-hoc fields into `HistoryState`, `InputState`,
 `OverlayState` without protocol changes. Prerequisite for everything else.
@@ -49,7 +49,7 @@ overlay draw as the last call in every frame and no pane geometry alteration.
 **CORE-11** maps `ToolApprovalRequest` into overlay state with one-shot responder
 resolution — the approval sender fires exactly once per overlay lifecycle.
 
-**FEAT-10** through **FEAT-14** deliver the rendered modal surface family (header
+**FEAT-10** through **FEAT-14** implement the rendered modal surface family (header
 stability, unified modal renderer, diff viewer, multiline input, history safety).
 
 ### What the existing tasks do not cover

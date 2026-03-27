@@ -67,9 +67,9 @@ git diff --numstat -- src/ui/editor.rs src/app.rs src/bin/vex.rs src/ui.rs src/u
 | `src/ui/render.rs` | 25 | 8 |
 | **Total** | **359** | **405** |
 
-## P1 — Dead Weight / Cleanup Claims
+## P1 — Unused Code / Cleanup Claims
 
-### 5) `execute_tool_blocking_with_operator` dead wrapper
+### 5) `execute_tool_blocking_with_operator` unused wrapper
 - **Status**: **Not accurate (current tree)**
 - **Correction**:
   - Non-test wrapper is used by production execution path from
@@ -81,7 +81,7 @@ git diff --numstat -- src/ui/editor.rs src/app.rs src/bin/vex.rs src/ui.rs src/u
   - Functions are live and used in production path:
     `src/bin/vex.rs:101` and `src/bin/vex.rs:113`.
 
-### 7) Empty `on_model_update` in `runtime/loop.rs` as production dead weight
+### 7) Empty `on_model_update` in `runtime/loop.rs` as unreachable production code
 - **Status**: **Not accurate (current tree)**
 - **Correction**:
   - Empty implementation is in test-only `InterruptMode` under `#[cfg(test)]`

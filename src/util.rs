@@ -7,7 +7,7 @@ use std::path::Path;
 
 /// Serialize `value` as pretty JSON and atomically replace `path`.
 ///
-/// Writes to a sibling `.tmp` file, flushes to disk, then renames.
+/// Writes to an adjacent `.tmp` file, flushes to disk, then renames.
 /// `label` is used in error context messages (e.g. "task state").
 pub fn write_json_atomic<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<()> {
     let dir = path.parent().ok_or_else(|| {

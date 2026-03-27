@@ -16,7 +16,7 @@ operators. Without a strict fix order, this can cause:
 2. event semantic drift (typed vs text-sentinel control paths),
 3. partial cutover where production still follows an old path while richer
    logic remains test-only,
-4. post-cutover dead branches and duplicate rendering logic.
+4. post-cutover unused branches and duplicate rendering logic.
 
 This ADR defines the follow-up execution contract for ADR-018 delivery.
 
@@ -40,7 +40,7 @@ Use a two-phase sequence with explicit priority and gating.
 ### Phase 2 (after cutover): cleanup + convention
 
 1. **D2**: Resolve `StreamBlock*` no-op dispatch.
-   - Either wire block updates into active render state or remove dead no-op
+   - Either wire block updates into active render state or remove unused no-op
      arms and redundant variants.
 2. **U2**: Simplify streaming rendering flow to single-responsibility paths.
    - Keep one incremental streaming path per frontend mode.
@@ -191,7 +191,7 @@ for the exact commit that closes the checklist item.
   - `repo_label` and status helpers are now part of the release layout, not test-only fields.
   - Reduced test/release divergence for `TuiMode` state/behavior.
 
-### Dead-Code Audit - Prune orphan runtime event stub after cutover
+### Unused-Code Audit - Prune unreferenced runtime event stub after cutover
 - Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
@@ -228,7 +228,7 @@ for the exact commit that closes the checklist item.
   - Replaced ad-hoc `eprintln!` paths with shared `api::logging` utility for both payload debug and SSE parse-error reporting.
   - Standardized output formatting and sink resolution with a global `VEX_API_LOG_PATH` override and fallback compatibility for `VEX_DEBUG_PAYLOAD_PATH`.
 
-### Dead-Code Follow-up - Remove unused legacy `src/main.rs`
+### Unreachable-Code Follow-up - Remove unused legacy `src/main.rs`
 - Operator: automation-agent
 - Commit: pending (pre-commit review requested)
 - Files changed:
@@ -241,7 +241,7 @@ for the exact commit that closes the checklist item.
   - `cargo test --all-targets` : pass
   - `cargo clippy --all-targets -- -D warnings` : pass
 - Notes:
-  - Removed dead legacy calculator program that was not part of any compiled target.
+  - Removed unused legacy calculator program that was not part of any compiled target.
   - `autobins = false` with explicit `[[bin]] path = "src/bin/vex.rs"` remains the only binary build path.
 
 ### Branding Follow-up - Standardize remaining non-vexcoder references

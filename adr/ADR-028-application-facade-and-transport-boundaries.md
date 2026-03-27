@@ -363,7 +363,7 @@ not the in-session transcript.
 (`render_task_layout`, `pipeline_activity_line`)
 
 **Root cause:** `task_activity_rows()` only iterated `current_turn_tool_invocations`
-(completed calls).  In-flight tool calls stored in `pending_turn_tool_calls`
+(completed calls).  Pending tool calls stored in `pending_turn_tool_calls`
 were invisible: the activity pane went blank while a tool was executing.  The
 row list was also uncapped (up to 8 fallback history lines with no upper bound
 during active turns).  `render_task_layout` rendered activity rows as

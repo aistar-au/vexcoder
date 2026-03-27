@@ -84,7 +84,7 @@ impl TuiMode {
             });
         }
 
-        // In-flight tool calls from pending_turn_tool_calls (task-state owned).
+        // Pending tool calls from pending_turn_tool_calls (task-state owned).
         if has_pending {
             let mut pending_calls: Vec<&PendingTurnToolCall> =
                 self.pending_turn_tool_calls.values().collect();

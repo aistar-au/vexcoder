@@ -30,14 +30,14 @@ style full-screen session model:
 
 3. **Command execution uses one runtime contract**
    - Working directory validation is mandatory before spawn.
-   - Child cleanup uses `kill_on_drop(true)` and process-tree termination on cancel.
+   - Subprocess cleanup uses `kill_on_drop(true)` and process-tree termination on cancel.
    - Validation and model-visible `run_command` calls use the same command runner contract as inline command sessions.
 
 4. **Interactive terminal tools remain a distinct path**
    - PTY attach remains available for tools that require a real terminal.
    - Full async PTY integration is deferred.
 
-## Landed Implementation
+## Merged Implementation
 
 ### Terminal lifecycle
 - `src/terminal.rs` enters the alternate screen, clears the terminal, and restores terminal state on exit.
