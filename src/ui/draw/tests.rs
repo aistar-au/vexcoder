@@ -637,6 +637,16 @@ fn adaptive_composer_scales_with_terminal_height() {
         large.composer_rows, 3,
         "large terminal keeps the prompt surface fixed to three rows"
     );
+
+    let multiline = (0..8)
+        .map(|idx| format!("line-{idx}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let expanded = Regions::compute_with_composer(80, 24, false, 0, &multiline);
+    assert_eq!(
+        expanded.composer_rows, 7,
+        "wrapped composer content must expand the prompt surface up to the shared cap"
+    );
 }
 
 #[test]

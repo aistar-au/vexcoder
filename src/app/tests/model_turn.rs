@@ -1675,11 +1675,18 @@ fn test_stream_block_delta_updates_pending_tool_call_input() {
         },
         &mut ctx,
     );
-    // Input should remain the initial empty object (partial JSON not parseable).
+    // Input should remain the initial empty object, but the preview should
+    // surface the streamed fragment while the JSON is incomplete.
     assert_eq!(
         mode.pending_turn_tool_calls["tc1"].input,
         serde_json::Value::Object(Default::default()),
         "partial delta must not update pending tool call input"
+    );
+    assert!(
+        mode.pending_turn_tool_calls["tc1"]
+            .input_preview
+            .contains(r#"{"path":"#),
+        "partial delta must update the pending tool call preview"
     );
 
     // Second delta completes the JSON.
@@ -1694,5 +1701,11 @@ fn test_stream_block_delta_updates_pending_tool_call_input() {
         mode.pending_turn_tool_calls["tc1"].input,
         serde_json::json!({"path": "foo.rs"}),
         "complete delta must update pending tool call input with parsed value"
+    );
+    assert!(
+        mode.pending_turn_tool_calls["tc1"]
+            .input_preview
+            .contains("foo.rs"),
+        "complete delta must replace the partial preview with the parsed preview"
     );
 }

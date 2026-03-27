@@ -150,9 +150,11 @@ impl TuiMode {
                             let tool_id = id.clone();
                             if let Some(buf) = self.tool_input_raw_buffers.get_mut(&index) {
                                 buf.push_str(&delta);
-                                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(buf) {
-                                    if let Some(pending) =
-                                        self.pending_turn_tool_calls.get_mut(&tool_id)
+                                if let Some(pending) =
+                                    self.pending_turn_tool_calls.get_mut(&tool_id)
+                                {
+                                    if let Ok(parsed) =
+                                        serde_json::from_str::<serde_json::Value>(buf)
                                     {
                                         pending.input = parsed.clone();
                                         pending.input_preview =
@@ -161,6 +163,12 @@ impl TuiMode {
                                                 &parsed,
                                                 crate::tool_preview::ToolPreviewStyle::Compact,
                                                 crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
+                                            );
+                                    } else {
+                                        pending.input_preview =
+                                            crate::tool_preview::preview_partial_tool_input(
+                                                &pending.name,
+                                                buf,
                                             );
                                     }
                                 }

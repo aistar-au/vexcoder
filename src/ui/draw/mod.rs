@@ -120,11 +120,12 @@ impl TaskDraw {
         self.last_rows = term_rows;
         self.last_has_files = has_files;
 
-        let regions = Regions::compute(
+        let regions = Regions::compute_with_composer(
             term_cols,
             term_rows,
             has_files,
             state.timeline_entries.len(),
+            &state.composer_text,
         );
 
         // On first frame or terminal resize: full repaint.

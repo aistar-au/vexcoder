@@ -1,4 +1,5 @@
-use crate::ui::layout::preferred_four_region_input_rows;
+use crate::ui::input_metrics::visual_row_count;
+use crate::ui::layout::MAX_INPUT_PANE_ROWS;
 
 // ── Adaptive region geometry ────────────────────────────────────────
 
@@ -6,7 +7,7 @@ use crate::ui::layout::preferred_four_region_input_rows;
 ///
 /// ```text
 /// row 0..C     │  transcript (remaining rows)    │  (fills remaining)
-/// row C..end   ├─ composer (fixed) ──────────────┤  (3 rows)
+/// row C..end   ├─ composer (adaptive) ───────────┤
 ///              └─────────────────────────────────┘
 /// ```
 pub(super) struct Regions {
@@ -24,30 +25,44 @@ pub(super) struct Regions {
 
 /// Minimum transcript rows reserved above the prompt surface.
 const MIN_TRANSCRIPT_ROWS: u16 = 2;
-/// Fullscreen prompt rows (label + two live rows).
-const FIXED_COMPOSER_ROWS: u16 = 3;
+/// Fullscreen prompt rows always reserve a label row and at least two body rows.
+const MIN_COMPOSER_ROWS: u16 = 3;
 
 impl Regions {
+    #[cfg(test)]
     pub(super) fn compute(
         cols: u16,
         rows: u16,
         has_files: bool,
         timeline_entry_count: usize,
     ) -> Self {
+        Self::compute_with_composer(cols, rows, has_files, timeline_entry_count, "")
+    }
+
+    pub(super) fn compute_with_composer(
+        cols: u16,
+        rows: u16,
+        has_files: bool,
+        timeline_entry_count: usize,
+        composer_text: &str,
+    ) -> Self {
         let files_row = None;
 
         // Reserve 1 row for status bar at the very bottom.
         let status_bar_row = rows.saturating_sub(1);
 
-        // The fullscreen prompt stays fixed at three rows unless the
-        // terminal is too short to preserve transcript rows above it.
+        // The fullscreen prompt grows with wrapped content up to the shared
+        // input cap, while preserving at least two transcript rows above it.
         let _ = has_files;
         let available = rows.saturating_sub(1);
+        let input_width = cols.saturating_sub(2).max(1) as usize;
+        let desired_input_rows =
+            visual_row_count(composer_text, input_width).clamp(1, MAX_INPUT_PANE_ROWS) as u16;
+        let desired_composer_rows = desired_input_rows.max(2).saturating_add(1);
         let max_composer_rows = available.saturating_sub(MIN_TRANSCRIPT_ROWS).max(1);
-        let composer_rows = preferred_four_region_input_rows(rows)
-            .min(FIXED_COMPOSER_ROWS)
+        let composer_rows = desired_composer_rows
             .min(max_composer_rows)
-            .max(1);
+            .max(MIN_COMPOSER_ROWS.min(max_composer_rows));
 
         let available = available.saturating_sub(composer_rows);
 
