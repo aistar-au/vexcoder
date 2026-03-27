@@ -460,7 +460,7 @@ In other words:
 
 - phases are sequential in merge semantics;
 - batches may be parallel in development;
-- dependent branches must be rebased or reconciled before merge to `main`.
+- dependent branches must be rebased and synced to `main` before merge.
 
 ## Consequences
 

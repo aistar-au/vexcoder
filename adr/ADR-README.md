@@ -36,16 +36,16 @@ All ADR files live under `adr/`.
 
 ## Implementation-Complete ADRs (pending move to completed/)
 
-These ADRs have all implementation items delivered but their files remain in
+These ADRs have all implementation items merged but their files remain in
 the top-level `adr/` directory pending a housekeeping move.
 
 | ADR | Title | Status | Notes |
 | :--- | :--- | :--- | :--- |
 | [ADR-013](ADR-013-tui-completion-deployment-plan.md) | TUI completion and deployment plan | Accepted | All phases complete |
 | [ADR-018](ADR-018-managed-tui-scrollback-streaming-cell-overlays.md) | Managed TUI scrollback | Superseded by ADR-027 | Retained for history |
-| [ADR-023](ADR-023-deterministic-edit-loop.md) | Deterministic edit loop | Complete | EL-01 through EL-13 all delivered |
-| [ADR-025](ADR-025-runtime-json-handoff-contract.md) | Runtime JSON handoff contract | Complete | PI-09 through PI-12 all delivered |
-| [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding | Complete | PI-13 through PI-16 all delivered |
+| [ADR-023](ADR-023-deterministic-edit-loop.md) | Deterministic edit loop | Complete | EL-01 through EL-13 all merged |
+| [ADR-025](ADR-025-runtime-json-handoff-contract.md) | Runtime JSON handoff contract | Complete | PI-09 through PI-12 all merged |
+| [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding | Complete | PI-13 through PI-16 all merged |
 | [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI command-session capture | Accepted (complete) | Supersedes ADR-018/019 |
 
 ## Remaining Work Summary (49 items across 9 tiers)

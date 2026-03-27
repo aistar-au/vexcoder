@@ -224,7 +224,7 @@ async fn test_batch_mode_text_format_outputs_plain_response() {
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - PR `#54` delivered the base `BatchMode` and `vex exec` surface.
+  - PR `#54` merged the base `BatchMode` and `vex exec` surface.
   - This closeout commit records submitted input in JSONL turn evidence,
     including locally handled batch-mode turns such as `/memory clear`.
   - `check-boundary` now covers `src/batch_mode.rs`, so the no-TUI dependency

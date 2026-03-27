@@ -62,18 +62,18 @@ fn test_runtime_context_cancel_turn_replaces_child_token() {
     let mut ctx = RuntimeContext::new(manager, update_tx, CancellationToken::new());
 
     let first = ctx.turn_cancellation_token();
-    assert!(!first.is_cancelled(), "fresh child token must start active");
+    assert!(!first.is_cancelled(), "fresh turn token must start active");
 
     ctx.cancel_turn();
 
     assert!(
         first.is_cancelled(),
-        "previous child token must observe cancellation"
+        "previous turn token must observe cancellation"
     );
 
     let second = ctx.turn_cancellation_token();
     assert!(
         !second.is_cancelled(),
-        "replacement child token must be active after cancel_turn"
+        "replacement turn token must be active after cancel_turn"
     );
 }

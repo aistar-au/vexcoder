@@ -189,7 +189,7 @@ orchestrator behavior, the repository treats Batch B as:
 - merge-gated
 
 This means Batch B may exist remotely before Batch A lands, but Batch B must be
-rebased or otherwise reconciled onto the post-merge main state before it may
+rebased or otherwise updated to the post-merge main state before it may
 merge.
 
 ### Main must remain coherent after every merge
@@ -234,13 +234,13 @@ This means:
 - the dependent batch may target the prerequisite during review or be
   maintained as a stacked branch;
 - the dependent batch MUST NOT be merged to `main` before the prerequisite is
-  merged and the branch is rebased or otherwise reconciled with the then-
-  current `main`.
+  merged and the branch is rebased or otherwise synced to the then-current
+  `main`.
 
 ### Normative rule
 
 The normative contract is the runtime/UI behavior described by this ADR, not the
-temporary branch topology used to deliver it.
+temporary branch topology used to implement it.
 
 Temporary stacked branches, prerequisite review branches, or parallel remote
 implementation branches are allowed so long as:

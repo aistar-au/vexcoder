@@ -289,11 +289,11 @@ impl TuiMode {
             let child_end = if let Some(slash_pos) = rest.find('/') {
                 dir_prefix.len() + slash_pos + 1 // include trailing /
             } else {
-                entry.len() // file child: full path
+                entry.len() // file entry: full path
             };
             let child_entry = &entry[..child_end];
 
-            // Filter on the child's own name.
+            // Filter on the entry's own name.
             let child_name_lower = child_entry[dir_prefix.len()..].to_ascii_lowercase();
             if !filter_lower.is_empty()
                 && !child_name_lower.starts_with(&filter_lower)

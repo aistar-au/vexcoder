@@ -16,7 +16,7 @@ tool rounds and streaming block handling:
 3. incremental suffix dedupe could drop valid repeated short text,
 4. history anchor preservation could permanently block pruning when anchor drifted to index 0,
 5. padded block indices were inserted without emitting matching block-start events,
-6. a test-only `execute_tool` path was dead and diverged from timeout behavior.
+6. a test-only `execute_tool` path was unused and diverged from timeout behavior.
 
 These issues collectively caused retry churn, protocol incompleteness across
 multi-tool rounds, and fragile frontend state alignment.
@@ -53,7 +53,7 @@ explicit regression tests.
 - When padding block indices in `upsert_turn_block`, emit `BlockStart` for each
   placeholder index so frontend index maps stay aligned.
 
-### L6 - Remove dead test-only tool execution path
+### L6 - Remove unused test-only tool execution path
 
 - Delete unused `#[cfg(test)] execute_tool`.
 - Route tests through `execute_tool_with_timeout` to keep behavior aligned with
@@ -76,7 +76,7 @@ explicit regression tests.
 - [x] **L3** Incremental suffix dedupe does not drop short trailing repeats
 - [x] **L4** History pruning remains bounded when anchor is far behind
 - [x] **L5** Padded block indices emit corresponding `BlockStart`
-- [x] **L6** Remove dead test-only tool execution path
+- [x] **L6** Remove unused test-only tool execution path
 - [x] **REF-10** Conversation module split with thin entrypoint + submodules
 
 L7 progress note (2026-02-24):
@@ -359,7 +359,7 @@ Apply a single correctness sweep… (L1–L6 unchanged)
 - [x] L3 Incremental suffix dedupe does not drop short trailing repeats
 - [x] L4 History pruning remains bounded when anchor is far behind
 - [x] L5 Padded block indices emit corresponding `BlockStart`
-- [x] L6 Remove dead test-only tool execution path
+- [x] L6 Remove unused test-only tool execution path
 - [ ] L7 Rich/Enriched Tool Response Formatting (anchor test pending)
 
 ## Evidence

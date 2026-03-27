@@ -32,9 +32,9 @@ Last updated: 2026-03-27
 | :--- | :--- | :--- |
 | ADR-013 | Accepted — moved to completed/ | All phases complete |
 | ADR-018 | Superseded — moved to completed/ | Superseded by ADR-027 |
-| ADR-023 | Complete | EL-01 through EL-13 all delivered |
-| ADR-025 | Complete — moved to completed/ | PI-09 through PI-12 all delivered |
-| ADR-026 | Complete — moved to completed/ | PI-13 through PI-16 all delivered |
+| ADR-023 | Complete | EL-01 through EL-13 all merged |
+| ADR-025 | Complete — moved to completed/ | PI-09 through PI-12 all merged |
+| ADR-026 | Complete — moved to completed/ | PI-13 through PI-16 all merged |
 | ADR-027 | Accepted (complete) — moved to completed/ | Supersedes ADR-018/019 |
 
 ---
@@ -54,9 +54,9 @@ PD-02, PD-03 (PR 231), PF-01, PF-02 (PR 232), PI-06, PI-07 (this PR) all complet
 
 ### ~~Tier 3 -- Workspace Tools and MCP Extensions (ADR-024)~~ (cleared 2026-03-27)
 
-PP-01 (`list_dir`, `glob_files`, gitignore-aware `search_files`) delivered in this PR.
-PM-02 (MCP HTTP headers env-var substitution) delivered in PR 236.
-PI-08 (`/plan`, `/context`) delivered in ADR-023 batch.
+PP-01 (`list_dir`, `glob_files`, gitignore-aware `search_files`) merged in this PR.
+PM-02 (MCP HTTP headers env-var substitution) merged in PR 236.
+PI-08 (`/plan`, `/context`) merged in ADR-023 batch.
 
 ### ~~Tier 4 -- Security Hardening (ADR-021 P1)~~ (cleared 2026-03-27)
 
@@ -146,8 +146,8 @@ ADR-034 (Multi-Agent) --> ADR-028, ADR-030
 | ADR | Completed | Notes |
 | :--- | :--- | :--- |
 | ADR-001 through ADR-020 | See adr/completed/ | Full history in completed/ directory |
-| ADR-025 | 2026-03-27 | PI-09 through PI-12 all delivered; moved to completed/ |
-| ADR-026 | 2026-03-27 | PI-13 through PI-16 all delivered; moved to completed/ |
+| ADR-025 | 2026-03-27 | PI-09 through PI-12 all merged; moved to completed/ |
+| ADR-026 | 2026-03-27 | PI-13 through PI-16 all merged; moved to completed/ |
 | ADR-027 | 2026-03-27 | Command sessions complete; supersedes ADR-018/019; moved to completed/ |
 
 ---

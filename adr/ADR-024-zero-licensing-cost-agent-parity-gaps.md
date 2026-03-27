@@ -1237,7 +1237,7 @@ validation commands, edit-loop validation, and `run_command` tool execution
 through the configured `SandboxDriver`.
 
 Roadmap alignment (2026-03-26): this branch is the Tier 2 PR `#231` merge
-blocker in the 60-item / 10-tier inventory and delivers the Phase D runtime
+blocker in the 60-item / 10-tier inventory and implements the Phase D runtime
 items `PD-02` and `PD-03`. After merge, the remaining ADR-024 runtime backlog
 shifts to MCP completion (`PF-01`, `PF-02`, `PI-06`, `PI-07`) plus the later
 Tier 4 and Tier 9 items.
@@ -1760,7 +1760,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - PR `#54` delivered the base `BatchMode` and `vex exec` surface.
+  - PR `#54` merged the base `BatchMode` and `vex exec` surface.
   - This closeout commit records submitted input in JSONL turn evidence,
     including locally handled batch-mode turns such as `/memory clear`.
   - `check-boundary` now covers `src/batch_mode.rs`, so the no-TUI dependency
@@ -1823,8 +1823,8 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `cargo test test_with_project_instructions_some_wraps_in_delimiters --all-targets` : pass
   - `cargo test --all-targets` : pass
 - Notes:
-  - Implementation was delivered alongside PA-01 but not previously reconciled
-    in the roadmap. Marking as complete to match the existing code.
+  - Implementation was merged alongside PA-01 but not previously added
+    to the roadmap. Marking as complete to match the existing code.
   - Search order: `.vex/AGENTS.md`, `AGENTS.md`, `.vex/PROJECT.md`.
   - Over-budget files emit a warning and are skipped; never truncated.
 
@@ -1839,7 +1839,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `cargo test --all-targets` : pass
 - Notes:
   - Trait and default driver scaffolded during PL-01 hooks work.
-  - PD-02 (`MacosSandboxExec`) and PD-03 (`ContainerSandbox`) delivered in this branch.
+  - PD-02 (`MacosSandboxExec`) and PD-03 (`ContainerSandbox`) merged in this branch.
 
 ### [PD-02] - MacosSandboxExec driver (best-effort + require flag)
 - Operator: this branch (`work/vexcoder-adr024-sandbox-drivers`)
@@ -1893,7 +1893,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - Implementation was delivered as part of an earlier batch but not reconciled in the ADR checklist.
+  - Implementation was merged as part of an earlier batch but not added to the ADR checklist.
   - Maps only vexcoder's own pre-ADR-022 variable names; no third-party SDK mappings.
   - docs/src/migration.md is the canonical source of truth; vex migrate config output matches it exactly.
   - Phase A now complete; EL-08 (ModelProfile config integration, ADR-023) is unblocked.
@@ -1931,7 +1931,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `new_task_id()` uses a monotonic UTC-millisecond generator so rapid `/new` or `/fork` sequences cannot collide on the same state filename.
   - `/fork` sanitizes the optional label before embedding it into the task id, preventing path separator leakage into `VEX_STATE_DIR`.
   - `TaskState::save`/`load`/`state_dir`/`new` signatures confirmed from source before wiring the command surface.
-  - `Capability` enum confirmed: `McpTool` variant delivered in Phase F (this branch); PI-06/PI-07 (`/mcp list`/`/mcp tools`) delivered in the same batch.
+  - `Capability` enum confirmed: `McpTool` variant merged in Phase F (this branch); PI-06/PI-07 (`/mcp list`/`/mcp tools`) merged in the same batch.
 
 ### [PK-01 / PK-02] - /quit, /exit, /about
 - Historical branch name: omitted
@@ -1974,7 +1974,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Notes:
   - `/permissions`, `/allow`, and `/deny` now render and mutate in-memory approval grants without starting a model turn.
   - `--resume` loads a saved task before TUI startup, and `-p` / `--print` routes a single turn through `BatchMode` with plain-text stdout.
-  - The merged PR added the command surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
+  - The merged PR added the command surface earlier than the ADR checklist update; this block updates the checklist to match the existing source tree.
 
 ### [PC-01 / PJ-04 / PK-07] - model switching, workspace init, and diff helpers
 - Historical branch name: omitted
@@ -2014,7 +2014,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Notes:
   - `@path` now expands workspace-confined file and directory context inline before a model turn starts.
   - `!command` routes shell passthrough through the existing approval and sandbox path with no model turn.
-  - The merged PR added this surface earlier than the ADR checklist update; this block reconciles the checklist to the existing source tree.
+  - The merged PR added this surface earlier than the ADR checklist update; this block updates the checklist to match the existing source tree.
 
 ### [PK-05 / PK-06 / PK-09] - custom commands, /tools, and /generate-tests
 - Historical branch name: omitted
@@ -2078,7 +2078,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `docs/src/commands.md` — documents the new CLI wrappers
   - `TASKS/ACTIVE-ROADMAP.md` — refreshes ADR-024 next-batch tracking
   - `TASKS/TASKS-DISPATCH-MAP.md` — refreshes ADR-024 dispatch-map notes
-  - `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — reconciles merged batches and closes PK-08
+  - `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` — updates merged batch records and closes PK-08
 - Validation:
   - `cargo test --all-targets` : pass
   - `make gate-fast` : pass
@@ -2087,7 +2087,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Notes:
   - `vex branch` is a thin wrapper over `git checkout -b` and records the branch name on the most recent saved task state when one exists.
   - `vex pr-summary` assembles a merge-base diff against `origin/HEAD`, runs a single batch turn, and prints a `Title:` line plus Markdown body to stdout.
-- This branch also reconciles stale ADR-024 checklist rows for merged PRs `#60`, `#63`, `#71`, `#72`, and `#74`; it later merged as PR `#75` to close `PK-08`.
+- This branch also updates stale ADR-024 checklist rows for merged PRs `#60`, `#63`, `#71`, `#72`, and `#74`; it later merged as PR `#75` to close `PK-08`.
 
 ### [PF-01] - McpRegistry with STDIO and HTTP transports
 - Operator: this branch (`work/vexcoder-adr024-mcp-runtime`)
@@ -2125,11 +2125,11 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Notes:
   - `Capability::McpTool` triggers approval prompt by default at `once` scope (prompt once per session per tool).
   - `/mcp list` renders all loaded MCP servers; `/mcp tools` renders tool names per server.
-  - Phase F (PF-01 + PF-02) is now complete; PI-06/PI-07 (`/mcp list`/`/mcp tools` read-only surface) delivered in the same batch.
+  - Phase F (PF-01 + PF-02) is now complete; PI-06/PI-07 (`/mcp list`/`/mcp tools` read-only surface) merged in the same batch.
 
 ### [PI-06] - /mcp list slash command
 - Operator: work/vexcoder-adr024-tier2
-- Commit: delivered in Phase F batch (PR 232 / work/vexcoder-adr024-mcp-runtime)
+- Commit: merged in Phase F batch (PR 232 / work/vexcoder-adr024-mcp-runtime)
 - Files changed:
   - `src/app/commands.rs` — `handle_mcp_command` handles `list` subcommand
 - Validation:
@@ -2139,7 +2139,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 
 ### [PI-07] - /mcp show <server> slash command
 - Operator: work/vexcoder-adr024-tier2
-- Commit: delivered in Phase F batch (PR 232 / work/vexcoder-adr024-mcp-runtime)
+- Commit: merged in Phase F batch (PR 232 / work/vexcoder-adr024-mcp-runtime)
 - Files changed:
   - `src/app/commands.rs` — `handle_mcp_command` handles `show <server>` subcommand
 - Validation:
@@ -2150,7 +2150,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 
 ### [PI-08] - /plan and /context commands (cross-ref)
 - Operator: ADR-023 EL-11/EL-12
-- Commit: delivered in ADR-023 implementation batch
+- Commit: merged in ADR-023 implementation batch
 - Files changed:
   - `src/app/commands.rs` — `handle_plan_command`, `handle_context_command`
 - Notes:
@@ -2158,7 +2158,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 
 ### [PM-02] - MCP HTTP headers env-var substitution + STDIO rejection
 - Operator: work/vexcoder-adr024-tier2
-- Commit: delivered in Phase M batch (PR 236 / work/vexcoder-adr024-mcp-followup)
+- Commit: merged in Phase M batch (PR 236 / work/vexcoder-adr024-mcp-followup)
 - Files changed:
   - `src/mcp.rs` — `resolve_mcp_header_env` expands `${VAR}` in header values; fails on unset or empty var
   - `src/config.rs` — STDIO server with non-empty `headers` rejected at config validation time

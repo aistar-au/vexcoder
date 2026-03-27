@@ -146,12 +146,12 @@ rewrite task state or bypass approval/sandbox policy.
 
 ### 6. Handoff, export, and transport reuse existing canonical contracts
 
-Child-task handoff and resume payloads MUST build on ADR-025 runtime envelopes
+Subtask handoff and resume payloads MUST build on ADR-025 runtime envelopes
 and ADR-030 task-state ownership.
 
 Implications:
 
-- exported task graphs must serialize parent/child relationships explicitly;
+- exported task graphs must serialize parent/subtask relationships explicitly;
 - background session-task progress exposed via `LocalApiServer` must be projected
   from canonical runtime/task state rather than provider-native wire values;
 - resume must restore session-task metadata before replaying any live status to
@@ -169,10 +169,10 @@ repo-local discovery.
 Add orchestrator-managed worktree leasing plus the session-task metadata required
 for background lifecycle tracking.
 
-### Phase C — Child-task orchestration
+### Phase C — Subtask orchestration
 
-Add the parent/session task graph, scheduler decisions, and runtime-owned child
-task lifecycle transitions.
+Add the parent/session task graph, scheduler decisions, and runtime-owned subtask
+lifecycle transitions.
 
 ### Phase D — Operator task-management surface
 
@@ -189,10 +189,10 @@ code-bearing parallel execution lane.
 
 ## Implementation notes (Phase A + B-E baseline)
 
-Phase A (PR `#229`) delivered `.vex/agents.toml` parsing, validation, and
+Phase A (PR `#229`) added `.vex/agents.toml` parsing, validation, and
 team composition rules.
 
-Phase B-E baseline (PR `#230`) delivered:
+Phase B-E baseline (PR `#230`) added:
 
 - `src/runtime/session_task.rs` — persisted session-task model
   (`SessionTask`, `SessionTaskStatus`, UUID-scoped IDs to avoid clock-skew
@@ -245,7 +245,7 @@ In the 2026-03-26 remaining-work inventory, PR `#234` is one of the four Tier 2
 open PRs and serves as the ADR-034 follow-up hardening batch on top of the
 already-merged Phase A / Phase B-E baseline.
 
-- **O-1** — Require `parent_task_id`: reject `None` to prevent orphan state
+- **O-1** — Require `parent_task_id`: reject `None` to prevent detached state
   files (`src/app/task_facade.rs`).
 - **O-2** — Replace string-comparison error routing with a typed `DelegateError`
   enum via `thiserror` (`src/app/task_facade.rs`, `Cargo.toml`).
