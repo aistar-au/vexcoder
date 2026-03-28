@@ -954,9 +954,36 @@ impl TuiMode {
                 }
             }
             Ok(None) => {
-                self.push_history_line(format!(
-                    "[watch] no session task found for '{selector}'"
-                ));
+                // facade_watch_snapshot matches by task-id and session-task UUID.
+                // Fall back to searching by agent_id for human-readable selectors.
+                let by_agent = TaskState::state_files_from(&self.working_dir)
+                    .into_iter()
+                    .find_map(|file| {
+                        let state = TaskState::load(&file.dir, &file.id).ok()?;
+                        let task = state
+                            .session_tasks
+                            .iter()
+                            .find(|task| task.agent_id == selector)?
+                            .clone();
+                        Some((state, task))
+                    });
+                if let Some((state, task)) = by_agent {
+                    self.push_history_line(format!(
+                        "[watch] {} parent={} agent={} status={} worktree={}",
+                        task.id,
+                        state.id,
+                        task.agent_id,
+                        task.lifecycle_state,
+                        task.worktree_path
+                            .as_ref()
+                            .map(|p| p.display().to_string())
+                            .unwrap_or_else(|| "shared".to_string()),
+                    ));
+                } else {
+                    self.push_history_line(format!(
+                        "[watch] no session task found for '{selector}'"
+                    ));
+                }
             }
             Err(_) => {
                 self.push_history_line(format!("[watch] error looking up '{selector}'"));

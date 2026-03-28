@@ -664,9 +664,10 @@ mod tests {
     #[test]
     fn list_agents_exposes_max_parallel_tasks() {
         let dir = tempfile::tempdir().unwrap();
+        // worktree isolation allows max_parallel_tasks > 1.
         write_agents_toml(
             dir.path(),
-            "[[agents]]\nname = \"coder\"\nisolation = \"shared\"\nmax_parallel_tasks = 3\n",
+            "[[agents]]\nname = \"coder\"\nisolation = \"worktree\"\nmax_parallel_tasks = 3\n",
         );
 
         let listing = facade_list_agents(dir.path()).unwrap();
@@ -674,7 +675,7 @@ mod tests {
         let agent = &listing.agents[0];
         assert_eq!(agent.name, "coder");
         assert_eq!(agent.max_parallel_tasks, 3);
-        assert_eq!(agent.isolation, "shared");
+        assert_eq!(agent.isolation, "worktree");
     }
 
     #[test]
