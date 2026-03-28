@@ -100,8 +100,12 @@ impl SubtaskOrchestrator {
             bail!("team '{}' has no members", team.name);
         }
 
-        let mut parent_state = TaskState::load(&self.state_dir, parent_task_id)
-            .unwrap_or_else(|_| TaskState::new(parent_task_id.to_string()));
+        let parent_state_path = self.state_dir.join(format!("{parent_task_id}.json"));
+        let mut parent_state = if parent_state_path.exists() {
+            TaskState::load(&self.state_dir, parent_task_id)?
+        } else {
+            TaskState::new(parent_task_id.to_string())
+        };
 
         let members_to_create: &[String] = match team.scheduler {
             TeamScheduler::FanOutJoin => &team.members,
@@ -389,6 +393,30 @@ mod tests {
         let agent_ids: Vec<_> = state.session_tasks.iter().map(|t| &t.agent_id).collect();
         assert!(agent_ids.iter().any(|id| *id == "alpha"));
         assert!(agent_ids.iter().any(|id| *id == "beta"));
+    }
+
+    #[test]
+    fn schedule_team_propagates_corrupt_parent_state_errors() {
+        let (_dir, orc) = setup_orchestrator();
+        let agents = vec![make_agent("alpha")];
+        let team = make_team("single", &["alpha"], TeamScheduler::FanOutJoin);
+
+        std::fs::write(
+            orc.state_dir.join("parent-corrupt.json"),
+            "{ not valid json",
+        )
+        .unwrap();
+
+        let error = orc
+            .schedule_team("parent-corrupt", &team, &agents, "do the work")
+            .expect_err("corrupt parent state should fail");
+
+        assert!(
+            error
+                .to_string()
+                .contains("Failed to deserialize state file"),
+            "expected deserialize error, got: {error:#}"
+        );
     }
 
     #[test]

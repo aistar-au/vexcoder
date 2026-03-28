@@ -6,7 +6,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
 - Total tracked files: 251
-- Last updated: 2026-03-28 (adr034-phase-c — added src/app/subtask_orchestrator.rs, updated line counts for hardening)
+- Last updated: 2026-03-28 (adr034-phase-c — added src/app/subtask_orchestrator.rs, refreshed hardening line counts)
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -40,7 +40,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 28 | `TASKS/PJ-03-memory-notes.md` | ~78 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes.md> |
 | 29 | `TASKS/PL-01-pre-post-tool-hooks.md` | ~142 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PL-01-pre-post-tool-hooks.md> |
 | 30 | `TASKS/TASKS-DISPATCH-MAP.md` | ~88 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
-| 31 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~262 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
+| 31 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~263 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 32 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | ~352 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md> |
 | 33 | `adr/ADR-022-amendment-2026-03-03.md` | ~47 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-03.md> |
 | 34 | `adr/ADR-022-amendment-2026-03-13.md` | ~55 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-13.md> |
@@ -130,7 +130,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 118 | `src/app/runtime_build.rs` | ~36 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/runtime_build.rs> |
 | 119 | `src/app/scroll.rs` | ~249 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/scroll.rs> |
 | 120 | `src/app/shell.rs` | ~116 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/shell.rs> |
-| 121 | `src/app/subtask_orchestrator.rs` | ~616 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/subtask_orchestrator.rs> |
+| 121 | `src/app/subtask_orchestrator.rs` | ~644 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/subtask_orchestrator.rs> |
 | 122 | `src/app/task_facade.rs` | ~682 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/task_facade.rs> |
 | 123 | `src/app/tests/input.rs` | ~577 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests/input.rs> |
 | 124 | `src/app/tests/memory.rs` | ~211 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests/memory.rs> |
