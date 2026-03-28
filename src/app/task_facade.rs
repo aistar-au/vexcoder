@@ -6,6 +6,7 @@ use std::sync::{Mutex, OnceLock};
 use thiserror::Error;
 
 use crate::agents::{load_agents_config, IsolationPolicy};
+use crate::app::subtask_orchestrator::SubtaskOrchestrator;
 use crate::runtime::{SessionTask, SessionTaskStatus, TaskState, WorktreeLeaseManager};
 
 // ---------------------------------------------------------------------------
@@ -89,6 +90,7 @@ fn install_delegate_race_hook(hook: DelegateRaceHook) -> DelegateRaceHookGuard {
         .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(hook);
     DelegateRaceHookGuard
 }
+
 
 // ---------------------------------------------------------------------------
 // Typed error for facade_delegate_session_task — replaces fragile string
@@ -534,4 +536,107 @@ mod tests {
         assert_eq!(snapshot.kind, "task");
         assert_eq!(snapshot.status, "awaiting_approval");
     }
+// ---------------------------------------------------------------------------
+// Phase C facade entrypoints — subtask orchestration
+// ---------------------------------------------------------------------------
+
+/// Result returned by `facade_schedule_team`.
+#[derive(Debug, Clone)]
+pub struct FacadeScheduleTeamResult {
+    pub parent_task_id: String,
+    /// IDs of session tasks created in this call.
+    pub session_task_ids: Vec<String>,
+    /// Scheduler used: `"fan_out_join"` or `"sequential"`.
+    pub scheduler: String,
+}
+
+/// Fan-out status snapshot returned by `facade_poll_join`.
+#[derive(Debug, Clone)]
+pub struct FacadeJoinOutcome {
+    pub all_done: bool,
+    pub completed: usize,
+    pub failed: usize,
+    pub cancelled: usize,
+    /// `(agent_id, summary)` pairs from tasks that recorded a handoff summary.
+    pub summaries: Vec<(String, String)>,
+}
+
+/// Decompose a parent task into session tasks for a named team.
+///
+/// `team_name` must match a `[[teams]]` entry in `.vex/agents.toml`.
+/// Returns `Err` with `agents_config_missing` when no config is found,
+/// `team_not_found` when the team name does not match, and `Internal` for
+/// unexpected I/O errors.
+pub fn facade_schedule_team(
+    working_dir: &Path,
+    parent_task_id: &str,
+    team_name: &str,
+    prompt: &str,
+) -> Result<FacadeScheduleTeamResult, ScheduleTeamError> {
+    if parent_task_id.trim().is_empty() {
+        return Err(ScheduleTeamError::ParentTaskIdRequired);
+    }
+    if prompt.is_empty() {
+        return Err(ScheduleTeamError::PromptRequired);
+    }
+
+    let config = load_agents_config(working_dir)?;
+    let Some(config) = config else {
+        return Err(ScheduleTeamError::AgentsConfigMissing);
+    };
+    let Some(team) = config.team_definitions.iter().find(|t| t.name == team_name) else {
+        return Err(ScheduleTeamError::TeamNotFound);
+    };
+
+    let state_dir = TaskState::state_dir_from(working_dir);
+    let orchestrator = SubtaskOrchestrator::new(&state_dir);
+    let decomp = orchestrator.schedule_team(
+        parent_task_id,
+        team,
+        &config.agent_profiles,
+        prompt,
+    )?;
+
+    Ok(FacadeScheduleTeamResult {
+        parent_task_id: decomp.parent_task_id,
+        session_task_ids: decomp.session_task_ids,
+        scheduler: format!("{:?}", decomp.scheduler),
+    })
+}
+
+/// Check the fan-out join gate for a parent task.
+///
+/// Returns `Ok(None)` when at least one session task is still live.  Returns
+/// `Ok(Some(FacadeJoinOutcome))` when every session task has reached a
+/// terminal state.  When the outcome is returned, the caller should call the
+/// apply-join endpoint to persist the merged handoff summary.
+pub fn facade_poll_join(
+    working_dir: &Path,
+    parent_task_id: &str,
+) -> Result<Option<FacadeJoinOutcome>> {
+    let state_dir = TaskState::state_dir_from(working_dir);
+    let orchestrator = SubtaskOrchestrator::new(&state_dir);
+    let outcome = orchestrator.poll_fan_out_join(parent_task_id)?;
+    Ok(outcome.map(|o| FacadeJoinOutcome {
+        all_done: o.all_done,
+        completed: o.completed,
+        failed: o.failed,
+        cancelled: o.cancelled,
+        summaries: o.summaries,
+    }))
+}
+
+/// Typed error for `facade_schedule_team`.
+#[derive(Debug, Error)]
+pub enum ScheduleTeamError {
+    #[error("agents_config_missing")]
+    AgentsConfigMissing,
+    #[error("team_not_found")]
+    TeamNotFound,
+    #[error("parent_task_id_required")]
+    ParentTaskIdRequired,
+    #[error("prompt_required")]
+    PromptRequired,
+    #[error(transparent)]
+    Internal(#[from] anyhow::Error),
 }

@@ -13,8 +13,9 @@ use super::sse::runtime_sse_response;
 use super::util::{bad_request, conflict, internal_error, not_found};
 use super::SSE_KEEPALIVE_INTERVAL;
 use crate::app::{
-    execute_facade_runtime, facade_delegate_session_task, facade_list_agents,
-    facade_release_session_task, facade_watch_snapshot, DelegateError,
+    execute_facade_runtime, facade_delegate_session_task, facade_list_agents, facade_poll_join,
+    facade_release_session_task, facade_schedule_team, facade_watch_snapshot, DelegateError,
+    ScheduleTeamError,
 };
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
@@ -212,6 +213,101 @@ pub async fn release_session_task_handler(
         }))
     } else {
         Err(not_found("session_task_not_found"))
+// ---------------------------------------------------------------------------
+// ADR-034 Phase C: subtask orchestration handlers
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct ScheduleTeamRequest {
+    pub parent_task_id: String,
+    pub prompt: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ScheduleTeamResponse {
+    pub ok: bool,
+    pub parent_task_id: String,
+    pub session_task_ids: Vec<String>,
+    pub scheduler: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct JoinStatusResponse {
+    pub pending: bool,
+    pub all_done: bool,
+    pub completed: usize,
+    pub failed: usize,
+    pub cancelled: usize,
+    pub summaries: Vec<JoinSummaryEntry>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct JoinSummaryEntry {
+    pub agent_id: String,
+    pub summary: String,
+}
+
+/// Decompose a parent task into session tasks for a named team.
+///
+/// `POST /v1/teams/{team_name}/schedule` with body `{ parent_task_id, prompt }`
+pub async fn schedule_team_handler(
+    State(state): State<LocalApiState>,
+    Path(team_name): Path<String>,
+    Json(request): Json<ScheduleTeamRequest>,
+) -> Result<Json<ScheduleTeamResponse>, (StatusCode, Json<ControlResponse>)> {
+    let result = facade_schedule_team(
+        &state.config.working_dir,
+        &request.parent_task_id,
+        &team_name,
+        &request.prompt,
+    )
+    .map_err(|e| match e {
+        ScheduleTeamError::AgentsConfigMissing => bad_request("agents_config_missing"),
+        ScheduleTeamError::TeamNotFound => not_found("team_not_found"),
+        ScheduleTeamError::ParentTaskIdRequired => bad_request("parent_task_id_required"),
+        ScheduleTeamError::PromptRequired => bad_request("prompt_required"),
+        ScheduleTeamError::Internal(inner) => internal_anyhow(inner),
+    })?;
+
+    Ok(Json(ScheduleTeamResponse {
+        ok: true,
+        parent_task_id: result.parent_task_id,
+        session_task_ids: result.session_task_ids,
+        scheduler: result.scheduler,
+    }))
+}
+
+/// Check the fan-out join gate for a parent task.
+///
+/// `GET /v1/tasks/{task_id}/join-status`
+pub async fn join_status_handler(
+    State(state): State<LocalApiState>,
+    Path(task_id): Path<String>,
+) -> Result<Json<JoinStatusResponse>, (StatusCode, Json<ControlResponse>)> {
+    let outcome = facade_poll_join(&state.config.working_dir, &task_id)
+        .map_err(internal_anyhow)?;
+
+    match outcome {
+        None => Ok(Json(JoinStatusResponse {
+            pending: true,
+            all_done: false,
+            completed: 0,
+            failed: 0,
+            cancelled: 0,
+            summaries: vec![],
+        })),
+        Some(o) => Ok(Json(JoinStatusResponse {
+            pending: false,
+            all_done: o.all_done,
+            completed: o.completed,
+            failed: o.failed,
+            cancelled: o.cancelled,
+            summaries: o
+                .summaries
+                .into_iter()
+                .map(|(agent_id, summary)| JoinSummaryEntry { agent_id, summary })
+                .collect(),
+        })),
     }
 }
 

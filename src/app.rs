@@ -65,6 +65,7 @@ mod overlay;
 mod runtime_build;
 mod scroll;
 mod shell;
+pub(crate) mod subtask_orchestrator;
 pub(crate) mod task_facade;
 #[cfg(test)]
 mod tests;
@@ -77,10 +78,12 @@ pub use self::facade::{
     FacadeBootstrap,
 };
 pub use self::runtime_build::{build_runtime, build_runtime_with_resume};
+pub use self::subtask_orchestrator::{JoinOutcome, SubtaskOrchestrator, TeamDecomposition};
 pub use self::task_facade::{
-    facade_delegate_session_task, facade_list_agents, facade_release_session_task,
-    facade_watch_snapshot, DelegateError, FacadeAgentDescriptor, FacadeAgentsListing,
-    FacadeDelegateResult, FacadeTeamDescriptor, FacadeWatchSnapshot,
+    facade_delegate_session_task, facade_list_agents, facade_poll_join,
+    facade_release_session_task, facade_schedule_team, facade_watch_snapshot, DelegateError,
+    FacadeAgentDescriptor, FacadeAgentsListing, FacadeDelegateResult, FacadeJoinOutcome,
+    FacadeScheduleTeamResult, FacadeTeamDescriptor, FacadeWatchSnapshot, ScheduleTeamError,
 };
 
 use self::overlay::summarize_tool_approval_context;
