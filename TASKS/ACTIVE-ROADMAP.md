@@ -14,16 +14,16 @@ Last updated: 2026-03-28
 
 | ADR | Status | Remaining items | Dependency note |
 | :--- | :--- | :--- | :--- |
-| ADR-021 | Accepted | 4 (0 P1, 4 P2, 0 P3) | Tier 6 batch completed Items 9/13/20/24/25/28/32/33; Items 15 and 22 were already complete; Items 10/11/12/14 remain (larger refactors, deferred) |
+| ADR-021 | Accepted | 0 (all items complete) | All P1/P2/P3 items complete; see Tier 6 section |
 | ADR-022 amendment | Amended | Amendment only | Tightens milestone-1 command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
 | ADR-024 | Proposed (pre-milestone complete) | 7 items (all post-milestone) | PA–PM and PP done; PG/PH post-milestone deferred |
-| ADR-028 | Active | Ongoing alignment | Phase 1+2 merged; facade boundary governs ADR-030/031 |
-| ADR-029 | Accepted | 8 decision items to re-verify | Feeds ADR-030; verification follow-up remains in Tier 6 |
-| ADR-030 | Accepted | 6 coverage requirements to re-verify | 7 invariants defined; verification evidence remains in Tier 6 |
-| ADR-031 | Complete (Batches A-E merged) | Tier 9: update status field | PRs 196/225/226/227 merged |
-| ADR-032 | Active | Items 4-5 | Prompt area; items 1-3 and 6-8 merged; item 9 deferred to ADR-033; fullscreen auto-fit docs synced 2026-03-28 |
-| ADR-033 | Complete (Phases 1-4 merged) | Tier 9: update status field | PRs 186/191/192/194/199 merged |
+| ADR-028 | Active | Ongoing boundary alignment | Phase 1, 2, and transport extraction committed 2026-03-25; remaining work is ongoing boundary maintenance with no blocking items |
+| ADR-029 | Accepted | 0 items remaining | All 8 decision items verified in Tier 5 (PR #249) |
+| ADR-030 | Accepted | 0 items remaining | All 6 coverage requirements verified in Tier 5 (PR #249) |
+| ADR-031 | Accepted (all batches A-E merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
+| ADR-032 | Accepted | 0 items remaining | Items 1-8 complete; item 4-5 verified Tier 5; item 9 transferred to ADR-033 |
+| ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-034 | Active (Phase A + B-E merged) | Follow-up hardening | PRs 228/229/230 merged |
 
 ## Implementation-Complete ADRs (moved to completed/)
@@ -39,7 +39,7 @@ Last updated: 2026-03-28
 
 ---
 
-## Remaining Work: 12 Items Across 3 Active Tiers
+## Remaining Work: 7 Items — Tier 8 Post-Milestone (deferred)
 
 Tiers sorted by unblocking impact -- what, if implemented first, unblocks
 the most downstream work.
@@ -76,16 +76,16 @@ All 4 verification items confirmed in-tree:
 - ADR-032: Items 4 (character count indicator) and 5 (focus indicator) verified implemented in src/ui/draw/mod.rs
 - ADR-031/ADR-032/docs: fullscreen composer auto-fit behavior documented consistently for live row/column resize and snapped terminal layouts
 
-### Tier 6 -- Code Quality (ADR-021 P2) -- 13 tracked items (9 done; 4 remain)
+### ~~Tier 6 -- Code Quality (ADR-021 P2)~~ (cleared 2026-03-28)
 
-Duplication removal, race condition fixes, and design follow-ups.
+All 13 tracked items complete.
 
 - ~~Item 9: Tool error dispatch block repeated~~ (done 2026-03-28; `emit_tool_error` helper added in core.rs)
-- Item 10: Scroll handling duplication
-- Item 11: Approval input parsing duplicated
-- Item 12: Diff row styling logic duplicated
+- ~~Item 10: Scroll handling duplication~~ (done 2026-03-28; `apply_bounded_scroll` extracted; patch overlay and inspector scroll delegate to it)
+- ~~Item 11: Approval input parsing duplicated~~ (addressed; `parse_approval_selection` already centralized; per-handler response logic is not reducible further without a callback interface)
+- ~~Item 12: Diff row styling logic duplicated~~ (done 2026-03-28; `diff_line_color` helper centralized; both callers delegate to it)
 - ~~Item 13: required_tool_string variants overlapping~~ (done 2026-03-28; `required_tool_string` delegates to `required_tool_string_any`)
-- Item 14: Auto-follow behavior duplication
+- ~~Item 14: Auto-follow behavior duplication~~ (done 2026-03-28; `apply_auto_follow_or_clamp` helper extracted; both sites in model_update.rs delegate to it)
 - ~~Item 15: MAX_INPUT_PANE_ROWS not applied in prod~~ (done 2026-03-28; fullscreen composer now auto-fits within the live terminal viewport)
 - ~~Item 20: edit_file TOCTOU race condition~~ (done 2026-03-28; TOCTOU risk documented with structured comment)
 - ~~Item 22: StreamBlock::ToolCall deltas ignored~~ (done 2026-03-28)
@@ -110,14 +110,12 @@ Explicitly deferred until after milestone-1.
 - PH-03: macOS code signing + notarisation + .dmg
 - ADR-022 Decision 11: Native packaging (post-milestone-1)
 
-### Tier 9 -- Housekeeping -- 1 item (7 of 8 cleared 2026-03-28)
+### ~~Tier 9 -- Housekeeping~~ (cleared 2026-03-28) -- 0 items (all 8 cleared)
 
 ADR-013, ADR-018, ADR-025, ADR-026, ADR-027 moved to completed/.
 ADR-031 status updated to Accepted (Batches A-E merged).
 ADR-033 status updated to Accepted (Phases 1-4 merged).
-
-Remaining:
-- Verify ADR-028 remaining work and update status
+ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-25; remaining work is ongoing boundary alignment with no blocking items for other ADRs.
 
 ---
 

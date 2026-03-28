@@ -51,9 +51,7 @@ impl TuiMode {
                     line.push_str(&text);
                     *line = sanitize_assistant_text(line);
                 }
-                if self.history_state.auto_follow {
-                    self.set_scroll_to_bottom();
-                }
+                self.apply_auto_follow_or_clamp();
                 self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
             UiUpdate::StreamBlockStart { index, block } => {
@@ -298,11 +296,7 @@ impl TuiMode {
                         self.push_history_line("[edit loop cancelled]".to_string());
                     }
                 }
-                if self.history_state.auto_follow {
-                    self.set_scroll_to_bottom();
-                } else {
-                    self.clamp_scroll_offset();
-                }
+                self.apply_auto_follow_or_clamp();
                 self.transcript_scroll_offset = 0;
                 self.inspector_scroll_offset = 0;
             }
