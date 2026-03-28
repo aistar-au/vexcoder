@@ -1,6 +1,6 @@
 # ADR-033: Hybrid Retrieval Context Architecture
 
-- **Status:** Active
+- **Status:** Accepted
 - **Date:** 2026-03-22
 - **Deciders:** Core maintainer
 - **Depends on:** ADR-032, ADR-031, ADR-029

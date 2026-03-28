@@ -39,7 +39,7 @@ Last updated: 2026-03-28
 
 ---
 
-## Remaining Work: 14 Items Across 3 Active Tiers
+## Remaining Work: 12 Items Across 3 Active Tiers
 
 Tiers sorted by unblocking impact -- what, if implemented first, unblocks
 the most downstream work.
@@ -110,14 +110,14 @@ Explicitly deferred until after milestone-1.
 - PH-03: macOS code signing + notarisation + .dmg
 - ADR-022 Decision 11: Native packaging (post-milestone-1)
 
-### Tier 9 -- Housekeeping -- 3 items (5 of 8 cleared 2026-03-27)
+### Tier 9 -- Housekeeping -- 1 item (7 of 8 cleared 2026-03-28)
 
 ADR-013, ADR-018, ADR-025, ADR-026, ADR-027 moved to completed/.
+ADR-031 status updated to Accepted (Batches A-E merged).
+ADR-033 status updated to Accepted (Phases 1-4 merged).
 
 Remaining:
 - Verify ADR-028 remaining work and update status
-- Update ADR-031 status to reflect all batches A-E merged
-- Update ADR-033 status to reflect all phases 1-4 merged
 
 ---
 
