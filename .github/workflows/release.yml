@@ -213,6 +213,14 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
+
+          if [[ -n "${APPLE_NOTARYTOOL_KEY:-}" ]] && [[ ! -f "${APPLE_NOTARYTOOL_KEY}" ]]; then
+            key_file="${RUNNER_TEMP}/apple-notarytool-key-${TARGET}.p8"
+            printf '%s' "${APPLE_NOTARYTOOL_KEY}" > "${key_file}"
+            chmod 600 "${key_file}"
+            export APPLE_NOTARYTOOL_KEY="${key_file}"
+          fi
+
           bash packaging/macos/build-app.sh \
             "${VEX_BIN}" \
             "${LAUNCHER_BIN}" \
@@ -228,7 +236,7 @@ jobs:
           SRC="dist/vex-${TAG}-macos.dmg"
           DST="dist/vex-${TAG}-${TARGET}.dmg"
           mv "${SRC}" "${DST}"
-          sha256sum "${DST}" > "${DST}.sha256"
+          shasum -a 256 "${DST}" > "${DST}.sha256"
 
       - name: Upload .dmg artifact
         uses: actions/upload-artifact@v4
