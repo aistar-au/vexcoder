@@ -32,26 +32,236 @@ fn collect_rs_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// Extract all `use crate::...` imports from a Rust source file.
+/// Extract tracked imports from a Rust source file.
+///
+/// `super::...` imports are resolved back to crate-root paths so the boundary
+/// scan still catches forbidden cross-layer references that bypass `crate::`.
 /// Lines that are comments (`//`) are filtered out to avoid false positives.
 fn extract_crate_imports(path: &Path) -> Vec<(usize, String)> {
     let content = fs::read_to_string(path).expect("read file");
-    content
-        .lines()
-        .enumerate()
-        .filter_map(|(i, line)| {
-            let trimmed = line.trim();
-            // Skip single-line comments and doc comments.
-            if trimmed.starts_with("//") {
-                return None;
+    let mut imports = Vec::new();
+    let mut pending: Option<(usize, String)> = None;
+
+    for (index, line) in content.lines().enumerate() {
+        let trimmed = line.trim();
+        // Skip single-line comments and doc comments.
+        if trimmed.starts_with("//") {
+            continue;
+        }
+
+        if let Some((_, current)) = pending.as_mut() {
+            if !trimmed.is_empty() {
+                if !current.is_empty() {
+                    current.push(' ');
+                }
+                current.push_str(trimmed);
             }
-            if trimmed.starts_with("use crate::") || trimmed.starts_with("crate::") {
-                Some((i + 1, trimmed.to_string()))
+            if trimmed.contains(';') {
+                let (start_line, import) = pending.take().expect("pending import");
+                imports.push((
+                    start_line,
+                    normalize_import_for_boundary_scan(path, &import),
+                ));
+            }
+            continue;
+        }
+
+        if starts_with_tracked_import(trimmed) {
+            let start_line = index + 1;
+            if trimmed.contains(';') {
+                imports.push((
+                    start_line,
+                    normalize_import_for_boundary_scan(path, trimmed),
+                ));
             } else {
-                None
+                pending = Some((start_line, trimmed.to_string()));
             }
-        })
-        .collect()
+        }
+    }
+
+    if let Some((start_line, import)) = pending {
+        imports.push((
+            start_line,
+            normalize_import_for_boundary_scan(path, &import),
+        ));
+    }
+
+    imports
+}
+
+fn starts_with_tracked_import(trimmed: &str) -> bool {
+    trimmed.starts_with("use crate::")
+        || trimmed.starts_with("pub use crate::")
+        || trimmed.starts_with("crate::")
+        || trimmed.starts_with("use super::")
+        || trimmed.starts_with("pub use super::")
+        || trimmed.starts_with("super::")
+}
+
+fn normalize_import_for_boundary_scan(path: &Path, import: &str) -> String {
+    normalize_relative_import(path, import).unwrap_or_else(|| import.to_string())
+}
+
+fn normalize_relative_import(path: &Path, import: &str) -> Option<String> {
+    for prefix in ["pub use ", "use ", ""] {
+        let Some(relative) = import.strip_prefix(prefix) else {
+            continue;
+        };
+        if !relative.starts_with("super::") {
+            continue;
+        }
+
+        let has_semicolon = relative.trim_end().ends_with(';');
+        let mut remainder = relative.trim().trim_end_matches(';');
+        let mut module_path = module_path_components(path);
+
+        while let Some(next) = remainder.strip_prefix("super::") {
+            if module_path.pop().is_none() {
+                // More super:: levels than the module depth — the import
+                // reaches at least the crate root.  Resolve from there so
+                // the boundary scanner can inspect the target module.
+                remainder = next;
+                break;
+            }
+            remainder = next;
+        }
+
+        let mut resolved = String::from(prefix);
+        resolved.push_str("crate::");
+        if !module_path.is_empty() {
+            resolved.push_str(&module_path.join("::"));
+            resolved.push_str("::");
+        }
+        resolved.push_str(remainder);
+        if has_semicolon {
+            resolved.push(';');
+        }
+        return Some(resolved);
+    }
+
+    None
+}
+
+fn module_path_components(path: &Path) -> Vec<String> {
+    let parts = path
+        .iter()
+        .map(|part| part.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    let start = parts
+        .iter()
+        .rposition(|part| part == "src")
+        .map(|index| index + 1)
+        .unwrap_or_else(|| parts.len().saturating_sub(1));
+
+    let mut modules = parts[start..].to_vec();
+    let Some(stem) = modules
+        .last()
+        .and_then(|last| Path::new(last).file_stem())
+        .and_then(|stem| stem.to_str())
+        .map(str::to_string)
+    else {
+        return modules;
+    };
+
+    match stem.as_str() {
+        "mod" => {
+            modules.pop();
+        }
+        "lib" | "main" if modules.len() == 1 => {
+            modules.clear();
+        }
+        _ => {
+            let last = modules.last_mut().expect("module path must have a tail");
+            *last = stem.to_string();
+        }
+    }
+
+    modules
+}
+
+fn extract_crate_items(import: &str) -> Vec<String> {
+    let Some((_, remainder)) = import.split_once("crate::") else {
+        return Vec::new();
+    };
+    let remainder = remainder.trim().trim_end_matches(';');
+    if let Some(grouped) = remainder.strip_prefix('{') {
+        split_top_level_items(grouped)
+    } else {
+        vec![remainder.to_string()]
+    }
+}
+
+fn split_top_level_items(grouped: &str) -> Vec<String> {
+    let mut items = Vec::new();
+    let mut depth = 0usize;
+    let mut item_start = 0usize;
+
+    for (index, ch) in grouped.char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                if depth == 0 {
+                    let item = grouped[item_start..index].trim();
+                    if !item.is_empty() {
+                        items.push(item.to_string());
+                    }
+                    return items;
+                }
+                depth -= 1;
+            }
+            ',' if depth == 0 => {
+                let item = grouped[item_start..index].trim();
+                if !item.is_empty() {
+                    items.push(item.to_string());
+                }
+                item_start = index + 1;
+            }
+            _ => {}
+        }
+    }
+
+    let item = grouped[item_start..].trim().trim_end_matches('}').trim();
+    if !item.is_empty() {
+        items.push(item.to_string());
+    }
+
+    items
+}
+
+fn root_module(item: &str) -> Option<&str> {
+    let trimmed = item.trim();
+    let end = trimmed
+        .char_indices()
+        .find(|(_, ch)| !(ch.is_alphanumeric() || *ch == '_'))
+        .map(|(index, _)| index)
+        .unwrap_or(trimmed.len());
+    if end == 0 {
+        None
+    } else {
+        Some(&trimmed[..end])
+    }
+}
+
+fn import_mentions_forbidden_module(import: &str, forbidden: &str) -> bool {
+    extract_crate_items(import)
+        .into_iter()
+        .any(|item| root_module(&item) == Some(forbidden))
+}
+
+fn runtime_item_is_allowed(item: &str) -> bool {
+    let trimmed = item.trim();
+    let Some(runtime_path) = trimmed.strip_prefix("runtime::") else {
+        return false;
+    };
+    if runtime_path.starts_with("json_handoff") {
+        return true;
+    }
+    if let Some(grouped) = runtime_path.strip_prefix('{') {
+        return split_top_level_items(grouped)
+            .into_iter()
+            .all(|inner| inner.trim().starts_with("json_handoff"));
+    }
+    false
 }
 
 /// Check that no file in `dir` imports any of the `forbidden_modules`.
@@ -64,9 +274,7 @@ fn assert_no_forbidden_imports(
     for file in collect_rs_files(dir) {
         for (line_no, import) in extract_crate_imports(&file) {
             for forbidden in forbidden_modules {
-                if import.contains(&format!("crate::{forbidden}"))
-                    || import.contains(&format!("crate::{forbidden}::"))
-                {
+                if import_mentions_forbidden_module(&import, forbidden) {
                     let rel = file
                         .strip_prefix(dir.parent().unwrap_or(dir))
                         .unwrap_or(&file);
@@ -85,6 +293,55 @@ fn src_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
 }
 
+#[test]
+fn grouped_import_detection_catches_transport_modules() {
+    let import = "use crate::{app::facade, server::handlers::{delegate_handler}, bin::vex};";
+    assert!(import_mentions_forbidden_module(import, "server"));
+    assert!(import_mentions_forbidden_module(import, "bin"));
+}
+
+#[test]
+fn grouped_import_detection_uses_module_boundaries() {
+    let import = "use crate::{app::facade, server_tool::helpers};";
+    assert!(!import_mentions_forbidden_module(import, "server"));
+}
+
+#[test]
+fn multiline_grouped_imports_are_concatenated_before_scanning() {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("sample.rs");
+    fs::write(
+        &file,
+        "use crate::{\n    app::facade,\n    server::handlers::{delegate_handler},\n};\n",
+    )
+    .unwrap();
+
+    let imports = extract_crate_imports(&file);
+    assert_eq!(imports.len(), 1);
+    assert!(import_mentions_forbidden_module(&imports[0].1, "server"));
+}
+
+#[test]
+fn relative_super_import_detection_resolves_to_crate_root_modules() {
+    let temp = tempfile::tempdir().unwrap();
+    let src_dir = temp.path().join("src/app");
+    fs::create_dir_all(&src_dir).unwrap();
+    let file = src_dir.join("sample.rs");
+    fs::write(
+        &file,
+        "use super::super::server::{handlers::delegate_handler};\n",
+    )
+    .unwrap();
+
+    let imports = extract_crate_imports(&file);
+    assert_eq!(imports.len(), 1);
+    assert_eq!(
+        imports[0].1,
+        "use crate::server::{handlers::delegate_handler};"
+    );
+    assert!(import_mentions_forbidden_module(&imports[0].1, "server"));
+}
+
 // ---------------------------------------------------------------------------
 // ADR-028 Rule: Runtime must NOT import CLI, transport, terminal, or TUI
 // ---------------------------------------------------------------------------
@@ -92,7 +349,19 @@ fn src_dir() -> PathBuf {
 #[test]
 fn runtime_must_not_import_cli_transport_terminal_or_tui() {
     let runtime_dir = src_dir().join("runtime");
-    let forbidden = &["local_api", "tui_frontend", "terminal", "app", "ui"];
+    // Include both legacy `local_api` and the extracted `server` transport
+    // module; `bin` covers the CLI entrypoint.  All of these sit above the
+    // runtime in the layered dependency graph and must never be reached from
+    // within runtime.
+    let forbidden = &[
+        "local_api",
+        "server",
+        "bin",
+        "tui_frontend",
+        "terminal",
+        "app",
+        "ui",
+    ];
     let violations = assert_no_forbidden_imports(&runtime_dir, forbidden, "runtime");
     assert!(
         violations.is_empty(),
@@ -108,7 +377,15 @@ fn runtime_must_not_import_cli_transport_terminal_or_tui() {
 #[test]
 fn state_must_not_import_cli_transport_terminal_or_tui() {
     let state_dir = src_dir().join("state");
-    let forbidden = &["local_api", "tui_frontend", "terminal", "app", "ui"];
+    let forbidden = &[
+        "local_api",
+        "server",
+        "bin",
+        "tui_frontend",
+        "terminal",
+        "app",
+        "ui",
+    ];
     let violations = assert_no_forbidden_imports(&state_dir, forbidden, "state");
     assert!(
         violations.is_empty(),
@@ -124,7 +401,15 @@ fn state_must_not_import_cli_transport_terminal_or_tui() {
 #[test]
 fn api_must_not_import_cli_transport_terminal_or_tui() {
     let api_dir = src_dir().join("api");
-    let forbidden = &["local_api", "tui_frontend", "terminal", "app", "ui"];
+    let forbidden = &[
+        "local_api",
+        "server",
+        "bin",
+        "tui_frontend",
+        "terminal",
+        "app",
+        "ui",
+    ];
     let violations = assert_no_forbidden_imports(&api_dir, forbidden, "api");
     assert!(
         violations.is_empty(),
@@ -140,7 +425,15 @@ fn api_must_not_import_cli_transport_terminal_or_tui() {
 #[test]
 fn tools_must_not_import_cli_transport_terminal_or_tui() {
     let tools_dir = src_dir().join("tools");
-    let forbidden = &["local_api", "tui_frontend", "terminal", "app", "ui"];
+    let forbidden = &[
+        "local_api",
+        "server",
+        "bin",
+        "tui_frontend",
+        "terminal",
+        "app",
+        "ui",
+    ];
     let violations = assert_no_forbidden_imports(&tools_dir, forbidden, "tools");
     assert!(
         violations.is_empty(),
@@ -180,7 +473,8 @@ fn server_uses_facade_entrypoint() {
     let uses_facade = files.iter().any(|file| {
         extract_crate_imports(file)
             .iter()
-            .any(|(_, line)| line.contains("crate::app"))
+            .flat_map(|(_, line)| extract_crate_items(line))
+            .any(|item| root_module(&item) == Some("app"))
     });
     assert!(
         uses_facade,
@@ -200,13 +494,12 @@ fn server_must_not_import_runtime_directly() {
     let mut violations = Vec::new();
 
     for file in &files {
-        for (lineno, line) in extract_crate_imports(file) {
-            // json_handoff is the transport-level envelope contract — allowed.
-            if line.contains("crate::runtime::json_handoff") {
-                continue;
-            }
-            if line.contains("crate::runtime") {
-                violations.push(format!("  {}:{lineno}: {line}", file.display()));
+        for (lineno, import) in extract_crate_imports(file) {
+            for item in extract_crate_items(&import) {
+                if root_module(&item) == Some("runtime") && !runtime_item_is_allowed(&item) {
+                    violations.push(format!("  {}:{lineno}: {import}", file.display()));
+                    break;
+                }
             }
         }
     }

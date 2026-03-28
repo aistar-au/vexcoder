@@ -17,6 +17,7 @@ clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4" }
 bytes = "1"
 crossterm = "0.28"
+fs2 = "0.4"
 futures = "0.3"
 hyper = { version = "1", features = ["http1", "server"] }
 http = "1"

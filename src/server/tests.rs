@@ -15,6 +15,7 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use serde_json::Value;
+use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -136,6 +137,138 @@ allowed_capabilities = ["read-file"]
     assert_eq!(
         watch.get("id"),
         Some(&Value::String(session_task_id.clone()))
+    );
+}
+
+#[tokio::test]
+async fn test_release_session_task_route_completes_task_and_drops_lease() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join(".vex")).unwrap();
+    std::fs::write(
+        temp.path().join(".vex/agents.toml"),
+        r#"
+[[agents]]
+name = "reviewer"
+isolation = "worktree"
+allowed_capabilities = ["read-file"]
+"#,
+    )
+    .unwrap();
+
+    let mut config = Config::default_for_tui();
+    config.working_dir = temp.path().to_path_buf();
+    let router = build_router(config);
+
+    let delegate = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/delegate")
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"parent_task_id":"parent-release","agent_id":"reviewer","prompt":"inspect docs"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(delegate.status(), StatusCode::OK);
+    let body = to_bytes(delegate.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    let session_task_id = payload
+        .get("session_task_id")
+        .and_then(Value::as_str)
+        .unwrap()
+        .to_string();
+
+    let watch_before = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/v1/watch/{session_task_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(watch_before.status(), StatusCode::OK);
+    let body = to_bytes(watch_before.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let watch_before_payload: Value = serde_json::from_slice(&body).unwrap();
+    let worktree_path = watch_before_payload
+        .get("worktree_path")
+        .and_then(Value::as_str)
+        .unwrap()
+        .to_string();
+    assert!(Path::new(&worktree_path).exists());
+
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/session-tasks/{session_task_id}/release"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload.get("ok"), Some(&Value::Bool(true)));
+
+    let watch_after = router
+        .oneshot(
+            Request::builder()
+                .uri(format!("/v1/watch/{session_task_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(watch_after.status(), StatusCode::OK);
+    let body = to_bytes(watch_after.into_body(), usize::MAX).await.unwrap();
+    let watch_after_payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        watch_after_payload.get("status"),
+        Some(&Value::String("completed".to_string()))
+    );
+    assert_eq!(
+        watch_after_payload.get("worktree_path"),
+        Some(&Value::String(worktree_path.clone()))
+    );
+    assert!(!Path::new(&worktree_path).exists());
+}
+
+#[tokio::test]
+async fn test_release_session_task_route_returns_not_found_for_unknown_id() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut config = Config::default_for_tui();
+    config.working_dir = temp.path().to_path_buf();
+    let router = build_router(config);
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/session-tasks/missing-session-task/release")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
+    assert_eq!(
+        payload.get("reason"),
+        Some(&Value::String("session_task_not_found".to_string()))
     );
 }
 

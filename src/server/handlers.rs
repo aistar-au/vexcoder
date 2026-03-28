@@ -14,7 +14,7 @@ use super::util::{bad_request, conflict, internal_error, not_found};
 use super::SSE_KEEPALIVE_INTERVAL;
 use crate::app::{
     execute_facade_runtime, facade_delegate_session_task, facade_list_agents,
-    facade_watch_snapshot, DelegateError,
+    facade_release_session_task, facade_watch_snapshot, DelegateError,
 };
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
@@ -163,6 +163,8 @@ pub async fn delegate_handler(
         DelegateError::AgentNotFound => not_found("agent_not_found"),
         DelegateError::AgentsConfigMissing => bad_request("agents_config_missing"),
         DelegateError::ParentTaskIdRequired => bad_request("parent_task_id_required"),
+        DelegateError::ConcurrencyLimitReached => conflict("concurrency_limit_reached"),
+        DelegateError::PromptTooLong => bad_request("prompt_too_long"),
         DelegateError::Internal(inner) => internal_anyhow(inner),
     })?;
 
@@ -189,6 +191,28 @@ pub async fn watch_handler(
         status: snapshot.status,
         worktree_path: snapshot.worktree_path,
     }))
+}
+
+/// Release a session task: transition it to `Completed` and drop the worktree
+/// lease.  The caller is responsible for ensuring that no agent process is
+/// still running in the worktree before calling this endpoint.
+///
+/// Returns 200 `{ ok: true }` on success, 404 when the session task is not
+/// found in any saved task-state file.
+pub async fn release_session_task_handler(
+    State(state): State<LocalApiState>,
+    Path(id): Path<String>,
+) -> Result<Json<ControlResponse>, (StatusCode, Json<ControlResponse>)> {
+    let released =
+        facade_release_session_task(&state.config.working_dir, &id).map_err(internal_anyhow)?;
+    if released {
+        Ok(Json(ControlResponse {
+            ok: true,
+            reason: None,
+        }))
+    } else {
+        Err(not_found("session_task_not_found"))
+    }
 }
 
 pub async fn turns_handler(

@@ -234,8 +234,8 @@ Resume is explicit, not automatic. On restart, interrupted commands are marked
 as `interrupted` rather than silently restored. Changed files are tracked as
 task evidence throughout task execution. Task-scoped approvals survive resume.
 
-State persistence must use atomic write semantics: serialize to a temporary
-path, flush and close, then rename into the final state file path.
+State persistence must use transactional write semantics: serialize to a
+temporary path, flush and close, then rename into the final state file path.
 
 ## TUI Direction
 

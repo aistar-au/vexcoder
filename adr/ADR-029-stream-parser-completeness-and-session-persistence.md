@@ -335,9 +335,9 @@ a multi-turn task without summing per-turn records.
 
 ### 8. Disk save contract for resume
 
-The existing atomic-write path in `TaskState::save()` is unchanged. The new
-fields are serialised as part of the same JSON document and written atomically
-with the existing fields. No separate file paths are introduced.
+The existing transactional-write path in `TaskState::save()` is unchanged. The
+new fields are serialised as part of the same JSON document and written as a
+single rename-based update with the existing fields. No separate file paths are introduced.
 
 Fields with `#[serde(default)]` deserialise to their default values when
 reading state files written before this ADR, preserving backward compatibility.

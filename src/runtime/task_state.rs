@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::runtime::session_task::{now_millis, SessionTask, SessionTaskStatus};
@@ -21,6 +22,21 @@ pub enum TaskStatus {
     /// Headless batch run stopped because `--max-turns` was reached before the
     /// task completed. Distinct from `Completed` so CI can treat it as failure.
     MaxTurnsReached,
+}
+
+impl fmt::Display for TaskStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Ready => f.write_str("ready"),
+            Self::Running => f.write_str("running"),
+            Self::AwaitingApproval => f.write_str("awaiting_approval"),
+            Self::Cancelling => f.write_str("cancelling"),
+            Self::Completed => f.write_str("completed"),
+            Self::Failed => f.write_str("failed"),
+            Self::Cancelled => f.write_str("cancelled"),
+            Self::MaxTurnsReached => f.write_str("max_turns_reached"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -126,9 +142,9 @@ struct SessionTaskLiveSummary {
     lifecycle_state: SessionTaskStatus,
 }
 
-/// Delegates to [`crate::util::write_json_atomic`].
-fn write_pretty_json_atomic<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<()> {
-    crate::util::write_json_atomic(path, value, label)
+/// Delegates to [`crate::util::write_json_safe`].
+fn write_pretty_json_safe<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<()> {
+    crate::util::write_json_safe(path, value, label)
 }
 
 impl TaskState {
@@ -229,7 +245,7 @@ impl TaskState {
 
     pub fn save(&self, dir: &Path) -> Result<()> {
         let final_path = state_file_path(dir, &self.id);
-        write_pretty_json_atomic(&final_path, self, "task state")?;
+        write_pretty_json_safe(&final_path, self, "task state")?;
         Ok(())
     }
 
@@ -368,6 +384,21 @@ mod tests {
     use super::*;
     use crate::test_support::ENV_LOCK;
     use tempfile::TempDir;
+
+    #[test]
+    fn task_status_display_uses_lowercase_api_names() {
+        assert_eq!(TaskStatus::Ready.to_string(), "ready");
+        assert_eq!(TaskStatus::Running.to_string(), "running");
+        assert_eq!(
+            TaskStatus::AwaitingApproval.to_string(),
+            "awaiting_approval"
+        );
+        assert_eq!(TaskStatus::Cancelling.to_string(), "cancelling");
+        assert_eq!(TaskStatus::Completed.to_string(), "completed");
+        assert_eq!(TaskStatus::Failed.to_string(), "failed");
+        assert_eq!(TaskStatus::Cancelled.to_string(), "cancelled");
+        assert_eq!(TaskStatus::MaxTurnsReached.to_string(), "max_turns_reached");
+    }
 
     #[test]
     fn test_task_state_survives_atomic_write_and_reload() {

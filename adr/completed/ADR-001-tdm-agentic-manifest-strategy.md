@@ -32,7 +32,7 @@ Adopt the **Test-Driven Manifest (TDM)** as the canonical workflow for all bug f
 
 2. **Every task defines exactly one anchor test** — a failing Rust test that encodes the binary success criterion. The task is complete when and only when `cargo test <anchor_name>` passes.
 
-3. **Tasks are atomic**: one task, one target file, one anchor. A task that requires touching three modules is split into three tasks with an explicit dependency chain.
+3. **Tasks are indivisible**: one task, one target file, one anchor. A task that requires touching three modules is split into three tasks with an explicit dependency chain.
 
 4. **Agents are dispatched via `COMMAND_TO_AGENT.txt`**, a file that provides the three-point context: TDM philosophy (`CONTRIBUTING.md`), the active task (`TASKS/ID.md`), and the anchor location. This file is ephemeral and overwritten per dispatch.
 

@@ -202,10 +202,12 @@ Phase B-E baseline (PR `#230`) added:
   test contexts;
 - `src/runtime/task_state.rs` — extended with `session_tasks`, `parent_task_id`,
   `agent_id`, `worktree_path`, and backward-compat `child_tasks` serde alias;
-- `/agents`, `/delegate`, `/watch/{id}` HTTP routes and handlers in
+- `/agents`, `/delegate`, `/watch/{id}`, and `/session-tasks/{id}/release`
+  HTTP routes and handlers in
   `src/server/handlers.rs`, routed through the **ADR-028 application facade**
   via new entrypoints `facade_list_agents`, `facade_delegate_session_task`, and
-  `facade_watch_snapshot` in `src/app/task_facade.rs`;
+  `facade_watch_snapshot` / `facade_release_session_task` in
+  `src/app/task_facade.rs`;
 - `/agents`, `/delegate <agent> <prompt>`, `/watch [id]` slash commands in
   `src/app/commands.rs`;
 - `vex tasks list` / `vex tasks watch <id>` sub-commands in `src/bin/vex.rs`;
@@ -266,6 +268,32 @@ already-merged Phase A / Phase B-E baseline.
   (`src/runtime/session_task.rs`).
 - **O-9** — Cap agent name length to 64 bytes at config-validation time to
   prevent `ENAMETOOLONG` on worktree-path construction (`src/agents.rs`).
+
+## Implementation notes (hardening batch — PR #256)
+
+PR `#256` continues the ADR-034 hardening lane with the following
+correctness-focused follow-up changes on top of the Phase A/B-E baseline:
+
+- `facade_delegate_session_task` now rejects delegation requests when the
+  target agent already has `max_parallel_tasks` live session tasks recorded in
+  persisted task state, and the check now runs inside a serialized delegate
+  critical section backed by an in-process mutex plus a state-dir lock file so
+  concurrent callers cannot over-allocate the same agent slot. The handler maps
+  the rejection to `409 Conflict`, and a dedicated parallel stress test guards
+  the invariant.
+- `facade_delegate_session_task` now rejects prompts larger than
+  `MAX_DELEGATE_PROMPT_BYTES` before state files or transport payloads grow
+  without bound.
+- `facade_release_session_task` plus `POST /v1/session-tasks/{id}/release`
+  gives operators and completion hooks an explicit release path that marks live
+  session tasks complete and drops the associated worktree lease. Handler-level
+  coverage now verifies both the success and not-found HTTP mappings.
+- `facade_watch_snapshot` now renders parent task statuses through
+  `TaskStatus::Display`, aligning watch snapshots with the lowercase status
+  strings already used for session tasks.
+- The ADR-028 dependency-direction tests were tightened in parallel so grouped,
+  multiline, or relative `super::` imports cannot bypass the facade boundary
+  around these session-task surfaces.
 
 ## References
 

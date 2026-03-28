@@ -76,7 +76,7 @@ impl WorktreeLeaseManager {
             acquired_at: now_millis(),
         };
 
-        crate::util::write_json_atomic(&self.metadata_path(task_id), &lease, "worktree lease")?;
+        crate::util::write_json_safe(&self.metadata_path(task_id), &lease, "worktree lease")?;
 
         Ok(lease)
     }

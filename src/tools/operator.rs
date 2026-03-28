@@ -222,12 +222,12 @@ impl ToolOperator {
         // Ensure path is still within workspace (re-check for safety)
         self.ensure_path_is_within_workspace(&pending.path)?;
 
-        // Atomic write: write to temp file, then rename
+        // Transactional write: write to temp file, then rename
         let temp_path = pending.path.with_extension("tmp");
         fs::write(&temp_path, &pending.new_content)
             .with_context(|| format!("Failed to write temp file: {}", temp_path.display()))?;
 
-        // Rename temp to target (atomic on most filesystems)
+        // Rename temp to target (indivisible on most filesystems)
         fs::rename(&temp_path, &pending.path)
             .with_context(|| format!("Failed to apply patch to: {}", pending.path.display()))?;
 
@@ -241,8 +241,8 @@ impl ToolOperator {
         }
         // TOCTOU note: a concurrent external writer can modify the file between this
         // read and the subsequent write. For single-user local-agent use this is
-        // acceptable. If multi-writer scenarios are added, replace with an atomic
-        // advisory-lock or O_EXCL write strategy.
+        // acceptable. If multi-writer scenarios are added, replace with a
+        // transactional advisory-lock or O_EXCL write strategy.
         let content = fs::read_to_string(&resolved).context("Failed to read file for edit")?;
 
         if old_str.trim().is_empty() {
