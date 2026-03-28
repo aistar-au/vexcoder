@@ -340,9 +340,15 @@ mod tests {
         assert_eq!(wrapped.program, "sandbox-exec");
         let args = &wrapped.args;
         // First flag must be -p (inline profile), not -f (profile file).
-        assert_eq!(args[0], "-p", "expected -p flag for inline profile, got: {args:?}");
+        assert_eq!(
+            args[0], "-p",
+            "expected -p flag for inline profile, got: {args:?}"
+        );
         // The original command and its argument must follow the profile value.
-        assert!(args.contains(&"cat".to_string()), "original program missing: {args:?}");
+        assert!(
+            args.contains(&"cat".to_string()),
+            "original program missing: {args:?}"
+        );
         assert!(
             args.contains(&"/etc/hosts".to_string()),
             "original arg missing: {args:?}"
@@ -363,9 +369,15 @@ mod tests {
             .expect("wrap request");
         assert_eq!(wrapped.program, "sandbox-exec");
         let args = &wrapped.args;
-        assert_eq!(args[0], "-f", "expected -f flag for profile file, got: {args:?}");
+        assert_eq!(
+            args[0], "-f",
+            "expected -f flag for profile file, got: {args:?}"
+        );
         assert_eq!(args[1], profile_path, "expected profile path as second arg");
-        assert!(args.contains(&"ls".to_string()), "original program missing: {args:?}");
+        assert!(
+            args.contains(&"ls".to_string()),
+            "original program missing: {args:?}"
+        );
     }
 
     #[test]
