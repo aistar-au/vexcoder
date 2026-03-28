@@ -327,6 +327,67 @@ mod tests {
     }
 
     #[test]
+    fn macos_sandbox_exec_wraps_with_default_profile() {
+        // When no profile path is provided, wrap must use `-p <inline-profile>`.
+        let sandbox = super::MacosSandboxExec::new(None);
+        let wrapped = sandbox
+            .wrap(CommandRequest {
+                program: "cat".into(),
+                args: vec!["/etc/hosts".into()],
+                working_dir: None,
+            })
+            .expect("wrap request");
+        assert_eq!(wrapped.program, "sandbox-exec");
+        let args = &wrapped.args;
+        // First flag must be -p (inline profile), not -f (profile file).
+        assert_eq!(args[0], "-p", "expected -p flag for inline profile, got: {args:?}");
+        // The original command and its argument must follow the profile value.
+        assert!(args.contains(&"cat".to_string()), "original program missing: {args:?}");
+        assert!(
+            args.contains(&"/etc/hosts".to_string()),
+            "original arg missing: {args:?}"
+        );
+    }
+
+    #[test]
+    fn macos_sandbox_exec_wraps_with_explicit_profile_file() {
+        // When a non-empty profile path is supplied, wrap must use `-f <path>`.
+        let profile_path = "/etc/vex-sandbox.sb";
+        let sandbox = super::MacosSandboxExec::new(Some(profile_path.to_string()));
+        let wrapped = sandbox
+            .wrap(CommandRequest {
+                program: "ls".into(),
+                args: vec!["-la".into()],
+                working_dir: None,
+            })
+            .expect("wrap request");
+        assert_eq!(wrapped.program, "sandbox-exec");
+        let args = &wrapped.args;
+        assert_eq!(args[0], "-f", "expected -f flag for profile file, got: {args:?}");
+        assert_eq!(args[1], profile_path, "expected profile path as second arg");
+        assert!(args.contains(&"ls".to_string()), "original program missing: {args:?}");
+    }
+
+    #[test]
+    fn macos_sandbox_exec_treats_whitespace_only_profile_as_default() {
+        // A profile string that is only whitespace must use the default inline
+        // profile (same behaviour as None).
+        let sandbox = super::MacosSandboxExec::new(Some("   ".to_string()));
+        let wrapped = sandbox
+            .wrap(CommandRequest {
+                program: "true".into(),
+                args: vec![],
+                working_dir: None,
+            })
+            .expect("wrap request");
+        let args = &wrapped.args;
+        assert_eq!(
+            args[0], "-p",
+            "whitespace-only profile must fall back to -p, got: {args:?}"
+        );
+    }
+
+    #[test]
     fn container_probe_validates_selected_image_with_run_true() {
         let sandbox =
             super::ContainerSandbox::new("alpine:3".to_string()).expect("container sandbox");

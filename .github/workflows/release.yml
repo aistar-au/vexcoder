@@ -138,10 +138,96 @@ jobs:
             dist/*.sha256
           if-no-files-found: error
 
+  # Phase H (PH-03): macOS app bundle, code signing, notarisation, and .dmg.
+  # Runs on the Apple Silicon runner after the build job produces the
+  # aarch64-apple-darwin artifact.  A separate x86_64 .dmg is produced for
+  # Intel Macs.  Both run in parallel as separate matrix entries.
+  macos-pkg:
+    name: macOS package (${{ matrix.target }})
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-15
+          - target: x86_64-apple-darwin
+            runner: macos-15-intel
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Download build artifact for ${{ matrix.target }}
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist-input
+
+      - name: Extract vex binary
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          tar -xzf dist-input/vex-*-"${TARGET}".tar.gz -C dist
+          # The archive unpacks a single `vex` binary at the root of dist/.
+          VEX_BIN="$(find dist -maxdepth 1 -name vex -type f | head -1)"
+          echo "VEX_BIN=${VEX_BIN}" >> "$GITHUB_ENV"
+
+      - name: Build vex-launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release --manifest-path packaging/macos/Cargo.toml
+          echo "LAUNCHER_BIN=packaging/macos/target/release/vex-launcher" >> "$GITHUB_ENV"
+
+      - name: Build app bundle and .dmg
+        shell: bash
+        env:
+          APPLE_DEVELOPER_ID_CERT: ${{ secrets.APPLE_DEVELOPER_ID_CERT }}
+          APPLE_NOTARYTOOL_KEY: ${{ secrets.APPLE_NOTARYTOOL_KEY }}
+          APPLE_NOTARYTOOL_KEY_ID: ${{ secrets.APPLE_NOTARYTOOL_KEY_ID }}
+          APPLE_NOTARYTOOL_ISSUER: ${{ secrets.APPLE_NOTARYTOOL_ISSUER }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          bash packaging/macos/build-app.sh \
+            "${VEX_BIN}" \
+            "${LAUNCHER_BIN}" \
+            "${TAG}"
+
+      - name: Rename .dmg with target suffix
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          SRC="dist/vex-${TAG}-macos.dmg"
+          DST="dist/vex-${TAG}-${TARGET}.dmg"
+          mv "${SRC}" "${DST}"
+          sha256sum "${DST}" > "${DST}.sha256"
+
+      - name: Upload .dmg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-dmg-${{ matrix.target }}
+          path: |
+            dist/*.dmg
+            dist/*.dmg.sha256
+          if-no-files-found: error
+
   sign:
     name: sign artifacts
     if: startsWith(github.ref, 'refs/tags/')
-    needs: build
+    needs: [build, macos-pkg]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -162,7 +248,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for f in dist/*.tar.gz dist/*.zip; do
+          # Sign compressed archives (.tar.gz, .zip) and macOS disk images (.dmg).
+          for f in dist/*.tar.gz dist/*.zip dist/*.dmg; do
             [ -f "$f" ] || continue
             cosign sign-blob "$f" \
               --bundle "${f}.sigstore.json" \
@@ -215,6 +302,9 @@ jobs:
             dist/*.zip
             dist/*.zip.sha256
             dist/*.zip.sigstore.json
+            dist/*.dmg
+            dist/*.dmg.sha256
+            dist/*.dmg.sigstore.json
           if-no-files-found: error
 
   release:
@@ -281,6 +371,9 @@ jobs:
             dist/*.zip
             dist/*.zip.sha256
             dist/*.zip.sigstore.json
+            dist/*.dmg
+            dist/*.dmg.sha256
+            dist/*.dmg.sigstore.json
           )
           files+=("${changelog}")
 

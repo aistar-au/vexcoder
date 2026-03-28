@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Application identity -->
+    <key>CFBundleName</key>
+    <string>Vex</string>
+    <key>CFBundleDisplayName</key>
+    <string>Vex</string>
+    <key>CFBundleIdentifier</key>
+    <string>au.aistar.vexcoder</string>
+
+    <!-- Version — substituted by build-app.sh at package time -->
+    <key>CFBundleVersion</key>
+    <string>__VERSION__</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION__</string>
+
+    <!-- Bundle type and executable -->
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>vex-launcher</string>
+
+    <!-- macOS deployment target — 13.0 (Ventura) and later -->
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+
+    <!-- Suppress Dock icon: the launcher opens Terminal.app then exits -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <!-- Copyright -->
+    <key>NSHumanReadableCopyright</key>
+    <string>MIT License — https://github.com/aistar-au/vexcoder</string>
+</dict>
+</plist>
