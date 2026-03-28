@@ -14,7 +14,7 @@ Last updated: 2026-03-28
 
 | ADR | Status | Remaining items | Dependency note |
 | :--- | :--- | :--- | :--- |
-| ADR-021 | Accepted | 4 (0 P1, 4 P2, 0 P3) | Tier 6 batch completed Items 9/13/20/24/25/28/32/33; Items 10/11/12/14 remain (larger refactors, deferred) |
+| ADR-021 | Accepted | 4 (0 P1, 4 P2, 0 P3) | Tier 6 batch completed Items 9/13/20/24/25/28/32/33; Items 15 and 22 were already complete; Items 10/11/12/14 remain (larger refactors, deferred) |
 | ADR-022 amendment | Amended | Amendment only | Tightens milestone-1 command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
 | ADR-024 | Proposed (pre-milestone complete) | 7 items (all post-milestone) | PA–PM and PP done; PG/PH post-milestone deferred |
@@ -39,7 +39,7 @@ Last updated: 2026-03-28
 
 ---
 
-## Remaining Work: 25 Items Across 5 Active Tiers
+## Remaining Work: 14 Items Across 3 Active Tiers
 
 Tiers sorted by unblocking impact -- what, if implemented first, unblocks
 the most downstream work.
@@ -50,11 +50,11 @@ PRs 231, 232, 233, 234 all merged to main.
 
 ### ~~Tier 2 -- Sandbox and MCP Completion (ADR-024)~~ (cleared 2026-03-27)
 
-PD-02, PD-03 (PR 231), PF-01, PF-02 (PR 232), PI-06, PI-07 (this PR) all complete.
+PD-02, PD-03 (PR 231), PF-01, PF-02 (PR 232), and PI-06/PI-07 are complete.
 
 ### ~~Tier 3 -- Workspace Tools and MCP Extensions (ADR-024)~~ (cleared 2026-03-27)
 
-PP-01 (`list_dir`, `glob_files`, gitignore-aware `search_files`) merged in this PR.
+PP-01 (`list_dir`, `glob_files`, gitignore-aware `search_files`) is complete.
 PM-02 (MCP HTTP headers env-var substitution) merged in PR 236.
 PI-08 (`/plan`, `/context`) merged in ADR-023 batch.
 
@@ -70,13 +70,13 @@ PI-08 (`/plan`, `/context`) merged in ADR-023 batch.
 
 ### ~~Tier 5 -- Verification and Governance~~ (cleared 2026-03-28)
 
-All 3 verification items confirmed in-tree:
+All 4 verification items confirmed in-tree:
 - ADR-029: All 8 decision items verified present (StreamEvent, ContentBlock, Delta, ApiUsage, MessageDelta, MessageStartData, chat-completions, TaskState)
 - ADR-030: All 6 coverage requirements have named tests in the tree
 - ADR-032: Items 4 (character count indicator) and 5 (focus indicator) verified implemented in src/ui/draw/mod.rs
 - ADR-031/ADR-032/docs: fullscreen composer auto-fit behavior documented consistently for live row/column resize and snapped terminal layouts
 
-### Tier 6 -- Code Quality (ADR-021 P2) -- 11 items (8 done; 4 remain)
+### Tier 6 -- Code Quality (ADR-021 P2) -- 13 tracked items (9 done; 4 remain)
 
 Duplication removal, race condition fixes, and design follow-ups.
 
