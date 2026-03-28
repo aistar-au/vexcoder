@@ -11,3 +11,6 @@ publish = false
 [[bin]]
 name = "vex-launcher"
 path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
