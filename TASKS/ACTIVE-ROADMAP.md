@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-28 (tier8-phase-h batch — PG-03, PH-01, PH-02, PH-03; sandbox wrap tests)
+Last updated: 2026-03-28 (adr028-034 hardening — grouped boundary import coverage, concurrency enforcement, prompt guard, release entrypoint)
 
 ---
 
@@ -18,13 +18,13 @@ Last updated: 2026-03-28 (tier8-phase-h batch — PG-03, PH-01, PH-02, PH-03; sa
 | ADR-022 amendment | Amended | Amendment only | Tightens milestone-1 command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
 | ADR-024 | Proposed (pre-milestone complete) | 1 item (PG-03 tap auto-dispatch deferred) | PA–PM and PP done; PG-01/PG-02/PG-03 template complete; PH-01/PH-02/PH-03 complete |
-| ADR-028 | Active | Ongoing boundary alignment | Phase 1, 2, and transport extraction committed 2026-03-25; remaining work is ongoing boundary maintenance with no blocking items |
+| ADR-028 | Active | Ongoing boundary alignment | Phase 1, 2, and transport extraction committed 2026-03-25; boundary tests now cover direct, grouped, and multiline `server`/`bin` crate imports for all inner layers |
 | ADR-029 | Accepted | 0 items remaining | All 8 decision items verified in Tier 5 (PR #249) |
 | ADR-030 | Accepted | 0 items remaining | All 6 coverage requirements verified in Tier 5 (PR #249) |
 | ADR-031 | Accepted (all batches A-E merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-032 | Accepted | 0 items remaining | Items 1-8 complete; item 4-5 verified Tier 5; item 9 transferred to ADR-033 |
 | ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
-| ADR-034 | Active (Phase A + B-E merged) | Follow-up hardening | PRs 228/229/230 merged |
+| ADR-034 | Active (Phase A + B-E merged) | Follow-up hardening | PRs 228/229/230/234 merged; delegation now enforces concurrency caps and prompt length, and the session-task release entrypoint is exposed through the facade and HTTP route |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -120,7 +120,7 @@ first and is not a blocker for the Phase H distribution milestone.
 ADR-013, ADR-018, ADR-025, ADR-026, ADR-027 moved to completed/.
 ADR-031 status updated to Accepted (Batches A-E merged).
 ADR-033 status updated to Accepted (Phases 1-4 merged).
-ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-25; remaining work is ongoing boundary alignment with no blocking items for other ADRs.
+ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-25; grouped and multiline `server`/`bin` import coverage now closes the remaining boundary-test bypasses for inner layers.
 
 ---
 

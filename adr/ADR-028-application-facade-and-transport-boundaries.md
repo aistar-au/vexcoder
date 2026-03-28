@@ -126,6 +126,7 @@ pub fn facade_watch_snapshot(
     working_dir: &Path,
     id: &str,
 ) -> Result<Option<FacadeWatchSnapshot>>;
+pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) -> Result<bool>;
 ```
 
 **Facade rule**
@@ -426,6 +427,22 @@ skips lines that import the permitted `crate::runtime::json_handoff` contract,
 and fails the build if any other `crate::runtime` import is found in the server
 layer.  This mechanically enforces the "Transport must not reach runtime except
 through facade-owned entrypoints" rule for the session-task surface.
+
+## Implementation note — boundary and session-task hardening (PR #256)
+
+PR `#256` extends the ADR-028 enforcement surface in two ways.
+
+- `tests/dependency_direction_tests.rs` now concatenates multiline `use crate::`
+  statements, scans `pub use crate::...` re-exports, and inspects grouped
+  imports such as `use crate::{server::handlers, bin::vex};`. This closes the
+  remaining brace-group bypass where inner layers could still reach `server` or
+  `bin` without tripping the ADR-028 guard.
+- `src/app/task_facade.rs` adds the synchronous
+  `facade_release_session_task` entrypoint so transport code can request a
+  session-task release without importing runtime/task-state helpers directly.
+  The same hardening batch also keeps delegation validation in the facade by
+  enforcing per-agent concurrency caps and a prompt-size ceiling before new
+  session-task state is persisted.
 
 ---
 

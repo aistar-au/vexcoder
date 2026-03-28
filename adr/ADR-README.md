@@ -32,7 +32,7 @@ All ADR files live under `adr/`.
 | [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Active (Batches A-E merged) | Verification complete; fullscreen auto-fit behavior documented |
 | [ADR-032](ADR-032-prompt-area-interactivity-and-context-guard.md) | Prompt area interactivity and context guard | Active | Items 4-5 verified; fullscreen auto-fit prompt surface documented |
 | [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Active (Phases 1-4 merged) | Follow-up integration |
-| [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Follow-up hardening |
+| [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Follow-up hardening: concurrency caps, prompt guard, explicit release |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 

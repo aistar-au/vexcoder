@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
@@ -21,6 +22,19 @@ impl SessionTaskStatus {
             self,
             SessionTaskStatus::Pending | SessionTaskStatus::Running | SessionTaskStatus::Blocked
         )
+    }
+}
+
+impl fmt::Display for SessionTaskStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Pending => f.write_str("pending"),
+            Self::Running => f.write_str("running"),
+            Self::Blocked => f.write_str("blocked"),
+            Self::Failed => f.write_str("failed"),
+            Self::Cancelled => f.write_str("cancelled"),
+            Self::Completed => f.write_str("completed"),
+        }
     }
 }
 
@@ -122,5 +136,25 @@ mod tests {
 
         task.set_handoff_summary("summary");
         assert_eq!(task.handoff_summary.as_deref(), Some("summary"));
+    }
+
+    #[test]
+    fn session_task_status_display_uses_lowercase_kebab_names() {
+        assert_eq!(SessionTaskStatus::Pending.to_string(), "pending");
+        assert_eq!(SessionTaskStatus::Running.to_string(), "running");
+        assert_eq!(SessionTaskStatus::Blocked.to_string(), "blocked");
+        assert_eq!(SessionTaskStatus::Failed.to_string(), "failed");
+        assert_eq!(SessionTaskStatus::Cancelled.to_string(), "cancelled");
+        assert_eq!(SessionTaskStatus::Completed.to_string(), "completed");
+    }
+
+    #[test]
+    fn is_live_returns_true_for_active_states_only() {
+        assert!(SessionTaskStatus::Pending.is_live());
+        assert!(SessionTaskStatus::Running.is_live());
+        assert!(SessionTaskStatus::Blocked.is_live());
+        assert!(!SessionTaskStatus::Failed.is_live());
+        assert!(!SessionTaskStatus::Cancelled.is_live());
+        assert!(!SessionTaskStatus::Completed.is_live());
     }
 }
