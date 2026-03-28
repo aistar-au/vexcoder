@@ -116,7 +116,6 @@ impl TuiMode {
         let task_id = self.current_task.id.clone();
         let edit_loop = EditLoop::new(task_id)
             .with_working_dir(self.working_dir.clone())
-            .with_sandbox(self.sandbox.clone())
             .with_profile(self.model_profile.clone());
         self.active_edit_loop = Some(edit_loop.clone());
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
@@ -166,7 +165,6 @@ impl TuiMode {
         let task_id = self.current_task.id.clone();
         let edit_loop = EditLoop::new(task_id)
             .with_working_dir(self.working_dir.clone())
-            .with_sandbox(self.sandbox.clone())
             .with_profile(self.model_profile.clone());
         self.active_edit_loop = Some(edit_loop.clone());
         self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
