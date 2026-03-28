@@ -13,9 +13,10 @@ use super::sse::runtime_sse_response;
 use super::util::{bad_request, conflict, internal_error, not_found};
 use super::SSE_KEEPALIVE_INTERVAL;
 use crate::app::{
-    execute_facade_runtime, facade_delegate_session_task, facade_list_agents, facade_poll_join,
-    facade_release_session_task, facade_schedule_team, facade_watch_snapshot, DelegateError,
-    ScheduleTeamError,
+    execute_facade_runtime, facade_delegate_session_task, facade_get_session_task,
+    facade_list_agents, facade_list_session_tasks, facade_list_tasks, facade_poll_join,
+    facade_release_session_task, facade_schedule_team, facade_update_session_task_status,
+    facade_watch_snapshot, DelegateError, ScheduleTeamError, SessionTaskStatusError,
 };
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
@@ -498,4 +499,110 @@ pub fn new_server_task_id() -> String {
         .unwrap_or_default()
         .as_millis();
     format!("task-{millis}")
+}
+
+// ---------------------------------------------------------------------------
+// Phase E — LocalApi session-task projection response types and handlers
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct TaskSummaryResponse {
+    pub id: String,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_task_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    pub session_task_count: usize,
+    pub live_session_task_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SessionTaskSnapshotResponse {
+    pub id: String,
+    pub parent_task_id: String,
+    pub agent_id: String,
+    pub lifecycle_state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub worktree_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub started_at_ms: Option<u64>,
+    pub updated_at_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub handoff_summary: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSessionTaskStatusRequest {
+    pub status: String,
+}
+
+/// `GET /v1/tasks`
+pub async fn list_tasks_handler(
+    State(state): State<LocalApiState>,
+) -> Result<Json<Vec<TaskSummaryResponse>>, (StatusCode, Json<ControlResponse>)> {
+    let summaries = facade_list_tasks(&state.config.working_dir).map_err(internal_anyhow)?;
+    Ok(Json(
+        summaries
+            .into_iter()
+            .map(|s| TaskSummaryResponse {
+                id: s.id,
+                status: s.status,
+                parent_task_id: s.parent_task_id,
+                agent_id: s.agent_id,
+                session_task_count: s.session_task_count,
+                live_session_task_count: s.live_session_task_count,
+            })
+            .collect(),
+    ))
+}
+
+/// `GET /v1/session-tasks`
+pub async fn list_session_tasks_handler(
+    State(state): State<LocalApiState>,
+) -> Result<Json<Vec<SessionTaskSnapshotResponse>>, (StatusCode, Json<ControlResponse>)> {
+    let tasks = facade_list_session_tasks(&state.config.working_dir).map_err(internal_anyhow)?;
+    Ok(Json(tasks.into_iter().map(snapshot_to_response).collect()))
+}
+
+/// `GET /v1/session-tasks/{id}`
+pub async fn get_session_task_handler(
+    State(state): State<LocalApiState>,
+    Path(id): Path<String>,
+) -> Result<Json<SessionTaskSnapshotResponse>, (StatusCode, Json<ControlResponse>)> {
+    let snap = facade_get_session_task(&state.config.working_dir, &id).map_err(internal_anyhow)?;
+    match snap {
+        Some(s) => Ok(Json(snapshot_to_response(s))),
+        None => Err(not_found("session_task_not_found")),
+    }
+}
+
+/// `PATCH /v1/session-tasks/{id}/status`
+pub async fn update_session_task_status_handler(
+    State(state): State<LocalApiState>,
+    Path(id): Path<String>,
+    Json(body): Json<UpdateSessionTaskStatusRequest>,
+) -> Result<Json<SessionTaskSnapshotResponse>, (StatusCode, Json<ControlResponse>)> {
+    match facade_update_session_task_status(&state.config.working_dir, &id, &body.status) {
+        Ok(snap) => Ok(Json(snapshot_to_response(snap))),
+        Err(SessionTaskStatusError::NotFound) => Err(not_found("session_task_not_found")),
+        Err(SessionTaskStatusError::InvalidStatus) => Err(bad_request("invalid_status")),
+        Err(SessionTaskStatusError::TransitionNotAllowed) => {
+            Err(conflict("transition_not_allowed"))
+        }
+        Err(SessionTaskStatusError::Internal(err)) => Err(internal_anyhow(err)),
+    }
+}
+
+fn snapshot_to_response(s: crate::app::FacadeSessionTaskSnapshot) -> SessionTaskSnapshotResponse {
+    SessionTaskSnapshotResponse {
+        id: s.id,
+        parent_task_id: s.parent_task_id,
+        agent_id: s.agent_id,
+        lifecycle_state: s.lifecycle_state,
+        worktree_path: s.worktree_path,
+        started_at_ms: s.started_at_ms,
+        updated_at_ms: s.updated_at_ms,
+        handoff_summary: s.handoff_summary,
+    }
 }

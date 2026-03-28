@@ -80,10 +80,12 @@ pub use self::facade::{
 pub use self::runtime_build::{build_runtime, build_runtime_with_resume};
 pub use self::subtask_orchestrator::{JoinOutcome, SubtaskOrchestrator, TeamDecomposition};
 pub use self::task_facade::{
-    facade_delegate_session_task, facade_list_agents, facade_poll_join,
-    facade_release_session_task, facade_schedule_team, facade_watch_snapshot, DelegateError,
+    facade_delegate_session_task, facade_get_session_task, facade_list_agents,
+    facade_list_session_tasks, facade_list_tasks, facade_poll_join, facade_release_session_task,
+    facade_schedule_team, facade_update_session_task_status, facade_watch_snapshot, DelegateError,
     FacadeAgentDescriptor, FacadeAgentsListing, FacadeDelegateResult, FacadeJoinOutcome,
-    FacadeScheduleTeamResult, FacadeTeamDescriptor, FacadeWatchSnapshot, ScheduleTeamError,
+    FacadeScheduleTeamResult, FacadeSessionTaskSnapshot, FacadeTaskSummary, FacadeTeamDescriptor,
+    FacadeWatchSnapshot, ScheduleTeamError, SessionTaskStatusError,
 };
 
 use self::overlay::summarize_tool_approval_context;

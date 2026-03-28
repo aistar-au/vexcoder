@@ -4,7 +4,7 @@ use axum::http::header::{AUTHORIZATION, STRICT_TRANSPORT_SECURITY};
 use axum::http::{HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::Response;
-use axum::routing::{get, post};
+use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as HyperConnectionBuilder;
@@ -14,9 +14,10 @@ use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 
 use super::handlers::{
-    agents_handler, approve_handler, delegate_handler, health_handler, interrupt_handler,
-    join_status_handler, release_session_task_handler, schedule_team_handler, schema_handler,
-    turns_handler, watch_handler,
+    agents_handler, approve_handler, delegate_handler, get_session_task_handler, health_handler,
+    interrupt_handler, join_status_handler, list_session_tasks_handler, list_tasks_handler,
+    release_session_task_handler, schedule_team_handler, schema_handler, turns_handler,
+    update_session_task_status_handler, watch_handler,
 };
 use super::{ControlResponse, HttpSurfaceSettings, ResolvedHttpSurface, HSTS_HEADER_VALUE};
 #[cfg(test)]
@@ -45,6 +46,13 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
             post(schedule_team_handler),
         )
         .route("/v1/tasks/{task_id}/join-status", get(join_status_handler))
+        .route("/v1/tasks", get(list_tasks_handler))
+        .route("/v1/session-tasks", get(list_session_tasks_handler))
+        .route("/v1/session-tasks/{id}", get(get_session_task_handler))
+        .route(
+            "/v1/session-tasks/{id}/status",
+            patch(update_session_task_status_handler),
+        )
         .route("/v1/interrupt", post(interrupt_handler))
         .route("/v1/approve", post(approve_handler))
         .with_state(state)

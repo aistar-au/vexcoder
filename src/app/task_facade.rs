@@ -134,6 +134,48 @@ pub enum DelegateError {
 }
 
 // ---------------------------------------------------------------------------
+// Phase E facade types — LocalApi session-task projection
+// ---------------------------------------------------------------------------
+
+/// Summary of one persisted parent task returned by `facade_list_tasks`.
+#[derive(Debug, Clone)]
+pub struct FacadeTaskSummary {
+    pub id: String,
+    pub status: String,
+    pub parent_task_id: Option<String>,
+    pub agent_id: Option<String>,
+    pub session_task_count: usize,
+    pub live_session_task_count: usize,
+}
+
+/// Full projection of one session task returned by the listing and detail
+/// endpoints.
+#[derive(Debug, Clone)]
+pub struct FacadeSessionTaskSnapshot {
+    pub id: String,
+    pub parent_task_id: String,
+    pub agent_id: String,
+    pub lifecycle_state: String,
+    pub worktree_path: Option<String>,
+    pub started_at_ms: Option<u64>,
+    pub updated_at_ms: u64,
+    pub handoff_summary: Option<String>,
+}
+
+/// Typed error for `facade_update_session_task_status`.
+#[derive(Debug, Error)]
+pub enum SessionTaskStatusError {
+    #[error("session_task_not_found")]
+    NotFound,
+    #[error("invalid_status")]
+    InvalidStatus,
+    #[error("transition_not_allowed")]
+    TransitionNotAllowed,
+    #[error(transparent)]
+    Internal(#[from] anyhow::Error),
+}
+
+// ---------------------------------------------------------------------------
 // Facade return types — thin domain structs the transport layer maps to JSON.
 // ---------------------------------------------------------------------------
 
@@ -385,8 +427,15 @@ mod tests {
         std::fs::write(vex_dir.join("agents.toml"), content).unwrap();
     }
 
+    // TaskState::state_dir_from consults VEX_STATE_DIR, so these tests must
+    // not run concurrently with env-mutating tests elsewhere in the crate.
+    fn env_lock() -> tokio::sync::MutexGuard<'static, ()> {
+        crate::test_support::ENV_LOCK.blocking_lock()
+    }
+
     #[test]
     fn delegate_rejects_prompt_exceeding_max_bytes() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         write_agents_toml(
             dir.path(),
@@ -409,6 +458,7 @@ mod tests {
 
     #[test]
     fn delegate_enforces_max_parallel_tasks() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
         write_agents_toml(
@@ -442,6 +492,7 @@ mod tests {
 
     #[test]
     fn delegate_enforces_max_parallel_tasks_under_parallel_calls() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         write_agents_toml(
             dir.path(),
@@ -494,6 +545,7 @@ mod tests {
 
     #[test]
     fn release_transitions_live_task_to_completed_and_drops_lease() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
 
@@ -527,6 +579,7 @@ mod tests {
 
     #[test]
     fn release_returns_false_for_unknown_session_task_id() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
         std::fs::create_dir_all(TaskState::state_dir_from(dir.path())).unwrap();
@@ -537,6 +590,7 @@ mod tests {
 
     #[test]
     fn watch_snapshot_formats_parent_task_status_with_display_names() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         let state_dir = TaskState::state_dir_from(dir.path());
         std::fs::create_dir_all(&state_dir).unwrap();
@@ -555,6 +609,7 @@ mod tests {
 
     #[test]
     fn schedule_team_rejects_prompt_exceeding_max_bytes() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         write_agents_toml(
             dir.path(),
@@ -572,6 +627,7 @@ mod tests {
 
     #[test]
     fn schedule_team_rejects_empty_parent_task_id() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         let result = facade_schedule_team(dir.path(), "", "review", "do something");
         assert!(
@@ -582,6 +638,7 @@ mod tests {
 
     #[test]
     fn schedule_team_rejects_empty_prompt() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         let result = facade_schedule_team(dir.path(), "parent-1", "review", "");
         assert!(
@@ -592,6 +649,7 @@ mod tests {
 
     #[test]
     fn schedule_team_enforces_max_parallel_tasks() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
         write_agents_toml(
@@ -620,6 +678,7 @@ mod tests {
 
     #[test]
     fn schedule_team_enforces_max_parallel_tasks_under_parallel_calls() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         write_agents_toml(
             dir.path(),
@@ -667,6 +726,7 @@ mod tests {
 
     #[test]
     fn list_agents_exposes_max_parallel_tasks() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         // worktree isolation allows max_parallel_tasks > 1.
         write_agents_toml(
@@ -684,6 +744,7 @@ mod tests {
 
     #[test]
     fn list_agents_normalizes_team_scheduler_to_snake_case() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         write_agents_toml(
             dir.path(),
@@ -696,6 +757,7 @@ mod tests {
 
     #[test]
     fn schedule_team_normalizes_scheduler_to_snake_case() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
         write_agents_toml(
@@ -711,6 +773,7 @@ mod tests {
 
     #[test]
     fn schedule_team_returns_internal_for_unknown_member_reference() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
         let vex_dir = dir.path().join(".vex");
@@ -870,4 +933,120 @@ pub enum ScheduleTeamError {
     PromptTooLong,
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
+}
+
+// ---------------------------------------------------------------------------
+// Phase E facade entrypoints — LocalApi session-task projection
+// ---------------------------------------------------------------------------
+
+/// Return a summary for every persisted parent-task state file.
+pub fn facade_list_tasks(working_dir: &Path) -> Result<Vec<FacadeTaskSummary>> {
+    let mut out = Vec::new();
+    for file in TaskState::state_files_from(working_dir) {
+        let state = TaskState::load(&file.dir, &file.id)?;
+        let live = state
+            .session_tasks
+            .iter()
+            .filter(|t| t.lifecycle_state.is_live())
+            .count();
+        out.push(FacadeTaskSummary {
+            id: state.id,
+            status: state.status.to_string(),
+            parent_task_id: state.parent_task_id,
+            agent_id: state.agent_id,
+            session_task_count: state.session_tasks.len(),
+            live_session_task_count: live,
+        });
+    }
+    Ok(out)
+}
+
+/// Return a snapshot for every session task across all persisted parent states.
+pub fn facade_list_session_tasks(working_dir: &Path) -> Result<Vec<FacadeSessionTaskSnapshot>> {
+    let mut out = Vec::new();
+    for file in TaskState::state_files_from(working_dir) {
+        let state = TaskState::load(&file.dir, &file.id)?;
+        for task in state.session_tasks {
+            out.push(session_task_to_snapshot(task));
+        }
+    }
+    Ok(out)
+}
+
+/// Return the snapshot for a single session task identified by its UUID.
+pub fn facade_get_session_task(
+    working_dir: &Path,
+    session_task_id: &str,
+) -> Result<Option<FacadeSessionTaskSnapshot>> {
+    let Some((_, task)) =
+        TaskState::find_session_task_in_saved_states(working_dir, session_task_id)?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(session_task_to_snapshot(task)))
+}
+
+/// Transition a session task to a new lifecycle state reported by an external
+/// agent.
+///
+/// Accepted `status_str` values: `running`, `blocked`, `failed`,
+/// `cancelled`, `completed`.
+///
+/// Transitions from terminal states (`Failed`, `Cancelled`, `Completed`) are
+/// rejected with `TransitionNotAllowed` — use
+/// `facade_release_session_task` to clean up a terminal task instead.
+pub fn facade_update_session_task_status(
+    working_dir: &Path,
+    session_task_id: &str,
+    status_str: &str,
+) -> std::result::Result<FacadeSessionTaskSnapshot, SessionTaskStatusError> {
+    let new_status =
+        parse_session_task_status(status_str).ok_or(SessionTaskStatusError::InvalidStatus)?;
+
+    let state_dir = TaskState::state_dir_from(working_dir);
+
+    let Some((mut parent_state, existing)) =
+        TaskState::find_session_task_in_saved_states(working_dir, session_task_id)?
+    else {
+        return Err(SessionTaskStatusError::NotFound);
+    };
+
+    if !existing.lifecycle_state.is_live() {
+        return Err(SessionTaskStatusError::TransitionNotAllowed);
+    }
+
+    parent_state.update_session_task_status(session_task_id, new_status);
+    parent_state.save(&state_dir)?;
+
+    let updated = parent_state
+        .session_task(session_task_id)
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("session task missing after save"))?;
+
+    Ok(session_task_to_snapshot(updated))
+}
+
+fn session_task_to_snapshot(task: SessionTask) -> FacadeSessionTaskSnapshot {
+    FacadeSessionTaskSnapshot {
+        lifecycle_state: task.lifecycle_state.to_string(),
+        worktree_path: task.worktree_path.as_ref().map(|p| p.display().to_string()),
+        started_at_ms: task.started_at,
+        updated_at_ms: task.updated_at,
+        handoff_summary: task.handoff_summary,
+        id: task.id,
+        parent_task_id: task.parent_task_id,
+        agent_id: task.agent_id,
+    }
+}
+
+fn parse_session_task_status(s: &str) -> Option<SessionTaskStatus> {
+    match s {
+        "pending" => Some(SessionTaskStatus::Pending),
+        "running" => Some(SessionTaskStatus::Running),
+        "blocked" => Some(SessionTaskStatus::Blocked),
+        "failed" => Some(SessionTaskStatus::Failed),
+        "cancelled" => Some(SessionTaskStatus::Cancelled),
+        "completed" => Some(SessionTaskStatus::Completed),
+        _ => None,
+    }
 }
