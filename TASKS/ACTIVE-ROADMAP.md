@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-28 (adr034-phase-d — operator task surface: /agents, /delegate, /watch routed through facade; /delegate team variant; vex tasks status normalized to Display)
+Last updated: 2026-03-29 (adr034-phase-e — LocalApi session-task projection: GET /v1/tasks, GET /v1/session-tasks, GET /v1/session-tasks/{id}, PATCH /v1/session-tasks/{id}/status; SessionTaskStatusError transition guard)
 
 ---
 
@@ -24,7 +24,8 @@ Last updated: 2026-03-28 (adr034-phase-d — operator task surface: /agents, /de
 | ADR-031 | Accepted (all batches A-E merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-032 | Accepted | 0 items remaining | Items 1-8 complete; item 4-5 verified Tier 5; item 9 transferred to ADR-033 |
 | ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
-| ADR-034 | Active (Phase A + B-E + C + D merged) | Phase E (export/LocalApi projection) | Phase D operator surface added; /agents, /delegate, /watch routed through facade; /delegate team variant; FacadeAgentDescriptor exposes max_parallel_tasks; vex tasks status uses Display; PRs 228/229/230/234/256/257 merged |
+| ADR-034 | Accepted (all phases A-E merged) | 0 items remaining | All 5 phases merged; PR #259 closes Phase E |
+| ADR-034 | Accepted (all phases A-E merged) | 0 items remaining | Phase E LocalApi session-task projection added; GET /v1/tasks, GET/PATCH /v1/session-tasks routes; SessionTaskStatusError transition guard; PRs 228/229/230/234/256/257/258/259 merged |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
