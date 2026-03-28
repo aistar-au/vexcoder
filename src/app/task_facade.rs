@@ -10,9 +10,10 @@ use crate::app::subtask_orchestrator::SubtaskOrchestrator;
 use crate::runtime::{SessionTask, SessionTaskStatus, TaskState, WorktreeLeaseManager};
 
 // ---------------------------------------------------------------------------
-// Maximum prompt length accepted by facade_delegate_session_task.
-// Guards against pathological inputs that would bloat persisted task-state
-// payloads and request bodies carried through the operator surfaces.
+// Maximum prompt length accepted by facade_delegate_session_task and
+// facade_schedule_team.  Guards against pathological inputs that would
+// bloat persisted task-state payloads and request bodies carried through
+// the operator surfaces.
 // ---------------------------------------------------------------------------
 const MAX_DELEGATE_PROMPT_BYTES: usize = 65_536;
 const DELEGATE_LOCK_FILE_NAME: &str = ".delegate-session-task.lock";
@@ -535,6 +536,43 @@ mod tests {
         assert_eq!(snapshot.kind, "task");
         assert_eq!(snapshot.status, "awaiting_approval");
     }
+
+    #[test]
+    fn schedule_team_rejects_prompt_exceeding_max_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        write_agents_toml(
+            dir.path(),
+            "[[agents]]\nname = \"coder\"\nisolation = \"shared\"\nmax_parallel_tasks = 2\n\n[[teams]]\nname = \"review\"\nscheduler = \"fan_out\"\nagents = [\"coder\"]\n",
+        );
+
+        let long_prompt = "x".repeat(MAX_DELEGATE_PROMPT_BYTES + 1);
+        let result = facade_schedule_team(dir.path(), "parent-1", "review", &long_prompt);
+
+        assert!(
+            matches!(result, Err(ScheduleTeamError::PromptTooLong)),
+            "expected PromptTooLong, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn schedule_team_rejects_empty_parent_task_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = facade_schedule_team(dir.path(), "", "review", "do something");
+        assert!(
+            matches!(result, Err(ScheduleTeamError::ParentTaskIdRequired)),
+            "expected ParentTaskIdRequired, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn schedule_team_rejects_empty_prompt() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = facade_schedule_team(dir.path(), "parent-1", "review", "");
+        assert!(
+            matches!(result, Err(ScheduleTeamError::PromptRequired)),
+            "expected PromptRequired, got: {result:?}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -579,6 +617,9 @@ pub fn facade_schedule_team(
     }
     if prompt.is_empty() {
         return Err(ScheduleTeamError::PromptRequired);
+    }
+    if prompt.len() > MAX_DELEGATE_PROMPT_BYTES {
+        return Err(ScheduleTeamError::PromptTooLong);
     }
 
     let config = load_agents_config(working_dir)?;
@@ -634,6 +675,8 @@ pub enum ScheduleTeamError {
     ParentTaskIdRequired,
     #[error("prompt_required")]
     PromptRequired,
+    #[error("prompt_too_long")]
+    PromptTooLong,
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
