@@ -75,6 +75,16 @@ impl TuiMode {
         self.persist_current_task_state();
     }
 
+    /// Reload the session-task list from the persisted state file so that
+    /// in-memory state stays consistent after a facade call that writes
+    /// session tasks to disk without going through `current_task` directly.
+    pub(super) fn sync_session_tasks_from_disk(&mut self) {
+        let state_dir = TaskState::state_dir_from(&self.working_dir);
+        if let Ok(saved) = TaskState::load(&state_dir, &self.current_task.id) {
+            self.current_task.session_tasks = saved.session_tasks;
+        }
+    }
+
     pub(super) fn begin_turn_capture(&mut self, input: String) {
         self.reset_turn_capture();
         self.current_turn_input = input;

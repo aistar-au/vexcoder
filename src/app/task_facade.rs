@@ -5,7 +5,7 @@ use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use thiserror::Error;
 
-use crate::agents::{load_agents_config, IsolationPolicy};
+use crate::agents::{load_agents_config, IsolationPolicy, TeamScheduler};
 use crate::app::subtask_orchestrator::SubtaskOrchestrator;
 use crate::runtime::{SessionTask, SessionTaskStatus, TaskState, WorktreeLeaseManager};
 
@@ -17,6 +17,13 @@ use crate::runtime::{SessionTask, SessionTaskStatus, TaskState, WorktreeLeaseMan
 // ---------------------------------------------------------------------------
 const MAX_DELEGATE_PROMPT_BYTES: usize = 65_536;
 const DELEGATE_LOCK_FILE_NAME: &str = ".delegate-session-task.lock";
+
+fn team_scheduler_name(scheduler: TeamScheduler) -> &'static str {
+    match scheduler {
+        TeamScheduler::FanOutJoin => "fan_out_join",
+        TeamScheduler::Sequential => "sequential",
+    }
+}
 
 fn delegate_serialization_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -135,6 +142,7 @@ pub struct FacadeAgentDescriptor {
     pub name: String,
     pub profile: String,
     pub isolation: String,
+    pub max_parallel_tasks: u32,
     pub live_session_tasks: usize,
 }
 
@@ -191,6 +199,7 @@ pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing> {
             .into_iter()
             .map(|agent| FacadeAgentDescriptor {
                 live_session_tasks: live_counts.remove(&agent.name).unwrap_or_default(),
+                max_parallel_tasks: agent.max_parallel_tasks,
                 name: agent.name,
                 profile: agent.profile,
                 isolation: match agent.isolation {
@@ -205,7 +214,7 @@ pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing> {
             .map(|team| FacadeTeamDescriptor {
                 name: team.name,
                 members: team.members,
-                scheduler: format!("{:?}", team.scheduler),
+                scheduler: team_scheduler_name(team.scheduler).to_string(),
             })
             .collect(),
     })
@@ -655,6 +664,76 @@ mod tests {
             "expected remaining schedule_team calls to be rejected by the concurrency cap"
         );
     }
+
+    #[test]
+    fn list_agents_exposes_max_parallel_tasks() {
+        let dir = tempfile::tempdir().unwrap();
+        // worktree isolation allows max_parallel_tasks > 1.
+        write_agents_toml(
+            dir.path(),
+            "[[agents]]\nname = \"coder\"\nisolation = \"worktree\"\nmax_parallel_tasks = 3\n",
+        );
+
+        let listing = facade_list_agents(dir.path()).unwrap();
+        assert!(listing.available, "listing should be available");
+        let agent = &listing.agents[0];
+        assert_eq!(agent.name, "coder");
+        assert_eq!(agent.max_parallel_tasks, 3);
+        assert_eq!(agent.isolation, "worktree");
+    }
+
+    #[test]
+    fn list_agents_normalizes_team_scheduler_to_snake_case() {
+        let dir = tempfile::tempdir().unwrap();
+        write_agents_toml(
+            dir.path(),
+            "[[agents]]\nname = \"a\"\nisolation = \"shared\"\nmax_parallel_tasks = 1\n\n[[teams]]\nname = \"t\"\nscheduler = \"fan_out_join\"\nmembers = [\"a\"]\n",
+        );
+
+        let listing = facade_list_agents(dir.path()).unwrap();
+        assert_eq!(listing.teams[0].scheduler, "fan_out_join");
+    }
+
+    #[test]
+    fn schedule_team_normalizes_scheduler_to_snake_case() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".git")).unwrap();
+        write_agents_toml(
+            dir.path(),
+            "[[agents]]\nname = \"coder\"\nisolation = \"shared\"\nmax_parallel_tasks = 1\n\n[[teams]]\nname = \"review\"\nscheduler = \"fan_out_join\"\nmembers = [\"coder\"]\n",
+        );
+
+        let result = facade_schedule_team(dir.path(), "parent-1", "review", "inspect docs")
+            .expect("team scheduling should succeed");
+
+        assert_eq!(result.scheduler, "fan_out_join");
+    }
+
+    #[test]
+    fn schedule_team_returns_internal_for_unknown_member_reference() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".git")).unwrap();
+        let vex_dir = dir.path().join(".vex");
+        std::fs::create_dir_all(&vex_dir).unwrap();
+        std::fs::write(
+            vex_dir.join("agents.toml"),
+            "[[agents]]\nname = \"coder\"\nisolation = \"shared\"\nmax_parallel_tasks = 1\n\n[[teams]]\nname = \"review\"\nscheduler = \"fan_out_join\"\nmembers = [\"missing\"]\n",
+        )
+        .unwrap();
+
+        let result = facade_schedule_team(dir.path(), "parent-1", "review", "inspect docs");
+
+        match result {
+            Err(ScheduleTeamError::Internal(error)) => {
+                let message = error.to_string();
+                assert!(
+                    message.contains("unknown agent"),
+                    "unexpected internal error message: {message}"
+                );
+            }
+            other => panic!("expected Internal error, got: {other:?}"),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -725,7 +804,13 @@ pub fn facade_schedule_team(
                 .agent_profiles
                 .iter()
                 .find(|agent| agent.name == *member_name)
-                .expect("validated team member should resolve to an agent profile");
+                .ok_or_else(|| {
+                    ScheduleTeamError::Internal(anyhow::anyhow!(
+                        "team '{}' references unknown agent member '{}'",
+                        team_name,
+                        member_name
+                    ))
+                })?;
             let live = *live_counts.get(member_name).unwrap_or(&0);
             if live >= agent.max_parallel_tasks as usize {
                 return Err(ScheduleTeamError::ConcurrencyLimitReached);
@@ -741,7 +826,7 @@ pub fn facade_schedule_team(
         Ok(FacadeScheduleTeamResult {
             parent_task_id: decomp.parent_task_id,
             session_task_ids: decomp.session_task_ids,
-            scheduler: format!("{:?}", decomp.scheduler),
+            scheduler: team_scheduler_name(decomp.scheduler).to_string(),
         })
     })
 }
