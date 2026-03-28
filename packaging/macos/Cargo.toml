@@ -1,0 +1,16 @@
+[package]
+name = "vex-launcher"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "macOS application launcher wrapper for vexcoder (Phase H PH-01/PH-02)"
+# This crate is a packaging-only binary.  It must not import any vexcoder
+# library crates.  All agent logic remains in the main vex binary.
+publish = false
+
+[[bin]]
+name = "vex-launcher"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"

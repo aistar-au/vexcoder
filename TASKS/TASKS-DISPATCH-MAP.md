@@ -21,7 +21,7 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | Accepted | 0 items remaining; all P1/P2/P3 items complete (Tiers 4/6/7 all cleared) |
 | `adr/ADR-022-amendment-2026-03-13.md` | Amended | Amendment only |
 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed (milestone-1 passed) | Post-milestone G/H |
-| `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-milestone complete) | 5 items (all post-milestone; PG-01/PG-02 complete 2026-03-28) |
+| `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-milestone complete) | 1 deferred external item (PG-03 auto-dispatch after tap repo exists); all in-tree G/H work complete 2026-03-28 |
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active | Ongoing boundary alignment; Phase 1, 2, and transport extraction committed; no blocking items |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Accepted | 0 items remaining; all 8 decision items verified in Tier 5 (PR #249) |
 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Accepted | 0 items remaining; all 6 coverage requirements verified in Tier 5 (PR #249) |
@@ -35,9 +35,11 @@ Source of truth: `adr/ADR-README.md`.
 ADR-013, ADR-018, ADR-025, ADR-026, ADR-027 moved to `adr/completed/`.
 ADR-023 is complete (EL-01 through EL-13) and remains in `adr/`.
 
-## Remaining Work Summary (5 items — Tier 8 post-milestone, deferred)
+## Remaining Work Summary (1 deferred external dependency)
 
-Tiers 1–7 and Tier 9 are complete. PG-01 and PG-02 are complete (2026-03-28). Remaining Tier 8 items are explicitly deferred until after milestone-1.
+Tiers 1–9 are complete for in-tree work. The only remaining ADR-024 follow-up
+is PG-03 tap auto-dispatch, which stays deferred until the separate tap
+repository exists.
 
 | Tier | Source | Items | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
@@ -48,7 +50,7 @@ Tiers 1–7 and Tier 9 are complete. PG-01 and PG-02 are complete (2026-03-28). 
 | ~~5~~ | ADR-029/030/032 | ~~3~~ | Complete | Verification of already-implemented work (2026-03-28) |
 | ~~6~~ | ADR-021 P2 | ~~13~~ | Complete (2026-03-28) | All 13 items complete; Items 10/12/14 in this batch; Item 11 addressed |
 | ~~7~~ | ADR-021 P3 | ~~1~~ | Complete (2026-03-28) | Item 33 idle backoff tuning comment added |
-| 8 | ADR-024 G/H + ADR-022 | 5 | Open (deferred; PG-01/PG-02 done 2026-03-28) | Post-milestone release pipeline and packaging |
+| 8 | ADR-024 G/H + ADR-022 | 1 | Deferred (external prerequisite) | Tap repository auto-dispatch after the separate tap repo is created |
 | ~~9~~ | Multiple | ~~1~~ | Complete (2026-03-28) | ADR-028 status verified; ongoing boundary alignment, no blocking items |
 
 ## Immediate Dependency Notes
@@ -74,11 +76,9 @@ moved to `adr/completed/` as of 2026-03-27.
 
 ## Current Next Work Batch
 
-Tiers 1–7 and Tier 9 are complete. PG-01 and PG-02 are complete (2026-03-28).
-The remaining Tier 8 work is 5 post-milestone items for release pipeline,
-packaging, and macOS app layer (ADR-024 G/H + ADR-022 Decision 11) — all
-explicitly deferred until after milestone-1. See `TASKS/ACTIVE-ROADMAP.md`
-for the breakdown.
+Tiers 1–9 are complete for in-tree work. The only deferred follow-up is PG-03
+tap auto-dispatch, which depends on the separate tap repository existing first.
+See `TASKS/ACTIVE-ROADMAP.md` for the current breakdown.
 
 ## Tracking Notes
 

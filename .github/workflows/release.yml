@@ -138,10 +138,119 @@ jobs:
             dist/*.sha256
           if-no-files-found: error
 
+  # Phase H (PH-03): macOS app bundle, code signing, notarisation, and .dmg.
+  # Runs on the Apple Silicon runner after the build job produces the
+  # aarch64-apple-darwin artifact.  A separate x86_64 .dmg is produced for
+  # Intel Macs.  Both run in parallel as separate matrix entries.
+  macos-pkg:
+    name: macOS package (${{ matrix.target }})
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-15
+          - target: x86_64-apple-darwin
+            runner: macos-15-intel
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Download build artifact for ${{ matrix.target }}
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist-input
+
+      - name: Extract vex binary
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          ARCHIVE="$(find dist-input -maxdepth 1 -name "vex-*-${TARGET}.tar.gz" -type f | head -1)"
+          if [[ -z "${ARCHIVE}" ]]; then
+            echo "FAIL: could not find release archive for ${TARGET} in dist-input" >&2
+            find dist-input -maxdepth 2 -type f | sort >&2
+            exit 1
+          fi
+
+          PACKAGE_DIR="$(basename "${ARCHIVE}" .tar.gz)"
+          tar -xzf "${ARCHIVE}" -C dist
+
+          # scripts/release.sh stages the binary under dist/<package-dir>/vex.
+          VEX_BIN="dist/${PACKAGE_DIR}/vex"
+          if [[ ! -f "${VEX_BIN}" ]]; then
+            echo "FAIL: vex binary not found after extracting ${ARCHIVE}" >&2
+            find dist -maxdepth 3 -type f | sort >&2
+            exit 1
+          fi
+
+          echo "VEX_BIN=${VEX_BIN}" >> "$GITHUB_ENV"
+
+      - name: Build vex-launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release --manifest-path packaging/macos/Cargo.toml
+          echo "LAUNCHER_BIN=packaging/macos/target/release/vex-launcher" >> "$GITHUB_ENV"
+
+      - name: Build app bundle and .dmg
+        shell: bash
+        env:
+          APPLE_DEVELOPER_ID_CERT: ${{ secrets.APPLE_DEVELOPER_ID_CERT }}
+          APPLE_NOTARYTOOL_KEY: ${{ secrets.APPLE_NOTARYTOOL_KEY }}
+          APPLE_NOTARYTOOL_KEY_ID: ${{ secrets.APPLE_NOTARYTOOL_KEY_ID }}
+          APPLE_NOTARYTOOL_ISSUER: ${{ secrets.APPLE_NOTARYTOOL_ISSUER }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+
+          if [[ -n "${APPLE_NOTARYTOOL_KEY:-}" ]] && [[ ! -f "${APPLE_NOTARYTOOL_KEY}" ]]; then
+            key_file="${RUNNER_TEMP}/apple-notarytool-key-${TARGET}.p8"
+            printf '%s' "${APPLE_NOTARYTOOL_KEY}" > "${key_file}"
+            chmod 600 "${key_file}"
+            export APPLE_NOTARYTOOL_KEY="${key_file}"
+          fi
+
+          bash packaging/macos/build-app.sh \
+            "${VEX_BIN}" \
+            "${LAUNCHER_BIN}" \
+            "${TAG}"
+
+      - name: Rename .dmg with target suffix
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          SRC="dist/vex-${TAG}-macos.dmg"
+          DST="dist/vex-${TAG}-${TARGET}.dmg"
+          mv "${SRC}" "${DST}"
+          shasum -a 256 "${DST}" > "${DST}.sha256"
+
+      - name: Upload .dmg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-dmg-${{ matrix.target }}
+          path: |
+            dist/*.dmg
+            dist/*.dmg.sha256
+          if-no-files-found: error
+
   sign:
     name: sign artifacts
     if: startsWith(github.ref, 'refs/tags/')
-    needs: build
+    needs: [build, macos-pkg]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -162,7 +271,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for f in dist/*.tar.gz dist/*.zip; do
+          # Sign compressed archives (.tar.gz, .zip) and macOS disk images (.dmg).
+          for f in dist/*.tar.gz dist/*.zip dist/*.dmg; do
             [ -f "$f" ] || continue
             cosign sign-blob "$f" \
               --bundle "${f}.sigstore.json" \
@@ -215,6 +325,9 @@ jobs:
             dist/*.zip
             dist/*.zip.sha256
             dist/*.zip.sigstore.json
+            dist/*.dmg
+            dist/*.dmg.sha256
+            dist/*.dmg.sigstore.json
           if-no-files-found: error
 
   release:
@@ -281,6 +394,9 @@ jobs:
             dist/*.zip
             dist/*.zip.sha256
             dist/*.zip.sigstore.json
+            dist/*.dmg
+            dist/*.dmg.sha256
+            dist/*.dmg.sigstore.json
           )
           files+=("${changelog}")
 

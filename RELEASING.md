@@ -23,12 +23,12 @@ tags, archive names, and release artifacts derive from this single source.
 ### Pre-release progression
 
 ```
-0.1.0-alpha.1 -> 0.1.0-alpha.2 -> ... -> 0.1.0-beta.1 -> 0.1.0-beta.2 -> 0.1.0-beta.3 -> 0.1.0-beta.4 -> 0.1.0-beta.6 -> 0.1.0-rc.1 -> 0.1.0
+0.1.0-alpha.1 -> 0.1.0-alpha.2 -> ... -> 0.1.0-beta.1 -> 0.1.0-beta.2 -> 0.1.0-beta.3 -> 0.1.0-beta.4 -> 0.1.0-beta.9 -> 0.1.0-rc.1 -> 0.1.0
 ```
 
 Pre-release versions use dot-separated numeric identifiers after the
 pre-release label. This ensures correct semver precedence ordering:
-`0.1.0-alpha.2 < 0.1.0-alpha.3 < 0.1.0-beta.1 < 0.1.0-beta.2 < 0.1.0-beta.3 < 0.1.0-beta.4 < 0.1.0-beta.6 < 0.1.0-rc.1 < 0.1.0`.
+`0.1.0-alpha.2 < 0.1.0-alpha.3 < 0.1.0-beta.1 < 0.1.0-beta.2 < 0.1.0-beta.3 < 0.1.0-beta.4 < 0.1.0-beta.9 < 0.1.0-rc.1 < 0.1.0`.
 
 ---
 
@@ -41,7 +41,7 @@ pre-release label. This ensures correct semver precedence ordering:
   fails after the tag is published, land the fix and cut the next prerelease
   or patch tag instead of retagging an existing version.
 - Tag names must match the `Cargo.toml` version exactly (with the `v` prefix):
-  if `Cargo.toml` says `0.1.0-beta.6`, the tag is `v0.1.0-beta.6`.
+  if `Cargo.toml` says `0.1.0-beta.9`, the tag is `v0.1.0-beta.9`.
 
 ### Creating a tag
 
@@ -53,10 +53,10 @@ git pull --ff-only origin main
 grep '^version' Cargo.toml
 
 # Create an annotated tag
-git tag -a v0.1.0-beta.6 -m "Release v0.1.0-beta.6"
+git tag -a v0.1.0-beta.9 -m "Release v0.1.0-beta.9"
 
 # Push the tag
-git push origin v0.1.0-beta.6
+git push origin v0.1.0-beta.9
 ```
 
 ---
@@ -94,11 +94,12 @@ git push origin v0.1.0-beta.6
 
 10. Verify the tag exists on the remote:
     ```bash
-  git ls-remote --tags origin | grep v0.1.0-beta.6
+  git ls-remote --tags origin | grep v0.1.0-beta.9
     ```
 11. Confirm `.github/workflows/release.yml` completed successfully for the tag.
 12. Verify the workflow published the release entry, attached the platform
-  archives, and uploaded the matching `CHANGELOG-v0.1.0-beta.6.md` asset.
+  archives, the macOS `.dmg` assets, and the matching
+  `CHANGELOG-v0.1.0-beta.9.md` asset.
 
 ---
 
@@ -149,7 +150,7 @@ The `version-bump` workflow (`.github/workflows/version-bump.yml`) is a
 manual dispatch workflow that automates the version bump process:
 
 1. Go to **Actions > version-bump > Run workflow**.
-2. Enter the new version (e.g. `0.1.0-beta.6`). No `v` prefix.
+2. Enter the new version (e.g. `0.1.0-beta.9`). No `v` prefix.
 3. The workflow runs `scripts/bump-version.sh`, commits the changes, and
    opens a PR targeting `main`.
 4. Review and merge the PR.
@@ -169,14 +170,18 @@ The workflow:
    macOS x86\_64 + aarch64, Windows MSVC + GNU).
   The tag workflow packages both Windows variants from the already-validated
   commit and does not re-run the full Windows gate inside the packaging step.
+  It also assembles per-architecture macOS `.dmg` bundles from the reviewed
+  binaries. When Apple signing credentials are absent, the packaging lane still
+  publishes clearly labelled unsigned development builds rather than skipping
+  the macOS artifacts silently.
 2. Signs archives with Sigstore cosign (keyless OIDC-backed bundles).
 3. Generates release notes from the previous semver tag to the pushed tag.
 4. Creates new release entries with the full asset set in a single publish
   step so immutable releases are populated on first publish, and verifies
   existing releases already contain the expected asset set before treating a
   re-run as complete.
-5. Attaches all archives, checksums, signature bundles, and a generated
-  `CHANGELOG-<tag>.md` asset.
+5. Attaches all archives, macOS `.dmg` assets, checksums, signature bundles,
+  and a generated `CHANGELOG-<tag>.md` asset.
 6. Pre-release tags (containing `alpha`, `beta`, or `rc`) are
    automatically marked as pre-releases.
 
@@ -189,6 +194,12 @@ next prerelease or patch tag instead of moving the existing tag.
 The packaging scripts in `scripts/` derive the archive name from
 `Cargo.toml` and reject mismatched tag inputs to prevent version drift
 between the binary and the tag.
+
+The package-manager tap formula template lives in `packaging/homebrew/vex.rb`.
+After a tagged release publishes `checksums.txt`, run
+`scripts/update_homebrew_formula.py <tag>` to materialize the formula for the
+separate tap repository. Automatic repository-dispatch remains deferred until
+that tap repository exists.
 
 ---
 
