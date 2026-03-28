@@ -1008,10 +1008,7 @@ pub fn facade_update_session_task_status(
 fn session_task_to_snapshot(task: SessionTask) -> FacadeSessionTaskSnapshot {
     FacadeSessionTaskSnapshot {
         lifecycle_state: task.lifecycle_state.to_string(),
-        worktree_path: task
-            .worktree_path
-            .as_ref()
-            .map(|p| p.display().to_string()),
+        worktree_path: task.worktree_path.as_ref().map(|p| p.display().to_string()),
         started_at_ms: task.started_at,
         updated_at_ms: task.updated_at,
         handoff_summary: task.handoff_summary,

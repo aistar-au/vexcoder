@@ -647,7 +647,7 @@ fn agents_toml_shared() -> &'static str {
     r#"
 [[agents]]
 name = "reviewer"
-isolation = "shared"
+isolation = "worktree"
 max_parallel_tasks = 2
 "#
 }
@@ -664,9 +664,8 @@ async fn delegate_one(router: axum::Router, parent_id: &str, temp: &std::path::P
     // Re-build a fresh router for each oneshot call so we can reuse the
     // working_dir without clone issues.
     let _ = temp; // used by caller to ensure lifetime
-    let body = format!(
-        r#"{{"parent_task_id":"{parent_id}","agent_id":"reviewer","prompt":"task"}}"#
-    );
+    let body =
+        format!(r#"{{"parent_task_id":"{parent_id}","agent_id":"reviewer","prompt":"task"}}"#);
     let response = router
         .oneshot(
             Request::builder()
@@ -715,7 +714,8 @@ async fn test_list_tasks_returns_parent_tasks() {
     let tasks: Value = serde_json::from_slice(&body).unwrap();
     let arr = tasks.as_array().unwrap();
     assert!(
-        arr.iter().any(|t| t.get("id") == Some(&Value::String("list-parent".into()))),
+        arr.iter()
+            .any(|t| t.get("id") == Some(&Value::String("list-parent".into()))),
         "expected list-parent in /v1/tasks response"
     );
 }
@@ -724,12 +724,7 @@ async fn test_list_tasks_returns_parent_tasks() {
 async fn test_list_session_tasks_returns_all_session_tasks() {
     let temp = tempfile::tempdir().unwrap();
 
-    let st_id = delegate_one(
-        setup_phase_e_router(temp.path()),
-        "lst-parent",
-        temp.path(),
-    )
-    .await;
+    let st_id = delegate_one(setup_phase_e_router(temp.path()), "lst-parent", temp.path()).await;
 
     let router = setup_phase_e_router(temp.path());
     let response = router
@@ -756,12 +751,7 @@ async fn test_list_session_tasks_returns_all_session_tasks() {
 async fn test_get_session_task_returns_detail() {
     let temp = tempfile::tempdir().unwrap();
 
-    let st_id = delegate_one(
-        setup_phase_e_router(temp.path()),
-        "get-parent",
-        temp.path(),
-    )
-    .await;
+    let st_id = delegate_one(setup_phase_e_router(temp.path()), "get-parent", temp.path()).await;
 
     let router = setup_phase_e_router(temp.path());
     let response = router
@@ -807,12 +797,7 @@ async fn test_get_session_task_returns_not_found_for_unknown_id() {
 async fn test_update_session_task_status_transitions_to_running() {
     let temp = tempfile::tempdir().unwrap();
 
-    let st_id = delegate_one(
-        setup_phase_e_router(temp.path()),
-        "upd-parent",
-        temp.path(),
-    )
-    .await;
+    let st_id = delegate_one(setup_phase_e_router(temp.path()), "upd-parent", temp.path()).await;
 
     let router = setup_phase_e_router(temp.path());
     let response = router
@@ -839,12 +824,7 @@ async fn test_update_session_task_status_transitions_to_running() {
 async fn test_update_session_task_status_rejects_invalid_status_string() {
     let temp = tempfile::tempdir().unwrap();
 
-    let st_id = delegate_one(
-        setup_phase_e_router(temp.path()),
-        "inv-parent",
-        temp.path(),
-    )
-    .await;
+    let st_id = delegate_one(setup_phase_e_router(temp.path()), "inv-parent", temp.path()).await;
 
     let router = setup_phase_e_router(temp.path());
     let response = router

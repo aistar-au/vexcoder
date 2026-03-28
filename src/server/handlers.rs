@@ -541,8 +541,7 @@ pub struct UpdateSessionTaskStatusRequest {
 pub async fn list_tasks_handler(
     State(state): State<LocalApiState>,
 ) -> Result<Json<Vec<TaskSummaryResponse>>, (StatusCode, Json<ControlResponse>)> {
-    let summaries =
-        facade_list_tasks(&state.config.working_dir).map_err(internal_anyhow)?;
+    let summaries = facade_list_tasks(&state.config.working_dir).map_err(internal_anyhow)?;
     Ok(Json(
         summaries
             .into_iter()
@@ -562,8 +561,7 @@ pub async fn list_tasks_handler(
 pub async fn list_session_tasks_handler(
     State(state): State<LocalApiState>,
 ) -> Result<Json<Vec<SessionTaskSnapshotResponse>>, (StatusCode, Json<ControlResponse>)> {
-    let tasks =
-        facade_list_session_tasks(&state.config.working_dir).map_err(internal_anyhow)?;
+    let tasks = facade_list_session_tasks(&state.config.working_dir).map_err(internal_anyhow)?;
     Ok(Json(tasks.into_iter().map(snapshot_to_response).collect()))
 }
 
@@ -572,8 +570,7 @@ pub async fn get_session_task_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
 ) -> Result<Json<SessionTaskSnapshotResponse>, (StatusCode, Json<ControlResponse>)> {
-    let snap =
-        facade_get_session_task(&state.config.working_dir, &id).map_err(internal_anyhow)?;
+    let snap = facade_get_session_task(&state.config.working_dir, &id).map_err(internal_anyhow)?;
     match snap {
         Some(s) => Ok(Json(snapshot_to_response(s))),
         None => Err(not_found("session_task_not_found")),
@@ -589,9 +586,7 @@ pub async fn update_session_task_status_handler(
     match facade_update_session_task_status(&state.config.working_dir, &id, &body.status) {
         Ok(snap) => Ok(Json(snapshot_to_response(snap))),
         Err(SessionTaskStatusError::NotFound) => Err(not_found("session_task_not_found")),
-        Err(SessionTaskStatusError::InvalidStatus) => {
-            Err(bad_request("invalid_status"))
-        }
+        Err(SessionTaskStatusError::InvalidStatus) => Err(bad_request("invalid_status")),
         Err(SessionTaskStatusError::TransitionNotAllowed) => {
             Err(conflict("transition_not_allowed"))
         }
