@@ -176,9 +176,24 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          tar -xzf dist-input/vex-*-"${TARGET}".tar.gz -C dist
-          # The archive unpacks a single `vex` binary at the root of dist/.
-          VEX_BIN="$(find dist -maxdepth 1 -name vex -type f | head -1)"
+          ARCHIVE="$(find dist-input -maxdepth 1 -name "vex-*-${TARGET}.tar.gz" -type f | head -1)"
+          if [[ -z "${ARCHIVE}" ]]; then
+            echo "FAIL: could not find release archive for ${TARGET} in dist-input" >&2
+            find dist-input -maxdepth 2 -type f | sort >&2
+            exit 1
+          fi
+
+          PACKAGE_DIR="$(basename "${ARCHIVE}" .tar.gz)"
+          tar -xzf "${ARCHIVE}" -C dist
+
+          # scripts/release.sh stages the binary under dist/<package-dir>/vex.
+          VEX_BIN="dist/${PACKAGE_DIR}/vex"
+          if [[ ! -f "${VEX_BIN}" ]]; then
+            echo "FAIL: vex binary not found after extracting ${ARCHIVE}" >&2
+            find dist -maxdepth 3 -type f | sort >&2
+            exit 1
+          fi
+
           echo "VEX_BIN=${VEX_BIN}" >> "$GITHUB_ENV"
 
       - name: Build vex-launcher
