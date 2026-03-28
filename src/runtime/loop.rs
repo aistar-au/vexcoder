@@ -10,6 +10,10 @@ pub struct Runtime<M: RuntimeMode> {
 }
 
 const IDLE_RENDER_TICK: Duration = Duration::from_millis(120);
+// Tuning note (ADR-021 Item 33): effective idle cadence is bounded by the
+// frontend poll interval (16ms in tui_frontend.rs), so the practical idle
+// rate is around 62Hz regardless of this value. Re-evaluate via profiling
+// before reducing further.
 const IDLE_LOOP_BACKOFF: Duration = Duration::from_millis(4);
 
 impl<M: RuntimeMode> Runtime<M> {

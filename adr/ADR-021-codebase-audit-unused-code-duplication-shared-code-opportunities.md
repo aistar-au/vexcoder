@@ -96,10 +96,11 @@ git diff --numstat -- src/ui/editor.rs src/app.rs src/bin/vex.rs src/ui.rs src/u
 ## P2 — Live Duplication Claims
 
 ### 9) Tool error dispatch block repeated in conversation core
-- **Status**: **Confirmed**
+- **Status**: **Completed (2026-03-28)**
 - **Note**:
-  - Multiple branches in `src/state/conversation/core.rs` repeat similar
-    emit/format/truncate/push patterns.
+  - `emit_tool_error` helper added to `src/state/conversation/core.rs`;
+    consolidates the repeated emit/truncate/push tail across the four
+    sequential-path guard branches and the denial branch (5 call sites).
 
 ### 10) Scroll handling duplication in app state
 - **Status**: **Confirmed**
@@ -117,9 +118,11 @@ git diff --numstat -- src/ui/editor.rs src/app.rs src/bin/vex.rs src/ui.rs src/u
   - `history_row_style` and `styled_diff_line` in `src/ui/render.rs`.
 
 ### 13) `required_tool_string*` variants are mostly overlapping
-- **Status**: **Confirmed**
+- **Status**: **Completed (2026-03-28)**
 - **Evidence**:
-  - Related helpers in `src/state/conversation/tools.rs`.
+  - `required_tool_string` now delegates to `required_tool_string_any` with a
+    single-key slice, removing the duplicated get/trim/bail logic.
+  - Both functions trim via `str::trim`; consolidation is safe.
 
 ### 14) Auto-follow reconciliation repeated outside shared helper
 - **Status**: **Confirmed**
@@ -218,7 +221,7 @@ git diff --numstat -- src/runtime/loop.rs
   - Add explicit parse-error propagation path to `UiUpdate::Error`.
 
 ### 20) `edit_file` race condition (read-modify-write window)
-- **Status**: **Partially accurate**
+- **Status**: **Completed (2026-03-28)**
 - **Evidence**:
   - `src/tools/operator.rs::edit_file` performs read/validate/write sequence.
   - A concurrent external writer can race between read and write.
@@ -227,8 +230,9 @@ git diff --numstat -- src/runtime/loop.rs
     TOCTOU class risk.
 - **Priority**: **P2**
 - **Follow-up**:
-  - Evaluate optional lock/atomic-write strategy if multi-writer scenarios are
-    in scope.
+  - Structured comment added above the read-validate-write sequence documenting
+    the TOCTOU risk and the advisory-lock/O_EXCL path to take if multi-writer
+    scenarios are added.
 
 ### 21) “Unhandled `git` command panics” in `ToolOperator::run_git`
 - **Status**: **Not accurate (current tree)**
@@ -260,30 +264,27 @@ git diff --numstat -- src/runtime/loop.rs
 - **Priority**: **N/A**
 
 ### 24) Startup event draining and paste-noise heuristics
-- **Status**: **Partially accurate**
+- **Status**: **Completed (2026-03-28)**
 - **Evidence**:
-  - `src/bin/vex.rs::drain_startup_events` and
-    `should_ignore_startup_paste` are heuristic/best-effort filters.
-  - They can trade off occasional false-positive drops against transcript-noise
-    suppression.
+  - `should_ignore_startup_paste` and `should_ignore_startup_submission` in
+    `src/tui_frontend.rs` are heuristic/best-effort filters.
+  - `startup_filter_active()` helper added; reads `VEX_DISABLE_STARTUP_FILTER=1`
+    env var to disable both filters for observability.
 - **Priority**: **P2**
-- **Follow-up**:
-  - Keep behavior, but add telemetry/debug counters or explicit opt-out env
-    switch if false positives are observed in practice.
 
 ### 25) Late `StreamDelta` dropped when no active turn slot
-- **Status**: **Partially accurate**
+- **Status**: **Completed (2026-03-28)**
 - **Evidence**:
-  - `src/app.rs::on_model_update` drops `UiUpdate::StreamDelta` when
+  - `src/app/model_update.rs` drops `UiUpdate::StreamDelta` when
     `active_assistant_index` is `None` and `turn_in_progress` is false.
   - This is intentional stale-delta protection after cancel/complete, but can
     discard straggler data from delayed streams.
 - **Priority**: **P2**
 - **Follow-up**:
-  - Keep current guard; consider debug-only observability for dropped stale
-    deltas if field reports indicate truncation symptoms.
+  - Guard is preserved; debug observability added under `#[cfg(debug_assertions)]`
+    that emits a line to stderr when a stale delta is dropped.
 - **ADR note**:
-  - This is intentional stale-delta protection, so it is not currently treated
+  - This is intentional stale-delta protection, so it is not treated
     as a hard ADR-009 contract break.
 
 ### 26) SSE parser buffer can grow unbounded without frame delimiter
@@ -311,7 +312,7 @@ git diff --numstat -- src/runtime/loop.rs
   - Related stale-delta behavior remains tracked in item 25.
 
 ### 28) Read-only intent heuristic can produce false positives
-- **Status**: **Partially accurate**
+- **Status**: **Completed (2026-03-28)**
 - **Evidence**:
   - `src/state/conversation/tools.rs::is_read_only_user_request` uses keyword
     heuristics over read-only/mutating hint sets.
@@ -319,8 +320,10 @@ git diff --numstat -- src/runtime/loop.rs
     checks.
 - **Priority**: **P2**
 - **Follow-up**:
-  - Keep guard as default safety net; refine with stronger disambiguation or
-    explicit user/model override path.
+  - Guard is preserved as default safety net; `VEX_FORCE_MUTATING_TURN=1` env
+    override added so operators can bypass the heuristic when needed.
+  - Unit test `test_vex_force_mutating_turn_overrides_heuristic` added to
+    `src/state/conversation/tools.rs`.
 
 ### 29) `append_incremental_suffix` overlap algorithm cost on large deltas
 - **Status**: **Completed (2026-02-24 via PR #16 / run-2026-02-24-040000)**
@@ -351,26 +354,30 @@ git diff --numstat -- src/runtime/loop.rs
 - **Priority**: **Closed**
 
 ### 32) `KeyEventKind::Release` filtering portability concern
-- **Status**: **Partially accurate**
+- **Status**: **Completed (earlier; confirmed 2026-03-28)**
 - **Evidence**:
-  - `src/bin/vex.rs` ignores `KeyEventKind::Release`.
-  - Behavior can vary by terminal/backend; however, current filtering does not
+  - Filter is present in `src/tui_frontend.rs` at line 736:
+    `if key.kind == KeyEventKind::Release { return None; }`.
+  - ADR-021 item referenced `src/bin/vex.rs` but the live code is in
+    `src/tui_frontend.rs`; behavior is correct.
+  - Behavior can vary by terminal/backend; current filtering does not
     imply guaranteed double-processing by itself.
-- **Priority**: **P2**
+- **Priority**: **P2** (closed)
 - **Follow-up**:
   - Keep current behavior; add backend-specific regression coverage if field
     reports show duplicate/missed key handling.
 
 ### 33) Idle backoff tuning claim (`IDLE_LOOP_BACKOFF=4ms`)
-- **Status**: **Partially accurate**
+- **Status**: **Completed (2026-03-28)**
 - **Evidence**:
   - Runtime now uses tick/state-driven rendering (P0.17 complete).
   - Effective idle cadence is also bounded by frontend polling
-    (`event::poll(16ms)` in `src/bin/vex.rs`), so the practical loop rate is
-    not 250Hz as claimed.
-- **Priority**: **P3**
+    (`event::poll(16ms)` in `src/tui_frontend.rs`), so the practical loop rate
+    is around 62Hz regardless of `IDLE_LOOP_BACKOFF`.
+- **Priority**: **P3** (closed)
 - **Follow-up**:
-  - Treat as tuning; re-evaluate `IDLE_LOOP_BACKOFF` via profiling data.
+  - Tuning comment added to `IDLE_LOOP_BACKOFF` in `src/runtime/loop.rs`
+    noting the 62Hz cap and the requirement to profile before reducing further.
 
 ### 34) Non-sequential block-index divergence / out-of-bounds claim
 - **Status**: **Not accurate (current tree)**

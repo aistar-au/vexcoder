@@ -14,7 +14,7 @@ Last updated: 2026-03-28
 
 | ADR | Status | Remaining items | Dependency note |
 | :--- | :--- | :--- | :--- |
-| ADR-021 | Accepted | 9 (0 P1, 8 P2, 1 P3) | Tier 4 P1 items resolved (Items 8/18/19/26); Items 15+22 completed in Tier 5 verification; P2 and P3 remain |
+| ADR-021 | Accepted | 4 (0 P1, 4 P2, 0 P3) | Tier 6 batch completed Items 9/13/20/24/25/28/32/33; Items 15 and 22 were already complete; Items 10/11/12/14 remain (larger refactors, deferred) |
 | ADR-022 amendment | Amended | Amendment only | Tightens milestone-1 command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
 | ADR-024 | Proposed (pre-milestone complete) | 7 items (all post-milestone) | PA–PM and PP done; PG/PH post-milestone deferred |
@@ -39,7 +39,7 @@ Last updated: 2026-03-28
 
 ---
 
-## Remaining Work: 25 Items Across 5 Active Tiers
+## Remaining Work: 12 Items Across 3 Active Tiers
 
 Tiers sorted by unblocking impact -- what, if implemented first, unblocks
 the most downstream work.
@@ -50,11 +50,11 @@ PRs 231, 232, 233, 234 all merged to main.
 
 ### ~~Tier 2 -- Sandbox and MCP Completion (ADR-024)~~ (cleared 2026-03-27)
 
-PD-02, PD-03 (PR 231), PF-01, PF-02 (PR 232), PI-06, PI-07 (this PR) all complete.
+PD-02, PD-03 (PR 231), PF-01, PF-02 (PR 232), and PI-06/PI-07 are complete.
 
 ### ~~Tier 3 -- Workspace Tools and MCP Extensions (ADR-024)~~ (cleared 2026-03-27)
 
-PP-01 (`list_dir`, `glob_files`, gitignore-aware `search_files`) merged in this PR.
+PP-01 (`list_dir`, `glob_files`, gitignore-aware `search_files`) is complete.
 PM-02 (MCP HTTP headers env-var substitution) merged in PR 236.
 PI-08 (`/plan`, `/context`) merged in ADR-023 batch.
 
@@ -70,33 +70,33 @@ PI-08 (`/plan`, `/context`) merged in ADR-023 batch.
 
 ### ~~Tier 5 -- Verification and Governance~~ (cleared 2026-03-28)
 
-All 3 verification items confirmed in-tree:
+All 4 verification items confirmed in-tree:
 - ADR-029: All 8 decision items verified present (StreamEvent, ContentBlock, Delta, ApiUsage, MessageDelta, MessageStartData, chat-completions, TaskState)
 - ADR-030: All 6 coverage requirements have named tests in the tree
 - ADR-032: Items 4 (character count indicator) and 5 (focus indicator) verified implemented in src/ui/draw/mod.rs
 - ADR-031/ADR-032/docs: fullscreen composer auto-fit behavior documented consistently for live row/column resize and snapped terminal layouts
 
-### Tier 6 -- Code Quality (ADR-021 P2) -- 11 items
+### Tier 6 -- Code Quality (ADR-021 P2) -- 13 tracked items (9 done; 4 remain)
 
 Duplication removal, race condition fixes, and design follow-ups.
 
-- Item 9: Tool error dispatch block repeated
+- ~~Item 9: Tool error dispatch block repeated~~ (done 2026-03-28; `emit_tool_error` helper added in core.rs)
 - Item 10: Scroll handling duplication
 - Item 11: Approval input parsing duplicated
 - Item 12: Diff row styling logic duplicated
-- Item 13: required_tool_string variants overlapping
-- Item 14: Auto-follow reconciliation repeated
+- ~~Item 13: required_tool_string variants overlapping~~ (done 2026-03-28; `required_tool_string` delegates to `required_tool_string_any`)
+- Item 14: Auto-follow behavior duplication
 - ~~Item 15: MAX_INPUT_PANE_ROWS not applied in prod~~ (done 2026-03-28; fullscreen composer now auto-fits within the live terminal viewport)
-- Item 20: edit_file TOCTOU race condition
+- ~~Item 20: edit_file TOCTOU race condition~~ (done 2026-03-28; TOCTOU risk documented with structured comment)
 - ~~Item 22: StreamBlock::ToolCall deltas ignored~~ (done 2026-03-28)
-- Item 24: Startup event draining heuristics
-- Item 25: Late StreamDelta dropped
-- Item 28: Read-only intent heuristic false positives
-- Item 32: KeyEventKind::Release filtering
+- ~~Item 24: Startup event draining heuristics~~ (done 2026-03-28; `VEX_DISABLE_STARTUP_FILTER=1` env gate added)
+- ~~Item 25: Late StreamDelta dropped~~ (done 2026-03-28; debug observability added under `#[cfg(debug_assertions)]`)
+- ~~Item 28: Read-only intent heuristic false positives~~ (done 2026-03-28; `VEX_FORCE_MUTATING_TURN=1` env gate added)
+- ~~Item 32: KeyEventKind::Release filtering~~ (done earlier; confirmed 2026-03-28; filter in tui_frontend.rs)
 
-### Tier 7 -- Tuning (ADR-021 P3) -- 1 item
+### Tier 7 -- Tuning (ADR-021 P3) -- 1 item (done)
 
-- Item 33: IDLE_LOOP_BACKOFF tuning
+- ~~Item 33: IDLE_LOOP_BACKOFF tuning~~ (done 2026-03-28; tuning comment added noting 62Hz practical cap)
 
 ### Tier 8 -- Post-Milestone (ADR-024 G/H + ADR-022) -- 7 items
 
@@ -110,14 +110,14 @@ Explicitly deferred until after milestone-1.
 - PH-03: macOS code signing + notarisation + .dmg
 - ADR-022 Decision 11: Native packaging (post-milestone-1)
 
-### Tier 9 -- Housekeeping -- 3 items (5 of 8 cleared 2026-03-27)
+### Tier 9 -- Housekeeping -- 1 item (7 of 8 cleared 2026-03-28)
 
 ADR-013, ADR-018, ADR-025, ADR-026, ADR-027 moved to completed/.
+ADR-031 status updated to Accepted (Batches A-E merged).
+ADR-033 status updated to Accepted (Phases 1-4 merged).
 
 Remaining:
 - Verify ADR-028 remaining work and update status
-- Update ADR-031 status to reflect all batches A-E merged
-- Update ADR-033 status to reflect all phases 1-4 merged
 
 ---
 

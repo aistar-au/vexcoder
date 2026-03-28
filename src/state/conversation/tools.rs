@@ -845,20 +845,15 @@ pub(super) fn execute_tool_dispatch(
     }
 }
 
+/// Extract a required non-empty string field from tool input by a single key.
+///
+/// Delegates to [`required_tool_string_any`] with a single-key slice.
 pub(super) fn required_tool_string<'a>(
     input: &'a serde_json::Value,
     tool: &str,
     key: &str,
 ) -> Result<&'a str> {
-    let value = input
-        .get(key)
-        .and_then(|v| v.as_str())
-        .map(str::trim)
-        .unwrap_or("");
-    if value.is_empty() {
-        bail!("{tool} requires a non-empty '{key}' string argument");
-    }
-    Ok(value)
+    required_tool_string_any(input, tool, key, &[key])
 }
 
 pub(super) fn first_tool_string<'a>(
@@ -969,6 +964,11 @@ pub(super) fn missing_read_only_location_prompt(
 }
 
 pub(super) fn is_read_only_user_request(input: &str) -> bool {
+    // Env override: VEX_FORCE_MUTATING_TURN=1 treats every turn as mutating,
+    // bypassing the read-only heuristic entirely.
+    if std::env::var("VEX_FORCE_MUTATING_TURN").as_deref() == Ok("1") {
+        return false;
+    }
     const READ_ONLY_HINTS: [&str; 25] = [
         "show",
         "read",
@@ -1210,6 +1210,24 @@ mod tests {
         )
         .expect("diff headers should still identify the blocked source file");
         assert!(message.contains("src/lib.rs"));
+    }
+
+    #[test]
+    fn test_vex_force_mutating_turn_overrides_heuristic() {
+        // Without the env var, "show me the files" is read-only.
+        assert!(
+            is_read_only_user_request("show me the files"),
+            "expected read-only classification without override"
+        );
+
+        // With VEX_FORCE_MUTATING_TURN=1, every turn is treated as mutating.
+        std::env::set_var("VEX_FORCE_MUTATING_TURN", "1");
+        let result = is_read_only_user_request("show me the files");
+        std::env::remove_var("VEX_FORCE_MUTATING_TURN");
+        assert!(
+            !result,
+            "VEX_FORCE_MUTATING_TURN=1 should force mutating classification"
+        );
     }
 }
 

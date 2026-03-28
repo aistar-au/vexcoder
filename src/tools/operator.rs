@@ -239,6 +239,10 @@ impl ToolOperator {
         if resolved.is_dir() {
             bail!("edit_file expected a file path, got a directory: {path}");
         }
+        // TOCTOU note: a concurrent external writer can modify the file between this
+        // read and the subsequent write. For single-user local-agent use this is
+        // acceptable. If multi-writer scenarios are added, replace with an atomic
+        // advisory-lock or O_EXCL write strategy.
         let content = fs::read_to_string(&resolved).context("Failed to read file for edit")?;
 
         if old_str.trim().is_empty() {
