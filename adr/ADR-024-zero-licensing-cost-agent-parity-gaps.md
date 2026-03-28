@@ -1549,10 +1549,10 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PF-02** | `Capability::McpTool` and approval wiring | [x] |
 | **PG-01** | Hosted release workflow — Linux and macOS targets | [x] |
 | **PG-02** | Hosted release workflow — Windows (gnu) target | [x] |
-| **PG-03** | Package-manager tap formula + auto-update dispatch | [ ] |
-| **PH-01** | macOS application layer — process management + terminal surface | [ ] |
-| **PH-02** | macOS application layer — keychain credential storage + env injection | [ ] |
-| **PH-03** | macOS code signing, notarisation, and `.dmg` release attachment | [ ] |
+| **PG-03** | Package-manager tap formula + auto-update dispatch (formula template complete 2026-03-28; auto-update dispatch deferred until the tap repo exists) | [ ] |
+| **PH-01** | macOS application layer — process management + terminal surface | [x] |
+| **PH-02** | macOS application layer — keychain credential storage + env injection | [x] |
+| **PH-03** | macOS code signing, notarisation, and `.dmg` release attachment | [x] |
 | **PI-01** | `/permissions` — renders active_grants table; no model turn | [x] |
 | **PI-02** | `/allow <cap> [once\|session]` — grants capability; enum-derived names; no persist | [x] |
 | **PI-03** | `/deny <cap>` — removes capability from active_grants | [x] |

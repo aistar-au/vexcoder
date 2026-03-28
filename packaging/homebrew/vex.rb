@@ -47,7 +47,7 @@ class Vex < Formula
       Set your model endpoint token before starting vexcoder:
         export VEX_MODEL_TOKEN=<your-token>
 
-      To store the token in the macOS keychain for use with Vex.app:
+      For the native macOS app from the release .dmg, store the token in the macOS keychain:
         security add-generic-password -s vexcoder -a VEX_MODEL_TOKEN -w <token>
 
       Scaffold a new project workspace:

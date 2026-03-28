@@ -98,7 +98,8 @@ git push origin v0.1.0-beta.6
     ```
 11. Confirm `.github/workflows/release.yml` completed successfully for the tag.
 12. Verify the workflow published the release entry, attached the platform
-  archives, and uploaded the matching `CHANGELOG-v0.1.0-beta.6.md` asset.
+  archives, the macOS `.dmg` assets, and the matching
+  `CHANGELOG-v0.1.0-beta.6.md` asset.
 
 ---
 
@@ -169,14 +170,18 @@ The workflow:
    macOS x86\_64 + aarch64, Windows MSVC + GNU).
   The tag workflow packages both Windows variants from the already-validated
   commit and does not re-run the full Windows gate inside the packaging step.
+  It also assembles per-architecture macOS `.dmg` bundles from the reviewed
+  binaries. When Apple signing credentials are absent, the packaging lane still
+  publishes clearly labelled unsigned development builds rather than skipping
+  the macOS artifacts silently.
 2. Signs archives with Sigstore cosign (keyless OIDC-backed bundles).
 3. Generates release notes from the previous semver tag to the pushed tag.
 4. Creates new release entries with the full asset set in a single publish
   step so immutable releases are populated on first publish, and verifies
   existing releases already contain the expected asset set before treating a
   re-run as complete.
-5. Attaches all archives, checksums, signature bundles, and a generated
-  `CHANGELOG-<tag>.md` asset.
+5. Attaches all archives, macOS `.dmg` assets, checksums, signature bundles,
+  and a generated `CHANGELOG-<tag>.md` asset.
 6. Pre-release tags (containing `alpha`, `beta`, or `rc`) are
    automatically marked as pre-releases.
 
@@ -189,6 +194,12 @@ next prerelease or patch tag instead of moving the existing tag.
 The packaging scripts in `scripts/` derive the archive name from
 `Cargo.toml` and reject mismatched tag inputs to prevent version drift
 between the binary and the tag.
+
+The package-manager tap formula template lives in `packaging/homebrew/vex.rb`.
+After a tagged release publishes `checksums.txt`, run
+`scripts/update_homebrew_formula.py <tag>` to materialize the formula for the
+separate tap repository. Automatic repository-dispatch remains deferred until
+that tap repository exists.
 
 ---
 

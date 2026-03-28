@@ -39,10 +39,11 @@ Last updated: 2026-03-28 (tier8-phase-h batch — PG-03, PH-01, PH-02, PH-03; sa
 
 ---
 
-## Remaining Work: 5 Items — Tier 8 Post-Milestone (deferred)
+## Remaining Work: 1 Deferred External Dependency
 
-Tiers sorted by unblocking impact -- what, if implemented first, unblocks
-the most downstream work.
+All tracked in-tree tiers are clear. The only remaining ADR-024 follow-up is
+the PG-03 tap auto-dispatch integration, which stays deferred until the
+separate `homebrew-vex` tap repository exists.
 
 ### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
 
@@ -128,7 +129,7 @@ ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-
 ```
 ADR-022 (Roadmap, milestone-1 passed)
   +-- ADR-023 (Edit Loop) -- COMPLETE (EL-01 through EL-13)
-  +-- ADR-024 (Parity Gaps) -- 7/56 items remaining (all post-milestone PG/PH deferred)
+  +-- ADR-024 (Parity Gaps) -- 1/56 item remaining (tap auto-dispatch deferred pending tap repo creation)
   |     +-- ADR-025 (Handoff Contract) -- COMPLETE
   |     +-- ADR-026 (Transport Binding) -- COMPLETE
   +-- ADR-027 (Command Sessions) -- COMPLETE

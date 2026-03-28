@@ -42,6 +42,11 @@ PLACEHOLDER_MAP = {
 }
 
 
+def exit_with_error(message: str, code: int = 1) -> None:
+    print(message, file=sys.stderr)
+    raise SystemExit(code)
+
+
 def fetch_checksums(version: str) -> dict[str, str]:
     """Fetch the checksums.txt from the GitHub release and parse it.
 
@@ -56,7 +61,7 @@ def fetch_checksums(version: str) -> dict[str, str]:
         with urllib.request.urlopen(url, timeout=30) as resp:
             content = resp.read().decode()
     except Exception as exc:
-        sys.exit(f"error: failed to fetch {url}: {exc}")
+        exit_with_error(f"error: failed to fetch {url}: {exc}")
 
     checksums: dict[str, str] = {}
     for line in content.splitlines():
@@ -84,9 +89,10 @@ def substitute(template: str, version: str, checksums: dict[str, str]) -> str:
         else:
             result = result.replace(placeholder, sha)
     if missing:
-        sys.exit(
+        exit_with_error(
             f"error: checksums missing for targets: {', '.join(missing)}\n"
-            "       ensure the release has a checksums.txt covering all formula targets"
+            "       ensure the release has a checksums.txt covering all formula targets",
+            code=2,
         )
     return result
 
@@ -99,7 +105,7 @@ def main() -> None:
 
     version = args.version
     if not version.startswith("v"):
-        sys.exit("error: version must start with 'v', e.g. v0.1.0-beta.6")
+        exit_with_error("error: version must start with 'v', e.g. v0.1.0-beta.6")
 
     template = FORMULA_TEMPLATE.read_text()
     checksums = fetch_checksums(version)

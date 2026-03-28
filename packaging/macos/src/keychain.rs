@@ -104,7 +104,15 @@ fn read_generic_password(service: &str, account: &str) -> Option<String> {
         let data = result as CFDataRef;
         let len = CFDataGetLength(data) as usize;
         let ptr = CFDataGetBytePtr(data);
-        let bytes = std::slice::from_raw_parts(ptr, len);
+        let bytes: &[u8] = if len == 0 {
+            &[]
+        } else {
+            if ptr.is_null() {
+                CFRelease(result);
+                return None;
+            }
+            std::slice::from_raw_parts(ptr, len)
+        };
         let token = std::str::from_utf8(bytes)
             .ok()
             .map(str::trim)

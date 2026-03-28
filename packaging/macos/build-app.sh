@@ -24,6 +24,8 @@ set -euo pipefail
 VEX_BINARY="${1:?usage: $0 <vex-binary> <launcher-binary> <version>}"
 LAUNCHER_BINARY="${2:?usage: $0 <vex-binary> <launcher-binary> <version>}"
 VERSION="${3:?usage: $0 <vex-binary> <launcher-binary> <version>}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PLIST_VERSION="${VERSION#v}"
 
 APP_NAME="Vex.app"
 BUNDLE_DIR="dist/${APP_NAME}"
@@ -48,8 +50,8 @@ chmod +x "${MACOS_DIR}/vex"
 cp "${LAUNCHER_BINARY}" "${MACOS_DIR}/vex-launcher"
 chmod +x "${MACOS_DIR}/vex-launcher"
 
-# Substitute __VERSION__ in Info.plist and copy it into the bundle.
-sed "s/__VERSION__/${VERSION}/g" packaging/macos/Info.plist > "${CONTENTS}/Info.plist"
+# Substitute a bundle-safe version in Info.plist and copy it into the bundle.
+sed "s/__VERSION__/${PLIST_VERSION}/g" "${SCRIPT_DIR}/Info.plist" > "${CONTENTS}/Info.plist"
 
 echo "[build-app] bundle assembled"
 

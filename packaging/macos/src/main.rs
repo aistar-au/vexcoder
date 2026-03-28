@@ -79,7 +79,7 @@ fn terminal_command(vex_binary: &std::path::Path) -> process::Command {
 
         let script = format!(
             "tell application \"Terminal\"\n\
-             \tdo script \"{path_str}\"\n\
+             	do script quoted form of \"{path_str}\"\n\
              \tactivate\n\
              end tell"
         );
@@ -120,6 +120,32 @@ mod tests {
             assert_eq!(
                 cmd.get_program().to_string_lossy(),
                 "/usr/local/bin/vex"
+            );
+        }
+    }
+
+    #[test]
+    fn terminal_command_quotes_binary_paths_with_spaces() {
+        let cmd = terminal_command(Path::new("/Applications/Vex App/vex"));
+
+        #[cfg(target_os = "macos")]
+        {
+            let args: Vec<_> = cmd
+                .get_args()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect();
+            assert!(
+                args.iter()
+                    .any(|a| a.contains("quoted form of \"/Applications/Vex App/vex\"")),
+                "expected quoted binary path in osascript args: {args:?}"
+            );
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            assert_eq!(
+                cmd.get_program().to_string_lossy(),
+                "/Applications/Vex App/vex"
             );
         }
     }

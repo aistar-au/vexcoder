@@ -6,7 +6,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
 - Total tracked files: 250
-- Last updated: 2026-03-28 (tier8-phase-h batch — PG-03, PH-01/02/03; packaging/macos, packaging/homebrew, scripts/update_homebrew_formula.py added; release.yml macos-pkg job; sandbox wrap tests)
+- Last updated: 2026-03-28 (tier8-phase-h batch — packaging fixes, formula helper exit-code fix, and release/ADR/task doc sync)
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -32,8 +32,8 @@ Canonical raw URL index for every tracked file in this repository.
 | 20 | `LICENSE` | ~17 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/LICENSE> |
 | 21 | `Makefile` | ~269 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Makefile> |
 | 22 | `README.md` | ~21 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/README.md> |
-| 23 | `RELEASING.md` | ~201 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/RELEASING.md> |
-| 24 | `TASKS/ACTIVE-ROADMAP.md` | ~161 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
+| 23 | `RELEASING.md` | ~212 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/RELEASING.md> |
+| 24 | `TASKS/ACTIVE-ROADMAP.md` | ~166 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
 | 25 | `TASKS/PE-01-batch-mode.md` | ~201 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PE-01-batch-mode.md> |
 | 26 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | ~153 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PI-10-PI-12-adr025-phase1-continuation.md> |
 | 27 | `TASKS/PJ-03-memory-notes-injection.md` | ~129 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes-injection.md> |
