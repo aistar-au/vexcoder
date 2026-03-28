@@ -241,26 +241,6 @@ pub(crate) fn apply_bounded_scroll(offset: &mut usize, action: ScrollAction, max
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_apply_bounded_scroll_clamps_to_max() {
-        let mut offset = 3usize;
-        apply_bounded_scroll(&mut offset, ScrollAction::LineDown, 5);
-        assert_eq!(offset, 4);
-        apply_bounded_scroll(&mut offset, ScrollAction::PageDown(10), 5);
-        assert_eq!(offset, 5);
-        apply_bounded_scroll(&mut offset, ScrollAction::LineDown, 5);
-        assert_eq!(offset, 5); // clamped at max
-        apply_bounded_scroll(&mut offset, ScrollAction::Home, 5);
-        assert_eq!(offset, 0);
-        apply_bounded_scroll(&mut offset, ScrollAction::End, 5);
-        assert_eq!(offset, 5);
-    }
-}
-
-#[cfg(test)]
 pub(super) fn input_rows_for_buffer(input: &str, width: usize) -> u16 {
     input_visual_rows(input, width).clamp(1, MAX_INPUT_PANE_ROWS) as u16
 }
@@ -307,5 +287,25 @@ impl RenderGuard {
         } else {
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_apply_bounded_scroll_clamps_to_max() {
+        let mut offset = 3usize;
+        apply_bounded_scroll(&mut offset, ScrollAction::LineDown, 5);
+        assert_eq!(offset, 4);
+        apply_bounded_scroll(&mut offset, ScrollAction::PageDown(10), 5);
+        assert_eq!(offset, 5);
+        apply_bounded_scroll(&mut offset, ScrollAction::LineDown, 5);
+        assert_eq!(offset, 5); // clamped at max
+        apply_bounded_scroll(&mut offset, ScrollAction::Home, 5);
+        assert_eq!(offset, 0);
+        apply_bounded_scroll(&mut offset, ScrollAction::End, 5);
+        assert_eq!(offset, 5);
     }
 }
