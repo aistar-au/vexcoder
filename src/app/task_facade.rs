@@ -427,8 +427,15 @@ mod tests {
         std::fs::write(vex_dir.join("agents.toml"), content).unwrap();
     }
 
+    // TaskState::state_dir_from consults VEX_STATE_DIR, so these tests must
+    // not run concurrently with env-mutating tests elsewhere in the crate.
+    fn env_lock() -> tokio::sync::MutexGuard<'static, ()> {
+        crate::test_support::ENV_LOCK.blocking_lock()
+    }
+
     #[test]
     fn delegate_rejects_prompt_exceeding_max_bytes() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         write_agents_toml(
             dir.path(),
@@ -451,6 +458,7 @@ mod tests {
 
     #[test]
     fn delegate_enforces_max_parallel_tasks() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
         write_agents_toml(
@@ -484,6 +492,7 @@ mod tests {
 
     #[test]
     fn delegate_enforces_max_parallel_tasks_under_parallel_calls() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         write_agents_toml(
             dir.path(),
@@ -536,6 +545,7 @@ mod tests {
 
     #[test]
     fn release_transitions_live_task_to_completed_and_drops_lease() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
 
@@ -569,6 +579,7 @@ mod tests {
 
     #[test]
     fn release_returns_false_for_unknown_session_task_id() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
         std::fs::create_dir_all(TaskState::state_dir_from(dir.path())).unwrap();
@@ -579,6 +590,7 @@ mod tests {
 
     #[test]
     fn watch_snapshot_formats_parent_task_status_with_display_names() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         let state_dir = TaskState::state_dir_from(dir.path());
         std::fs::create_dir_all(&state_dir).unwrap();
@@ -597,6 +609,7 @@ mod tests {
 
     #[test]
     fn schedule_team_rejects_prompt_exceeding_max_bytes() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         write_agents_toml(
             dir.path(),
@@ -614,6 +627,7 @@ mod tests {
 
     #[test]
     fn schedule_team_rejects_empty_parent_task_id() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         let result = facade_schedule_team(dir.path(), "", "review", "do something");
         assert!(
@@ -624,6 +638,7 @@ mod tests {
 
     #[test]
     fn schedule_team_rejects_empty_prompt() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         let result = facade_schedule_team(dir.path(), "parent-1", "review", "");
         assert!(
@@ -634,6 +649,7 @@ mod tests {
 
     #[test]
     fn schedule_team_enforces_max_parallel_tasks() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
         write_agents_toml(
@@ -662,6 +678,7 @@ mod tests {
 
     #[test]
     fn schedule_team_enforces_max_parallel_tasks_under_parallel_calls() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         write_agents_toml(
             dir.path(),
@@ -709,6 +726,7 @@ mod tests {
 
     #[test]
     fn list_agents_exposes_max_parallel_tasks() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         // worktree isolation allows max_parallel_tasks > 1.
         write_agents_toml(
@@ -726,6 +744,7 @@ mod tests {
 
     #[test]
     fn list_agents_normalizes_team_scheduler_to_snake_case() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         write_agents_toml(
             dir.path(),
@@ -738,6 +757,7 @@ mod tests {
 
     #[test]
     fn schedule_team_normalizes_scheduler_to_snake_case() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
         write_agents_toml(
@@ -753,6 +773,7 @@ mod tests {
 
     #[test]
     fn schedule_team_returns_internal_for_unknown_member_reference() {
+        let _env_lock = env_lock();
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
         let vex_dir = dir.path().join(".vex");

@@ -24,8 +24,7 @@ Last updated: 2026-03-29 (adr034-phase-e — LocalApi session-task projection: G
 | ADR-031 | Accepted (all batches A-E merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-032 | Accepted | 0 items remaining | Items 1-8 complete; item 4-5 verified Tier 5; item 9 transferred to ADR-033 |
 | ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
-| ADR-034 | Accepted (all phases A-E merged) | 0 items remaining | All 5 phases merged; PR #259 closes Phase E |
-| ADR-034 | Accepted (all phases A-E merged) | 0 items remaining | Phase E LocalApi session-task projection added; GET /v1/tasks, GET/PATCH /v1/session-tasks routes; SessionTaskStatusError transition guard; PRs 228/229/230/234/256/257/258/259 merged |
+| ADR-034 | Accepted (all phases A-E merged) | 0 items remaining | Phase E LocalApi session-task projection added; GET /v1/tasks, GET/PATCH /v1/session-tasks routes; SessionTaskStatusError transition guard; PR #260 closes Phase E |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
