@@ -907,7 +907,10 @@ impl TuiMode {
                 .session_tasks
                 .iter()
                 .map(|task| {
-                    format!("  {} agent={} status={}", task.id, task.agent_id, task.lifecycle_state)
+                    format!(
+                        "  {} agent={} status={}",
+                        task.id, task.agent_id, task.lifecycle_state
+                    )
                 })
                 .collect();
             for line in lines {
