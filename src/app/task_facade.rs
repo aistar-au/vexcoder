@@ -1,5 +1,8 @@
 use anyhow::Result;
+use fs2::FileExt;
+use std::fs::{File, OpenOptions};
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 use thiserror::Error;
 
 use crate::agents::{load_agents_config, IsolationPolicy};
@@ -11,6 +14,81 @@ use crate::runtime::{SessionTask, SessionTaskStatus, TaskState, WorktreeLeaseMan
 // payloads and request bodies carried through the operator surfaces.
 // ---------------------------------------------------------------------------
 const MAX_DELEGATE_PROMPT_BYTES: usize = 65_536;
+const DELEGATE_LOCK_FILE_NAME: &str = ".delegate-session-task.lock";
+
+fn delegate_serialization_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+fn with_delegate_lock<T>(
+    state_dir: &Path,
+    operation: impl FnOnce() -> std::result::Result<T, DelegateError>,
+) -> std::result::Result<T, DelegateError> {
+    std::fs::create_dir_all(state_dir).map_err(anyhow::Error::from)?;
+
+    let _in_process_guard = delegate_serialization_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let lock_file = open_delegate_lock_file(state_dir)?;
+    lock_file.lock_exclusive().map_err(anyhow::Error::from)?;
+
+    operation()
+}
+
+fn open_delegate_lock_file(state_dir: &Path) -> std::result::Result<File, DelegateError> {
+    OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(state_dir.join(DELEGATE_LOCK_FILE_NAME))
+        .map_err(anyhow::Error::from)
+        .map_err(DelegateError::from)
+}
+
+#[cfg(test)]
+type DelegateRaceHook = std::sync::Arc<dyn Fn() + Send + Sync>;
+
+#[cfg(test)]
+fn delegate_race_hook_slot() -> &'static Mutex<Option<DelegateRaceHook>> {
+    static HOOK: OnceLock<Mutex<Option<DelegateRaceHook>>> = OnceLock::new();
+    HOOK.get_or_init(|| Mutex::new(None))
+}
+
+#[cfg(test)]
+fn run_delegate_race_hook() {
+    let hook = delegate_race_hook_slot()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
+    if let Some(hook) = hook {
+        hook();
+    }
+}
+
+#[cfg(not(test))]
+fn run_delegate_race_hook() {}
+
+#[cfg(test)]
+struct DelegateRaceHookGuard;
+
+#[cfg(test)]
+impl Drop for DelegateRaceHookGuard {
+    fn drop(&mut self) {
+        *delegate_race_hook_slot()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+    }
+}
+
+#[cfg(test)]
+fn install_delegate_race_hook(hook: DelegateRaceHook) -> DelegateRaceHookGuard {
+    *delegate_race_hook_slot()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(hook);
+    DelegateRaceHookGuard
+}
 
 // ---------------------------------------------------------------------------
 // Typed error for facade_delegate_session_task — replaces fragile string
@@ -148,35 +226,54 @@ pub fn facade_delegate_session_task(
         return Err(DelegateError::AgentNotFound);
     };
 
-    // Per-agent concurrency enforcement (ADR-034 §1).
-    // The live count is computed inline from saved task-state files rather
-    // than from a cached counter so that the check remains accurate across
-    // process restarts and concurrent callers.
-    let live_counts = TaskState::live_session_task_counts_from(working_dir)?;
-    let live = *live_counts.get(agent_id).unwrap_or(&0);
-    if live >= agent.max_parallel_tasks as usize {
-        return Err(DelegateError::ConcurrencyLimitReached);
-    }
-
     let state_dir = TaskState::state_dir_from(working_dir);
-    let mut parent_state = TaskState::load(&state_dir, &parent_task_id)
-        .unwrap_or_else(|_| TaskState::new(parent_task_id.clone()));
+    let max_parallel_tasks = agent.max_parallel_tasks as usize;
+    let isolation = agent.isolation;
 
-    let mut session_task = SessionTask::new(parent_task_id.clone(), agent_id, prompt, None);
+    with_delegate_lock(&state_dir, || {
+        // Per-agent concurrency enforcement (ADR-034 §1) must be uninterruptible
+        // with session-task creation so concurrent callers cannot both observe
+        // the same live-count snapshot and over-allocate a shared agent slot.
+        let live_counts = TaskState::live_session_task_counts_from(working_dir)?;
+        let live = *live_counts.get(agent_id).unwrap_or(&0);
+        if live >= max_parallel_tasks {
+            return Err(DelegateError::ConcurrencyLimitReached);
+        }
 
-    if agent.isolation == IsolationPolicy::Worktree {
-        let lease_manager = WorktreeLeaseManager::new(&state_dir);
-        let lease = lease_manager.lease_for_task(&session_task.id, Some(&parent_task_id))?;
-        session_task.worktree_path = Some(lease.path);
-    }
+        run_delegate_race_hook();
 
-    let session_task_id = session_task.id.clone();
-    parent_state.add_session_task(session_task);
-    parent_state.save(&state_dir)?;
+        let mut parent_state = TaskState::load(&state_dir, &parent_task_id)
+            .unwrap_or_else(|_| TaskState::new(parent_task_id.clone()));
 
-    Ok(FacadeDelegateResult {
-        parent_task_id,
-        session_task_id,
+        let mut session_task = SessionTask::new(parent_task_id.clone(), agent_id, prompt, None);
+        let session_task_id = session_task.id.clone();
+
+        if isolation == IsolationPolicy::Worktree {
+            let lease_manager = WorktreeLeaseManager::new(&state_dir);
+            let lease = lease_manager.lease_for_task(&session_task_id, Some(&parent_task_id))?;
+            session_task.worktree_path = Some(lease.path);
+        }
+
+        parent_state.add_session_task(session_task);
+        if let Err(error) = parent_state.save(&state_dir) {
+            if isolation == IsolationPolicy::Worktree {
+                let lease_manager = WorktreeLeaseManager::new(&state_dir);
+                if let Err(lease_err) = lease_manager.release(&session_task_id) {
+                    tracing::error!(
+                        session_task_id = %session_task_id,
+                        save_error = ?error,
+                        lease_error = ?lease_err,
+                        "failed to save parent state and release lease",
+                    );
+                }
+            }
+            return Err(DelegateError::Internal(error));
+        }
+
+        Ok(FacadeDelegateResult {
+            parent_task_id: parent_task_id.clone(),
+            session_task_id,
+        })
     })
 }
 
@@ -187,7 +284,7 @@ pub fn facade_watch_snapshot(working_dir: &Path, id: &str) -> Result<Option<Faca
             id: task_state.id,
             parent_task_id: task_state.parent_task_id,
             agent_id: task_state.agent_id,
-            status: format!("{:?}", task_state.status),
+            status: task_state.status.to_string(),
             worktree_path: task_state
                 .worktree_path
                 .as_ref()
@@ -216,13 +313,16 @@ pub fn facade_watch_snapshot(working_dir: &Path, id: &str) -> Result<Option<Faca
 
 /// Mark a session task as `Completed` and release its worktree lease.
 ///
-/// Returns `true` when the session task was found and transitioned; `false`
-/// when no matching session task exists in any saved task-state file.
+/// Returns `true` when the session task was found; `false` when no matching
+/// session task exists in any saved task-state file.
+///
+/// If the task is in a live state it is transitioned to `Completed` before
+/// the lease is released.  If the task is already in a terminal state
+/// (`Completed`, `Failed`, `Cancelled`) the lease is released without
+/// re-transitioning.
 ///
 /// The caller must not re-use the worktree path after this call returns
-/// successfully.  If the session task was already in a terminal state
-/// (`Completed`, `Failed`, `Cancelled`) the lease is released and the
-/// function returns `true` without re-transitioning.
+/// successfully.
 pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) -> Result<bool> {
     let state_dir = TaskState::state_dir_from(working_dir);
 
@@ -257,6 +357,9 @@ mod tests {
     use super::*;
     use crate::runtime::SessionTask;
     use std::path::PathBuf;
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+    use std::time::Duration;
 
     fn write_agents_toml(dir: &std::path::Path, content: &str) {
         let vex_dir = dir.join(".vex");
@@ -320,6 +423,58 @@ mod tests {
     }
 
     #[test]
+    fn delegate_enforces_max_parallel_tasks_under_parallel_calls() {
+        let dir = tempfile::tempdir().unwrap();
+        write_agents_toml(
+            dir.path(),
+            "[[agents]]\nname = \"worker\"\nisolation = \"shared\"\nmax_parallel_tasks = 1\n",
+        );
+
+        let _race_hook = install_delegate_race_hook(Arc::new(|| {
+            thread::sleep(Duration::from_millis(150));
+        }));
+
+        let worker_count = 8;
+        let barrier = Arc::new(Barrier::new(worker_count));
+        let working_dir = dir.path().to_path_buf();
+        let mut handles = Vec::new();
+
+        for _ in 0..worker_count {
+            let barrier = Arc::clone(&barrier);
+            let working_dir = working_dir.clone();
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+                facade_delegate_session_task(
+                    &working_dir,
+                    Some("parent-race".to_string()),
+                    "worker",
+                    "inspect docs",
+                )
+            }));
+        }
+
+        let mut successes = 0;
+        let mut limit_rejections = 0;
+        for handle in handles {
+            match handle.join().unwrap() {
+                Ok(_) => successes += 1,
+                Err(DelegateError::ConcurrencyLimitReached) => limit_rejections += 1,
+                Err(other) => panic!("unexpected delegate result: {other:?}"),
+            }
+        }
+
+        assert_eq!(
+            successes, 1,
+            "expected exactly one successful delegate call"
+        );
+        assert_eq!(
+            limit_rejections,
+            worker_count - 1,
+            "expected remaining delegates to be rejected by the concurrency cap"
+        );
+    }
+
+    #[test]
     fn release_transitions_live_task_to_completed_and_drops_lease() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
@@ -360,5 +515,23 @@ mod tests {
 
         let result = facade_release_session_task(dir.path(), "nonexistent-task-id").unwrap();
         assert!(!result, "expected released = false for unknown id");
+    }
+
+    #[test]
+    fn watch_snapshot_formats_parent_task_status_with_display_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let state_dir = TaskState::state_dir_from(dir.path());
+        std::fs::create_dir_all(&state_dir).unwrap();
+
+        let mut parent = TaskState::new("parent-watch".to_string());
+        parent.status = crate::runtime::TaskStatus::AwaitingApproval;
+        parent.save(&state_dir).unwrap();
+
+        let snapshot = facade_watch_snapshot(dir.path(), "parent-watch")
+            .unwrap()
+            .expect("expected parent-task snapshot");
+
+        assert_eq!(snapshot.kind, "task");
+        assert_eq!(snapshot.status, "awaiting_approval");
     }
 }

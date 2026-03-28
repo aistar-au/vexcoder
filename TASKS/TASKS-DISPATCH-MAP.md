@@ -22,13 +22,13 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-022-amendment-2026-03-13.md` | Amended | Amendment only |
 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed (milestone-1 passed) | Post-milestone G/H |
 | `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-milestone complete) | 1 deferred external item (PG-03 auto-dispatch after tap repo exists); all in-tree G/H work complete 2026-03-28 |
-| `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active | Ongoing boundary alignment; Phase 1, 2, and transport extraction committed; boundary tests now cover grouped and multiline `server`/`bin` imports |
+| `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active | Ongoing boundary alignment; Phase 1, 2, and transport extraction committed; boundary tests now cover grouped, multiline, and `super::`-relative `server`/`bin` imports |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Accepted | 0 items remaining; all 8 decision items verified in Tier 5 (PR #249) |
 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Accepted | 0 items remaining; all 6 coverage requirements verified in Tier 5 (PR #249) |
 | `adr/ADR-031-operator-surface-ui-overhaul.md` | Accepted (all batches A-E merged) | 0 items remaining; status updated in Tier 9 (PR #252) |
 | `adr/ADR-032-prompt-area-interactivity-and-context-guard.md` | Accepted | 0 items remaining; items 1-8 complete; item 4-5 verified Tier 5; item 9 transferred to ADR-033 |
 | `adr/ADR-033-hybrid-retrieval-context-architecture.md` | Accepted (all phases 1-4 merged) | 0 items remaining; status updated in Tier 9 (PR #252) |
-| `adr/ADR-034-multi-agent-parallel-task-execution.md` | Active (Phase A + B-E merged) | Hardening: delegate concurrency cap, prompt-length guard, and explicit session-task release |
+| `adr/ADR-034-multi-agent-parallel-task-execution.md` | Active (Phase A + B-E merged) | Hardening: serialized delegate concurrency enforcement, prompt-length guard, explicit session-task release, handler/stress coverage, and normalized watch status |
 
 ### Moved to completed/ (2026-03-27)
 
@@ -51,7 +51,7 @@ repository exists.
 | ~~6~~ | ADR-021 P2 | ~~13~~ | Complete (2026-03-28) | All 13 items complete; Items 10/12/14 in this batch; Item 11 addressed |
 | ~~7~~ | ADR-021 P3 | ~~1~~ | Complete (2026-03-28) | Item 33 idle backoff tuning comment added |
 | 8 | ADR-024 G/H + ADR-022 | 1 | Deferred (external prerequisite) | Tap repository auto-dispatch after the separate tap repo is created |
-| ~~9~~ | Multiple | ~~1~~ | Complete (2026-03-28) | ADR-028 status verified; grouped and multiline import checks close the remaining `server`/`bin` test bypasses |
+| ~~9~~ | Multiple | ~~1~~ | Complete (2026-03-28) | ADR-028 status verified; grouped, multiline, and relative `super::` import checks close the remaining known `server`/`bin` test bypasses |
 
 ## Immediate Dependency Notes
 
@@ -66,8 +66,8 @@ Milestone-1 gate (passed 2026-03-15):
   ADR-023 EL-01 through EL-13 (all complete)
   ADR-025 PI-09 through PI-12 (all complete)
   ADR-026 PI-13 through PI-16 (all complete)
-  ADR-028 active follow-up with grouped import coverage
-  ADR-034 Phase A + B-E (merged via PRs 228/229/230) plus delegation/release hardening
+  ADR-028 active follow-up with grouped, multiline, and relative-super import coverage
+  ADR-034 Phase A + B-E (merged via PRs 228/229/230) plus serialized delegation/release/watch hardening
 ```
 
 ADR-028 remains the boundary ADR for post-gate work. ADR-029 through ADR-034

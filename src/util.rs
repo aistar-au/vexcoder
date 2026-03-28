@@ -5,11 +5,11 @@ use serde_json::{json, Value};
 use std::io::Write;
 use std::path::Path;
 
-/// Serialize `value` as pretty JSON and atomically replace `path`.
+/// Serialize `value` as pretty JSON and replace `path` via rename.
 ///
 /// Writes to an adjacent `.tmp` file, flushes to disk, then renames.
 /// `label` is used in error context messages (e.g. "task state").
-pub fn write_json_atomic<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<()> {
+pub fn write_json_safe<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<()> {
     let dir = path.parent().ok_or_else(|| {
         anyhow!(
             "missing parent directory for {} '{}'",

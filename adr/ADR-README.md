@@ -22,17 +22,17 @@ All ADR files live under `adr/`.
 
 | ADR | Title | Status | Remaining |
 | :--- | :--- | :--- | :--- |
-| [ADR-021](ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md) | Codebase audit (unused code) | Accepted | 11 items (0 P1, 10 P2, 1 P3) |
+| [ADR-021](ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md) | Codebase audit (unused code) | Accepted | 0 items remaining; all P1/P2/P3 items complete |
 | [ADR-022 amendment](ADR-022-amendment-2026-03-13.md) | Command-execution amendment | Amended | Amendment only |
 | [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed (milestone-1 passed 2026-03-15) | Post-milestone phases G/H |
-| [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps | Proposed | 16 items across phases D/F/G/H/I/M/P |
-| [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active | Phase 1+2 merged; ongoing alignment |
+| [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps | Proposed (pre-milestone complete) | 1 deferred external item: PG-03 tap auto-dispatch after the tap repo exists |
+| [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active | Phase 1+2 merged; boundary tests now cover grouped, multiline, and `super::`-relative imports |
 | [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness | Accepted | All 8 decision items verified (2026-03-28) |
 | [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Accepted | All 6 coverage requirements verified (2026-03-28) |
-| [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Active (Batches A-E merged) | Verification complete; fullscreen auto-fit behavior documented |
-| [ADR-032](ADR-032-prompt-area-interactivity-and-context-guard.md) | Prompt area interactivity and context guard | Active | Items 4-5 verified; fullscreen auto-fit prompt surface documented |
-| [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Active (Phases 1-4 merged) | Follow-up integration |
-| [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Follow-up hardening: concurrency caps, prompt guard, explicit release |
+| [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Accepted (all batches A-E merged) | 0 items remaining; fullscreen auto-fit behavior documented |
+| [ADR-032](ADR-032-prompt-area-interactivity-and-context-guard.md) | Prompt area interactivity and context guard | Accepted | 0 items remaining; item 9 transferred to ADR-033 |
+| [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Accepted (all phases 1-4 merged) | 0 items remaining |
+| [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Hardening landed for serialized concurrency caps, prompt guard, explicit release, and normalized watch/boundary coverage |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 
@@ -48,22 +48,16 @@ the top-level `adr/` directory pending a housekeeping move.
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding | Complete | PI-13 through PI-16 all merged |
 | [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI command-session capture | Accepted (complete) | Supersedes ADR-018/019 |
 
-## Remaining Work Summary (49 items across 9 tiers)
+## Remaining Work Summary (1 deferred external dependency)
 
-Tiers sorted by unblocking impact. Full per-item breakdown in
+All tracked in-tree tiers are clear. The only remaining repo-local follow-up is
+ADR-024 PG-03 tap auto-dispatch, which stays deferred until the separate tap
+repository exists. Full history and ADR status detail live in
 `TASKS/ACTIVE-ROADMAP.md`.
 
 | Tier | Source | Items | Description |
 | :--- | :--- | :--- | :--- |
-| 1 | PRs 231/232/233/234 | 4 | Open PRs ready to merge |
-| 2 | ADR-024 Phases D/F | 6 | Sandbox drivers and MCP runtime |
-| 3 | ADR-024 | 3 | Workspace tools, MCP HTTP auth, /plan+/context |
-| 4 | ADR-021 P1 | 4 | Unbounded buffers and unhandled errors |
-| 5 | ADR-029/030/032 | 3 | Verification of already-implemented work plus fullscreen composer auto-fit documentation sync |
-| 6 | ADR-021 P2 | 13 | Code quality and duplication removal |
-| 7 | ADR-021 P3 | 1 | Idle backoff tuning |
-| 8 | ADR-024 G/H + ADR-022 | 7 | Post-milestone release pipeline and packaging |
-| 9 | Multiple | 8 | Housekeeping: move completed ADRs, update status fields |
+| 8 | ADR-024 G/H + ADR-022 | 1 | Deferred external prerequisite: tap repository auto-dispatch |
 
 ## Completed ADR Records
 

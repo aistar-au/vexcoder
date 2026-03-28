@@ -403,7 +403,8 @@ and are re-exported from `src/app.rs`.
 |---|---|
 | `facade_list_agents` | Loads the agents config from `working_dir` and returns a thin `FacadeAgentsListing` describing available agents and teams. |
 | `facade_delegate_session_task` | Acquires a worktree lease (via `WorktreeLeaseManager`), creates a `SessionTask` record with a UUID-scoped ID, and returns `FacadeDelegateResult { parent_task_id, session_task_id }`. |
-| `facade_watch_snapshot` | Searches saved task-state directories for an existing session task by ID and returns `Option<FacadeWatchSnapshot>` with current status and worktree path. |
+| `facade_watch_snapshot` | Searches saved task-state directories for an existing task or session task by ID and returns `Option<FacadeWatchSnapshot>` with stable lowercase status text and worktree path. |
+| `facade_release_session_task` | Marks a live session task complete, releases any recorded worktree lease, and returns whether a matching session task was found. |
 
 ### Transport-side changes
 
@@ -430,19 +431,25 @@ through facade-owned entrypoints" rule for the session-task surface.
 
 ## Implementation note — boundary and session-task hardening (PR #256)
 
-PR `#256` extends the ADR-028 enforcement surface in two ways.
+PR `#256` extends the ADR-028 enforcement surface in three ways.
 
 - `tests/dependency_direction_tests.rs` now concatenates multiline `use crate::`
   statements, scans `pub use crate::...` re-exports, and inspects grouped
-  imports such as `use crate::{server::handlers, bin::vex};`. This closes the
-  remaining brace-group bypass where inner layers could still reach `server` or
-  `bin` without tripping the ADR-028 guard.
+  imports such as `use crate::{server::handlers, bin::vex};`. The same scanner
+  now also resolves relative `super::...` imports back to crate-root module
+  paths. This closes the remaining brace-group and relative-path bypasses where
+  inner layers could still reach `server` or `bin` without tripping the ADR-028
+  guard.
 - `src/app/task_facade.rs` adds the synchronous
   `facade_release_session_task` entrypoint so transport code can request a
   session-task release without importing runtime/task-state helpers directly.
   The same hardening batch also keeps delegation validation in the facade by
   enforcing per-agent concurrency caps and a prompt-size ceiling before new
-  session-task state is persisted.
+  session-task state is persisted, and the concurrency cap is now enforced
+  inside a serialized delegate critical section.
+- `facade_watch_snapshot` now routes parent-task status text through
+  `TaskStatus::Display`, so transport callers get the same lowercase API-facing
+  status style for parent tasks and session tasks.
 
 ---
 

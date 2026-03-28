@@ -32,7 +32,10 @@ fn collect_rs_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// Extract all `use crate::...` imports from a Rust source file.
+/// Extract tracked imports from a Rust source file.
+///
+/// `super::...` imports are resolved back to crate-root paths so the boundary
+/// scan still catches forbidden cross-layer references that bypass `crate::`.
 /// Lines that are comments (`//`) are filtered out to avoid false positives.
 fn extract_crate_imports(path: &Path) -> Vec<(usize, String)> {
     let content = fs::read_to_string(path).expect("read file");
@@ -55,28 +58,125 @@ fn extract_crate_imports(path: &Path) -> Vec<(usize, String)> {
             }
             if trimmed.contains(';') {
                 let (start_line, import) = pending.take().expect("pending import");
-                imports.push((start_line, import));
+                imports.push((
+                    start_line,
+                    normalize_import_for_boundary_scan(path, &import),
+                ));
             }
             continue;
         }
 
-        if trimmed.starts_with("use crate::") || trimmed.starts_with("pub use crate::") {
+        if starts_with_tracked_import(trimmed) {
             let start_line = index + 1;
             if trimmed.contains(';') {
-                imports.push((start_line, trimmed.to_string()));
+                imports.push((
+                    start_line,
+                    normalize_import_for_boundary_scan(path, trimmed),
+                ));
             } else {
                 pending = Some((start_line, trimmed.to_string()));
             }
-        } else if trimmed.starts_with("crate::") {
-            imports.push((index + 1, trimmed.to_string()));
         }
     }
 
     if let Some((start_line, import)) = pending {
-        imports.push((start_line, import));
+        imports.push((
+            start_line,
+            normalize_import_for_boundary_scan(path, &import),
+        ));
     }
 
     imports
+}
+
+fn starts_with_tracked_import(trimmed: &str) -> bool {
+    trimmed.starts_with("use crate::")
+        || trimmed.starts_with("pub use crate::")
+        || trimmed.starts_with("crate::")
+        || trimmed.starts_with("use super::")
+        || trimmed.starts_with("pub use super::")
+        || trimmed.starts_with("super::")
+}
+
+fn normalize_import_for_boundary_scan(path: &Path, import: &str) -> String {
+    normalize_relative_import(path, import).unwrap_or_else(|| import.to_string())
+}
+
+fn normalize_relative_import(path: &Path, import: &str) -> Option<String> {
+    for prefix in ["pub use ", "use ", ""] {
+        let Some(relative) = import.strip_prefix(prefix) else {
+            continue;
+        };
+        if !relative.starts_with("super::") {
+            continue;
+        }
+
+        let has_semicolon = relative.trim_end().ends_with(';');
+        let mut remainder = relative.trim().trim_end_matches(';');
+        let mut module_path = module_path_components(path);
+
+        while let Some(next) = remainder.strip_prefix("super::") {
+            if module_path.pop().is_none() {
+                // More super:: levels than the module depth — the import
+                // reaches at least the crate root.  Resolve from there so
+                // the boundary scanner can inspect the target module.
+                remainder = next;
+                break;
+            }
+            remainder = next;
+        }
+
+        let mut resolved = String::from(prefix);
+        resolved.push_str("crate::");
+        if !module_path.is_empty() {
+            resolved.push_str(&module_path.join("::"));
+            resolved.push_str("::");
+        }
+        resolved.push_str(remainder);
+        if has_semicolon {
+            resolved.push(';');
+        }
+        return Some(resolved);
+    }
+
+    None
+}
+
+fn module_path_components(path: &Path) -> Vec<String> {
+    let parts = path
+        .iter()
+        .map(|part| part.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    let start = parts
+        .iter()
+        .rposition(|part| part == "src")
+        .map(|index| index + 1)
+        .unwrap_or_else(|| parts.len().saturating_sub(1));
+
+    let mut modules = parts[start..].to_vec();
+    let Some(stem) = modules
+        .last()
+        .and_then(|last| Path::new(last).file_stem())
+        .and_then(|stem| stem.to_str())
+        .map(str::to_string)
+    else {
+        return modules;
+    };
+
+    match stem.as_str() {
+        "mod" => {
+            modules.pop();
+        }
+        "lib" | "main" if modules.len() == 1 => {
+            modules.clear();
+        }
+        _ => {
+            let last = modules.last_mut().expect("module path must have a tail");
+            *last = stem.to_string();
+        }
+    }
+
+    modules
 }
 
 fn extract_crate_items(import: &str) -> Vec<String> {
@@ -218,6 +318,27 @@ fn multiline_grouped_imports_are_concatenated_before_scanning() {
 
     let imports = extract_crate_imports(&file);
     assert_eq!(imports.len(), 1);
+    assert!(import_mentions_forbidden_module(&imports[0].1, "server"));
+}
+
+#[test]
+fn relative_super_import_detection_resolves_to_crate_root_modules() {
+    let temp = tempfile::tempdir().unwrap();
+    let src_dir = temp.path().join("src/app");
+    fs::create_dir_all(&src_dir).unwrap();
+    let file = src_dir.join("sample.rs");
+    fs::write(
+        &file,
+        "use super::super::server::{handlers::delegate_handler};\n",
+    )
+    .unwrap();
+
+    let imports = extract_crate_imports(&file);
+    assert_eq!(imports.len(), 1);
+    assert_eq!(
+        imports[0].1,
+        "use crate::server::{handlers::delegate_handler};"
+    );
     assert!(import_mentions_forbidden_module(&imports[0].1, "server"));
 }
 

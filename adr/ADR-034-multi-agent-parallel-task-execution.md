@@ -271,23 +271,29 @@ already-merged Phase A / Phase B-E baseline.
 
 ## Implementation notes (hardening batch — PR #256)
 
-PR `#256` continues the ADR-034 hardening lane with four correctness-focused
-changes on top of the Phase A/B-E baseline:
+PR `#256` continues the ADR-034 hardening lane with the following
+correctness-focused follow-up changes on top of the Phase A/B-E baseline:
 
 - `facade_delegate_session_task` now rejects delegation requests when the
   target agent already has `max_parallel_tasks` live session tasks recorded in
-  persisted task state. The handler maps this to `409 Conflict`, keeping
-  concurrency enforcement in the orchestrator/facade layer required by ADR-034
-  §1.
+  persisted task state, and the check now runs inside a serialized delegate
+  critical section backed by an in-process mutex plus a state-dir lock file so
+  concurrent callers cannot over-allocate the same agent slot. The handler maps
+  the rejection to `409 Conflict`, and a dedicated parallel stress test guards
+  the invariant.
 - `facade_delegate_session_task` now rejects prompts larger than
   `MAX_DELEGATE_PROMPT_BYTES` before state files or transport payloads grow
   without bound.
 - `facade_release_session_task` plus `POST /v1/session-tasks/{id}/release`
   gives operators and completion hooks an explicit release path that marks live
-  session tasks complete and drops the associated worktree lease.
-- The ADR-028 dependency-direction tests were tightened in parallel so grouped
-  or multiline `crate::{server::...}` imports cannot bypass the facade
-  boundary around these session-task surfaces.
+  session tasks complete and drops the associated worktree lease. Handler-level
+  coverage now verifies both the success and not-found HTTP mappings.
+- `facade_watch_snapshot` now renders parent task statuses through
+  `TaskStatus::Display`, aligning watch snapshots with the lowercase status
+  strings already used for session tasks.
+- The ADR-028 dependency-direction tests were tightened in parallel so grouped,
+  multiline, or relative `super::` imports cannot bypass the facade boundary
+  around these session-task surfaces.
 
 ## References
 
