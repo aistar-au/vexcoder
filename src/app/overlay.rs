@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::scroll::apply_bounded_scroll;
 
 #[cfg(test)]
 use crossterm::event::{Event, KeyCode, KeyModifiers};

@@ -1064,15 +1064,39 @@ mod tests {
     fn test_diff_line_color_maps_markers_consistently() {
         // Verify the shared helper maps Added/Removed/Header consistently,
         // regardless of which other_color is passed as the fallback.
-        assert_eq!(diff_line_color(DiffLineKind::Added, Color::White), Color::Green);
-        assert_eq!(diff_line_color(DiffLineKind::Added, Color::Gray), Color::Green);
-        assert_eq!(diff_line_color(DiffLineKind::Removed, Color::White), Color::Red);
-        assert_eq!(diff_line_color(DiffLineKind::Removed, Color::Gray), Color::Red);
-        assert_eq!(diff_line_color(DiffLineKind::Header, Color::White), Color::Cyan);
-        assert_eq!(diff_line_color(DiffLineKind::Header, Color::Gray), Color::Cyan);
+        assert_eq!(
+            diff_line_color(DiffLineKind::Added, Color::White),
+            Color::Green
+        );
+        assert_eq!(
+            diff_line_color(DiffLineKind::Added, Color::Gray),
+            Color::Green
+        );
+        assert_eq!(
+            diff_line_color(DiffLineKind::Removed, Color::White),
+            Color::Red
+        );
+        assert_eq!(
+            diff_line_color(DiffLineKind::Removed, Color::Gray),
+            Color::Red
+        );
+        assert_eq!(
+            diff_line_color(DiffLineKind::Header, Color::White),
+            Color::Cyan
+        );
+        assert_eq!(
+            diff_line_color(DiffLineKind::Header, Color::Gray),
+            Color::Cyan
+        );
         // Other respects the caller's choice of fallback color.
-        assert_eq!(diff_line_color(DiffLineKind::Other, Color::White), Color::White);
-        assert_eq!(diff_line_color(DiffLineKind::Other, Color::Gray), Color::Gray);
+        assert_eq!(
+            diff_line_color(DiffLineKind::Other, Color::White),
+            Color::White
+        );
+        assert_eq!(
+            diff_line_color(DiffLineKind::Other, Color::Gray),
+            Color::Gray
+        );
         // history_row_style uses White; styled_diff_line uses Gray.
         assert_eq!(history_row_style("+add").fg, Some(Color::Green));
         assert_eq!(history_row_style("plain").fg, Some(Color::White));

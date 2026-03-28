@@ -229,7 +229,7 @@ impl TuiMode {
 
 /// Apply a [`ScrollAction`] to a bounded offset, clamping between 0 and `max`.
 /// Used by patch overlay and inspector scrolling.
-pub(super) fn apply_bounded_scroll(offset: &mut usize, action: ScrollAction, max: usize) {
+pub(crate) fn apply_bounded_scroll(offset: &mut usize, action: ScrollAction, max: usize) {
     *offset = match action {
         ScrollAction::LineUp => offset.saturating_sub(1),
         ScrollAction::LineDown => offset.saturating_add(1).min(max),
