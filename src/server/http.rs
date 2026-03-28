@@ -15,7 +15,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::handlers::{
     agents_handler, approve_handler, delegate_handler, health_handler, interrupt_handler,
-    release_session_task_handler, schema_handler, turns_handler, watch_handler,
+    join_status_handler, release_session_task_handler, schedule_team_handler, schema_handler,
+    turns_handler, watch_handler,
 };
 use super::{ControlResponse, HttpSurfaceSettings, ResolvedHttpSurface, HSTS_HEADER_VALUE};
 #[cfg(test)]
@@ -39,6 +40,11 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
             "/v1/session-tasks/{id}/release",
             post(release_session_task_handler),
         )
+        .route(
+            "/v1/teams/{team_name}/schedule",
+            post(schedule_team_handler),
+        )
+        .route("/v1/tasks/{task_id}/join-status", get(join_status_handler))
         .route("/v1/interrupt", post(interrupt_handler))
         .route("/v1/approve", post(approve_handler))
         .with_state(state)
