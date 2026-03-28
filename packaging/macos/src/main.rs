@@ -35,10 +35,7 @@ fn main() {
 
     // Build and exec into the terminal command.  On success the exec call
     // replaces this process image; control only returns on failure.
-    let mut cmd = terminal_command(&vex_binary);
-    if let Some(ref t) = token {
-        cmd.env("VEX_MODEL_TOKEN", t);
-    }
+    let mut cmd = terminal_command(&vex_binary, token.as_deref());
 
     #[cfg(unix)]
     {
@@ -67,21 +64,17 @@ fn main() {
 /// exits once the AppleScript hand-off completes.
 ///
 /// On other platforms (development/CI only) the binary is invoked directly.
-fn terminal_command(vex_binary: &std::path::Path) -> process::Command {
+fn terminal_command(vex_binary: &std::path::Path, token: Option<&str>) -> process::Command {
     #[cfg(target_os = "macos")]
     {
-        // Escape the path for embedding in the AppleScript string literal.
-        let path_str = vex_binary
-            .to_str()
-            .unwrap_or("/usr/local/bin/vex")
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"");
+        let shell_command = terminal_shell_command(vex_binary, token);
 
         let script = format!(
             "tell application \"Terminal\"\n\
-             	do script quoted form of \"{path_str}\"\n\
+            		do script \"{}\"\n\
              \tactivate\n\
-             end tell"
+             end tell",
+            apple_script_escape(&shell_command)
         );
         let mut cmd = process::Command::new("osascript");
         cmd.arg("-e").arg(script);
@@ -90,18 +83,42 @@ fn terminal_command(vex_binary: &std::path::Path) -> process::Command {
 
     #[cfg(not(target_os = "macos"))]
     {
-        process::Command::new(vex_binary)
+        let mut cmd = process::Command::new(vex_binary);
+        if let Some(token) = token {
+            cmd.env("VEX_MODEL_TOKEN", token);
+        }
+        cmd
     }
+}
+
+fn terminal_shell_command(vex_binary: &std::path::Path, token: Option<&str>) -> String {
+    let vex_binary = shell_quote(vex_binary.to_str().unwrap_or("/usr/local/bin/vex"));
+
+    match token {
+        Some(token) => {
+            let token = shell_quote(token);
+            format!("export VEX_MODEL_TOKEN={token}; exec {vex_binary}")
+        }
+        None => format!("exec {vex_binary}"),
+    }
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+fn apple_script_escape(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 #[cfg(test)]
 mod tests {
-    use super::terminal_command;
+    use super::{apple_script_escape, shell_quote, terminal_command, terminal_shell_command};
     use std::path::Path;
 
     #[test]
     fn terminal_command_contains_vex_binary_path() {
-        let cmd = terminal_command(Path::new("/usr/local/bin/vex"));
+        let cmd = terminal_command(Path::new("/usr/local/bin/vex"), None);
         // On macOS the first argument to osascript should contain the binary path.
         // On other platforms the program itself should be the binary path.
         #[cfg(target_os = "macos")]
@@ -111,7 +128,7 @@ mod tests {
                 .map(|a| a.to_string_lossy().into_owned())
                 .collect();
             assert!(
-                args.iter().any(|a| a.contains("/usr/local/bin/vex")),
+                args.iter().any(|a| a.contains("exec '/usr/local/bin/vex'")),
                 "expected binary path in osascript args: {args:?}"
             );
         }
@@ -126,7 +143,7 @@ mod tests {
 
     #[test]
     fn terminal_command_quotes_binary_paths_with_spaces() {
-        let cmd = terminal_command(Path::new("/Applications/Vex App/vex"));
+        let cmd = terminal_command(Path::new("/Applications/Vex App/vex"), None);
 
         #[cfg(target_os = "macos")]
         {
@@ -135,8 +152,7 @@ mod tests {
                 .map(|a| a.to_string_lossy().into_owned())
                 .collect();
             assert!(
-                args.iter()
-                    .any(|a| a.contains("quoted form of \"/Applications/Vex App/vex\"")),
+                args.iter().any(|a| a.contains("exec '/Applications/Vex App/vex'")),
                 "expected quoted binary path in osascript args: {args:?}"
             );
         }
@@ -148,5 +164,43 @@ mod tests {
                 "/Applications/Vex App/vex"
             );
         }
+    }
+
+    #[test]
+    fn terminal_shell_command_includes_token_export_when_present() {
+        let command = terminal_shell_command(Path::new("/usr/local/bin/vex"), Some("token value"));
+
+        assert_eq!(
+            command,
+            "export VEX_MODEL_TOKEN='token value'; exec '/usr/local/bin/vex'"
+        );
+    }
+
+    #[test]
+    fn terminal_shell_command_escapes_single_quotes() {
+        let command = terminal_shell_command(Path::new("/Applications/Vex's App/vex"), Some("tok'en"));
+
+        assert_eq!(
+            command,
+            "export VEX_MODEL_TOKEN='tok'\"'\"'en'; exec '/Applications/Vex'\"'\"'s App/vex'"
+        );
+    }
+
+    #[test]
+    fn shell_quote_handles_empty_and_single_quote_values() {
+        assert_eq!(shell_quote(""), "''");
+        assert_eq!(shell_quote("a'b"), "'a'\"'\"'b'");
+    }
+
+    #[test]
+    fn apple_script_escape_preserves_shell_quotes() {
+        assert_eq!(
+            apple_script_escape("exec '/Applications/Vex App/vex'"),
+            "exec '/Applications/Vex App/vex'"
+        );
+        assert_eq!(
+            apple_script_escape("say \"hello\" \\\\ world"),
+            "say \\\"hello\\\" \\\\\\\\ world"
+        );
     }
 }
