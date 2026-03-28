@@ -23,22 +23,30 @@ fn delegate_serialization_lock() -> &'static Mutex<()> {
     LOCK.get_or_init(|| Mutex::new(()))
 }
 
-fn with_delegate_lock<T>(
+fn with_delegate_lock<T, E>(
     state_dir: &Path,
-    operation: impl FnOnce() -> std::result::Result<T, DelegateError>,
-) -> std::result::Result<T, DelegateError> {
-    std::fs::create_dir_all(state_dir).map_err(anyhow::Error::from)?;
+    operation: impl FnOnce() -> std::result::Result<T, E>,
+) -> std::result::Result<T, E>
+where
+    E: From<anyhow::Error>,
+{
+    std::fs::create_dir_all(state_dir)
+        .map_err(anyhow::Error::from)
+        .map_err(E::from)?;
 
     let _in_process_guard = delegate_serialization_lock()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let lock_file = open_delegate_lock_file(state_dir)?;
-    lock_file.lock_exclusive().map_err(anyhow::Error::from)?;
+    let lock_file = open_delegate_lock_file(state_dir).map_err(E::from)?;
+    lock_file
+        .lock_exclusive()
+        .map_err(anyhow::Error::from)
+        .map_err(E::from)?;
 
     operation()
 }
 
-fn open_delegate_lock_file(state_dir: &Path) -> std::result::Result<File, DelegateError> {
+fn open_delegate_lock_file(state_dir: &Path) -> Result<File> {
     OpenOptions::new()
         .create(true)
         .truncate(false)
@@ -46,7 +54,6 @@ fn open_delegate_lock_file(state_dir: &Path) -> std::result::Result<File, Delega
         .write(true)
         .open(state_dir.join(DELEGATE_LOCK_FILE_NAME))
         .map_err(anyhow::Error::from)
-        .map_err(DelegateError::from)
 }
 
 #[cfg(test)]
@@ -573,6 +580,81 @@ mod tests {
             "expected PromptRequired, got: {result:?}"
         );
     }
+
+    #[test]
+    fn schedule_team_enforces_max_parallel_tasks() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".git")).unwrap();
+        write_agents_toml(
+            dir.path(),
+            "[[agents]]\nname = \"coder\"\nisolation = \"shared\"\nmax_parallel_tasks = 1\n\n[[teams]]\nname = \"review\"\nscheduler = \"fan_out_join\"\nmembers = [\"coder\"]\n",
+        );
+
+        let state_dir = TaskState::state_dir_from(dir.path());
+        std::fs::create_dir_all(&state_dir).unwrap();
+        let mut parent = TaskState::new("parent-seed".to_string());
+        parent.add_session_task(SessionTask::new(
+            "parent-seed",
+            "coder",
+            "already running",
+            None,
+        ));
+        parent.save(&state_dir).unwrap();
+
+        let result = facade_schedule_team(dir.path(), "parent-1", "review", "new work");
+
+        assert!(
+            matches!(result, Err(ScheduleTeamError::ConcurrencyLimitReached)),
+            "expected ConcurrencyLimitReached, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn schedule_team_enforces_max_parallel_tasks_under_parallel_calls() {
+        let dir = tempfile::tempdir().unwrap();
+        write_agents_toml(
+            dir.path(),
+            "[[agents]]\nname = \"coder\"\nisolation = \"shared\"\nmax_parallel_tasks = 1\n\n[[teams]]\nname = \"review\"\nscheduler = \"fan_out_join\"\nmembers = [\"coder\"]\n",
+        );
+
+        let _race_hook = install_delegate_race_hook(Arc::new(|| {
+            thread::sleep(Duration::from_millis(150));
+        }));
+
+        let worker_count = 8;
+        let barrier = Arc::new(Barrier::new(worker_count));
+        let working_dir = dir.path().to_path_buf();
+        let mut handles = Vec::new();
+
+        for _ in 0..worker_count {
+            let barrier = Arc::clone(&barrier);
+            let working_dir = working_dir.clone();
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+                facade_schedule_team(&working_dir, "parent-race", "review", "inspect docs")
+            }));
+        }
+
+        let mut successes = 0;
+        let mut limit_rejections = 0;
+        for handle in handles {
+            match handle.join().unwrap() {
+                Ok(_) => successes += 1,
+                Err(ScheduleTeamError::ConcurrencyLimitReached) => limit_rejections += 1,
+                Err(other) => panic!("unexpected schedule_team result: {other:?}"),
+            }
+        }
+
+        assert_eq!(
+            successes, 1,
+            "expected exactly one successful schedule_team call"
+        );
+        assert_eq!(
+            limit_rejections,
+            worker_count - 1,
+            "expected remaining schedule_team calls to be rejected by the concurrency cap"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -631,14 +713,36 @@ pub fn facade_schedule_team(
     };
 
     let state_dir = TaskState::state_dir_from(working_dir);
-    let orchestrator = SubtaskOrchestrator::new(&state_dir);
-    let decomp =
-        orchestrator.schedule_team(parent_task_id, team, &config.agent_profiles, prompt)?;
+    with_delegate_lock(&state_dir, || {
+        let members_to_create: &[String] = match team.scheduler {
+            crate::agents::TeamScheduler::FanOutJoin => &team.members,
+            crate::agents::TeamScheduler::Sequential => &team.members[..1],
+        };
 
-    Ok(FacadeScheduleTeamResult {
-        parent_task_id: decomp.parent_task_id,
-        session_task_ids: decomp.session_task_ids,
-        scheduler: format!("{:?}", decomp.scheduler),
+        let live_counts = TaskState::live_session_task_counts_from(working_dir)?;
+        for member_name in members_to_create {
+            let agent = config
+                .agent_profiles
+                .iter()
+                .find(|agent| agent.name == *member_name)
+                .expect("validated team member should resolve to an agent profile");
+            let live = *live_counts.get(member_name).unwrap_or(&0);
+            if live >= agent.max_parallel_tasks as usize {
+                return Err(ScheduleTeamError::ConcurrencyLimitReached);
+            }
+        }
+
+        run_delegate_race_hook();
+
+        let orchestrator = SubtaskOrchestrator::new(&state_dir);
+        let decomp =
+            orchestrator.schedule_team(parent_task_id, team, &config.agent_profiles, prompt)?;
+
+        Ok(FacadeScheduleTeamResult {
+            parent_task_id: decomp.parent_task_id,
+            session_task_ids: decomp.session_task_ids,
+            scheduler: format!("{:?}", decomp.scheduler),
+        })
     })
 }
 
@@ -675,6 +779,8 @@ pub enum ScheduleTeamError {
     ParentTaskIdRequired,
     #[error("prompt_required")]
     PromptRequired,
+    #[error("concurrency_limit_reached")]
+    ConcurrencyLimitReached,
     #[error("prompt_too_long")]
     PromptTooLong,
     #[error(transparent)]

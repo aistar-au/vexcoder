@@ -269,6 +269,7 @@ pub async fn schedule_team_handler(
         ScheduleTeamError::TeamNotFound => not_found("team_not_found"),
         ScheduleTeamError::ParentTaskIdRequired => bad_request("parent_task_id_required"),
         ScheduleTeamError::PromptRequired => bad_request("prompt_required"),
+        ScheduleTeamError::ConcurrencyLimitReached => conflict("concurrency_limit_reached"),
         ScheduleTeamError::PromptTooLong => bad_request("prompt_too_long"),
         ScheduleTeamError::Internal(inner) => internal_anyhow(inner),
     })?;

@@ -183,7 +183,16 @@ fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
                 path.display()
             );
         }
+        let mut seen_members = HashSet::new();
         for member in &team.members {
+            if !seen_members.insert(member.as_str()) {
+                bail!(
+                    "team '{}' contains duplicate member '{}' in '{}'",
+                    team.name,
+                    member,
+                    path.display()
+                );
+            }
             if !agent_names.contains(member.as_str()) {
                 bail!(
                     "team '{}' references unknown agent '{}' in '{}'; \
@@ -374,6 +383,27 @@ members = ["a", "ghost"]
         let err = load_agents_config_from_path(&path).unwrap_err();
         assert!(
             err.to_string().contains("unknown agent 'ghost'"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_team_member() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(
+            dir.path(),
+            r#"
+[[agents]]
+name = "a"
+
+[[teams]]
+name = "t"
+members = ["a", "a"]
+"#,
+        );
+        let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("contains duplicate member 'a'"),
             "unexpected error: {err}",
         );
     }
