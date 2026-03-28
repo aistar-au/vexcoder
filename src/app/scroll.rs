@@ -72,6 +72,16 @@ impl TuiMode {
         self.history_state.scroll_offset = self.history_state.scroll_offset.min(max);
     }
 
+    /// Advance the transcript scroll to the bottom when auto-follow is on,
+    /// or clamp to a valid offset when it is off.
+    pub(super) fn apply_auto_follow_or_clamp(&mut self) {
+        if self.history_state.auto_follow {
+            self.set_scroll_to_bottom();
+        } else {
+            self.clamp_scroll_offset();
+        }
+    }
+
     pub(super) fn apply_page_up(&mut self, page_step: usize) {
         self.history_state.scroll_offset = self
             .history_state
@@ -175,6 +185,10 @@ impl TuiMode {
         let total_rows = rows.len();
 
         match anchor {
+            // Bottom-anchored view uses inverted semantics: LineUp scrolls
+            // the offset upward (increasing the distance from the bottom),
+            // while LineDown scrolls it back toward the bottom.  Do NOT use
+            // `apply_bounded_scroll` here — the direction mapping is reversed.
             OutputScrollAnchor::Bottom => match action {
                 ScrollAction::LineUp => {
                     self.transcript_scroll_offset = self.transcript_scroll_offset.saturating_add(1);
@@ -197,34 +211,52 @@ impl TuiMode {
                     self.transcript_scroll_offset = 0;
                 }
             },
-            OutputScrollAnchor::Top => match action {
-                ScrollAction::LineUp => {
-                    self.inspector_scroll_offset = self.inspector_scroll_offset.saturating_sub(1);
-                }
-                ScrollAction::LineDown => {
-                    self.inspector_scroll_offset = self.inspector_scroll_offset.saturating_add(1);
-                }
-                ScrollAction::PageUp(step) => {
-                    self.inspector_scroll_offset =
-                        self.inspector_scroll_offset.saturating_sub(step.max(1));
-                }
-                ScrollAction::PageDown(step) => {
-                    self.inspector_scroll_offset =
-                        self.inspector_scroll_offset.saturating_add(step.max(1));
-                }
-                ScrollAction::Home => {
-                    self.inspector_scroll_offset = 0;
-                }
-                ScrollAction::End => {
-                    self.inspector_scroll_offset = total_rows.saturating_sub(1);
-                }
-            },
+            OutputScrollAnchor::Top => {
+                apply_bounded_scroll(
+                    &mut self.inspector_scroll_offset,
+                    action,
+                    total_rows.saturating_sub(1),
+                );
+            }
         }
 
         match anchor {
             OutputScrollAnchor::Bottom => self.clamp_transcript_scroll_offset(total_rows),
             OutputScrollAnchor::Top => self.clamp_inspector_scroll_offset(total_rows),
         }
+    }
+}
+
+/// Apply a [`ScrollAction`] to a bounded offset, clamping between 0 and `max`.
+/// Used by patch overlay and inspector scrolling.
+pub(super) fn apply_bounded_scroll(offset: &mut usize, action: ScrollAction, max: usize) {
+    *offset = match action {
+        ScrollAction::LineUp => offset.saturating_sub(1),
+        ScrollAction::LineDown => offset.saturating_add(1).min(max),
+        ScrollAction::PageUp(step) => offset.saturating_sub(step.max(1)),
+        ScrollAction::PageDown(step) => offset.saturating_add(step.max(1)).min(max),
+        ScrollAction::Home => 0,
+        ScrollAction::End => max,
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_apply_bounded_scroll_clamps_to_max() {
+        let mut offset = 3usize;
+        apply_bounded_scroll(&mut offset, ScrollAction::LineDown, 5);
+        assert_eq!(offset, 4);
+        apply_bounded_scroll(&mut offset, ScrollAction::PageDown(10), 5);
+        assert_eq!(offset, 5);
+        apply_bounded_scroll(&mut offset, ScrollAction::LineDown, 5);
+        assert_eq!(offset, 5); // clamped at max
+        apply_bounded_scroll(&mut offset, ScrollAction::Home, 5);
+        assert_eq!(offset, 0);
+        apply_bounded_scroll(&mut offset, ScrollAction::End, 5);
+        assert_eq!(offset, 5);
     }
 }
 

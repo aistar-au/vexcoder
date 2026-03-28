@@ -240,13 +240,20 @@ fn classify_diff_line(line: &str) -> DiffLineKind {
     }
 }
 
-fn history_row_style(row: &str) -> Style {
-    match classify_diff_line(row) {
-        DiffLineKind::Added => Style::default().fg(Color::Green),
-        DiffLineKind::Removed => Style::default().fg(Color::Red),
-        DiffLineKind::Header => Style::default().fg(Color::Cyan),
-        DiffLineKind::Other => Style::default().fg(Color::White),
+/// Map a `DiffLineKind` to a terminal color, using `other_color` as the
+/// fallback for `DiffLineKind::Other`.  Centralizes the Added/Removed/Header
+/// mapping that is shared by `history_row_style` and `styled_diff_line`.
+fn diff_line_color(kind: DiffLineKind, other_color: Color) -> Color {
+    match kind {
+        DiffLineKind::Added => Color::Green,
+        DiffLineKind::Removed => Color::Red,
+        DiffLineKind::Header => Color::Cyan,
+        DiffLineKind::Other => other_color,
     }
+}
+
+fn history_row_style(row: &str) -> Style {
+    Style::default().fg(diff_line_color(classify_diff_line(row), Color::White))
 }
 
 pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
@@ -490,13 +497,10 @@ fn modal_content(
 }
 
 fn styled_diff_line(line: &str) -> Line<'static> {
-    let style = match classify_diff_line(line) {
-        DiffLineKind::Added => Style::default().fg(Color::Green),
-        DiffLineKind::Removed => Style::default().fg(Color::Red),
-        DiffLineKind::Header => Style::default().fg(Color::Cyan),
-        DiffLineKind::Other => Style::default().fg(Color::Gray),
-    };
-    Line::styled(line.to_string(), style)
+    Line::styled(
+        line.to_string(),
+        Style::default().fg(diff_line_color(classify_diff_line(line), Color::Gray)),
+    )
 }
 
 fn centered_modal_area(size: Rect, preferred_height: u16) -> Rect {
@@ -1054,6 +1058,26 @@ mod tests {
         assert_eq!(classify_diff_line("diff --git a b"), DiffLineKind::Header);
         assert_eq!(classify_diff_line("index 123..456"), DiffLineKind::Header);
         assert_eq!(classify_diff_line("@@ -1 +1 @@"), DiffLineKind::Header);
+    }
+
+    #[test]
+    fn test_diff_line_color_maps_markers_consistently() {
+        // Verify the shared helper maps Added/Removed/Header consistently,
+        // regardless of which other_color is passed as the fallback.
+        assert_eq!(diff_line_color(DiffLineKind::Added, Color::White), Color::Green);
+        assert_eq!(diff_line_color(DiffLineKind::Added, Color::Gray), Color::Green);
+        assert_eq!(diff_line_color(DiffLineKind::Removed, Color::White), Color::Red);
+        assert_eq!(diff_line_color(DiffLineKind::Removed, Color::Gray), Color::Red);
+        assert_eq!(diff_line_color(DiffLineKind::Header, Color::White), Color::Cyan);
+        assert_eq!(diff_line_color(DiffLineKind::Header, Color::Gray), Color::Cyan);
+        // Other respects the caller's choice of fallback color.
+        assert_eq!(diff_line_color(DiffLineKind::Other, Color::White), Color::White);
+        assert_eq!(diff_line_color(DiffLineKind::Other, Color::Gray), Color::Gray);
+        // history_row_style uses White; styled_diff_line uses Gray.
+        assert_eq!(history_row_style("+add").fg, Some(Color::Green));
+        assert_eq!(history_row_style("plain").fg, Some(Color::White));
+        assert_eq!(styled_diff_line("+add").style.fg, Some(Color::Green));
+        assert_eq!(styled_diff_line(" ctx").style.fg, Some(Color::Gray));
     }
 
     #[test]

@@ -84,27 +84,7 @@ impl TuiMode {
     pub(super) fn apply_patch_overlay_scroll_action(&mut self, action: ScrollAction) {
         if let Some(pending) = self.overlay_state.pending_patch_approval.as_mut() {
             let max = pending.patch_preview.lines().count().saturating_sub(1);
-            match action {
-                ScrollAction::LineUp => {
-                    pending.scroll_offset = pending.scroll_offset.saturating_sub(1);
-                }
-                ScrollAction::LineDown => {
-                    pending.scroll_offset = pending.scroll_offset.saturating_add(1).min(max);
-                }
-                ScrollAction::PageUp(step) => {
-                    pending.scroll_offset = pending.scroll_offset.saturating_sub(step.max(1));
-                }
-                ScrollAction::PageDown(step) => {
-                    pending.scroll_offset =
-                        pending.scroll_offset.saturating_add(step.max(1)).min(max);
-                }
-                ScrollAction::Home => {
-                    pending.scroll_offset = 0;
-                }
-                ScrollAction::End => {
-                    pending.scroll_offset = max;
-                }
-            }
+            apply_bounded_scroll(&mut pending.scroll_offset, action, max);
         }
     }
 
