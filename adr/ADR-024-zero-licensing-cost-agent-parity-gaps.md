@@ -252,11 +252,12 @@ Add a `release.yml` CI workflow triggered on semver tags, including prerelease t
 | `aarch64-unknown-linux-musl` | `ubuntu-latest` | Cross-compiled via `cross` |
 | `x86_64-apple-darwin` | `macos-latest` | Native runner |
 | `aarch64-apple-darwin` | `macos-latest` | Native runner (Apple Silicon) |
+| `x86_64-pc-windows-msvc` | `windows-latest` | Native Windows runner and MSVC toolchain |
 | `x86_64-pc-windows-gnu` | `ubuntu-latest` | Cross-compiled via `cross` + mingw toolchain |
 
-**Windows target note:** `x86_64-pc-windows-msvc` requires a Windows CI runner and the MSVC toolchain. `x86_64-pc-windows-gnu` (mingw) is cross-compilable from Linux via `cross` with no Windows runner required. Use `gnu` as the default Windows target. A future ADR may add an `msvc` build on a Windows runner if installer tooling requires it. See the dependency licensing constraint section for the mingw runtime library exception applicable to static builds.
+**Windows target note:** `x86_64-pc-windows-gnu` (mingw) remains the no-extra-infrastructure Windows target because it is cross-compilable from Linux via `cross`. The hosted release workflow also builds `x86_64-pc-windows-msvc` on the existing Windows CI runner so both Windows runtime variants are published from the same reviewed tag. The gnu target still satisfies the original Phase G minimum when a Linux-only packaging path is required. See the dependency licensing constraint section for the mingw runtime library exception applicable to static builds.
 
-Each target produces a compressed archive (`vex-<version>-<target>.tar.gz` or `.zip` for the Windows target). Tag-triggered runs attach the archives to the hosted release entry. A `checksums.txt` file containing `sha256` hashes for all archives is published alongside them.
+Each target produces a compressed archive (`vex-<version>-<target>.tar.gz` or `.zip` for the Windows targets). Tag-triggered runs attach the archives to the hosted release entry. A `checksums.txt` file containing `sha256` hashes for all archives is published alongside them.
 
 A package-manager tap formula (`homebrew-vex`) is maintained as a separate repository, but its automatic repository-dispatch update remains deferred for the alpha packaging cut.
 
@@ -1449,9 +1450,9 @@ An editor extension that embeds the Rust runtime directly (via FFI or a native m
 
 This applies to file-based and CLI editor surfaces. A native GUI application that requires richer bidirectional communication — streaming partial results, session state queries, live approval prompts — should use the `LocalApiServer` path (Phase I) rather than `vex exec`. The two integration paths are complementary: `BatchMode` for simple, stateless editor surfaces; `LocalApiServer` for full native clients.
 
-### Why is the Windows target `gnu` rather than `msvc`?
+### Why does the release workflow build both `gnu` and `msvc` Windows targets?
 
-`x86_64-pc-windows-gnu` is cross-compilable from Linux via `cross` and the mingw toolchain, requiring no Windows CI runner. `x86_64-pc-windows-msvc` requires a Windows runner and the Visual Studio toolchain. For an initial release, the gnu target provides broad compatibility with no additional CI infrastructure cost. The msvc target may be added in a future ADR if Windows installer tooling specifically requires it.
+`x86_64-pc-windows-gnu` is still the lowest-infrastructure Windows release path because it is cross-compilable from Linux via `cross` and the mingw toolchain. `x86_64-pc-windows-msvc` runs on the existing Windows CI lane so the hosted release includes the native MSVC variant as well. Shipping both targets keeps the original Linux-packaging minimum intact while publishing the Windows-native build from the same reviewed tag.
 
 ### Why does the macOS wrapper require code signing?
 
@@ -1487,7 +1488,7 @@ Rejected. A native UI that replaces the TUI would require duplicating or closely
 
 ### Use `x86_64-pc-windows-msvc` as the Windows build target from the start
 
-Rejected for the first release. Requires a Windows CI runner and Visual Studio toolchain setup. The gnu target is cross-compilable from the existing Linux runner with no additional infrastructure. May be revisited in a future ADR.
+Rejected for the first release. Requires a Windows CI runner and Visual Studio toolchain setup. The gnu target is cross-compilable from the existing Linux runner with no additional infrastructure. Once the Windows CI lane existed, the hosted release workflow added an MSVC build in addition to the original gnu target rather than replacing it.
 
 ### Map third-party SDK variable names in `vex migrate config`
 
@@ -1546,8 +1547,8 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PE-02** | `vex exec` sub-command with JSONL/text output | [x] |
 | **PF-01** | `McpRegistry` with STDIO and HTTP transports | [x] |
 | **PF-02** | `Capability::McpTool` and approval wiring | [x] |
-| **PG-01** | Hosted release workflow — Linux and macOS targets | [ ] |
-| **PG-02** | Hosted release workflow — Windows (gnu) target | [ ] |
+| **PG-01** | Hosted release workflow — Linux and macOS targets | [x] |
+| **PG-02** | Hosted release workflow — Windows (gnu) target | [x] |
 | **PG-03** | Package-manager tap formula + auto-update dispatch | [ ] |
 | **PH-01** | macOS application layer — process management + terminal surface | [ ] |
 | **PH-02** | macOS application layer — keychain credential storage + env injection | [ ] |

@@ -165,10 +165,10 @@ prefer a fully browser-based release flow.
 `.github/workflows/release.yml` triggers on tag pushes matching `v*`.
 The workflow:
 
-1. Builds release archives for 5 targets (Linux musl x86\_64 + aarch64,
-   macOS x86\_64 + aarch64, Windows MSVC).
-  The tag workflow packages Windows from the already-validated commit and
-  does not re-run the full Windows gate inside the packaging step.
+1. Builds release archives for 6 targets (Linux musl x86\_64 + aarch64,
+   macOS x86\_64 + aarch64, Windows MSVC + GNU).
+  The tag workflow packages both Windows variants from the already-validated
+  commit and does not re-run the full Windows gate inside the packaging step.
 2. Signs archives with Sigstore cosign (keyless OIDC-backed bundles).
 3. Generates release notes from the previous semver tag to the pushed tag.
 4. Creates new release entries with the full asset set in a single publish
