@@ -902,11 +902,16 @@ impl TuiMode {
                 return;
             }
             self.push_history_line("[watch] current task session tasks:".to_string());
-            for task in &self.current_task.session_tasks {
-                self.push_history_line(format!(
-                    "  {} agent={} status={}",
-                    task.id, task.agent_id, task.lifecycle_state,
-                ));
+            let lines: Vec<String> = self
+                .current_task
+                .session_tasks
+                .iter()
+                .map(|task| {
+                    format!("  {} agent={} status={}", task.id, task.agent_id, task.lifecycle_state)
+                })
+                .collect();
+            for line in lines {
+                self.push_history_line(line);
             }
             if let Ok(Some(outcome)) =
                 crate::app::facade_poll_join(&self.working_dir, &self.current_task.id)
