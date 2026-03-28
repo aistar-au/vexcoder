@@ -91,7 +91,6 @@ fn install_delegate_race_hook(hook: DelegateRaceHook) -> DelegateRaceHookGuard {
     DelegateRaceHookGuard
 }
 
-
 // ---------------------------------------------------------------------------
 // Typed error for facade_delegate_session_task — replaces fragile string
 // matching at the handler level (O-2).
@@ -536,6 +535,8 @@ mod tests {
         assert_eq!(snapshot.kind, "task");
         assert_eq!(snapshot.status, "awaiting_approval");
     }
+}
+
 // ---------------------------------------------------------------------------
 // Phase C facade entrypoints — subtask orchestration
 // ---------------------------------------------------------------------------
@@ -590,12 +591,8 @@ pub fn facade_schedule_team(
 
     let state_dir = TaskState::state_dir_from(working_dir);
     let orchestrator = SubtaskOrchestrator::new(&state_dir);
-    let decomp = orchestrator.schedule_team(
-        parent_task_id,
-        team,
-        &config.agent_profiles,
-        prompt,
-    )?;
+    let decomp =
+        orchestrator.schedule_team(parent_task_id, team, &config.agent_profiles, prompt)?;
 
     Ok(FacadeScheduleTeamResult {
         parent_task_id: decomp.parent_task_id,

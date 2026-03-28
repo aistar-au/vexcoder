@@ -213,6 +213,9 @@ pub async fn release_session_task_handler(
         }))
     } else {
         Err(not_found("session_task_not_found"))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // ADR-034 Phase C: subtask orchestration handlers
 // ---------------------------------------------------------------------------
@@ -284,8 +287,7 @@ pub async fn join_status_handler(
     State(state): State<LocalApiState>,
     Path(task_id): Path<String>,
 ) -> Result<Json<JoinStatusResponse>, (StatusCode, Json<ControlResponse>)> {
-    let outcome = facade_poll_join(&state.config.working_dir, &task_id)
-        .map_err(internal_anyhow)?;
+    let outcome = facade_poll_join(&state.config.working_dir, &task_id).map_err(internal_anyhow)?;
 
     match outcome {
         None => Ok(Json(JoinStatusResponse {

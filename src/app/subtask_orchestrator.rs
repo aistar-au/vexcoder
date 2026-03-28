@@ -15,7 +15,7 @@
 //! instantiate per request and discard.
 
 use anyhow::{anyhow, bail, Result};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::agents::{AgentProfile, IsolationPolicy, TeamDefinition, TeamScheduler};
 use crate::runtime::{SessionTask, SessionTaskStatus, TaskState, WorktreeLeaseManager};
@@ -250,8 +250,7 @@ impl SubtaskOrchestrator {
 
         let agent = find_agent(agents, member_name)?;
         let lease_manager = WorktreeLeaseManager::new(&self.state_dir);
-        let mut session_task =
-            SessionTask::new(parent_task_id, member_name, prompt, None);
+        let mut session_task = SessionTask::new(parent_task_id, member_name, prompt, None);
         let task_id = session_task.id.clone();
 
         if agent.isolation == IsolationPolicy::Worktree {
@@ -567,8 +566,7 @@ mod tests {
             .unwrap();
 
         assert!(
-            !orc.is_team_schedule_exhausted("parent-ex", &team)
-                .unwrap(),
+            !orc.is_team_schedule_exhausted("parent-ex", &team).unwrap(),
             "should not be exhausted while tasks are live"
         );
     }
@@ -590,8 +588,7 @@ mod tests {
         state.save(orc.state_dir.as_path()).unwrap();
 
         assert!(
-            orc.is_team_schedule_exhausted("parent-ex2", &team)
-                .unwrap(),
+            orc.is_team_schedule_exhausted("parent-ex2", &team).unwrap(),
             "should be exhausted after all tasks complete"
         );
     }
