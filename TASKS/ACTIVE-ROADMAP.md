@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-28 (adr034-phase-c — subtask orchestrator, fan-out/join, sequential schedule, facade and transport routes)
+Last updated: 2026-03-28 (adr034-phase-d — operator task surface: /agents, /delegate, /watch routed through facade; /delegate team variant; vex tasks status normalized to Display)
 
 ---
 
@@ -24,7 +24,7 @@ Last updated: 2026-03-28 (adr034-phase-c — subtask orchestrator, fan-out/join,
 | ADR-031 | Accepted (all batches A-E merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-032 | Accepted | 0 items remaining | Items 1-8 complete; item 4-5 verified Tier 5; item 9 transferred to ADR-033 |
 | ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
-| ADR-034 | Active (Phase A + B-E + C merged) | Phase D (operator surface), Phase E (export/LocalApi projection) | Phase C subtask orchestrator added; PRs 228/229/230/234/256 merged; delegation enforces concurrency caps, prompt length bounded, session-task release path covered, parent/watch status normalized |
+| ADR-034 | Active (Phase A + B-E + C + D merged) | Phase E (export/LocalApi projection) | Phase D operator surface added; /agents, /delegate, /watch routed through facade; /delegate team variant; FacadeAgentDescriptor exposes max_parallel_tasks; vex tasks status uses Display; PRs 228/229/230/234/256/257 merged |
 
 ## Implementation-Complete ADRs (moved to completed/)
 

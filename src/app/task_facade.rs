@@ -5,7 +5,7 @@ use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use thiserror::Error;
 
-use crate::agents::{load_agents_config, IsolationPolicy};
+use crate::agents::{load_agents_config, IsolationPolicy, TeamScheduler};
 use crate::app::subtask_orchestrator::SubtaskOrchestrator;
 use crate::runtime::{SessionTask, SessionTaskStatus, TaskState, WorktreeLeaseManager};
 
@@ -135,6 +135,7 @@ pub struct FacadeAgentDescriptor {
     pub name: String,
     pub profile: String,
     pub isolation: String,
+    pub max_parallel_tasks: u32,
     pub live_session_tasks: usize,
 }
 
@@ -191,6 +192,7 @@ pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing> {
             .into_iter()
             .map(|agent| FacadeAgentDescriptor {
                 live_session_tasks: live_counts.remove(&agent.name).unwrap_or_default(),
+                max_parallel_tasks: agent.max_parallel_tasks,
                 name: agent.name,
                 profile: agent.profile,
                 isolation: match agent.isolation {
@@ -205,7 +207,10 @@ pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing> {
             .map(|team| FacadeTeamDescriptor {
                 name: team.name,
                 members: team.members,
-                scheduler: format!("{:?}", team.scheduler),
+                scheduler: match team.scheduler {
+                    TeamScheduler::FanOutJoin => "fan_out_join".to_string(),
+                    TeamScheduler::Sequential => "sequential".to_string(),
+                },
             })
             .collect(),
     })
@@ -654,6 +659,34 @@ mod tests {
             worker_count - 1,
             "expected remaining schedule_team calls to be rejected by the concurrency cap"
         );
+    }
+
+    #[test]
+    fn list_agents_exposes_max_parallel_tasks() {
+        let dir = tempfile::tempdir().unwrap();
+        write_agents_toml(
+            dir.path(),
+            "[[agents]]\nname = \"coder\"\nisolation = \"shared\"\nmax_parallel_tasks = 3\n",
+        );
+
+        let listing = facade_list_agents(dir.path()).unwrap();
+        assert!(listing.available, "listing should be available");
+        let agent = &listing.agents[0];
+        assert_eq!(agent.name, "coder");
+        assert_eq!(agent.max_parallel_tasks, 3);
+        assert_eq!(agent.isolation, "shared");
+    }
+
+    #[test]
+    fn list_agents_normalizes_team_scheduler_to_snake_case() {
+        let dir = tempfile::tempdir().unwrap();
+        write_agents_toml(
+            dir.path(),
+            "[[agents]]\nname = \"a\"\nisolation = \"shared\"\nmax_parallel_tasks = 1\n\n[[teams]]\nname = \"t\"\nscheduler = \"fan_out_join\"\nmembers = [\"a\"]\n",
+        );
+
+        let listing = facade_list_agents(dir.path()).unwrap();
+        assert_eq!(listing.teams[0].scheduler, "fan_out_join");
     }
 }
 

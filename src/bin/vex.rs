@@ -250,7 +250,7 @@ fn collect_task_entries(working_dir: &Path) -> Result<Vec<TaskListEntry>> {
         let state = TaskState::load(&file.dir, &file.id)?;
         entries.push(TaskListEntry {
             id: state.id.clone(),
-            status: format!("{:?}", state.status),
+            status: state.status.to_string(),
             kind: "task",
             parent_task_id: state.parent_task_id.clone(),
             agent_id: state.agent_id.clone(),
@@ -258,7 +258,7 @@ fn collect_task_entries(working_dir: &Path) -> Result<Vec<TaskListEntry>> {
         for session_task in &state.session_tasks {
             entries.push(TaskListEntry {
                 id: session_task.id.clone(),
-                status: format!("{:?}", session_task.lifecycle_state),
+                status: session_task.lifecycle_state.to_string(),
                 kind: "session-task",
                 parent_task_id: Some(state.id.clone()),
                 agent_id: Some(session_task.agent_id.clone()),
@@ -294,10 +294,10 @@ fn run_tasks_watch(working_dir: &Path, id: &str, json: bool) -> Result<ExitCode>
         if json {
             println!("{}", serde_json::to_string_pretty(&state)?);
         } else {
-            println!("task {} status={:?}", state.id, state.status);
+            println!("task {} status={}", state.id, state.status);
             for session_task in state.session_tasks {
                 println!(
-                    "  session-task {} agent={} status={:?}",
+                    "  session-task {} agent={} status={}",
                     session_task.id, session_task.agent_id, session_task.lifecycle_state
                 );
             }
@@ -318,7 +318,7 @@ fn run_tasks_watch(working_dir: &Path, id: &str, json: bool) -> Result<ExitCode>
             );
         } else {
             println!(
-                "session-task {} parent={} agent={} status={:?}",
+                "session-task {} parent={} agent={} status={}",
                 session_task.id, state.id, session_task.agent_id, session_task.lifecycle_state
             );
         }

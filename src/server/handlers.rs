@@ -50,6 +50,7 @@ pub struct AgentDescriptor {
     name: String,
     profile: String,
     isolation: String,
+    max_parallel_tasks: u32,
     live_session_tasks: usize,
 }
 
@@ -131,6 +132,7 @@ pub async fn agents_handler(
                 name: a.name,
                 profile: a.profile,
                 isolation: a.isolation,
+                max_parallel_tasks: a.max_parallel_tasks,
                 live_session_tasks: a.live_session_tasks,
             })
             .collect(),
