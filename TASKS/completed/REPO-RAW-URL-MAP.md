@@ -131,7 +131,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 119 | `src/app/scroll.rs` | ~249 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/scroll.rs> |
 | 120 | `src/app/shell.rs` | ~116 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/shell.rs> |
 | 121 | `src/app/subtask_orchestrator.rs` | ~644 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/subtask_orchestrator.rs> |
-| 122 | `src/app/task_facade.rs` | ~821 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/task_facade.rs> |
+| 122 | `src/app/task_facade.rs` | ~873 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/task_facade.rs> |
 | 123 | `src/app/tests/input.rs` | ~577 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests/input.rs> |
 | 124 | `src/app/tests/memory.rs` | ~211 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests/memory.rs> |
 | 125 | `src/app/tests/mod.rs` | ~19 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests/mod.rs> |
