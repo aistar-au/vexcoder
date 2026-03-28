@@ -39,7 +39,7 @@ Last updated: 2026-03-28
 
 ---
 
-## Remaining Work: 7 Items — Tier 8 Post-Milestone (deferred)
+## Remaining Work: 5 Items — Tier 8 Post-Milestone (deferred)
 
 Tiers sorted by unblocking impact -- what, if implemented first, unblocks
 the most downstream work.
@@ -98,12 +98,12 @@ All 13 tracked items complete.
 
 - ~~Item 33: IDLE_LOOP_BACKOFF tuning~~ (done 2026-03-28; tuning comment added noting 62Hz practical cap)
 
-### Tier 8 -- Post-Milestone (ADR-024 G/H + ADR-022) -- 7 items
+### Tier 8 -- Post-Milestone (ADR-024 G/H + ADR-022) -- 5 items
 
-Explicitly deferred until after milestone-1.
+PG-01 and PG-02 are complete (2026-03-28). Remaining items explicitly deferred until after milestone-1.
 
-- PG-01: Release workflow -- Linux/macOS targets
-- PG-02: Release workflow -- Windows (gnu) target
+- ~~PG-01: Release workflow -- Linux/macOS targets~~ (done 2026-03-28; existing release.yml targets verified; ADR-024 PG-01 checked)
+- ~~PG-02: Release workflow -- Windows (gnu) target~~ (done 2026-03-28; x86_64-pc-windows-gnu added to release matrix via cross on ubuntu-24.04)
 - PG-03: Package-manager tap formula
 - PH-01: macOS app layer -- process management
 - PH-02: macOS app layer -- keychain credential storage

@@ -34,6 +34,9 @@ jobs:
           - target: x86_64-pc-windows-msvc
             runner: windows-latest
             build_tool: cargo
+          - target: x86_64-pc-windows-gnu
+            runner: ubuntu-24.04
+            build_tool: cross
           - target: x86_64-apple-darwin
             runner: macos-15-intel
             build_tool: cargo
@@ -56,11 +59,11 @@ jobs:
         shell: bash
         run: cargo install cross --locked
 
-      - name: Install ripgrep (Linux)
+      - name: Install ripgrep and zip (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ripgrep
+          sudo apt-get install -y ripgrep zip
 
       - name: Install ripgrep (macOS)
         if: runner.os == 'macOS'
