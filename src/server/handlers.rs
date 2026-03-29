@@ -1,17 +1,20 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::convert::Infallible;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use super::sse::runtime_sse_response;
 use super::util::{bad_request, conflict, internal_error, not_found};
-use super::SSE_KEEPALIVE_INTERVAL;
+use super::{SSE_KEEPALIVE_INTERVAL, SSE_KEEPALIVE_TEXT};
 use crate::app::{
     execute_facade_runtime, facade_delegate_session_task, facade_get_session_task,
     facade_list_agents, facade_list_session_tasks, facade_list_tasks, facade_poll_join,
@@ -210,6 +213,11 @@ pub async fn release_session_task_handler(
     let released =
         facade_release_session_task(&state.config.working_dir, &id).map_err(internal_anyhow)?;
     if released {
+        if let Some(snapshot) =
+            facade_get_session_task(&state.config.working_dir, &id).map_err(internal_anyhow)?
+        {
+            state.publish_session_task_snapshot(snapshot);
+        }
         Ok(Json(ControlResponse {
             ok: true,
             reason: None,
@@ -584,7 +592,10 @@ pub async fn update_session_task_status_handler(
     Json(body): Json<UpdateSessionTaskStatusRequest>,
 ) -> Result<Json<SessionTaskSnapshotResponse>, (StatusCode, Json<ControlResponse>)> {
     match facade_update_session_task_status(&state.config.working_dir, &id, &body.status) {
-        Ok(snap) => Ok(Json(snapshot_to_response(snap))),
+        Ok(snap) => {
+            state.publish_session_task_snapshot(snap.clone());
+            Ok(Json(snapshot_to_response(snap)))
+        }
         Err(SessionTaskStatusError::NotFound) => Err(not_found("session_task_not_found")),
         Err(SessionTaskStatusError::InvalidStatus) => Err(bad_request("invalid_status")),
         Err(SessionTaskStatusError::TransitionNotAllowed) => {
@@ -605,4 +616,99 @@ fn snapshot_to_response(s: crate::app::FacadeSessionTaskSnapshot) -> SessionTask
         updated_at_ms: s.updated_at_ms,
         handoff_summary: s.handoff_summary,
     }
+}
+
+fn session_task_event(
+    snapshot: crate::app::FacadeSessionTaskSnapshot,
+) -> Result<Event, serde_json::Error> {
+    serde_json::to_string(&snapshot_to_response(snapshot))
+        .map(|data| Event::default().event("session_task").data(data))
+}
+
+fn lifecycle_state_is_terminal(state: &str) -> bool {
+    matches!(state, "failed" | "cancelled" | "completed")
+}
+
+// ---------------------------------------------------------------------------
+// ADR-034 Phase E2 — watch-stream projection
+// ---------------------------------------------------------------------------
+
+/// `GET /v1/session-tasks/{id}/watch`
+///
+/// Returns an SSE stream.  The server emits a `session_task` event each time
+/// the session task's `updated_at_ms` timestamp advances.  The initial
+/// snapshot is always emitted on connect.  Live updates are fanned out through
+/// `LocalApiState`'s in-process broadcast channel while the persisted
+/// task-state files remain the durable source of truth for reconnects.  The
+/// stream terminates automatically once the session task reaches a terminal
+/// state (`failed`, `cancelled`, or `completed`).
+///
+/// Returns 404 when no session task with the given id exists at connection
+/// time.
+pub async fn watch_session_task_handler(
+    State(state): State<LocalApiState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ControlResponse>)> {
+    let mut updates = state.subscribe_session_task_events();
+
+    let initial_snapshot = facade_get_session_task(&state.config.working_dir, &id)
+        .map_err(internal_anyhow)?
+        .ok_or_else(|| not_found("session_task_not_found"))?;
+
+    let (tx, rx) = mpsc::unbounded_channel::<Result<Event, Infallible>>();
+    let initial_is_terminal = lifecycle_state_is_terminal(&initial_snapshot.lifecycle_state);
+    let mut last_updated_at = initial_snapshot.updated_at_ms;
+
+    let initial_event = session_task_event(initial_snapshot).map_err(|err| {
+        internal_anyhow(anyhow::anyhow!(
+            "failed to serialize session-task watch snapshot: {err}"
+        ))
+    })?;
+    tx.send(Ok(initial_event)).map_err(|_| {
+        internal_anyhow(anyhow::anyhow!("failed to seed session-task watch stream"))
+    })?;
+
+    if !initial_is_terminal {
+        tokio::spawn(async move {
+            loop {
+                let snapshot = match updates.recv().await {
+                    Ok(snapshot) if snapshot.id == id => snapshot,
+                    Ok(_) => continue,
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => break,
+                };
+
+                let is_terminal = lifecycle_state_is_terminal(&snapshot.lifecycle_state);
+                if snapshot.updated_at_ms <= last_updated_at {
+                    if is_terminal {
+                        break;
+                    }
+                    continue;
+                }
+                last_updated_at = snapshot.updated_at_ms;
+
+                let event = match session_task_event(snapshot) {
+                    Ok(event) => event,
+                    Err(_) => break,
+                };
+                if tx.send(Ok(event)).is_err() {
+                    break;
+                }
+                if is_terminal {
+                    break;
+                }
+            }
+        });
+    }
+
+    let stream = UnboundedReceiverStream::new(rx);
+    Ok((
+        StatusCode::OK,
+        [(axum::http::header::CACHE_CONTROL, "no-cache")],
+        Sse::new(stream).keep_alive(
+            KeepAlive::new()
+                .interval(SSE_KEEPALIVE_INTERVAL)
+                .text(SSE_KEEPALIVE_TEXT),
+        ),
+    ))
 }
