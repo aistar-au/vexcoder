@@ -17,9 +17,10 @@ use super::util::{bad_request, conflict, internal_error, not_found};
 use super::{SSE_KEEPALIVE_INTERVAL, SSE_KEEPALIVE_TEXT};
 use crate::app::{
     execute_facade_runtime, facade_delegate_session_task, facade_get_session_task,
-    facade_list_agents, facade_list_session_tasks, facade_list_tasks, facade_poll_join,
-    facade_release_session_task, facade_schedule_team, facade_update_session_task_status,
-    facade_watch_snapshot, DelegateError, ScheduleTeamError, SessionTaskStatusError,
+    facade_list_agents, facade_list_session_tasks, facade_list_tasks, facade_list_todos,
+    facade_poll_join, facade_release_session_task, facade_schedule_team, facade_task_graph,
+    facade_update_session_task_status, facade_watch_snapshot, DelegateError, ScheduleTeamError,
+    SessionTaskStatusError,
 };
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
@@ -720,5 +721,82 @@ pub async fn watch_session_task_handler(
                 .interval(SSE_KEEPALIVE_INTERVAL)
                 .text(SSE_KEEPALIVE_TEXT),
         ),
+    ))
+}
+
+// ---------------------------------------------------------------------------
+// Task graph — `GET /v1/task-graph`
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct TaskGraphNodeResponse {
+    pub id: String,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    pub session_tasks: Vec<SessionTaskSnapshotResponse>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TaskGraphResponse {
+    pub nodes: Vec<TaskGraphNodeResponse>,
+}
+
+/// Return the full task graph: every parent task node with its session tasks.
+///
+/// `GET /v1/task-graph`
+#[tracing::instrument(skip_all)]
+pub async fn task_graph_handler(
+    State(state): State<LocalApiState>,
+) -> Result<Json<TaskGraphResponse>, (StatusCode, Json<ControlResponse>)> {
+    let graph = facade_task_graph(&state.config.working_dir).map_err(internal_anyhow)?;
+    Ok(Json(TaskGraphResponse {
+        nodes: graph
+            .nodes
+            .into_iter()
+            .map(|n| TaskGraphNodeResponse {
+                id: n.id,
+                status: n.status,
+                agent_id: n.agent_id,
+                session_tasks: n
+                    .session_tasks
+                    .into_iter()
+                    .map(snapshot_to_response)
+                    .collect(),
+            })
+            .collect(),
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// Todos — `GET /v1/todos`
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct TodoItemResponse {
+    pub id: String,
+    pub parent_task_id: String,
+    pub agent_id: String,
+    pub lifecycle_state: String,
+}
+
+/// Return all live (non-terminal) session tasks as a flat todo list.
+///
+/// `GET /v1/todos`
+#[tracing::instrument(skip_all)]
+pub async fn list_todos_handler(
+    State(state): State<LocalApiState>,
+) -> Result<Json<Vec<TodoItemResponse>>, (StatusCode, Json<ControlResponse>)> {
+    let todos = facade_list_todos(&state.config.working_dir).map_err(internal_anyhow)?;
+    Ok(Json(
+        todos
+            .into_iter()
+            .map(|t| TodoItemResponse {
+                id: t.id,
+                parent_task_id: t.parent_task_id,
+                agent_id: t.agent_id,
+                lifecycle_state: t.lifecycle_state,
+            })
+            .collect(),
     ))
 }

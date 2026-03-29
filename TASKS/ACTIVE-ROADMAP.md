@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-29 (robustness — replace 7 lock().expect() panics with unwrap_or_else(|e| e.into_inner()) in local_api.rs and server/handlers.rs; convert system_prompt_text().expect() in context.rs to UiUpdate::Error propagation)
+Last updated: 2026-03-29 (multi-batch — task graph + todos endpoints, schedule_team/join_status/task_graph/todos server tests, config hooks decomposition into src/config/hooks.rs)
 
 ---
 

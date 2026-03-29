@@ -8,38 +8,11 @@ use crate::runtime::{ModelBackendKind, ModelProtocol, SandboxConfig, SandboxKind
 use crate::types::ModelProfile;
 use crate::util::{is_local_endpoint_url, parse_bool_flag};
 
+pub mod hooks;
+pub use hooks::{default_hook_on_fail, HookConfig, HookEvent, HookOnFail};
+
 const DEFAULT_LOCAL_API_HOST: &str = "127.0.0.1";
 const DEFAULT_LOCAL_API_PORT: u16 = 6274;
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum HookEvent {
-    PreTool,
-    PostTool,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum HookOnFail {
-    Warn,
-    Abort,
-    Ignore,
-}
-
-fn default_hook_on_fail() -> HookOnFail {
-    HookOnFail::Warn
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct HookConfig {
-    pub event: HookEvent,
-    pub tool: String,
-    pub command: String,
-    #[serde(default)]
-    pub args: Vec<String>,
-    #[serde(default = "default_hook_on_fail")]
-    pub on_fail: HookOnFail,
-}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
