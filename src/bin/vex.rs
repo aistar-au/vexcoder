@@ -4,7 +4,9 @@ use serde::Serialize;
 use std::io::IsTerminal;
 use std::path::Path;
 use std::process::ExitCode;
-use vexcoder::app::run_tui_session;
+use vexcoder::app::{
+    run_tui_session, task_graph_snapshot_path, todos_snapshot_path, write_projection_snapshot,
+};
 use vexcoder::batch_mode::{run_batch, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
 use vexcoder::doctor::run_doctor;
@@ -192,6 +194,18 @@ fn run_tasks_watch(working_dir: &Path, id: &str, json: bool) -> Result<ExitCode>
     Ok(ExitCode::FAILURE)
 }
 
+fn run_tasks_export_graph(working_dir: &Path) -> Result<ExitCode> {
+    write_projection_snapshot(working_dir)?;
+    println!("{}", task_graph_snapshot_path(working_dir).display());
+    Ok(ExitCode::SUCCESS)
+}
+
+fn run_tasks_export_todos(working_dir: &Path) -> Result<ExitCode> {
+    write_projection_snapshot(working_dir)?;
+    println!("{}", todos_snapshot_path(working_dir).display());
+    Ok(ExitCode::SUCCESS)
+}
+
 // ── main ───────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -255,6 +269,8 @@ async fn main() -> Result<ExitCode> {
             return match sub {
                 TaskCommands::List { json } => run_tasks_list(&cwd, json),
                 TaskCommands::Watch { id, json } => run_tasks_watch(&cwd, &id, json),
+                TaskCommands::ExportGraph => run_tasks_export_graph(&cwd),
+                TaskCommands::ExportTodos => run_tasks_export_todos(&cwd),
             };
         }
         Some(Commands::Init { dir }) => {

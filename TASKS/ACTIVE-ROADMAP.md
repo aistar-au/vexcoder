@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-29 (server test expansion -- schedule/join concurrency coverage, large task-state directory scans, and watch release stream coverage)
+Last updated: 2026-03-29 (todo-projection -- persistent task-graph + todos snapshot files, vex tasks export-graph/export-todos CLI, /v1/projection endpoint)
 
 ---
 

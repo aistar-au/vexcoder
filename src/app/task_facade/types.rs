@@ -1,3 +1,4 @@
+use serde::Serialize;
 use thiserror::Error;
 
 /// Summary of one persisted parent task returned by `facade_list_tasks`.
@@ -13,7 +14,7 @@ pub struct FacadeTaskSummary {
 
 /// Full projection of one session task returned by the listing and detail
 /// endpoints.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FacadeSessionTaskSnapshot {
     pub id: String,
     pub parent_task_id: String,
@@ -119,7 +120,7 @@ pub enum ScheduleTeamError {
 }
 
 /// One node in the task graph: a parent task plus its session tasks.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FacadeTaskGraphNode {
     pub id: String,
     pub status: String,
@@ -134,7 +135,7 @@ pub struct FacadeTaskGraph {
 }
 
 /// One live (non-terminal) session task returned by `facade_list_todos`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FacadeTodoItem {
     pub id: String,
     pub parent_task_id: String,
