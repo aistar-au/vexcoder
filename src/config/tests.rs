@@ -569,3 +569,704 @@ fn test_migrate_empty_env_produces_only_header_comments() {
     );
     assert_eq!(out.lines().count(), 2);
 }
+
+// ---------------------------------------------------------------------------
+// TOML file layer validation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_unknown_toml_key_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(&user_cfg, "imaginary_key = true\n").unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("unknown") || msg.contains("Unknown"),
+        "expected unknown-key error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_model_token_in_config_file_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(&user_cfg, "model_token = \"secret\"\n").unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("model_token"),
+        "expected model_token error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_malformed_toml_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(&user_cfg, "{{{{ not valid toml").unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("TOML") || msg.contains("toml"),
+        "expected TOML error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_missing_config_file_is_not_an_error() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    let nonexistent = temp.path().join("nonexistent.toml");
+
+    let result = Config::load_for_tests(&cwd, Some(&nonexistent), None);
+    assert!(
+        result.is_ok(),
+        "missing config file should be silently ignored"
+    );
+}
+
+#[test]
+fn test_invalid_model_backend_in_config_file_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(&user_cfg, "model_backend = \"bogus\"\n").unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("model_backend") && msg.contains("bogus"),
+        "expected model_backend error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_invalid_model_protocol_in_config_file_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(&user_cfg, "model_protocol = \"bogus\"\n").unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("model_protocol") && msg.contains("bogus"),
+        "expected model_protocol error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_invalid_sandbox_kind_in_config_file_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(&user_cfg, "sandbox = \"bogus\"\n").unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("sandbox") && msg.contains("bogus"),
+        "expected sandbox error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_invalid_api_transport_in_config_file_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(&user_cfg, "[api]\ntransport = \"bogus\"\n").unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("transport") && msg.contains("bogus"),
+        "expected api transport error, got: {msg}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Layer merge precedence (system < user < repo-local < env)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_user_layer_overrides_system_layer() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _url = EnvRestore::capture("VEX_MODEL_URL");
+    let _name = EnvRestore::capture("VEX_MODEL_NAME");
+    std::env::remove_var("VEX_MODEL_URL");
+    std::env::remove_var("VEX_MODEL_NAME");
+
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let system_cfg = temp.path().join("system.toml");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(&system_cfg, "model_name = \"system-model\"\n").unwrap();
+    std::fs::write(&user_cfg, "model_name = \"user-model\"\n").unwrap();
+
+    let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), Some(&system_cfg)).unwrap();
+    assert_eq!(cfg.model_name, "user-model");
+}
+
+#[test]
+fn test_repo_layer_overrides_user_layer() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _url = EnvRestore::capture("VEX_MODEL_URL");
+    let _name = EnvRestore::capture("VEX_MODEL_NAME");
+    std::env::remove_var("VEX_MODEL_URL");
+    std::env::remove_var("VEX_MODEL_NAME");
+
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".vex")).unwrap();
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        cwd.join(".vex/config.toml"),
+        "model_name = \"repo-model\"\n",
+    )
+    .unwrap();
+    std::fs::write(&user_cfg, "model_name = \"user-model\"\n").unwrap();
+
+    let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap();
+    assert_eq!(cfg.model_name, "repo-model");
+}
+
+#[test]
+fn test_env_layer_overrides_repo_layer() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _url = EnvRestore::capture("VEX_MODEL_URL");
+    let _name = EnvRestore::capture("VEX_MODEL_NAME");
+    std::env::set_var("VEX_MODEL_NAME", "env-model");
+    std::env::remove_var("VEX_MODEL_URL");
+
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    std::fs::create_dir_all(cwd.join(".vex")).unwrap();
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        cwd.join(".vex/config.toml"),
+        "model_name = \"repo-model\"\n",
+    )
+    .unwrap();
+
+    let cfg = Config::load_for_tests(&cwd, None, None).unwrap();
+    assert_eq!(cfg.model_name, "env-model");
+}
+
+// ---------------------------------------------------------------------------
+// Repo-local config rejection (notes_path, hooks, mcp_servers)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_repo_local_notes_path_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    std::fs::create_dir_all(cwd.join(".vex")).unwrap();
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        cwd.join(".vex/config.toml"),
+        "notes_path = \"~/notes.md\"\n",
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, None, None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("notes_path"),
+        "expected notes_path rejection, got: {msg}"
+    );
+}
+
+#[test]
+fn test_repo_local_hooks_are_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    std::fs::create_dir_all(cwd.join(".vex")).unwrap();
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        cwd.join(".vex/config.toml"),
+        "[[hooks]]\nevent = \"pre_tool\"\ncommand = \"echo hi\"\n",
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, None, None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("hooks"),
+        "expected hooks rejection, got: {msg}"
+    );
+}
+
+#[test]
+fn test_repo_local_mcp_servers_are_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    std::fs::create_dir_all(cwd.join(".vex")).unwrap();
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        cwd.join(".vex/config.toml"),
+        "[[mcp_servers]]\nname = \"test\"\ntransport = \"stdio\"\ncommand = \"echo\"\n",
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, None, None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("mcp_servers") || msg.contains("MCP"),
+        "expected mcp_servers rejection, got: {msg}"
+    );
+}
+
+#[test]
+fn test_system_mcp_servers_are_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let system_cfg = temp.path().join("system.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        &system_cfg,
+        "[[mcp_servers]]\nname = \"test\"\ntransport = \"stdio\"\ncommand = \"echo\"\n",
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, None, Some(&system_cfg)).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("mcp_servers") || msg.contains("MCP"),
+        "expected system mcp_servers rejection, got: {msg}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// MCP server validation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_mcp_server_duplicate_name_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        &user_cfg,
+        concat!(
+            "[[mcp_servers]]\nname = \"dup\"\ntransport = \"stdio\"\ncommand = \"echo\"\n\n",
+            "[[mcp_servers]]\nname = \"dup\"\ntransport = \"stdio\"\ncommand = \"echo2\"\n"
+        ),
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("duplicate"),
+        "expected duplicate name error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_mcp_server_empty_name_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        &user_cfg,
+        "[[mcp_servers]]\nname = \"\"\ntransport = \"stdio\"\ncommand = \"echo\"\n",
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("empty"),
+        "expected empty name error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_mcp_server_invalid_name_chars_are_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        &user_cfg,
+        "[[mcp_servers]]\nname = \"bad name!\"\ntransport = \"stdio\"\ncommand = \"echo\"\n",
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("invalid characters"),
+        "expected invalid chars error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_mcp_stdio_without_command_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        &user_cfg,
+        "[[mcp_servers]]\nname = \"nocommand\"\ntransport = \"stdio\"\n",
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("command"),
+        "expected missing command error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_mcp_http_without_url_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        &user_cfg,
+        "[[mcp_servers]]\nname = \"nourl\"\ntransport = \"http\"\n",
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("url"),
+        "expected missing url error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_mcp_stdio_with_url_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        &user_cfg,
+        "[[mcp_servers]]\nname = \"badstdio\"\ntransport = \"stdio\"\ncommand = \"echo\"\nurl = \"http://example.com\"\n",
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("url"),
+        "expected stdio-with-url error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_mcp_http_with_command_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        &user_cfg,
+        "[[mcp_servers]]\nname = \"badhttp\"\ntransport = \"http\"\nurl = \"http://example.com\"\ncommand = \"echo\"\n",
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("command"),
+        "expected http-with-command error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_mcp_http_with_args_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        &user_cfg,
+        "[[mcp_servers]]\nname = \"badhttp\"\ntransport = \"http\"\nurl = \"http://example.com\"\nargs = [\"--flag\"]\n",
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("args"),
+        "expected http-with-args error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_valid_mcp_stdio_server_loads() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        &user_cfg,
+        "[[mcp_servers]]\nname = \"my-server\"\ntransport = \"stdio\"\ncommand = \"mcp-tool\"\nargs = [\"--port\", \"8080\"]\n",
+    )
+    .unwrap();
+
+    let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap();
+    assert_eq!(cfg.mcp_servers.len(), 1);
+    assert_eq!(cfg.mcp_servers[0].name, "my-server");
+    assert_eq!(cfg.mcp_servers[0].command.as_deref(), Some("mcp-tool"));
+    assert_eq!(cfg.mcp_servers[0].args, vec!["--port", "8080"]);
+}
+
+#[test]
+fn test_valid_mcp_http_server_loads() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        &user_cfg,
+        "[[mcp_servers]]\nname = \"remote\"\ntransport = \"http\"\nurl = \"http://localhost:3000/mcp\"\n",
+    )
+    .unwrap();
+
+    let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap();
+    assert_eq!(cfg.mcp_servers.len(), 1);
+    assert_eq!(cfg.mcp_servers[0].name, "remote");
+    assert_eq!(
+        cfg.mcp_servers[0].url.as_deref(),
+        Some("http://localhost:3000/mcp")
+    );
+    assert!(cfg.mcp_servers[0].command.is_none());
+}
+
+// ---------------------------------------------------------------------------
+// Protocol and backend inference
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_infer_model_protocol_chat_compat_for_completions_url() {
+    assert_eq!(
+        super::infer_model_protocol("https://api.example.internal/v1/chat/completions"),
+        crate::runtime::ModelProtocol::ChatCompat
+    );
+}
+
+#[test]
+fn test_infer_model_protocol_chat_compat_for_v1_url() {
+    assert_eq!(
+        super::infer_model_protocol("https://api.example.internal/v1"),
+        crate::runtime::ModelProtocol::ChatCompat
+    );
+}
+
+#[test]
+fn test_infer_model_protocol_messages_v1_for_messages_url() {
+    assert_eq!(
+        super::infer_model_protocol("https://api.example.internal/v1/messages"),
+        crate::runtime::ModelProtocol::MessagesV1
+    );
+}
+
+#[test]
+fn test_infer_model_protocol_messages_v1_for_empty_url() {
+    assert_eq!(
+        super::infer_model_protocol(""),
+        crate::runtime::ModelProtocol::MessagesV1
+    );
+}
+
+#[test]
+fn test_default_model_backend_local_for_empty_url() {
+    assert_eq!(
+        super::default_model_backend(""),
+        ModelBackendKind::LocalRuntime
+    );
+}
+
+#[test]
+fn test_default_model_backend_local_for_localhost() {
+    assert_eq!(
+        super::default_model_backend("http://localhost:8080/v1"),
+        ModelBackendKind::LocalRuntime
+    );
+}
+
+#[test]
+fn test_default_model_backend_api_for_remote_url() {
+    assert_eq!(
+        super::default_model_backend("https://api.example.internal/v1"),
+        ModelBackendKind::ApiServer
+    );
+}
+
+#[test]
+fn test_default_tool_call_mode_tagged_for_local() {
+    assert_eq!(
+        super::default_tool_call_mode("http://127.0.0.1:8080/v1"),
+        crate::runtime::ToolCallMode::TaggedFallback
+    );
+}
+
+#[test]
+fn test_default_tool_call_mode_structured_for_remote() {
+    assert_eq!(
+        super::default_tool_call_mode("https://api.example.internal/v1"),
+        crate::runtime::ToolCallMode::Structured
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Config resolution defaults
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_empty_config_resolves_compiled_defaults() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _url = EnvRestore::capture("VEX_MODEL_URL");
+    let _name = EnvRestore::capture("VEX_MODEL_NAME");
+    let _backend = EnvRestore::capture("VEX_MODEL_BACKEND");
+    std::env::remove_var("VEX_MODEL_URL");
+    std::env::remove_var("VEX_MODEL_NAME");
+    std::env::remove_var("VEX_MODEL_BACKEND");
+
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+
+    let cfg = Config::load_for_tests(&cwd, None, None).unwrap();
+    assert_eq!(cfg.model_name, "local/default");
+    assert_eq!(cfg.model_backend, ModelBackendKind::LocalRuntime);
+    assert_eq!(cfg.max_project_instructions_tokens, 4096);
+    assert_eq!(cfg.max_memory_tokens, 2048);
+    assert!(cfg.hooks.is_empty());
+    assert!(cfg.mcp_servers.is_empty());
+}
+
+#[test]
+fn test_working_dir_defaults_to_cwd() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _workdir = EnvRestore::capture("VEX_WORKDIR");
+    std::env::remove_var("VEX_WORKDIR");
+
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+
+    let cfg = Config::load_for_tests(&cwd, None, None).unwrap();
+    assert_eq!(cfg.working_dir, cwd);
+}
+
+// ---------------------------------------------------------------------------
+// Ancestor walk for repo-local config
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_find_repo_local_config_walks_ancestors() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _url = EnvRestore::capture("VEX_MODEL_URL");
+    let _name = EnvRestore::capture("VEX_MODEL_NAME");
+    std::env::remove_var("VEX_MODEL_URL");
+    std::env::remove_var("VEX_MODEL_NAME");
+
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("project");
+    let nested = root.join("deep/nested/dir");
+    std::fs::create_dir_all(root.join(".vex")).unwrap();
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    std::fs::create_dir_all(&nested).unwrap();
+    std::fs::write(
+        root.join(".vex/config.toml"),
+        "model_name = \"ancestor-found\"\n",
+    )
+    .unwrap();
+
+    let cfg = Config::load_for_tests(&nested, None, None).unwrap();
+    assert_eq!(cfg.model_name, "ancestor-found");
+}
+
+// ---------------------------------------------------------------------------
+// Env var edge cases
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_empty_env_model_token_is_treated_as_absent() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
+    std::env::set_var("VEX_MODEL_TOKEN", "   ");
+
+    let (_, token) = super::read_env_layer().unwrap();
+    assert!(token.is_none(), "whitespace-only token should be None");
+}
+
+#[test]
+fn test_invalid_bool_flag_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _skip = EnvRestore::capture("VEX_MODEL_URL_SKIP_TLS_CHECK");
+    std::env::set_var("VEX_MODEL_URL_SKIP_TLS_CHECK", "maybe");
+
+    let error = super::read_env_layer().unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("VEX_MODEL_URL_SKIP_TLS_CHECK"),
+        "expected env var name in error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_invalid_api_port_is_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _port = EnvRestore::capture("VEX_API_PORT");
+    std::env::set_var("VEX_API_PORT", "not-a-number");
+
+    let error = super::read_env_layer().unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("VEX_API_PORT"),
+        "expected VEX_API_PORT in error, got: {msg}"
+    );
+}
