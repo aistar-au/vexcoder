@@ -730,7 +730,7 @@ pub async fn capture_batch_text(task: &str, max_turns: usize) -> Result<String> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Config;
+    use crate::config::{CompactionConfig, Config};
     use crate::runtime::{EditLoopOutcome, TaskStatus};
 
     #[tokio::test]
@@ -859,6 +859,7 @@ mod tests {
             model_headers: reqwest::header::HeaderMap::new(),
             mcp_servers: Vec::new(),
             http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
             notes_path: Some(notes_path.clone()),
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1138,6 +1139,7 @@ mod tests {
             model_headers: reqwest::header::HeaderMap::new(),
             mcp_servers: Vec::new(),
             http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
             notes_path: Some(notes_path),
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1176,6 +1178,7 @@ mod tests {
             model_headers: reqwest::header::HeaderMap::new(),
             mcp_servers: Vec::new(),
             http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1209,6 +1212,7 @@ mod tests {
             model_headers: reqwest::header::HeaderMap::new(),
             mcp_servers: Vec::new(),
             http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),

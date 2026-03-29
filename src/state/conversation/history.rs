@@ -1,4 +1,5 @@
 use super::ConversationManager;
+use crate::config::CompactionConfig;
 use crate::tool_preview::{
     format_read_file_snapshot_message, read_file_path, ReadFileSnapshotSummary,
     ReadFileSummaryMessageStyle,
@@ -123,6 +124,100 @@ impl ConversationManager {
         if keep_start > 0 && keep_start < len {
             self.api_messages.drain(0..keep_start);
         }
+    }
+
+    /// Estimate the total token count of the current message history using
+    /// a byte-based heuristic (4 bytes per token).
+    #[allow(dead_code)]
+    pub(super) fn estimate_history_tokens(&self) -> usize {
+        self.api_messages
+            .iter()
+            .map(|msg| match &msg.content {
+                Content::Text(t) => t.len(),
+                Content::Blocks(blocks) => blocks
+                    .iter()
+                    .map(|b| match b {
+                        ContentBlock::Text { text, .. } => text.len(),
+                        ContentBlock::ToolUse { input, .. } => input.to_string().len(),
+                        ContentBlock::ToolResult { content, .. } => content.len(),
+                        _ => 0,
+                    })
+                    .sum(),
+            })
+            .sum::<usize>()
+            / 4
+    }
+
+    /// Check whether proactive compaction should trigger based on the
+    /// configured threshold and an estimated context window size.
+    #[allow(dead_code)]
+    pub(super) fn should_compact_proactively(
+        &self,
+        config: &CompactionConfig,
+        context_window_tokens: usize,
+    ) -> bool {
+        if !config.enabled || context_window_tokens == 0 {
+            return false;
+        }
+        let threshold = context_window_tokens * (config.threshold_percent as usize) / 100;
+        self.estimate_history_tokens() > threshold
+    }
+
+    /// Run proactive compaction: replace all messages before the most recent
+    /// `keep_recent_turns` turns with a single user message containing
+    /// `summary_text`. Returns the number of messages removed.
+    ///
+    /// If `summary_text` is empty, falls back to the existing
+    /// keep-recent pruning without a summary prefix.
+    ///
+    /// Preserves the MessagesV1 invariant that history starts with a
+    /// plain user message.
+    #[allow(dead_code)]
+    pub(super) fn compact_with_summary(
+        &mut self,
+        keep_recent_turns: usize,
+        summary_text: &str,
+    ) -> usize {
+        let len = self.api_messages.len();
+        if len == 0 {
+            return 0;
+        }
+
+        // Find the boundary: count user messages from the end to find the
+        // start of the most recent `keep_recent_turns` turns.
+        let mut user_count = 0usize;
+        let mut boundary = 0;
+        for i in (0..len).rev() {
+            if self.api_messages[i].role == "user"
+                && !message_contains_tool_result(&self.api_messages[i])
+            {
+                user_count += 1;
+                if user_count >= keep_recent_turns {
+                    boundary = i;
+                    break;
+                }
+            }
+        }
+
+        if boundary == 0 {
+            return 0;
+        }
+
+        let removed = boundary;
+        self.api_messages.drain(0..boundary);
+
+        // Prepend a summary message if provided.
+        if !summary_text.is_empty() {
+            self.api_messages.insert(
+                0,
+                ApiMessage {
+                    role: "user".to_string(),
+                    content: Content::Text(format!("[conversation summary] {summary_text}")),
+                },
+            );
+        }
+
+        removed
     }
 
     /// Condense tool results in messages older than `keep_turns` recent

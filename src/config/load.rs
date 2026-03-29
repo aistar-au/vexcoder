@@ -8,9 +8,9 @@ use crate::types::ModelProfile;
 use crate::util::{is_local_endpoint_url, parse_bool_flag};
 
 use super::{
-    ApiConfig, ApiConfigLayer, ApiTransport, Config, ConfigLayer, DoctorConfigLayer,
-    DoctorConfigSnapshot, DoctorMcpServer, HttpHookConfig, McpServerConfig, McpTransport,
-    DEFAULT_LOCAL_API_HOST, DEFAULT_LOCAL_API_PORT,
+    ApiConfig, ApiConfigLayer, ApiTransport, CompactionConfig, CompactionConfigLayer, Config,
+    ConfigLayer, DoctorConfigLayer, DoctorConfigSnapshot, DoctorMcpServer, HttpHookConfig,
+    McpServerConfig, McpTransport, DEFAULT_LOCAL_API_HOST, DEFAULT_LOCAL_API_PORT,
 };
 
 pub(super) fn load() -> Result<Config> {
@@ -241,6 +241,23 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
         hooks: over.hooks.or(base.hooks),
         http_hooks: over.http_hooks.or(base.http_hooks),
         mcp_servers: over.mcp_servers.or(base.mcp_servers),
+        compaction: apply_compaction_over(base.compaction, over.compaction),
+    }
+}
+
+fn apply_compaction_over(
+    base: Option<CompactionConfigLayer>,
+    over: Option<CompactionConfigLayer>,
+) -> Option<CompactionConfigLayer> {
+    match (base, over) {
+        (None, None) => None,
+        (Some(layer), None) | (None, Some(layer)) => Some(layer),
+        (Some(base), Some(over)) => Some(CompactionConfigLayer {
+            enabled: over.enabled.or(base.enabled),
+            threshold_percent: over.threshold_percent.or(base.threshold_percent),
+            keep_recent_turns: over.keep_recent_turns.or(base.keep_recent_turns),
+            summary_max_tokens: over.summary_max_tokens.or(base.summary_max_tokens),
+        }),
     }
 }
 
@@ -413,6 +430,7 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         max_project_instructions_tokens,
         max_memory_tokens,
         mcp_servers: None,
+        compaction: None,
         notes_path: None,
         api: Some(ApiConfigLayer {
             transport: api_transport,
@@ -734,7 +752,18 @@ fn resolve_config(
         hooks: merged.hooks.unwrap_or_default(),
         http_hooks: validate_http_hooks(merged.http_hooks.unwrap_or_default())?,
         mcp_servers,
+        compaction: resolve_compaction_config(merged.compaction),
     })
+}
+
+fn resolve_compaction_config(layer: Option<CompactionConfigLayer>) -> CompactionConfig {
+    let layer = layer.unwrap_or_default();
+    CompactionConfig {
+        enabled: layer.enabled.unwrap_or(false),
+        threshold_percent: layer.threshold_percent.unwrap_or(80).clamp(10, 99),
+        keep_recent_turns: layer.keep_recent_turns.unwrap_or(4).clamp(1, 32),
+        summary_max_tokens: layer.summary_max_tokens.unwrap_or(1024).clamp(64, 4096),
+    }
 }
 
 pub(super) fn default_model_backend(model_url: &str) -> ModelBackendKind {
