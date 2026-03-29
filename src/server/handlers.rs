@@ -152,6 +152,7 @@ pub async fn agents_handler(
     }))
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn delegate_handler(
     State(state): State<LocalApiState>,
     Json(request): Json<DelegateRequest>,
@@ -182,6 +183,7 @@ pub async fn delegate_handler(
     }))
 }
 
+#[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn watch_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
@@ -206,6 +208,7 @@ pub async fn watch_handler(
 ///
 /// Returns 200 `{ ok: true }` on success, 404 when the session task is not
 /// found in any saved task-state file.
+#[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn release_session_task_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
@@ -264,6 +267,7 @@ pub struct JoinSummaryEntry {
 /// Decompose a parent task into session tasks for a named team.
 ///
 /// `POST /v1/teams/{team_name}/schedule` with body `{ parent_task_id, prompt }`
+#[tracing::instrument(skip_all, fields(team_name = %team_name))]
 pub async fn schedule_team_handler(
     State(state): State<LocalApiState>,
     Path(team_name): Path<String>,
@@ -296,6 +300,7 @@ pub async fn schedule_team_handler(
 /// Check the fan-out join gate for a parent task.
 ///
 /// `GET /v1/tasks/{task_id}/join-status`
+#[tracing::instrument(skip_all, fields(task_id = %task_id))]
 pub async fn join_status_handler(
     State(state): State<LocalApiState>,
     Path(task_id): Path<String>,
@@ -546,6 +551,7 @@ pub struct UpdateSessionTaskStatusRequest {
 }
 
 /// `GET /v1/tasks`
+#[tracing::instrument(skip_all)]
 pub async fn list_tasks_handler(
     State(state): State<LocalApiState>,
 ) -> Result<Json<Vec<TaskSummaryResponse>>, (StatusCode, Json<ControlResponse>)> {
@@ -566,6 +572,7 @@ pub async fn list_tasks_handler(
 }
 
 /// `GET /v1/session-tasks`
+#[tracing::instrument(skip_all)]
 pub async fn list_session_tasks_handler(
     State(state): State<LocalApiState>,
 ) -> Result<Json<Vec<SessionTaskSnapshotResponse>>, (StatusCode, Json<ControlResponse>)> {
@@ -574,6 +581,7 @@ pub async fn list_session_tasks_handler(
 }
 
 /// `GET /v1/session-tasks/{id}`
+#[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn get_session_task_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
@@ -586,6 +594,7 @@ pub async fn get_session_task_handler(
 }
 
 /// `PATCH /v1/session-tasks/{id}/status`
+#[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn update_session_task_status_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
@@ -645,6 +654,7 @@ fn lifecycle_state_is_terminal(state: &str) -> bool {
 ///
 /// Returns 404 when no session task with the given id exists at connection
 /// time.
+#[tracing::instrument(skip_all, fields(id = %id))]
 pub async fn watch_session_task_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,

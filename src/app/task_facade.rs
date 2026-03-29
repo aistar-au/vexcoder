@@ -222,6 +222,7 @@ pub struct FacadeWatchSnapshot {
 // Facade entrypoints — called by handlers, never by-passed.
 // ---------------------------------------------------------------------------
 
+#[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing> {
     let config = load_agents_config(working_dir)?;
     let Some(config) = config else {
@@ -262,6 +263,7 @@ pub fn facade_list_agents(working_dir: &Path) -> Result<FacadeAgentsListing> {
     })
 }
 
+#[tracing::instrument(skip(working_dir, prompt), fields(working_dir = %working_dir.display()))]
 pub fn facade_delegate_session_task(
     working_dir: &Path,
     parent_task_id: Option<String>,
@@ -337,6 +339,7 @@ pub fn facade_delegate_session_task(
     })
 }
 
+#[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_watch_snapshot(working_dir: &Path, id: &str) -> Result<Option<FacadeWatchSnapshot>> {
     if let Ok(task_state) = TaskState::load_from_search_dirs_from(working_dir, id) {
         return Ok(Some(FacadeWatchSnapshot {
@@ -383,6 +386,7 @@ pub fn facade_watch_snapshot(working_dir: &Path, id: &str) -> Result<Option<Faca
 ///
 /// The caller must not re-use the worktree path after this call returns
 /// successfully.
+#[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) -> Result<bool> {
     let state_dir = TaskState::state_dir_from(working_dir);
 
@@ -830,6 +834,7 @@ pub struct FacadeJoinOutcome {
 /// Returns `Err` with `agents_config_missing` when no config is found,
 /// `team_not_found` when the team name does not match, and `Internal` for
 /// unexpected I/O errors.
+#[tracing::instrument(skip(working_dir, prompt), fields(working_dir = %working_dir.display()))]
 pub fn facade_schedule_team(
     working_dir: &Path,
     parent_task_id: &str,
@@ -900,6 +905,7 @@ pub fn facade_schedule_team(
 /// `Ok(Some(FacadeJoinOutcome))` when every session task has reached a
 /// terminal state.  When the outcome is returned, the caller should call the
 /// apply-join endpoint to persist the merged handoff summary.
+#[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_poll_join(
     working_dir: &Path,
     parent_task_id: &str,
@@ -940,6 +946,7 @@ pub enum ScheduleTeamError {
 // ---------------------------------------------------------------------------
 
 /// Return a summary for every persisted parent-task state file.
+#[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_tasks(working_dir: &Path) -> Result<Vec<FacadeTaskSummary>> {
     let mut out = Vec::new();
     for file in TaskState::state_files_from(working_dir) {
@@ -962,6 +969,7 @@ pub fn facade_list_tasks(working_dir: &Path) -> Result<Vec<FacadeTaskSummary>> {
 }
 
 /// Return a snapshot for every session task across all persisted parent states.
+#[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_session_tasks(working_dir: &Path) -> Result<Vec<FacadeSessionTaskSnapshot>> {
     let mut out = Vec::new();
     for file in TaskState::state_files_from(working_dir) {
@@ -974,6 +982,7 @@ pub fn facade_list_session_tasks(working_dir: &Path) -> Result<Vec<FacadeSession
 }
 
 /// Return the snapshot for a single session task identified by its UUID.
+#[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_get_session_task(
     working_dir: &Path,
     session_task_id: &str,
@@ -995,6 +1004,7 @@ pub fn facade_get_session_task(
 /// Transitions from terminal states (`Failed`, `Cancelled`, `Completed`) are
 /// rejected with `TransitionNotAllowed` — use
 /// `facade_release_session_task` to clean up a terminal task instead.
+#[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_update_session_task_status(
     working_dir: &Path,
     session_task_id: &str,

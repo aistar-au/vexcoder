@@ -89,6 +89,7 @@ impl SubtaskOrchestrator {
     ///
     /// The parent task state file is created (via `TaskState::new`) when it
     /// does not already exist.
+    #[tracing::instrument(skip(self, team, agents, prompt))]
     pub fn schedule_team(
         &self,
         parent_task_id: &str,
@@ -153,6 +154,7 @@ impl SubtaskOrchestrator {
     ///
     /// The caller is responsible for calling [`apply_join_outcome`] once the
     /// outcome is available.
+    #[tracing::instrument(skip(self))]
     pub fn poll_fan_out_join(&self, parent_task_id: &str) -> Result<Option<JoinOutcome>> {
         let state = TaskState::load(&self.state_dir, parent_task_id)?;
 
@@ -210,6 +212,7 @@ impl SubtaskOrchestrator {
     ///
     /// Returns `Ok(Some(session_task_id))` when a new task was created and
     /// persisted.
+    #[tracing::instrument(skip(self, team, agents, prompt))]
     pub fn advance_sequential(
         &self,
         parent_task_id: &str,
@@ -278,6 +281,7 @@ impl SubtaskOrchestrator {
     /// one entry of the form `[agent_id]: summary`, joined with newlines.
     ///
     /// When `outcome.summaries` is empty the function is a no-op.
+    #[tracing::instrument(skip(self, outcome))]
     pub fn apply_join_outcome(&self, parent_task_id: &str, outcome: &JoinOutcome) -> Result<()> {
         if outcome.summaries.is_empty() {
             return Ok(());
@@ -303,6 +307,7 @@ impl SubtaskOrchestrator {
     ///
     /// A task is live when its `lifecycle_state` is `Pending`, `Running`, or
     /// `Blocked`.
+    #[tracing::instrument(skip(self))]
     pub fn live_session_task_count(&self, parent_task_id: &str) -> Result<usize> {
         let state = TaskState::load(&self.state_dir, parent_task_id)?;
         Ok(state
@@ -314,6 +319,7 @@ impl SubtaskOrchestrator {
 
     /// Return `true` when every member of `team` has a session task in a
     /// terminal state attached to `parent_task_id`.
+    #[tracing::instrument(skip(self, team))]
     pub fn is_team_schedule_exhausted(
         &self,
         parent_task_id: &str,
