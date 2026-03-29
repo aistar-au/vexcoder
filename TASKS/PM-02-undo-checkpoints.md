@@ -2,7 +2,8 @@
 
 **Target Files:** `src/state/conversation/state.rs`,
 `src/state/conversation/core.rs`, `src/state/conversation/tools.rs`,
-`src/commands.rs`, `src/app/facade.rs`, `src/config.rs`
+`src/app/commands.rs`, `src/runtime/task_state.rs`, `src/config.rs`,
+`src/config/load.rs`
 
 **Depends on:** None (green on current main)
 
@@ -14,6 +15,9 @@ When the agent applies a patch or writes a file, the change is permanent.
 There is no built-in mechanism to undo the last change or roll back to a
 previous checkpoint. Users must manually revert via git or editor undo, which
 breaks the conversational flow and requires context switching.
+
+The existing `ConversationCheckpoint` task-state summary and the editor-local
+undo stack do not restore file mutations made by tool calls.
 
 ---
 
