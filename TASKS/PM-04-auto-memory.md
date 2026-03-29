@@ -1,9 +1,9 @@
 # Task PM-04: Auto-Memory
 
-**Target Files:** `src/state/conversation/state.rs`,
-`src/state/conversation/core.rs`, `src/state/memory.rs`,
-`src/state/memory/auto.rs` (new), `src/config.rs`, `src/config/load.rs`,
-`src/commands.rs`
+**Target Files:** `src/app/commands.rs`, `src/app/input.rs`,
+`src/app/turn.rs`, `src/app/turn_start.rs`, `src/session_notes.rs`,
+`src/runtime/task_state.rs`, `src/config.rs`, `src/config/load.rs`,
+`src/app/tests/memory.rs`
 
 **Depends on:** None (green on current main)
 
@@ -15,6 +15,9 @@ The agent forgets context between sessions. Users must re-explain project
 conventions, naming patterns, preferred approaches, and past decisions at
 the start of each conversation. The existing memory-notes system requires
 explicit `/memory` commands — the agent never writes memory on its own.
+
+Manual notes and note injection already exist; the missing piece is automatic
+extraction and persistence of memory-worthy facts after a turn completes.
 
 ---
 
@@ -40,10 +43,11 @@ empty array if nothing is worth remembering."
 
 ### Storage
 
-Extracted notes are appended to the existing memory-notes file
-(`~/.config/vex/memory.md` or the configured memory path). Each entry is
-prefixed with a timestamp and tagged `[auto]` to distinguish from manual
-entries.
+Extracted notes are appended to the notes file resolved through the existing
+`notes_path` / `resolved_notes_path()` flow. Each entry is prefixed with a
+timestamp and tagged `[auto]` to distinguish from manual entries. The same
+note should also be reflected in task-state session notes so the current
+session view stays consistent with the file-backed memory log.
 
 ### Configuration surface
 
