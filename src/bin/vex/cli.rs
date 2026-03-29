@@ -133,6 +133,12 @@ pub(super) enum TaskCommands {
         #[arg(long)]
         json: bool,
     },
+    /// Write the task-graph projection to `.vex/state/projections/task-graph.json`
+    /// and print the file path.  Creates or replaces the file atomically.
+    ExportGraph,
+    /// Write the todos projection to `.vex/state/projections/todos.json`
+    /// and print the file path.  Creates or replaces the file atomically.
+    ExportTodos,
 }
 
 #[derive(Subcommand)]

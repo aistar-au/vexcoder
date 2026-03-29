@@ -9,10 +9,14 @@ use crate::agents::{load_agents_config, IsolationPolicy, TeamScheduler};
 use crate::app::subtask_orchestrator::SubtaskOrchestrator;
 use crate::runtime::{SessionTask, SessionTaskStatus, TaskState, WorktreeLeaseManager};
 
+pub mod projection;
 #[cfg(test)]
 mod tests;
 mod types;
 
+pub use self::projection::{
+    task_graph_snapshot_path, todos_snapshot_path, write_projection_snapshot,
+};
 pub use self::types::{
     FacadeAgentDescriptor, FacadeAgentsListing, FacadeDelegateResult, FacadeJoinOutcome,
     FacadeScheduleTeamResult, FacadeSessionTaskSnapshot, FacadeTaskGraph, FacadeTaskGraphNode,
@@ -258,10 +262,14 @@ pub fn facade_delegate_session_task(
             return Err(DelegateError::Internal(error));
         }
 
-        Ok(FacadeDelegateResult {
+        let result = Ok(FacadeDelegateResult {
             parent_task_id: parent_task_id.clone(),
             session_task_id,
-        })
+        });
+        if let Err(e) = write_projection_snapshot(working_dir) {
+            tracing::warn!(error = ?e, "failed to write projection snapshot after delegate");
+        }
+        result
     })
 }
 
@@ -339,6 +347,10 @@ pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) ->
         lease_manager.release(session_task_id)?;
     }
 
+    if let Err(e) = write_projection_snapshot(working_dir) {
+        tracing::warn!(error = ?e, "failed to write projection snapshot after release");
+    }
+
     Ok(true)
 }
 
@@ -409,11 +421,15 @@ pub fn facade_schedule_team(
         let decomp =
             orchestrator.schedule_team(parent_task_id, team, &config.agent_profiles, prompt)?;
 
-        Ok(FacadeScheduleTeamResult {
+        let result = Ok(FacadeScheduleTeamResult {
             parent_task_id: decomp.parent_task_id,
             session_task_ids: decomp.session_task_ids,
             scheduler: team_scheduler_name(decomp.scheduler).to_string(),
-        })
+        });
+        if let Err(e) = write_projection_snapshot(working_dir) {
+            tracing::warn!(error = ?e, "failed to write projection snapshot after schedule_team");
+        }
+        result
     })
 }
 
@@ -532,7 +548,11 @@ pub fn facade_update_session_task_status(
         .cloned()
         .ok_or_else(|| anyhow::anyhow!("session task missing after save"))?;
 
-    Ok(session_task_to_snapshot(updated))
+    let snapshot = session_task_to_snapshot(updated);
+    if let Err(e) = write_projection_snapshot(working_dir) {
+        tracing::warn!(error = ?e, "failed to write projection snapshot after status update");
+    }
+    Ok(snapshot)
 }
 
 /// Return the full task graph: every parent task with its session tasks.

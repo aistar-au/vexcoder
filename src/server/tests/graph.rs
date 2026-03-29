@@ -1,3 +1,5 @@
+use crate::app::{task_graph_snapshot_path, todos_snapshot_path};
+
 use super::phase_e::{delegate_one, setup_phase_e_router};
 use super::*;
 use filetime::{set_file_mtime, FileTime};
@@ -331,5 +333,152 @@ async fn test_list_todos_endpoint_scans_large_state_dirs_and_ignores_older_dupli
         !arr.iter()
             .any(|item| { item.get("parent_task_id") == Some(&Value::String("task-dup".into())) }),
         "older duplicate live task should not appear when a newer completed copy exists"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Persistent projection snapshot tests
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_delegate_writes_task_graph_snapshot_file() {
+    let temp = tempfile::tempdir().unwrap();
+
+    // Delegating via the HTTP endpoint triggers write_projection_snapshot.
+    let _ = delegate_one(
+        setup_phase_e_router(temp.path()),
+        "snap-parent",
+        temp.path(),
+    )
+    .await;
+
+    let snap_path = task_graph_snapshot_path(temp.path());
+    assert!(
+        snap_path.exists(),
+        "expected task-graph.json to be written after delegate"
+    );
+
+    let raw = std::fs::read_to_string(&snap_path).unwrap();
+    let val: Value = serde_json::from_str(&raw).unwrap();
+    assert!(
+        val.get("generated_at_ms").and_then(Value::as_u64).is_some(),
+        "expected generated_at_ms in task-graph.json"
+    );
+    let nodes = val.get("nodes").and_then(Value::as_array).unwrap();
+    assert!(
+        nodes
+            .iter()
+            .any(|n| n.get("id") == Some(&Value::String("snap-parent".into()))),
+        "expected snap-parent in persisted task-graph.json nodes"
+    );
+}
+
+#[tokio::test]
+async fn test_delegate_writes_todos_snapshot_file() {
+    let temp = tempfile::tempdir().unwrap();
+
+    let st_id = delegate_one(
+        setup_phase_e_router(temp.path()),
+        "todos-snap-parent",
+        temp.path(),
+    )
+    .await;
+
+    let snap_path = todos_snapshot_path(temp.path());
+    assert!(
+        snap_path.exists(),
+        "expected todos.json to be written after delegate"
+    );
+
+    let raw = std::fs::read_to_string(&snap_path).unwrap();
+    let val: Value = serde_json::from_str(&raw).unwrap();
+    let items = val.get("items").and_then(Value::as_array).unwrap();
+    assert!(
+        items
+            .iter()
+            .any(|t| t.get("id") == Some(&Value::String(st_id.clone()))),
+        "expected session task {st_id} in persisted todos.json"
+    );
+}
+
+#[tokio::test]
+async fn test_status_update_refreshes_todos_snapshot() {
+    let temp = tempfile::tempdir().unwrap();
+
+    let st_id = delegate_one(
+        setup_phase_e_router(temp.path()),
+        "todos-refresh-parent",
+        temp.path(),
+    )
+    .await;
+
+    // Completing the task should remove it from the todos snapshot.
+    let router = setup_phase_e_router(temp.path());
+    let patch = router
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/session-tasks/{st_id}/status"))
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"status":"completed"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(patch.status(), StatusCode::OK);
+
+    let snap_path = todos_snapshot_path(temp.path());
+    let raw = std::fs::read_to_string(&snap_path).unwrap();
+    let val: Value = serde_json::from_str(&raw).unwrap();
+    let items = val.get("items").and_then(Value::as_array).unwrap();
+    assert!(
+        !items
+            .iter()
+            .any(|t| t.get("id") == Some(&Value::String(st_id.clone()))),
+        "completed session task {st_id} should not appear in todos.json after status update"
+    );
+}
+
+#[tokio::test]
+async fn test_projection_endpoint_returns_file_paths() {
+    let temp = tempfile::tempdir().unwrap();
+
+    // Seed one session task so the state dir exists and snapshots can be written.
+    let _ = delegate_one(
+        setup_phase_e_router(temp.path()),
+        "proj-endpoint-parent",
+        temp.path(),
+    )
+    .await;
+
+    let router = setup_phase_e_router(temp.path());
+    let response = router
+        .oneshot(
+            Request::builder()
+                .uri("/v1/projection")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert!(
+        payload
+            .get("task_graph_path")
+            .and_then(Value::as_str)
+            .map(|p| p.ends_with("task-graph.json"))
+            .unwrap_or(false),
+        "expected task_graph_path ending with task-graph.json"
+    );
+    assert!(
+        payload
+            .get("todos_path")
+            .and_then(Value::as_str)
+            .map(|p| p.ends_with("todos.json"))
+            .unwrap_or(false),
+        "expected todos_path ending with todos.json"
     );
 }

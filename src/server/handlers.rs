@@ -19,7 +19,8 @@ use crate::app::{
     execute_facade_runtime, facade_delegate_session_task, facade_get_session_task,
     facade_list_agents, facade_list_session_tasks, facade_list_tasks, facade_list_todos,
     facade_poll_join, facade_release_session_task, facade_schedule_team, facade_task_graph,
-    facade_update_session_task_status, facade_watch_snapshot, DelegateError, ScheduleTeamError,
+    facade_update_session_task_status, facade_watch_snapshot, task_graph_snapshot_path,
+    todos_snapshot_path, write_projection_snapshot, DelegateError, ScheduleTeamError,
     SessionTaskStatusError,
 };
 use crate::local_api::{
@@ -799,4 +800,57 @@ pub async fn list_todos_handler(
             })
             .collect(),
     ))
+}
+
+// ---------------------------------------------------------------------------
+// Projection status — `GET /v1/projection`
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct ProjectionStatusResponse {
+    pub task_graph_path: String,
+    pub todos_path: String,
+    pub task_graph_written_ms: Option<u64>,
+    pub todos_written_ms: Option<u64>,
+}
+
+fn file_modified_ms(path: &std::path::Path) -> Option<u64> {
+    path.metadata()
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| {
+            t.duration_since(std::time::UNIX_EPOCH)
+                .ok()
+                .map(|d| d.as_millis() as u64)
+        })
+}
+
+/// Return the paths and last-write timestamps of the persistent projection
+/// files, then refresh both files from the current task-state directory.
+///
+/// `GET /v1/projection`
+#[tracing::instrument(skip_all)]
+pub async fn projection_handler(
+    State(state): State<LocalApiState>,
+) -> Result<Json<ProjectionStatusResponse>, (StatusCode, Json<ControlResponse>)> {
+    let working_dir = &state.config.working_dir;
+    let graph_path = task_graph_snapshot_path(working_dir);
+    let todos_path = todos_snapshot_path(working_dir);
+
+    // Capture timestamps before the refresh so the response reflects the
+    // previous write (useful for callers that want to detect staleness).
+    let graph_written = file_modified_ms(&graph_path);
+    let todos_written = file_modified_ms(&todos_path);
+
+    // Refresh the files; non-fatal on error.
+    if let Err(e) = write_projection_snapshot(working_dir) {
+        tracing::warn!(error = ?e, "projection refresh failed during GET /v1/projection");
+    }
+
+    Ok(Json(ProjectionStatusResponse {
+        task_graph_path: graph_path.display().to_string(),
+        todos_path: todos_path.display().to_string(),
+        task_graph_written_ms: graph_written,
+        todos_written_ms: todos_written,
+    }))
 }
