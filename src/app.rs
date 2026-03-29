@@ -197,6 +197,7 @@ enum SlashCommandId {
     Undo,
     Commands,
     Help,
+    Reindex,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -491,6 +492,12 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         "alias for /commands",
     ),
     SlashCommandSpec::new(
+        SlashCommandId::Reindex,
+        SlashCommandPattern::Exact("/reindex"),
+        "/reindex",
+        "force a full rebuild of the codebase search index",
+    ),
+    SlashCommandSpec::new(
         SlashCommandId::Quit,
         SlashCommandPattern::Exact("/quit"),
         "/quit",
@@ -529,7 +536,8 @@ fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
         | SlashCommandId::Tools
         | SlashCommandId::GenerateTests
         | SlashCommandId::Agents
-        | SlashCommandId::Watch => "retrieve + context",
+        | SlashCommandId::Watch
+        | SlashCommandId::Reindex => "retrieve + context",
         SlashCommandId::Edit | SlashCommandId::Fix | SlashCommandId::Diff => "edit + inspect",
         SlashCommandId::Run | SlashCommandId::Test | SlashCommandId::Delegate => {
             "validate + execute"
@@ -567,6 +575,7 @@ fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
         SlashCommandId::GenerateTests => "assemble context and draft tests for one path",
         SlashCommandId::Agents => "show configured agents, teams, and live session-task counts",
         SlashCommandId::Watch => "inspect persisted session-task status by id or agent",
+        SlashCommandId::Reindex => "force a full structural rebuild of the codebase search index",
         SlashCommandId::Edit | SlashCommandId::Fix => "edit loop that may patch files",
         SlashCommandId::Diff => "git diff preview without starting a model turn",
         SlashCommandId::Run | SlashCommandId::Test => "local validation only; no model turn",
@@ -801,6 +810,8 @@ pub struct TuiMode {
     model_profile: ModelProfile,
     /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
+    /// Search configuration from `[search]` TOML section.
+    search_config: crate::config::SearchConfig,
     sandbox: ConfiguredSandbox,
     file_prompt_entries: RefCell<Option<Vec<String>>>,
     custom_commands: Vec<CustomCommand>,

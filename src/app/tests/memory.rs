@@ -215,6 +215,7 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         http_hooks: Vec::new(),
         compaction: CompactionConfig::default(),
         undo: UndoConfig::default(),
+        search: crate::config::SearchConfig::default(),
         notes_path: Some(notes_path),
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),

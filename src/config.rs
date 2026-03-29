@@ -150,6 +150,42 @@ impl Default for UndoConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchConfig {
+    /// Whether codebase search indexing is enabled.
+    pub enabled: bool,
+    /// Rebuild the structural index at session start.
+    pub auto_index: bool,
+    /// Glob patterns to exclude from indexing.
+    pub exclude: Vec<String>,
+    /// Skip files larger than this byte count (default 1 MiB).
+    pub max_file_size: usize,
+}
+
+impl Default for SearchConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            auto_index: true,
+            exclude: vec![
+                "target/".to_string(),
+                "node_modules/".to_string(),
+                ".git/".to_string(),
+            ],
+            max_file_size: 1_048_576,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SearchConfigLayer {
+    pub(crate) enabled: Option<bool>,
+    pub(crate) auto_index: Option<bool>,
+    pub(crate) exclude: Option<Vec<String>>,
+    pub(crate) max_file_size: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub model_token: Option<String>,
     pub model_name: String,
@@ -180,6 +216,7 @@ pub struct Config {
     #[serde(default)]
     pub compaction: CompactionConfig,
     pub undo: UndoConfig,
+    pub search: SearchConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -224,6 +261,7 @@ struct ConfigLayer {
     mcp_servers: Option<Vec<McpServerConfig>>,
     compaction: Option<CompactionConfigLayer>,
     undo: Option<UndoConfigLayer>,
+    search: Option<SearchConfigLayer>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -314,6 +352,7 @@ impl Config {
             mcp_servers: Vec::new(),
             compaction: CompactionConfig::default(),
             undo: UndoConfig::default(),
+            search: SearchConfig::default(),
         }
     }
 

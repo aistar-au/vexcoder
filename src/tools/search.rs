@@ -375,4 +375,40 @@ mod tests {
         assert_eq!(merged[0].name, "semantic_candidate");
         assert!(merged[0].score > 0.0);
     }
+
+    /// Anchor test: querying a rebuilt index must return ranked structural results
+    /// for known symbol names. Verifies that names rank above unrelated entries.
+    #[test]
+    fn test_codebase_search_tool_returns_ranked_results() {
+        let index = vec![
+            make_chunk(
+                "ranked_handler",
+                ItemKind::Function,
+                "fn ranked_handler() { dispatch_request(); }",
+            ),
+            make_chunk(
+                "unrelated_util",
+                ItemKind::Function,
+                "fn unrelated_util() {}",
+            ),
+            make_chunk(
+                "dispatch_request",
+                ItemKind::Function,
+                "fn dispatch_request() {}",
+            ),
+        ];
+        let results = codebase_search("ranked_handler", &index, Some(10));
+        assert!(
+            !results.is_empty(),
+            "search must return results for a matching symbol"
+        );
+        assert_eq!(
+            results[0].name, "ranked_handler",
+            "exact name match must rank first"
+        );
+        assert!(
+            results[0].score > results.get(1).map_or(0.0, |r| r.score),
+            "highest-scoring result must have the largest score"
+        );
+    }
 }

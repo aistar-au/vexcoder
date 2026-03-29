@@ -77,6 +77,7 @@ impl TuiMode {
                 SlashCommandId::Delegate => self.handle_delegate_command(args),
                 SlashCommandId::Watch => self.handle_watch_command(args),
                 SlashCommandId::Undo => self.handle_undo_command(ctx),
+                SlashCommandId::Reindex => self.handle_reindex_command(ctx),
                 SlashCommandId::Commands | SlashCommandId::Help => self.handle_commands_command(),
             }
 
@@ -1444,5 +1445,18 @@ impl TuiMode {
                 self.push_history_line("[memory: cancelled]".to_string());
             }
         }
+    }
+
+    pub(super) fn handle_reindex_command(&mut self, _ctx: &RuntimeContext) {
+        let search_cfg = &self.search_config;
+        let chunk_count = crate::state::force_full_reindex_with_config(
+            &self.working_dir,
+            &search_cfg.exclude,
+            search_cfg.max_file_size,
+        );
+        self.push_history_line(format!(
+            "[search] index rebuilt: {} chunks indexed",
+            chunk_count
+        ));
     }
 }

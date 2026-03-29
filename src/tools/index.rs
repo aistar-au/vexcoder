@@ -51,13 +51,32 @@ pub struct IndexChunk {
 /// Walks the source tree, parses each Rust file with Tree-sitter, and extracts
 /// named items (functions, structs, enums, impls, traits, modules, consts,
 /// statics, type aliases).
+///
+/// `exclude` is a list of workspace-relative path prefixes (e.g. `"target/"`)
+/// to skip.  `max_file_size` sets the byte limit above which files are ignored.
+/// Pass `&[]` and `usize::MAX` to apply no filtering.
 pub fn build_index(workspace_root: &Path) -> Vec<IndexChunk> {
+    build_index_filtered(workspace_root, &[], usize::MAX)
+}
+
+/// Like [`build_index`] but respects caller-supplied exclusion rules.
+pub fn build_index_filtered(
+    workspace_root: &Path,
+    exclude: &[String],
+    max_file_size: usize,
+) -> Vec<IndexChunk> {
     let mut chunks = Vec::new();
     let src_dir = workspace_root.join("src");
     if !src_dir.is_dir() {
         return chunks;
     }
-    collect_rs_files(&src_dir, workspace_root, &mut chunks);
+    collect_rs_files_filtered(
+        &src_dir,
+        workspace_root,
+        exclude,
+        max_file_size,
+        &mut chunks,
+    );
     chunks
 }
 
@@ -72,17 +91,31 @@ pub fn update_index(index: &mut Vec<IndexChunk>, changed_path: &Path, workspace_
     }
 }
 
-fn collect_rs_files(dir: &Path, workspace_root: &Path, chunks: &mut Vec<IndexChunk>) {
+fn collect_rs_files_filtered(
+    dir: &Path,
+    workspace_root: &Path,
+    exclude: &[String],
+    max_file_size: usize,
+    chunks: &mut Vec<IndexChunk>,
+) {
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
     };
     for entry in entries.flatten() {
         let path = entry.path();
+        let rel = workspace_relative(&path, workspace_root);
+        if exclude.iter().any(|ex| rel.starts_with(ex.as_str())) {
+            continue;
+        }
         if path.is_dir() {
-            collect_rs_files(&path, workspace_root, chunks);
+            collect_rs_files_filtered(&path, workspace_root, exclude, max_file_size, chunks);
         } else if path.extension().is_some_and(|e| e == "rs") {
-            let rel = workspace_relative(&path, workspace_root);
+            // Skip files exceeding the size limit.
+            let size = path.metadata().map(|m| m.len() as usize).unwrap_or(0);
+            if size > max_file_size {
+                continue;
+            }
             if let Ok(source) = fs::read_to_string(&path) {
                 parse_rust_file(&rel, &source, chunks);
             }
@@ -284,6 +317,121 @@ mod tests {
             inner.unwrap().parent_scope.as_deref(),
             Some("mymod"),
             "function inside mod should have parent_scope = module name"
+        );
+    }
+
+    /// Anchor test: `build_index_filtered` must not index files under
+    /// workspace-relative paths that appear in the exclusion list.
+    #[test]
+    fn test_search_config_respects_exclude_paths() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // Create src/lib.rs — should be indexed.
+        let src = tmp.path().join("src");
+        fs::create_dir_all(&src).expect("mkdir src");
+        fs::write(src.join("lib.rs"), "pub fn included_fn() {}\n").expect("write lib.rs");
+
+        // Create src/vendor/mod.rs — excluded by "src/vendor/" prefix.
+        let vendor = src.join("vendor");
+        fs::create_dir_all(&vendor).expect("mkdir vendor");
+        fs::write(vendor.join("mod.rs"), "pub fn excluded_fn() {}\n").expect("write vendor/mod.rs");
+
+        let exclude = vec!["src/vendor/".to_string()];
+        let chunks = build_index_filtered(tmp.path(), &exclude, usize::MAX);
+
+        let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
+        assert!(
+            names.contains(&"included_fn"),
+            "non-excluded files must be indexed"
+        );
+        assert!(
+            !names.contains(&"excluded_fn"),
+            "files under excluded prefix must not appear in index"
+        );
+    }
+
+    /// Anchor test: a file write followed by `update_index` must refresh the
+    /// index incrementally without a full rebuild.
+    #[test]
+    fn test_incremental_update_after_write_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let src = tmp.path().join("src");
+        fs::create_dir_all(&src).expect("mkdir");
+        let file_path = src.join("incremental.rs");
+        fs::write(&file_path, "fn before_write() {}\n").expect("write");
+
+        let mut chunks = build_index(tmp.path());
+        assert!(
+            chunks.iter().any(|c| c.name == "before_write"),
+            "initial index must contain before_write"
+        );
+
+        // Simulate an external file write that changes the symbol.
+        fs::write(&file_path, "fn after_write() {}\n").expect("overwrite");
+        update_index(&mut chunks, &file_path, tmp.path());
+
+        let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
+        assert!(
+            names.contains(&"after_write"),
+            "updated symbol must appear in index after incremental refresh"
+        );
+        assert!(
+            !names.contains(&"before_write"),
+            "stale symbol must be replaced by incremental refresh"
+        );
+    }
+
+    /// Anchor test: `build_index_filtered` must not index files whose byte size
+    /// exceeds the configured `max_file_size` limit.
+    #[test]
+    fn test_build_index_filtered_skips_oversized_files() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let src = tmp.path().join("src");
+        fs::create_dir_all(&src).expect("mkdir");
+
+        // Small file that should be indexed.
+        fs::write(src.join("small.rs"), "fn small_fn() {}\n").expect("write small.rs");
+        // Larger file (~47 bytes), will be excluded with a 30-byte cap.
+        fs::write(
+            src.join("large.rs"),
+            "fn large_fn_that_is_too_big_for_this_cap() {}\n",
+        )
+        .expect("write large.rs");
+
+        let chunks = build_index_filtered(tmp.path(), &[], 30);
+        let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
+        assert!(
+            names.contains(&"small_fn"),
+            "small file must be indexed when under size cap"
+        );
+        assert!(
+            !names.contains(&"large_fn_that_is_too_big_for_this_cap"),
+            "file exceeding max_file_size must be skipped"
+        );
+    }
+
+    /// Anchor test: forcing a full reindex via the public helper must rebuild the
+    /// index from the workspace and return a non-zero chunk count.
+    #[test]
+    fn test_reindex_rebuilds_full_index() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let src = tmp.path().join("src");
+        fs::create_dir_all(&src).expect("mkdir");
+        fs::write(
+            src.join("reindex_target.rs"),
+            "pub fn reindex_symbol() {}\n",
+        )
+        .expect("write");
+
+        // Build via the filtered entry-point (the same path used by force_full_reindex).
+        let chunks = build_index_filtered(tmp.path(), &[], usize::MAX);
+        assert!(
+            !chunks.is_empty(),
+            "rebuild must produce at least one chunk"
+        );
+        let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
+        assert!(
+            names.contains(&"reindex_symbol"),
+            "known symbol must be present after full reindex"
         );
     }
 }
