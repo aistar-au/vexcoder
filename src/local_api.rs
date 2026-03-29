@@ -129,7 +129,7 @@ impl LocalApiMode {
 
 impl RuntimeMode for LocalApiMode {
     fn on_user_input(&mut self, input: String, ctx: &mut RuntimeContext) {
-        let mut shared = self.shared.lock().expect("local api shared lock poisoned");
+        let mut shared = self.shared.lock().unwrap_or_else(|e| e.into_inner());
         shared.turn_in_progress = true;
         shared.interrupted = false;
         let start = shared.normalizer.start_turn(1, Some(input.clone()));
@@ -140,7 +140,7 @@ impl RuntimeMode for LocalApiMode {
     }
 
     fn on_interrupt(&mut self, ctx: &mut RuntimeContext) {
-        let mut shared = self.shared.lock().expect("local api shared lock poisoned");
+        let mut shared = self.shared.lock().unwrap_or_else(|e| e.into_inner());
         if !shared.turn_in_progress {
             return;
         }
@@ -150,7 +150,7 @@ impl RuntimeMode for LocalApiMode {
     }
 
     fn on_model_update(&mut self, update: UiUpdate, _ctx: &mut RuntimeContext) {
-        let mut shared = self.shared.lock().expect("local api shared lock poisoned");
+        let mut shared = self.shared.lock().unwrap_or_else(|e| e.into_inner());
         match update {
             UiUpdate::TranscriptLine(_) => {}
             UiUpdate::StreamDelta(text) => {
@@ -215,7 +215,7 @@ impl RuntimeMode for LocalApiMode {
     fn is_turn_in_progress(&self) -> bool {
         self.shared
             .lock()
-            .expect("local api shared lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .turn_in_progress
     }
 }

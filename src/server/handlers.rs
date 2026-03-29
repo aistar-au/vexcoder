@@ -412,7 +412,7 @@ pub async fn approve_handler(
         return Err(not_found("task_not_found"));
     };
 
-    let mut shared = task.shared.lock().expect("local api shared lock poisoned");
+    let mut shared = task.shared.lock().unwrap_or_else(|e| e.into_inner());
     let Some(pending) = shared.pending_approval.take() else {
         return Err(conflict("no_pending_approval"));
     };
@@ -462,7 +462,7 @@ fn spawn_local_api_task(
         )
         .await;
         if let Err(error) = result {
-            let mut shared = shared.lock().expect("local api shared lock poisoned");
+            let mut shared = shared.lock().unwrap_or_else(|e| e.into_inner());
             let envelopes = shared.normalizer.emit_error(
                 "local_api_server".to_string(),
                 error.to_string(),
@@ -488,7 +488,7 @@ async fn run_local_api_task(
     let mode = LocalApiMode::new(Arc::clone(&shared));
     let quit = shared
         .lock()
-        .expect("local api shared lock poisoned")
+        .unwrap_or_else(|e| e.into_inner())
         .quit
         .clone();
     let mut frontend = LocalApiFrontend::new(input, interrupt_rx, quit);
