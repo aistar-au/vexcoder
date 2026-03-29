@@ -11,6 +11,10 @@ Whole-repo tracked file map: `TASKS/completed/REPO-RAW-URL-MAP.md`.
 | :--- | :--- | :--- | :--- |
 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | `ADR-025` PI-10, PI-12 | `PI-09`, `PI-11` | Normalization layer and serde/schema/grammar/BatchMode test coverage. Complete. |
 | `TASKS/PJ-03-memory-notes-injection.md` | `ADR-024` Gap 16 | `PA-01` | `/memory`, `/memory add`, `/memory clear`, and session-note injection. Complete. |
+| `TASKS/PM-01-conversation-compaction.md` | Pre-ADR | None | In-memory conversation compaction via LLM summarization. Branch only. |
+| `TASKS/PM-02-undo-checkpoints.md` | Pre-ADR | None | `/undo` slash command and per-change checkpoint stack. Branch only. |
+| `TASKS/PM-03-code-search.md` | Pre-ADR | None | Code search hardening and `/reindex` command. Branch only. |
+| `TASKS/PM-04-auto-memory.md` | Pre-ADR | None | Automatic memory extraction from conversation turns. Branch only. |
 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | `ADR-024` Gap 26 | `PA-01` | Pre/post-tool-call hooks (`[[hooks]]` in user config layer only). All 7 anchor tests pass. Complete. |
 
 ## Open ADR Dispatch Sources
