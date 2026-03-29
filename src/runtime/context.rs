@@ -157,11 +157,15 @@ impl RuntimeContext {
         let loop_cancel = self.cancel.child_token();
         let tx = self.update_tx.clone();
         let mut loop_ctx = self.clone();
-        let system_prompt = edit_loop
-            .profile
-            .system_prompt_text()
-            .expect("edit loop profile system prompt must resolve")
-            .to_string();
+        let system_prompt = match edit_loop.profile.system_prompt_text() {
+            Ok(text) => text.to_string(),
+            Err(e) => {
+                let _ = self
+                    .update_tx
+                    .send(UiUpdate::Error(format!("edit loop profile error: {e}")));
+                return;
+            }
+        };
 
         set_runtime_prompt_now(&self.conversation, Some(system_prompt.clone()));
 

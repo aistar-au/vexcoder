@@ -173,7 +173,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 161 | `src/runtime/approval.rs` | ~252 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/approval.rs> |
 | 162 | `src/runtime/backend.rs` | ~32 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/backend.rs> |
 | 163 | `src/runtime/command.rs` | ~381 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/command.rs> |
-| 164 | `src/runtime/context.rs` | ~884 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context.rs> |
+| 164 | `src/runtime/context.rs` | ~1001 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context.rs> |
 | 165 | `src/runtime/context_assembler.rs` | ~767 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context_assembler.rs> |
 | 166 | `src/runtime/edit_loop.rs` | ~585 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/edit_loop.rs> |
 | 167 | `src/runtime/frontend.rs` | ~31 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/frontend.rs> |
