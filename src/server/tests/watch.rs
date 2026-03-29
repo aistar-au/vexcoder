@@ -127,3 +127,77 @@ async fn test_watch_session_task_stream_broadcasts_live_update_without_poll_dela
         "expected lifecycle_state completed in watch stream body"
     );
 }
+
+#[tokio::test]
+async fn test_watch_session_task_stream_emits_release_update_with_last_known_worktree_path() {
+    let temp = tempfile::tempdir().unwrap();
+
+    let router = setup_phase_e_router(temp.path());
+    let st_id = delegate_one(router.clone(), "watch-release-parent", temp.path()).await;
+
+    let watch_response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/v1/session-tasks/{st_id}/watch"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(watch_response.status(), StatusCode::OK);
+
+    let release_response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/session-tasks/{st_id}/release"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(release_response.status(), StatusCode::OK);
+
+    let raw = timeout(
+        Duration::from_secs(2),
+        to_bytes(watch_response.into_body(), usize::MAX),
+    )
+    .await
+    .expect("watch stream did not receive release update within 2 seconds")
+    .unwrap();
+
+    let body_str = String::from_utf8_lossy(&raw);
+    assert!(
+        body_str.contains("pending"),
+        "expected initial lifecycle_state pending in watch stream body"
+    );
+    assert!(
+        body_str.contains("completed"),
+        "expected completed lifecycle_state after release"
+    );
+
+    let events = body_str
+        .lines()
+        .filter_map(|line| line.strip_prefix("data:"))
+        .map(|line| serde_json::from_str::<Value>(line.trim()).unwrap())
+        .collect::<Vec<_>>();
+    assert!(
+        events.len() >= 2,
+        "expected at least two session_task events"
+    );
+    assert!(
+        events[0].get("worktree_path").is_some(),
+        "expected initial watch event to include worktree_path"
+    );
+    let final_event = events.last().unwrap();
+    assert_eq!(
+        final_event.get("lifecycle_state"),
+        Some(&Value::String("completed".into()))
+    );
+    assert!(
+        final_event.get("worktree_path").is_some(),
+        "expected release update to preserve the last known worktree_path"
+    );
+}

@@ -6,7 +6,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
 - Total tracked files: 263
-- Last updated: 2026-03-29 (large-file decomposition batch)
+- Last updated: 2026-03-29 (server test expansion batch)
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -203,10 +203,10 @@ Canonical raw URL index for every tracked file in this repository.
 | 191 | `src/server/sse.rs` | ~21 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/sse.rs> |
 | 192 | `src/server/tests.rs` | ~31 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests.rs> |
 | 193 | `src/server/tests/core.rs` | ~616 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests/core.rs> |
-| 194 | `src/server/tests/graph.rs` | ~132 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests/graph.rs> |
+| 194 | `src/server/tests/graph.rs` | ~335 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests/graph.rs> |
 | 195 | `src/server/tests/phase_e.rs` | ~243 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests/phase_e.rs> |
-| 196 | `src/server/tests/teams.rs` | ~181 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests/teams.rs> |
-| 197 | `src/server/tests/watch.rs` | ~129 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests/watch.rs> |
+| 196 | `src/server/tests/teams.rs` | ~409 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests/teams.rs> |
+| 197 | `src/server/tests/watch.rs` | ~203 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests/watch.rs> |
 | 198 | `src/server/util.rs` | ~248 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/util.rs> |
 | 199 | `src/session_notes.rs` | ~146 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/session_notes.rs> |
 | 200 | `src/skills.rs` | ~443 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/skills.rs> |
