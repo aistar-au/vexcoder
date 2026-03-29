@@ -649,6 +649,12 @@ mod tests {
             matches!(result, Err(ScheduleTeamError::PromptRequired)),
             "expected PromptRequired, got: {result:?}"
         );
+
+        let blank_result = facade_schedule_team(dir.path(), "parent-1", "review", "   ");
+        assert!(
+            matches!(blank_result, Err(ScheduleTeamError::PromptRequired)),
+            "expected PromptRequired for blank prompt, got: {blank_result:?}"
+        );
     }
 
     #[test]
@@ -844,7 +850,7 @@ pub fn facade_schedule_team(
     if parent_task_id.trim().is_empty() {
         return Err(ScheduleTeamError::ParentTaskIdRequired);
     }
-    if prompt.is_empty() {
+    if prompt.trim().is_empty() {
         return Err(ScheduleTeamError::PromptRequired);
     }
     if prompt.len() > MAX_DELEGATE_PROMPT_BYTES {
@@ -1034,6 +1040,75 @@ pub fn facade_update_session_task_status(
         .ok_or_else(|| anyhow::anyhow!("session task missing after save"))?;
 
     Ok(session_task_to_snapshot(updated))
+}
+
+// ---------------------------------------------------------------------------
+// Task graph — hierarchical projection of all parent tasks + session tasks.
+// ---------------------------------------------------------------------------
+
+/// One node in the task graph: a parent task plus its session tasks.
+#[derive(Debug, Clone)]
+pub struct FacadeTaskGraphNode {
+    pub id: String,
+    pub status: String,
+    pub agent_id: Option<String>,
+    pub session_tasks: Vec<FacadeSessionTaskSnapshot>,
+}
+
+/// Top-level task graph returned by `facade_task_graph`.
+#[derive(Debug, Clone)]
+pub struct FacadeTaskGraph {
+    pub nodes: Vec<FacadeTaskGraphNode>,
+}
+
+/// One live (non-terminal) session task returned by `facade_list_todos`.
+#[derive(Debug, Clone)]
+pub struct FacadeTodoItem {
+    pub id: String,
+    pub parent_task_id: String,
+    pub agent_id: String,
+    pub lifecycle_state: String,
+}
+
+/// Return the full task graph: every parent task with its session tasks.
+#[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
+pub fn facade_task_graph(working_dir: &Path) -> Result<FacadeTaskGraph> {
+    let mut nodes = Vec::new();
+    for file in TaskState::state_files_from(working_dir) {
+        let state = TaskState::load(&file.dir, &file.id)?;
+        let session_tasks = state
+            .session_tasks
+            .into_iter()
+            .map(session_task_to_snapshot)
+            .collect();
+        nodes.push(FacadeTaskGraphNode {
+            id: state.id,
+            status: state.status.to_string(),
+            agent_id: state.agent_id,
+            session_tasks,
+        });
+    }
+    Ok(FacadeTaskGraph { nodes })
+}
+
+/// Return all live (non-terminal) session tasks as todo items.
+#[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
+pub fn facade_list_todos(working_dir: &Path) -> Result<Vec<FacadeTodoItem>> {
+    let mut out = Vec::new();
+    for file in TaskState::state_files_from(working_dir) {
+        let state = TaskState::load(&file.dir, &file.id)?;
+        for task in state.session_tasks {
+            if task.lifecycle_state.is_live() {
+                out.push(FacadeTodoItem {
+                    id: task.id,
+                    parent_task_id: task.parent_task_id,
+                    agent_id: task.agent_id,
+                    lifecycle_state: task.lifecycle_state.to_string(),
+                });
+            }
+        }
+    }
+    Ok(out)
 }
 
 fn session_task_to_snapshot(task: SessionTask) -> FacadeSessionTaskSnapshot {

@@ -5,8 +5,8 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 251
-- Last updated: 2026-03-29 (adr034-phase-e2 — session-task watch-stream broadcast line counts)
+- Total tracked files: 252
+- Last updated: 2026-03-29 (multi-batch — task graph + todos endpoints, config hooks submodule)
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -116,7 +116,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 104 | `src/api/logging.rs` | ~74 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/logging.rs> |
 | 105 | `src/api/mock_client.rs` | ~42 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
 | 106 | `src/api/stream.rs` | ~632 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
-| 107 | `src/app.rs` | ~904 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
+| 107 | `src/app.rs` | ~906 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
 | 108 | `src/app/accessors.rs` | ~410 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/accessors.rs> |
 | 109 | `src/app/commands.rs` | ~1355 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/commands.rs> |
 | 110 | `src/app/ctor.rs` | ~62 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/ctor.rs> |
@@ -131,7 +131,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 119 | `src/app/scroll.rs` | ~249 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/scroll.rs> |
 | 120 | `src/app/shell.rs` | ~116 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/shell.rs> |
 | 121 | `src/app/subtask_orchestrator.rs` | ~650 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/subtask_orchestrator.rs> |
-| 122 | `src/app/task_facade.rs` | ~1062 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/task_facade.rs> |
+| 122 | `src/app/task_facade.rs` | ~1131 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/task_facade.rs> |
 | 123 | `src/app/tests/input.rs` | ~577 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests/input.rs> |
 | 124 | `src/app/tests/memory.rs` | ~211 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests/memory.rs> |
 | 125 | `src/app/tests/mod.rs` | ~19 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests/mod.rs> |
@@ -148,7 +148,8 @@ Canonical raw URL index for every tracked file in this repository.
 | 136 | `src/app/util.rs` | ~277 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/util.rs> |
 | 137 | `src/batch_mode.rs` | ~1249 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode.rs> |
 | 138 | `src/bin/vex.rs` | ~1811 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/bin/vex.rs> |
-| 139 | `src/config.rs` | ~1862 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
+| 139 | `src/config.rs` | ~2025 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
+| 139a | `src/config/hooks.rs` | ~38 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config/hooks.rs> |
 | 140 | `src/custom_commands.rs` | ~203 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/custom_commands.rs> |
 | 141 | `src/doctor.rs` | ~331 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/doctor.rs> |
 | 142 | `src/edit_diff.rs` | ~202 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/edit_diff.rs> |
@@ -190,11 +191,11 @@ Canonical raw URL index for every tracked file in this repository.
 | 178 | `src/runtime/validation.rs` | ~599 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/validation.rs> |
 | 179 | `src/runtime/worktree_lease.rs` | ~167 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/worktree_lease.rs> |
 | 180 | `src/server.rs` | ~126 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server.rs> |
-| 181 | `src/server/handlers.rs` | ~724 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/handlers.rs> |
-| 182 | `src/server/http.rs` | ~174 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/http.rs> |
+| 181 | `src/server/handlers.rs` | ~802 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/handlers.rs> |
+| 182 | `src/server/http.rs` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/http.rs> |
 | 183 | `src/server/socket.rs` | ~72 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/socket.rs> |
 | 184 | `src/server/sse.rs` | ~19 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/sse.rs> |
-| 185 | `src/server/tests.rs` | ~1013 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests.rs> |
+| 185 | `src/server/tests.rs` | ~1308 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests.rs> |
 | 186 | `src/server/util.rs` | ~223 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/util.rs> |
 | 187 | `src/session_notes.rs` | ~131 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/session_notes.rs> |
 | 188 | `src/skills.rs` | ~395 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/skills.rs> |
