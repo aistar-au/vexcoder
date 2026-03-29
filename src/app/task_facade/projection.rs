@@ -1,6 +1,7 @@
 use anyhow::Result;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
+use std::fs;
 
 use crate::runtime::session_task::now_millis;
 use crate::runtime::TaskState;
@@ -80,11 +81,19 @@ pub fn write_projection_snapshot(working_dir: &Path) -> Result<()> {
     let now = now_millis();
     let projections_dir = TaskState::state_dir_from(working_dir).join(PROJECTIONS_SUBDIR);
 
+    // Ensure the subdirectory exists before attempting any writes.
+    fs::create_dir_all(&projections_dir)?;
+
     let mut graph_nodes: Vec<FacadeTaskGraphNode> = Vec::new();
     let mut todo_items: Vec<TodoSnapshotItem> = Vec::new();
 
     for file in TaskState::state_files_from(working_dir) {
-        let state = TaskState::load(&file.dir, &file.id)?;
+        // Skip unreadable state files — a corrupt or partially-written file
+        // must not abort the entire projection write.
+        let state = match TaskState::load(&file.dir, &file.id) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
 
         let session_tasks: Vec<FacadeSessionTaskSnapshot> = state
             .session_tasks

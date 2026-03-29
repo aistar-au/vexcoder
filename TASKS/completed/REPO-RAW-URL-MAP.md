@@ -38,7 +38,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 26 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | ~192 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PI-10-PI-12-adr025-phase1-continuation.md> |
 | 27 | `TASKS/PJ-03-memory-notes-injection.md` | ~165 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes-injection.md> |
 | 28 | `TASKS/PJ-03-memory-notes.md` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes.md> |
-| 29 | `TASKS/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PL-01-pre-post-tool-hooks.md> |
+| 29 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/PL-01-pre-post-tool-hooks.md> |
 | 30 | `TASKS/TASKS-DISPATCH-MAP.md` | ~88 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
 | 31 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~275 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 32 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | ~423 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md> |
