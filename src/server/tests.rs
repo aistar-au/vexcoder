@@ -959,3 +959,55 @@ async fn test_watch_session_task_stream_emits_snapshot_and_terminates_on_termina
         "expected lifecycle_state completed in watch stream body"
     );
 }
+
+#[tokio::test]
+async fn test_watch_session_task_stream_broadcasts_live_update_without_poll_delay() {
+    let temp = tempfile::tempdir().unwrap();
+
+    let router = setup_phase_e_router(temp.path());
+    let st_id = delegate_one(router.clone(), "watch-live-parent", temp.path()).await;
+
+    let watch_response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/v1/session-tasks/{st_id}/watch"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(watch_response.status(), StatusCode::OK);
+
+    let patch_response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/session-tasks/{st_id}/status"))
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"status":"completed"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(patch_response.status(), StatusCode::OK);
+
+    let raw = timeout(
+        Duration::from_millis(500),
+        to_bytes(watch_response.into_body(), usize::MAX),
+    )
+    .await
+    .expect("watch stream did not receive broadcast update within 500ms")
+    .unwrap();
+
+    let body_str = String::from_utf8_lossy(&raw);
+    assert!(
+        body_str.contains("pending"),
+        "expected initial lifecycle_state pending in watch stream body"
+    );
+    assert!(
+        body_str.contains("completed"),
+        "expected lifecycle_state completed in watch stream body"
+    );
+}

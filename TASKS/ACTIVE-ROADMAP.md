@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-29 (adr034-phase-e2 — session-task watch-stream: GET /v1/session-tasks/{id}/watch SSE endpoint; lifecycle_state_is_terminal guard; polls every 1 s, terminates on terminal state)
+Last updated: 2026-03-29 (adr034-phase-e2 — session-task watch-stream: GET /v1/session-tasks/{id}/watch SSE endpoint; immediate initial snapshot; broadcast-backed live updates; terminates on terminal state)
 
 ---
 
@@ -24,7 +24,7 @@ Last updated: 2026-03-29 (adr034-phase-e2 — session-task watch-stream: GET /v1
 | ADR-031 | Accepted (all batches A-E merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-032 | Accepted | 0 items remaining | Items 1-8 complete; item 4-5 verified Tier 5; item 9 transferred to ADR-033 |
 | ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
-| ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE; PR #261 closes Phase E watch-stream |
+| ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate snapshot + broadcast fan-out; PR #261 closes Phase E watch-stream |
 
 ## Implementation-Complete ADRs (moved to completed/)
 

@@ -9,6 +9,7 @@
 
 #[cfg(test)]
 use crate::api::ApiClient;
+use crate::app::FacadeSessionTaskSnapshot;
 use crate::config::Config;
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::frontend::{FrontendAdapter, UserInputEvent};
@@ -26,13 +27,16 @@ use crate::tools::ToolOperator;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tokio::sync::mpsc;
 use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::{broadcast, mpsc};
+
+const SESSION_TASK_EVENT_BUFFER: usize = 64;
 
 #[derive(Clone)]
 pub(crate) struct LocalApiState {
     pub config: Config,
     pub tasks: Arc<AsyncMutex<HashMap<String, ActiveTask>>>,
+    session_task_events: broadcast::Sender<FacadeSessionTaskSnapshot>,
 }
 
 pub(crate) struct ActiveTask {
@@ -218,10 +222,20 @@ impl RuntimeMode for LocalApiMode {
 
 impl LocalApiState {
     pub fn new(config: Config) -> Self {
+        let (session_task_events, _) = broadcast::channel(SESSION_TASK_EVENT_BUFFER);
         Self {
             config,
             tasks: Arc::new(AsyncMutex::new(HashMap::new())),
+            session_task_events,
         }
+    }
+
+    pub fn publish_session_task_snapshot(&self, snapshot: FacadeSessionTaskSnapshot) {
+        let _ = self.session_task_events.send(snapshot);
+    }
+
+    pub fn subscribe_session_task_events(&self) -> broadcast::Receiver<FacadeSessionTaskSnapshot> {
+        self.session_task_events.subscribe()
     }
 }
 
