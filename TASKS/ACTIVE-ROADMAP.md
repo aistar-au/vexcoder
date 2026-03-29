@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-29 (adr034-phase-e2 — session-task watch-stream: GET /v1/session-tasks/{id}/watch SSE endpoint; immediate initial snapshot; broadcast-backed live updates; terminates on terminal state)
+Last updated: 2026-03-29 (observability — tracing subscriber init gated on RUST_LOG; #[instrument] on all facade entrypoints, orchestrator methods, WorktreeLeaseManager, SessionTask mutation methods, and async handlers; structured fields: working_dir, id, task_id, team_name, from/to lifecycle state, agent_id)
 
 ---
 

@@ -333,6 +333,12 @@ fn run_tasks_watch(working_dir: &Path, id: &str, json: bool) -> Result<ExitCode>
 
 #[tokio::main]
 async fn main() -> Result<ExitCode> {
+    if std::env::var_os("RUST_LOG").is_some() {
+        tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .init();
+    }
+
     let cli = Cli::parse();
 
     // Subcommands take unconditional priority.

@@ -37,6 +37,7 @@ impl WorktreeLeaseManager {
         self.metadata_root().join(format!("{task_id}.json"))
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn lease_for_task(
         &self,
         task_id: &str,
@@ -81,6 +82,7 @@ impl WorktreeLeaseManager {
         Ok(lease)
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn release(&self, task_id: &str) -> Result<()> {
         let metadata_path = self.metadata_path(task_id);
         if metadata_path.exists() {
@@ -107,12 +109,14 @@ impl WorktreeLeaseManager {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn load(&self, task_id: &str) -> Result<WorktreeLease> {
         let content = std::fs::read_to_string(self.metadata_path(task_id))
             .with_context(|| format!("failed to read lease metadata for {task_id}"))?;
         serde_json::from_str(&content).context("deserialize worktree lease")
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn list(&self) -> Result<Vec<WorktreeLease>> {
         let mut leases = Vec::new();
         let root = self.metadata_root();

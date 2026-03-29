@@ -54,6 +54,10 @@ tokio-stream = "0.1"
 tokio-util = "0.7"
 toml = "0.8"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+  "env-filter",
+  "fmt",
+] }
 unicode-width = "0.2"
 uuid = { version = "1", features = ["v4"] }
 portable-pty = "0.9"

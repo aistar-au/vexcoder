@@ -88,6 +88,7 @@ impl SessionTask {
         }
     }
 
+    #[tracing::instrument(skip(self), fields(id = %self.id, from = %self.lifecycle_state, to = %status))]
     pub fn transition_to(&mut self, status: SessionTaskStatus) {
         if self.started_at.is_none() && matches!(status, SessionTaskStatus::Running) {
             self.started_at = Some(now_millis());
@@ -96,12 +97,14 @@ impl SessionTask {
         self.updated_at = now_millis();
     }
 
+    #[tracing::instrument(skip(self), fields(id = %self.id))]
     pub fn record_heartbeat(&mut self) {
         let now = now_millis();
         self.last_heartbeat = Some(now);
         self.updated_at = now;
     }
 
+    #[tracing::instrument(skip(self, summary), fields(id = %self.id))]
     pub fn set_handoff_summary(&mut self, summary: impl Into<String>) {
         self.handoff_summary = Some(summary.into());
         self.updated_at = now_millis();
