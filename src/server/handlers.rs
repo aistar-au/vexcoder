@@ -1,17 +1,20 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::convert::Infallible;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use super::sse::runtime_sse_response;
 use super::util::{bad_request, conflict, internal_error, not_found};
-use super::SSE_KEEPALIVE_INTERVAL;
+use super::{SSE_KEEPALIVE_INTERVAL, SSE_KEEPALIVE_TEXT};
 use crate::app::{
     execute_facade_runtime, facade_delegate_session_task, facade_get_session_task,
     facade_list_agents, facade_list_session_tasks, facade_list_tasks, facade_poll_join,
@@ -605,4 +608,87 @@ fn snapshot_to_response(s: crate::app::FacadeSessionTaskSnapshot) -> SessionTask
         updated_at_ms: s.updated_at_ms,
         handoff_summary: s.handoff_summary,
     }
+}
+
+fn lifecycle_state_is_terminal(state: &str) -> bool {
+    matches!(state, "failed" | "cancelled" | "completed")
+}
+
+// ---------------------------------------------------------------------------
+// ADR-034 Phase E2 — watch-stream projection
+// ---------------------------------------------------------------------------
+
+/// Poll interval for the session-task watch stream in milliseconds.
+const WATCH_POLL_INTERVAL_MS: u64 = 1_000;
+
+/// `GET /v1/session-tasks/{id}/watch`
+///
+/// Returns an SSE stream.  The server emits a `session_task` event each time
+/// the session task's `updated_at_ms` timestamp advances (i.e. when its
+/// lifecycle state or handoff summary changes).  The initial snapshot is
+/// always emitted on connect.  The stream terminates automatically once the
+/// session task reaches a terminal state (`failed`, `cancelled`, or
+/// `completed`).
+///
+/// Returns 404 when no session task with the given id exists at connection
+/// time.
+pub async fn watch_session_task_handler(
+    State(state): State<LocalApiState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ControlResponse>)> {
+    // Reject immediately if the session task is unknown at connect time.
+    facade_get_session_task(&state.config.working_dir, &id)
+        .map_err(internal_anyhow)?
+        .ok_or_else(|| not_found("session_task_not_found"))?;
+
+    let working_dir = state.config.working_dir.clone();
+    let (tx, rx) = mpsc::unbounded_channel::<Result<Event, Infallible>>();
+
+    tokio::spawn(async move {
+        let mut last_updated_at: u64 = 0;
+        let mut ticker = tokio::time::interval(Duration::from_millis(WATCH_POLL_INTERVAL_MS));
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+        loop {
+            ticker.tick().await;
+
+            let snap = match facade_get_session_task(&working_dir, &id) {
+                Ok(Some(s)) => s,
+                // Task disappeared or I/O error — close the stream.
+                Ok(None) | Err(_) => break,
+            };
+
+            let is_terminal = lifecycle_state_is_terminal(&snap.lifecycle_state);
+
+            if snap.updated_at_ms != last_updated_at {
+                last_updated_at = snap.updated_at_ms;
+                let data = match serde_json::to_string(&snapshot_to_response(snap)) {
+                    Ok(s) => s,
+                    Err(_) => break,
+                };
+                if tx
+                    .send(Ok(Event::default().event("session_task").data(data)))
+                    .is_err()
+                {
+                    // Client disconnected.
+                    break;
+                }
+            }
+
+            if is_terminal {
+                break;
+            }
+        }
+    });
+
+    let stream = UnboundedReceiverStream::new(rx);
+    Ok((
+        StatusCode::OK,
+        [(axum::http::header::CACHE_CONTROL, "no-cache")],
+        Sse::new(stream).keep_alive(
+            KeepAlive::new()
+                .interval(SSE_KEEPALIVE_INTERVAL)
+                .text(SSE_KEEPALIVE_TEXT),
+        ),
+    ))
 }
