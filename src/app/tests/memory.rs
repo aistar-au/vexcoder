@@ -210,6 +210,7 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         sandbox: crate::runtime::SandboxConfig::default(),
         model_headers: reqwest::header::HeaderMap::new(),
         mcp_servers: Vec::new(),
+        http_hooks: Vec::new(),
         notes_path: Some(notes_path),
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),

@@ -9,8 +9,8 @@ use crate::util::{is_local_endpoint_url, parse_bool_flag};
 
 use super::{
     ApiConfig, ApiConfigLayer, ApiTransport, Config, ConfigLayer, DoctorConfigLayer,
-    DoctorConfigSnapshot, DoctorMcpServer, McpServerConfig, McpTransport, DEFAULT_LOCAL_API_HOST,
-    DEFAULT_LOCAL_API_PORT,
+    DoctorConfigSnapshot, DoctorMcpServer, HttpHookConfig, McpServerConfig, McpTransport,
+    DEFAULT_LOCAL_API_HOST, DEFAULT_LOCAL_API_PORT,
 };
 
 pub(super) fn load() -> Result<Config> {
@@ -78,6 +78,17 @@ fn load_layers(
     {
         bail!(
             "'[[hooks]]' found in repo-local config '{}': hooks must be set in user config layer only",
+            repo_cfg.unwrap_or(Path::new("<unknown>")).display()
+        );
+    }
+
+    if repo_layer
+        .as_ref()
+        .map(|l| l.http_hooks.is_some())
+        .unwrap_or(false)
+    {
+        bail!(
+            "'[[http_hooks]]' found in repo-local config '{}': http hooks must be set in user config layer only",
             repo_cfg.unwrap_or(Path::new("<unknown>")).display()
         );
     }
@@ -228,6 +239,7 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
         notes_path: over.notes_path.or(base.notes_path),
         api: apply_api_over(base.api, over.api),
         hooks: over.hooks.or(base.hooks),
+        http_hooks: over.http_hooks.or(base.http_hooks),
         mcp_servers: over.mcp_servers.or(base.mcp_servers),
     }
 }
@@ -437,6 +449,7 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
             vpn_trust: Some(api_vpn_trust),
         }),
         hooks: None,
+        http_hooks: None,
     };
 
     Ok((layer, env_token))
@@ -545,6 +558,17 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
                 path.display()
             )
         })?;
+    }
+
+    if let Some(ref http_hooks) = layer.http_hooks {
+        for hook in http_hooks {
+            hook.validate().with_context(|| {
+                format!(
+                    "config file '{}': invalid [[http_hooks]] entry",
+                    path.display()
+                )
+            })?;
+        }
     }
 
     Ok(Some(layer))
@@ -708,6 +732,7 @@ fn resolve_config(
         notes_path: merged.notes_path.map(expand_home),
         api,
         hooks: merged.hooks.unwrap_or_default(),
+        http_hooks: validate_http_hooks(merged.http_hooks.unwrap_or_default())?,
         mcp_servers,
     })
 }
@@ -773,6 +798,13 @@ fn validate_mcp_servers_for_layer(servers: &[McpServerConfig]) -> Result<()> {
 
 fn validate_mcp_servers(servers: Vec<McpServerConfig>) -> Result<Vec<McpServerConfig>> {
     validate_mcp_servers_with_mode(servers, true)
+}
+
+fn validate_http_hooks(hooks: Vec<HttpHookConfig>) -> Result<Vec<HttpHookConfig>> {
+    for hook in &hooks {
+        hook.validate()?;
+    }
+    Ok(hooks)
 }
 
 fn validate_mcp_servers_with_mode(

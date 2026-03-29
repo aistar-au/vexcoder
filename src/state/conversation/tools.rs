@@ -16,6 +16,7 @@ use crate::tools::{glob_files, list_dir, ToolOperator, WriteFileOutcome};
 use crate::types::ContentBlock;
 use crate::util::parse_bool_flag;
 use anyhow::{bail, Context, Result};
+use reqwest;
 #[cfg(test)]
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -182,6 +183,8 @@ impl ConversationManager {
         let tool_name = name.to_string();
         self.run_hooks(HookEvent::PreTool, &tool_name, input, stream_delta_tx)
             .await?;
+        self.run_http_hooks(HookEvent::PreTool, &tool_name, input)
+            .await?;
 
         let tool_result = if name == "run_command" {
             execute_run_command_tool(
@@ -238,6 +241,8 @@ impl ConversationManager {
 
         if tool_result.is_ok() {
             self.run_hooks(HookEvent::PostTool, &tool_name, input, stream_delta_tx)
+                .await?;
+            self.run_http_hooks(HookEvent::PostTool, &tool_name, input)
                 .await?;
         }
 
@@ -325,6 +330,73 @@ impl ConversationManager {
                         HookOnFail::Abort => return Err(error).context(msg),
                         HookOnFail::Warn => {
                             emit_hook_warning(format!("[hooks] warning: {msg}: {error}"))
+                        }
+                        HookOnFail::Ignore => {}
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn run_http_hooks(
+        &self,
+        event: HookEvent,
+        tool_name: &str,
+        input: &serde_json::Value,
+    ) -> Result<()> {
+        if self.http_hooks.is_empty() {
+            return Ok(());
+        }
+
+        let primary_path = input
+            .get("path")
+            .or_else(|| input.get("file_path"))
+            .or_else(|| input.get("file"))
+            .or_else(|| input.get("filename"))
+            .or_else(|| input.get("old_path"))
+            .or_else(|| input.get("from"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        let timestamp_ms = crate::runtime::session_task::now_millis();
+        let client = reqwest::Client::new();
+
+        for hook in &self.http_hooks {
+            if hook.event != event || hook.tool != tool_name {
+                continue;
+            }
+
+            let payload = serde_json::json!({
+                "event": hook.event,
+                "tool": tool_name,
+                "path": primary_path,
+                "timestamp_ms": timestamp_ms,
+            });
+
+            match client.post(&hook.url).json(&payload).send().await {
+                Ok(resp) if resp.status().is_success() => {}
+                Ok(resp) => {
+                    let msg = format!(
+                        "http_hook '{}' responded with status {}",
+                        hook.url,
+                        resp.status()
+                    );
+                    match hook.on_fail {
+                        HookOnFail::Abort => bail!(msg),
+                        HookOnFail::Warn => {
+                            emit_hook_warning(format!("[http_hooks] warning: {msg}"))
+                        }
+                        HookOnFail::Ignore => {}
+                    }
+                }
+                Err(e) => {
+                    let msg = format!("http_hook '{}' failed to send: {e}", hook.url);
+                    match hook.on_fail {
+                        HookOnFail::Abort => bail!(msg),
+                        HookOnFail::Warn => {
+                            emit_hook_warning(format!("[http_hooks] warning: {msg}"))
                         }
                         HookOnFail::Ignore => {}
                     }

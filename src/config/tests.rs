@@ -1270,3 +1270,83 @@ fn test_invalid_api_port_is_rejected() {
         "expected VEX_API_PORT in error, got: {msg}"
     );
 }
+
+#[test]
+fn test_repo_local_http_hooks_are_rejected() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    std::fs::create_dir_all(cwd.join(".vex")).unwrap();
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        cwd.join(".vex/config.toml"),
+        "[[http_hooks]]\nevent = \"post_tool\"\ntool = \"apply_patch\"\nurl = \"https://example.com/hook\"\n",
+    )
+    .unwrap();
+
+    let error = Config::load_for_tests(&cwd, None, None).unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("http_hooks"),
+        "expected http_hooks rejection, got: {msg}"
+    );
+}
+
+#[test]
+fn test_http_hook_invalid_url_rejected() {
+    use super::hooks::HookEvent;
+    use super::hooks::HttpHookConfig;
+
+    let hook = HttpHookConfig {
+        event: HookEvent::PostTool,
+        tool: "apply_patch".to_string(),
+        url: "ftp://nothttp.example.com".to_string(),
+        on_fail: super::hooks::HookOnFail::Warn,
+    };
+    let error = hook.validate().unwrap_err();
+    let msg = format!("{error:#}");
+    assert!(
+        msg.contains("https://") || msg.contains("http://"),
+        "expected URL scheme error, got: {msg}"
+    );
+}
+
+#[test]
+fn test_http_hook_valid_url_accepted() {
+    use super::hooks::HookEvent;
+    use super::hooks::HttpHookConfig;
+
+    let hook = HttpHookConfig {
+        event: HookEvent::PostTool,
+        tool: "apply_patch".to_string(),
+        url: "https://ci.example.com/webhook".to_string(),
+        on_fail: super::hooks::HookOnFail::Warn,
+    };
+    assert!(hook.validate().is_ok());
+}
+
+#[test]
+fn test_http_hook_loaded_from_user_config() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let temp = tempfile::tempdir().unwrap();
+    let cwd = temp.path().join("repo");
+    let user_cfg = temp.path().join("user.toml");
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::write(
+        &user_cfg,
+        concat!(
+            "model_url = \"http://localhost:8080/v1\"\n",
+            "[[http_hooks]]\n",
+            "event = \"post_tool\"\n",
+            "tool = \"apply_patch\"\n",
+            "url = \"https://ci.example.com/webhook\"\n",
+            "on_fail = \"warn\"\n",
+        ),
+    )
+    .unwrap();
+
+    let config = Config::load_for_tests(&cwd, Some(&user_cfg), None).unwrap();
+    assert_eq!(config.http_hooks.len(), 1);
+    assert_eq!(config.http_hooks[0].url, "https://ci.example.com/webhook");
+    assert_eq!(config.http_hooks[0].tool, "apply_patch");
+}
