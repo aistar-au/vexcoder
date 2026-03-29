@@ -17,6 +17,7 @@ mod tests;
 
 #[cfg(test)]
 use self::load::{
+    default_model_backend, default_tool_call_mode, infer_model_protocol,
     legacy_chat_protocol_value, legacy_messages_protocol_value, parse_model_headers_json,
     read_env_layer, user_config_path,
 };
