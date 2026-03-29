@@ -316,6 +316,20 @@ impl RuntimeContext {
         self.conversation.blocking_lock().clear_messages();
     }
 
+    pub fn pop_undo_checkpoint(&self) -> Option<crate::state::UndoCheckpoint> {
+        if let Ok(mut conversation) = self.conversation.try_lock() {
+            return conversation.pop_undo_checkpoint();
+        }
+        self.conversation.blocking_lock().pop_undo_checkpoint()
+    }
+
+    pub fn undo_stack_len(&self) -> usize {
+        if let Ok(conversation) = self.conversation.try_lock() {
+            return conversation.undo_stack_len();
+        }
+        self.conversation.blocking_lock().undo_stack_len()
+    }
+
     pub fn emit_transcript_line(&self, line: String) {
         let _ = self.update_tx.send(UiUpdate::TranscriptLine(line));
     }

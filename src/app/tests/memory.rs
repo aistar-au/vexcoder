@@ -1,5 +1,6 @@
 use super::*;
 use crate::config::CompactionConfig;
+use crate::config::UndoConfig;
 
 #[test]
 fn test_tui_memory_renders_empty_notes() {
@@ -213,6 +214,7 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         mcp_servers: Vec::new(),
         http_hooks: Vec::new(),
         compaction: CompactionConfig::default(),
+        undo: UndoConfig::default(),
         notes_path: Some(notes_path),
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),

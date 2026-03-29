@@ -10,7 +10,8 @@ use crate::util::{is_local_endpoint_url, parse_bool_flag};
 use super::{
     ApiConfig, ApiConfigLayer, ApiTransport, CompactionConfig, CompactionConfigLayer, Config,
     ConfigLayer, DoctorConfigLayer, DoctorConfigSnapshot, DoctorMcpServer, HttpHookConfig,
-    McpServerConfig, McpTransport, DEFAULT_LOCAL_API_HOST, DEFAULT_LOCAL_API_PORT,
+    McpServerConfig, McpTransport, UndoConfig, UndoConfigLayer, DEFAULT_LOCAL_API_HOST,
+    DEFAULT_LOCAL_API_PORT,
 };
 
 pub(super) fn load() -> Result<Config> {
@@ -242,6 +243,7 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
         http_hooks: over.http_hooks.or(base.http_hooks),
         mcp_servers: over.mcp_servers.or(base.mcp_servers),
         compaction: apply_compaction_over(base.compaction, over.compaction),
+        undo: apply_undo_over(base.undo, over.undo),
     }
 }
 
@@ -257,6 +259,20 @@ fn apply_compaction_over(
             threshold_percent: over.threshold_percent.or(base.threshold_percent),
             keep_recent_turns: over.keep_recent_turns.or(base.keep_recent_turns),
             summary_max_tokens: over.summary_max_tokens.or(base.summary_max_tokens),
+        }),
+    }
+}
+
+fn apply_undo_over(
+    base: Option<UndoConfigLayer>,
+    over: Option<UndoConfigLayer>,
+) -> Option<UndoConfigLayer> {
+    match (base, over) {
+        (None, None) => None,
+        (Some(layer), None) | (None, Some(layer)) => Some(layer),
+        (Some(base), Some(over)) => Some(UndoConfigLayer {
+            enabled: over.enabled.or(base.enabled),
+            max_checkpoints: over.max_checkpoints.or(base.max_checkpoints),
         }),
     }
 }
@@ -431,6 +447,7 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         max_memory_tokens,
         mcp_servers: None,
         compaction: None,
+        undo: None,
         notes_path: None,
         api: Some(ApiConfigLayer {
             transport: api_transport,
@@ -753,6 +770,7 @@ fn resolve_config(
         http_hooks: validate_http_hooks(merged.http_hooks.unwrap_or_default())?,
         mcp_servers,
         compaction: resolve_compaction_config(merged.compaction),
+        undo: resolve_undo_config(merged.undo),
     })
 }
 
@@ -763,6 +781,20 @@ fn resolve_compaction_config(layer: Option<CompactionConfigLayer>) -> Compaction
         threshold_percent: layer.threshold_percent.unwrap_or(80).clamp(10, 99),
         keep_recent_turns: layer.keep_recent_turns.unwrap_or(4).clamp(1, 32),
         summary_max_tokens: layer.summary_max_tokens.unwrap_or(1024).clamp(64, 4096),
+    }
+}
+
+fn resolve_undo_config(layer: Option<UndoConfigLayer>) -> UndoConfig {
+    let defaults = UndoConfig::default();
+    match layer {
+        None => defaults,
+        Some(l) => UndoConfig {
+            enabled: l.enabled.unwrap_or(defaults.enabled),
+            max_checkpoints: l
+                .max_checkpoints
+                .unwrap_or(defaults.max_checkpoints)
+                .clamp(1, 100),
+        },
     }
 }
 

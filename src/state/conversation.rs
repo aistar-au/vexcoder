@@ -9,6 +9,7 @@ mod tests;
 
 pub use state::{
     ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, TurnToolPolicy,
+    UndoCheckpoint,
 };
 
 #[cfg(test)]

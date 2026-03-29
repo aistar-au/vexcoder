@@ -8,7 +8,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
 - Total tracked files: 265
-- Last updated: 2026-03-30 (PM-01 conversation compaction batch)
+- Last updated: 2026-03-30 (PM-02 undo checkpoints batch)
 
 
 | # | Path | Approx. lines | Raw URL |
@@ -36,15 +36,15 @@ Canonical raw URL index for every tracked file in this repository.
 | 21 | `Makefile` | ~312 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Makefile> |
 | 22 | `README.md` | ~31 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/README.md> |
 | 23 | `RELEASING.md` | ~212 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/RELEASING.md> |
-| 24 | `TASKS/ACTIVE-ROADMAP.md` | ~181 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
+| 24 | `TASKS/ACTIVE-ROADMAP.md` | ~166 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
 | 25 | `TASKS/PE-01-batch-mode.md` | ~239 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PE-01-batch-mode.md> |
 | 26 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | ~192 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PI-10-PI-12-adr025-phase1-continuation.md> |
 | 27 | `TASKS/PJ-03-memory-notes-injection.md` | ~165 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes-injection.md> |
 | 28 | `TASKS/PJ-03-memory-notes.md` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes.md> |
-| 29 | `TASKS/PM-01-conversation-compaction.md` | ~123 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PM-01-conversation-compaction.md> |
-| 30 | `TASKS/TASKS-DISPATCH-MAP.md` | ~93 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
+| 29 | `TASKS/PM-02-undo-checkpoints.md` | ~114 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PM-02-undo-checkpoints.md> |
+| 30 | `TASKS/TASKS-DISPATCH-MAP.md` | ~89 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
 | 31 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/PL-01-pre-post-tool-hooks.md> |
-| 32 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~277 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
+| 32 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~276 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 33 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | ~423 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md> |
 | 34 | `adr/ADR-022-amendment-2026-03-03.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-03.md> |
 | 35 | `adr/ADR-022-amendment-2026-03-13.md` | ~71 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-13.md> |

@@ -7,10 +7,22 @@ use crate::tool_preview::ReadFileSnapshotCache;
 use crate::tools::ToolOperator;
 use crate::types::{ApiMessage, Content};
 use crate::usage::TurnTokens;
+use std::path::PathBuf;
 use std::sync::Arc;
 #[cfg(test)]
 use std::{collections::HashMap, sync::Mutex};
 use tokio::sync::oneshot;
+
+/// A snapshot of a single file's content before a mutating tool call.
+#[derive(Debug, Clone)]
+pub struct UndoCheckpoint {
+    /// The tool name that triggered this checkpoint (write_file, edit_file, etc.).
+    pub tool_name: String,
+    /// Absolute path of the affected file.
+    pub path: PathBuf,
+    /// Previous file content (None if the file did not exist).
+    pub previous_content: Option<String>,
+}
 
 pub enum ConversationStreamUpdate {
     Delta(String),
@@ -74,6 +86,8 @@ pub struct ConversationManager {
     pub(super) current_turn_applied_mutation: bool,
     pub(super) last_turn_tokens: TurnTokens,
     pub(super) read_file_history_cache: ReadFileSnapshotCache,
+    pub(super) undo_stack: Vec<UndoCheckpoint>,
+    pub(super) max_undo_checkpoints: usize,
     #[cfg(test)]
     pub(super) mock_tool_operator_responses: Option<Arc<Mutex<HashMap<String, String>>>>,
 }
@@ -109,6 +123,8 @@ impl ConversationManager {
             current_turn_applied_mutation: false,
             last_turn_tokens: TurnTokens::default(),
             read_file_history_cache: ReadFileSnapshotCache::default(),
+            undo_stack: Vec::new(),
+            max_undo_checkpoints: 20,
             #[cfg(test)]
             mock_tool_operator_responses: None,
         }
@@ -137,6 +153,11 @@ impl ConversationManager {
         self
     }
 
+    pub fn with_max_undo_checkpoints(mut self, max: usize) -> Self {
+        self.max_undo_checkpoints = max;
+        self
+    }
+
     pub fn with_mcp_registry(mut self, mcp_registry: Option<Arc<McpRegistry>>) -> Self {
         self.mcp_registry = mcp_registry;
         self
@@ -162,6 +183,8 @@ impl ConversationManager {
             current_turn_applied_mutation: false,
             last_turn_tokens: TurnTokens::default(),
             read_file_history_cache: ReadFileSnapshotCache::default(),
+            undo_stack: Vec::new(),
+            max_undo_checkpoints: 20,
             mock_tool_operator_responses: Some(Arc::new(Mutex::new(tool_operator_responses))),
         }
     }
@@ -228,6 +251,52 @@ impl ConversationManager {
                     ..
                 } if !*is_error && mutating_tool_call_ids.contains(tool_call_id.as_str())
             )
+        })
+    }
+
+    /// Push a checkpoint onto the undo stack, evicting the oldest if at capacity.
+    pub fn push_undo_checkpoint(&mut self, checkpoint: UndoCheckpoint) {
+        if self.max_undo_checkpoints == 0 {
+            return;
+        }
+        if self.undo_stack.len() >= self.max_undo_checkpoints {
+            self.undo_stack.remove(0);
+        }
+        self.undo_stack.push(checkpoint);
+    }
+
+    /// Pop the most recent checkpoint from the undo stack.
+    pub fn pop_undo_checkpoint(&mut self) -> Option<UndoCheckpoint> {
+        self.undo_stack.pop()
+    }
+
+    /// Number of checkpoints currently buffered.
+    pub fn undo_stack_len(&self) -> usize {
+        self.undo_stack.len()
+    }
+
+    /// Capture a pre-mutation snapshot for undo. Returns `None` for non-mutating
+    /// tools or when the target path cannot be resolved from the tool input.
+    pub fn capture_undo_snapshot(
+        &self,
+        tool_name: &str,
+        input: &serde_json::Value,
+    ) -> Option<UndoCheckpoint> {
+        let path_str = match tool_name {
+            "write_file" | "apply_patch" | "edit_file" => ["path", "file_path", "file"]
+                .iter()
+                .find_map(|k| input.get(*k).and_then(|v| v.as_str())),
+            "rename_file" => ["old_path", "from", "source_path"]
+                .iter()
+                .find_map(|k| input.get(*k).and_then(|v| v.as_str())),
+            _ => return None,
+        }?;
+        let abs = self.tool_operator.working_dir().join(path_str);
+        let previous = std::fs::read_to_string(&abs).ok();
+        Some(UndoCheckpoint {
+            tool_name: tool_name.to_string(),
+            path: abs,
+            previous_content: previous,
         })
     }
 }
