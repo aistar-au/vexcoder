@@ -800,6 +800,33 @@ fn test_compaction_summary_replaces_prefix() {
 }
 
 #[test]
+fn test_compaction_summary_preserves_user_assistant_role_order() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+
+    for i in 0..6 {
+        manager.api_messages.push(ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text(format!("user-{i}")),
+        });
+        manager.api_messages.push(ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text(format!("assistant-{i}")),
+        });
+    }
+
+    let removed = manager.compact_with_summary(2, "Earlier discussion summary.");
+    assert!(removed > 0);
+    assert_eq!(manager.api_messages[0].role, "user");
+    assert!(manager
+        .api_messages
+        .windows(2)
+        .all(|pair| pair[0].role != pair[1].role));
+}
+
+#[test]
 fn test_compaction_failure_falls_back_to_full_history() {
     let mock_api_client = ApiClient::new_mock(Arc::new(
         crate::api::mock_client::MockApiClient::new(vec![]),

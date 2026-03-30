@@ -206,15 +206,17 @@ impl ConversationManager {
         let removed = boundary;
         self.api_messages.drain(0..boundary);
 
-        // Prepend a summary message if provided.
+        // Fold the summary into the first preserved user message so the
+        // compacted history still starts with a plain user message and does
+        // not create consecutive user-role entries.
         if !summary_text.is_empty() {
-            self.api_messages.insert(
-                0,
-                ApiMessage {
-                    role: "user".to_string(),
-                    content: Content::Text(format!("[conversation summary] {summary_text}")),
-                },
-            );
+            if let Some(first_message) = self.api_messages.first_mut() {
+                if first_message.role == "user" && !message_contains_tool_result(first_message) {
+                    if let Content::Text(text) = &mut first_message.content {
+                        *text = format!("[conversation summary] {summary_text}\n\n{text}");
+                    }
+                }
+            }
         }
 
         removed
