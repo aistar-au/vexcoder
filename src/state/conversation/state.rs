@@ -1,6 +1,6 @@
 use super::super::stream_block::StreamBlock;
 use crate::api::ApiClient;
-use crate::config::{HookConfig, HttpHookConfig};
+use crate::config::{HookConfig, HttpHookConfig, SearchConfig};
 use crate::mcp::McpRegistry;
 use crate::runtime::ConfiguredSandbox;
 use crate::tool_preview::ReadFileSnapshotCache;
@@ -83,6 +83,7 @@ pub struct ConversationManager {
     pub(super) sandbox: ConfiguredSandbox,
     pub(super) hooks: Vec<HookConfig>,
     pub(super) http_hooks: Vec<HttpHookConfig>,
+    pub(super) search_config: SearchConfig,
     pub(super) api_messages: Vec<ApiMessage>,
     pub(super) current_turn_blocks: Vec<StreamBlock>,
     pub(super) current_turn_applied_mutation: bool,
@@ -121,6 +122,7 @@ impl ConversationManager {
             sandbox: ConfiguredSandbox::default(),
             hooks,
             http_hooks,
+            search_config: SearchConfig::default(),
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
             current_turn_applied_mutation: false,
@@ -176,6 +178,11 @@ impl ConversationManager {
         self
     }
 
+    pub fn with_search_config(mut self, search_config: SearchConfig) -> Self {
+        self.search_config = search_config;
+        self
+    }
+
     pub async fn shutdown_resources(&mut self) {
         if let Some(mcp_registry) = self.mcp_registry.take() {
             mcp_registry.shutdown().await;
@@ -191,6 +198,7 @@ impl ConversationManager {
             sandbox: ConfiguredSandbox::default(),
             hooks: Vec::new(),
             http_hooks: Vec::new(),
+            search_config: SearchConfig::default(),
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
             current_turn_applied_mutation: false,

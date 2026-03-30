@@ -92,13 +92,19 @@ max_checkpoints = 30
 ### `[search]`
 
 Controls structural index builds and `codebase_search` behavior.
+When `enabled = false`, both `codebase_search` and `/reindex` are unavailable.
 
 | Key | Purpose | Default |
 | :--- | :--- | :--- |
 | `enabled` | Enable codebase search indexing | `true` |
-| `auto_index` | Rebuild the structural index at session start | `true` |
+| `auto_index` | Warm the structural index at interactive and batch session start | `true` |
 | `exclude` | Glob patterns to exclude from indexing | `["target/", "node_modules/", ".git/"]` |
 | `max_file_size` | Skip files larger than this byte count | `1048576` (1 MiB) |
+
+Incremental index updates triggered by file writes during a session always
+apply `exclude` and `max_file_size` filters regardless of the `auto_index`
+setting. `auto_index` only controls whether the index is pre-warmed at
+session startup.
 
 ```toml
 [search]

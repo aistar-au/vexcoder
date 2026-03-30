@@ -82,9 +82,30 @@ pub fn build_index_filtered(
 
 /// Re-index a single file: remove old chunks for that path and re-parse.
 pub fn update_index(index: &mut Vec<IndexChunk>, changed_path: &Path, workspace_root: &Path) {
+    update_index_filtered(index, changed_path, workspace_root, &[], usize::MAX);
+}
+
+/// Re-index a single file with caller-supplied exclusion and size filters.
+pub fn update_index_filtered(
+    index: &mut Vec<IndexChunk>,
+    changed_path: &Path,
+    workspace_root: &Path,
+    exclude: &[String],
+    max_file_size: usize,
+) {
     let rel = workspace_relative(changed_path, workspace_root);
     index.retain(|c| c.path != rel);
+    if exclude.iter().any(|ex| rel.starts_with(ex.as_str())) {
+        return;
+    }
     if changed_path.extension().is_some_and(|e| e == "rs") {
+        let size = changed_path
+            .metadata()
+            .map(|m| m.len() as usize)
+            .unwrap_or(0);
+        if size > max_file_size {
+            return;
+        }
         if let Ok(source) = fs::read_to_string(changed_path) {
             parse_rust_file(&rel, &source, index);
         }
@@ -377,6 +398,59 @@ mod tests {
         assert!(
             !names.contains(&"before_write"),
             "stale symbol must be replaced by incremental refresh"
+        );
+    }
+
+    #[test]
+    fn test_update_index_filtered_respects_excluded_paths() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let src = tmp.path().join("src");
+        let vendor = src.join("vendor");
+        fs::create_dir_all(&vendor).expect("mkdir vendor");
+        fs::write(src.join("lib.rs"), "pub fn included_fn() {}\n").expect("write lib.rs");
+
+        let mut chunks = build_index_filtered(tmp.path(), &[], usize::MAX);
+        let vendor_file = vendor.join("mod.rs");
+        fs::write(&vendor_file, "pub fn excluded_incremental() {}\n").expect("write vendor");
+
+        update_index_filtered(
+            &mut chunks,
+            &vendor_file,
+            tmp.path(),
+            &["src/vendor/".to_string()],
+            usize::MAX,
+        );
+
+        let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
+        assert!(names.contains(&"included_fn"));
+        assert!(
+            !names.contains(&"excluded_incremental"),
+            "incremental refresh must skip excluded paths"
+        );
+    }
+
+    #[test]
+    fn test_update_index_filtered_respects_max_file_size() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let src = tmp.path().join("src");
+        fs::create_dir_all(&src).expect("mkdir");
+        fs::write(src.join("small.rs"), "fn small_fn() {}\n").expect("write small.rs");
+
+        let mut chunks = build_index_filtered(tmp.path(), &[], 30);
+        let large_path = src.join("large.rs");
+        fs::write(
+            &large_path,
+            "fn large_fn_that_is_too_big_for_incremental_cap() {}\n",
+        )
+        .expect("write large.rs");
+
+        update_index_filtered(&mut chunks, &large_path, tmp.path(), &[], 30);
+
+        let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
+        assert!(names.contains(&"small_fn"));
+        assert!(
+            !names.contains(&"large_fn_that_is_too_big_for_incremental_cap"),
+            "incremental refresh must skip oversized files"
         );
     }
 

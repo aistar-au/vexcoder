@@ -17,6 +17,35 @@ fn test_tui_memory_renders_empty_notes() {
     );
     assert!(!mode.is_turn_in_progress());
 }
+
+#[test]
+fn test_build_runtime_auto_index_warms_codebase_search_index() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    crate::state::clear_codebase_index_for_tests();
+
+    let temp = tempfile::tempdir().unwrap();
+    let src_dir = temp.path().join("src");
+    std::fs::create_dir_all(&src_dir).unwrap();
+    std::fs::write(src_dir.join("warm.rs"), "pub fn tui_warm_symbol() {}\n").unwrap();
+
+    let search_config = crate::config::SearchConfig {
+        enabled: true,
+        auto_index: true,
+        ..Default::default()
+    };
+
+    let count = crate::state::warm_codebase_index_with_config(temp.path(), &search_config);
+    assert!(
+        count.is_some() && count.unwrap() > 0,
+        "warm_codebase_index_with_config must index at least one chunk"
+    );
+    let names = crate::state::codebase_index_names_for_tests();
+    assert!(
+        names.iter().any(|name| name == "tui_warm_symbol"),
+        "expected startup warm to index tui_warm_symbol"
+    );
+}
+
 #[test]
 fn test_tui_memory_add_appends_to_file() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
@@ -215,7 +244,10 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         http_hooks: Vec::new(),
         compaction: CompactionConfig::default(),
         undo: UndoConfig::default(),
-        search: crate::config::SearchConfig::default(),
+        search: crate::config::SearchConfig {
+            auto_index: false,
+            ..Default::default()
+        },
         notes_path: Some(notes_path),
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),

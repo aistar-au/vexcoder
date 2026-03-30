@@ -482,6 +482,7 @@ pub fn build_batch_runtime(
     let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
     let (client, notes_warning) = build_api_client_with_notes(config)?;
     let mcp_registry = McpRegistry::connect_all_blocking(&config.mcp_servers)?;
+    crate::state::warm_codebase_index_with_config(&config.working_dir, &config.search);
     let client = client
         .with_project_instructions(instructions_text)
         .with_extra_tool_definitions(
@@ -498,6 +499,7 @@ pub fn build_batch_runtime(
     }
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
+        .with_search_config(config.search.clone())
         .with_sandbox(sandbox)
         .with_mcp_registry(mcp_registry);
 
@@ -535,6 +537,7 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
     let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
     let (client, notes_warning) = build_api_client_with_notes(config)?;
     let mcp_registry = McpRegistry::connect_all_blocking(&config.mcp_servers)?;
+    crate::state::warm_codebase_index_with_config(&config.working_dir, &config.search);
     let client = client
         .with_project_instructions(instructions_text)
         .with_extra_tool_definitions(
@@ -551,6 +554,7 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
     }
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
+        .with_search_config(config.search.clone())
         .with_sandbox(sandbox)
         .with_mcp_registry(mcp_registry);
 
@@ -861,7 +865,10 @@ mod tests {
             http_hooks: Vec::new(),
             compaction: CompactionConfig::default(),
             undo: crate::config::UndoConfig::default(),
-            search: crate::config::SearchConfig::default(),
+            search: crate::config::SearchConfig {
+                auto_index: false,
+                ..Default::default()
+            },
             notes_path: Some(notes_path.clone()),
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1144,7 +1151,10 @@ mod tests {
             http_hooks: Vec::new(),
             compaction: CompactionConfig::default(),
             undo: crate::config::UndoConfig::default(),
-            search: crate::config::SearchConfig::default(),
+            search: crate::config::SearchConfig {
+                auto_index: false,
+                ..Default::default()
+            },
             notes_path: Some(notes_path),
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1186,7 +1196,10 @@ mod tests {
             http_hooks: Vec::new(),
             compaction: CompactionConfig::default(),
             undo: crate::config::UndoConfig::default(),
-            search: crate::config::SearchConfig::default(),
+            search: crate::config::SearchConfig {
+                auto_index: false,
+                ..Default::default()
+            },
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1198,6 +1211,34 @@ mod tests {
         let system_prompt = ctx.test_system_prompt().await;
         assert!(system_prompt.contains("[project instructions: start]"));
         assert!(system_prompt.contains("# batch instructions"));
+    }
+
+    #[tokio::test]
+    async fn test_build_batch_runtime_auto_index_warms_codebase_search_index() {
+        let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+        crate::state::clear_codebase_index_for_tests();
+
+        let temp = tempfile::tempdir().unwrap();
+        let src_dir = temp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join("warm.rs"), "pub fn batch_warm_symbol() {}\n").unwrap();
+
+        let search_config = crate::config::SearchConfig {
+            enabled: true,
+            auto_index: true,
+            ..Default::default()
+        };
+
+        let count = crate::state::warm_codebase_index_with_config(temp.path(), &search_config);
+        assert!(
+            count.is_some() && count.unwrap() > 0,
+            "warm_codebase_index_with_config must index at least one chunk"
+        );
+        let names = crate::state::codebase_index_names_for_tests();
+        assert!(
+            names.iter().any(|name| name == "batch_warm_symbol"),
+            "expected batch startup warm to index batch_warm_symbol"
+        );
     }
 
     #[test]
@@ -1223,7 +1264,10 @@ mod tests {
             http_hooks: Vec::new(),
             compaction: CompactionConfig::default(),
             undo: crate::config::UndoConfig::default(),
-            search: crate::config::SearchConfig::default(),
+            search: crate::config::SearchConfig {
+                auto_index: false,
+                ..Default::default()
+            },
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),

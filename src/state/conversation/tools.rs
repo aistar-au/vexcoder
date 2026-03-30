@@ -1,5 +1,5 @@
 use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, TurnToolPolicy};
-use crate::config::{HookEvent, HookOnFail};
+use crate::config::{HookEvent, HookOnFail, SearchConfig};
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::mcp::McpRegistry;
 use crate::runtime::{
@@ -35,12 +35,37 @@ static RUN_COMMAND_SESSION_IDS: AtomicU64 = AtomicU64::new(1 << 63);
 /// Lazily-built structural index for the codebase_search tool.
 static CODEBASE_INDEX: OnceLock<Mutex<Vec<IndexChunk>>> = OnceLock::new();
 
+fn build_codebase_index(
+    workspace_root: &std::path::Path,
+    search_config: &SearchConfig,
+) -> Vec<IndexChunk> {
+    index::build_index_filtered(
+        workspace_root,
+        &search_config.exclude,
+        search_config.max_file_size,
+    )
+}
+
 /// Refresh the structural index for a single changed file (if the index exists).
-fn refresh_codebase_index(rel_path: &str, workspace_root: &std::path::Path) {
+fn refresh_codebase_index(
+    rel_path: &str,
+    workspace_root: &std::path::Path,
+    search_config: &SearchConfig,
+) {
+    if !search_config.enabled {
+        return;
+    }
+
     if let Some(idx_mutex) = CODEBASE_INDEX.get() {
         if let Ok(mut idx) = idx_mutex.lock() {
             let abs_path = workspace_root.join(rel_path);
-            index::update_index(&mut idx, &abs_path, workspace_root);
+            index::update_index_filtered(
+                &mut idx,
+                &abs_path,
+                workspace_root,
+                &search_config.exclude,
+                search_config.max_file_size,
+            );
         }
     }
 }
@@ -53,12 +78,24 @@ pub(super) fn rebuild_codebase_index_for_tests(workspace_root: &std::path::Path)
     }
 }
 
-/// Force a full rebuild of the structural codebase index.
-/// Used by the `/reindex` slash command.
-///
-/// Pass `&[]` and `usize::MAX` to apply no filtering (equivalent to default
-/// `SearchConfig` values).
-pub(crate) fn force_full_reindex_with_config(
+#[cfg(test)]
+pub(crate) fn clear_codebase_index_for_tests() {
+    let idx_mutex = CODEBASE_INDEX.get_or_init(|| Mutex::new(Vec::new()));
+    if let Ok(mut idx) = idx_mutex.lock() {
+        idx.clear();
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn codebase_index_names_for_tests() -> Vec<String> {
+    let idx_mutex = CODEBASE_INDEX.get_or_init(|| Mutex::new(Vec::new()));
+    idx_mutex
+        .lock()
+        .map(|idx| idx.iter().map(|chunk| chunk.name.clone()).collect())
+        .unwrap_or_default()
+}
+
+fn rebuild_codebase_index_with_config(
     workspace_root: &std::path::Path,
     exclude: &[String],
     max_file_size: usize,
@@ -69,6 +106,34 @@ pub(crate) fn force_full_reindex_with_config(
         return idx.len();
     }
     0
+}
+
+pub(crate) fn warm_codebase_index_with_config(
+    workspace_root: &std::path::Path,
+    search_config: &SearchConfig,
+) -> Option<usize> {
+    if !(search_config.enabled && search_config.auto_index) {
+        return None;
+    }
+
+    Some(rebuild_codebase_index_with_config(
+        workspace_root,
+        &search_config.exclude,
+        search_config.max_file_size,
+    ))
+}
+
+/// Force a full rebuild of the structural codebase index.
+/// Used by the `/reindex` slash command.
+///
+/// Pass `&[]` and `usize::MAX` to apply no filtering (equivalent to default
+/// `SearchConfig` values).
+pub(crate) fn force_full_reindex_with_config(
+    workspace_root: &std::path::Path,
+    exclude: &[String],
+    max_file_size: usize,
+) -> usize {
+    rebuild_codebase_index_with_config(workspace_root, exclude, max_file_size)
 }
 
 /// Maximum bytes kept in the accumulated stdout/stderr buffers returned to the
@@ -214,13 +279,14 @@ impl ConversationManager {
             )
             .await
         } else if name == "codebase_search" {
-            execute_codebase_search_tool(&self.tool_operator, input).await
+            execute_codebase_search_tool(&self.tool_operator, &self.search_config, input).await
         } else if name.starts_with("mcp.") {
             execute_mcp_tool(self.mcp_registry.as_ref(), name, input, tool_timeout).await
         } else {
             let task_name = tool_name.clone();
             let task_input = input.clone();
             let task_executor = self.tool_operator.clone();
+            let task_search_config = self.search_config.clone();
             #[cfg(test)]
             let task_mock_responses = self.mock_tool_operator_responses.clone();
 
@@ -231,12 +297,18 @@ impl ConversationManager {
                         &task_executor,
                         &task_name,
                         &task_input,
+                        &task_search_config,
                         task_mock_responses,
                     )
                 }
                 #[cfg(not(test))]
                 {
-                    execute_tool_blocking_with_operator(&task_executor, &task_name, &task_input)
+                    execute_tool_blocking_with_operator(
+                        &task_executor,
+                        &task_name,
+                        &task_input,
+                        &task_search_config,
+                    )
                 }
             });
 
@@ -438,15 +510,20 @@ impl ConversationManager {
 
 async fn execute_codebase_search_tool(
     tool_operator: &ToolOperator,
+    search_config: &SearchConfig,
     input: &serde_json::Value,
 ) -> Result<String> {
+    if !search_config.enabled {
+        bail!("codebase_search is disabled by [search].enabled=false");
+    }
+
     let query = required_tool_string(input, "codebase_search", "query")?;
     let max_results = input
         .get("max_results")
         .and_then(|value| value.as_u64())
         .map(|value| value as usize);
     let idx_mutex = CODEBASE_INDEX.get_or_init(|| {
-        let chunks = index::build_index(tool_operator.working_dir());
+        let chunks = build_codebase_index(tool_operator.working_dir(), search_config);
         Mutex::new(chunks)
     });
     let idx = idx_mutex
@@ -666,6 +743,7 @@ pub(super) fn execute_tool_blocking_with_operator(
     tool_operator: &ToolOperator,
     name: &str,
     input: &serde_json::Value,
+    search_config: &SearchConfig,
     mock_tool_operator_responses: Option<Arc<Mutex<HashMap<String, String>>>>,
 ) -> Result<String> {
     if let Some(responses_arc) = mock_tool_operator_responses {
@@ -682,7 +760,7 @@ pub(super) fn execute_tool_blocking_with_operator(
         }
     }
 
-    execute_tool_dispatch(tool_operator, name, input)
+    execute_tool_dispatch_with_search_config(tool_operator, name, input, search_config)
 }
 
 #[cfg(not(test))]
@@ -690,14 +768,25 @@ pub(super) fn execute_tool_blocking_with_operator(
     tool_operator: &ToolOperator,
     name: &str,
     input: &serde_json::Value,
+    search_config: &SearchConfig,
 ) -> Result<String> {
-    execute_tool_dispatch(tool_operator, name, input)
+    execute_tool_dispatch_with_search_config(tool_operator, name, input, search_config)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(super) fn execute_tool_dispatch(
     tool_operator: &ToolOperator,
     name: &str,
     input: &serde_json::Value,
+) -> Result<String> {
+    execute_tool_dispatch_with_search_config(tool_operator, name, input, &SearchConfig::default())
+}
+
+pub(super) fn execute_tool_dispatch_with_search_config(
+    tool_operator: &ToolOperator,
+    name: &str,
+    input: &serde_json::Value,
+    search_config: &SearchConfig,
 ) -> Result<String> {
     let get_bool =
         |key: &str, default: bool| input.get(key).and_then(|v| v.as_bool()).unwrap_or(default);
@@ -762,7 +851,7 @@ pub(super) fn execute_tool_dispatch(
                 String::new()
             };
 
-            refresh_codebase_index(path, tool_operator.working_dir());
+            refresh_codebase_index(path, tool_operator.working_dir(), search_config);
             Ok(format!("{result}{warning}"))
         }
         "apply_patch" => {
@@ -778,7 +867,7 @@ pub(super) fn execute_tool_dispatch(
             let pending = tool_operator.propose_patch(path, &old_content, content)?;
             tool_operator.apply_patch(pending)?;
             let (chars, lines) = text_stats(content);
-            refresh_codebase_index(path, tool_operator.working_dir());
+            refresh_codebase_index(path, tool_operator.working_dir(), search_config);
             Ok(format!(
                 "Applied patch to {path} ({chars} chars, {lines} lines)."
             ))
@@ -824,7 +913,7 @@ pub(super) fn execute_tool_dispatch(
                 )
             };
             tool_operator.edit_file(path, old_str, new_str)?;
-            refresh_codebase_index(path, tool_operator.working_dir());
+            refresh_codebase_index(path, tool_operator.working_dir(), search_config);
             Ok(summary)
         }
         "rename_file" => {
@@ -841,8 +930,8 @@ pub(super) fn execute_tool_dispatch(
                 &["new_path", "to", "target_path"],
             )?;
             let result = tool_operator.rename_file(old_path, new_path)?;
-            refresh_codebase_index(old_path, tool_operator.working_dir());
-            refresh_codebase_index(new_path, tool_operator.working_dir());
+            refresh_codebase_index(old_path, tool_operator.working_dir(), search_config);
+            refresh_codebase_index(new_path, tool_operator.working_dir(), search_config);
             Ok(result)
         }
         "list_files" | "list_directory" => tool_operator.list_files(
@@ -925,13 +1014,16 @@ pub(super) fn execute_tool_dispatch(
                 .join("\n"))
         }
         "codebase_search" => {
+            if !search_config.enabled {
+                bail!("codebase_search is disabled by [search].enabled=false");
+            }
             let query = required_tool_string(input, name, "query")?;
             let max_results = input
                 .get("max_results")
                 .and_then(|v| v.as_u64())
                 .map(|v| v as usize);
             let idx_mutex = CODEBASE_INDEX.get_or_init(|| {
-                let chunks = index::build_index(tool_operator.working_dir());
+                let chunks = build_codebase_index(tool_operator.working_dir(), search_config);
                 Mutex::new(chunks)
             });
             let idx = idx_mutex

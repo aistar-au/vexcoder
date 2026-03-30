@@ -83,6 +83,110 @@ async fn test_execute_tool_codebase_search_works_without_embeddings() -> Result<
     assert!(result.contains("src/searchable.rs:1-1"));
     Ok(())
 }
+
+#[tokio::test]
+async fn test_execute_tool_codebase_search_rejects_disabled_search_config() -> Result<()> {
+    let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+    let temp = TempDir::new()?;
+    let src_dir = temp.path().join("src");
+    std::fs::create_dir_all(&src_dir)?;
+    std::fs::write(
+        src_dir.join("searchable.rs"),
+        "pub fn disabled_search() {}\n",
+    )?;
+
+    let mock_api_client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+    let manager = ConversationManager::new(
+        mock_api_client,
+        ToolOperator::new(temp.path().to_path_buf()),
+    )
+    .with_search_config(crate::config::SearchConfig {
+        enabled: false,
+        ..Default::default()
+    });
+
+    let error = manager
+        .execute_tool_with_timeout_with_updates(
+            "codebase_search",
+            &json!({
+                "query": "disabled_search",
+                "max_results": 5,
+            }),
+            Duration::from_secs(2),
+            None,
+        )
+        .await
+        .expect_err("disabled search must reject codebase_search");
+
+    assert!(error
+        .to_string()
+        .contains("codebase_search is disabled by [search].enabled=false"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_incremental_refresh_does_not_depend_on_auto_index() -> Result<()> {
+    let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+    crate::state::clear_codebase_index_for_tests();
+
+    let temp = TempDir::new()?;
+    let src_dir = temp.path().join("src");
+    std::fs::create_dir_all(&src_dir)?;
+    let file_path = src_dir.join("searchable.rs");
+    std::fs::write(&file_path, "pub fn before_auto_index_off() {}\n")?;
+
+    let mock_api_client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+    let manager = ConversationManager::new(
+        mock_api_client,
+        ToolOperator::new(temp.path().to_path_buf()),
+    )
+    .with_search_config(crate::config::SearchConfig {
+        auto_index: false,
+        ..Default::default()
+    });
+
+    let before = manager
+        .execute_tool_with_timeout_with_updates(
+            "codebase_search",
+            &json!({
+                "query": "before_auto_index_off",
+                "max_results": 5,
+            }),
+            Duration::from_secs(2),
+            None,
+        )
+        .await?;
+    assert!(before.contains("before_auto_index_off"));
+
+    manager
+        .execute_tool_with_timeout_with_updates(
+            "write_file",
+            &json!({
+                "path": "src/searchable.rs",
+                "content": "pub fn after_auto_index_off() {}\n",
+            }),
+            Duration::from_secs(2),
+            None,
+        )
+        .await?;
+
+    let after = manager
+        .execute_tool_with_timeout_with_updates(
+            "codebase_search",
+            &json!({
+                "query": "after_auto_index_off",
+                "max_results": 5,
+            }),
+            Duration::from_secs(2),
+            None,
+        )
+        .await?;
+
+    assert!(after.contains("after_auto_index_off"));
+    assert!(!after.contains("before_auto_index_off"));
+    Ok(())
+}
+
 #[test]
 fn test_default_tool_approval_enabled_prefers_remote_only() {
     assert!(default_tool_approval_enabled(false));
