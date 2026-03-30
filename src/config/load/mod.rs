@@ -1,19 +1,31 @@
+mod merge;
+mod parse;
+mod paths;
+
 use anyhow::{bail, Context, Result};
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use crate::runtime::{ModelBackendKind, ModelProtocol, SandboxConfig, SandboxKind, ToolCallMode};
-use crate::types::ModelProfile;
+use crate::runtime::{ModelBackendKind, SandboxConfig, SandboxKind, ToolCallMode};
 use crate::util::{is_local_endpoint_url, parse_bool_flag};
 
 use super::{
-    ApiConfig, ApiConfigLayer, ApiTransport, AutoMemoryConfig, AutoMemoryConfigLayer,
-    CompactionConfig, CompactionConfigLayer, Config, ConfigLayer, DoctorConfigLayer,
-    DoctorConfigSnapshot, DoctorMcpServer, HttpHookConfig, McpServerConfig, McpTransport,
-    SearchConfig, SearchConfigLayer, UndoConfig, UndoConfigLayer, DEFAULT_LOCAL_API_HOST,
-    DEFAULT_LOCAL_API_PORT,
+    ApiConfig, ApiConfigLayer, ApiTransport, AutoMemoryConfigLayer, CompactionConfig,
+    CompactionConfigLayer, Config, ConfigLayer, DoctorConfigLayer, DoctorConfigSnapshot,
+    DoctorMcpServer, HttpHookConfig, McpServerConfig, McpTransport, SearchConfig,
+    SearchConfigLayer, UndoConfig, UndoConfigLayer, DEFAULT_LOCAL_API_HOST, DEFAULT_LOCAL_API_PORT,
 };
+
+use merge::{apply_over, resolve_auto_memory_config};
+use parse::*;
+use paths::*;
+
+// Re-exports for parent module (config.rs test-only imports)
+pub(super) use parse::{
+    infer_model_protocol, legacy_chat_protocol_value, legacy_messages_protocol_value,
+    parse_model_headers_json,
+};
+pub(super) use paths::user_config_path;
 
 pub(super) fn load() -> Result<Config> {
     let cwd = std::env::current_dir().context("Failed to determine current working directory")?;
@@ -212,133 +224,6 @@ pub(super) fn doctor_snapshot(cwd: &Path) -> Result<DoctorConfigSnapshot> {
         sandbox_require,
         mcp_servers,
     })
-}
-
-// ---------------------------------------------------------------------------
-// Layer helpers
-// ---------------------------------------------------------------------------
-
-/// Apply `over` on top of `base`: any Some field in `over` wins.
-fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
-    ConfigLayer {
-        model_name: over.model_name.or(base.model_name),
-        model_url: over.model_url.or(base.model_url),
-        model_url_skip_tls_check: over
-            .model_url_skip_tls_check
-            .or(base.model_url_skip_tls_check),
-        working_dir: over.working_dir.or(base.working_dir),
-        sandbox: over.sandbox.or(base.sandbox),
-        sandbox_profile: over.sandbox_profile.or(base.sandbox_profile),
-        sandbox_require: over.sandbox_require.or(base.sandbox_require),
-        model_backend: over.model_backend.or(base.model_backend),
-        model_protocol: over.model_protocol.or(base.model_protocol),
-        tool_call_mode: over.tool_call_mode.or(base.tool_call_mode),
-        model_profile: over.model_profile.or(base.model_profile),
-        max_project_instructions_tokens: over
-            .max_project_instructions_tokens
-            .or(base.max_project_instructions_tokens),
-        max_memory_tokens: over.max_memory_tokens.or(base.max_memory_tokens),
-        notes_path: over.notes_path.or(base.notes_path),
-        api: apply_api_over(base.api, over.api),
-        hooks: over.hooks.or(base.hooks),
-        http_hooks: over.http_hooks.or(base.http_hooks),
-        mcp_servers: over.mcp_servers.or(base.mcp_servers),
-        compaction: apply_compaction_over(base.compaction, over.compaction),
-        undo: apply_undo_over(base.undo, over.undo),
-        search: apply_search_over(base.search, over.search),
-        auto_memory: apply_auto_memory_over(base.auto_memory, over.auto_memory),
-    }
-}
-
-fn apply_compaction_over(
-    base: Option<CompactionConfigLayer>,
-    over: Option<CompactionConfigLayer>,
-) -> Option<CompactionConfigLayer> {
-    match (base, over) {
-        (None, None) => None,
-        (Some(layer), None) | (None, Some(layer)) => Some(layer),
-        (Some(base), Some(over)) => Some(CompactionConfigLayer {
-            enabled: over.enabled.or(base.enabled),
-            threshold_percent: over.threshold_percent.or(base.threshold_percent),
-            keep_recent_turns: over.keep_recent_turns.or(base.keep_recent_turns),
-            summary_max_tokens: over.summary_max_tokens.or(base.summary_max_tokens),
-        }),
-    }
-}
-
-fn apply_auto_memory_over(
-    base: Option<AutoMemoryConfigLayer>,
-    over: Option<AutoMemoryConfigLayer>,
-) -> Option<AutoMemoryConfigLayer> {
-    match (base, over) {
-        (None, None) => None,
-        (Some(layer), None) | (None, Some(layer)) => Some(layer),
-        (Some(base), Some(over)) => Some(AutoMemoryConfigLayer {
-            enabled: over.enabled.or(base.enabled),
-            max_notes_per_turn: over.max_notes_per_turn.or(base.max_notes_per_turn),
-        }),
-    }
-}
-
-fn apply_undo_over(
-    base: Option<UndoConfigLayer>,
-    over: Option<UndoConfigLayer>,
-) -> Option<UndoConfigLayer> {
-    match (base, over) {
-        (None, None) => None,
-        (Some(layer), None) | (None, Some(layer)) => Some(layer),
-        (Some(base), Some(over)) => Some(UndoConfigLayer {
-            enabled: over.enabled.or(base.enabled),
-            max_checkpoints: over.max_checkpoints.or(base.max_checkpoints),
-        }),
-    }
-}
-
-fn apply_search_over(
-    base: Option<SearchConfigLayer>,
-    over: Option<SearchConfigLayer>,
-) -> Option<SearchConfigLayer> {
-    match (base, over) {
-        (None, None) => None,
-        (Some(layer), None) | (None, Some(layer)) => Some(layer),
-        (Some(base), Some(over)) => Some(SearchConfigLayer {
-            enabled: over.enabled.or(base.enabled),
-            auto_index: over.auto_index.or(base.auto_index),
-            exclude: over.exclude.or(base.exclude),
-            max_file_size: over.max_file_size.or(base.max_file_size),
-        }),
-    }
-}
-
-fn resolve_auto_memory_config(layer: Option<AutoMemoryConfigLayer>) -> AutoMemoryConfig {
-    let layer = layer.unwrap_or_default();
-    let max_notes = layer.max_notes_per_turn.unwrap_or(3).clamp(1, 10);
-    AutoMemoryConfig {
-        enabled: layer.enabled.unwrap_or(false),
-        max_notes_per_turn: max_notes,
-    }
-}
-
-fn apply_api_over(
-    base: Option<ApiConfigLayer>,
-    over: Option<ApiConfigLayer>,
-) -> Option<ApiConfigLayer> {
-    match (base, over) {
-        (None, None) => None,
-        (Some(layer), None) | (None, Some(layer)) => Some(layer),
-        (Some(base), Some(over)) => Some(ApiConfigLayer {
-            transport: over.transport.or(base.transport),
-            host: over.host.or(base.host),
-            port: over.port.or(base.port),
-            socket: over.socket.or(base.socket),
-            key: over.key.or(base.key),
-            tls_cert: over.tls_cert.or(base.tls_cert),
-            tls_key: over.tls_key.or(base.tls_key),
-            tls_ca_cert: over.tls_ca_cert.or(base.tls_ca_cert),
-            tls_skip_verify: over.tls_skip_verify.or(base.tls_skip_verify),
-            vpn_trust: over.vpn_trust.or(base.vpn_trust),
-        }),
-    }
 }
 
 /// Read environment variables into a ConfigLayer and return the env token
@@ -1026,213 +911,6 @@ fn validate_mcp_servers_with_mode(
     }
 
     Ok(validated)
-}
-
-fn resolve_working_dir(working_dir: Option<PathBuf>, fallback_cwd: &Path) -> PathBuf {
-    working_dir.unwrap_or_else(|| fallback_cwd.to_path_buf())
-}
-
-fn load_model_profile(
-    selected_path: Option<&Path>,
-    profile_base_dir: &Path,
-    model_backend: ModelBackendKind,
-) -> Result<ModelProfile> {
-    let Some(path) = selected_path else {
-        return Ok(ModelProfile::default_for_backend(model_backend));
-    };
-
-    let resolved = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        profile_base_dir.join(path)
-    };
-    ModelProfile::load(&resolved).with_context(|| {
-        format!(
-            "failed to load model profile '{}' (base '{}')",
-            path.display(),
-            profile_base_dir.display()
-        )
-    })
-}
-
-fn resolve_profile_base_dir(cwd: &Path, repo_cfg: Option<&Path>) -> PathBuf {
-    if let Some(root) = repo_cfg
-        .and_then(|config| config.parent())
-        .and_then(Path::parent)
-    {
-        return root.to_path_buf();
-    }
-    find_repo_root(cwd).unwrap_or_else(|| cwd.to_path_buf())
-}
-
-fn expand_home(path: PathBuf) -> PathBuf {
-    let s = path.to_string_lossy();
-    if let Some(rest) = s.strip_prefix("~/") {
-        if let Some(home) = std::env::var("HOME").ok().filter(|v| !v.is_empty()) {
-            return PathBuf::from(home).join(rest);
-        }
-    }
-    path
-}
-
-// ---------------------------------------------------------------------------
-// Path helpers
-// ---------------------------------------------------------------------------
-
-/// Walk ancestors of `cwd` to find the nearest `.vex/config.toml`.
-/// The resolved `working_dir` from the merged config must not influence
-/// which file is selected — always walk from the actual process cwd.
-fn find_repo_local_config(cwd: &Path) -> Option<PathBuf> {
-    let mut dir: &Path = cwd;
-    loop {
-        let candidate = dir.join(".vex").join("config.toml");
-        if candidate.exists() {
-            return Some(candidate);
-        }
-        dir = dir.parent()?;
-    }
-}
-
-fn find_repo_root(cwd: &Path) -> Option<PathBuf> {
-    let mut dir: &Path = cwd;
-    loop {
-        if dir.join(".git").exists() || dir.join(".vex").join("config.toml").exists() {
-            return Some(dir.to_path_buf());
-        }
-        dir = dir.parent()?;
-    }
-}
-
-pub(super) fn user_config_path() -> Option<PathBuf> {
-    let primary = user_config_xdg_path();
-    if primary.as_ref().is_some_and(|path| path.exists()) {
-        return primary;
-    }
-
-    let legacy = user_config_legacy_path();
-    if legacy.as_ref().is_some_and(|path| path.exists()) {
-        return legacy;
-    }
-
-    primary.or(legacy)
-}
-
-fn user_config_xdg_path() -> Option<PathBuf> {
-    if let Some(root) = std::env::var("XDG_CONFIG_HOME")
-        .ok()
-        .filter(|v| !v.trim().is_empty())
-    {
-        return Some(PathBuf::from(root).join("vex").join("config.toml"));
-    }
-
-    std::env::var("HOME")
-        .ok()
-        .filter(|v| !v.is_empty())
-        .map(|home| {
-            PathBuf::from(home)
-                .join(".config")
-                .join("vex")
-                .join("config.toml")
-        })
-}
-
-fn user_config_legacy_path() -> Option<PathBuf> {
-    std::env::var("HOME")
-        .ok()
-        .filter(|v| !v.is_empty())
-        .map(|home| PathBuf::from(home).join(".vex").join("config.toml"))
-}
-
-fn system_config_path() -> Option<PathBuf> {
-    Some(PathBuf::from("/etc/vex/config.toml"))
-}
-
-// ---------------------------------------------------------------------------
-// Parse helpers (preserved from original)
-// ---------------------------------------------------------------------------
-
-fn parse_model_backend(value: String) -> Option<ModelBackendKind> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "local-runtime" | "local_runtime" | "local" => Some(ModelBackendKind::LocalRuntime),
-        "api-server" | "api_server" | "api" | "remote" => Some(ModelBackendKind::ApiServer),
-        _ => None,
-    }
-}
-
-fn parse_model_protocol(value: String) -> Option<ModelProtocol> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "messages-v1" | "messages_v1" | "messages" | "v1" => Some(ModelProtocol::MessagesV1),
-        "chat-compat" | "chat_compat" | "chat" => Some(ModelProtocol::ChatCompat),
-        _ => None,
-    }
-}
-
-fn parse_tool_call_mode(value: String) -> Option<ToolCallMode> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "structured" => Some(ToolCallMode::Structured),
-        "tagged-fallback" | "tagged_fallback" | "fallback" | "tagged" => {
-            Some(ToolCallMode::TaggedFallback)
-        }
-        _ => None,
-    }
-}
-
-fn parse_api_transport(value: String) -> Option<ApiTransport> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "http" => Some(ApiTransport::Http),
-        "unix" => Some(ApiTransport::Unix),
-        "both" => Some(ApiTransport::Both),
-        _ => None,
-    }
-}
-
-fn parse_sandbox_kind(value: String) -> Option<SandboxKind> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "passthrough" => Some(SandboxKind::Passthrough),
-        "macos-exec" | "macos_exec" => Some(SandboxKind::MacosExec),
-        "container" => Some(SandboxKind::Container),
-        _ => None,
-    }
-}
-
-pub(super) fn infer_model_protocol(api_url: &str) -> ModelProtocol {
-    let normalized = api_url.trim().to_ascii_lowercase();
-    if normalized.contains("/chat/completions") || normalized.ends_with("/v1") {
-        ModelProtocol::ChatCompat
-    } else {
-        ModelProtocol::MessagesV1
-    }
-}
-
-pub(super) fn parse_model_headers_json() -> Result<HeaderMap> {
-    let raw = match std::env::var("VEX_MODEL_HEADERS_JSON") {
-        Ok(v) if !v.trim().is_empty() => v,
-        _ => return Ok(HeaderMap::new()),
-    };
-    let map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&raw)
-        .map_err(|e| anyhow::anyhow!("VEX_MODEL_HEADERS_JSON is not a valid JSON object: {e}"))?;
-    let mut headers = HeaderMap::new();
-    for (k, v) in &map {
-        let name = HeaderName::from_bytes(k.as_bytes()).map_err(|e| {
-            anyhow::anyhow!("VEX_MODEL_HEADERS_JSON invalid header name {k:?}: {e}")
-        })?;
-        let val_str = v.as_str().ok_or_else(|| {
-            anyhow::anyhow!("VEX_MODEL_HEADERS_JSON value for {k:?} must be a string")
-        })?;
-        let value = HeaderValue::from_str(val_str).map_err(|e| {
-            anyhow::anyhow!("VEX_MODEL_HEADERS_JSON invalid header value for {k:?}: {e}")
-        })?;
-        headers.insert(name, value);
-    }
-    Ok(headers)
-}
-
-pub(super) fn legacy_messages_protocol_value() -> &'static str {
-    concat!("anth", "ropic")
-}
-
-pub(super) fn legacy_chat_protocol_value() -> &'static str {
-    concat!("open", "ai")
 }
 
 /// Generate a `.vex/config.toml` fragment mapping pre-ADR-022 branded
