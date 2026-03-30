@@ -101,3 +101,25 @@ fn windows_mixed_separator_path_is_search_index() {
     let p = std::path::PathBuf::from(".vex\\index/data.bin");
     assert_eq!(check_path(&p), DiskPermission::SearchIndex);
 }
+
+#[test]
+fn index_prefix_without_path_separator_is_forbidden() {
+    // Regression: paths like ".vex/indexing.txt" must not match SearchIndex.
+    assert_eq!(
+        check_path(Path::new(".vex/indexing.txt")),
+        DiskPermission::Forbidden,
+    );
+    assert_eq!(
+        check_path(Path::new("/repo/.vex/indexed-data")),
+        DiskPermission::Forbidden,
+    );
+}
+
+#[test]
+fn state_prefix_without_path_separator_is_forbidden() {
+    // Regression: paths like ".vex/stateful.bin" must not match TaskStateMap.
+    assert_eq!(
+        check_path(Path::new(".vex/stateful.bin")),
+        DiskPermission::Forbidden,
+    );
+}
