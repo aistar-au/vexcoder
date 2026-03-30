@@ -80,8 +80,13 @@ Adopt a memory-first contract for turn assembly:
   adds `src/tools/operator/policy.rs` wrapper and wires `assert_durable_access()`
   into `TaskState::save()` / `TaskState::load()`. Also fixes cross-platform
   `check_path()` to handle Windows backslash separators.
-6. Evaluate optional task-state WAL once the in-memory first-turn path is
-  stable and measurable.
+6. ~~Evaluate optional task-state WAL once the in-memory first-turn path is
+  stable and measurable.~~ Batch H (PR #283) decomposes
+  `src/runtime/task_state.rs` (807 lines) into
+  `src/runtime/task_state/{mod.rs, persist.rs}`, isolating all persistence
+  logic. WAL evaluation concluded: not warranted because task-state saves
+  are per-session (not per-turn) and `write_json_safe` already performs
+  crash-safe writes (temp + fsync + rename).
 
 ## Consequences
 
