@@ -44,7 +44,7 @@ pre-release label. This ensures correct semver precedence ordering:
   fails after the tag is published, land the fix and cut the next prerelease
   or patch tag instead of retagging an existing version.
 - Tag names must match the `Cargo.toml` version exactly (with the `v` prefix):
-  if `Cargo.toml` says `0.1.0-rc.1`, the tag is `v0.1.0-rc.1`.
+  if `Cargo.toml` says `<current-version>`, the tag is `v<current-version>`.
 
 ### Creating a tag
 
@@ -56,10 +56,10 @@ git pull --ff-only origin main
 grep '^version' Cargo.toml
 
 # Create an annotated tag
-git tag -a v0.1.0-rc.1 -m "Release v0.1.0-rc.1"
+git tag -a v<current-version> -m "Release v<current-version>"
 
 # Push the tag
-git push origin v0.1.0-rc.1
+git push origin v<current-version>
 ```
 
 ---
@@ -72,8 +72,8 @@ git push origin v0.1.0-rc.1
    ```bash
   make bump V=<new-version>
    ```
-   This updates `Cargo.toml`, `Cargo.lock`, `CONTRIBUTING.md`, and
-   `RELEASING.md` in one step. See `scripts/bump-version.sh` for details.
+  This updates `Cargo.toml` and `Cargo.lock` in one step. See
+  `scripts/bump-version.sh` for details.
 2. Review the changes: `git diff`.
 3. Verify all CI checks pass on the PR.
 4. Run the local gate:
@@ -97,12 +97,12 @@ git push origin v0.1.0-rc.1
 
 10. Verify the tag exists on the remote:
     ```bash
-  git ls-remote --tags origin | grep v0.1.0-rc.1
+  git ls-remote --tags origin | grep v<current-version>
     ```
 11. Confirm `.github/workflows/release.yml` completed successfully for the tag.
 12. Verify the workflow published the release entry, attached the platform
   archives, the macOS `.dmg` assets, and the matching
-  `CHANGELOG-v0.1.0-rc.1.md` asset.
+  `CHANGELOG-v<current-tag>.md` asset.
 
 ---
 
@@ -154,8 +154,8 @@ manual dispatch workflow that automates the version bump process:
 
 1. Go to **Actions > version-bump > Run workflow**.
 2. Enter the new version (e.g. `0.1.0-rc.1`). No `v` prefix.
-3. The workflow runs `scripts/bump-version.sh`, commits the changes, and
-   opens a PR targeting `main`.
+3. The workflow runs `scripts/bump-version.sh`, commits the version bump, and
+  opens a PR targeting `main`.
 4. Review and merge the PR.
 5. After merge, create and push the annotated tag (see above).
 
