@@ -11,6 +11,7 @@ use crate::util::is_local_endpoint_url;
 pub mod hooks;
 pub use hooks::{default_hook_on_fail, HookConfig, HookEvent, HookOnFail, HttpHookConfig};
 
+mod cache;
 mod load;
 #[cfg(test)]
 mod tests;
@@ -346,6 +347,14 @@ impl Config {
     /// with file-path context in the error message.
     pub fn load() -> Result<Self> {
         load::load()
+    }
+
+    /// Load config with process-level caching (ADR-038).
+    ///
+    /// First call runs the full five-layer resolution chain.
+    /// Subsequent calls return a clone of the cached value.
+    pub fn load_cached() -> Result<Self> {
+        cache::load_cached()
     }
 
     /// Test-only helper. Accepts explicit user and system config paths so

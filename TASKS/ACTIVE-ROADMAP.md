@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-30 (ADR-038 phase 1 TTFC context cache landed)
+Last updated: 2026-03-31 (ADR-038 phase 2 Level 0 foundation + config cache)
 
 ---
 
@@ -26,7 +26,7 @@ Last updated: 2026-03-30 (ADR-038 phase 1 TTFC context cache landed)
 | ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate snapshot + broadcast fan-out; PR #261 closes Phase E watch-stream |
 | ADR-035 | Accepted | 0 items remaining | Gap 14 `/undo` rollback strategy is now specified and implemented with binary-safe checkpoints |
-| ADR-038 | Active (Phase 1 merged) | 3 items remaining | Phase 1 landed: bounded context cache + opt-in auto git; follow-ups cover config caching, disk permissions, and task-state durability |
+| ADR-038 | Active (Phase 2 merged) | 2 items remaining | Phase 1: bounded context cache + opt-in auto git; Phase 1a: search lane tightening; Phase 2: disk_policy.rs + config/cache.rs; follow-ups: config decomposition, operator enforcement, task-state durability |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -44,9 +44,12 @@ Last updated: 2026-03-30 (ADR-038 phase 1 TTFC context cache landed)
 ## Remaining Work: 1 Active In-Tree ADR + 1 Deferred External Dependency
 
 ADR-038 now tracks the active in-tree TTFC follow-up around memory-first
-context assembly. The only deferred external follow-up is still ADR-024
-PG-03 tap auto-dispatch, which stays blocked until the separate
-`homebrew-vex` tap repository exists.
+context assembly. Phase 2 adds `disk_policy.rs` (DiskPermission classifier)
+and `config/cache.rs` (OnceLock config cache). Remaining follow-ups:
+config load.rs decomposition, operator-level FileSystem trait enforcement,
+strict policy CI gates, and optional task-state WAL. The only deferred
+external follow-up is still ADR-024 PG-03 tap auto-dispatch, which stays
+blocked until the separate `homebrew-vex` tap repository exists.
 
 ### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
 
