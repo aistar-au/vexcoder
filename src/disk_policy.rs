@@ -1,0 +1,128 @@
+use std::path::Path;
+
+/// Categorizes filesystem access per ADR-038 Memory-First Architecture.
+///
+/// Persistent disk I/O is permitted only for search index and task state.
+/// Everything else (config, file snapshots, git summaries, conversation
+/// history) must be RAM-resident after first load.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiskPermission {
+    /// Codebase search/index persistence (`.vex/index/`).
+    SearchIndex,
+    /// Task state map JSONs (`.vex/state/*.json`).
+    TaskStateMap,
+    /// Path does not match any permitted disk-I/O category.
+    Forbidden,
+}
+
+/// Controls how forbidden disk access is handled at runtime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiskPolicyMode {
+    /// No enforcement (default).
+    Off,
+    /// Log a warning on forbidden access.
+    Warn,
+    /// Panic on forbidden access (CI gate via `VEX_DISK_POLICY=strict`).
+    Strict,
+}
+
+/// Classify a path according to the ADR-038 disk permission model.
+pub fn check_path(path: &Path) -> DiskPermission {
+    for component in path.components() {
+        let segment = component.as_os_str().to_string_lossy();
+        if segment == ".vex" {
+            return classify_vex_subpath(path);
+        }
+    }
+    DiskPermission::Forbidden
+}
+
+fn classify_vex_subpath(path: &Path) -> DiskPermission {
+    let lossy = path.to_string_lossy();
+    let normalized = lossy.replace('\\', "/");
+    if let Some(after_vex) = normalized.split(".vex/").nth(1) {
+        if after_vex.starts_with("index") {
+            return DiskPermission::SearchIndex;
+        }
+        if after_vex.starts_with("state/") || after_vex == "state" {
+            return DiskPermission::TaskStateMap;
+        }
+    }
+    DiskPermission::Forbidden
+}
+
+/// Resolve the disk policy mode from the `VEX_DISK_POLICY` environment variable.
+pub fn resolve_policy_mode() -> DiskPolicyMode {
+    match std::env::var("VEX_DISK_POLICY") {
+        Ok(val) => match val.to_lowercase().as_str() {
+            "strict" => DiskPolicyMode::Strict,
+            "warn" => DiskPolicyMode::Warn,
+            "off" | "" => DiskPolicyMode::Off,
+            other => {
+                eprintln!("[disk_policy] unknown VEX_DISK_POLICY={other:?}; defaulting to off");
+                DiskPolicyMode::Off
+            }
+        },
+        Err(_) => DiskPolicyMode::Off,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn index_directory_is_search_index() {
+        let p = PathBuf::from("/home/user/project/.vex/index/chunks.bin");
+        assert_eq!(check_path(&p), DiskPermission::SearchIndex);
+    }
+
+    #[test]
+    fn index_root_is_search_index() {
+        let p = PathBuf::from(".vex/index");
+        assert_eq!(check_path(&p), DiskPermission::SearchIndex);
+    }
+
+    #[test]
+    fn state_json_is_task_state_map() {
+        let p = PathBuf::from("/repo/.vex/state/task-001.json");
+        assert_eq!(check_path(&p), DiskPermission::TaskStateMap);
+    }
+
+    #[test]
+    fn state_subdirectory_is_task_state_map() {
+        let p = PathBuf::from(".vex/state/worktrees/task-001");
+        assert_eq!(check_path(&p), DiskPermission::TaskStateMap);
+    }
+
+    #[test]
+    fn state_root_is_task_state_map() {
+        let p = PathBuf::from("/repo/.vex/state");
+        assert_eq!(check_path(&p), DiskPermission::TaskStateMap);
+    }
+
+    #[test]
+    fn config_toml_is_forbidden() {
+        let p = PathBuf::from("/repo/.vex/config.toml");
+        assert_eq!(check_path(&p), DiskPermission::Forbidden);
+    }
+
+    #[test]
+    fn source_file_is_forbidden() {
+        let p = PathBuf::from("/repo/src/main.rs");
+        assert_eq!(check_path(&p), DiskPermission::Forbidden);
+    }
+
+    #[test]
+    fn relative_source_is_forbidden() {
+        let p = PathBuf::from("src/lib.rs");
+        assert_eq!(check_path(&p), DiskPermission::Forbidden);
+    }
+
+    #[test]
+    fn policy_mode_defaults_to_off() {
+        std::env::remove_var("VEX_DISK_POLICY");
+        assert_eq!(resolve_policy_mode(), DiskPolicyMode::Off);
+    }
+}

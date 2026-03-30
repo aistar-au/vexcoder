@@ -5,6 +5,7 @@ pub mod auto_memory;
 pub mod batch_mode;
 pub mod config;
 pub(crate) mod custom_commands;
+pub mod disk_policy;
 pub mod doctor;
 pub mod edit_diff;
 pub mod exec;
