@@ -141,7 +141,20 @@ fn test_tui_resume_without_id_offers_recent_task_selection() {
         "expected recent-task list in history"
     );
 
-    mode.on_user_input("1".to_string(), &mut ctx);
+    let newer_selection = mode
+        .history_lines()
+        .iter()
+        .find_map(|line| {
+            if !line.contains("task-resume-newer (Running)") {
+                return None;
+            }
+            line.trim()
+                .split_once('.')
+                .and_then(|(selection, _)| selection.parse::<usize>().ok())
+        })
+        .expect("expected numeric resume selection for task-resume-newer");
+
+    mode.on_user_input(newer_selection.to_string(), &mut ctx);
 
     assert_eq!(mode.current_task_id(), "task-resume-newer");
     assert_eq!(
