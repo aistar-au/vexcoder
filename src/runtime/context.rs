@@ -330,6 +330,13 @@ impl RuntimeContext {
         self.conversation.blocking_lock().undo_stack_len()
     }
 
+    pub fn is_undo_enabled(&self) -> bool {
+        if let Ok(conversation) = self.conversation.try_lock() {
+            return conversation.is_undo_enabled();
+        }
+        self.conversation.blocking_lock().is_undo_enabled()
+    }
+
     pub fn emit_transcript_line(&self, line: String) {
         let _ = self.update_tx.send(UiUpdate::TranscriptLine(line));
     }

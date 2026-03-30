@@ -90,6 +90,7 @@ pub struct ConversationManager {
     pub(super) read_file_history_cache: ReadFileSnapshotCache,
     pub(super) undo_stack: Vec<UndoCheckpoint>,
     pub(super) max_undo_checkpoints: usize,
+    pub(super) undo_enabled: bool,
     #[cfg(test)]
     pub(super) mock_tool_operator_responses: Option<Arc<Mutex<HashMap<String, String>>>>,
 }
@@ -127,6 +128,7 @@ impl ConversationManager {
             read_file_history_cache: ReadFileSnapshotCache::default(),
             undo_stack: Vec::new(),
             max_undo_checkpoints: 20,
+            undo_enabled: true,
             #[cfg(test)]
             mock_tool_operator_responses: None,
         }
@@ -160,6 +162,15 @@ impl ConversationManager {
         self
     }
 
+    pub fn with_undo_enabled(mut self, enabled: bool) -> Self {
+        self.undo_enabled = enabled;
+        self
+    }
+
+    pub fn is_undo_enabled(&self) -> bool {
+        self.undo_enabled
+    }
+
     pub fn with_mcp_registry(mut self, mcp_registry: Option<Arc<McpRegistry>>) -> Self {
         self.mcp_registry = mcp_registry;
         self
@@ -187,6 +198,7 @@ impl ConversationManager {
             read_file_history_cache: ReadFileSnapshotCache::default(),
             undo_stack: Vec::new(),
             max_undo_checkpoints: 20,
+            undo_enabled: true,
             mock_tool_operator_responses: Some(Arc::new(Mutex::new(tool_operator_responses))),
         }
     }

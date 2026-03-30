@@ -39,13 +39,15 @@ impl ConversationManager {
         // Capture undo snapshots before tools run (they may modify files).
         let mut undo_snapshots: std::collections::HashMap<String, UndoCheckpoint> =
             std::collections::HashMap::new();
-        for block in blocks {
-            if let ContentBlock::ToolUse {
-                id, name, input, ..
-            } = block
-            {
-                if let Some(checkpoint) = self.capture_undo_snapshot(name, input) {
-                    undo_snapshots.insert(id.clone(), checkpoint);
+        if self.undo_enabled {
+            for block in blocks {
+                if let ContentBlock::ToolUse {
+                    id, name, input, ..
+                } = block
+                {
+                    if let Some(checkpoint) = self.capture_undo_snapshot(name, input) {
+                        undo_snapshots.insert(id.clone(), checkpoint);
+                    }
                 }
             }
         }

@@ -1272,6 +1272,10 @@ impl TuiMode {
     }
 
     pub(super) fn handle_undo_command(&mut self, ctx: &RuntimeContext) {
+        if !ctx.is_undo_enabled() {
+            self.push_history_line("[undo] disabled in configuration".to_string());
+            return;
+        }
         let checkpoint = match ctx.pop_undo_checkpoint() {
             Some(cp) => cp,
             None => {
