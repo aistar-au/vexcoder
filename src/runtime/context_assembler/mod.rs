@@ -1,10 +1,13 @@
+mod reads;
+
 use anyhow::Result;
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use crate::runtime::context_cache::{read_cached_file, CachedFileRead};
+use self::reads::{extract_candidate_paths, infer_related_path_candidates, snapshot_from_read};
+
+use crate::runtime::context_cache::read_cached_file;
 use crate::runtime::git_snapshot::{collect_git_snapshot, resolve_git_timeout_ms};
-use crate::runtime::text_util::truncate_head_bytes;
 use crate::tools::ToolOperator;
 use crate::util::parse_bool_flag;
 
@@ -13,7 +16,6 @@ const DEFAULT_MAX_DIFF_LINES: usize = 200;
 const DEFAULT_MAX_RELATED: usize = 3;
 const DEFAULT_GIT_TIMEOUT_MS: u64 = 2_000;
 const DEFAULT_INCLUDE_GIT_CONTEXT: bool = false;
-const STANDALONE_PATH_EXTENSIONS: &[&str] = &["rs", "toml", "md", "txt", "json", "sh"];
 
 #[derive(Debug, Clone)]
 pub struct AssembledContext {
@@ -70,7 +72,7 @@ impl ContextAssembler {
 
         // All explicitly named paths are captured without a count cap.
         // The max_related cap applies only to *inferred* related paths below.
-        for candidate in extract_candidate_paths(instruction).into_iter() {
+        for candidate in extract_candidate_paths(instruction) {
             let path = PathBuf::from(&candidate);
             if !seen_paths.insert(path.clone()) {
                 continue;
@@ -110,17 +112,14 @@ impl ContextAssembler {
                 let Ok(read) = read_cached_file(operator, &candidate) else {
                     continue;
                 };
-                let (content, truncated) = truncate_head_bytes(&read.content, self.max_file_bytes);
-                if read.cache_hit {
+                let (snapshot, cache_hit) =
+                    snapshot_from_read(inferred.clone(), Ok(read), self.max_file_bytes);
+                if cache_hit {
                     cache_hits += 1;
-                } else {
+                } else if snapshot.content.is_some() {
                     cache_misses += 1;
                 }
-                file_snapshots.push(FileSnapshot {
-                    path: inferred.clone(),
-                    content: Some(content),
-                    truncated,
-                });
+                file_snapshots.push(snapshot);
                 related_paths.push(inferred);
             }
         }
@@ -230,8 +229,8 @@ fn resolve_include_git_context(default_enabled: bool) -> bool {
             Some(enabled) => enabled,
             None => {
                 eprintln!(
-                        "[context] invalid VEX_CONTEXT_INCLUDE_GIT={value:?}; using default {default_enabled}"
-                    );
+                    "[context] invalid VEX_CONTEXT_INCLUDE_GIT={value:?}; using default {default_enabled}"
+                );
                 default_enabled
             }
         },
@@ -239,205 +238,9 @@ fn resolve_include_git_context(default_enabled: bool) -> bool {
     }
 }
 
-fn extract_candidate_paths(instruction: &str) -> Vec<String> {
-    let mut seen = HashSet::new();
-    let mut out = Vec::new();
-
-    for token in instruction.split_whitespace() {
-        let candidate = token.trim_matches(|c: char| {
-            matches!(
-                c,
-                '"' | '\'' | '`' | ',' | '.' | ';' | ':' | '(' | ')' | '[' | ']' | '{' | '}'
-            )
-        });
-        if candidate.is_empty() {
-            continue;
-        }
-        if candidate.starts_with('/') || candidate.starts_with('-') {
-            continue;
-        }
-        if !(candidate.contains('/') || candidate.contains('.')) {
-            continue;
-        }
-
-        let normalized = candidate.trim_start_matches("./").to_string();
-        if normalized.is_empty() {
-            continue;
-        }
-        if normalized
-            .chars()
-            .next()
-            .is_some_and(|value| value.is_ascii_digit())
-        {
-            continue;
-        }
-        if !normalized.contains('/') {
-            let Some(extension) = Path::new(&normalized)
-                .extension()
-                .and_then(|value| value.to_str())
-                .map(|value| value.to_ascii_lowercase())
-            else {
-                continue;
-            };
-            if !STANDALONE_PATH_EXTENSIONS.contains(&extension.as_str()) {
-                continue;
-            }
-        }
-        if seen.insert(normalized.clone()) {
-            out.push(normalized);
-        }
-    }
-
-    out
-}
-
-fn snapshot_from_read(
-    path: PathBuf,
-    result: Result<CachedFileRead>,
-    max_file_bytes: usize,
-) -> (FileSnapshot, bool) {
-    match result {
-        Ok(read) => {
-            let (content, truncated) = truncate_head_bytes(&read.content, max_file_bytes);
-            (
-                FileSnapshot {
-                    path,
-                    content: Some(content),
-                    truncated,
-                },
-                read.cache_hit,
-            )
-        }
-        Err(_) => (
-            FileSnapshot {
-                path,
-                content: None,
-                truncated: false,
-            },
-            false,
-        ),
-    }
-}
-
-fn infer_related_path_candidates(content: &str) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    let mut seen = HashSet::new();
-
-    for line in content.lines() {
-        let trimmed = line.trim();
-
-        if let Some(path) = infer_rust_use_path(trimmed) {
-            if seen.insert(path.clone()) {
-                out.push(path);
-            }
-        }
-
-        if let Some(path) = infer_python_import_path(trimmed) {
-            if seen.insert(path.clone()) {
-                out.push(path);
-            }
-        }
-
-        if let Some(path) = infer_js_import_path(trimmed) {
-            if seen.insert(path.clone()) {
-                out.push(path);
-            }
-        }
-    }
-
-    out
-}
-
-fn infer_rust_use_path(line: &str) -> Option<PathBuf> {
-    let value = line
-        .strip_prefix("use ")
-        .or_else(|| line.strip_prefix("pub use "))?;
-    let mut module = value
-        .split("//")
-        .next()?
-        .trim()
-        .trim_end_matches(';')
-        .trim();
-    if module.is_empty() {
-        return None;
-    }
-    if let Some((prefix, _)) = module.split_once(" as ") {
-        module = prefix.trim();
-    }
-    if let Some((prefix, _)) = module.split_once('{') {
-        module = prefix.trim();
-    }
-    module = module.trim_end_matches(':').trim_end_matches(':').trim();
-
-    let relative = module
-        .strip_prefix("crate::")
-        .or_else(|| module.strip_prefix("super::"))
-        .or_else(|| module.strip_prefix("self::"))?;
-    if relative.is_empty() {
-        return None;
-    }
-    let path = relative.replace("::", "/");
-    Some(PathBuf::from("src").join(format!("{path}.rs")))
-}
-
-fn infer_python_import_path(line: &str) -> Option<PathBuf> {
-    let module = if let Some(value) = line.strip_prefix("from ") {
-        let (module, _) = value.split_once(" import ")?;
-        module.trim()
-    } else if let Some(value) = line.strip_prefix("import ") {
-        if value.contains(" from ") || value.contains('"') || value.contains('\'') {
-            return None;
-        }
-        value
-            .split(',')
-            .next()
-            .and_then(|entry| entry.split_whitespace().next())?
-            .trim()
-    } else {
-        return None;
-    };
-
-    if module.is_empty() || module.starts_with('.') {
-        return None;
-    }
-    let path = module.replace('.', "/");
-    Some(PathBuf::from(format!("{path}.py")))
-}
-
-fn infer_js_import_path(line: &str) -> Option<PathBuf> {
-    if !line.starts_with("import ") && !line.starts_with("export ") {
-        return None;
-    }
-    let specifier = extract_quoted_specifier(line)?;
-    if specifier.is_empty() || specifier.starts_with('/') || specifier.starts_with("../") {
-        return None;
-    }
-
-    let normalized = specifier.trim_start_matches("./");
-    if normalized.is_empty() {
-        return None;
-    }
-    if Path::new(normalized).extension().is_some() {
-        return Some(PathBuf::from(normalized));
-    }
-    Some(PathBuf::from(format!("{normalized}.js")))
-}
-
-fn extract_quoted_specifier(line: &str) -> Option<&str> {
-    for quote in ['"', '\''] {
-        if let Some(start) = line.find(quote) {
-            let tail = &line[start + 1..];
-            if let Some(end) = tail.find(quote) {
-                return Some(&tail[..end]);
-            }
-        }
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
-    use super::ContextAssembler;
+    use super::{extract_candidate_paths, ContextAssembler};
     use crate::tools::ToolOperator;
     use std::fs;
     use std::path::Path;
@@ -602,11 +405,6 @@ mod tests {
         let workspace = tempfile::tempdir().expect("tempdir");
         fs::write(workspace.path().join("note.txt"), "note").expect("write");
 
-        // On some macOS CI runners TMPDIR resolves to a path inside the Actions
-        // work tree, so `git status` in the tempdir succeeds by discovering a
-        // parent repo.  Set GIT_CEILING_DIRECTORIES to the workspace itself so
-        // git cannot traverse above it; the workspace has no .git, which is the
-        // condition we are testing.
         let ceiling = workspace.path().to_string_lossy().to_string();
         std::env::set_var("GIT_CEILING_DIRECTORIES", &ceiling);
 
@@ -707,7 +505,7 @@ mod tests {
 
     #[test]
     fn test_extract_candidate_paths_rejects_version_like_tokens() {
-        let paths = super::extract_candidate_paths("review 0.1.2 Cargo.toml src/lib.rs");
+        let paths = extract_candidate_paths("review 0.1.2 Cargo.toml src/lib.rs");
         assert!(
             paths.iter().any(|path| path == "Cargo.toml"),
             "expected valid file token to be kept"

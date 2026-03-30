@@ -633,7 +633,7 @@ Rejected. `TaskState`'s `CommandEvidence` struct records execution facts, not st
 - All files in `src/prompts/` and `models/` must not contain provider names. `scripts/check_forbidden_names.sh` must cover both directories.
 - `ValidationSuite::run` must route through `CommandRunner`. Direct `std::process::Command` in `validation.rs` is prohibited.
 - `ModelProfile` config integration (EL-08) must not be implemented until ADR-022 Phase 1 is complete.
-- No `ratatui` or `crossterm` imports in `src/runtime/edit_loop.rs`, `context_assembler.rs`, or `validation.rs`.
+- No `ratatui` or `crossterm` imports in `src/runtime/edit_loop.rs`, `context_assembler/{mod,reads}.rs`, or `validation.rs`.
 - `active_edit_loop` on `TuiMode` must be cleared when a session ends or is reset.
 
 ---
@@ -877,14 +877,14 @@ All tasks require `cargo test --all-targets`, `check_no_alternate_routing.sh`, `
 | Do not call `ctx.start_turn()` more than `max_turns` times within a single `EditLoop::run` invocation | Counter checked before each call, not after |
 | Do not call `ToolOperator` directly from `EditLoop` or `ContextAssembler` | File mutations must flow through the conversation tool dispatch layer |
 | Do not use `std::process::Command` in `src/runtime/validation.rs` | All subprocess calls must route through `CommandRunner::run_one_shot` |
-| **`std::process::Command` IS permitted in `src/runtime/context_assembler.rs` for the two git read calls only** (`git status --short`, `git diff HEAD`) | These calls must not appear in the tool history or approval flow. Any other subprocess in `context_assembler.rs` is prohibited |
+| **`std::process::Command` IS permitted in `src/runtime/context_assembler/mod.rs` for the two git read calls only** (`git status --short`, `git diff HEAD`) | These calls must not appear in the tool history or approval flow. Any other subprocess in `context_assembler/{mod,reads}.rs` is prohibited |
 | Do not inject the coding system prompt outside of an active `EditLoop` or semantic command turn | Verified by `test_coding_prompt_injected_during_edit_loop_only` |
 | Do not add provider names, model names, or proprietary product references to any file in `src/prompts/` or `models/` | `scripts/check_forbidden_names.sh` CI check (EL-09). The script must enforce the maintained proprietary-name denylist against `src/prompts/` and `models/`; any match is a CI failure |
 | Do not implement `EditLoop` as a `RuntimeMode` | |
 | Do not implement EL-08 until ADR-022 Phase 1 is complete | |
 | Do not bypass `ContextAssembler`'s path-safety checks | All file reads must use `ToolOperator`'s workspace-root confinement guards |
 | `EditLoop` must propagate `CancellationToken` to every `await` point | A cancelled loop must return `EditLoopOutcome::Cancelled` and must not mutate state after the token fires |
-| Do not introduce `ratatui` or `crossterm` imports in `src/runtime/edit_loop.rs`, `src/runtime/context_assembler.rs`, or `src/runtime/validation.rs` | |
+| Do not introduce `ratatui` or `crossterm` imports in `src/runtime/edit_loop.rs`, `src/runtime/context_assembler/{mod,reads}.rs`, or `src/runtime/validation.rs` | |
 | Do not source `/fix` pre-population from `TaskState` | `TaskState` carries no structured error payload. Use `EditLoop::last_validation_result()` only |
 | Clear `TuiMode::active_edit_loop` on session end or reset | Stale loop state must not persist across sessions |
 | Do not invoke `EditLoop::run` while `TuiMode::active_edit_loop` is already `Some` | `try_handle_slash_command` must guard against this; verified by `test_tui_second_edit_command_blocked_while_loop_active` |

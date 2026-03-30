@@ -140,7 +140,7 @@ When machine-readable event streaming is needed, the facade emits ADR-025 `Runti
 - `src/runtime/edit_loop.rs`
 - `src/runtime/loop.rs`
 - `src/runtime/context.rs`
-- `src/runtime/context_assembler.rs`
+- `src/runtime/context_assembler/{mod,reads}.rs`
 - `src/runtime/task_state.rs`
 
 **Responsibilities**

@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use std::path::Path;
 
 /// Categorizes filesystem access per ADR-038 Memory-First Architecture.
@@ -24,6 +25,33 @@ pub enum DiskPolicyMode {
     Warn,
     /// Panic on forbidden access (CI gate via `VEX_DISK_POLICY=strict`).
     Strict,
+}
+
+/// Enforce the ADR-038 disk policy for a path under an explicit mode.
+pub fn enforce(path: &Path, mode: DiskPolicyMode) -> Result<DiskPermission> {
+    let permission = check_path(path);
+    if permission != DiskPermission::Forbidden {
+        return Ok(permission);
+    }
+
+    let message = format!(
+        "forbidden disk access outside .vex/index or .vex/state: {}",
+        path.display()
+    );
+
+    match mode {
+        DiskPolicyMode::Off => Ok(permission),
+        DiskPolicyMode::Warn => {
+            eprintln!("[disk_policy] {message}");
+            Ok(permission)
+        }
+        DiskPolicyMode::Strict => Err(anyhow!(message)),
+    }
+}
+
+/// Enforce the ADR-038 disk policy for a path using the current process mode.
+pub fn enforce_runtime(path: &Path) -> Result<DiskPermission> {
+    enforce(path, resolve_policy_mode())
 }
 
 /// Classify a path according to the ADR-038 disk permission model.
@@ -122,7 +150,30 @@ mod tests {
 
     #[test]
     fn policy_mode_defaults_to_off() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         std::env::remove_var("VEX_DISK_POLICY");
         assert_eq!(resolve_policy_mode(), DiskPolicyMode::Off);
+    }
+
+    #[test]
+    fn unknown_policy_mode_defaults_to_off() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_DISK_POLICY", "mystery");
+        assert_eq!(resolve_policy_mode(), DiskPolicyMode::Off);
+        std::env::remove_var("VEX_DISK_POLICY");
+    }
+
+    #[test]
+    fn enforce_strict_rejects_forbidden_paths() {
+        let error = enforce(Path::new("src/main.rs"), DiskPolicyMode::Strict)
+            .expect_err("strict mode must reject workspace source access");
+        assert!(error.to_string().contains("forbidden disk access"));
+    }
+
+    #[test]
+    fn enforce_strict_allows_index_paths() {
+        let permission = enforce(Path::new(".vex/index/chunks.bin"), DiskPolicyMode::Strict)
+            .expect("strict mode should allow search index access");
+        assert_eq!(permission, DiskPermission::SearchIndex);
     }
 }
