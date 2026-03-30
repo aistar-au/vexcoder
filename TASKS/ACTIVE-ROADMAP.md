@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-30 (5 feature branches bootstrapped on remote; draft PRs opened; PR #270 merged)
+Last updated: 2026-03-30 (ADR-038 phase 1 TTFC context cache landed)
 
 ---
 
@@ -26,6 +26,7 @@ Last updated: 2026-03-30 (5 feature branches bootstrapped on remote; draft PRs o
 | ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate snapshot + broadcast fan-out; PR #261 closes Phase E watch-stream |
 | ADR-035 | Accepted | 0 items remaining | Gap 14 `/undo` rollback strategy is now specified and implemented with binary-safe checkpoints |
+| ADR-038 | Active (Phase 1 merged) | 3 items remaining | Phase 1 landed: bounded context cache + opt-in auto git; follow-ups cover config caching, disk permissions, and task-state durability |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -40,11 +41,12 @@ Last updated: 2026-03-30 (5 feature branches bootstrapped on remote; draft PRs o
 
 ---
 
-## Remaining Work: 1 Deferred External Dependency
+## Remaining Work: 1 Active In-Tree ADR + 1 Deferred External Dependency
 
-All tracked in-tree tiers are clear. The only remaining ADR-024 follow-up is
-the PG-03 tap auto-dispatch integration, which stays deferred until the
-separate `homebrew-vex` tap repository exists.
+ADR-038 now tracks the active in-tree TTFC follow-up around memory-first
+context assembly. The only deferred external follow-up is still ADR-024
+PG-03 tap auto-dispatch, which stays blocked until the separate
+`homebrew-vex` tap repository exists.
 
 ### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
 
@@ -123,6 +125,13 @@ ADR-031 status updated to Accepted (Batches A-E merged).
 ADR-033 status updated to Accepted (Phases 1-4 merged).
 ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-25; grouped, multiline, and relative `super::` `server`/`bin` import coverage now closes the remaining known boundary-test bypasses for inner layers.
 
+### Tier 10 -- Memory-First TTFC Hardening (ADR-038) -- 3 items
+
+- Phase 1 complete: bounded in-memory context snapshot cache and opt-in automatic git context merged.
+- Phase 2 pending: split `src/config/load.rs` into cache, path, and merge seams with process-local config caching.
+- Phase 3 pending: add explicit disk-permission boundaries so `.vex/index/` and `.vex/state/` remain the deliberate durable layers.
+- Phase 4 pending: evaluate task-state WAL and strict CI enforcement after the hot path is stable.
+
 ---
 
 ## Active Feature Branches (not yet merged)
@@ -156,6 +165,7 @@ ADR-022 (Roadmap, milestone-1 passed)
 ADR-029 (Stream Parser) --> ADR-030 (Orchestrator) --> ADR-031
 ADR-028 (Facade) --> ADR-030 --> ADR-031
 ADR-034 (Multi-Agent) --> ADR-028, ADR-030
+ADR-038 (Memory-first TTFC) --> ADR-029, ADR-030, ADR-033, ADR-034
 ```
 
 ---

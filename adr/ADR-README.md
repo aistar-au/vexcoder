@@ -34,6 +34,7 @@ All ADR files live under `adr/`.
 | [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Accepted (all phases 1-4 merged) | 0 items remaining |
 | [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Hardening landed for serialized concurrency caps, prompt guard, explicit release, and normalized watch/boundary coverage |
 | [ADR-035](ADR-035-undo-checkpoints-and-binary-safe-rollback.md) | Undo checkpoints and binary-safe rollback | Accepted | 0 items remaining; Gap 14 rollback strategy formalized for `/undo` |
+| [ADR-038](ADR-038-memory-first-architecture-with-minimal-disk-io.md) | Memory-first architecture with minimal disk I/O | Active (Phase 1 merged) | Follow-up phases remain for config caching, disk-permission enforcement, and task-state durability hardening |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 
@@ -49,15 +50,17 @@ the top-level `adr/` directory pending a housekeeping move.
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding | Complete | PI-13 through PI-16 all merged |
 | [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI command-session capture | Accepted (complete) | Supersedes ADR-018/019 |
 
-## Remaining Work Summary (1 deferred external dependency)
+## Remaining Work Summary (1 active in-tree ADR + 1 deferred external dependency)
 
-All tracked in-tree tiers are clear. The only remaining repo-local follow-up is
-ADR-024 PG-03 tap auto-dispatch, which stays deferred until the separate tap
-repository exists. Full history and ADR status detail live in
+ADR-038 now tracks the active in-tree performance follow-up around memory-first
+context assembly. The only deferred external prerequisite remains ADR-024
+PG-03 tap auto-dispatch, which stays blocked until the separate tap repository
+exists. Full history and ADR status detail live in
 `TASKS/ACTIVE-ROADMAP.md`.
 
 | Tier | Source | Items | Description |
 | :--- | :--- | :--- | :--- |
+| 9 | ADR-038 | 3 | Remaining phases: config caching, disk-permission enforcement, and task-state durability hardening |
 | 8 | ADR-024 G/H + ADR-022 | 1 | Deferred external prerequisite: tap repository auto-dispatch |
 
 ## Completed ADR Records

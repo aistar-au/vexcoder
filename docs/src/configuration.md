@@ -19,6 +19,10 @@ Highest priority wins:
 
 `VEX_MODEL_TOKEN` is environment-only. It is never read from config files.
 
+Automatic context assembly now keeps small file snapshots in a process-local
+memory cache. Search indexes under `.vex/index/` and task-state JSON under
+`.vex/state/` remain the intended disk-backed layers.
+
 ## Active config keys
 
 These keys are read by the current runtime from config files:
@@ -211,6 +215,23 @@ Overrides the project instructions token budget.
 ### `VEX_MAX_MEMORY_TOKENS`
 
 Overrides the notes token budget.
+
+### `VEX_CONTEXT_INCLUDE_GIT`
+
+Opt in to automatic git status and diff injection during context assembly.
+
+- Accepts `true`, `false`, `1`, `0`, `yes`, `no`, `on`, or `off`.
+- Default: `false`.
+- Explicit git tools and review flows still call git directly; this flag only
+  controls the automatic context path used before a normal model turn.
+
+### `VEX_CONTEXT_GIT_TIMEOUT_MS`
+
+Controls the timeout used by context-related git commands.
+
+- Default: `2000`.
+- Applies to automatic git context when `VEX_CONTEXT_INCLUDE_GIT=1` and to the
+  existing review helpers that call git through the shared runtime wrapper.
 
 ### `VEX_SANDBOX`
 
