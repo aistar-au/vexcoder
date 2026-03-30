@@ -36,7 +36,7 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-034-multi-agent-parallel-task-execution.md` | Active (Phase A + B-E merged) | Hardening: serialized delegate concurrency enforcement, prompt-length guard, explicit session-task release, handler/stress coverage, and normalized watch status |
 | `adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md` | Accepted | 0 items remaining; Gap 14 rollback strategy formalized for `/undo` |
 | `adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md` | Accepted (Batches D-H merged) | 0 items remaining; ADR-038 post-merge bug fix landed in PR #284 |
-| `adr/ADR-039-neutral-terminal-voice-and-spatial-status-language.md` | Proposed | 4 batches (A-D): vocabulary, status copy, ANSI roles, paragraph progress stream |
+| `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | Proposed | 4 batches (A-D): vocabulary, status copy, ANSI roles, paragraph progress stream |
 
 ### Moved to completed/ (2026-03-27)
 
@@ -46,7 +46,7 @@ ADR-023 is complete (EL-01 through EL-13) and remains in `adr/`.
 ## Remaining Work Summary (1 proposed in-tree ADR + 1 deferred external dependency)
 
 Tiers 1–10 are complete for existing in-tree work. ADR-039 now defines the
-next proposed operator-surface lane around neutral spatial voice, status copy,
+next proposed operator-surface lane around neutral spatial CLI voice, status copy,
 ANSI semantic roles, and paragraph-oriented long-running progress text. The
 only deferred external follow-up remains ADR-024 PG-03 tap auto-dispatch,
 which stays deferred until the separate tap repository exists.

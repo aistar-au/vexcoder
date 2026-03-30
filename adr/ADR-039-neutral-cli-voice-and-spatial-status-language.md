@@ -1,4 +1,4 @@
-# ADR-039: Neutral Terminal Voice and Spatial Status Language
+# ADR-039: Neutral CLI Voice and Spatial Status Language
 
 - **Status:** Proposed
 - **Date:** 2026-03-31
@@ -10,8 +10,8 @@
 ## Context
 
 `vexcoder` already enforces neutral repository language in source, prompts,
-and documentation, but the operator-facing terminal surface still lacks a
-single voice contract.
+and documentation, but the operator-facing CLI surface still lacks a single
+voice contract.
 
 Current issues are small in isolation and noisy in aggregate:
 
@@ -24,7 +24,7 @@ Current issues are small in isolation and noisy in aggregate:
    orchestrator updates, and ordinary transcript text do not share a documented
    semantic palette.
 4. Multi-agent and long-horizon refactor sessions can run for hours, so the
-   transcript surface needs low-fatigue status language and a stable visual
+   CLI transcript surface needs low-fatigue status language and a stable visual
    hierarchy rather than celebratory or chatty copy.
 
 The requested direction is still neutral and repository-focused: spatial terms
@@ -35,12 +35,12 @@ semantics.
 
 ## Decision
 
-Adopt a neutral spatial voice for operator-facing terminal text.
+Adopt a neutral spatial voice for operator-facing CLI text.
 
 ### Scope boundaries
 
 1. This ADR applies to human-facing transcript copy, status text, progress
-   indicators, and operator-surface wording.
+   indicators, and CLI wording.
 2. This ADR does **not** rename canonical machine states, persisted task-state
    fields, JSON API payloads, or protocol values such as `completed`.
 3. This ADR does **not** change standard diff semantics: insertions remain
@@ -92,7 +92,7 @@ Adopt a neutral spatial voice for operator-facing terminal text.
 
 ### Batch B -- Status and completion copy
 
-- Standardize in-progress mapping text and terminal completion copy.
+- Standardize in-progress mapping text and CLI completion copy.
 - Apply `State synchronized.` only to human-facing completion surfaces.
 - Preserve machine lifecycle values such as `completed` and `failed`.
 
@@ -119,7 +119,7 @@ Adopt a neutral spatial voice for operator-facing terminal text.
 - Long-running sessions become easier to monitor because progress text and ANSI
   roles have a documented hierarchy.
 - The runtime keeps its neutral engineering tone while still presenting a more
-  deliberate terminal identity.
+  deliberate CLI identity.
 
 ### Negative
 

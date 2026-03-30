@@ -8,7 +8,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
 - Total tracked files: 288
-- Last updated: 2026-03-31 (ADR-039 planning + ADR-038 post-merge audit)
+- Last updated: 2026-03-31 (ADR-039 CLI voice rename + ADR-038 post-merge audit)
 
 | # | Path | ~Lines | Raw URL |
 | :--- | :--- | ---: | :--- |
@@ -62,7 +62,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 48 | `adr/ADR-034-multi-agent-parallel-task-execution.md` | ~304 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-034-multi-agent-parallel-task-execution.md> |
 | 49 | `adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md> |
 | 50 | `adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md` | ~204 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md> |
-| 51 | `adr/ADR-039-neutral-terminal-voice-and-spatial-status-language.md` | ~148 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-039-neutral-terminal-voice-and-spatial-status-language.md> |
+| 51 | `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | ~148 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md> |
 | 52 | `adr/ADR-README.md` | ~89 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 53 | `adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
 | 54 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~77 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |

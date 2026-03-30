@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-31 (ADR-039 proposed; ADR-038 post-merge audit follow-up)
+Last updated: 2026-03-31 (ADR-039 CLI voice proposed; ADR-038 post-merge audit follow-up)
 
 ---
 
@@ -27,7 +27,7 @@ Last updated: 2026-03-31 (ADR-039 proposed; ADR-038 post-merge audit follow-up)
 | ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate snapshot + broadcast fan-out; PR #261 closes Phase E watch-stream |
 | ADR-035 | Accepted | 0 items remaining | Gap 14 `/undo` rollback strategy is now specified and implemented with binary-safe checkpoints |
 | ADR-038 | Accepted (Batches D-H merged) | 0 items remaining | Phase 1: bounded context cache + opt-in auto git; Phase 1a: search lane tightening; Phase 2: disk_policy.rs + config/cache.rs; Batch C: config/load.rs -> directory module (PR #279); Batch D: operator.rs -> directory module (PR #280); Batch E/F: context_assembler split + strict disk-policy gate (PR #281); Batch G: operator policy module + disk-policy wiring (PR #282); Batch H: task-state persist extraction + WAL evaluation (PR #283) |
-| ADR-039 | Proposed | 4 batches (A-D) | Neutral spatial operator voice: vocabulary normalization, status copy, ANSI semantic roles, and paragraph-oriented progress stream without renaming machine statuses |
+| ADR-039 | Proposed | 4 batches (A-D) | Neutral spatial CLI voice: vocabulary normalization, status copy, ANSI semantic roles, and paragraph-oriented progress stream without renaming machine statuses |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -44,8 +44,8 @@ Last updated: 2026-03-31 (ADR-039 proposed; ADR-038 post-merge audit follow-up)
 
 ## Remaining Work: 1 Proposed In-Tree ADR + 1 Deferred External Dependency
 
-ADR-039 now tracks the next operator-surface lane: a neutral spatial voice for
-human-facing transcript text, status copy, ANSI semantic roles, and the
+ADR-039 now tracks the next operator-surface lane: a neutral spatial CLI voice
+for human-facing transcript text, status copy, ANSI semantic roles, and the
 paragraph-oriented progress stream used during long-running tasks. ADR-038 is
 Accepted and complete: context cache, disk-policy classifier, config cache,
 module decompositions (config/load, operator, context_assembler, task_state),
@@ -156,9 +156,9 @@ ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-
 - ~~Gate any WAL-backed writes behind `VEX_TASK_WAL=1` until recovery semantics are stable~~ Not needed (WAL not warranted)
 - ~~Depends on Batch G completing the durable-surface inventory~~ Merged
 
-### Tier 11 -- Terminal Voice and Status Surface (ADR-039) -- 4 items
+### Tier 11 -- CLI Voice and Status Surface (ADR-039) -- 4 items
 
-The next operator-facing lane standardizes the human-facing terminal voice
+The next operator-facing lane standardizes the human-facing CLI voice
 without changing machine-facing lifecycle values or diff color semantics.
 
 **Batch A -- vocabulary normalization**
@@ -224,7 +224,7 @@ ADR-029 (Stream Parser) --> ADR-030 (Orchestrator) --> ADR-031
 ADR-028 (Facade) --> ADR-030 --> ADR-031
 ADR-034 (Multi-Agent) --> ADR-028, ADR-030
 ADR-038 (Memory-first TTFC) --> ADR-029, ADR-030, ADR-033, ADR-034
-ADR-039 (Terminal voice) --> ADR-023, ADR-030, ADR-031, ADR-034
+ADR-039 (CLI voice) --> ADR-023, ADR-030, ADR-031, ADR-034
 ```
 
 ---
