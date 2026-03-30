@@ -33,6 +33,13 @@ alignment metaphor for in-progress work; a status-based completion phrase; and
 clear ANSI role separation that does not disturb established red / green diff
 semantics.
 
+The rollout also needs to stay low-gain at first. Early phases should make the
+CLI feel more precise without reading like a personality transplant: the first
+visible change is the status contract itself (`Mapping adjacent sectors...`,
+`State synchronized.`, and the semantic status-color lane), then the broader
+vocabulary sweep follows, and only after that does the transcript layout move
+toward the denser paragraph stream.
+
 ## Decision
 
 Adopt a neutral spatial voice for operator-facing CLI text.
@@ -81,33 +88,60 @@ Adopt a neutral spatial voice for operator-facing CLI text.
     subordinate to primary code / diff text so the transcript stays legible
     during multi-hour sessions.
 
+### Rollout guardrails
+
+17. Implementation order is intentionally subtle: the first visible rollout
+      step is the status contract and semantic color feedback, not a broad copy
+      rewrite or transcript-layout change.
+18. Batch A should introduce `Mapping adjacent sectors...`,
+      `State synchronized.`, and the deep-nebula-violet status lane on existing
+      surfaces so operators first encounter the new voice through stable status
+      anchors.
+19. Batch B should extend the same contract into the wider spatial vocabulary
+      set without changing machine-state fields, JSON payloads, or persisted
+      schema names.
+20. Batch C may add the pulsing-star affordance after the Batch A/B status and
+      wording contract is stable in tests and operator-facing docs.
+21. Batch D is the first batch allowed to consolidate the long-running
+      transcript into the paragraph-oriented progress stream, because it depends
+      on the earlier wording and color contracts already being recognizable.
+
 ## Planned batches
 
-### Batch A -- Vocabulary normalization
+### Batch A -- Status anchors and semantic color feedback (subtle introduction phase 1)
+
+- Introduce `Mapping adjacent sectors...` as the default human-facing thinking
+   text when a more specific operator status is not available.
+- Introduce `State synchronized.` on human-facing completion surfaces.
+- Move tool-call, orchestrator, and agent-enrichment status text into the
+   deep-nebula-violet semantic lane while preserving phosphor-white transcript
+   text and green / red diff semantics.
+- Keep these changes within the current layout so the first rollout still
+   reads as a status refinement rather than a transcript-model change.
+
+### Batch B -- Vocabulary normalization (subtle introduction phase 2)
 
 - Normalize operator-facing copy to the spatial vocabulary set.
 - Replace non-neutral relationship wording in transcript text where the
-  wording is purely display copy.
+   wording is purely display copy.
+- Prioritize the most common low-noise surfaces first: relationship words in
+   logs, prompts, and status blurbs that already exist today.
+- Do not add transcript layout changes in this batch.
 - Leave code symbols, persisted schema, and JSON field names unchanged.
 
-### Batch B -- Status and completion copy
+### Batch C -- Active indicator affordance (subtle introduction phase 3)
 
-- Standardize in-progress mapping text and CLI completion copy.
-- Apply `State synchronized.` only to human-facing completion surfaces.
-- Preserve machine lifecycle values such as `completed` and `failed`.
-
-### Batch C -- ANSI semantic roles
-
-- Document and wire the white / green / red / deep-nebula-violet palette.
 - Add the pulsing-star active indicator where the renderer supports it.
 - Ensure reduced-color and plain-text fallbacks remain readable.
 
 ### Batch D -- Paragraph progress stream
 
 - Consolidate long-running tool and agent updates into one paragraph-oriented
-  status stream.
+   status stream.
 - Add live counters for files processed and active agents where the runtime
-  already knows those values.
+   already knows those values.
+- Render the orchestrator lane as a continuous enriched paragraph while
+   keeping code and diff text visually dominant in phosphor white / green / red.
 - Keep the code / diff surface visually dominant over status text.
 
 ## Consequences
@@ -133,6 +167,10 @@ Adopt a neutral spatial voice for operator-facing CLI text.
 ## Implementation status
 
 Proposed only. No operator-facing runtime strings are changed by this ADR.
+The first implementation step is the low-gain Batch A status pass: semantic
+color feedback plus `Mapping adjacent sectors...` and `State synchronized.` on
+existing surfaces. The pulsing-star affordance and paragraph-stream changes are
+intentionally deferred until later phases.
 
 Candidate implementation areas:
 
