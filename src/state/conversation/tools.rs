@@ -183,7 +183,7 @@ impl ConversationManager {
         let tool_name = name.to_string();
         self.run_hooks(HookEvent::PreTool, &tool_name, input, stream_delta_tx)
             .await?;
-        self.run_http_hooks(HookEvent::PreTool, &tool_name, input)
+        self.run_http_hooks(HookEvent::PreTool, &tool_name, input, tool_timeout)
             .await?;
 
         let tool_result = if name == "run_command" {
@@ -242,7 +242,7 @@ impl ConversationManager {
         if tool_result.is_ok() {
             self.run_hooks(HookEvent::PostTool, &tool_name, input, stream_delta_tx)
                 .await?;
-            self.run_http_hooks(HookEvent::PostTool, &tool_name, input)
+            self.run_http_hooks(HookEvent::PostTool, &tool_name, input, tool_timeout)
                 .await?;
         }
 
@@ -345,6 +345,7 @@ impl ConversationManager {
         event: HookEvent,
         tool_name: &str,
         input: &serde_json::Value,
+        tool_timeout: Duration,
     ) -> Result<()> {
         if self.http_hooks.is_empty() {
             return Ok(());
@@ -361,7 +362,8 @@ impl ConversationManager {
             .unwrap_or("");
 
         let timestamp_ms = crate::runtime::session_task::now_millis();
-        let client = reqwest::Client::new();
+        let hook_timeout = tool_timeout.min(Duration::from_secs(5));
+        let client = reqwest::Client::builder().timeout(hook_timeout).build()?;
 
         for hook in &self.http_hooks {
             if hook.event != event || hook.tool != tool_name {
@@ -392,7 +394,15 @@ impl ConversationManager {
                     }
                 }
                 Err(e) => {
-                    let msg = format!("http_hook '{}' failed to send: {e}", hook.url);
+                    let msg = if e.is_timeout() {
+                        format!(
+                            "http_hook '{}' timed out after {}ms",
+                            hook.url,
+                            hook_timeout.as_millis()
+                        )
+                    } else {
+                        format!("http_hook '{}' failed to send: {e}", hook.url)
+                    };
                     match hook.on_fail {
                         HookOnFail::Abort => bail!(msg),
                         HookOnFail::Warn => {
