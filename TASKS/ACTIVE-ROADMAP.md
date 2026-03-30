@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-30 (ADR-038 Batch C: config/load.rs -> directory module)
+Last updated: 2026-03-30 (ADR-038 Batch D: operator directory module)
 
 ---
 
@@ -26,7 +26,7 @@ Last updated: 2026-03-30 (ADR-038 Batch C: config/load.rs -> directory module)
 | ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate snapshot + broadcast fan-out; PR #261 closes Phase E watch-stream |
 | ADR-035 | Accepted | 0 items remaining | Gap 14 `/undo` rollback strategy is now specified and implemented with binary-safe checkpoints |
-| ADR-038 | Active (Batch C merged) | 2 items remaining | Phase 1: bounded context cache + opt-in auto git; Phase 1a: search lane tightening; Phase 2: disk_policy.rs + config/cache.rs; Batch C: config/load.rs -> directory module (PR #279); follow-ups: operator enforcement, task-state durability |
+| ADR-038 | Active (Batch D in PR #280) | 2 items remaining | Phase 1: bounded context cache + opt-in auto git; Phase 1a: search lane tightening; Phase 2: disk_policy.rs + config/cache.rs; Batch C: config/load.rs -> directory module (PR #279); Batch D: operator.rs -> directory module (PR #280); follow-ups: operator enforcement, task-state durability |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -47,7 +47,9 @@ ADR-038 now tracks the active in-tree TTFC follow-up around memory-first
 context assembly. Phase 2 adds `disk_policy.rs` (DiskPermission classifier)
 and `config/cache.rs` (OnceLock config cache). Batch C decomposed
 `src/config/load.rs` (1361 lines) into a directory module with focused
-submodules: `load/paths.rs`, `load/merge.rs`, `load/parse.rs`. Remaining
+submodules: `load/paths.rs`, `load/merge.rs`, `load/parse.rs`. Batch D in
+PR #280 decomposes `src/tools/operator.rs` (865 lines) into
+`src/tools/operator/{mod,core,file_ops,git_ops,search}.rs`. Remaining
 follow-ups: operator-level FileSystem trait enforcement, strict policy CI
 gates, and optional task-state WAL. The only deferred external follow-up is
 still ADR-024 PG-03 tap auto-dispatch, which stays blocked until the separate
@@ -135,16 +137,11 @@ ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-
 - Phase 1 complete: bounded in-memory context snapshot cache and opt-in automatic git context merged.
 - Phase 2 complete: `src/disk_policy.rs` (DiskPermission classifier) and `src/config/cache.rs` (OnceLock config cache) merged in PR #278.
 - Batch C complete: `src/config/load.rs` decomposed into directory module (`load/paths.rs`, `load/merge.rs`, `load/parse.rs`) in PR #279.
+- Batch D in PR #280: `src/tools/operator.rs` decomposed into `src/tools/operator/{mod,core,file_ops,git_ops,search}.rs` with behavior-preserving tests retained.
 - Phase 3 pending: add explicit disk-permission boundaries so `.vex/index/` and `.vex/state/` remain the deliberate durable layers (operator-level FileSystem trait enforcement).
 - Phase 4 pending: evaluate task-state WAL and strict CI enforcement after the hot path is stable.
 
 #### Planned remaining batches (ADR-038)
-
-**Batch D -- operator.rs directory module**
-- Convert `src/tools/operator.rs` (865 lines) into `src/tools/operator/` directory module
-- Submodules: `core.rs` (ToolOperator struct, new, resolve_path, ensure_path_is_within_workspace, resolve_optional_path, working_dir, to_workspace_relative_display), `file_ops.rs` (read_file, read_file_range, read_file_if_exists, existing_path, write_file, propose_patch, apply_patch, edit_file, rename_file), `git_ops.rs` (git_status, git_diff, git_log, git_show, git_add, git_commit, sanitize_git_pathspec, run_git), `search.rs` (list_files, search_files, search_content, find_files, walk_workspace_files, walk_workspace_files_ignoring, search_literal)
-- Private helpers stay in their respective submodules
-- No behavioral change; mod.rs is public facade only
 
 **Batch E -- strict disk-policy enforcement (Phase 3)**
 - Add `DiskPolicy::check()` call-sites in operator file_ops.rs and git_ops.rs
@@ -163,6 +160,7 @@ ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| ADR-038-D | `work/vexcoder-adr-038-operator-directory` | #280 | Draft PR | Directory-module split of `src/tools/operator.rs` for ADR-038 Batch D |
 | PL-01-ext | `work/vexcoder-http-hooks` | #270 | **Merged** | HTTP webhook support for tool events (`[[http_hooks]]` config section) |
 | PM-01 | `work/vexcoder-conversation-compaction` | #271 | Implementation complete, draft PR | In-memory summarization of older turns when token count exceeds threshold |
 | PM-02 | `work/vexcoder-undo-checkpoints` | #272 | Implementation complete, draft PR | `/undo` slash command and per-change checkpoint stack |

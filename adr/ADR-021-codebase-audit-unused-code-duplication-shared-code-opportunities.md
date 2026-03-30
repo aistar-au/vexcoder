@@ -223,7 +223,7 @@ git diff --numstat -- src/runtime/loop.rs
 ### 20) `edit_file` race condition (read-modify-write window)
 - **Status**: **Completed (2026-03-28)**
 - **Evidence**:
-  - `src/tools/operator.rs::edit_file` performs read/validate/write sequence.
+  - `src/tools/operator/file_ops.rs::edit_file` performs read/validate/write sequence.
   - A concurrent external writer can race between read and write.
 - **Risk posture**:
   - Acceptable for current single-user local-agent target, but still a known
@@ -237,7 +237,7 @@ git diff --numstat -- src/runtime/loop.rs
 ### 21) “Unhandled `git` command panics” in `ToolOperator::run_git`
 - **Status**: **Not accurate (current tree)**
 - **Evidence**:
-  - `src/tools/operator.rs::run_git` uses:
+  - `src/tools/operator/git_ops.rs::run_git` uses:
     `Command::new("git").current_dir(...).args(...).output().context(...) ?`.
   - Spawn/exec failures are returned as `anyhow::Error`; they do not panic.
 - **Priority**: **N/A**

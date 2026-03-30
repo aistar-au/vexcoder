@@ -500,7 +500,7 @@ vexcoder/ (standalone view)
 | `src/tools.rs` | Tools module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools.rs> |
 | `src/skills.rs` | Skills registry load/list/install/remove helpers for `.agents/skills`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/skills.rs> |
 | `src/session_notes.rs` | Session notes loading and resolution with memory token budget management. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/session_notes.rs> |
-| `src/tools/operator.rs` | Sandboxed file/git tool operator with path safety and literal search. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/operator.rs> |
+| `src/tools/operator/mod.rs` | Sandboxed file/git tool operator entrypoint with path safety and literal search submodules. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/operator/mod.rs> |
 | `src/turn_evidence.rs` | Turn evidence recording: input, response, file changes, and command history. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/turn_evidence.rs> |
 | `src/types.rs` | Types module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types.rs> |
 | `src/types/api_types.rs` | API request/response content and streaming event structs/enums. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/api_types.rs> |

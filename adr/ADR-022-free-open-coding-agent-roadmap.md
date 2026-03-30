@@ -21,7 +21,7 @@ The current codebase has several material gaps relative to that target:
   rules in `src/config.rs`
 - the model layer is still organized around a provider-shaped client abstraction
   in `src/api/client.rs`, rather than a neutral backend seam
-- existing file mutation helpers in `src/tools/operator.rs` perform direct
+- existing file mutation helpers in `src/tools/operator/file_ops.rs` perform direct
   writes and edit-in-place replacement without a diff-native approval flow
 - no general command runner exists today; the tool layer provides file and git
   helpers, but not first-class command execution with streaming output,
@@ -301,7 +301,7 @@ report structured evidence into the task model.
 **Objective:** require approval-gated diff preview for existing-file mutations.
 
 **Implementation direction:** replace the direct, ungated existing-file mutation
-flow in `src/tools/operator.rs` with previewable patch generation and explicit
+flow in `src/tools/operator/file_ops.rs` with previewable patch generation and explicit
 approval before apply.
 
 **Completion condition:** no existing file is silently rewritten; patch review is
