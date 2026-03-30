@@ -24,6 +24,27 @@ normalize_version() {
   printf '%s\n' "${version}"
 }
 
+run_with_retry() {
+  local attempts="$1"
+  local delay_seconds="$2"
+  shift 2
+
+  local attempt=1
+  local exit_code=0
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+    exit_code=$?
+    if (( attempt >= attempts )); then
+      return "${exit_code}"
+    fi
+    echo "Build command failed with exit code ${exit_code}; retrying (${attempt}/${attempts}) in ${delay_seconds}s..." >&2
+    sleep "${delay_seconds}"
+    attempt=$((attempt + 1))
+  done
+}
+
 derive_expected_version() {
   local pkgid
   local pkg_fragment
@@ -104,7 +125,14 @@ mkdir -p "${OUT_DIR}"
 rm -rf "${stage_dir}" "${archive_path}" "${checksum_path}"
 mkdir -p "${stage_dir}"
 
-"${BUILD_TOOL}" build --release --target "${TARGET}"
+build_cmd=("${BUILD_TOOL}" build --release --target "${TARGET}")
+if [[ "${BUILD_TOOL}" == "cross" ]]; then
+  CROSS_BUILD_RETRIES="${CROSS_BUILD_RETRIES:-3}"
+  CROSS_BUILD_RETRY_DELAY_SECONDS="${CROSS_BUILD_RETRY_DELAY_SECONDS:-20}"
+  run_with_retry "${CROSS_BUILD_RETRIES}" "${CROSS_BUILD_RETRY_DELAY_SECONDS}" "${build_cmd[@]}"
+else
+  "${build_cmd[@]}"
+fi
 
 if [[ ! -f "${binary_path}" ]]; then
   echo "FAIL: built binary not found at ${binary_path}" >&2

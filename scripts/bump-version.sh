@@ -11,7 +11,7 @@
 # The script:
 #   1. Validates the version against semver format.
 #   2. Reads the current version from Cargo.toml.
-#   3. Updates Cargo.toml, Cargo.lock, CONTRIBUTING.md, and RELEASING.md.
+#   3. Updates Cargo.toml and Cargo.lock.
 #   4. Prints a summary of changed files.
 #
 # The version argument must NOT include the "v" prefix.
@@ -86,24 +86,12 @@ echo "  Updated Cargo.toml"
 cargo check --quiet 2>/dev/null
 echo "  Updated Cargo.lock (via cargo check)"
 
-# 3. CONTRIBUTING.md — version header and packaging examples.
-if [ -f CONTRIBUTING.md ]; then
-  sedi "s/$ESC_OLD/$ESC_NEW/g" CONTRIBUTING.md
-  echo "  Updated CONTRIBUTING.md"
-fi
-
-# 4. RELEASING.md — example version references.
-if [ -f RELEASING.md ]; then
-  sedi "s/$ESC_OLD/$ESC_NEW/g" RELEASING.md
-  echo "  Updated RELEASING.md"
-fi
-
 echo ""
 echo "Version bumped to $NEW_VERSION."
 echo ""
 echo "Next steps:"
 echo "  1. Review the changes: git diff"
-echo "  2. Commit: git add Cargo.toml Cargo.lock CONTRIBUTING.md RELEASING.md"
+echo "  2. Commit: git add Cargo.toml Cargo.lock"
 echo "  3. After merge, tag: git tag -a v$NEW_VERSION -m \"Release v$NEW_VERSION\""
 echo "  4. Push the tag: git push origin v$NEW_VERSION"
 echo "  5. The tag-triggered release workflow publishes the release notes and changelog asset automatically"
