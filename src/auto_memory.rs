@@ -1,36 +1,62 @@
-/// Heuristic note extraction for automatic memory.
+/// Hardcoded post-turn extraction for automatic memory.
 ///
-/// Scans the model response for lines that look like actionable facts or
-/// decisions (lines starting with a dash/bullet, numbered items, or lines
-/// that contain a colon-separated key/value).  Returns at most `max_notes`
-/// entries, each tagged with the `[auto]` prefix so they can be selectively
-/// removed later.
+/// Scans the assistant response for short factual notes while skipping fenced
+/// code blocks and obviously structured/code-like lines. Returns at most
+/// `max_notes` plain-text notes; timestamping and `[auto]` tagging are applied
+/// when the notes are written.
 pub fn extract_notes_from_turn(_input: &str, response: &str, max_notes: usize) -> Vec<String> {
     if max_notes == 0 {
         return Vec::new();
     }
     let mut notes: Vec<String> = Vec::new();
+    let mut in_code_block = false;
     for line in response.lines() {
         let trimmed = line.trim();
+        if trimmed.starts_with("```") {
+            in_code_block = !in_code_block;
+            continue;
+        }
+        if in_code_block {
+            continue;
+        }
         if trimmed.is_empty() {
             continue;
         }
-        // Accept lines that look like bullet points or fact-like statements.
-        let is_bullet =
-            trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("• ");
+        let bullet_content = strip_bullet_prefix(trimmed);
+        let is_bullet = bullet_content.is_some();
         let is_numbered = trimmed
             .split_once(". ")
             .map(|(prefix, _)| prefix.chars().all(|c| c.is_ascii_digit()))
             .unwrap_or(false);
-        let is_key_value = trimmed.contains(": ") && !trimmed.starts_with("//");
+        let is_key_value = trimmed.contains(": ")
+            && !trimmed.starts_with("//")
+            && !trimmed.contains("::")
+            && !trimmed.contains('{')
+            && !trimmed.contains('}')
+            && !trimmed.contains('[')
+            && !trimmed.contains(']')
+            && !trimmed.contains('`')
+            && !trimmed.contains(';');
         if is_bullet || is_numbered || is_key_value {
             let content = if is_bullet {
-                trimmed[2..].trim().to_string()
+                bullet_content.unwrap_or(trimmed).trim().to_string()
             } else {
                 trimmed.to_string()
             };
-            if !content.is_empty() {
-                notes.push(format!("[auto] {content}"));
+            let looks_structured = content.contains("```")
+                || content.contains('{')
+                || content.contains('}')
+                || content.contains('[')
+                || content.contains(']')
+                || content.contains('`')
+                || content.starts_with("fn ")
+                || content.starts_with("let ")
+                || content.starts_with("pub ")
+                || content.starts_with("impl ")
+                || content.contains("::")
+                || content.contains(';');
+            if !content.is_empty() && !looks_structured {
+                notes.push(content);
             }
         }
         if notes.len() >= max_notes {
@@ -38,6 +64,49 @@ pub fn extract_notes_from_turn(_input: &str, response: &str, max_notes: usize) -
         }
     }
     notes
+}
+
+fn strip_bullet_prefix(line: &str) -> Option<&str> {
+    if let Some(rest) = line.strip_prefix("- ") {
+        return Some(rest);
+    }
+    if let Some(rest) = line.strip_prefix("* ") {
+        return Some(rest);
+    }
+    let mut chars = line.chars();
+    let first = chars.next()?;
+    let rest = chars.as_str();
+    if !first.is_alphanumeric() && !first.is_whitespace() && rest.starts_with(' ') {
+        return Some(rest.trim_start());
+    }
+    None
+}
+
+pub fn current_timestamp_seconds() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+pub fn format_auto_notes(notes: &[String], timestamp_seconds: u64) -> Vec<String> {
+    notes
+        .iter()
+        .map(|note| format!("[{timestamp_seconds}] [auto] {note}"))
+        .collect()
+}
+
+pub fn is_auto_note_line(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let Some(rest) = trimmed.strip_prefix('[') else {
+        return false;
+    };
+    let Some((timestamp, suffix)) = rest.split_once("] ") else {
+        return false;
+    };
+    !timestamp.is_empty()
+        && timestamp.chars().all(|c| c.is_ascii_digit())
+        && suffix.starts_with("[auto] ")
 }
 
 /// Append `notes` to the notes file at `path`, one entry per line.
@@ -56,7 +125,8 @@ pub fn append_auto_notes(notes: &[String], path: &std::path::Path) -> anyhow::Re
     Ok(())
 }
 
-/// Remove all lines that begin with `[auto]` from the notes file at `path`.
+/// Remove all lines that match the timestamped `[auto]` note format from the
+/// notes file at `path`.
 ///
 /// Returns the number of lines removed.  If the file does not exist, returns
 /// `Ok(0)`.
@@ -65,9 +135,8 @@ pub fn remove_auto_notes(path: &std::path::Path) -> anyhow::Result<usize> {
         return Ok(0);
     }
     let content = std::fs::read_to_string(path)?;
-    let (kept, removed): (Vec<&str>, Vec<&str>) = content
-        .lines()
-        .partition(|line| !line.trim_start().starts_with("[auto]"));
+    let (kept, removed): (Vec<&str>, Vec<&str>) =
+        content.lines().partition(|line| !is_auto_note_line(line));
     let removed_count = removed.len();
     let new_content = kept.join("\n");
     let new_content = if new_content.is_empty() {
@@ -98,25 +167,54 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_notes_tags_with_auto_prefix() {
+    fn test_extract_notes_return_plain_text_notes() {
         let response = "- something important\n";
         let notes = extract_notes_from_turn("q", response, 3);
         assert_eq!(notes.len(), 1);
-        assert!(notes[0].starts_with("[auto]"), "expected [auto] prefix");
+        assert_eq!(notes[0], "something important");
+    }
+
+    #[test]
+    fn test_extract_notes_handles_unicode_bullet_prefix() {
+        let response = "• unicode bullet note\n";
+        let notes = extract_notes_from_turn("q", response, 3);
+        assert_eq!(notes, vec!["unicode bullet note".to_string()]);
+    }
+
+    #[test]
+    fn test_extract_notes_skips_fenced_code_blocks() {
+        let response = "```rust\n- not a note\nlet value = 1;\n```\n- real note\n";
+        let notes = extract_notes_from_turn("q", response, 3);
+        assert_eq!(notes, vec!["real note".to_string()]);
+    }
+
+    #[test]
+    fn test_format_auto_notes_adds_timestamp_and_tag() {
+        let notes = format_auto_notes(&["remember this".to_string()], 42);
+        assert_eq!(notes, vec!["[42] [auto] remember this".to_string()]);
+    }
+
+    #[test]
+    fn test_is_auto_note_line_matches_only_timestamped_auto_entries() {
+        assert!(is_auto_note_line("[42] [auto] remember this"));
+        assert!(!is_auto_note_line(
+            "manual note mentioning [auto] in passing"
+        ));
+        assert!(!is_auto_note_line("[auto] legacy auto line"));
     }
 
     #[test]
     fn test_append_and_remove_auto_notes() {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("notes.md");
-        append_auto_notes(&["[auto] note one".to_string()], &path).unwrap();
+        append_auto_notes(&["[42] [auto] note one".to_string()], &path).unwrap();
         std::fs::OpenOptions::new()
             .append(true)
             .open(&path)
             .unwrap()
             .write_all(b"manual note\n")
             .unwrap();
-        append_auto_notes(&["[auto] note two".to_string()], &path).unwrap();
+        append_auto_notes(&["[43] [auto] note two".to_string()], &path).unwrap();
 
         let removed = remove_auto_notes(&path).unwrap();
         assert_eq!(removed, 2, "should remove both [auto] lines");

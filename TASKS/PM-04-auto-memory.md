@@ -1,9 +1,6 @@
 # Task PM-04: Auto-Memory
 
-**Target Files:** `src/app/commands.rs`, `src/app/input.rs`,
-`src/app/turn.rs`, `src/app/turn_start.rs`, `src/session_notes.rs`,
-`src/runtime/task_state.rs`, `src/config.rs`, `src/config/load.rs`,
-`src/app/tests/memory.rs`
+**Target Files:** `src/app/commands.rs`, `src/app/input.rs`, `src/app/turn.rs`, `src/app/turn_start.rs`, `src/session_notes.rs`, `src/runtime/task_state.rs`, `src/config.rs`, `src/config/load.rs`, `src/app/tests/memory.rs`, `src/auto_memory.rs`, `src/app.rs`, `src/app/ctor.rs`, `src/lib.rs`
 
 **Depends on:** None (green on current main)
 
@@ -36,10 +33,11 @@ memory-worthy facts from the conversation. Categories of extractable facts:
 
 ### Extraction method
 
-The extraction prompt is appended as a follow-up LLM call with the
-instruction: "Extract up to 3 short factual notes from this conversation
-that would be useful in future sessions. Return JSON array of strings, or
-empty array if nothing is worth remembering."
+Use a hardcoded post-turn extraction pass over the finalized assistant text.
+The extractor scans for short factual bullets or compact convention lines,
+skips fenced code blocks, and rejects obviously structured/code-like content.
+This keeps auto-memory local, deterministic, and bounded after the response is
+already visible to the user.
 
 ### Storage
 
@@ -71,11 +69,9 @@ max_notes_per_turn = 3      # max notes extracted per turn
 
 - Auto-memory is disabled by default. Users must opt in via config or
   `/memory auto on`.
-- The extraction LLM call must use the same model and credentials as the
-  main conversation. No separate API keys or endpoints.
 - Extracted notes must be plain text, one line each. No structured data,
   no code blocks.
-- The extraction prompt is hardcoded. Not user-configurable (prevents
+- The extraction heuristic is hardcoded. Not user-configurable (prevents
   prompt injection via config).
 - Auto-memory must not delay or block the agent's response. Extraction
   runs after the response is sent to the user.

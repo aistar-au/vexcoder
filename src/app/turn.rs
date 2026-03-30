@@ -246,6 +246,10 @@ impl TuiMode {
         if notes.is_empty() {
             return;
         }
+        let formatted_notes = crate::auto_memory::format_auto_notes(
+            &notes,
+            crate::auto_memory::current_timestamp_seconds(),
+        );
         let path = self
             .resolved_existing_notes_path()
             .or_else(|| self.resolved_notes_path());
@@ -255,17 +259,20 @@ impl TuiMode {
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        match crate::auto_memory::append_auto_notes(&notes, &path) {
+        match crate::auto_memory::append_auto_notes(&formatted_notes, &path) {
             Ok(()) => {
                 let turn_index = self.current_task.turns.len();
-                for note in &notes {
+                for note in &formatted_notes {
                     self.current_task.session_notes.push(SessionNote {
                         content: note.clone(),
                         created_at_turn: turn_index,
                     });
                 }
                 self.persist_current_task_state();
-                self.push_history_line(format!("[memory] auto: {} note(s) saved", notes.len()));
+                self.push_history_line(format!(
+                    "[memory] auto: {} note(s) saved",
+                    formatted_notes.len()
+                ));
             }
             Err(e) => {
                 self.push_history_line(format!("[memory] auto extraction error: {e}"));

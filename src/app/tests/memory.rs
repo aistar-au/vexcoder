@@ -287,8 +287,8 @@ fn test_extract_notes_respects_max_and_tags_auto() {
     assert_eq!(notes.len(), 2, "max_notes_per_turn must be respected");
     for note in &notes {
         assert!(
-            note.starts_with("[auto]"),
-            "each note must carry [auto] tag"
+            !note.contains("[auto]"),
+            "raw extracted notes should remain plain text before formatting"
         );
     }
 }
@@ -305,7 +305,7 @@ fn test_auto_memory_clear_removes_tagged_entries() {
     let notes_path = temp.path().join("notes.md");
     std::fs::write(
         &notes_path,
-        "[auto] auto line\nmanual line\n[auto] another auto\n",
+        "[1] [auto] auto line\nmanual line\n[2] [auto] another auto\n",
     )
     .unwrap();
 
@@ -314,6 +314,12 @@ fn test_auto_memory_clear_removes_tagged_entries() {
     let content = std::fs::read_to_string(&notes_path).unwrap();
     assert!(content.contains("manual line"));
     assert!(!content.contains("[auto]"));
+}
+
+#[test]
+fn test_format_auto_notes_adds_timestamp_prefix() {
+    let formatted = crate::auto_memory::format_auto_notes(&["note".to_string()], 7);
+    assert_eq!(formatted, vec!["[7] [auto] note".to_string()]);
 }
 
 #[test]

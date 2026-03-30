@@ -1509,7 +1509,7 @@ impl TuiMode {
             Ok(removed) if removed > 0 => {
                 self.current_task
                     .session_notes
-                    .retain(|n| !n.content.starts_with("[auto]"));
+                    .retain(|n| !crate::auto_memory::is_auto_note_line(&n.content));
                 self.persist_current_task_state();
                 self.push_history_line(format!("[memory] removed {removed} auto note(s)"));
             }
