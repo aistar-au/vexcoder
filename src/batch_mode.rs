@@ -482,6 +482,7 @@ pub fn build_batch_runtime(
     let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
     let (client, notes_warning) = build_api_client_with_notes(config)?;
     let mcp_registry = McpRegistry::connect_all_blocking(&config.mcp_servers)?;
+    crate::state::warm_codebase_index_with_config(&config.working_dir, &config.search);
     let client = client
         .with_project_instructions(instructions_text)
         .with_extra_tool_definitions(
@@ -498,6 +499,7 @@ pub fn build_batch_runtime(
     }
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
+        .with_search_config(config.search.clone())
         .with_sandbox(sandbox)
         .with_mcp_registry(mcp_registry);
 
@@ -535,6 +537,7 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
     let (instructions_text, instructions_path) = resolve_batch_project_instructions(config);
     let (client, notes_warning) = build_api_client_with_notes(config)?;
     let mcp_registry = McpRegistry::connect_all_blocking(&config.mcp_servers)?;
+    crate::state::warm_codebase_index_with_config(&config.working_dir, &config.search);
     let client = client
         .with_project_instructions(instructions_text)
         .with_extra_tool_definitions(
@@ -551,6 +554,7 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
     }
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
+        .with_search_config(config.search.clone())
         .with_sandbox(sandbox)
         .with_mcp_registry(mcp_registry);
 
@@ -1198,6 +1202,52 @@ mod tests {
         let system_prompt = ctx.test_system_prompt().await;
         assert!(system_prompt.contains("[project instructions: start]"));
         assert!(system_prompt.contains("# batch instructions"));
+    }
+
+    #[tokio::test]
+    async fn test_build_batch_runtime_auto_index_warms_codebase_search_index() {
+        let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+        crate::state::clear_codebase_index_for_tests();
+
+        let temp = tempfile::tempdir().unwrap();
+        let src_dir = temp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join("warm.rs"), "pub fn batch_warm_symbol() {}\n").unwrap();
+
+        let config = Config {
+            model_token: None,
+            model_name: "mock-model".to_string(),
+            model_url: "http://localhost:8000/v1/messages".to_string(),
+            model_url_skip_tls_check: false,
+            working_dir: temp.path().to_path_buf(),
+            model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
+            model_protocol: crate::runtime::ModelProtocol::MessagesV1,
+            tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+            model_profile: crate::types::ModelProfile::default_for_backend(
+                crate::runtime::ModelBackendKind::LocalRuntime,
+            ),
+            max_project_instructions_tokens: 4096,
+            max_memory_tokens: 2048,
+            sandbox: crate::runtime::SandboxConfig::default(),
+            model_headers: reqwest::header::HeaderMap::new(),
+            mcp_servers: Vec::new(),
+            http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
+            undo: crate::config::UndoConfig::default(),
+            search: crate::config::SearchConfig::default(),
+            notes_path: None,
+            api: crate::config::ApiConfig::default(),
+            hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
+        };
+
+        let (_runtime, _ctx, _task_id) =
+            build_batch_runtime(&config, "hello".to_string(), BatchRunOpts::default()).unwrap();
+        let names = crate::state::codebase_index_names_for_tests();
+        assert!(
+            names.iter().any(|name| name == "batch_warm_symbol"),
+            "expected batch runtime startup to warm the structural index"
+        );
     }
 
     #[test]

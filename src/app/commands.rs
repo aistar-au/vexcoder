@@ -1451,6 +1451,14 @@ impl TuiMode {
     }
 
     pub(super) fn handle_reindex_command(&mut self, ctx: &RuntimeContext) {
+        if !self.search_config.enabled {
+            self.push_history_line(
+                "[search] /reindex unavailable: search is disabled by [search].enabled=false"
+                    .to_string(),
+            );
+            return;
+        }
+
         let starting_batch = self.command_sessions.is_empty();
         self.history_state.turn_in_progress = true;
         self.history_state.cancel_pending = false;

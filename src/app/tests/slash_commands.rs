@@ -68,6 +68,26 @@ fn test_tui_run_command_invokes_validation_suite_only() {
         "expected /run transcript output"
     );
 }
+
+#[test]
+fn test_reindex_command_refuses_when_search_is_disabled() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut config = config_with_workdir(temp.path());
+    config.search.enabled = false;
+
+    let mut mode = TuiMode::new_with_config(None, config);
+    let mut ctx = setup_ctx();
+    mode.on_user_input("/reindex".to_string(), &mut ctx);
+
+    assert!(
+        mode.history_lines().iter().any(|line| {
+            line.contains("/reindex unavailable") && line.contains("[search].enabled=false")
+        }),
+        "expected a visible refusal when search is disabled"
+    );
+    assert!(!mode.is_turn_in_progress());
+}
+
 #[test]
 fn test_init_slash_command_scaffolds_workspace() {
     let temp = tempfile::tempdir().unwrap();

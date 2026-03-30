@@ -55,6 +55,7 @@ pub fn build_facade_runtime<M: RuntimeMode>(
     mode: M,
 ) -> AppResult<(Runtime<M>, RuntimeContext, FacadeBootstrap)> {
     let (sandbox, sandbox_warning) = resolve_configured_sandbox(&config.sandbox)?;
+    crate::state::warm_codebase_index_with_config(&config.working_dir, &config.search);
     let mcp_registry = McpRegistry::connect_all_blocking(&config.mcp_servers)?;
     let mcp_snapshot = mcp_registry.as_ref().map(|registry| registry.snapshot());
     let (client, mut bootstrap) = build_facade_client(config)?;
@@ -74,6 +75,7 @@ pub fn build_facade_runtime<M: RuntimeMode>(
         config.hooks.clone(),
         config.http_hooks.clone(),
     )
+    .with_search_config(config.search.clone())
     .with_sandbox(sandbox)
     .with_mcp_registry(mcp_registry)
     .with_undo_enabled(config.undo.enabled)

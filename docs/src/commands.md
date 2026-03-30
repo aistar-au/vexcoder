@@ -224,6 +224,7 @@ session totals.
     stderr, and exit status summarized after each command completes.
 - `/reindex`
   - Rebuilds the codebase structural index in the background without blocking the TUI. Reports completion back to the transcript when finished.
+  - Refuses to run when `[search].enabled = false`.
 
 ### Free-form input transforms
 

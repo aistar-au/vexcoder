@@ -17,6 +17,29 @@ fn test_tui_memory_renders_empty_notes() {
     );
     assert!(!mode.is_turn_in_progress());
 }
+
+#[test]
+fn test_build_runtime_auto_index_warms_codebase_search_index() {
+    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    crate::state::clear_codebase_index_for_tests();
+
+    let temp = tempfile::tempdir().unwrap();
+    let src_dir = temp.path().join("src");
+    std::fs::create_dir_all(&src_dir).unwrap();
+    std::fs::write(src_dir.join("warm.rs"), "pub fn tui_warm_symbol() {}\n").unwrap();
+
+    let mut config = config_with_workdir(temp.path());
+    config.search.enabled = true;
+    config.search.auto_index = true;
+
+    let (_runtime, _ctx) = build_runtime(config).expect("runtime should build");
+    let names = crate::state::codebase_index_names_for_tests();
+    assert!(
+        names.iter().any(|name| name == "tui_warm_symbol"),
+        "expected build_runtime startup to warm the structural index"
+    );
+}
+
 #[test]
 fn test_tui_memory_add_appends_to_file() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
