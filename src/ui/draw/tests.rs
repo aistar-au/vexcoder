@@ -99,6 +99,28 @@ fn append_only_output_draws_new_lines() {
 }
 
 #[test]
+fn transcript_body_text_and_code_blocks_use_phosphor_white() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec!["plain response", "```rust", "let value = 1;", "```"],
+    );
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("\x1b[38;5;15mplain response"),
+        "plain transcript text must render in phosphor white"
+    );
+    assert!(
+        output.contains("\x1b[38;5;15mlet value = 1;"),
+        "code block text must render in phosphor white"
+    );
+}
+
+#[test]
 fn transcript_scroll_offset_renders_older_rows_from_prompt_edge() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();

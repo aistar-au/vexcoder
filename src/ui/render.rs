@@ -502,7 +502,7 @@ fn modal_content(
 fn styled_diff_line(line: &str) -> Line<'static> {
     Line::styled(
         line.to_string(),
-        Style::default().fg(diff_line_color(classify_diff_line(line), Color::Gray)),
+        Style::default().fg(diff_line_color(classify_diff_line(line), Color::White)),
     )
 }
 
@@ -577,7 +577,7 @@ fn pipeline_activity_line(row: &str) -> Line<'static> {
     } else {
         Line::from(Span::styled(
             row.to_string(),
-            Style::default().fg(Color::Gray),
+            Style::default().fg(Color::White),
         ))
     }
 }
@@ -754,7 +754,10 @@ fn transcript_output_line(row: &str) -> Line<'static> {
     {
         pipeline_activity_line(row)
     } else {
-        Line::from(row.to_string())
+        Line::from(Span::styled(
+            row.to_string(),
+            Style::default().fg(Color::White),
+        ))
     }
 }
 
@@ -1052,7 +1055,7 @@ mod tests {
         assert_eq!(add.style.fg, Some(Color::Green));
         assert_eq!(del.style.fg, Some(Color::Red));
         assert_eq!(hunk.style.fg, Some(Color::Cyan));
-        assert_eq!(ctx.style.fg, Some(Color::Gray));
+        assert_eq!(ctx.style.fg, Some(Color::White));
     }
 
     #[test]
@@ -1123,11 +1126,11 @@ mod tests {
             diff_line_color(DiffLineKind::Other, Color::Gray),
             Color::Gray
         );
-        // history_row_style uses White; styled_diff_line uses Gray.
+        // Both plain history rows and diff context lines keep the default white.
         assert_eq!(history_row_style("+add").fg, Some(Color::Green));
         assert_eq!(history_row_style("plain").fg, Some(Color::White));
         assert_eq!(styled_diff_line("+add").style.fg, Some(Color::Green));
-        assert_eq!(styled_diff_line(" ctx").style.fg, Some(Color::Gray));
+        assert_eq!(styled_diff_line(" ctx").style.fg, Some(Color::White));
     }
 
     #[test]
@@ -1459,6 +1462,15 @@ mod tests {
         assert_eq!(waiting_text, "  ⋯ Mapping adjacent sectors...");
         assert_eq!(waiting.spans[1].style.fg, Some(Color::Magenta));
         assert!(waiting.spans[1].style.add_modifier.contains(Modifier::DIM));
+    }
+
+    #[test]
+    fn transcript_output_line_defaults_plain_text_to_white() {
+        let plain = transcript_output_line("plain response");
+
+        assert_eq!(plain.spans.len(), 1);
+        assert_eq!(plain.spans[0].content.as_ref(), "plain response");
+        assert_eq!(plain.spans[0].style.fg, Some(Color::White));
     }
 
     #[test]

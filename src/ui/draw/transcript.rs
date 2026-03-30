@@ -41,7 +41,7 @@ fn draw_bar_line(w: &mut dyn Write, text: &str, cols: u16, dim: bool) {
     }
     set_fg(w, DIM_GRAY);
     let _ = write!(w, " \u{2502} "); // │
-    set_fg(w, GRAY);
+    set_fg(w, WHITE);
     let truncated = truncate_to_width(text, (cols as usize).saturating_sub(3));
     let _ = write!(w, "{truncated}");
     reset_style(w);
@@ -779,14 +779,14 @@ impl TaskDraw {
                 .strip_prefix("[x] ")
                 .or_else(|| rest.strip_prefix("[X] "))
             {
-                draw_icon_line(w, GREEN, "\u{2611}", GRAY, task_rest, cols, false);
+                draw_icon_line(w, GREEN, "\u{2611}", WHITE, task_rest, cols, false);
                 return;
             }
             if let Some(task_rest) = rest.strip_prefix("[ ] ") {
-                draw_icon_line(w, DIM_GRAY, "\u{2610}", GRAY, task_rest, cols, false);
+                draw_icon_line(w, DIM_GRAY, "\u{2610}", WHITE, task_rest, cols, false);
                 return;
             }
-            draw_icon_line(w, YELLOW, "\u{2022}", GRAY, rest, cols, false);
+            draw_icon_line(w, YELLOW, "\u{2022}", WHITE, rest, cols, false);
             return;
         }
 
@@ -795,7 +795,7 @@ impl TaskDraw {
             set_fg(w, YELLOW);
             let _ = write!(w, " {}", num_rest.0);
             reset_style(w);
-            set_fg(w, GRAY);
+            set_fg(w, WHITE);
             let truncated =
                 truncate_to_width(num_rest.1, (cols as usize).saturating_sub(num_rest.2 + 1));
             let _ = write!(w, "{truncated}");
@@ -878,7 +878,7 @@ impl TaskDraw {
         // ── Regular text with inline bold detection ────────────────
         if let Some(rest) = line.strip_suffix('▌') {
             let max_text = (cols as usize).saturating_sub(1);
-            set_fg(w, GRAY);
+            set_fg(w, WHITE);
             self.draw_inline_markdown(w, rest, max_text as u16);
             if cols > 0 {
                 set_bold(w);
@@ -888,7 +888,7 @@ impl TaskDraw {
             reset_style(w);
             return;
         }
-        set_fg(w, GRAY);
+        set_fg(w, WHITE);
         self.draw_inline_markdown(w, line, cols);
         reset_style(w);
     }
@@ -929,7 +929,7 @@ impl TaskDraw {
                     let _ = write!(w, "{truncated}");
                     used += display_width(&truncated);
                     reset_style(w);
-                    set_fg(w, GRAY);
+                    set_fg(w, WHITE);
                 }
             } else if ch == '*' || ch == '_' {
                 // Single delimiter italic — only if the next char is not a space.
@@ -954,12 +954,12 @@ impl TaskDraw {
                 }
                 if !italic.is_empty() {
                     set_italic(w);
-                    set_fg(w, GRAY);
+                    set_fg(w, WHITE);
                     let truncated = truncate_to_width(&italic, max_w.saturating_sub(used));
                     let _ = write!(w, "{truncated}");
                     used += display_width(&truncated);
                     reset_style(w);
-                    set_fg(w, GRAY);
+                    set_fg(w, WHITE);
                 }
             } else if ch == '~' && chars.peek() == Some(&'~') {
                 // Flush buffer.
@@ -980,12 +980,12 @@ impl TaskDraw {
                 }
                 if !struck.is_empty() {
                     set_dim(w);
-                    set_fg(w, DIM_GRAY);
+                    set_fg(w, WHITE);
                     let truncated = truncate_to_width(&struck, max_w.saturating_sub(used));
                     let _ = write!(w, "{truncated}");
                     used += display_width(&truncated);
                     reset_style(w);
-                    set_fg(w, GRAY);
+                    set_fg(w, WHITE);
                 }
             } else if ch == '`' {
                 // Flush buffer.
@@ -1004,11 +1004,11 @@ impl TaskDraw {
                     code.push(cc);
                 }
                 if !code.is_empty() {
-                    set_fg(w, CYAN);
+                    set_fg(w, WHITE);
                     let truncated = truncate_to_width(&code, max_w.saturating_sub(used));
                     let _ = write!(w, "{truncated}");
                     used += display_width(&truncated);
-                    set_fg(w, GRAY);
+                    set_fg(w, WHITE);
                 }
             } else {
                 buf.push(ch);
