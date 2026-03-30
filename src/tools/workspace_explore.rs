@@ -1,6 +1,6 @@
 //! PP-01 workspace exploration tools: `list_dir` and `glob_files`.
 //!
-//! All three workspace exploration tools (`search_files` is in `operator.rs`)
+//! All three workspace exploration tools (`search_files` is in `operator/search.rs`)
 //! are workspace-confined, `.gitignore`-aware, and produce bounded output.
 //! None of them start a model turn or modify any file.  No subprocess calls.
 

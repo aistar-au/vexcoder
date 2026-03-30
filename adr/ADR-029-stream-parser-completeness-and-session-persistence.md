@@ -512,11 +512,11 @@ named tests in the current tree:
 6. Chat-completions usage normalisation:
    `src/api/stream.rs::test_process_maps_chat_compat_usage_chunk`
 7. `TaskState` round-trip with new fields:
-   `src/runtime/task_state.rs::test_task_state_survives_atomic_write_and_reload`
+   `src/runtime/task_state/persist.rs::task_state_survives_atomic_write_and_reload`
 8. `TaskState` backward compatibility (pre-ADR-029 files):
-   `src/runtime/task_state.rs::test_task_state_pre_adr029_file_loads_with_default_new_fields`
+   `src/runtime/task_state/persist.rs::pre_adr029_file_loads_with_default_new_fields`
 9. `CacheUsageStats` accumulation:
-   `src/runtime/task_state.rs::test_cache_usage_stats_accumulate`
+   `src/runtime/task_state/mod.rs::cache_usage_stats_accumulate`
 
 **Stream surface coverage tests (8 points):**
 
