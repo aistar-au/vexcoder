@@ -1284,6 +1284,20 @@ impl TuiMode {
             .strip_prefix(&self.working_dir)
             .unwrap_or(&checkpoint.path)
             .display();
+        if let Some(cleanup_path) = &checkpoint.cleanup_path {
+            if cleanup_path.exists() {
+                if let Err(e) = std::fs::remove_file(cleanup_path) {
+                    let cleanup_display = cleanup_path
+                        .strip_prefix(&self.working_dir)
+                        .unwrap_or(cleanup_path)
+                        .display();
+                    self.push_history_line(format!(
+                        "[undo] failed to remove {cleanup_display}: {e}"
+                    ));
+                    return;
+                }
+            }
+        }
         match &checkpoint.previous_content {
             Some(content) => {
                 if let Err(e) = std::fs::write(&checkpoint.path, content) {

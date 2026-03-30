@@ -7,6 +7,8 @@
 
 **Depends on:** None (green on current main)
 
+**Dedicated ADR:** `adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md`
+
 ---
 
 ## Issue

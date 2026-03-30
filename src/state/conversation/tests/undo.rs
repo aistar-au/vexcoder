@@ -19,7 +19,8 @@ fn test_push_and_pop_checkpoint() {
     let cp = UndoCheckpoint {
         tool_name: "write_file".to_string(),
         path: PathBuf::from("/tmp/a.txt"),
-        previous_content: Some("hello".to_string()),
+        cleanup_path: None,
+        previous_content: Some(b"hello".to_vec()),
     };
     mgr.push_undo_checkpoint(cp);
     assert_eq!(mgr.undo_stack_len(), 1);
@@ -27,7 +28,7 @@ fn test_push_and_pop_checkpoint() {
     let popped = mgr.pop_undo_checkpoint().unwrap();
     assert_eq!(popped.tool_name, "write_file");
     assert_eq!(popped.path, PathBuf::from("/tmp/a.txt"));
-    assert_eq!(popped.previous_content, Some("hello".to_string()));
+    assert_eq!(popped.previous_content, Some(b"hello".to_vec()));
     assert_eq!(mgr.undo_stack_len(), 0);
 }
 
@@ -39,6 +40,7 @@ fn test_stack_lifo_ordering() {
         mgr.push_undo_checkpoint(UndoCheckpoint {
             tool_name: format!("tool_{}", i),
             path: PathBuf::from(format!("/tmp/{}.txt", i)),
+            cleanup_path: None,
             previous_content: None,
         });
     }
@@ -64,6 +66,7 @@ fn test_max_checkpoint_eviction() {
         mgr.push_undo_checkpoint(UndoCheckpoint {
             tool_name: format!("tool_{}", i),
             path: PathBuf::from(format!("/tmp/{}.txt", i)),
+            cleanup_path: None,
             previous_content: None,
         });
     }
@@ -85,6 +88,7 @@ fn test_zero_max_disables_undo() {
     mgr.push_undo_checkpoint(UndoCheckpoint {
         tool_name: "write_file".to_string(),
         path: PathBuf::from("/tmp/a.txt"),
+        cleanup_path: None,
         previous_content: None,
     });
     assert_eq!(mgr.undo_stack_len(), 0);
@@ -101,7 +105,22 @@ fn test_capture_snapshot_existing_file() {
     let input = json!({ "path": "hello.txt" });
     let cp = mgr.capture_undo_snapshot("write_file", &input).unwrap();
     assert_eq!(cp.tool_name, "write_file");
-    assert_eq!(cp.previous_content, Some("original content".to_string()));
+    assert_eq!(cp.previous_content, Some(b"original content".to_vec()));
+}
+
+#[test]
+fn test_capture_snapshot_existing_binary_file() {
+    let dir = TempDir::new().unwrap();
+    let file_path = dir.path().join("blob.bin");
+    let bytes = vec![0, 159, 255, 1, 2, 3];
+    fs::write(&file_path, &bytes).unwrap();
+
+    let mgr = make_mgr(dir.path().to_path_buf());
+
+    let input = json!({ "path": "blob.bin" });
+    let cp = mgr.capture_undo_snapshot("write_file", &input).unwrap();
+    assert_eq!(cp.tool_name, "write_file");
+    assert_eq!(cp.previous_content, Some(bytes));
 }
 
 #[test]
@@ -137,7 +156,8 @@ fn test_capture_snapshot_rename_file() {
     let input = json!({ "old_path": "old.txt", "new_path": "new.txt" });
     let cp = mgr.capture_undo_snapshot("rename_file", &input).unwrap();
     assert_eq!(cp.tool_name, "rename_file");
-    assert_eq!(cp.previous_content, Some("rename me".to_string()));
+    assert_eq!(cp.cleanup_path, Some(dir.path().join("new.txt")));
+    assert_eq!(cp.previous_content, Some(b"rename me".to_vec()));
 }
 
 #[test]
@@ -152,6 +172,7 @@ fn test_checkpoint_with_none_content() {
     let cp = UndoCheckpoint {
         tool_name: "write_file".to_string(),
         path: PathBuf::from("/tmp/new.txt"),
+        cleanup_path: None,
         previous_content: None,
     };
     // None means the file did not exist before the mutation

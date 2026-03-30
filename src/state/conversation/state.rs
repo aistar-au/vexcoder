@@ -20,8 +20,10 @@ pub struct UndoCheckpoint {
     pub tool_name: String,
     /// Absolute path of the affected file.
     pub path: PathBuf,
-    /// Previous file content (None if the file did not exist).
-    pub previous_content: Option<String>,
+    /// Optional path that must be removed when the checkpoint is restored.
+    pub cleanup_path: Option<PathBuf>,
+    /// Previous file bytes (None if the file did not exist).
+    pub previous_content: Option<Vec<u8>>,
 }
 
 pub enum ConversationStreamUpdate {
@@ -282,20 +284,32 @@ impl ConversationManager {
         tool_name: &str,
         input: &serde_json::Value,
     ) -> Option<UndoCheckpoint> {
-        let path_str = match tool_name {
-            "write_file" | "apply_patch" | "edit_file" => ["path", "file_path", "file"]
-                .iter()
-                .find_map(|k| input.get(*k).and_then(|v| v.as_str())),
-            "rename_file" => ["old_path", "from", "source_path"]
-                .iter()
-                .find_map(|k| input.get(*k).and_then(|v| v.as_str())),
+        let (path_str, cleanup_path_str) = match tool_name {
+            "write_file" | "apply_patch" | "edit_file" => (
+                ["path", "file_path", "file"]
+                    .iter()
+                    .find_map(|k| input.get(*k).and_then(|v| v.as_str())),
+                None,
+            ),
+            "rename_file" => (
+                ["old_path", "from", "source_path"]
+                    .iter()
+                    .find_map(|k| input.get(*k).and_then(|v| v.as_str())),
+                ["new_path", "to", "dest_path"]
+                    .iter()
+                    .find_map(|k| input.get(*k).and_then(|v| v.as_str())),
+            ),
             _ => return None,
-        }?;
+        };
+        let path_str = path_str?;
         let abs = self.tool_operator.working_dir().join(path_str);
-        let previous = std::fs::read_to_string(&abs).ok();
+        let cleanup_path =
+            cleanup_path_str.map(|value| self.tool_operator.working_dir().join(value));
+        let previous = std::fs::read(&abs).ok();
         Some(UndoCheckpoint {
             tool_name: tool_name.to_string(),
             path: abs,
+            cleanup_path,
             previous_content: previous,
         })
     }

@@ -7,7 +7,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 266
+- Total tracked files: 267
 - Last updated: 2026-03-30 (PM-02 undo checkpoints batch)
 
 
@@ -279,3 +279,4 @@ Canonical raw URL index for every tracked file in this repository.
 | 264 | `tests/tool_operator_tests.rs` | ~361 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |
 | 265 | `tests/tui_draw_snapshots.rs` | ~135 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tui_draw_snapshots.rs> |
 | 266 | `src/state/conversation/tests/undo.rs` | ~160 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tests/undo.rs> |
+| 267 | `adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md> |
