@@ -53,6 +53,24 @@ pub(super) fn rebuild_codebase_index_for_tests(workspace_root: &std::path::Path)
     }
 }
 
+/// Force a full rebuild of the structural codebase index.
+/// Used by the `/reindex` slash command.
+///
+/// Pass `&[]` and `usize::MAX` to apply no filtering (equivalent to default
+/// `SearchConfig` values).
+pub(crate) fn force_full_reindex_with_config(
+    workspace_root: &std::path::Path,
+    exclude: &[String],
+    max_file_size: usize,
+) -> usize {
+    let idx_mutex = CODEBASE_INDEX.get_or_init(|| Mutex::new(Vec::new()));
+    if let Ok(mut idx) = idx_mutex.lock() {
+        *idx = index::build_index_filtered(workspace_root, exclude, max_file_size);
+        return idx.len();
+    }
+    0
+}
+
 /// Maximum bytes kept in the accumulated stdout/stderr buffers returned to the
 /// model after a `run_command` tool call.  The full output is always streamed to
 /// the TUI via `TranscriptLine`, so this cap only limits the in-process buffer

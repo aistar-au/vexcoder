@@ -11,6 +11,7 @@ pub use state::{
     ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, TurnToolPolicy,
     UndoCheckpoint,
 };
+pub(crate) use tools::force_full_reindex_with_config;
 
 #[cfg(test)]
 use history::*;

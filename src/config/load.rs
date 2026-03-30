@@ -10,8 +10,8 @@ use crate::util::{is_local_endpoint_url, parse_bool_flag};
 use super::{
     ApiConfig, ApiConfigLayer, ApiTransport, CompactionConfig, CompactionConfigLayer, Config,
     ConfigLayer, DoctorConfigLayer, DoctorConfigSnapshot, DoctorMcpServer, HttpHookConfig,
-    McpServerConfig, McpTransport, UndoConfig, UndoConfigLayer, DEFAULT_LOCAL_API_HOST,
-    DEFAULT_LOCAL_API_PORT,
+    McpServerConfig, McpTransport, SearchConfig, SearchConfigLayer, UndoConfig, UndoConfigLayer,
+    DEFAULT_LOCAL_API_HOST, DEFAULT_LOCAL_API_PORT,
 };
 
 pub(super) fn load() -> Result<Config> {
@@ -244,6 +244,7 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
         mcp_servers: over.mcp_servers.or(base.mcp_servers),
         compaction: apply_compaction_over(base.compaction, over.compaction),
         undo: apply_undo_over(base.undo, over.undo),
+        search: apply_search_over(base.search, over.search),
     }
 }
 
@@ -273,6 +274,22 @@ fn apply_undo_over(
         (Some(base), Some(over)) => Some(UndoConfigLayer {
             enabled: over.enabled.or(base.enabled),
             max_checkpoints: over.max_checkpoints.or(base.max_checkpoints),
+        }),
+    }
+}
+
+fn apply_search_over(
+    base: Option<SearchConfigLayer>,
+    over: Option<SearchConfigLayer>,
+) -> Option<SearchConfigLayer> {
+    match (base, over) {
+        (None, None) => None,
+        (Some(layer), None) | (None, Some(layer)) => Some(layer),
+        (Some(base), Some(over)) => Some(SearchConfigLayer {
+            enabled: over.enabled.or(base.enabled),
+            auto_index: over.auto_index.or(base.auto_index),
+            exclude: over.exclude.or(base.exclude),
+            max_file_size: over.max_file_size.or(base.max_file_size),
         }),
     }
 }
@@ -485,6 +502,7 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         }),
         hooks: None,
         http_hooks: None,
+        search: None,
     };
 
     Ok((layer, env_token))
@@ -771,6 +789,7 @@ fn resolve_config(
         mcp_servers,
         compaction: resolve_compaction_config(merged.compaction),
         undo: resolve_undo_config(merged.undo),
+        search: resolve_search_config(merged.search),
     })
 }
 
@@ -833,6 +852,19 @@ fn resolve_api_config(layer: Option<ApiConfigLayer>) -> Result<ApiConfig> {
         tls_skip_verify: layer.tls_skip_verify.unwrap_or(false),
         vpn_trust: layer.vpn_trust.unwrap_or(false),
     })
+}
+
+fn resolve_search_config(layer: Option<SearchConfigLayer>) -> SearchConfig {
+    let defaults = SearchConfig::default();
+    match layer {
+        None => defaults,
+        Some(l) => SearchConfig {
+            enabled: l.enabled.unwrap_or(defaults.enabled),
+            auto_index: l.auto_index.unwrap_or(defaults.auto_index),
+            exclude: l.exclude.unwrap_or(defaults.exclude),
+            max_file_size: l.max_file_size.unwrap_or(defaults.max_file_size),
+        },
+    }
 }
 
 fn resolve_secret_reference(value: Option<String>) -> Option<String> {
@@ -1239,4 +1271,64 @@ pub(super) fn migrate_config_from_env(envs: &[(&str, &str)]) -> String {
     }
 
     lines.join("\n") + "\n"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    fn write_config(dir: &TempDir, name: &str, content: &str) -> std::path::PathBuf {
+        let path = dir.path().join(name);
+        let mut f = std::fs::File::create(&path).expect("create config file");
+        f.write_all(content.as_bytes()).expect("write");
+        path
+    }
+
+    /// Anchor test: the `[search]` section must be parsed from both the user and
+    /// repo-local config layers, with the repo layer overriding the user layer for
+    /// fields that are explicitly set.
+    #[test]
+    fn test_search_config_loads_from_both_layers() {
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        // User config: set enabled = false and a custom exclude list.
+        let user_cfg = write_config(
+            &dir,
+            "user.toml",
+            r#"
+[search]
+enabled = false
+exclude = ["vendor/"]
+"#,
+        );
+
+        // Repo config lives at <cwd>/.vex/config.toml; it enables search.
+        let vex_dir = dir.path().join(".vex");
+        std::fs::create_dir_all(&vex_dir).expect("mkdir .vex");
+        let repo_cfg = vex_dir.join("config.toml");
+        std::fs::write(
+            &repo_cfg,
+            r#"
+[search]
+enabled = true
+"#,
+        )
+        .expect("write repo config");
+
+        let config =
+            load_for_tests(dir.path(), Some(&user_cfg), None).expect("load_for_tests failed");
+
+        // Repo layer enables search (overrides user layer disabled).
+        assert!(
+            config.search.enabled,
+            "repo layer must override user layer for [search].enabled"
+        );
+        // User layer exclusion must survive the merge.
+        assert!(
+            config.search.exclude.contains(&"vendor/".to_string()),
+            "user layer exclude list must be visible when repo layer omits it"
+        );
+    }
 }
