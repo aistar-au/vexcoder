@@ -686,3 +686,219 @@ fn test_compact_for_context_overflow_noop_when_small() {
         "small conversation must not be compacted"
     );
 }
+
+#[test]
+fn test_compaction_disabled_by_default() {
+    let config = crate::config::CompactionConfig::default();
+    assert!(!config.enabled);
+    assert_eq!(config.threshold_percent, 80);
+    assert_eq!(config.keep_recent_turns, 4);
+    assert_eq!(config.summary_max_tokens, 1024);
+}
+
+#[test]
+fn test_compaction_triggers_at_threshold() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+
+    // Each message ~100 chars -> ~25 tokens. 10 messages -> ~250 tokens.
+    for i in 0..10 {
+        manager.api_messages.push(ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text(format!("user message number {} with padding text to reach a decent length for token estimation", i)),
+        });
+        manager.api_messages.push(ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text(format!("assistant response {} with some additional text for token counting purposes here we go", i)),
+        });
+    }
+
+    let config = crate::config::CompactionConfig {
+        enabled: true,
+        threshold_percent: 50,
+        keep_recent_turns: 4,
+        summary_max_tokens: 1024,
+    };
+
+    // With context window of 100 tokens and 50% threshold, ~250 tokens should exceed.
+    assert!(manager.should_compact_proactively(&config, 100));
+    // With a large context window, it should not trigger.
+    assert!(!manager.should_compact_proactively(&config, 100_000));
+}
+
+#[test]
+fn test_compaction_preserves_recent_turns() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+
+    for i in 0..6 {
+        manager.api_messages.push(ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text(format!("user-{i}")),
+        });
+        manager.api_messages.push(ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text(format!("assistant-{i}")),
+        });
+    }
+
+    let removed = manager.compact_with_summary(2, "Earlier we discussed topics 0-3.");
+    assert!(removed > 0);
+
+    // The summary message + recent 2 turns (4 messages) should be present.
+    assert_eq!(manager.api_messages[0].role, "user");
+    match &manager.api_messages[0].content {
+        Content::Text(t) => assert!(t.contains("[conversation summary]")),
+        _ => panic!("expected text content"),
+    }
+
+    // Last user message should be one of the recent ones.
+    let last_user = manager
+        .api_messages
+        .iter()
+        .rev()
+        .find(|m| m.role == "user")
+        .unwrap();
+    match &last_user.content {
+        Content::Text(t) => assert!(t.contains("user-") || t.contains("[conversation summary]")),
+        _ => panic!("expected text content"),
+    }
+}
+
+#[test]
+fn test_compaction_summary_replaces_prefix() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+
+    for i in 0..8 {
+        manager.api_messages.push(ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text(format!("user-{i}")),
+        });
+        manager.api_messages.push(ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text(format!("assistant-{i}")),
+        });
+    }
+
+    let before_len = manager.api_messages.len();
+    let removed = manager.compact_with_summary(4, "Summary of earlier messages.");
+    assert!(removed > 0);
+    // Should have summary message (1) + recent 4 turns (8 messages) = 9 total, or close.
+    assert!(manager.api_messages.len() < before_len);
+    // First message should be the summary.
+    match &manager.api_messages[0].content {
+        Content::Text(t) => assert!(t.contains("Summary of earlier messages.")),
+        _ => panic!("expected text in first message"),
+    }
+}
+
+#[test]
+fn test_compaction_summary_preserves_user_assistant_role_order() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+
+    for i in 0..6 {
+        manager.api_messages.push(ApiMessage {
+            role: "user".to_string(),
+            content: Content::Text(format!("user-{i}")),
+        });
+        manager.api_messages.push(ApiMessage {
+            role: "assistant".to_string(),
+            content: Content::Text(format!("assistant-{i}")),
+        });
+    }
+
+    let removed = manager.compact_with_summary(2, "Earlier discussion summary.");
+    assert!(removed > 0);
+    assert_eq!(manager.api_messages[0].role, "user");
+    assert!(manager
+        .api_messages
+        .windows(2)
+        .all(|pair| pair[0].role != pair[1].role));
+}
+
+#[test]
+fn test_compaction_failure_falls_back_to_full_history() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+
+    // Only 2 user messages - too few to compact.
+    manager.api_messages.push(ApiMessage {
+        role: "user".to_string(),
+        content: Content::Text("user-0".to_string()),
+    });
+    manager.api_messages.push(ApiMessage {
+        role: "assistant".to_string(),
+        content: Content::Text("assistant-0".to_string()),
+    });
+    manager.api_messages.push(ApiMessage {
+        role: "user".to_string(),
+        content: Content::Text("user-1".to_string()),
+    });
+    manager.api_messages.push(ApiMessage {
+        role: "assistant".to_string(),
+        content: Content::Text("assistant-1".to_string()),
+    });
+
+    // With keep_recent_turns=4, nothing should be removed.
+    let removed = manager.compact_with_summary(4, "summary");
+    assert_eq!(removed, 0);
+    assert_eq!(manager.api_messages.len(), 4);
+}
+
+#[test]
+fn test_compaction_config_loads_from_user_layer() {
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("config.toml");
+    std::fs::write(
+        &config_path,
+        r#"
+model_url = "http://localhost:8080/v1"
+model_name = "test"
+
+[compaction]
+enabled = true
+threshold_percent = 70
+keep_recent_turns = 6
+summary_max_tokens = 512
+"#,
+    )
+    .unwrap();
+
+    let config =
+        crate::config::Config::load_for_tests(dir.path(), Some(&config_path), None).unwrap();
+
+    assert!(config.compaction.enabled);
+    assert_eq!(config.compaction.threshold_percent, 70);
+    assert_eq!(config.compaction.keep_recent_turns, 6);
+    assert_eq!(config.compaction.summary_max_tokens, 512);
+}
+
+#[test]
+fn test_estimate_history_tokens() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+
+    // Empty history should have 0 tokens.
+    assert_eq!(manager.estimate_history_tokens(), 0);
+
+    // 400 bytes of text = ~100 tokens (400 / 4).
+    manager.api_messages.push(ApiMessage {
+        role: "user".to_string(),
+        content: Content::Text("a".repeat(400)),
+    });
+    assert_eq!(manager.estimate_history_tokens(), 100);
+}

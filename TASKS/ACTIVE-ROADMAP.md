@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-30 (5 feature branches bootstrapped on remote; draft PRs opened)
+Last updated: 2026-03-30 (5 feature branches bootstrapped on remote; draft PRs opened; PR #270 merged)
 
 ---
 
@@ -128,11 +128,11 @@ ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| PL-01-ext | `work/vexcoder-http-hooks` | #270 | Implementation complete, draft PR | HTTP webhook support for tool events (`[[http_hooks]]` config section) |
-| PM-01 | `work/vexcoder-conversation-compaction` | #271 | Task manifest only, draft PR | In-memory summarization of older turns when token count exceeds threshold |
-| PM-02 | `work/vexcoder-undo-checkpoints` | #272 | Task manifest only, draft PR | `/undo` slash command and per-change checkpoint stack |
-| PM-03 | `work/vexcoder-code-search` | #273 | Task manifest only, draft PR | Code search hardening and `/reindex` command |
-| PM-04 | `work/vexcoder-auto-memory` | #274 | Task manifest only, draft PR | Automatic extraction of memory-worthy facts from conversation turns |
+| PL-01-ext | `work/vexcoder-http-hooks` | #270 | **Merged** | HTTP webhook support for tool events (`[[http_hooks]]` config section) |
+| PM-01 | `work/vexcoder-conversation-compaction` | #271 | Implementation complete, draft PR | In-memory summarization of older turns when token count exceeds threshold |
+| PM-02 | `work/vexcoder-undo-checkpoints` | #272 | Implementation complete, draft PR | `/undo` slash command and per-change checkpoint stack |
+| PM-03 | `work/vexcoder-code-search` | #273 | Implementation complete, draft PR | Code search hardening and `/reindex` command |
+| PM-04 | `work/vexcoder-auto-memory` | #274 | Implementation complete, draft PR | Automatic extraction of memory-worthy facts from conversation turns |
 
 These branches are pushed to remote with draft PRs. Each contains a task
 manifest in `TASKS/` defining scope, constraints, and anchor tests.

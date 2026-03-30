@@ -1012,6 +1012,7 @@ fn tool_definitions_chat_compat_with_extra(extra: &[Value]) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::CompactionConfig;
     use crate::runtime::backend::{ModelBackendKind, ModelProtocol, ToolCallMode};
     use std::collections::BTreeSet;
 
@@ -1047,6 +1048,7 @@ mod tests {
             model_headers: reqwest::header::HeaderMap::new(),
             mcp_servers: Vec::new(),
             http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1078,6 +1080,7 @@ mod tests {
             model_headers: reqwest::header::HeaderMap::new(),
             mcp_servers: Vec::new(),
             http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1109,6 +1112,7 @@ mod tests {
             model_headers: reqwest::header::HeaderMap::new(),
             mcp_servers: Vec::new(),
             http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1143,6 +1147,7 @@ mod tests {
             model_headers: reqwest::header::HeaderMap::new(),
             mcp_servers: Vec::new(),
             http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1176,6 +1181,7 @@ mod tests {
             model_headers: reqwest::header::HeaderMap::new(),
             mcp_servers: Vec::new(),
             http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1268,6 +1274,7 @@ mod tests {
             model_headers: reqwest::header::HeaderMap::new(),
             mcp_servers: Vec::new(),
             http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1300,6 +1307,7 @@ mod tests {
             model_headers: reqwest::header::HeaderMap::new(),
             mcp_servers: Vec::new(),
             http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1331,6 +1339,7 @@ mod tests {
             model_headers: reqwest::header::HeaderMap::new(),
             mcp_servers: Vec::new(),
             http_hooks: Vec::new(),
+            compaction: CompactionConfig::default(),
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),

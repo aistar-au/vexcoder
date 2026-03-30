@@ -106,6 +106,31 @@ impl Default for ApiConfig {
     }
 }
 
+/// Proactive conversation compaction configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactionConfig {
+    /// Whether proactive compaction is enabled. Default: false.
+    pub enabled: bool,
+    /// Trigger compaction when estimated token count exceeds this percentage
+    /// of the model context window. Default: 80.
+    pub threshold_percent: u8,
+    /// Number of most-recent turns to keep verbatim after compaction. Default: 4.
+    pub keep_recent_turns: usize,
+    /// Maximum tokens for the compaction summary message. Default: 1024.
+    pub summary_max_tokens: usize,
+}
+
+impl Default for CompactionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            threshold_percent: 80,
+            keep_recent_turns: 4,
+            summary_max_tokens: 1024,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub model_token: Option<String>,
@@ -134,6 +159,8 @@ pub struct Config {
     pub http_hooks: Vec<HttpHookConfig>,
     #[serde(default)]
     pub mcp_servers: Vec<McpServerConfig>,
+    #[serde(default)]
+    pub compaction: CompactionConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -176,6 +203,16 @@ struct ConfigLayer {
     hooks: Option<Vec<HookConfig>>,
     http_hooks: Option<Vec<HttpHookConfig>>,
     mcp_servers: Option<Vec<McpServerConfig>>,
+    compaction: Option<CompactionConfigLayer>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct CompactionConfigLayer {
+    enabled: Option<bool>,
+    threshold_percent: Option<u8>,
+    keep_recent_turns: Option<usize>,
+    summary_max_tokens: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -248,6 +285,7 @@ impl Config {
             hooks: Vec::new(),
             http_hooks: Vec::new(),
             mcp_servers: Vec::new(),
+            compaction: CompactionConfig::default(),
         }
     }
 

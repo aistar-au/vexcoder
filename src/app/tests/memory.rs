@@ -1,4 +1,5 @@
 use super::*;
+use crate::config::CompactionConfig;
 
 #[test]
 fn test_tui_memory_renders_empty_notes() {
@@ -211,6 +212,7 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         model_headers: reqwest::header::HeaderMap::new(),
         mcp_servers: Vec::new(),
         http_hooks: Vec::new(),
+        compaction: CompactionConfig::default(),
         notes_path: Some(notes_path),
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),
