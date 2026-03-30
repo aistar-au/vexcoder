@@ -33,6 +33,7 @@ All ADR files live under `adr/`.
 | [ADR-032](ADR-032-prompt-area-interactivity-and-context-guard.md) | Prompt area interactivity and context guard | Accepted | 0 items remaining; item 9 transferred to ADR-033 |
 | [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Accepted (all phases 1-4 merged) | 0 items remaining |
 | [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Hardening landed for serialized concurrency caps, prompt guard, explicit release, and normalized watch/boundary coverage |
+| [ADR-035](ADR-035-undo-checkpoints-and-binary-safe-rollback.md) | Undo checkpoints and binary-safe rollback | Accepted | 0 items remaining; Gap 14 rollback strategy formalized for `/undo` |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 

@@ -76,6 +76,7 @@ impl TuiMode {
                 SlashCommandId::Agents => self.handle_agents_command(),
                 SlashCommandId::Delegate => self.handle_delegate_command(args),
                 SlashCommandId::Watch => self.handle_watch_command(args),
+                SlashCommandId::Undo => self.handle_undo_command(ctx),
                 SlashCommandId::Commands | SlashCommandId::Help => self.handle_commands_command(),
             }
 
@@ -1269,6 +1270,65 @@ impl TuiMode {
             "[compacted: conversation history reset; task {task_id} continues]"
         ));
     }
+
+    pub(super) fn handle_undo_command(&mut self, ctx: &RuntimeContext) {
+        if !ctx.is_undo_enabled() {
+            self.push_history_line("[undo] disabled in configuration".to_string());
+            return;
+        }
+        let checkpoint = match ctx.pop_undo_checkpoint() {
+            Some(cp) => cp,
+            None => {
+                self.push_history_line("[undo] nothing to undo".to_string());
+                return;
+            }
+        };
+        let display_path = checkpoint
+            .path
+            .strip_prefix(&self.working_dir)
+            .unwrap_or(&checkpoint.path)
+            .display();
+        if let Some(cleanup_path) = &checkpoint.cleanup_path {
+            if cleanup_path.exists() {
+                if let Err(e) = std::fs::remove_file(cleanup_path) {
+                    let cleanup_display = cleanup_path
+                        .strip_prefix(&self.working_dir)
+                        .unwrap_or(cleanup_path)
+                        .display();
+                    self.push_history_line(format!(
+                        "[undo] failed to remove {cleanup_display}: {e}"
+                    ));
+                    return;
+                }
+            }
+        }
+        match &checkpoint.previous_content {
+            Some(content) => {
+                if let Err(e) = std::fs::write(&checkpoint.path, content) {
+                    self.push_history_line(format!("[undo] failed to restore {display_path}: {e}"));
+                    return;
+                }
+            }
+            None => {
+                // File did not exist before the tool call — remove it.
+                if checkpoint.path.exists() {
+                    if let Err(e) = std::fs::remove_file(&checkpoint.path) {
+                        self.push_history_line(format!(
+                            "[undo] failed to remove {display_path}: {e}"
+                        ));
+                        return;
+                    }
+                }
+            }
+        }
+        let remaining = ctx.undo_stack_len();
+        self.push_history_line(format!(
+            "[undo] reverted {} on {display_path} ({remaining} checkpoint{} remaining)",
+            checkpoint.tool_name,
+            if remaining == 1 { "" } else { "s" },
+        ));
+    }
+
     pub(super) fn handle_fork_command(&mut self, label: &str, ctx: &mut RuntimeContext) {
         let dir = TaskState::state_dir();
         if let Err(e) = self.current_task.save(&dir) {

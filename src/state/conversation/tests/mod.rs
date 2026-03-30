@@ -21,6 +21,7 @@ mod read_file_guard;
 mod setup;
 mod streaming;
 mod tool_execution;
+mod undo;
 mod write_guards;
 
 use setup::*;

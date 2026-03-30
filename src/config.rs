@@ -131,6 +131,24 @@ impl Default for CompactionConfig {
     }
 }
 
+/// Per-session undo/checkpoint configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UndoConfig {
+    /// Whether the `/undo` command is available. Default: true.
+    pub enabled: bool,
+    /// Maximum number of checkpoints kept in-memory per session. Default: 20.
+    pub max_checkpoints: usize,
+}
+
+impl Default for UndoConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_checkpoints: 20,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub model_token: Option<String>,
@@ -161,6 +179,7 @@ pub struct Config {
     pub mcp_servers: Vec<McpServerConfig>,
     #[serde(default)]
     pub compaction: CompactionConfig,
+    pub undo: UndoConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -204,6 +223,7 @@ struct ConfigLayer {
     http_hooks: Option<Vec<HttpHookConfig>>,
     mcp_servers: Option<Vec<McpServerConfig>>,
     compaction: Option<CompactionConfigLayer>,
+    undo: Option<UndoConfigLayer>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -213,6 +233,13 @@ struct CompactionConfigLayer {
     threshold_percent: Option<u8>,
     keep_recent_turns: Option<usize>,
     summary_max_tokens: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct UndoConfigLayer {
+    enabled: Option<bool>,
+    max_checkpoints: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -286,6 +313,7 @@ impl Config {
             http_hooks: Vec::new(),
             mcp_servers: Vec::new(),
             compaction: CompactionConfig::default(),
+            undo: UndoConfig::default(),
         }
     }
 

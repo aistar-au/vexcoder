@@ -1,5 +1,6 @@
 use super::*;
 use crate::config::CompactionConfig;
+use crate::config::UndoConfig;
 
 // -- PI-04 / PI-05 / PJ-01 / PJ-02 ---------------------------------------
 
@@ -717,6 +718,7 @@ fn test_build_runtime_with_resume_restores_task() {
         mcp_servers: Vec::new(),
         http_hooks: Vec::new(),
         compaction: CompactionConfig::default(),
+        undo: UndoConfig::default(),
         notes_path: None,
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),

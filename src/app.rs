@@ -194,6 +194,7 @@ enum SlashCommandId {
     Agents,
     Delegate,
     Watch,
+    Undo,
     Commands,
     Help,
 }
@@ -472,6 +473,12 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         "show session-task status for the current repo",
     ),
     SlashCommandSpec::new(
+        SlashCommandId::Undo,
+        SlashCommandPattern::Exact("/undo"),
+        "/undo",
+        "undo last file-modifying tool call",
+    ),
+    SlashCommandSpec::new(
         SlashCommandId::Commands,
         SlashCommandPattern::Exact("/commands"),
         "/commands",
@@ -545,6 +552,7 @@ fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
         | SlashCommandId::Quit
         | SlashCommandId::Exit
         | SlashCommandId::About => "session + control",
+        SlashCommandId::Undo => "edit + inspect",
     }
 }
 
@@ -579,6 +587,7 @@ fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
         | SlashCommandId::Fork => "manage saved session state",
         SlashCommandId::Quit | SlashCommandId::Exit => "save state and exit",
         SlashCommandId::About => "show build and environment info",
+        SlashCommandId::Undo => "revert last file-modifying tool call from checkpoint stack",
     }
 }
 

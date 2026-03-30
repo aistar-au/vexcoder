@@ -75,7 +75,9 @@ pub fn build_facade_runtime<M: RuntimeMode>(
         config.http_hooks.clone(),
     )
     .with_sandbox(sandbox)
-    .with_mcp_registry(mcp_registry);
+    .with_mcp_registry(mcp_registry)
+    .with_undo_enabled(config.undo.enabled)
+    .with_max_undo_checkpoints(config.undo.max_checkpoints);
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
     let runtime = Runtime::new(mode, update_rx);

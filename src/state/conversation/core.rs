@@ -1,7 +1,7 @@
 use super::super::stream_block::{StreamBlock, ToolStatus};
 use super::{
     history::*, streaming::*, tools::*, ConversationManager, ConversationStreamUpdate,
-    TurnToolPolicy,
+    TurnToolPolicy, UndoCheckpoint,
 };
 use crate::api::stream::StreamParser;
 use crate::runtime::policy::{default_runtime_policy, RuntimeCorePolicy};
@@ -32,6 +32,22 @@ impl ConversationManager {
             for block in blocks {
                 if let ContentBlock::ToolUse { id, .. } = block {
                     self.set_tool_call_status(id, ToolStatus::Executing, stream_delta_tx);
+                }
+            }
+        }
+
+        // Capture undo snapshots before tools run (they may modify files).
+        let mut undo_snapshots: std::collections::HashMap<String, UndoCheckpoint> =
+            std::collections::HashMap::new();
+        if self.undo_enabled {
+            for block in blocks {
+                if let ContentBlock::ToolUse {
+                    id, name, input, ..
+                } = block
+                {
+                    if let Some(checkpoint) = self.capture_undo_snapshot(name, input) {
+                        undo_snapshots.insert(id.clone(), checkpoint);
+                    }
                 }
             }
         }
@@ -77,7 +93,18 @@ impl ConversationManager {
             })
             .collect::<Vec<_>>();
 
-        join_all(executions).await
+        let completed = join_all(executions).await;
+
+        // Push undo checkpoints for tools that succeeded.
+        for call in &completed {
+            if call.result.is_ok() {
+                if let Some(cp) = undo_snapshots.remove(&call.id) {
+                    self.push_undo_checkpoint(cp);
+                }
+            }
+        }
+
+        completed
     }
 
     pub async fn send_message(
@@ -903,6 +930,9 @@ impl ConversationManager {
                             continue;
                         }
 
+                        // Capture undo snapshot before executing the tool.
+                        let undo_snapshot = self.capture_undo_snapshot(&name, &input);
+
                         let result = self
                             .execute_tool_with_timeout_with_updates(
                                 &name,
@@ -911,6 +941,14 @@ impl ConversationManager {
                                 stream_delta_tx,
                             )
                             .await;
+
+                        // Push checkpoint only on success.
+                        if result.is_ok() {
+                            if let Some(cp) = undo_snapshot {
+                                self.push_undo_checkpoint(cp);
+                            }
+                        }
+
                         if use_structured_blocks {
                             let final_status = if result.is_err() {
                                 ToolStatus::Error

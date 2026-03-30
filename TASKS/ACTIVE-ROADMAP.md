@@ -25,6 +25,7 @@ Last updated: 2026-03-30 (5 feature branches bootstrapped on remote; draft PRs o
 | ADR-032 | Accepted | 0 items remaining | Items 1-8 complete; item 4-5 verified Tier 5; item 9 transferred to ADR-033 |
 | ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate snapshot + broadcast fan-out; PR #261 closes Phase E watch-stream |
+| ADR-035 | Accepted | 0 items remaining | Gap 14 `/undo` rollback strategy is now specified and implemented with binary-safe checkpoints |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
