@@ -6,6 +6,7 @@
 #
 # Example:
 #   bash scripts/bump-version.sh 0.1.0-alpha.4
+#   bash scripts/bump-version.sh 0.1.0-rc.1
 #
 # The script:
 #   1. Validates the version against semver format.
@@ -34,6 +35,19 @@ if ! echo "$NEW_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[a-
   echo "Expected format: MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-PRERELEASE"
   echo "Examples: 0.1.0, 0.1.0-alpha.3, 1.0.0-beta.1, 1.0.0-rc.1"
   exit 1
+fi
+
+if [[ "$NEW_VERSION" == *-* ]]; then
+  prerelease="${NEW_VERSION#*-}"
+  IFS='.' read -r -a prerelease_identifiers <<< "$prerelease"
+  for identifier in "${prerelease_identifiers[@]}"; do
+    if [[ "$identifier" =~ ^[0-9]+$ ]] && [[ ${#identifier} -gt 1 ]] && [[ "$identifier" == 0* ]]; then
+      echo "FAIL: '$NEW_VERSION' is not a valid semver string."
+      echo "Numeric pre-release identifiers must not contain leading zeros."
+      echo "Use 'rc.1' instead of 'rc.01'."
+      exit 1
+    fi
+  done
 fi
 
 # Read current version from Cargo.toml.
