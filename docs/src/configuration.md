@@ -48,6 +48,79 @@ reasoning budget, and structured-tool fallback). Relative paths are resolved
 from the workspace repo root when one is available, otherwise from the current
 working directory.
 
+## Feature config sections
+
+### `[compaction]`
+
+Controls proactive conversation compaction. When enabled, the runtime compacts
+the conversation history when the estimated token count approaches the context
+budget, keeping recent turns verbatim and folding older context into a summary.
+
+| Key | Purpose | Default |
+| :--- | :--- | :--- |
+| `enabled` | Enable proactive compaction | `false` |
+| `threshold_percent` | Compact when token usage exceeds this percentage of the context window (10--99) | `80` |
+| `keep_recent_turns` | Number of most-recent turns kept verbatim after compaction (1--32) | `4` |
+| `summary_max_tokens` | Maximum tokens for the compaction summary (64--4096) | `1024` |
+
+```toml
+[compaction]
+enabled = true
+threshold_percent = 75
+keep_recent_turns = 6
+```
+
+### `[undo]`
+
+Controls the in-memory checkpoint stack used by `/undo`.
+
+| Key | Purpose | Default |
+| :--- | :--- | :--- |
+| `enabled` | Whether `/undo` is available | `true` |
+| `max_checkpoints` | Maximum checkpoints kept per session | `20` |
+
+```toml
+[undo]
+enabled = true
+max_checkpoints = 30
+```
+
+### `[search]`
+
+Controls structural index builds and `codebase_search` behavior.
+
+| Key | Purpose | Default |
+| :--- | :--- | :--- |
+| `enabled` | Enable codebase search indexing | `true` |
+| `auto_index` | Rebuild the structural index at session start | `true` |
+| `exclude` | Glob patterns to exclude from indexing | `["target/", "node_modules/", ".git/"]` |
+| `max_file_size` | Skip files larger than this byte count | `1048576` (1 MiB) |
+
+```toml
+[search]
+enabled = true
+auto_index = true
+exclude = ["target/", "node_modules/", ".git/", "vendor/"]
+max_file_size = 524288
+```
+
+### `[auto_memory]`
+
+Controls automatic memory extraction from assistant turns. When enabled, short
+factual notes are extracted after each turn and appended to the notes file with
+timestamped `[auto]` tags.
+
+| Key | Purpose | Default |
+| :--- | :--- | :--- |
+| `enabled` | Enable automatic extraction | `false` |
+| `max_notes_per_turn` | Maximum notes extracted per turn (1--10) | `3` |
+
+```toml
+[auto_memory]
+enabled = true
+max_notes_per_turn = 5
+```
+
 ## Environment variables
 
 ### `VEX_MODEL_URL`

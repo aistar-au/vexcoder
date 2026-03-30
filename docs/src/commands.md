@@ -121,6 +121,7 @@ Commands entered inside the interactive UI start with `/`.
 - `/resume [task-id]` — restore a previously saved task. Lists recent tasks when no ID is given.
 - `/compact` — reset conversation history, turn evidence, and token counters while keeping the current task ID and permission grants. Use this to recover from context-window overflow or to free up context budget.
 - `/fork [label]` — save the current task and start a new task seeded with the same grants.
+- `/undo` — revert the last file-modifying tool call from the in-memory checkpoint stack. Binary-safe: restores raw bytes for text and binary files and removes rename destinations when applicable. Returns a diagnostic when the stack is empty or when undo is disabled via `[undo] enabled = false`.
 - `/quit` / `/exit` — end the session.
 - `/about` — show version and build info.
 
@@ -129,6 +130,9 @@ Commands entered inside the interactive UI start with `/`.
 - `/memory`
 - `/memory add <note>`
 - `/memory clear`
+- `/memory auto on` — enable automatic memory extraction for the current session. After each assistant turn, short factual notes are extracted and appended to the notes file with `[auto]` tags.
+- `/memory auto off` — disable automatic memory extraction for the current session.
+- `/memory auto clear` — remove all `[auto]`-tagged notes from the notes file.
 
 ### Permissions
 
@@ -218,6 +222,8 @@ session totals.
   - Run without starting a model turn.
   - Command output is captured for the transcript, with per-command stdout,
     stderr, and exit status summarized after each command completes.
+- `/reindex`
+  - Rebuilds the codebase structural index in the background without blocking the TUI. Reports completion back to the transcript when finished.
 
 ### Free-form input transforms
 

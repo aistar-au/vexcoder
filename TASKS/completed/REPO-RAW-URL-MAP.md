@@ -46,7 +46,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 32 | `TASKS/PM-04-auto-memory.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PM-04-auto-memory.md> |
 | 33 | `TASKS/TASKS-DISPATCH-MAP.md` | ~93 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
 | 34 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/PL-01-pre-post-tool-hooks.md> |
-| 35 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~281 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
+| 35 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~285 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 36 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | ~423 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md> |
 | 37 | `adr/ADR-022-amendment-2026-03-03.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-03.md> |
 | 38 | `adr/ADR-022-amendment-2026-03-13.md` | ~71 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-13.md> |
@@ -89,8 +89,8 @@ Canonical raw URL index for every tracked file in this repository.
 | 75 | `build.rs` | ~33 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/build.rs> |
 | 76 | `docs/src/SUMMARY.md` | ~13 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/SUMMARY.md> |
 | 77 | `docs/src/architecture.md` | ~59 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/architecture.md> |
-| 78 | `docs/src/commands.md` | ~322 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/commands.md> |
-| 79 | `docs/src/configuration.md` | ~347 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/configuration.md> |
+| 78 | `docs/src/commands.md` | ~328 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/commands.md> |
+| 79 | `docs/src/configuration.md` | ~420 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/configuration.md> |
 | 80 | `docs/src/introduction.md` | ~16 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/introduction.md> |
 | 81 | `docs/src/migration.md` | ~14 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/migration.md> |
 | 82 | `docs/src/quick-start.md` | ~100 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/quick-start.md> |
