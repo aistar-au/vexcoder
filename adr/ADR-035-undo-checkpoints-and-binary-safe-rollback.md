@@ -66,7 +66,7 @@ Key source files:
 - `src/app/commands.rs`
 - `src/state/conversation/tests/undo.rs`
 - `src/config.rs`
-- `src/config/load.rs`
+- `src/config/load/mod.rs`
 
 ## References
 

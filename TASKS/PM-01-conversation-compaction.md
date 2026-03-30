@@ -1,6 +1,6 @@
 # Task PM-01: Conversation Compaction
 
-**Target Files:** `src/state/conversation/history.rs`, `src/state/conversation/core.rs`, `src/state/conversation/tests/history.rs`, `src/runtime/task_state.rs`, `src/app/model_update.rs`, `src/config.rs`, `src/config/load.rs`, `src/api/client.rs`, `src/app/tests/memory.rs`, `src/app/tests/session.rs`, `src/batch_mode.rs`, `tests/integration_test.rs`, `tests/live_server_test.rs`
+**Target Files:** `src/state/conversation/history.rs`, `src/state/conversation/core.rs`, `src/state/conversation/tests/history.rs`, `src/runtime/task_state.rs`, `src/app/model_update.rs`, `src/config.rs`, `src/config/load/mod.rs`, `src/api/client.rs`, `src/app/tests/memory.rs`, `src/app/tests/session.rs`, `src/batch_mode.rs`, `tests/integration_test.rs`, `tests/live_server_test.rs`
 
 **Depends on:** None (green on current main)
 

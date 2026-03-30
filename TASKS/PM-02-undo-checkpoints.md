@@ -3,7 +3,7 @@
 **Target Files:** `src/state/conversation/state.rs`,
 `src/state/conversation/core.rs`, `src/state/conversation/tools.rs`,
 `src/app/commands.rs`, `src/runtime/task_state.rs`, `src/config.rs`,
-`src/config/load.rs`
+`src/config/load/mod.rs`
 
 **Depends on:** None (green on current main)
 

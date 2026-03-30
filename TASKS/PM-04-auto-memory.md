@@ -1,6 +1,6 @@
 # Task PM-04: Auto-Memory
 
-**Target Files:** `src/app/commands.rs`, `src/app/input.rs`, `src/app/turn.rs`, `src/app/turn_start.rs`, `src/session_notes.rs`, `src/runtime/task_state.rs`, `src/config.rs`, `src/config/load.rs`, `src/app/tests/memory.rs`, `src/auto_memory.rs`, `src/app.rs`, `src/app/ctor.rs`, `src/lib.rs`
+**Target Files:** `src/app/commands.rs`, `src/app/input.rs`, `src/app/turn.rs`, `src/app/turn_start.rs`, `src/session_notes.rs`, `src/runtime/task_state.rs`, `src/config.rs`, `src/config/load/mod.rs`, `src/app/tests/memory.rs`, `src/auto_memory.rs`, `src/app.rs`, `src/app/ctor.rs`, `src/lib.rs`
 
 **Depends on:** None (green on current main)
 

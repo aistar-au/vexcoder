@@ -1,6 +1,6 @@
 # Task PM-03: Code Search and Semantic Indexing
 
-**Target Files:** `src/tools/index.rs`, `src/tools/search.rs`, `src/tools/semantic.rs`, `src/state/conversation/tools.rs`, `src/tools/operator.rs`, `src/app/commands.rs`, `src/config.rs`, `src/config/load.rs`, `src/app.rs`, `src/app/ctor.rs`, `src/api/client.rs`, `src/app/tests/memory.rs`, `src/app/tests/session.rs`, `src/batch_mode.rs`, `src/state.rs`, `src/state/conversation.rs`, `tests/integration_test.rs`, `tests/live_server_test.rs`
+**Target Files:** `src/tools/index.rs`, `src/tools/search.rs`, `src/tools/semantic.rs`, `src/state/conversation/tools.rs`, `src/tools/operator.rs`, `src/app/commands.rs`, `src/config.rs`, `src/config/load/mod.rs`, `src/app.rs`, `src/app/ctor.rs`, `src/api/client.rs`, `src/app/tests/memory.rs`, `src/app/tests/session.rs`, `src/batch_mode.rs`, `src/state.rs`, `src/state/conversation.rs`, `tests/integration_test.rs`, `tests/live_server_test.rs`
 
 **Depends on:** None (green on current main)
 
