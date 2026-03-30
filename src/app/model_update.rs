@@ -1,4 +1,5 @@
 use super::*;
+use crate::status_contract::is_waiting_placeholder;
 
 impl TuiMode {
     pub(super) fn on_model_update(&mut self, update: UiUpdate, ctx: &mut RuntimeContext) {
@@ -45,7 +46,7 @@ impl TuiMode {
                 };
                 if let Some(line) = self.history_state.lines.get_mut(idx) {
                     // Clear the waiting placeholder on first real content.
-                    if line.starts_with("[waiting for response...]") {
+                    if is_waiting_placeholder(line) {
                         line.clear();
                     }
                     line.push_str(&text);
@@ -61,7 +62,7 @@ impl TuiMode {
                 // Clear the waiting placeholder when a tool block arrives.
                 if let Some(idx) = self.history_state.active_assistant_index {
                     if let Some(line) = self.history_state.lines.get_mut(idx) {
-                        if line.starts_with("[waiting for response...]") {
+                        if is_waiting_placeholder(line) {
                             line.clear();
                         }
                     }

@@ -32,7 +32,7 @@ fn first_draw_writes_full_screen() {
         vec![TimelineEntry {
             step_id: 1,
             lifecycle: StepLifecycle::Running,
-            label: "read_file: running...".into(),
+            label: "read_file: Mapping adjacent sectors...".into(),
             detail: String::new(),
             session_id: None,
         }],
@@ -312,7 +312,7 @@ fn enriched_paragraph_output_renders_paragraph_markers() {
     let state = make_state(
         vec![],
         vec![
-            "[tool] read_file · src/main.rs · completed",
+            "[tool] read_file · src/main.rs · State synchronized.",
             "[detail] Scope: Read file content",
             "[detail] Command: read_file",
             "[detail] Result: 42 lines read from src/main.rs",
@@ -348,7 +348,7 @@ fn enriched_paragraph_output_renders_paragraph_markers() {
         "detail label and value must appear in output"
     );
     assert!(
-        output.contains("\x1b[38;5;2mcompleted"),
+        output.contains("\x1b[38;5;2mState synchronized."),
         "completed status should use the success accent color"
     );
     assert!(
@@ -364,7 +364,7 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
     let state = make_state(
         vec![],
         vec![
-            "[tool] bash · exit code 0 · completed",
+            "[tool] bash · exit code 0 · State synchronized.",
             "[detail] Scope: Tool invocation recorded in the completed turn.",
             "[detail] Command: bash",
             "[detail] Result: exit code 0",
@@ -402,7 +402,7 @@ fn paragraph_tree_summary_prefers_target_hint() {
     let state = make_state(
         vec![],
         vec![
-            "[tool] read_file · 42 lines read from src/main.rs · completed",
+            "[tool] read_file · 42 lines read from src/main.rs · State synchronized.",
             "[detail] Scope: Read file content",
             "[detail] Command: read_file",
             "[detail] Result: 42 lines read from src/main.rs",
@@ -439,7 +439,7 @@ fn paragraph_block_uses_four_to_six_lines_per_tool() {
     let state = make_state(
         vec![],
         vec![
-            "[tool] read_file · ok · completed",
+            "[tool] read_file · State synchronized.",
             "[detail] Scope: Read file content",
             "[detail] Command: read_file",
             "[detail] Result: ok",
@@ -524,9 +524,22 @@ fn command_session_start_includes_running_status_and_pid() {
     );
     assert!(output.contains("pid 42"), "pid detail must render");
     assert!(
-        output.contains("\x1b[38;5;6mrunning"),
+        output.contains("\x1b[38;5;5mMapping adjacent sectors..."),
         "command session summary must keep the running status accent: {output}"
     );
+}
+
+#[test]
+fn waiting_placeholder_uses_spatial_progress_copy() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[thinking] Mapping adjacent sectors..."]);
+
+    draw.draw(&mut buf, &state, 100, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(output.contains("Mapping adjacent sectors..."));
+    assert!(output.contains("\x1b[38;5;5m"));
 }
 
 #[test]
@@ -659,7 +672,7 @@ fn fullscreen_surface_hides_top_header_chrome() {
         timeline_entries: vec![TimelineEntry {
             step_id: 1,
             lifecycle: StepLifecycle::Running,
-            label: "read_file: running".into(),
+            label: "read_file: Mapping adjacent sectors...".into(),
             detail: String::new(),
             session_id: None,
         }],
@@ -1107,7 +1120,7 @@ fn progress_indicator_shown_for_running_tasks() {
         vec![TimelineEntry {
             step_id: 1,
             lifecycle: StepLifecycle::Running,
-            label: "build: running...".into(),
+            label: "build: Mapping adjacent sectors...".into(),
             detail: String::new(),
             session_id: None,
         }],
@@ -1205,7 +1218,10 @@ fn tool_paragraph_header_renders_with_cosmic_marker() {
 fn tool_detail_renders_at_four_space_indent() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
-    let state = make_state(vec![], vec!["[detail] Status: completed, 42 lines"]);
+    let state = make_state(
+        vec![],
+        vec!["[detail] Status: State synchronized., 42 lines"],
+    );
 
     draw.draw(&mut buf, &state, 80, 24);
     let output = String::from_utf8_lossy(&buf);
@@ -1243,7 +1259,7 @@ fn paragraph_block_disclosure_levels_render_as_tree() {
         vec![],
         vec![
             "[tool] read_file src/main.rs",
-            "[detail] Status: completed, 42 lines",
+            "[detail] Status: State synchronized., 42 lines",
             "[detail] Path: src/main.rs",
             "[evidence] fn main() {",
             "[evidence]     println!(\"hello\");",

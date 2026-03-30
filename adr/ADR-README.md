@@ -35,7 +35,7 @@ All ADR files live under `adr/`.
 | [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Hardening landed for serialized concurrency caps, prompt guard, explicit release, and normalized watch/boundary coverage |
 | [ADR-035](ADR-035-undo-checkpoints-and-binary-safe-rollback.md) | Undo checkpoints and binary-safe rollback | Accepted | 0 items remaining; Gap 14 rollback strategy formalized for `/undo` |
 | [ADR-038](ADR-038-memory-first-architecture-with-minimal-disk-io.md) | Memory-first architecture with minimal disk I/O | Accepted (Batches D-H merged) | 0 items remaining |
-| [ADR-039](ADR-039-neutral-cli-voice-and-spatial-status-language.md) | Neutral CLI voice and spatial status language | Proposed | Batches A-D: low-gain rollout from status anchors and color feedback to vocabulary, active indicator, and paragraph progress stream |
+| [ADR-039](ADR-039-neutral-cli-voice-and-spatial-status-language.md) | Neutral CLI voice and spatial status language | Proposed | Batch A status anchors and semantic color feedback implemented in branch; remaining batches B-D cover vocabulary, active indicator, and paragraph progress stream |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 
@@ -55,17 +55,18 @@ the top-level `adr/` directory pending a housekeeping move.
 
 ADR-039 now tracks the proposed operator-facing CLI voice lane: neutral spatial
 vocabulary, status-copy normalization, semantic ANSI roles, and the
-paragraph-oriented progress stream for long-running tasks. The rollout is
-intentionally low-gain at first: `Mapping adjacent sectors...`,
-`State synchronized.`, and semantic color feedback land on existing surfaces
-before the broader vocabulary sweep or transcript restructuring. ADR-038 is
-accepted and complete. The only deferred external prerequisite remains ADR-024
-PG-03 tap auto-dispatch, which stays blocked until the separate tap repository
-exists. Full history and ADR status detail live in `TASKS/ACTIVE-ROADMAP.md`.
+paragraph-oriented progress stream for long-running tasks. Batch A is
+implemented in this branch: `Mapping adjacent sectors...`,
+`State synchronized.`, and semantic color feedback now land on existing
+surfaces. Remaining work covers the broader vocabulary sweep, active
+indicator, and paragraph-stream restructuring. ADR-038 is accepted and
+complete. The only deferred external prerequisite remains ADR-024 PG-03 tap
+auto-dispatch, which stays blocked until the separate tap repository exists.
+Full history and ADR status detail live in `TASKS/ACTIVE-ROADMAP.md`.
 
 | Tier | Source | Items | Description |
 | :--- | :--- | :--- | :--- |
-| 11 | ADR-039 | 4 | Remaining batches: status anchors and color feedback, broader vocabulary pass, active indicator, paragraph progress stream |
+| 11 | ADR-039 | 3 | Remaining batches: broader vocabulary pass, active indicator, paragraph progress stream |
 | 8 | ADR-024 G/H + ADR-022 | 1 | Deferred external prerequisite: tap repository auto-dispatch |
 
 ## Completed ADR Records

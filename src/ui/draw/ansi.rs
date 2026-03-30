@@ -75,7 +75,7 @@ pub(super) fn lifecycle_color(lifecycle: &StepLifecycle) -> u8 {
     match lifecycle {
         StepLifecycle::Completed => GREEN,
         StepLifecycle::Failed => RED,
-        StepLifecycle::Running => CYAN,
+        StepLifecycle::Running => MAGENTA,
         StepLifecycle::AwaitingApproval => YELLOW,
         StepLifecycle::Approved => GREEN,
         StepLifecycle::UserInput => DIM_GRAY,

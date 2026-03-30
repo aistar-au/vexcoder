@@ -1,4 +1,5 @@
 use super::*;
+use crate::status_contract::waiting_for_response_line;
 
 impl TuiMode {
     pub(super) fn on_user_input(&mut self, input: String, ctx: &mut RuntimeContext) {
@@ -71,7 +72,7 @@ impl TuiMode {
         // Show a waiting indicator until the first streaming token arrives.
         let wait_idx = self.history_state.lines.len() - 1;
         if let Some(line) = self.history_state.lines.get_mut(wait_idx) {
-            *line = "[waiting for response...]".to_string();
+            *line = waiting_for_response_line().to_string();
         }
         self.history_state.active_assistant_index = Some(wait_idx);
         self.history_state.turn_in_progress = true;

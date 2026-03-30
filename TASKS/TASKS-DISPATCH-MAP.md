@@ -36,7 +36,7 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-034-multi-agent-parallel-task-execution.md` | Active (Phase A + B-E merged) | Hardening: serialized delegate concurrency enforcement, prompt-length guard, explicit session-task release, handler/stress coverage, and normalized watch status |
 | `adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md` | Accepted | 0 items remaining; Gap 14 rollback strategy formalized for `/undo` |
 | `adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md` | Accepted (Batches D-H merged) | 0 items remaining; ADR-038 post-merge bug fix landed in PR #284 |
-| `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | Proposed | 4 batches (A-D): low-gain status anchors and color feedback first, then vocabulary, active indicator, and paragraph progress stream |
+| `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | Proposed | Batch A status anchors and semantic color feedback implemented in branch; 3 remaining batches (B-D): vocabulary, active indicator, paragraph progress stream |
 
 ### Moved to completed/ (2026-03-27)
 
@@ -48,11 +48,12 @@ ADR-023 is complete (EL-01 through EL-13) and remains in `adr/`.
 Tiers 1–10 are complete for existing in-tree work. ADR-039 now defines the
 next proposed operator-surface lane around neutral spatial CLI voice, status
 copy, ANSI semantic roles, and paragraph-oriented long-running progress text.
-That rollout starts with `Mapping adjacent sectors...`, `State synchronized.`,
-and semantic color feedback on existing surfaces before it broadens the
-vocabulary set or introduces the denser paragraph stream. The
-only deferred external follow-up remains ADR-024 PG-03 tap auto-dispatch,
-which stays deferred until the separate tap repository exists.
+Batch A is implemented in this branch: `Mapping adjacent sectors...`,
+`State synchronized.`, and semantic color feedback now land on existing
+surfaces. Remaining work covers the broader vocabulary set, active indicator,
+and denser paragraph stream. The only deferred external follow-up remains
+ADR-024 PG-03 tap auto-dispatch, which stays deferred until the separate tap
+repository exists.
 
 | Tier | Source | Items | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
@@ -65,7 +66,7 @@ which stays deferred until the separate tap repository exists.
 | ~~7~~ | ADR-021 P3 | ~~1~~ | Complete (2026-03-28) | Item 33 idle backoff tuning comment added |
 | 8 | ADR-024 G/H + ADR-022 | 1 | Deferred (external prerequisite) | Tap repository auto-dispatch after the separate tap repo is created |
 | ~~9~~ | Multiple | ~~1~~ | Complete (2026-03-28) | ADR-028 status verified; grouped, multiline, and relative `super::` import checks close the remaining known `server`/`bin` test bypasses |
-| 11 | ADR-039 | 4 | Proposed | Status anchors and color feedback, broader vocabulary pass, active indicator, paragraph progress stream |
+| 11 | ADR-039 | 3 | Proposed | Broader vocabulary pass, active indicator, paragraph progress stream |
 
 ## Immediate Dependency Notes
 

@@ -1,4 +1,7 @@
 use super::*;
+use crate::status_contract::{
+    completed_status_label, pending_status_label, waiting_for_response_line,
+};
 
 struct TaskStepView {
     step_id: u64,
@@ -111,7 +114,7 @@ impl TuiMode {
                 let status = match lifecycle {
                     StepLifecycle::AwaitingApproval => "awaiting approval",
                     StepLifecycle::Approved => "approved",
-                    _ => "running...",
+                    _ => pending_status_label(),
                 };
                 entries.push(TaskStepView {
                     step_id: pending.step_id,
@@ -130,13 +133,14 @@ impl TuiMode {
                 .pid
                 .map(|pid| pid.to_string())
                 .unwrap_or_else(|| "pending".to_string());
+            let display_status = display_status_text(&session.status);
             entries.push(TaskStepView {
                 step_id: session.id,
                 lifecycle: StepLifecycle::CommandSession,
-                label: format!("{}: {}", session.command, session.status),
+                label: format!("{}: {}", session.command, display_status),
                 detail: format!(
                     "command: {}\npid: {}\nstatus: {}",
-                    session.command, pid, session.status,
+                    session.command, pid, display_status,
                 ),
                 session_id: Some(session.id),
             });
@@ -225,7 +229,7 @@ impl TuiMode {
         {
             if self.current_turn_response.is_empty() {
                 if let Some(last) = rows.last_mut() {
-                    *last = "[awaiting model response]".to_string();
+                    *last = waiting_for_response_line().to_string();
                 }
             } else {
                 rows.pop();
@@ -347,9 +351,21 @@ impl TuiMode {
     }
 }
 
+fn display_status_text(status: &str) -> &str {
+    match status {
+        "running" => pending_status_label(),
+        "completed" => completed_status_label(),
+        _ => status,
+    }
+}
+
 fn timeline_label_for_invocation(invocation: &ToolInvocationSummary) -> String {
     let is_error = tool_outcome_is_error(&invocation.outcome);
-    let status_label = if is_error { "failed" } else { "completed" };
+    let status_label = if is_error {
+        "failed"
+    } else {
+        completed_status_label()
+    };
     let first_line = invocation
         .outcome
         .lines()
@@ -367,7 +383,7 @@ fn timeline_label_for_invocation(invocation: &ToolInvocationSummary) -> String {
             "{} · {} · {}",
             invocation.name, target_summary, status_label
         )
-    } else if result_summary == status_label {
+    } else if result_summary == status_label || (!is_error && result_summary == "ok") {
         format!("{} · {}", invocation.name, status_label)
     } else {
         format!(
@@ -546,7 +562,7 @@ mod tests {
 
         assert_eq!(
             timeline_label_for_invocation(&invocation),
-            "read_file · src/main.rs · completed"
+            "read_file · src/main.rs · State synchronized."
         );
     }
 

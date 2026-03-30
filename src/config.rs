@@ -178,7 +178,7 @@ pub struct SearchConfig {
     pub enabled: bool,
     /// Rebuild the structural index at session start.
     pub auto_index: bool,
-    /// Glob patterns to exclude from indexing.
+    /// Workspace-relative path prefixes to exclude from indexing.
     pub exclude: Vec<String>,
     /// Skip files larger than this byte count (default 1 MiB).
     pub max_file_size: usize,

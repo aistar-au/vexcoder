@@ -2,4 +2,4 @@
 source: tests/tui_draw_snapshots.rs
 expression: rendered
 ---
- │ hello[waiting for response...]Prompt                                                         focused · 0 chars› submit: / commands  @ files  ! shell   PgUp/PgDn transcript  Shift+Enter newline  Enter submit          task:snap-001
+ │ hello ⠇ Mapping adjacent sectors...Prompt                                                         focused · 0 chars› submit: / commands  @ files  ! shell   PgUp/PgDn transcript  Shift+Enter newline  Enter submit          task:snap-001

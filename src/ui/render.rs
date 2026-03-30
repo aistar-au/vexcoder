@@ -1,4 +1,7 @@
 use crate::app::TaskLayoutState;
+use crate::status_contract::{
+    is_waiting_placeholder, pending_status_label, status_tone, StatusTone,
+};
 use crate::ui::input_metrics::{
     char_display_width, cursor_row_col, truncate_to_display_width, visual_row_count,
     visual_window_start, wrap_input_lines,
@@ -325,7 +328,7 @@ fn render_timeline_entry(entry: &crate::app::TimelineEntry, is_selected: bool) -
     let (prefix, prefix_color) = match entry.lifecycle {
         StepLifecycle::Completed => ("[ok]", Color::Green),
         StepLifecycle::Failed => ("[!]", Color::Red),
-        StepLifecycle::Running => ("[->]", Color::Cyan),
+        StepLifecycle::Running => ("[->]", Color::Magenta),
         StepLifecycle::AwaitingApproval => ("[?]", Color::Yellow),
         StepLifecycle::Approved => ("[v]", Color::Green),
         StepLifecycle::UserInput => (">", Color::DarkGray),
@@ -516,7 +519,7 @@ fn centered_modal_area(size: Rect, preferred_height: u16) -> Rect {
 /// Matches the prefixes used in transcript content lines:
 ///   `[ok]`  → green   (completed step)
 ///   `[!]`   → red     (failed/error step)
-///   `[->]`  → cyan    (in-progress orchestration step)
+///   `[->]`  → violet  (in-progress orchestration step)
 ///   `[?]`   → yellow  (approval request)
 ///   `> …`   → dim gray (user prompt echo)
 fn pipeline_activity_line(row: &str) -> Line<'static> {
@@ -543,10 +546,10 @@ fn pipeline_activity_line(row: &str) -> Line<'static> {
             Span::styled(
                 "[->]",
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(Color::Magenta)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled(rest.to_string(), Style::default().fg(Color::Cyan)),
+            Span::styled(rest.to_string(), Style::default().fg(Color::Magenta)),
         ])
     } else if let Some(rest) = row.strip_prefix("[?]") {
         Line::from(vec![
@@ -595,17 +598,34 @@ fn transcript_output_line(row: &str) -> Line<'static> {
                     .add_modifier(Modifier::BOLD),
             ),
         ])
+    } else if is_waiting_placeholder(row) {
+        Line::from(vec![
+            Span::styled(
+                "  ⋯ ",
+                Style::default()
+                    .fg(Color::Magenta)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                pending_status_label().to_string(),
+                Style::default()
+                    .fg(Color::Magenta)
+                    .add_modifier(Modifier::DIM),
+            ),
+        ])
     } else if let Some(rest) = row.strip_prefix("[thinking] ") {
         Line::from(vec![
             Span::styled(
                 "  ⋯ ",
                 Style::default()
-                    .fg(Color::Blue)
+                    .fg(Color::Magenta)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 rest.to_string(),
-                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+                Style::default()
+                    .fg(Color::Magenta)
+                    .add_modifier(Modifier::DIM),
             ),
         ])
     } else if let Some(rest) = row.strip_prefix("[thinking_detail] ") {
@@ -650,7 +670,7 @@ fn transcript_output_line(row: &str) -> Line<'static> {
         let mut spans = vec![Span::styled(
             "  \u{2726} ",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(Color::Magenta)
                 .add_modifier(Modifier::BOLD),
         )];
         if let Some((leading, status)) = split_tool_summary(rest) {
@@ -693,8 +713,13 @@ fn transcript_output_line(row: &str) -> Line<'static> {
         structured_transcript_line(rest, "      ", Some("\u{2727} "))
     } else if let Some((command, pid)) = parse_command_session_started(row) {
         let summary = pid
-            .map(|pid| format!("command session · {command} · pid {pid}"))
-            .unwrap_or_else(|| format!("command session · {command} · running"));
+            .map(|pid| {
+                format!(
+                    "command session · {command} · pid {pid} · {}",
+                    pending_status_label()
+                )
+            })
+            .unwrap_or_else(|| format!("command session · {command} · {}", pending_status_label()));
         transcript_output_line(&format!("[tool] {summary}"))
     } else if let Some(rest) = row.strip_prefix("[command session exit: ") {
         structured_transcript_line(
@@ -884,7 +909,7 @@ fn parse_command_session_started(line: &str) -> Option<(String, Option<String>)>
 fn split_tool_summary(text: &str) -> Option<(Vec<&str>, &str)> {
     let segments: Vec<&str> = text.split(" \u{00b7} ").collect();
     let (status, leading) = segments.split_last()?;
-    if leading.is_empty() || !matches!(*status, "completed" | "failed" | "running") {
+    if leading.is_empty() || status_tone(status).is_none() {
         return None;
     }
     Some((leading.to_vec(), *status))
@@ -892,11 +917,12 @@ fn split_tool_summary(text: &str) -> Option<(Vec<&str>, &str)> {
 
 fn tool_status_style(status: &str) -> Style {
     Style::default()
-        .fg(match status {
-            "completed" => Color::Green,
-            "failed" => Color::Red,
-            "running" => Color::Cyan,
-            _ => Color::White,
+        .fg(match status_tone(status) {
+            Some(StatusTone::Success) => Color::Green,
+            Some(StatusTone::Error) => Color::Red,
+            Some(StatusTone::Progress) => Color::Magenta,
+            Some(StatusTone::Attention) => Color::Yellow,
+            None => Color::White,
         })
         .add_modifier(Modifier::BOLD)
 }
@@ -1251,7 +1277,7 @@ mod tests {
                 crate::app::TimelineEntry {
                     step_id: 2,
                     lifecycle: crate::app::StepLifecycle::Running,
-                    label: "validate: running...".into(),
+                    label: "validate: Mapping adjacent sectors...".into(),
                     detail: "Tool: validate\nInput: ...".into(),
                     session_id: None,
                 },
@@ -1286,7 +1312,8 @@ mod tests {
             "the output pane should remain primary when steps are pending"
         );
         assert!(
-            !flat.contains("Orchestrating") && !flat.contains("validate: running"),
+            !flat.contains("Orchestrating")
+                && !flat.contains("validate: Mapping adjacent sectors..."),
             "the fallback surface should not render a separate top activity pane"
         );
     }
@@ -1299,7 +1326,7 @@ mod tests {
             .map(|index| crate::app::TimelineEntry {
                 step_id: index as u64,
                 lifecycle: crate::app::StepLifecycle::Completed,
-                label: format!("step_{index} · completed"),
+                label: format!("step_{index} · State synchronized."),
                 detail: format!("Tool: step_{index}"),
                 session_id: None,
             })
@@ -1349,7 +1376,7 @@ mod tests {
             timeline_entries: vec![crate::app::TimelineEntry {
                 step_id: 1,
                 lifecycle: crate::app::StepLifecycle::Completed,
-                label: "step_1 · completed".into(),
+                label: "step_1 · State synchronized.".into(),
                 detail: "Tool: step_1".into(),
                 session_id: None,
             }],
@@ -1394,7 +1421,7 @@ mod tests {
 
     #[test]
     fn transcript_output_line_styles_paragraph_markers() {
-        let tool = transcript_output_line("[tool] read_file · ok · completed");
+        let tool = transcript_output_line("[tool] read_file · State synchronized.");
         let detail = transcript_output_line("[detail] Scope: Read file content");
         let evidence = transcript_output_line("[evidence] Outcome: ok");
 
@@ -1417,6 +1444,39 @@ mod tests {
         assert!(tool_text.starts_with("  \u{2726} "));
         assert_eq!(detail_text, "    Scope: Read file content");
         assert!(evidence_text.starts_with("      \u{2727} "));
+    }
+
+    #[test]
+    fn transcript_output_line_styles_waiting_placeholder_as_progress() {
+        let waiting = transcript_output_line("[thinking] Mapping adjacent sectors...");
+
+        let waiting_text: String = waiting
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+
+        assert_eq!(waiting_text, "  ⋯ Mapping adjacent sectors...");
+        assert_eq!(waiting.spans[1].style.fg, Some(Color::Magenta));
+        assert!(waiting.spans[1].style.add_modifier.contains(Modifier::DIM));
+    }
+
+    #[test]
+    fn transcript_output_line_keeps_command_session_progress_status_with_pid() {
+        let command = transcript_output_line("[command session started pid=42] cargo test");
+
+        let command_text: String = command
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+
+        assert!(command_text.contains("pid 42"));
+        assert!(command_text.contains("Mapping adjacent sectors..."));
+        assert_eq!(
+            command.spans.last().map(|span| span.style.fg),
+            Some(Some(Color::Magenta))
+        );
     }
 
     #[test]
