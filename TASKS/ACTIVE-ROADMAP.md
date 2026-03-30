@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-29 (PL-01 maintenance batch -- projection snapshot bugfix: create_dir_all + skip-on-corrupt-file; config test hardening 40 tests; large-file decomposition; server test expansion; dynamic CI parallelism; PL-01 pre/post-tool hooks marked complete)
+Last updated: 2026-03-30 (5 feature branches bootstrapped on remote; draft PRs opened)
 
 ---
 
@@ -121,6 +121,21 @@ ADR-013, ADR-018, ADR-025, ADR-026, ADR-027 moved to completed/.
 ADR-031 status updated to Accepted (Batches A-E merged).
 ADR-033 status updated to Accepted (Phases 1-4 merged).
 ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-25; grouped, multiline, and relative `super::` `server`/`bin` import coverage now closes the remaining known boundary-test bypasses for inner layers.
+
+---
+
+## Active Feature Branches (not yet merged)
+
+| Task | Branch | PR | Status | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| PL-01-ext | `work/vexcoder-http-hooks` | #270 | Implementation complete, draft PR | HTTP webhook support for tool events (`[[http_hooks]]` config section) |
+| PM-01 | `work/vexcoder-conversation-compaction` | #271 | Task manifest only, draft PR | In-memory summarization of older turns when token count exceeds threshold |
+| PM-02 | `work/vexcoder-undo-checkpoints` | #272 | Task manifest only, draft PR | `/undo` slash command and per-change checkpoint stack |
+| PM-03 | `work/vexcoder-code-search` | #273 | Task manifest only, draft PR | Code search hardening and `/reindex` command |
+| PM-04 | `work/vexcoder-auto-memory` | #274 | Task manifest only, draft PR | Automatic extraction of memory-worthy facts from conversation turns |
+
+These branches are pushed to remote with draft PRs. Each contains a task
+manifest in `TASKS/` defining scope, constraints, and anchor tests.
 
 ---
 

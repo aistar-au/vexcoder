@@ -128,6 +128,64 @@ async fn test_hook_pre_tool_runs_before_dispatch() -> Result<()> {
     assert_eq!(std::fs::read_to_string(&hook_file)?, "pre");
     Ok(())
 }
+
+#[cfg(not(windows))]
+#[tokio::test]
+async fn test_http_hook_timeout_aborts_turn() -> Result<()> {
+    let _hook_guard = HOOK_TEST_LOCK.lock().await;
+    let temp = TempDir::new()?;
+    let target = temp.path().join("note.txt");
+    let _ = take_hook_warnings();
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let addr = listener.local_addr()?;
+    let accept_task = tokio::spawn(async move {
+        let (_stream, _) = listener.accept().await.expect("accept hung hook socket");
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    });
+
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let executor = ToolOperator::new(temp.path().to_path_buf());
+    let manager = ConversationManager::new_with_hooks_full(
+        mock_api_client,
+        executor,
+        Vec::new(),
+        vec![crate::config::HttpHookConfig {
+            event: HookEvent::PreTool,
+            tool: "write_file".to_string(),
+            url: format!("http://{addr}/hang"),
+            on_fail: HookOnFail::Abort,
+        }],
+    );
+
+    let (tx, rx) = mpsc::unbounded_channel();
+    let approval_task = approval_responder(rx, true);
+    let result = manager
+        .execute_tool_with_timeout_with_updates(
+            "write_file",
+            &json!({"path": "note.txt", "content": "hello\n"}),
+            Duration::from_millis(200),
+            Some(&tx),
+        )
+        .await;
+    drop(tx);
+    approval_task.await??;
+    accept_task.abort();
+
+    let err = result.expect_err("timed out HTTP hook must abort the tool turn");
+    let message = format!("{err:#}");
+    assert!(
+        message.contains("timed out after 200ms"),
+        "unexpected timeout message: {message}"
+    );
+    assert!(
+        !target.exists(),
+        "timed out pre-tool hook must prevent writes"
+    );
+    Ok(())
+}
 #[cfg(not(windows))]
 #[tokio::test]
 async fn test_hook_on_fail_abort_interrupts_turn() -> Result<()> {

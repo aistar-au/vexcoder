@@ -9,7 +9,7 @@ use crate::types::ModelProfile;
 use crate::util::is_local_endpoint_url;
 
 pub mod hooks;
-pub use hooks::{default_hook_on_fail, HookConfig, HookEvent, HookOnFail};
+pub use hooks::{default_hook_on_fail, HookConfig, HookEvent, HookOnFail, HttpHookConfig};
 
 mod load;
 #[cfg(test)]
@@ -131,6 +131,8 @@ pub struct Config {
     #[serde(default)]
     pub hooks: Vec<HookConfig>,
     #[serde(default)]
+    pub http_hooks: Vec<HttpHookConfig>,
+    #[serde(default)]
     pub mcp_servers: Vec<McpServerConfig>,
 }
 
@@ -172,6 +174,7 @@ struct ConfigLayer {
     notes_path: Option<PathBuf>,
     api: Option<ApiConfigLayer>,
     hooks: Option<Vec<HookConfig>>,
+    http_hooks: Option<Vec<HttpHookConfig>>,
     mcp_servers: Option<Vec<McpServerConfig>>,
 }
 
@@ -243,6 +246,7 @@ impl Config {
             notes_path: None,
             api: ApiConfig::default(),
             hooks: Vec::new(),
+            http_hooks: Vec::new(),
             mcp_servers: Vec::new(),
         }
     }

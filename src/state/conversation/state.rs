@@ -1,6 +1,6 @@
 use super::super::stream_block::StreamBlock;
 use crate::api::ApiClient;
-use crate::config::HookConfig;
+use crate::config::{HookConfig, HttpHookConfig};
 use crate::mcp::McpRegistry;
 use crate::runtime::ConfiguredSandbox;
 use crate::tool_preview::ReadFileSnapshotCache;
@@ -68,6 +68,7 @@ pub struct ConversationManager {
     pub(super) mcp_registry: Option<Arc<McpRegistry>>,
     pub(super) sandbox: ConfiguredSandbox,
     pub(super) hooks: Vec<HookConfig>,
+    pub(super) http_hooks: Vec<HttpHookConfig>,
     pub(super) api_messages: Vec<ApiMessage>,
     pub(super) current_turn_blocks: Vec<StreamBlock>,
     pub(super) current_turn_applied_mutation: bool,
@@ -87,12 +88,22 @@ impl ConversationManager {
         operator: ToolOperator,
         hooks: Vec<HookConfig>,
     ) -> Self {
+        Self::new_with_hooks_full(client, operator, hooks, Vec::new())
+    }
+
+    pub fn new_with_hooks_full(
+        client: ApiClient,
+        operator: ToolOperator,
+        hooks: Vec<HookConfig>,
+        http_hooks: Vec<HttpHookConfig>,
+    ) -> Self {
         Self {
             client: Arc::new(client),
             tool_operator: operator,
             mcp_registry: None,
             sandbox: ConfiguredSandbox::default(),
             hooks,
+            http_hooks,
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
             current_turn_applied_mutation: false,
@@ -145,6 +156,7 @@ impl ConversationManager {
             mcp_registry: None,
             sandbox: ConfiguredSandbox::default(),
             hooks: Vec::new(),
+            http_hooks: Vec::new(),
             api_messages: Vec::new(),
             current_turn_blocks: Vec::new(),
             current_turn_applied_mutation: false,
