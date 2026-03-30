@@ -7,10 +7,6 @@ use crate::prompts::{
     render_generate_tests_prompt, render_plan_prompt, render_review_prompt, CODER_SYSTEM_PROMPT,
 };
 use crate::runtime::context::RuntimeContext;
-use crate::runtime::context_assembler::{
-    block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout, AssembledContext,
-    ContextAssembler,
-};
 use crate::runtime::edit_loop::EditLoop;
 use crate::runtime::frontend::{ScrollAction, ScrollTarget, UserInputEvent};
 use crate::runtime::mode::RuntimeMode;
@@ -21,6 +17,10 @@ use crate::runtime::task_state::SessionNote;
 use crate::runtime::validation::ValidationSuite;
 #[cfg(test)]
 use crate::runtime::CommandResult;
+use crate::runtime::{
+    block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout, AssembledContext,
+    ContextAssembler,
+};
 use crate::runtime::{
     format_command_session_cancelled, format_command_session_exit, format_command_session_output,
     format_command_session_started, truncate_head_bytes, ApprovalScope, Capability, CommandRequest,

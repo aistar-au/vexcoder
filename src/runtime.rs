@@ -3,8 +3,10 @@ pub mod backend;
 pub mod command;
 pub mod context;
 pub mod context_assembler;
+pub mod context_cache;
 pub mod edit_loop;
 pub mod frontend;
+pub mod git_snapshot;
 pub mod json_handoff;
 pub mod r#loop;
 pub mod mode;
@@ -33,6 +35,9 @@ pub use command::{
 };
 pub use context_assembler::{AssembledContext, ContextAssembler, FileSnapshot};
 pub use edit_loop::{EditLoop, EditLoopOutcome};
+pub(crate) use git_snapshot::{
+    block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout,
+};
 pub use json_handoff::{
     RuntimeEnvelope, RuntimeEvent, RuntimeRequest, TokenUsageEnvelope, ValidationOutputEnvelope,
 };

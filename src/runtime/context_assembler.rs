@@ -1,22 +1,18 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::Result;
 use std::collections::HashSet;
-use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::runtime::Handle;
-use tokio::task;
-use tokio::time;
 
+use crate::runtime::context_cache::{read_cached_file, CachedFileRead};
+use crate::runtime::git_snapshot::{collect_git_snapshot, resolve_git_timeout_ms};
 use crate::runtime::text_util::truncate_head_bytes;
 use crate::tools::ToolOperator;
+use crate::util::parse_bool_flag;
 
 const DEFAULT_MAX_FILE_BYTES: usize = 32_768;
 const DEFAULT_MAX_DIFF_LINES: usize = 200;
 const DEFAULT_MAX_RELATED: usize = 3;
 const DEFAULT_GIT_TIMEOUT_MS: u64 = 2_000;
+const DEFAULT_INCLUDE_GIT_CONTEXT: bool = false;
 const STANDALONE_PATH_EXTENSIONS: &[&str] = &["rs", "toml", "md", "txt", "json", "sh"];
 
 #[derive(Debug, Clone)]
@@ -25,6 +21,8 @@ pub struct AssembledContext {
     pub git_status_summary: Option<String>,
     pub recent_diff: Option<String>,
     pub related_paths: Vec<PathBuf>,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +38,7 @@ pub struct ContextAssembler {
     pub max_diff_lines: usize,
     pub max_related: usize,
     pub git_timeout_ms: u64,
+    pub include_git_context: bool,
 }
 
 impl Default for ContextAssembler {
@@ -49,17 +48,25 @@ impl Default for ContextAssembler {
             max_diff_lines: DEFAULT_MAX_DIFF_LINES,
             max_related: DEFAULT_MAX_RELATED,
             git_timeout_ms: DEFAULT_GIT_TIMEOUT_MS,
+            include_git_context: resolve_include_git_context(DEFAULT_INCLUDE_GIT_CONTEXT),
         }
     }
 }
 
 impl ContextAssembler {
+    pub fn with_git_context(mut self, enabled: bool) -> Self {
+        self.include_git_context = enabled;
+        self
+    }
+
     /// Assemble context for the given instruction.
     pub fn assemble(&self, instruction: &str, operator: &ToolOperator) -> Result<AssembledContext> {
         let timeout_ms = resolve_git_timeout_ms(self.git_timeout_ms);
         let mut file_snapshots = Vec::new();
         let mut related_paths = Vec::new();
         let mut seen_paths = HashSet::new();
+        let mut cache_hits = 0;
+        let mut cache_misses = 0;
 
         // All explicitly named paths are captured without a count cap.
         // The max_related cap applies only to *inferred* related paths below.
@@ -68,8 +75,16 @@ impl ContextAssembler {
             if !seen_paths.insert(path.clone()) {
                 continue;
             }
-            let snapshot =
-                snapshot_from_read(path, operator.read_file(&candidate), self.max_file_bytes);
+            let (snapshot, cache_hit) = snapshot_from_read(
+                path,
+                read_cached_file(operator, &candidate),
+                self.max_file_bytes,
+            );
+            if cache_hit {
+                cache_hits += 1;
+            } else if snapshot.content.is_some() {
+                cache_misses += 1;
+            }
             file_snapshots.push(snapshot);
         }
 
@@ -92,10 +107,15 @@ impl ContextAssembler {
                     continue;
                 }
                 let candidate = inferred.to_string_lossy().replace('\\', "/");
-                let Ok(content) = operator.read_file(&candidate) else {
+                let Ok(read) = read_cached_file(operator, &candidate) else {
                     continue;
                 };
-                let (content, truncated) = truncate_head_bytes(&content, self.max_file_bytes);
+                let (content, truncated) = truncate_head_bytes(&read.content, self.max_file_bytes);
+                if read.cache_hit {
+                    cache_hits += 1;
+                } else {
+                    cache_misses += 1;
+                }
                 file_snapshots.push(FileSnapshot {
                     path: inferred.clone(),
                     content: Some(content),
@@ -105,52 +125,30 @@ impl ContextAssembler {
             }
         }
 
-        let working_dir = operator.working_dir().to_path_buf();
-        let git_status = block_on_context_task(run_git_command_with_timeout(
-            working_dir.clone(),
-            vec!["status".to_string(), "--short".to_string()],
-            timeout_ms,
-        ))?;
-
-        if git_status.non_git_repo {
+        if !self.include_git_context {
             return Ok(AssembledContext {
                 file_snapshots,
                 git_status_summary: None,
                 recent_diff: None,
                 related_paths,
+                cache_hits,
+                cache_misses,
             });
         }
 
-        let git_diff = block_on_context_task(run_git_command_with_timeout(
-            working_dir,
-            vec!["diff".to_string(), "HEAD".to_string()],
+        let git_snapshot = collect_git_snapshot(
+            operator.working_dir().to_path_buf(),
             timeout_ms,
-        ))?;
-
-        let mut git_status_summary = git_status.output;
-        let recent_diff = git_diff
-            .output
-            .map(|value| limit_lines(&value, self.max_diff_lines));
-
-        if git_status.timed_out {
-            append_annotation(
-                &mut git_status_summary,
-                format!("[context: git status timed out after {}ms]", timeout_ms),
-            );
-        }
-
-        if git_diff.timed_out {
-            append_annotation(
-                &mut git_status_summary,
-                format!("[context: git diff timed out after {}ms]", timeout_ms),
-            );
-        }
+            self.max_diff_lines,
+        )?;
 
         Ok(AssembledContext {
             file_snapshots,
-            git_status_summary,
-            recent_diff,
+            git_status_summary: git_snapshot.git_status_summary,
+            recent_diff: git_snapshot.recent_diff,
             related_paths,
+            cache_hits,
+            cache_misses,
         })
     }
 
@@ -226,173 +224,18 @@ impl ContextAssembler {
     }
 }
 
-#[derive(Default)]
-pub(crate) struct GitCommandResult {
-    pub(crate) output: Option<String>,
-    pub(crate) non_git_repo: bool,
-    pub(crate) timed_out: bool,
-}
-
-/// Append `annotation` to `summary`, separated by a newline when a non-empty
-/// summary already exists. Used to accumulate timeout notices onto the git
-/// status field without duplicating the append pattern at each call site.
-fn append_annotation(summary: &mut Option<String>, annotation: String) {
-    *summary = Some(match summary.take() {
-        Some(existing) if !existing.is_empty() => format!("{existing}\n{annotation}"),
-        _ => annotation,
-    });
-}
-
-pub(crate) async fn run_git_command_with_timeout(
-    working_dir: PathBuf,
-    args: Vec<String>,
-    timeout_ms: u64,
-) -> Result<GitCommandResult> {
-    let cancel = Arc::new(AtomicBool::new(false));
-    let cancel_for_task = Arc::clone(&cancel);
-    let mut job =
-        task::spawn_blocking(move || run_git_command_blocking(working_dir, args, cancel_for_task));
-
-    match time::timeout(Duration::from_millis(timeout_ms), &mut job).await {
-        Ok(join_result) => join_result.context("git command task join failed")?,
-        Err(_) => {
-            cancel.store(true, Ordering::SeqCst);
-            match job.await {
-                Ok(Ok(mut result)) => {
-                    result.timed_out = true;
-                    Ok(result)
-                }
-                Ok(Err(_)) => Ok(GitCommandResult {
-                    timed_out: true,
-                    ..GitCommandResult::default()
-                }),
-                Err(_) => Ok(GitCommandResult {
-                    timed_out: true,
-                    ..GitCommandResult::default()
-                }),
-            }
-        }
-    }
-}
-
-fn run_git_command_blocking(
-    working_dir: PathBuf,
-    args: Vec<String>,
-    cancel: Arc<AtomicBool>,
-) -> Result<GitCommandResult> {
-    let mut child = Command::new("git")
-        .current_dir(working_dir)
-        .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .context("failed to spawn git command")?;
-
-    let mut stdout = child.stdout.take().context("missing git stdout pipe")?;
-    let mut stderr = child.stderr.take().context("missing git stderr pipe")?;
-    let stdout_thread = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        let _ = stdout.read_to_end(&mut buf);
-        buf
-    });
-    let stderr_thread = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        let _ = stderr.read_to_end(&mut buf);
-        buf
-    });
-
-    loop {
-        if cancel.load(Ordering::SeqCst) {
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = stdout_thread.join();
-            let _ = stderr_thread.join();
-            return Ok(GitCommandResult {
-                timed_out: true,
-                ..GitCommandResult::default()
-            });
-        }
-
-        if let Some(status) = child.try_wait().context("failed waiting for git command")? {
-            let stdout_bytes = stdout_thread.join().unwrap_or_default();
-            let stderr_bytes = stderr_thread.join().unwrap_or_default();
-            let stdout_buf = String::from_utf8_lossy(&stdout_bytes);
-            let stderr_buf = String::from_utf8_lossy(&stderr_bytes);
-
-            if status.success() {
-                return Ok(GitCommandResult {
-                    output: Some(stdout_buf.trim().to_string()),
-                    ..GitCommandResult::default()
-                });
-            }
-
-            if stderr_buf
-                .to_ascii_lowercase()
-                .contains("not a git repository")
-            {
-                return Ok(GitCommandResult {
-                    non_git_repo: true,
-                    ..GitCommandResult::default()
-                });
-            }
-
-            return Ok(GitCommandResult::default());
-        }
-
-        std::thread::sleep(Duration::from_millis(10));
-    }
-}
-
-pub(crate) fn block_on_context_task<F, T>(future: F) -> Result<T>
-where
-    F: std::future::Future<Output = Result<T>> + Send + 'static,
-    T: Send + 'static,
-{
-    if let Ok(handle) = Handle::try_current() {
-        return match handle.runtime_flavor() {
-            tokio::runtime::RuntimeFlavor::MultiThread => {
-                Ok(tokio::task::block_in_place(|| handle.block_on(future))?)
-            }
-            tokio::runtime::RuntimeFlavor::CurrentThread => block_on_new_runtime_thread(future),
-            _ => block_on_new_runtime_thread(future),
-        };
-    }
-
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .context("failed to build runtime for ContextAssembler")?;
-    runtime.block_on(future)
-}
-
-fn block_on_new_runtime_thread<F, T>(future: F) -> Result<T>
-where
-    F: std::future::Future<Output = Result<T>> + Send + 'static,
-    T: Send + 'static,
-{
-    std::thread::spawn(move || {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .context("failed to build runtime for ContextAssembler")?;
-        runtime.block_on(future)
-    })
-    .join()
-    .map_err(|_| anyhow!("failed to join ContextAssembler runtime thread"))?
-}
-
-pub(crate) fn resolve_git_timeout_ms(default_ms: u64) -> u64 {
-    match std::env::var("VEX_CONTEXT_GIT_TIMEOUT_MS") {
-        Ok(value) => match value.trim().parse::<u64>() {
-            Ok(parsed) => parsed,
-            Err(_) => {
+fn resolve_include_git_context(default_enabled: bool) -> bool {
+    match std::env::var("VEX_CONTEXT_INCLUDE_GIT") {
+        Ok(value) if !value.trim().is_empty() => match parse_bool_flag(value.clone()) {
+            Some(enabled) => enabled,
+            None => {
                 eprintln!(
-                    "[context] invalid VEX_CONTEXT_GIT_TIMEOUT_MS={value:?}; using default {default_ms}ms"
-                );
-                default_ms
+                        "[context] invalid VEX_CONTEXT_INCLUDE_GIT={value:?}; using default {default_enabled}"
+                    );
+                default_enabled
             }
         },
-        Err(_) => default_ms,
+        _ => default_enabled,
     }
 }
 
@@ -450,23 +293,29 @@ fn extract_candidate_paths(instruction: &str) -> Vec<String> {
 
 fn snapshot_from_read(
     path: PathBuf,
-    result: Result<String>,
+    result: Result<CachedFileRead>,
     max_file_bytes: usize,
-) -> FileSnapshot {
+) -> (FileSnapshot, bool) {
     match result {
-        Ok(content) => {
-            let (content, truncated) = truncate_head_bytes(&content, max_file_bytes);
+        Ok(read) => {
+            let (content, truncated) = truncate_head_bytes(&read.content, max_file_bytes);
+            (
+                FileSnapshot {
+                    path,
+                    content: Some(content),
+                    truncated,
+                },
+                read.cache_hit,
+            )
+        }
+        Err(_) => (
             FileSnapshot {
                 path,
-                content: Some(content),
-                truncated,
-            }
-        }
-        Err(_) => FileSnapshot {
-            path,
-            content: None,
-            truncated: false,
-        },
+                content: None,
+                truncated: false,
+            },
+            false,
+        ),
     }
 }
 
@@ -586,13 +435,6 @@ fn extract_quoted_specifier(line: &str) -> Option<&str> {
     None
 }
 
-fn limit_lines(text: &str, max_lines: usize) -> String {
-    if max_lines == 0 {
-        return String::new();
-    }
-    text.lines().take(max_lines).collect::<Vec<_>>().join("\n")
-}
-
 #[cfg(test)]
 mod tests {
     use super::ContextAssembler;
@@ -669,6 +511,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_context_assembler_reuses_cached_snapshots_between_calls() {
+        crate::runtime::context_cache::reset_context_cache_for_tests();
+        let workspace = tempfile::tempdir().expect("tempdir");
+        fs::write(workspace.path().join("note.txt"), "cache me\n").expect("write note");
+
+        let operator = ToolOperator::new(workspace.path().to_path_buf());
+        let assembler = ContextAssembler::default();
+        let first = assembler
+            .assemble("inspect note.txt", &operator)
+            .expect("first assemble failed");
+        let second = assembler
+            .assemble("inspect note.txt", &operator)
+            .expect("second assemble failed");
+
+        assert_eq!(
+            first.cache_hits, 0,
+            "first assemble must cold-read the file"
+        );
+        assert_eq!(
+            first.cache_misses, 1,
+            "first assemble must record one cache miss"
+        );
+        assert!(
+            second.cache_hits >= 1,
+            "second assemble should reuse the in-memory snapshot cache"
+        );
+        assert_eq!(
+            second.cache_misses, 0,
+            "second assemble should not reread the unchanged file from disk"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_context_assembler_default_skips_git_context() {
+        let _lock = crate::test_support::ENV_LOCK.lock().await;
+        let workspace = tempfile::tempdir().expect("tempdir");
+        init_git_repo(workspace.path());
+        fs::write(workspace.path().join("note.txt"), "note\n").expect("write note");
+        std::env::remove_var("VEX_CONTEXT_INCLUDE_GIT");
+
+        let operator = ToolOperator::new(workspace.path().to_path_buf());
+        let assembler = ContextAssembler::default();
+        let ctx = assembler
+            .assemble("inspect note.txt", &operator)
+            .expect("assemble failed");
+
+        assert!(ctx.git_status_summary.is_none());
+        assert!(ctx.recent_diff.is_none());
+    }
+
+    #[tokio::test]
     async fn test_context_assembler_infers_related_paths_from_rust_use_lines() {
         let workspace = tempfile::tempdir().expect("tempdir");
         fs::create_dir_all(workspace.path().join("src/runtime")).expect("mkdir");
@@ -718,7 +611,7 @@ mod tests {
         std::env::set_var("GIT_CEILING_DIRECTORIES", &ceiling);
 
         let operator = ToolOperator::new(workspace.path().to_path_buf());
-        let assembler = ContextAssembler::default();
+        let assembler = ContextAssembler::default().with_git_context(true);
         let ctx = assembler
             .assemble("read note.txt", &operator)
             .expect("assemble failed");
@@ -756,7 +649,7 @@ mod tests {
 
         std::env::set_var("VEX_CONTEXT_GIT_TIMEOUT_MS", "1");
         let operator = ToolOperator::new(workspace.path().to_path_buf());
-        let assembler = ContextAssembler::default();
+        let assembler = ContextAssembler::default().with_git_context(true);
         let ctx = assembler
             .assemble("inspect slow.txt", &operator)
             .expect("assemble failed");
@@ -801,7 +694,7 @@ mod tests {
         fs::write(&file_path, changed).expect("write changed");
 
         let operator = ToolOperator::new(workspace.path().to_path_buf());
-        let assembler = ContextAssembler::default();
+        let assembler = ContextAssembler::default().with_git_context(true);
         let ctx = assembler
             .assemble("inspect large-diff.txt", &operator)
             .expect("assemble failed");
