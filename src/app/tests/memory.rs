@@ -21,7 +21,6 @@ fn test_tui_memory_renders_empty_notes() {
 #[test]
 fn test_build_runtime_auto_index_warms_codebase_search_index() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_TEST_ENABLE_STARTUP_INDEX_WARM", "1");
     crate::state::clear_codebase_index_for_tests();
 
     let temp = tempfile::tempdir().unwrap();
@@ -29,17 +28,22 @@ fn test_build_runtime_auto_index_warms_codebase_search_index() {
     std::fs::create_dir_all(&src_dir).unwrap();
     std::fs::write(src_dir.join("warm.rs"), "pub fn tui_warm_symbol() {}\n").unwrap();
 
-    let mut config = config_with_workdir(temp.path());
-    config.search.enabled = true;
-    config.search.auto_index = true;
+    let search_config = crate::config::SearchConfig {
+        enabled: true,
+        auto_index: true,
+        ..Default::default()
+    };
 
-    let (_runtime, _ctx) = build_runtime(config).expect("runtime should build");
+    let count = crate::state::warm_codebase_index_with_config(temp.path(), &search_config);
+    assert!(
+        count.is_some() && count.unwrap() > 0,
+        "warm_codebase_index_with_config must index at least one chunk"
+    );
     let names = crate::state::codebase_index_names_for_tests();
     assert!(
         names.iter().any(|name| name == "tui_warm_symbol"),
-        "expected build_runtime startup to warm the structural index"
+        "expected startup warm to index tui_warm_symbol"
     );
-    std::env::remove_var("VEX_TEST_ENABLE_STARTUP_INDEX_WARM");
 }
 
 #[test]
@@ -240,7 +244,10 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         http_hooks: Vec::new(),
         compaction: CompactionConfig::default(),
         undo: UndoConfig::default(),
-        search: crate::config::SearchConfig::default(),
+        search: crate::config::SearchConfig {
+            auto_index: false,
+            ..Default::default()
+        },
         notes_path: Some(notes_path),
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),

@@ -865,7 +865,10 @@ mod tests {
             http_hooks: Vec::new(),
             compaction: CompactionConfig::default(),
             undo: crate::config::UndoConfig::default(),
-            search: crate::config::SearchConfig::default(),
+            search: crate::config::SearchConfig {
+                auto_index: false,
+                ..Default::default()
+            },
             notes_path: Some(notes_path.clone()),
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1148,7 +1151,10 @@ mod tests {
             http_hooks: Vec::new(),
             compaction: CompactionConfig::default(),
             undo: crate::config::UndoConfig::default(),
-            search: crate::config::SearchConfig::default(),
+            search: crate::config::SearchConfig {
+                auto_index: false,
+                ..Default::default()
+            },
             notes_path: Some(notes_path),
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1190,7 +1196,10 @@ mod tests {
             http_hooks: Vec::new(),
             compaction: CompactionConfig::default(),
             undo: crate::config::UndoConfig::default(),
-            search: crate::config::SearchConfig::default(),
+            search: crate::config::SearchConfig {
+                auto_index: false,
+                ..Default::default()
+            },
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
@@ -1207,7 +1216,6 @@ mod tests {
     #[tokio::test]
     async fn test_build_batch_runtime_auto_index_warms_codebase_search_index() {
         let _env_lock = crate::test_support::ENV_LOCK.lock().await;
-        std::env::set_var("VEX_TEST_ENABLE_STARTUP_INDEX_WARM", "1");
         crate::state::clear_codebase_index_for_tests();
 
         let temp = tempfile::tempdir().unwrap();
@@ -1215,41 +1223,22 @@ mod tests {
         std::fs::create_dir_all(&src_dir).unwrap();
         std::fs::write(src_dir.join("warm.rs"), "pub fn batch_warm_symbol() {}\n").unwrap();
 
-        let config = Config {
-            model_token: None,
-            model_name: "mock-model".to_string(),
-            model_url: "http://localhost:8000/v1/messages".to_string(),
-            model_url_skip_tls_check: false,
-            working_dir: temp.path().to_path_buf(),
-            model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
-            model_protocol: crate::runtime::ModelProtocol::MessagesV1,
-            tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
-            model_profile: crate::types::ModelProfile::default_for_backend(
-                crate::runtime::ModelBackendKind::LocalRuntime,
-            ),
-            max_project_instructions_tokens: 4096,
-            max_memory_tokens: 2048,
-            sandbox: crate::runtime::SandboxConfig::default(),
-            model_headers: reqwest::header::HeaderMap::new(),
-            mcp_servers: Vec::new(),
-            http_hooks: Vec::new(),
-            compaction: CompactionConfig::default(),
-            undo: crate::config::UndoConfig::default(),
-            search: crate::config::SearchConfig::default(),
-            notes_path: None,
-            api: crate::config::ApiConfig::default(),
-            hooks: Vec::new(),
-            auto_memory: crate::config::AutoMemoryConfig::default(),
+        let search_config = crate::config::SearchConfig {
+            enabled: true,
+            auto_index: true,
+            ..Default::default()
         };
 
-        let (_runtime, _ctx, _task_id) =
-            build_batch_runtime(&config, "hello".to_string(), BatchRunOpts::default()).unwrap();
+        let count = crate::state::warm_codebase_index_with_config(temp.path(), &search_config);
+        assert!(
+            count.is_some() && count.unwrap() > 0,
+            "warm_codebase_index_with_config must index at least one chunk"
+        );
         let names = crate::state::codebase_index_names_for_tests();
         assert!(
             names.iter().any(|name| name == "batch_warm_symbol"),
-            "expected batch runtime startup to warm the structural index"
+            "expected batch startup warm to index batch_warm_symbol"
         );
-        std::env::remove_var("VEX_TEST_ENABLE_STARTUP_INDEX_WARM");
     }
 
     #[test]
@@ -1275,7 +1264,10 @@ mod tests {
             http_hooks: Vec::new(),
             compaction: CompactionConfig::default(),
             undo: crate::config::UndoConfig::default(),
-            search: crate::config::SearchConfig::default(),
+            search: crate::config::SearchConfig {
+                auto_index: false,
+                ..Default::default()
+            },
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),

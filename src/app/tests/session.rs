@@ -719,7 +719,10 @@ fn test_build_runtime_with_resume_restores_task() {
         http_hooks: Vec::new(),
         compaction: CompactionConfig::default(),
         undo: UndoConfig::default(),
-        search: crate::config::SearchConfig::default(),
+        search: crate::config::SearchConfig {
+            auto_index: false,
+            ..Default::default()
+        },
         notes_path: None,
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),
