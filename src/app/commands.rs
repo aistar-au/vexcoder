@@ -1447,16 +1447,40 @@ impl TuiMode {
         }
     }
 
-    pub(super) fn handle_reindex_command(&mut self, _ctx: &RuntimeContext) {
-        let search_cfg = &self.search_config;
-        let chunk_count = crate::state::force_full_reindex_with_config(
-            &self.working_dir,
-            &search_cfg.exclude,
-            search_cfg.max_file_size,
-        );
-        self.push_history_line(format!(
-            "[search] index rebuilt: {} chunks indexed",
-            chunk_count
-        ));
+    pub(super) fn handle_reindex_command(&mut self, ctx: &RuntimeContext) {
+        let starting_batch = self.command_sessions.is_empty();
+        self.history_state.turn_in_progress = true;
+        self.history_state.cancel_pending = false;
+        self.history_state.active_assistant_index = None;
+        if starting_batch {
+            self.begin_turn_capture("/reindex".to_string());
+        }
+
+        let session_id = self.begin_command_session("/reindex".to_string());
+        let working_dir = self.working_dir.clone();
+        let exclude = self.search_config.exclude.clone();
+        let max_file_size = self.search_config.max_file_size;
+        let ctx = ctx.clone();
+
+        tokio::spawn(async move {
+            ctx.emit_transcript_line(format_command_session_started("/reindex", None));
+            match tokio::task::spawn_blocking(move || {
+                crate::state::force_full_reindex_with_config(&working_dir, &exclude, max_file_size)
+            })
+            .await
+            {
+                Ok(chunk_count) => {
+                    ctx.emit_transcript_line(format!(
+                        "[search] index rebuilt: {} chunks indexed",
+                        chunk_count
+                    ));
+                }
+                Err(error) => {
+                    ctx.emit_transcript_line(format!("[search] reindex failed: {error}"));
+                }
+            }
+            ctx.emit_command_session_finished(session_id);
+            ctx.emit_turn_complete();
+        });
     }
 }
