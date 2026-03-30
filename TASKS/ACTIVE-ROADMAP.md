@@ -138,6 +138,25 @@ ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-
 - Phase 3 pending: add explicit disk-permission boundaries so `.vex/index/` and `.vex/state/` remain the deliberate durable layers (operator-level FileSystem trait enforcement).
 - Phase 4 pending: evaluate task-state WAL and strict CI enforcement after the hot path is stable.
 
+#### Planned remaining batches (ADR-038)
+
+**Batch D -- operator.rs directory module**
+- Convert `src/tools/operator.rs` (865 lines) into `src/tools/operator/` directory module
+- Submodules: `core.rs` (ToolOperator struct, new, resolve_path, ensure_path_is_within_workspace, resolve_optional_path, working_dir, to_workspace_relative_display), `file_ops.rs` (read_file, read_file_range, read_file_if_exists, existing_path, write_file, propose_patch, apply_patch, edit_file, rename_file), `git_ops.rs` (git_status, git_diff, git_log, git_show, git_add, git_commit, sanitize_git_pathspec, run_git), `search.rs` (list_files, search_files, search_content, find_files, walk_workspace_files, walk_workspace_files_ignoring, search_literal)
+- Private helpers stay in their respective submodules
+- No behavioral change; mod.rs is public facade only
+
+**Batch E -- strict disk-policy enforcement (Phase 3)**
+- Add `DiskPolicy::check()` call-sites in operator file_ops.rs and git_ops.rs
+- Add `DiskPolicy::check()` in `src/tools/semantic.rs` index writes
+- Add CI gate: `make check-disk-policy` confirms no unguarded write paths remain
+- Requires Batch D complete (operator must be a directory module to annotate cleanly)
+
+**Batch F -- task-state WAL evaluation (Phase 4, optional)**
+- Evaluate whether `.vex/state/` writes need a write-ahead log for crash safety
+- Decision gate: measure crash frequency and data-loss impact before implementing
+- If yes: add WAL in `src/runtime/task_state.rs` behind `VEX_TASK_WAL=1` feature flag
+
 ---
 
 ## Active Feature Branches (not yet merged)
