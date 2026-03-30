@@ -83,3 +83,21 @@ fn runtime_mode_uses_warn_env() {
 
     std::env::remove_var("VEX_DISK_POLICY");
 }
+
+#[test]
+fn windows_backslash_index_path_is_search_index() {
+    let p = std::path::PathBuf::from(".vex\\index\\chunks.bin");
+    assert_eq!(check_path(&p), DiskPermission::SearchIndex);
+}
+
+#[test]
+fn windows_backslash_state_path_is_task_state_map() {
+    let p = std::path::PathBuf::from(".vex\\state\\task-001.json");
+    assert_eq!(check_path(&p), DiskPermission::TaskStateMap);
+}
+
+#[test]
+fn windows_mixed_separator_path_is_search_index() {
+    let p = std::path::PathBuf::from(".vex\\index/data.bin");
+    assert_eq!(check_path(&p), DiskPermission::SearchIndex);
+}

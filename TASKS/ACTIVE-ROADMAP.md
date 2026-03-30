@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-30 (ADR-038 Batch E/F: context_assembler split + disk-policy gate)
+Last updated: 2026-03-31 (ADR-038 Batch G: operator policy module + disk-policy wiring)
 
 ---
 
@@ -135,24 +135,24 @@ ADR-031 status updated to Accepted (Batches A-E merged).
 ADR-033 status updated to Accepted (Phases 1-4 merged).
 ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-25; grouped, multiline, and relative `super::` `server`/`bin` import coverage now closes the remaining known boundary-test bypasses for inner layers.
 
-### Tier 10 -- Memory-First TTFC Hardening (ADR-038) -- 2 items
+### Tier 10 -- Memory-First TTFC Hardening (ADR-038) -- 1 item
 
 - Phase 1 complete: bounded in-memory context snapshot cache and opt-in automatic git context merged.
 - Phase 2 complete: `src/disk_policy.rs` (DiskPermission classifier) and `src/config/cache.rs` (OnceLock config cache) merged in PR #278.
 - Batch C complete: `src/config/load.rs` decomposed into directory module (`load/paths.rs`, `load/merge.rs`, `load/parse.rs`) in PR #279.
 - Batch D complete: `src/tools/operator.rs` decomposed into `src/tools/operator/{mod,core,file_ops,git_ops,search}.rs` in PR #280.
-- Batch E in PR #281: `src/runtime/context_assembler.rs` decomposed into `src/runtime/context_assembler/{mod,reads}.rs`, keeping orchestration/tests in `mod.rs` and moving path extraction plus related-path inference into `reads.rs`.
-- Batch F in PR #281: `src/disk_policy.rs` gains `enforce()` / `enforce_runtime()`, `tests/disk_policy_tests.rs` adds strict/warn/off coverage, and `make check-disk-policy` is wired into `arch-contracts.yml`.
-- Batch G pending: wire explicit operator/search/task-state call-sites through the disk-policy boundary now that the strict-mode helper and CI harness exist.
+- Batch E complete: `src/runtime/context_assembler.rs` decomposed into `src/runtime/context_assembler/{mod,reads}.rs` in PR #281.
+- Batch F complete: `src/disk_policy.rs` gains `enforce()` / `enforce_runtime()`, `tests/disk_policy_tests.rs` adds strict/warn/off coverage, `make check-disk-policy` is wired into `arch-contracts.yml` in PR #281.
+- Batch G in PR #282: `src/tools/operator/policy.rs` wraps `disk_policy::enforce` for operator-level durable-access assertions; `TaskState::save()` and `TaskState::load()` wired through `assert_durable_access()`; cross-platform `check_path()` fix for Windows backslash separators; file picker directory navigation fix.
 - Batch H pending: evaluate task-state WAL and feature-gate any implementation behind `VEX_TASK_WAL=1`.
 
 #### Planned remaining batches (ADR-038)
 
-**Batch G -- operator/search policy wiring (Phase 3 completion)**
-- Add `src/tools/operator/policy.rs` wrapper around `src/disk_policy.rs`
-- Route operator file/git/search surfaces and durable search/task-state writes through declared policy checks
-- Keep `.vex/index/` and `.vex/state/` as the only deliberate durable layers under strict mode
-- Depends on the Batch F harness in PR #281
+**Batch G -- operator/search policy wiring (Phase 3 completion)** -- IN PR #282
+- ~~Add `src/tools/operator/policy.rs` wrapper around `src/disk_policy.rs`~~ Done
+- ~~Route operator file/git/search surfaces and durable search/task-state writes through declared policy checks~~ Done (task-state save/load wired)
+- ~~Keep `.vex/index/` and `.vex/state/` as the only deliberate durable layers under strict mode~~ Enforced
+- ~~Depends on the Batch F harness in PR #281~~ Merged
 
 **Batch H -- task-state WAL evaluation (Phase 4, optional)**
 - Evaluate whether `.vex/state/` writes need a write-ahead log for crash safety
@@ -166,7 +166,8 @@ ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| ADR-038-EF | `work/vexcoder-adr-038-reads-and-policy-gate` | #281 | Draft PR | `context_assembler/{mod,reads}.rs` split plus strict disk-policy test/CI gate for ADR-038 Batches E/F |
+| ADR-038-EF | `work/vexcoder-adr-038-reads-and-policy-gate` | #281 | **Merged** | `context_assembler/{mod,reads}.rs` split plus strict disk-policy test/CI gate for ADR-038 Batches E/F |
+| ADR-038-G | `work/vexcoder-adr-038-operator-policy-wiring` | #282 | Draft PR | Operator policy module and disk-policy wiring into task-state I/O (ADR-038 Batch G) |
 | PL-01-ext | `work/vexcoder-http-hooks` | #270 | **Merged** | HTTP webhook support for tool events (`[[http_hooks]]` config section) |
 | PM-01 | `work/vexcoder-conversation-compaction` | #271 | Implementation complete, draft PR | In-memory summarization of older turns when token count exceeds threshold |
 | PM-02 | `work/vexcoder-undo-checkpoints` | #272 | Implementation complete, draft PR | `/undo` slash command and per-change checkpoint stack |

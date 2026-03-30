@@ -222,16 +222,13 @@ impl TuiMode {
     pub fn file_prompt_matches(&self, prefix: &str) -> Vec<String> {
         let needle = prefix.trim();
 
-        // Directory navigation mode: when prefix contains `/`, show immediate
-        // children of the directory path. This enables hierarchical drill-down:
-        //   @         → fuzzy match all entries
-        //   @src/     → list immediate children of src/
-        //   @src/ui/  → list immediate children of src/ui/
-        //   @src/ui/e → filter children of src/ui/ matching "e"
-        if needle.contains('/') {
-            let (dir_prefix, name_filter) = match needle.rfind('/') {
-                Some(pos) => (&needle[..=pos], &needle[pos + 1..]),
-                None => ("", needle),
+        // Directory navigation mode: when prefix contains `/` (or `\` on
+        // Windows), show immediate children of the directory path.
+        if needle.contains('/') || needle.contains('\\') {
+            let needle_normalized = needle.replace('\\', "/");
+            let (dir_prefix, name_filter) = match needle_normalized.rfind('/') {
+                Some(pos) => (&needle_normalized[..=pos], &needle_normalized[pos + 1..]),
+                None => ("", needle_normalized.as_str()),
             };
             return self.directory_filtered_children(dir_prefix, name_filter);
         }

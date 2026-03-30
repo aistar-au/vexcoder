@@ -56,11 +56,19 @@ pub fn enforce_runtime(path: &Path) -> Result<DiskPermission> {
 
 /// Classify a path according to the ADR-038 disk permission model.
 pub fn check_path(path: &Path) -> DiskPermission {
+    // Fast path: component-based match (works when the OS treats the separator
+    // natively, i.e. backslash on Windows, forward-slash everywhere).
     for component in path.components() {
         let segment = component.as_os_str().to_string_lossy();
         if segment == ".vex" {
             return classify_vex_subpath(path);
         }
+    }
+    // Fallback: string-based match handles paths that embed the non-native
+    // separator (e.g. a Windows-style `.vex\index\…` string processed on Unix).
+    let lossy = path.to_string_lossy();
+    if lossy.contains(".vex\\") || lossy.contains(".vex/") {
+        return classify_vex_subpath(path);
     }
     DiskPermission::Forbidden
 }

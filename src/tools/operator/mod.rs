@@ -1,6 +1,7 @@
 mod core;
 mod file_ops;
 mod git_ops;
+pub(crate) mod policy;
 mod search;
 
 use std::path::{Path, PathBuf};

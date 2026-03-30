@@ -75,8 +75,11 @@ Adopt a memory-first contract for turn assembly:
   Batch F (PR #281) adds `enforce()` / `enforce_runtime()` to
   `src/disk_policy.rs`, `tests/disk_policy_tests.rs`, `make check-disk-policy`,
   and the `arch-contracts.yml` CI step.
-5. Wire operator/search/task-state call-sites through the disk-policy boundary
-  now that the strict-mode helper and CI harness exist.
+5. ~~Wire operator/search/task-state call-sites through the disk-policy boundary
+  now that the strict-mode helper and CI harness exist.~~ Batch G (PR #282)
+  adds `src/tools/operator/policy.rs` wrapper and wires `assert_durable_access()`
+  into `TaskState::save()` / `TaskState::load()`. Also fixes cross-platform
+  `check_path()` to handle Windows backslash separators.
 6. Evaluate optional task-state WAL once the in-memory first-turn path is
   stable and measurable.
 
@@ -182,7 +185,9 @@ Key source files:
   `src/runtime/context_cache.rs`
 - Context assembly coverage for cache reuse and opt-in git behavior in
   `src/runtime/context_assembler/mod.rs`
-- Disk-policy enforcement coverage in `tests/disk_policy_tests.rs`
+- Disk-policy enforcement coverage in `tests/disk_policy_tests.rs` (including
+  Windows backslash separator tests)
+- Operator policy module tests in `src/tools/operator/policy.rs`
 - Focused validation with `cargo test -q runtime::context_assembler --lib`
 - `make check-disk-policy`
 - Full workspace validation and CI gating required before merge
