@@ -1,6 +1,6 @@
 pub mod embed;
 pub mod index;
-mod operator;
+pub(crate) mod operator;
 pub mod search;
 pub mod semantic;
 pub(crate) mod workspace_explore;

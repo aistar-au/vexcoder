@@ -245,12 +245,14 @@ impl TaskState {
 
     pub fn save(&self, dir: &Path) -> Result<()> {
         let final_path = state_file_path(dir, &self.id);
+        crate::tools::operator::policy::assert_durable_access(&final_path)?;
         write_pretty_json_safe(&final_path, self, "task state")?;
         Ok(())
     }
 
     pub fn load(dir: &Path, id: &str) -> Result<Self> {
         let path = state_file_path(dir, id);
+        crate::tools::operator::policy::assert_durable_access(&path)?;
         let content = std::fs::read_to_string(&path)
             .with_context(|| format!("Failed to read state file: {}", path.display()))?;
 
