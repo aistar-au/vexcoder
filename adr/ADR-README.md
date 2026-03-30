@@ -35,6 +35,7 @@ All ADR files live under `adr/`.
 | [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Hardening landed for serialized concurrency caps, prompt guard, explicit release, and normalized watch/boundary coverage |
 | [ADR-035](ADR-035-undo-checkpoints-and-binary-safe-rollback.md) | Undo checkpoints and binary-safe rollback | Accepted | 0 items remaining; Gap 14 rollback strategy formalized for `/undo` |
 | [ADR-038](ADR-038-memory-first-architecture-with-minimal-disk-io.md) | Memory-first architecture with minimal disk I/O | Accepted (Batches D-H merged) | 0 items remaining |
+| [ADR-039](ADR-039-neutral-terminal-voice-and-spatial-status-language.md) | Neutral terminal voice and spatial status language | Proposed | Batches A-D: vocabulary, status copy, ANSI roles, paragraph progress stream |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 
@@ -50,17 +51,18 @@ the top-level `adr/` directory pending a housekeeping move.
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding | Complete | PI-13 through PI-16 all merged |
 | [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI command-session capture | Accepted (complete) | Supersedes ADR-018/019 |
 
-## Remaining Work Summary (1 active in-tree ADR + 1 deferred external dependency)
+## Remaining Work Summary (1 proposed in-tree ADR + 1 deferred external dependency)
 
-ADR-038 now tracks the active in-tree performance follow-up around memory-first
-context assembly. The only deferred external prerequisite remains ADR-024
-PG-03 tap auto-dispatch, which stays blocked until the separate tap repository
-exists. Full history and ADR status detail live in
-`TASKS/ACTIVE-ROADMAP.md`.
+ADR-039 now tracks the proposed operator-facing voice lane: neutral spatial
+vocabulary, status-copy normalization, semantic ANSI roles, and the
+paragraph-oriented progress stream for long-running tasks. ADR-038 is accepted
+and complete. The only deferred external prerequisite remains ADR-024 PG-03
+tap auto-dispatch, which stays blocked until the separate tap repository
+exists. Full history and ADR status detail live in `TASKS/ACTIVE-ROADMAP.md`.
 
 | Tier | Source | Items | Description |
 | :--- | :--- | :--- | :--- |
-| 9 | ADR-038 | 2 | Remaining phases after Batch E/F: operator/search policy wiring and task-state durability hardening |
+| 11 | ADR-039 | 4 | Remaining batches: vocabulary normalization, status copy, ANSI roles, paragraph progress stream |
 | 8 | ADR-024 G/H + ADR-022 | 1 | Deferred external prerequisite: tap repository auto-dispatch |
 
 ## Completed ADR Records

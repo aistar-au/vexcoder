@@ -47,6 +47,21 @@ fn test_write_new_file() {
 }
 
 #[test]
+fn test_read_file_range_reports_user_offset_when_past_end() {
+    let temp = TempDir::new().expect("temp dir");
+    let executor = ToolOperator::new(temp.path().to_path_buf());
+
+    executor
+        .write_file("lines.txt", "one\ntwo\nthree\n")
+        .expect("seed lines file");
+
+    let output = executor
+        .read_file_range("lines.txt", Some(5), None)
+        .expect("read file range should succeed");
+    assert_eq!(output, "(file has 3 lines, offset 5 is past end)");
+}
+
+#[test]
 fn test_edit_file_ambiguous() {
     let temp = TempDir::new().expect("temp dir");
     let executor = ToolOperator::new(temp.path().to_path_buf());
