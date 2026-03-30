@@ -178,7 +178,7 @@ After reading named files and running git metadata collection, `assemble` infers
 
 Constraints:
 
-- All path resolution must use `ToolOperator`'s existing workspace-root confinement and lexical normalisation guards (ADR-002). `[source: verify src/tools/operator.rs before implementing]`
+- All path resolution must use `ToolOperator`'s existing workspace-root confinement and lexical normalisation guards (ADR-002). `[source: verify src/tools/operator/mod.rs before implementing]`
 - If a named file exceeds `max_file_bytes`, a truncation annotation is included; the file is not silently dropped.
 - `ContextAssembler` must not perform network requests.
 - `ContextAssembler::assemble` must not call `ctx.start_turn()`.

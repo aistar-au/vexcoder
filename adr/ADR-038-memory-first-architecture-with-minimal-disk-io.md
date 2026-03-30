@@ -62,8 +62,10 @@ Adopt a memory-first contract for turn assembly:
    (`src/config/cache.rs`). Path, merge, and parse extraction completed in
    Batch C (PR #279): `src/config/load/{paths,merge,parse}.rs`.
 2. ~~Add an explicit disk-permission boundary around operator, search, and
-   task-state I/O.~~ `src/disk_policy.rs` added in Phase 2. Operator-level
-   enforcement deferred.
+  task-state I/O.~~ `src/disk_policy.rs` added in Phase 2. Batch D (PR #280)
+  split `src/tools/operator.rs` into `src/tools/operator/{mod,core,file_ops,
+  git_ops,search}.rs` so operator-level enforcement can land in a smaller,
+  policy-focused follow-up.
 3. Add strict policy tests and CI gates for the allowed-disk contract.
 4. Evaluate optional task-state WAL once the in-memory first-turn path is
    stable and measurable.
@@ -117,6 +119,18 @@ Batch C (config/load.rs directory module) introduced:
 
 Merged in PR #279.
 
+Batch D (operator directory module) introduced in PR #280:
+
+- `src/tools/operator/mod.rs` -- shared types, helpers, and retained tests
+- `src/tools/operator/core.rs` -- workspace confinement, path normalization,
+  and gitignore-aware workspace walking
+- `src/tools/operator/file_ops.rs` -- file reads, file writes, patch apply,
+  edit_file, rename_file, and list_files
+- `src/tools/operator/git_ops.rs` -- git status/diff/log/show/add/commit
+  helpers and command execution
+- `src/tools/operator/search.rs` -- literal search, content search, glob
+  matching, and file discovery helpers
+
 Key source files:
 
 - `src/runtime/context_cache.rs`
@@ -128,6 +142,11 @@ Key source files:
 - `src/config/load/paths.rs`
 - `src/config/load/merge.rs`
 - `src/config/load/parse.rs`
+- `src/tools/operator/mod.rs`
+- `src/tools/operator/core.rs`
+- `src/tools/operator/file_ops.rs`
+- `src/tools/operator/git_ops.rs`
+- `src/tools/operator/search.rs`
 - `docs/src/architecture.md`
 - `docs/src/configuration.md`
 
