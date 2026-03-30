@@ -31,12 +31,13 @@ impl ToolOperator {
             bail!("read_file expected a file path, got a directory: {path}");
         }
         let content = fs::read_to_string(&resolved).context("Failed to read file")?;
-        let start = offset.unwrap_or(1).saturating_sub(1);
+        let user_offset = offset.unwrap_or(1);
+        let start = user_offset.saturating_sub(1);
         let lines: Vec<&str> = content.lines().collect();
         let total = lines.len();
         if start >= total {
             return Ok(format!(
-                "(file has {total} lines, offset {start} is past end)"
+                "(file has {total} lines, offset {user_offset} is past end)"
             ));
         }
         let end = limit
