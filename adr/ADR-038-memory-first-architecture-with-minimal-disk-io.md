@@ -59,7 +59,8 @@ Adopt a memory-first contract for turn assembly:
 
 1. ~~Split `src/config/load.rs` into cache, path, and merge modules and add
    process-local config caching.~~ Config cache added in Phase 2
-   (`src/config/cache.rs`). Path and merge extraction deferred.
+   (`src/config/cache.rs`). Path, merge, and parse extraction completed in
+   Batch C (PR #279): `src/config/load/{paths,merge,parse}.rs`.
 2. ~~Add an explicit disk-permission boundary around operator, search, and
    task-state I/O.~~ `src/disk_policy.rs` added in Phase 2. Operator-level
    enforcement deferred.
@@ -101,6 +102,21 @@ Phase 2 (Level 0 foundation + config cache) introduced:
   DiskPolicyMode with VEX_DISK_POLICY env var
 - `src/config/cache.rs` -- OnceLock-based config cache, Config::load_cached()
 
+Batch C (config/load.rs directory module) introduced:
+
+- `src/config/load/paths.rs` -- path discovery and resolution
+  (find_repo_local_config, user_config_path, expand_home,
+  resolve_working_dir, load_model_profile)
+- `src/config/load/merge.rs` -- layer merge helpers (apply_over,
+  apply_*_over, resolve_auto_memory_config)
+- `src/config/load/parse.rs` -- enum + header parsing
+  (parse_model_backend, parse_model_protocol, infer_model_protocol,
+  parse_model_headers_json, legacy protocol value helpers)
+- `src/config/load/mod.rs` -- orchestration, resolve_*, validate_*,
+  read_env_layer, migrate_config_from_env, and the test suite retained
+
+Merged in PR #279.
+
 Key source files:
 
 - `src/runtime/context_cache.rs`
@@ -108,6 +124,10 @@ Key source files:
 - `src/runtime/context_assembler.rs`
 - `src/disk_policy.rs`
 - `src/config/cache.rs`
+- `src/config/load/mod.rs`
+- `src/config/load/paths.rs`
+- `src/config/load/merge.rs`
+- `src/config/load/parse.rs`
 - `docs/src/architecture.md`
 - `docs/src/configuration.md`
 
