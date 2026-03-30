@@ -60,6 +60,8 @@ impl TuiMode {
             last_error_message: None,
             turn_completion_pending: false,
             plan_turn_active: false,
+            auto_memory_enabled: config.auto_memory.enabled,
+            auto_memory_max_notes: config.auto_memory.max_notes_per_turn,
             #[cfg(test)]
             last_turn_input: None,
         }

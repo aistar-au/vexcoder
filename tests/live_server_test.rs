@@ -103,6 +103,7 @@ fn build_chat_compat_config(base_url: &str, model_name: &str) -> Config {
         notes_path: None,
         api: vexcoder::config::ApiConfig::default(),
         hooks: Vec::new(),
+        auto_memory: vexcoder::config::AutoMemoryConfig::default(),
     }
 }
 
@@ -133,6 +134,7 @@ fn build_messages_v1_config(base_url: &str, model_name: &str) -> Config {
         notes_path: None,
         api: vexcoder::config::ApiConfig::default(),
         hooks: Vec::new(),
+        auto_memory: vexcoder::config::AutoMemoryConfig::default(),
     }
 }
 

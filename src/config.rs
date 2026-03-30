@@ -131,6 +131,28 @@ impl Default for CompactionConfig {
     }
 }
 
+/// Configuration for the automatic memory-extraction feature.
+///
+/// Maps to the `[auto_memory]` section in `.vex/config.toml` or
+/// `~/.config/vex/config.toml`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoMemoryConfig {
+    /// Whether auto-extraction is active.  Defaults to `false` — users must
+    /// opt in explicitly.
+    pub enabled: bool,
+    /// Maximum number of notes extracted per turn.  Clamped to `1..=10`.
+    pub max_notes_per_turn: usize,
+}
+
+impl Default for AutoMemoryConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            max_notes_per_turn: 3,
+        }
+    }
+}
+
 /// Per-session undo/checkpoint configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UndoConfig {
@@ -185,6 +207,13 @@ pub(crate) struct SearchConfigLayer {
     pub(crate) max_file_size: Option<usize>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct AutoMemoryConfigLayer {
+    pub(crate) enabled: Option<bool>,
+    pub(crate) max_notes_per_turn: Option<usize>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub model_token: Option<String>,
@@ -217,6 +246,7 @@ pub struct Config {
     pub compaction: CompactionConfig,
     pub undo: UndoConfig,
     pub search: SearchConfig,
+    pub auto_memory: AutoMemoryConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -262,6 +292,7 @@ struct ConfigLayer {
     compaction: Option<CompactionConfigLayer>,
     undo: Option<UndoConfigLayer>,
     search: Option<SearchConfigLayer>,
+    auto_memory: Option<AutoMemoryConfigLayer>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -353,6 +384,7 @@ impl Config {
             compaction: CompactionConfig::default(),
             undo: UndoConfig::default(),
             search: SearchConfig::default(),
+            auto_memory: AutoMemoryConfig::default(),
         }
     }
 

@@ -130,6 +130,7 @@ impl TuiMode {
         self.resolve_pending_patch_approval(false);
         self.active_stream_blocks.clear();
         self.commit_completed_turn(ctx);
+        self.maybe_extract_auto_memory();
         self.history_state.cancel_pending = false;
         self.history_state.turn_in_progress = false;
         self.history_state.active_assistant_index = None;
@@ -225,6 +226,57 @@ impl TuiMode {
             " (estimated)"
         } else {
             ""
+        }
+    }
+
+    fn maybe_extract_auto_memory(&mut self) {
+        if !self.auto_memory_enabled {
+            return;
+        }
+        let input = self.last_turn_input_display.clone();
+        let response = self.last_turn_response.clone();
+        if input.trim().is_empty() && response.trim().is_empty() {
+            return;
+        }
+        let notes = crate::auto_memory::extract_notes_from_turn(
+            &input,
+            &response,
+            self.auto_memory_max_notes,
+        );
+        if notes.is_empty() {
+            return;
+        }
+        let formatted_notes = crate::auto_memory::format_auto_notes(
+            &notes,
+            crate::auto_memory::current_timestamp_seconds(),
+        );
+        let path = self
+            .resolved_existing_notes_path()
+            .or_else(|| self.resolved_notes_path());
+        let Some(path) = path else {
+            return;
+        };
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        match crate::auto_memory::append_auto_notes(&formatted_notes, &path) {
+            Ok(()) => {
+                let turn_index = self.current_task.turns.len();
+                for note in &formatted_notes {
+                    self.current_task.session_notes.push(SessionNote {
+                        content: note.clone(),
+                        created_at_turn: turn_index,
+                    });
+                }
+                self.persist_current_task_state();
+                self.push_history_line(format!(
+                    "[memory] auto: {} note(s) saved",
+                    formatted_notes.len()
+                ));
+            }
+            Err(e) => {
+                self.push_history_line(format!("[memory] auto extraction error: {e}"));
+            }
         }
     }
 }

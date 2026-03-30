@@ -723,6 +723,7 @@ fn test_build_runtime_with_resume_restores_task() {
         notes_path: None,
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),
+        auto_memory: crate::config::AutoMemoryConfig::default(),
     };
 
     let (runtime, _ctx) =

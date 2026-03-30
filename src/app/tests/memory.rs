@@ -219,6 +219,7 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         notes_path: Some(notes_path),
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),
+        auto_memory: crate::config::AutoMemoryConfig::default(),
     };
 
     let (runtime, _ctx) = build_runtime(config).expect("runtime should build");
@@ -228,4 +229,105 @@ fn test_memory_injection_over_budget_emits_startup_warning() {
         .iter()
         .any(|l| l.contains("notes exceed token budget"));
     assert!(has_warning, "expected startup budget warning in history");
+}
+
+// -- PM-04 auto-memory anchor tests ------------------------------------------
+
+#[test]
+fn test_auto_memory_disabled_by_default() {
+    let config = Config::default_for_tui();
+    assert!(
+        !config.auto_memory.enabled,
+        "auto_memory must be disabled by default"
+    );
+}
+
+#[test]
+fn test_auto_memory_max_notes_default_is_three() {
+    let config = Config::default_for_tui();
+    assert_eq!(config.auto_memory.max_notes_per_turn, 3);
+}
+
+#[test]
+fn test_auto_memory_on_command_enables_flag() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    assert!(!mode.auto_memory_enabled, "should be off initially");
+    mode.on_user_input("/memory auto on".to_string(), &mut ctx);
+    assert!(
+        mode.auto_memory_enabled,
+        "/memory auto on should set auto_memory_enabled"
+    );
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|l| l.contains("auto extraction enabled")));
+}
+
+#[test]
+fn test_auto_memory_off_command_disables_flag() {
+    let mut mode = TuiMode::new();
+    mode.auto_memory_enabled = true;
+    let mut ctx = setup_ctx();
+    mode.on_user_input("/memory auto off".to_string(), &mut ctx);
+    assert!(
+        !mode.auto_memory_enabled,
+        "/memory auto off should clear auto_memory_enabled"
+    );
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|l| l.contains("auto extraction disabled")));
+}
+
+#[test]
+fn test_extract_notes_respects_max_and_tags_auto() {
+    let response = "- fact one\n- fact two\n- fact three\n- fact four\n";
+    let notes = crate::auto_memory::extract_notes_from_turn("", response, 2);
+    assert_eq!(notes.len(), 2, "max_notes_per_turn must be respected");
+    for note in &notes {
+        assert!(
+            !note.contains("[auto]"),
+            "raw extracted notes should remain plain text before formatting"
+        );
+    }
+}
+
+#[test]
+fn test_extract_notes_empty_input_returns_nothing() {
+    let notes = crate::auto_memory::extract_notes_from_turn("", "", 5);
+    assert!(notes.is_empty(), "empty response must produce no notes");
+}
+
+#[test]
+fn test_auto_memory_clear_removes_tagged_entries() {
+    let temp = tempfile::tempdir().unwrap();
+    let notes_path = temp.path().join("notes.md");
+    std::fs::write(
+        &notes_path,
+        "[1] [auto] auto line\nmanual line\n[2] [auto] another auto\n",
+    )
+    .unwrap();
+
+    let removed = crate::auto_memory::remove_auto_notes(&notes_path).unwrap();
+    assert_eq!(removed, 2);
+    let content = std::fs::read_to_string(&notes_path).unwrap();
+    assert!(content.contains("manual line"));
+    assert!(!content.contains("[auto]"));
+}
+
+#[test]
+fn test_format_auto_notes_adds_timestamp_prefix() {
+    let formatted = crate::auto_memory::format_auto_notes(&["note".to_string()], 7);
+    assert_eq!(formatted, vec!["[7] [auto] note".to_string()]);
+}
+
+#[test]
+fn test_auto_memory_config_enabled_true_persists() {
+    let layer = crate::config::AutoMemoryConfigLayer {
+        enabled: Some(true),
+        max_notes_per_turn: Some(5),
+    };
+    assert_eq!(layer.enabled, Some(true));
+    assert_eq!(layer.max_notes_per_turn, Some(5));
 }
