@@ -34,7 +34,7 @@ All ADR files live under `adr/`.
 | [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Accepted (all phases 1-4 merged) | 0 items remaining |
 | [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Hardening landed for serialized concurrency caps, prompt guard, explicit release, and normalized watch/boundary coverage |
 | [ADR-035](ADR-035-undo-checkpoints-and-binary-safe-rollback.md) | Undo checkpoints and binary-safe rollback | Accepted | 0 items remaining; Gap 14 rollback strategy formalized for `/undo` |
-| [ADR-038](ADR-038-memory-first-architecture-with-minimal-disk-io.md) | Memory-first architecture with minimal disk I/O | Active (Phase 1 merged) | Follow-up phases remain for config caching, disk-permission enforcement, and task-state durability hardening |
+| [ADR-038](ADR-038-memory-first-architecture-with-minimal-disk-io.md) | Memory-first architecture with minimal disk I/O | Active (Batch D merged; E/F in PR #281) | Remaining phases after this lane: operator/search policy wiring and task-state durability hardening |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 
@@ -60,7 +60,7 @@ exists. Full history and ADR status detail live in
 
 | Tier | Source | Items | Description |
 | :--- | :--- | :--- | :--- |
-| 9 | ADR-038 | 3 | Remaining phases: config caching, disk-permission enforcement, and task-state durability hardening |
+| 9 | ADR-038 | 2 | Remaining phases after Batch E/F: operator/search policy wiring and task-state durability hardening |
 | 8 | ADR-024 G/H + ADR-022 | 1 | Deferred external prerequisite: tap repository auto-dispatch |
 
 ## Completed ADR Records

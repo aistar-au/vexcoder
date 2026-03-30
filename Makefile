@@ -32,7 +32,7 @@ NPROC := $(shell nproc 2>/dev/null || sysctl -n hw.logicalcpu 2>/dev/null || ech
   fmt fmt-check \
   lint \
   commit-debug-gate \
-  check-boundary check-routing check-imports check-names check-module-names check-arch \
+	check-boundary check-routing check-imports check-names check-module-names check-arch check-disk-policy \
   test test-nextest test-targets test-single \
   bump \
   release \
@@ -60,6 +60,7 @@ help:
 	  "  check-names        assert no proprietary vendor brand names (ADR-023)" \
 	  "  check-module-names assert Rust 2018 path-based modules for production modules" \
 	  "  check-arch         all architecture boundary checks" \
+	  "  check-disk-policy  VEX_DISK_POLICY=strict cargo test --test disk_policy_tests" \
 	  "  test               cargo test --all with VEX_MODEL_TOKEN=\"\" (ci.yml variant)" \
 	  "  test-nextest       cargo nextest run -j $(NPROC)  (auto-detected core count)" \
 	  "  test-targets       cargo test --all-targets" \
@@ -237,6 +238,9 @@ test-nextest: _require-nextest
 test-targets:
 	cargo test --all-targets
 
+check-disk-policy:
+	VEX_DISK_POLICY=strict cargo test --test disk_policy_tests
+
 test-single:
 	cargo test $(T) --all-targets
 
@@ -251,6 +255,7 @@ gate: \
 	lint \
 	check \
 	check-arch \
+	check-disk-policy \
 	test \
 	test-nextest \
 	test-targets
@@ -262,6 +267,7 @@ gate-fast: \
 	lint \
 	check \
 	check-arch \
+	check-disk-policy \
 	test \
 	test-nextest \
 	test-targets

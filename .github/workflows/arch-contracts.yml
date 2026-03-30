@@ -39,4 +39,5 @@ jobs:
       - name: Run architecture gate targets
         run: |
           make check-arch
+          make check-disk-policy
           make test-targets

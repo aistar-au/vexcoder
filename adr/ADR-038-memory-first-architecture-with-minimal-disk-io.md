@@ -15,10 +15,11 @@ can render.
 
 The current blockers are concentrated in two places:
 
-1. `src/runtime/context_assembler.rs` reads named and inferred files from disk
-   on every turn with no process-local reuse.
-2. The same path also runs `git status --short` and `git diff HEAD` before the
-   model request, even for turns that do not ask about git state.
+1. `src/runtime/context_assembler/{mod,reads}.rs` still owns the automatic
+  named-file and inferred-related-path snapshot path, so this module family is
+  the seam where the remaining TTFC refactors have to keep shrinking sync I/O.
+2. Automatic turn assembly used to run `git status --short` and `git diff HEAD`
+  before the model request even when the prompt did not ask for git state.
 
 The repository already has two disk-backed layers that are worth keeping
 explicitly durable:
@@ -66,9 +67,18 @@ Adopt a memory-first contract for turn assembly:
   split `src/tools/operator.rs` into `src/tools/operator/{mod,core,file_ops,
   git_ops,search}.rs` so operator-level enforcement can land in a smaller,
   policy-focused follow-up.
-3. Add strict policy tests and CI gates for the allowed-disk contract.
-4. Evaluate optional task-state WAL once the in-memory first-turn path is
-   stable and measurable.
+3. ~~Split `src/runtime/context_assembler.rs` into orchestration and read
+  helpers.~~ Batch E (PR #281) moves path extraction, snapshot conversion, and
+  related-path inference into `src/runtime/context_assembler/reads.rs`, with
+  orchestration and tests retained in `src/runtime/context_assembler/mod.rs`.
+4. ~~Add strict policy tests and CI gates for the allowed-disk contract.~~
+  Batch F (PR #281) adds `enforce()` / `enforce_runtime()` to
+  `src/disk_policy.rs`, `tests/disk_policy_tests.rs`, `make check-disk-policy`,
+  and the `arch-contracts.yml` CI step.
+5. Wire operator/search/task-state call-sites through the disk-policy boundary
+  now that the strict-mode helper and CI harness exist.
+6. Evaluate optional task-state WAL once the in-memory first-turn path is
+  stable and measurable.
 
 ## Consequences
 
@@ -87,8 +97,8 @@ Adopt a memory-first contract for turn assembly:
   operator opts in or the command explicitly asks for git data.
 - Process-local caches add invalidation and eviction rules that need direct
   test coverage.
-- This ADR is intentionally partial; config caching and strict disk-policy
-  enforcement remain follow-up work.
+- This ADR is intentionally partial; operator-level policy wiring and optional
+  task-state WAL remain follow-up work.
 
 ## Implementation status
 
@@ -131,11 +141,26 @@ Batch D (operator directory module) introduced in PR #280:
 - `src/tools/operator/search.rs` -- literal search, content search, glob
   matching, and file discovery helpers
 
+Batch E/F (context assembler split + strict disk-policy gate) introduced in
+PR #281:
+
+- `src/runtime/context_assembler/mod.rs` -- types, assemble/render
+  orchestration, env resolution, and retained tests
+- `src/runtime/context_assembler/reads.rs` -- candidate path extraction,
+  snapshot conversion, and related-path inference helpers
+- `src/disk_policy.rs` -- `enforce()` and `enforce_runtime()` layered on top of
+  `check_path()` and `resolve_policy_mode()`
+- `tests/disk_policy_tests.rs` -- strict/warn/off enforcement coverage and
+  allowed/forbidden path classification
+- `Makefile` / `.github/workflows/arch-contracts.yml` -- `check-disk-policy`
+  target and CI enforcement step
+
 Key source files:
 
 - `src/runtime/context_cache.rs`
 - `src/runtime/git_snapshot.rs`
-- `src/runtime/context_assembler.rs`
+- `src/runtime/context_assembler/mod.rs`
+- `src/runtime/context_assembler/reads.rs`
 - `src/disk_policy.rs`
 - `src/config/cache.rs`
 - `src/config/load/mod.rs`
@@ -147,6 +172,7 @@ Key source files:
 - `src/tools/operator/file_ops.rs`
 - `src/tools/operator/git_ops.rs`
 - `src/tools/operator/search.rs`
+- `tests/disk_policy_tests.rs`
 - `docs/src/architecture.md`
 - `docs/src/configuration.md`
 
@@ -155,8 +181,10 @@ Key source files:
 - Unit coverage for cache hits, invalidation, and eviction in
   `src/runtime/context_cache.rs`
 - Context assembly coverage for cache reuse and opt-in git behavior in
-  `src/runtime/context_assembler.rs`
+  `src/runtime/context_assembler/mod.rs`
+- Disk-policy enforcement coverage in `tests/disk_policy_tests.rs`
 - Focused validation with `cargo test -q runtime::context_assembler --lib`
+- `make check-disk-policy`
 - Full workspace validation and CI gating required before merge
 
 ## References
