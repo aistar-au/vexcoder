@@ -8,10 +8,11 @@ use crate::types::ModelProfile;
 use crate::util::{is_local_endpoint_url, parse_bool_flag};
 
 use super::{
-    ApiConfig, ApiConfigLayer, ApiTransport, CompactionConfig, CompactionConfigLayer, Config,
-    ConfigLayer, DoctorConfigLayer, DoctorConfigSnapshot, DoctorMcpServer, HttpHookConfig,
-    McpServerConfig, McpTransport, SearchConfig, SearchConfigLayer, UndoConfig, UndoConfigLayer,
-    DEFAULT_LOCAL_API_HOST, DEFAULT_LOCAL_API_PORT,
+    ApiConfig, ApiConfigLayer, ApiTransport, AutoMemoryConfig, AutoMemoryConfigLayer,
+    CompactionConfig, CompactionConfigLayer, Config, ConfigLayer, DoctorConfigLayer,
+    DoctorConfigSnapshot, DoctorMcpServer, HttpHookConfig, McpServerConfig, McpTransport,
+    SearchConfig, SearchConfigLayer, UndoConfig, UndoConfigLayer, DEFAULT_LOCAL_API_HOST,
+    DEFAULT_LOCAL_API_PORT,
 };
 
 pub(super) fn load() -> Result<Config> {
@@ -245,6 +246,7 @@ fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
         compaction: apply_compaction_over(base.compaction, over.compaction),
         undo: apply_undo_over(base.undo, over.undo),
         search: apply_search_over(base.search, over.search),
+        auto_memory: apply_auto_memory_over(base.auto_memory, over.auto_memory),
     }
 }
 
@@ -260,6 +262,20 @@ fn apply_compaction_over(
             threshold_percent: over.threshold_percent.or(base.threshold_percent),
             keep_recent_turns: over.keep_recent_turns.or(base.keep_recent_turns),
             summary_max_tokens: over.summary_max_tokens.or(base.summary_max_tokens),
+        }),
+    }
+}
+
+fn apply_auto_memory_over(
+    base: Option<AutoMemoryConfigLayer>,
+    over: Option<AutoMemoryConfigLayer>,
+) -> Option<AutoMemoryConfigLayer> {
+    match (base, over) {
+        (None, None) => None,
+        (Some(layer), None) | (None, Some(layer)) => Some(layer),
+        (Some(base), Some(over)) => Some(AutoMemoryConfigLayer {
+            enabled: over.enabled.or(base.enabled),
+            max_notes_per_turn: over.max_notes_per_turn.or(base.max_notes_per_turn),
         }),
     }
 }
@@ -291,6 +307,15 @@ fn apply_search_over(
             exclude: over.exclude.or(base.exclude),
             max_file_size: over.max_file_size.or(base.max_file_size),
         }),
+    }
+}
+
+fn resolve_auto_memory_config(layer: Option<AutoMemoryConfigLayer>) -> AutoMemoryConfig {
+    let layer = layer.unwrap_or_default();
+    let max_notes = layer.max_notes_per_turn.unwrap_or(3).clamp(1, 10);
+    AutoMemoryConfig {
+        enabled: layer.enabled.unwrap_or(false),
+        max_notes_per_turn: max_notes,
     }
 }
 
@@ -503,6 +528,7 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         hooks: None,
         http_hooks: None,
         search: None,
+        auto_memory: None,
     };
 
     Ok((layer, env_token))
@@ -790,6 +816,7 @@ fn resolve_config(
         compaction: resolve_compaction_config(merged.compaction),
         undo: resolve_undo_config(merged.undo),
         search: resolve_search_config(merged.search),
+        auto_memory: resolve_auto_memory_config(merged.auto_memory),
     })
 }
 

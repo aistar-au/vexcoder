@@ -51,6 +51,9 @@ impl TuiMode {
                         "[memory] clear all notes? type y to confirm or n to cancel".to_string(),
                     );
                 }
+                SlashCommandId::MemoryAutoOn => self.handle_memory_auto_on(),
+                SlashCommandId::MemoryAutoOff => self.handle_memory_auto_off(),
+                SlashCommandId::MemoryAutoClear => self.handle_memory_auto_clear(),
                 SlashCommandId::New => self.handle_new_command(ctx),
                 SlashCommandId::Resume => self.handle_resume_command(args, ctx),
                 SlashCommandId::Compact => self.handle_compact_command(ctx),
@@ -1482,5 +1485,40 @@ impl TuiMode {
             ctx.emit_command_session_finished(session_id);
             ctx.emit_turn_complete();
         });
+    }
+
+    pub(super) fn handle_memory_auto_on(&mut self) {
+        self.auto_memory_enabled = true;
+        self.push_history_line("[memory] auto extraction enabled".to_string());
+    }
+
+    pub(super) fn handle_memory_auto_off(&mut self) {
+        self.auto_memory_enabled = false;
+        self.push_history_line("[memory] auto extraction disabled".to_string());
+    }
+
+    pub(super) fn handle_memory_auto_clear(&mut self) {
+        let path = self
+            .resolved_existing_notes_path()
+            .or_else(|| self.resolved_notes_path());
+        let Some(path) = path else {
+            self.push_history_line("[memory] no notes file to clear auto entries from".to_string());
+            return;
+        };
+        match crate::auto_memory::remove_auto_notes(&path) {
+            Ok(removed) if removed > 0 => {
+                self.current_task
+                    .session_notes
+                    .retain(|n| !n.content.starts_with("[auto]"));
+                self.persist_current_task_state();
+                self.push_history_line(format!("[memory] removed {removed} auto note(s)"));
+            }
+            Ok(_) => {
+                self.push_history_line("[memory] no auto notes found".to_string());
+            }
+            Err(e) => {
+                self.push_history_line(format!("[memory] error removing auto notes: {e}"));
+            }
+        }
     }
 }

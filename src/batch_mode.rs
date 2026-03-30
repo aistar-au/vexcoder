@@ -865,6 +865,7 @@ mod tests {
             notes_path: Some(notes_path.clone()),
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
         };
 
         let result = run_batch(
@@ -1147,6 +1148,7 @@ mod tests {
             notes_path: Some(notes_path),
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
         };
 
         let (_runtime, ctx, _task_id) =
@@ -1188,6 +1190,7 @@ mod tests {
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
         };
 
         let (_runtime, ctx, _task_id) =
@@ -1224,6 +1227,7 @@ mod tests {
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
         };
         let resume_state = TaskState::new("task-batch-resume".to_string());
 

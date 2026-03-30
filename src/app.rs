@@ -169,6 +169,9 @@ enum SlashCommandId {
     MemoryShow,
     MemoryAdd,
     MemoryClear,
+    MemoryAutoOn,
+    MemoryAutoOff,
+    MemoryAutoClear,
     New,
     Resume,
     Compact,
@@ -450,6 +453,24 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         "view or edit persistent user notes",
     ),
     SlashCommandSpec::new(
+        SlashCommandId::MemoryAutoOn,
+        SlashCommandPattern::Exact("/memory auto on"),
+        "/memory auto [on|off|clear]",
+        "toggle or clear automatic note extraction",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::MemoryAutoOff,
+        SlashCommandPattern::Exact("/memory auto off"),
+        "/memory auto [on|off|clear]",
+        "toggle or clear automatic note extraction",
+    ),
+    SlashCommandSpec::new(
+        SlashCommandId::MemoryAutoClear,
+        SlashCommandPattern::Exact("/memory auto clear"),
+        "/memory auto [on|off|clear]",
+        "toggle or clear automatic note extraction",
+    ),
+    SlashCommandSpec::new(
         SlashCommandId::Agents,
         SlashCommandPattern::Exact("/agents"),
         "/agents",
@@ -553,6 +574,9 @@ fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
         | SlashCommandId::MemoryShow
         | SlashCommandId::MemoryAdd
         | SlashCommandId::MemoryClear
+        | SlashCommandId::MemoryAutoOn
+        | SlashCommandId::MemoryAutoOff
+        | SlashCommandId::MemoryAutoClear
         | SlashCommandId::New
         | SlashCommandId::Resume
         | SlashCommandId::Compact
@@ -590,6 +614,9 @@ fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
         SlashCommandId::MemoryShow | SlashCommandId::MemoryAdd | SlashCommandId::MemoryClear => {
             "view or update persistent notes"
         }
+        SlashCommandId::MemoryAutoOn
+        | SlashCommandId::MemoryAutoOff
+        | SlashCommandId::MemoryAutoClear => "toggle automatic note extraction after each turn",
         SlashCommandId::New
         | SlashCommandId::Resume
         | SlashCommandId::Compact
@@ -851,6 +878,13 @@ pub struct TuiMode {
     turn_completion_pending: bool,
     /// Tracks whether the current turn is a `/plan` command (ADR-029 plan persistence).
     plan_turn_active: bool,
+    /// Whether auto-memory extraction is active for this session.
+    #[cfg(not(test))]
+    auto_memory_enabled: bool,
+    #[cfg(test)]
+    pub auto_memory_enabled: bool,
+    /// Max notes to extract per turn (from config).
+    auto_memory_max_notes: usize,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
 }

@@ -1,6 +1,7 @@
 pub mod agents;
 pub mod api;
 pub mod app;
+pub mod auto_memory;
 pub mod batch_mode;
 pub mod config;
 pub(crate) mod custom_commands;

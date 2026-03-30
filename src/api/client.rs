@@ -1054,6 +1054,7 @@ mod tests {
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -1088,6 +1089,7 @@ mod tests {
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -1122,6 +1124,7 @@ mod tests {
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -1159,6 +1162,7 @@ mod tests {
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -1195,6 +1199,7 @@ mod tests {
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -1290,6 +1295,7 @@ mod tests {
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -1325,6 +1331,7 @@ mod tests {
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
@@ -1359,6 +1366,7 @@ mod tests {
             notes_path: None,
             api: crate::config::ApiConfig::default(),
             hooks: Vec::new(),
+            auto_memory: crate::config::AutoMemoryConfig::default(),
         };
 
         let client = ApiClient::new(&config).expect("client should build");
