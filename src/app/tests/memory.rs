@@ -21,6 +21,7 @@ fn test_tui_memory_renders_empty_notes() {
 #[test]
 fn test_build_runtime_auto_index_warms_codebase_search_index() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
+    std::env::set_var("VEX_TEST_ENABLE_STARTUP_INDEX_WARM", "1");
     crate::state::clear_codebase_index_for_tests();
 
     let temp = tempfile::tempdir().unwrap();
@@ -38,6 +39,7 @@ fn test_build_runtime_auto_index_warms_codebase_search_index() {
         names.iter().any(|name| name == "tui_warm_symbol"),
         "expected build_runtime startup to warm the structural index"
     );
+    std::env::remove_var("VEX_TEST_ENABLE_STARTUP_INDEX_WARM");
 }
 
 #[test]

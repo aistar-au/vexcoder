@@ -108,11 +108,26 @@ fn rebuild_codebase_index_with_config(
     0
 }
 
+fn startup_index_warm_enabled_for_process() -> bool {
+    #[cfg(test)]
+    {
+        std::env::var_os("VEX_TEST_ENABLE_STARTUP_INDEX_WARM").is_some()
+    }
+
+    #[cfg(not(test))]
+    {
+        true
+    }
+}
+
 pub(crate) fn warm_codebase_index_with_config(
     workspace_root: &std::path::Path,
     search_config: &SearchConfig,
 ) -> Option<usize> {
-    if !(search_config.enabled && search_config.auto_index) {
+    if !(startup_index_warm_enabled_for_process()
+        && search_config.enabled
+        && search_config.auto_index)
+    {
         return None;
     }
 

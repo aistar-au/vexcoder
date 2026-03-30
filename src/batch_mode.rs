@@ -1207,6 +1207,7 @@ mod tests {
     #[tokio::test]
     async fn test_build_batch_runtime_auto_index_warms_codebase_search_index() {
         let _env_lock = crate::test_support::ENV_LOCK.lock().await;
+        std::env::set_var("VEX_TEST_ENABLE_STARTUP_INDEX_WARM", "1");
         crate::state::clear_codebase_index_for_tests();
 
         let temp = tempfile::tempdir().unwrap();
@@ -1248,6 +1249,7 @@ mod tests {
             names.iter().any(|name| name == "batch_warm_symbol"),
             "expected batch runtime startup to warm the structural index"
         );
+        std::env::remove_var("VEX_TEST_ENABLE_STARTUP_INDEX_WARM");
     }
 
     #[test]
