@@ -77,7 +77,7 @@ fn classify_vex_subpath(path: &Path) -> DiskPermission {
     let lossy = path.to_string_lossy();
     let normalized = lossy.replace('\\', "/");
     if let Some(after_vex) = normalized.split(".vex/").nth(1) {
-        if after_vex.starts_with("index") {
+        if after_vex.starts_with("index/") || after_vex == "index" {
             return DiskPermission::SearchIndex;
         }
         if after_vex.starts_with("state/") || after_vex == "state" {
@@ -183,5 +183,31 @@ mod tests {
         let permission = enforce(Path::new(".vex/index/chunks.bin"), DiskPolicyMode::Strict)
             .expect("strict mode should allow search index access");
         assert_eq!(permission, DiskPermission::SearchIndex);
+    }
+
+    #[test]
+    fn index_prefix_without_separator_is_forbidden() {
+        // Regression: ".vex/indexing.txt" must NOT match SearchIndex.
+        assert_eq!(
+            check_path(&PathBuf::from(".vex/indexing.txt")),
+            DiskPermission::Forbidden,
+        );
+        assert_eq!(
+            check_path(&PathBuf::from("/repo/.vex/indexed-data")),
+            DiskPermission::Forbidden,
+        );
+    }
+
+    #[test]
+    fn state_prefix_without_separator_is_forbidden() {
+        // Symmetric check: ".vex/stateful.bin" must NOT match TaskStateMap.
+        assert_eq!(
+            check_path(&PathBuf::from(".vex/stateful.bin")),
+            DiskPermission::Forbidden,
+        );
+        assert_eq!(
+            check_path(&PathBuf::from("/repo/.vex/statefiles")),
+            DiskPermission::Forbidden,
+        );
     }
 }

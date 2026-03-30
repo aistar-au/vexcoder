@@ -472,7 +472,8 @@ vexcoder/ (standalone view)
 | `src/runtime/backend.rs` | Model backend types and protocol abstractions for LLM integration. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/backend.rs> |
 | `src/runtime/command.rs` | Command execution: one-shot, streaming, PTY, and process group management. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/command.rs> |
 | `src/runtime/context.rs` | Async turn execution context, edit-turn driver, and conversation update forwarding. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context.rs> |
-| `src/runtime/context_assembler.rs` | Context assembly for model turns (file snapshots and prompt construction). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context_assembler.rs> |
+| `src/runtime/context_assembler/mod.rs` | Context assembly orchestration for model turns (file snapshots and prompt construction). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context_assembler/mod.rs> |
+| `src/runtime/context_assembler/reads.rs` | Candidate-path extraction, snapshot conversion, and related-path inference for context assembly. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/context_assembler/reads.rs> |
 | `src/runtime/frontend.rs` | Frontend adapter contracts and runtime-facing input event types. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/frontend.rs> |
 | `src/runtime/json_handoff.rs` | ADR-025 canonical runtime JSON handoff types: `RuntimeEnvelope`, `RuntimeEvent`, `RuntimeRequest`, and related contracts. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/json_handoff.rs> |
 | `src/runtime/loop.rs` | Runtime event loop orchestration between mode, frontend, and context. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/loop.rs> |
@@ -481,7 +482,8 @@ vexcoder/ (standalone view)
 | `src/runtime/policy.rs` | Output sanitization and tool-evidence policy helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/policy.rs> |
 | `src/runtime/project_instructions.rs` | Project-level instructions loading from `.vex/AGENTS.md` or `AGENTS.md` with token budget enforcement. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/project_instructions.rs> |
 | `src/runtime/sandbox.rs` | Command sandboxing trait and implementations with wrapper and probe methods. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/sandbox.rs> |
-| `src/runtime/task_state.rs` | Task execution state management with status tracking and evidence collection. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/task_state.rs> |
+| `src/runtime/task_state/mod.rs` | Task execution state types and in-memory methods (status tracking, evidence collection). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/task_state/mod.rs> |
+| `src/runtime/task_state/persist.rs` | Task state persistence: save, load, directory discovery, file listing, and live summary reads. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/task_state/persist.rs> |
 | `src/runtime/text_util.rs` | UTF-8 aware text truncation utilities respecting byte boundaries. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/text_util.rs> |
 | `src/runtime/update.rs` | `UiUpdate` message types emitted from runtime to frontend. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/update.rs> |
 | `src/runtime/validation.rs` | Concurrent validation suite: command execution, retry formatting. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/validation.rs> |

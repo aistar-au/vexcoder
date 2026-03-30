@@ -8,7 +8,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
 - Total tracked files: 287
-- Last updated: 2026-03-31 (ADR-038 Batch H task-state persist extraction)
+- Last updated: 2026-03-31 (ADR-038 post-merge fixes)
 
 | # | Path | ~Lines | Raw URL |
 | :--- | :--- | ---: | :--- |
@@ -28,7 +28,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 14 | `.gitignore` | ~36 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitignore> |
 | 15 | `AGENTS.md` | ~165 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/AGENTS.md> |
 | 16 | `CHANGELOG.md` | ~20 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CHANGELOG.md> |
-| 17 | `CONTRIBUTING.md` | ~532 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
+| 17 | `CONTRIBUTING.md` | ~534 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
 | 18 | `Cargo.lock` | ~3547 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.lock> |
 | 19 | `Cargo.toml` | ~73 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.toml> |
 | 20 | `LICENSE` | ~21 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/LICENSE> |
@@ -171,7 +171,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 157 | `src/config/load/paths.rs` | ~120 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config/load/paths.rs> |
 | 158 | `src/config/tests.rs` | ~1352 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config/tests.rs> |
 | 159 | `src/custom_commands.rs` | ~231 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/custom_commands.rs> |
-| 160 | `src/disk_policy.rs` | ~187 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/disk_policy.rs> |
+| 160 | `src/disk_policy.rs` | ~213 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/disk_policy.rs> |
 | 161 | `src/doctor.rs` | ~369 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/doctor.rs> |
 | 162 | `src/edit_diff.rs` | ~232 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/edit_diff.rs> |
 | 163 | `src/exec.rs` | ~81 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/exec.rs> |
@@ -284,7 +284,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 270 | `src/workspace.rs` | ~44 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/workspace.rs> |
 | 271 | `tests/agents_config_tests.rs` | ~100 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/agents_config_tests.rs> |
 | 272 | `tests/dependency_direction_tests.rs` | ~608 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/dependency_direction_tests.rs> |
-| 273 | `tests/disk_policy_tests.rs` | ~103 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/disk_policy_tests.rs> |
+| 273 | `tests/disk_policy_tests.rs` | ~125 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/disk_policy_tests.rs> |
 | 274 | `tests/integration_test.rs` | ~555 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/integration_test.rs> |
 | 275 | `tests/layout_underflow_tests.rs` | ~64 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/layout_underflow_tests.rs> |
 | 276 | `tests/live_server_test.rs` | ~260 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/live_server_test.rs> |
