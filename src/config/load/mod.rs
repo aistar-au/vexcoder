@@ -770,13 +770,31 @@ fn resolve_search_config(layer: Option<SearchConfigLayer>) -> SearchConfig {
     let defaults = SearchConfig::default();
     match layer {
         None => defaults,
-        Some(l) => SearchConfig {
-            enabled: l.enabled.unwrap_or(defaults.enabled),
-            auto_index: l.auto_index.unwrap_or(defaults.auto_index),
-            exclude: l.exclude.unwrap_or(defaults.exclude),
-            max_file_size: l.max_file_size.unwrap_or(defaults.max_file_size),
-        },
+        Some(l) => {
+            let exclude = normalize_exclude_prefixes(l.exclude.unwrap_or(defaults.exclude));
+            SearchConfig {
+                enabled: l.enabled.unwrap_or(defaults.enabled),
+                auto_index: l.auto_index.unwrap_or(defaults.auto_index),
+                exclude,
+                max_file_size: l.max_file_size.unwrap_or(defaults.max_file_size),
+            }
+        }
     }
+}
+
+/// Ensure every exclude entry ends with `/` so `starts_with` prefix matching
+/// in the index cannot false-positive on paths that merely share a common
+/// stem (e.g. `"src"` must not match `"src_utils/foo.rs"`).
+fn normalize_exclude_prefixes(entries: Vec<String>) -> Vec<String> {
+    entries
+        .into_iter()
+        .map(|mut entry| {
+            if !entry.ends_with('/') {
+                entry.push('/');
+            }
+            entry
+        })
+        .collect()
 }
 
 fn resolve_secret_reference(value: Option<String>) -> Option<String> {
@@ -1005,7 +1023,7 @@ mod tests {
             r#"
 [search]
 enabled = false
-    exclude = ["src/vendor/"]
+exclude = ["src/vendor/"]
 "#,
         );
 
@@ -1034,6 +1052,35 @@ enabled = true
         assert!(
             config.search.exclude.contains(&"src/vendor/".to_string()),
             "user layer exclude list must be visible when repo layer omits it"
+        );
+    }
+
+    #[test]
+    fn search_exclude_entries_are_normalized_with_trailing_slash() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let user_cfg = write_config(
+            &dir,
+            "user.toml",
+            r#"
+[search]
+exclude = ["src", "vendor", "build/"]
+"#,
+        );
+
+        let config =
+            load_for_tests(dir.path(), Some(&user_cfg), None).expect("load_for_tests failed");
+
+        assert!(
+            config.search.exclude.contains(&"src/".to_string()),
+            "exclude entry without trailing slash must be normalized"
+        );
+        assert!(
+            config.search.exclude.contains(&"vendor/".to_string()),
+            "exclude entry without trailing slash must be normalized"
+        );
+        assert!(
+            config.search.exclude.contains(&"build/".to_string()),
+            "exclude entry with trailing slash must remain unchanged"
         );
     }
 }
