@@ -57,10 +57,12 @@ Adopt a memory-first contract for turn assembly:
 
 ### Follow-up phases
 
-1. Split `src/config/load.rs` into cache, path, and merge modules and add
-   process-local config caching.
-2. Add an explicit disk-permission boundary around operator, search, and
-   task-state I/O.
+1. ~~Split `src/config/load.rs` into cache, path, and merge modules and add
+   process-local config caching.~~ Config cache added in Phase 2
+   (`src/config/cache.rs`). Path and merge extraction deferred.
+2. ~~Add an explicit disk-permission boundary around operator, search, and
+   task-state I/O.~~ `src/disk_policy.rs` added in Phase 2. Operator-level
+   enforcement deferred.
 3. Add strict policy tests and CI gates for the allowed-disk contract.
 4. Evaluate optional task-state WAL once the in-memory first-turn path is
    stable and measurable.
@@ -88,13 +90,24 @@ Adopt a memory-first contract for turn assembly:
 ## Implementation status
 
 Phase 1 is implemented on `work/vexcoder-adr-038-memory-first-phase1` as of
-2026-03-30.
+2026-03-30. Merged in PR #276.
+
+Phase 1a: Search lane tightening merged in PR #277 (search config during index
+warmup, incremental refresh independence from auto_index).
+
+Phase 2 (Level 0 foundation + config cache) introduced:
+
+- `src/disk_policy.rs` -- DiskPermission enum, check_path() classifier,
+  DiskPolicyMode with VEX_DISK_POLICY env var
+- `src/config/cache.rs` -- OnceLock-based config cache, Config::load_cached()
 
 Key source files:
 
 - `src/runtime/context_cache.rs`
 - `src/runtime/git_snapshot.rs`
 - `src/runtime/context_assembler.rs`
+- `src/disk_policy.rs`
+- `src/config/cache.rs`
 - `docs/src/architecture.md`
 - `docs/src/configuration.md`
 

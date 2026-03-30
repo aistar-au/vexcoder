@@ -239,6 +239,16 @@ Controls the timeout used by context-related git commands.
 - Applies to automatic git context when `VEX_CONTEXT_INCLUDE_GIT=1` and to the
   existing review helpers that call git through the shared runtime wrapper.
 
+### `VEX_DISK_POLICY`
+
+Controls the disk-policy enforcement mode (ADR-038).
+
+- Accepted values: `off`, `warn`, `strict`.
+- Default: `off`.
+- When set to `strict`, forbidden disk access (anything outside `.vex/index/`
+  and `.vex/state/`) causes a panic. `warn` logs a warning instead.
+- Intended for CI gates; not typically set in interactive use.
+
 ### `VEX_SANDBOX`
 
 Selects the command sandbox driver. Accepted values: `passthrough`,

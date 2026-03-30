@@ -19,7 +19,6 @@ pub fn load_cached() -> Result<Config> {
     Ok(CONFIG_CACHE.get_or_init(|| cfg).clone())
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::config::Config;
