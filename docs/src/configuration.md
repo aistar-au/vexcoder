@@ -101,6 +101,11 @@ When `enabled = false`, both `codebase_search` and `/reindex` are unavailable.
 | `exclude` | Glob patterns to exclude from indexing | `["target/", "node_modules/", ".git/"]` |
 | `max_file_size` | Skip files larger than this byte count | `1048576` (1 MiB) |
 
+Incremental index updates triggered by file writes during a session always
+apply `exclude` and `max_file_size` filters regardless of the `auto_index`
+setting. `auto_index` only controls whether the index is pre-warmed at
+session startup.
+
 ```toml
 [search]
 enabled = true
