@@ -1502,7 +1502,7 @@ fn test_waiting_indicator_appears_on_turn_start() {
     assert!(
         mode.history_lines()
             .iter()
-            .any(|line| line == "[waiting for response...]"),
+            .any(|line| line == "[thinking] Mapping adjacent sectors..."),
         "turn start must show waiting indicator"
     );
 }
@@ -1516,7 +1516,7 @@ fn test_waiting_indicator_cleared_on_stream_delta() {
     assert!(
         mode.history_lines()
             .iter()
-            .any(|line| line == "[waiting for response...]"),
+            .any(|line| line == "[thinking] Mapping adjacent sectors..."),
         "waiting indicator must be present before first delta"
     );
 
@@ -1526,7 +1526,7 @@ fn test_waiting_indicator_cleared_on_stream_delta() {
         !mode
             .history_lines()
             .iter()
-            .any(|line| line.contains("[waiting for response...]")),
+            .any(|line| line.contains("[thinking] Mapping adjacent sectors...")),
         "waiting indicator must be cleared after first stream delta"
     );
     assert!(
@@ -1561,7 +1561,7 @@ fn test_waiting_indicator_cleared_on_tool_block() {
         !mode
             .history_lines()
             .iter()
-            .any(|line| line == "[waiting for response...]"),
+            .any(|line| line == "[thinking] Mapping adjacent sectors..."),
         "waiting indicator must be cleared when a tool block starts"
     );
 }

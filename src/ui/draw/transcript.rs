@@ -1,4 +1,7 @@
 use super::*;
+use crate::status_contract::{
+    completed_status_label, is_waiting_placeholder, pending_status_label, status_tone, StatusTone,
+};
 use std::io::Write;
 
 // ── Shared transcript rendering helpers ────────────────────────────
@@ -38,7 +41,7 @@ fn draw_bar_line(w: &mut dyn Write, text: &str, cols: u16, dim: bool) {
     }
     set_fg(w, DIM_GRAY);
     let _ = write!(w, " \u{2502} "); // │
-    set_fg(w, GRAY);
+    set_fg(w, WHITE);
     let truncated = truncate_to_width(text, (cols as usize).saturating_sub(3));
     let _ = write!(w, "{truncated}");
     reset_style(w);
@@ -56,7 +59,7 @@ fn draw_heading(w: &mut dyn Write, text: &str, color: u8, cols: u16) {
 
 /// Write a tool paragraph header line at 2-space disclosure level.
 ///
-/// Renders with a ✦ cosmic accent marker in bold cyan followed by the
+/// Renders with a ✦ cosmic accent marker in bold violet followed by the
 /// tool summary text with a brighter tool name, a dimmer target hint,
 /// and a status accent when present:
 ///
@@ -65,7 +68,7 @@ fn draw_heading(w: &mut dyn Write, text: &str, color: u8, cols: u16) {
 /// ```
 fn draw_tool_paragraph_header(w: &mut dyn Write, text: &str, cols: u16) {
     set_bold(w);
-    set_fg(w, CYAN);
+    set_fg(w, MAGENTA);
     let _ = write!(w, "  \u{2726} "); // 2-space indent + ✦
     reset_style(w);
     if let Some((leading, status)) = split_tool_summary(text) {
@@ -131,19 +134,18 @@ fn draw_status_paragraph_header(
 fn split_tool_summary(text: &str) -> Option<(Vec<&str>, &str)> {
     let segments: Vec<&str> = text.split(" \u{00b7} ").collect();
     let (status, leading) = segments.split_last()?;
-    if leading.is_empty() || status_color(status).is_none() {
+    if leading.is_empty() || status_tone(status).is_none() {
         return None;
     }
     Some((leading.to_vec(), *status))
 }
 
 fn status_color(status: &str) -> Option<u8> {
-    match status {
-        "completed" | "approved" => Some(GREEN),
-        "failed" | "cancelled" => Some(RED),
-        "running" => Some(CYAN),
-        "awaiting approval" | "cancellation requested" => Some(YELLOW),
-        _ => None,
+    match status_tone(status)? {
+        StatusTone::Success => Some(GREEN),
+        StatusTone::Error => Some(RED),
+        StatusTone::Progress => Some(MAGENTA),
+        StatusTone::Attention => Some(YELLOW),
     }
 }
 
@@ -569,7 +571,7 @@ impl TaskDraw {
     ///
     /// ```text
     ///   ✦ read_file src/main.rs              ← 2-space: tool activity summary
-    ///     Status: completed, 42 lines        ← 4-space: phase detail
+    ///     Status: State synchronized., 42 lines ← 4-space: phase detail
     ///       ✧ fn main() { … }                ← 6-space: evidence snippet
     /// ```
     pub(super) fn draw_transcript_line(&mut self, w: &mut dyn Write, line: &str, cols: u16) {
@@ -583,12 +585,19 @@ impl TaskDraw {
             draw_status_paragraph_header(w, YELLOW, "\u{2726}", rest, cols, WHITE);
             return;
         }
+        if is_waiting_placeholder(line) {
+            let idx = (self.frame_counter as usize) % SPINNER_FRAMES.len();
+            set_fg(w, MAGENTA);
+            let _ = write!(w, " {} {}", SPINNER_FRAMES[idx], pending_status_label());
+            reset_style(w);
+            return;
+        }
         if let Some(rest) = line.strip_prefix("[thinking] ") {
-            draw_status_paragraph_header(w, BLUE, "\u{22ef}", rest, cols, GRAY);
+            draw_status_paragraph_header(w, MAGENTA, "\u{22ef}", rest, cols, MAGENTA);
             return;
         }
         if let Some(rest) = line.strip_prefix("[thinking_detail] ") {
-            draw_prefixed_disclosure_line(w, "    ", None, rest, cols, BLUE, GRAY, true);
+            draw_prefixed_disclosure_line(w, "    ", None, rest, cols, MAGENTA, GRAY, true);
             return;
         }
         if let Some(rest) = line.strip_prefix("[approval] ") {
@@ -631,10 +640,16 @@ impl TaskDraw {
             let summary = pid
                 .map(|pid| {
                     format!(
-                        "command session \u{00b7} {command} \u{00b7} pid {pid} \u{00b7} running"
+                        "command session \u{00b7} {command} \u{00b7} pid {pid} \u{00b7} {}",
+                        pending_status_label()
                     )
                 })
-                .unwrap_or_else(|| format!("command session \u{00b7} {command} \u{00b7} running"));
+                .unwrap_or_else(|| {
+                    format!(
+                        "command session \u{00b7} {command} \u{00b7} {}",
+                        pending_status_label()
+                    )
+                });
             draw_tool_paragraph_header(w, &summary, cols);
             return;
         }
@@ -764,14 +779,14 @@ impl TaskDraw {
                 .strip_prefix("[x] ")
                 .or_else(|| rest.strip_prefix("[X] "))
             {
-                draw_icon_line(w, GREEN, "\u{2611}", GRAY, task_rest, cols, false);
+                draw_icon_line(w, GREEN, "\u{2611}", WHITE, task_rest, cols, false);
                 return;
             }
             if let Some(task_rest) = rest.strip_prefix("[ ] ") {
-                draw_icon_line(w, DIM_GRAY, "\u{2610}", GRAY, task_rest, cols, false);
+                draw_icon_line(w, DIM_GRAY, "\u{2610}", WHITE, task_rest, cols, false);
                 return;
             }
-            draw_icon_line(w, YELLOW, "\u{2022}", GRAY, rest, cols, false);
+            draw_icon_line(w, YELLOW, "\u{2022}", WHITE, rest, cols, false);
             return;
         }
 
@@ -780,7 +795,7 @@ impl TaskDraw {
             set_fg(w, YELLOW);
             let _ = write!(w, " {}", num_rest.0);
             reset_style(w);
-            set_fg(w, GRAY);
+            set_fg(w, WHITE);
             let truncated =
                 truncate_to_width(num_rest.1, (cols as usize).saturating_sub(num_rest.2 + 1));
             let _ = write!(w, "{truncated}");
@@ -848,7 +863,10 @@ impl TaskDraw {
         }
 
         // ── Hint text ──────────────────────────────────────────────
-        if line == "Turn completed." || line.starts_with("Type a prompt") {
+        if line == "Turn completed."
+            || line == completed_status_label()
+            || line.starts_with("Type a prompt")
+        {
             set_dim(w);
             set_fg(w, DIM_GRAY);
             let truncated = truncate_to_width(line, cols as usize);
@@ -857,19 +875,10 @@ impl TaskDraw {
             return;
         }
 
-        // ── Awaiting indicator ─────────────────────────────────────
-        if line == "[awaiting model response]" {
-            let idx = (self.frame_counter as usize) % SPINNER_FRAMES.len();
-            set_fg(w, CYAN);
-            let _ = write!(w, " {} awaiting response", SPINNER_FRAMES[idx]);
-            reset_style(w);
-            return;
-        }
-
         // ── Regular text with inline bold detection ────────────────
         if let Some(rest) = line.strip_suffix('▌') {
             let max_text = (cols as usize).saturating_sub(1);
-            set_fg(w, GRAY);
+            set_fg(w, WHITE);
             self.draw_inline_markdown(w, rest, max_text as u16);
             if cols > 0 {
                 set_bold(w);
@@ -879,7 +888,7 @@ impl TaskDraw {
             reset_style(w);
             return;
         }
-        set_fg(w, GRAY);
+        set_fg(w, WHITE);
         self.draw_inline_markdown(w, line, cols);
         reset_style(w);
     }
@@ -920,7 +929,7 @@ impl TaskDraw {
                     let _ = write!(w, "{truncated}");
                     used += display_width(&truncated);
                     reset_style(w);
-                    set_fg(w, GRAY);
+                    set_fg(w, WHITE);
                 }
             } else if ch == '*' || ch == '_' {
                 // Single delimiter italic — only if the next char is not a space.
@@ -945,12 +954,12 @@ impl TaskDraw {
                 }
                 if !italic.is_empty() {
                     set_italic(w);
-                    set_fg(w, GRAY);
+                    set_fg(w, WHITE);
                     let truncated = truncate_to_width(&italic, max_w.saturating_sub(used));
                     let _ = write!(w, "{truncated}");
                     used += display_width(&truncated);
                     reset_style(w);
-                    set_fg(w, GRAY);
+                    set_fg(w, WHITE);
                 }
             } else if ch == '~' && chars.peek() == Some(&'~') {
                 // Flush buffer.
@@ -971,12 +980,12 @@ impl TaskDraw {
                 }
                 if !struck.is_empty() {
                     set_dim(w);
-                    set_fg(w, DIM_GRAY);
+                    set_fg(w, WHITE);
                     let truncated = truncate_to_width(&struck, max_w.saturating_sub(used));
                     let _ = write!(w, "{truncated}");
                     used += display_width(&truncated);
                     reset_style(w);
-                    set_fg(w, GRAY);
+                    set_fg(w, WHITE);
                 }
             } else if ch == '`' {
                 // Flush buffer.
@@ -995,11 +1004,11 @@ impl TaskDraw {
                     code.push(cc);
                 }
                 if !code.is_empty() {
-                    set_fg(w, CYAN);
+                    set_fg(w, WHITE);
                     let truncated = truncate_to_width(&code, max_w.saturating_sub(used));
                     let _ = write!(w, "{truncated}");
                     used += display_width(&truncated);
-                    set_fg(w, GRAY);
+                    set_fg(w, WHITE);
                 }
             } else {
                 buf.push(ch);

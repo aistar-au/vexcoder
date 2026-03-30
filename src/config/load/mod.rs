@@ -1005,7 +1005,7 @@ mod tests {
             r#"
 [search]
 enabled = false
-exclude = ["vendor/"]
+    exclude = ["src/vendor/"]
 "#,
         );
 
@@ -1032,7 +1032,7 @@ enabled = true
         );
         // User layer exclusion must survive the merge.
         assert!(
-            config.search.exclude.contains(&"vendor/".to_string()),
+            config.search.exclude.contains(&"src/vendor/".to_string()),
             "user layer exclude list must be visible when repo layer omits it"
         );
     }

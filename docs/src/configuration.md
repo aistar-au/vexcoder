@@ -98,7 +98,7 @@ When `enabled = false`, both `codebase_search` and `/reindex` are unavailable.
 | :--- | :--- | :--- |
 | `enabled` | Enable codebase search indexing | `true` |
 | `auto_index` | Warm the structural index at interactive and batch session start | `true` |
-| `exclude` | Glob patterns to exclude from indexing | `["target/", "node_modules/", ".git/"]` |
+| `exclude` | Workspace-relative path prefixes to exclude from indexing | `["target/", "node_modules/", ".git/"]` |
 | `max_file_size` | Skip files larger than this byte count | `1048576` (1 MiB) |
 
 Incremental index updates triggered by file writes during a session always
@@ -106,11 +106,14 @@ apply `exclude` and `max_file_size` filters regardless of the `auto_index`
 setting. `auto_index` only controls whether the index is pre-warmed at
 session startup.
 
+`exclude` entries are literal workspace-relative prefixes, not glob patterns.
+Use trailing slashes for directory trees such as `target/` or `src/vendor/`.
+
 ```toml
 [search]
 enabled = true
 auto_index = true
-exclude = ["target/", "node_modules/", ".git/", "vendor/"]
+exclude = ["target/", "node_modules/", ".git/", "src/vendor/"]
 max_file_size = 524288
 ```
 

@@ -106,9 +106,9 @@ Adopt a neutral spatial voice for operator-facing CLI text.
       transcript into the paragraph-oriented progress stream, because it depends
       on the earlier wording and color contracts already being recognizable.
 
-## Planned batches
+## Implementation batches
 
-### Batch A -- Status anchors and semantic color feedback (subtle introduction phase 1)
+### Batch A -- Status anchors and semantic color feedback (subtle introduction phase 1, implemented in this branch)
 
 - Introduce `Mapping adjacent sectors...` as the default human-facing thinking
    text when a more specific operator status is not available.
@@ -166,11 +166,11 @@ Adopt a neutral spatial voice for operator-facing CLI text.
 
 ## Implementation status
 
-Proposed only. No operator-facing runtime strings are changed by this ADR.
-The first implementation step is the low-gain Batch A status pass: semantic
-color feedback plus `Mapping adjacent sectors...` and `State synchronized.` on
-existing surfaces. The pulsing-star affordance and paragraph-stream changes are
-intentionally deferred until later phases.
+Batch A is implemented in this branch. Existing operator-facing surfaces now
+use the low-gain status pass: semantic color feedback plus
+`Mapping adjacent sectors...` and `State synchronized.` on the current layout.
+Remaining work is Batch B vocabulary normalization, Batch C active-indicator
+affordance, and Batch D paragraph-progress consolidation.
 
 Candidate implementation areas:
 

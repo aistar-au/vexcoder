@@ -10,7 +10,10 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(
         state.output_rows,
-        vec!["> hi".to_string(), "[waiting for response...]".to_string()]
+        vec![
+            "> hi".to_string(),
+            "[thinking] Mapping adjacent sectors...".to_string()
+        ]
     );
 }
 
@@ -280,7 +283,10 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
 
     assert_eq!(
         labels,
-        vec!["edit_file: running...", "validate: running..."]
+        vec![
+            "edit_file: Mapping adjacent sectors...",
+            "validate: Mapping adjacent sectors..."
+        ]
     );
 }
 
@@ -322,9 +328,9 @@ fn test_task_layout_state_keeps_command_sessions_alongside_other_steps() {
         labels,
         vec![
             "run the validation".to_string(),
-            "read_file · ok · completed".to_string(),
-            "run_command: running...".to_string(),
-            "cargo nextest run -j 2: running".to_string(),
+            "read_file · State synchronized.".to_string(),
+            "run_command: Mapping adjacent sectors...".to_string(),
+            "cargo nextest run -j 2: Mapping adjacent sectors...".to_string(),
         ]
     );
 }
