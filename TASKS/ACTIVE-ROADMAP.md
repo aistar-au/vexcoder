@@ -27,7 +27,7 @@ Last updated: 2026-03-31 (ADR-039 CLI voice proposed; ADR-038 post-merge audit f
 | ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate snapshot + broadcast fan-out; PR #261 closes Phase E watch-stream |
 | ADR-035 | Accepted | 0 items remaining | Gap 14 `/undo` rollback strategy is now specified and implemented with binary-safe checkpoints |
 | ADR-038 | Accepted (Batches D-H merged) | 0 items remaining | Phase 1: bounded context cache + opt-in auto git; Phase 1a: search lane tightening; Phase 2: disk_policy.rs + config/cache.rs; Batch C: config/load.rs -> directory module (PR #279); Batch D: operator.rs -> directory module (PR #280); Batch E/F: context_assembler split + strict disk-policy gate (PR #281); Batch G: operator policy module + disk-policy wiring (PR #282); Batch H: task-state persist extraction + WAL evaluation (PR #283) |
-| ADR-039 | Proposed | 4 batches (A-D) | Neutral spatial CLI voice: vocabulary normalization, status copy, ANSI semantic roles, and paragraph-oriented progress stream without renaming machine statuses |
+| ADR-039 | Proposed | 4 batches (A-D) | Low-gain rollout: vocabulary normalization, status copy, ANSI semantic roles, then paragraph-oriented progress stream without renaming machine statuses |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -46,13 +46,15 @@ Last updated: 2026-03-31 (ADR-039 CLI voice proposed; ADR-038 post-merge audit f
 
 ADR-039 now tracks the next operator-surface lane: a neutral spatial CLI voice
 for human-facing transcript text, status copy, ANSI semantic roles, and the
-paragraph-oriented progress stream used during long-running tasks. ADR-038 is
-Accepted and complete: context cache, disk-policy classifier, config cache,
-module decompositions (config/load, operator, context_assembler, task_state),
-strict policy CI gate, and operator-level durable access assertions are all
-in-tree. The only deferred external follow-up remains ADR-024 PG-03 tap
-auto-dispatch, which stays blocked until the separate `homebrew-vex` tap
-repository exists.
+paragraph-oriented progress stream used during long-running tasks. The rollout
+starts with subtle copy-only changes on existing surfaces, then introduces the
+semantic ANSI lane, and only later consolidates the long-running paragraph
+stream. ADR-038 is Accepted and complete: context cache, disk-policy
+classifier, config cache, module decompositions (config/load, operator,
+context_assembler, task_state), strict policy CI gate, and operator-level
+durable access assertions are all in-tree. The only deferred external
+follow-up remains ADR-024 PG-03 tap auto-dispatch, which stays blocked until
+the separate `homebrew-vex` tap repository exists.
 
 ### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
 

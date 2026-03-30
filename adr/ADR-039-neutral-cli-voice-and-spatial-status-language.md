@@ -33,6 +33,11 @@ alignment metaphor for in-progress work; a status-based completion phrase; and
 clear ANSI role separation that does not disturb established red / green diff
 semantics.
 
+The rollout also needs to stay low-gain at first. Early phases should make the
+CLI feel more precise without reading like a personality transplant: existing
+logs and completion surfaces change first, then semantic ANSI roles, and only
+after that does the transcript layout move toward the denser paragraph stream.
+
 ## Decision
 
 Adopt a neutral spatial voice for operator-facing CLI text.
@@ -81,24 +86,50 @@ Adopt a neutral spatial voice for operator-facing CLI text.
     subordinate to primary code / diff text so the transcript stays legible
     during multi-hour sessions.
 
+### Rollout guardrails
+
+17. Implementation order is intentionally subtle: existing copy surfaces adopt
+      spatial vocabulary before any new animation, color emphasis, or transcript
+      restructuring is introduced.
+18. Batch A and Batch B should preserve the current interaction model and
+      layout cadence so operators first encounter the new voice as a wording
+      refinement, not as a wholesale UI identity change.
+19. Batch C may add the semantic deep-nebula-violet status lane and pulsing
+      star affordance only after the Batch A/B copy contract is stable in tests
+      and operator-facing docs.
+20. Batch D is the first batch allowed to consolidate the long-running
+      transcript into the paragraph-oriented progress stream, because it depends
+      on the earlier wording and color contracts already being recognizable.
+
 ## Planned batches
 
-### Batch A -- Vocabulary normalization
+### Batch A -- Vocabulary normalization (subtle introduction phase 1)
 
 - Normalize operator-facing copy to the spatial vocabulary set.
 - Replace non-neutral relationship wording in transcript text where the
-  wording is purely display copy.
+   wording is purely display copy.
+- Prioritize the most common low-noise surfaces first: relationship words in
+   logs, prompts, and status blurbs that already exist today.
+- Do not add new visual affordances, animation, or transcript layout changes
+   in this batch.
 - Leave code symbols, persisted schema, and JSON field names unchanged.
 
-### Batch B -- Status and completion copy
+### Batch B -- Status and completion copy (subtle introduction phase 2)
 
 - Standardize in-progress mapping text and CLI completion copy.
+- Introduce `Mapping adjacent sectors...` and `State synchronized.` as the
+   first explicit voice anchors on human-facing task and todo surfaces.
+- Keep these changes within existing status lanes so the voice shift still
+   reads as a copy refinement rather than a layout change.
 - Apply `State synchronized.` only to human-facing completion surfaces.
 - Preserve machine lifecycle values such as `completed` and `failed`.
 
-### Batch C -- ANSI semantic roles
+### Batch C -- ANSI semantic roles (subtle introduction phase 3)
 
 - Document and wire the white / green / red / deep-nebula-violet palette.
+- Move tool-call, orchestrator, and agent-enrichment status text into the
+   deep-nebula-violet semantic lane after the Batch A/B wording is already in
+   place.
 - Add the pulsing-star active indicator where the renderer supports it.
 - Ensure reduced-color and plain-text fallbacks remain readable.
 
@@ -108,6 +139,8 @@ Adopt a neutral spatial voice for operator-facing CLI text.
   status stream.
 - Add live counters for files processed and active agents where the runtime
   already knows those values.
+- Render the orchestrator lane as a continuous enriched paragraph while
+   keeping code and diff text visually dominant in phosphor white / green / red.
 - Keep the code / diff surface visually dominant over status text.
 
 ## Consequences
@@ -133,6 +166,9 @@ Adopt a neutral spatial voice for operator-facing CLI text.
 ## Implementation status
 
 Proposed only. No operator-facing runtime strings are changed by this ADR.
+The first implementation step is still the low-gain Batch A wording pass; the
+renderer and paragraph-stream changes are intentionally deferred until later
+phases.
 
 Candidate implementation areas:
 
