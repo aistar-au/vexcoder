@@ -1,123 +1,11 @@
 use anyhow::{anyhow, Context, Result};
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::fmt;
+use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use super::{TaskId, TaskState};
 use crate::runtime::session_task::{now_millis, SessionTask, SessionTaskStatus};
-use crate::runtime::{ApprovalScope, Capability};
-use crate::turn_evidence::{normalize_tool_invocation_step_ids, TurnEvidenceState};
-
-pub type TaskId = String;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum TaskStatus {
-    Ready,
-    Running,
-    AwaitingApproval,
-    Cancelling,
-    Completed,
-    Failed,
-    Cancelled,
-    /// Headless batch run stopped because `--max-turns` was reached before the
-    /// task completed. Distinct from `Completed` so CI can treat it as failure.
-    MaxTurnsReached,
-}
-
-impl fmt::Display for TaskStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Ready => f.write_str("ready"),
-            Self::Running => f.write_str("running"),
-            Self::AwaitingApproval => f.write_str("awaiting_approval"),
-            Self::Cancelling => f.write_str("cancelling"),
-            Self::Completed => f.write_str("completed"),
-            Self::Failed => f.write_str("failed"),
-            Self::Cancelled => f.write_str("cancelled"),
-            Self::MaxTurnsReached => f.write_str("max_turns_reached"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct CommandEvidence {
-    pub program: String,
-    pub exit_code: Option<i32>,
-    pub interrupted: bool,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ConversationCheckpoint {
-    pub message_count: usize,
-    pub summary: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct InterruptedCommand {
-    pub program: String,
-    pub interrupted_at: String,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct SessionNote {
-    pub content: String,
-    pub created_at_turn: usize,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ContextCompactionRecord {
-    pub turn_index: usize,
-    pub messages_before: usize,
-    pub messages_after: usize,
-    pub summary: String,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct CacheUsageStats {
-    pub total_cache_creation_tokens: u64,
-    pub total_cache_read_tokens: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TaskState {
-    pub id: TaskId,
-    pub status: TaskStatus,
-    #[serde(default)]
-    pub parent_task_id: Option<TaskId>,
-    #[serde(default)]
-    pub agent_id: Option<String>,
-    #[serde(default)]
-    pub worktree_path: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub started_at: Option<u64>,
-    #[serde(default)]
-    pub updated_at: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub last_heartbeat: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub handoff_summary: Option<String>,
-    pub active_grants: HashMap<Capability, ApprovalScope>,
-    pub changed_files: Vec<PathBuf>,
-    pub command_history: Vec<CommandEvidence>,
-    pub conversation_snapshot: ConversationCheckpoint,
-    pub interrupted_sessions: Vec<InterruptedCommand>,
-    #[serde(default)]
-    pub branch_name: Option<String>,
-    #[serde(default)]
-    pub instructions_path: Option<String>,
-    #[serde(default)]
-    pub turns: Vec<TurnEvidenceState>,
-    #[serde(default)]
-    pub plan: Option<String>,
-    #[serde(default)]
-    pub session_notes: Vec<SessionNote>,
-    #[serde(default)]
-    pub context_compaction: Vec<ContextCompactionRecord>,
-    #[serde(default)]
-    pub cache_usage: CacheUsageStats,
-    #[serde(default, alias = "child_tasks")]
-    pub session_tasks: Vec<SessionTask>,
-}
+use crate::turn_evidence::normalize_tool_invocation_step_ids;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskStateFile {
@@ -143,106 +31,11 @@ struct SessionTaskLiveSummary {
 }
 
 /// Delegates to [`crate::util::write_json_safe`].
-fn write_pretty_json_safe<T: Serialize>(path: &Path, value: &T, label: &str) -> Result<()> {
+fn write_pretty_json_safe(path: &Path, value: &TaskState, label: &str) -> Result<()> {
     crate::util::write_json_safe(path, value, label)
 }
 
 impl TaskState {
-    pub fn new(id: TaskId) -> Self {
-        let now = now_millis();
-        Self {
-            id,
-            status: TaskStatus::Ready,
-            parent_task_id: None,
-            agent_id: None,
-            worktree_path: None,
-            started_at: Some(now),
-            updated_at: now,
-            last_heartbeat: None,
-            handoff_summary: None,
-            active_grants: HashMap::new(),
-            changed_files: Vec::new(),
-            command_history: Vec::new(),
-            conversation_snapshot: ConversationCheckpoint::default(),
-            interrupted_sessions: Vec::new(),
-            branch_name: None,
-            instructions_path: None,
-            turns: Vec::new(),
-            plan: None,
-            session_notes: Vec::new(),
-            context_compaction: Vec::new(),
-            cache_usage: CacheUsageStats::default(),
-            session_tasks: Vec::new(),
-        }
-    }
-
-    pub fn touch(&mut self) {
-        self.updated_at = now_millis();
-    }
-
-    pub fn record_heartbeat(&mut self) {
-        let now = now_millis();
-        self.last_heartbeat = Some(now);
-        self.updated_at = now;
-    }
-
-    pub fn add_session_task(&mut self, session_task: SessionTask) {
-        self.session_tasks.push(session_task);
-        self.touch();
-    }
-
-    pub fn session_task(&self, id: &str) -> Option<&SessionTask> {
-        self.session_tasks.iter().find(|task| task.id == id)
-    }
-
-    pub fn session_task_mut(&mut self, id: &str) -> Option<&mut SessionTask> {
-        self.session_tasks.iter_mut().find(|task| task.id == id)
-    }
-
-    pub fn update_session_task_status(&mut self, id: &str, status: SessionTaskStatus) -> bool {
-        let Some(task) = self.session_task_mut(id) else {
-            return false;
-        };
-        task.transition_to(status);
-        self.touch();
-        true
-    }
-
-    pub fn find_session_task_in_saved_states(
-        working_dir: &Path,
-        session_task_id: &str,
-    ) -> Result<Option<(TaskState, SessionTask)>> {
-        for file in Self::state_files_from(working_dir) {
-            let state = Self::load(&file.dir, &file.id)?;
-            if let Some(task) = state.session_task(session_task_id).cloned() {
-                return Ok(Some((state, task)));
-            }
-        }
-        Ok(None)
-    }
-
-    pub fn live_session_task_counts_from(working_dir: &Path) -> Result<HashMap<String, usize>> {
-        let mut counts = HashMap::new();
-        for file in Self::state_files_from(working_dir) {
-            match Self::load_live_summary(&file.dir, &file.id) {
-                Ok(summary) => {
-                    for session_task in summary.session_tasks {
-                        if session_task.lifecycle_state.is_live() {
-                            *counts.entry(session_task.agent_id).or_default() += 1;
-                        }
-                    }
-                }
-                Err(error) => tracing::debug!(
-                    task_id = %file.id,
-                    state_dir = %file.dir.display(),
-                    %error,
-                    "skipping unreadable task state during inline live agent scan"
-                ),
-            }
-        }
-        Ok(counts)
-    }
-
     pub fn save(&self, dir: &Path) -> Result<()> {
         let final_path = state_file_path(dir, &self.id);
         crate::tools::operator::policy::assert_durable_access(&final_path)?;
@@ -322,7 +115,7 @@ impl TaskState {
             .collect::<Vec<_>>();
 
         files.sort_by(|left, right| right.modified_millis.cmp(&left.modified_millis));
-        let mut seen = HashSet::new();
+        let mut seen = std::collections::HashSet::new();
         files.retain(|file| seen.insert(file.id.clone()));
         files
     }
@@ -341,6 +134,41 @@ impl TaskState {
         }
 
         Err(anyhow!("task state '{id}' not found"))
+    }
+
+    pub fn find_session_task_in_saved_states(
+        working_dir: &Path,
+        session_task_id: &str,
+    ) -> Result<Option<(TaskState, SessionTask)>> {
+        for file in Self::state_files_from(working_dir) {
+            let state = Self::load(&file.dir, &file.id)?;
+            if let Some(task) = state.session_task(session_task_id).cloned() {
+                return Ok(Some((state, task)));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn live_session_task_counts_from(working_dir: &Path) -> Result<HashMap<String, usize>> {
+        let mut counts = HashMap::new();
+        for file in Self::state_files_from(working_dir) {
+            match Self::load_live_summary(&file.dir, &file.id) {
+                Ok(summary) => {
+                    for session_task in summary.session_tasks {
+                        if session_task.lifecycle_state.is_live() {
+                            *counts.entry(session_task.agent_id).or_default() += 1;
+                        }
+                    }
+                }
+                Err(error) => tracing::debug!(
+                    task_id = %file.id,
+                    state_dir = %file.dir.display(),
+                    %error,
+                    "skipping unreadable task state during inline live agent scan"
+                ),
+            }
+        }
+        Ok(counts)
     }
 
     fn load_live_summary(dir: &Path, id: &str) -> Result<TaskStateLiveSummary> {
@@ -384,26 +212,17 @@ impl TaskState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::approval::{ApprovalScope, Capability};
+    use crate::runtime::task_state::{
+        CacheUsageStats, CommandEvidence, ContextCompactionRecord, ConversationCheckpoint,
+        InterruptedCommand, SessionNote, TaskStatus,
+    };
     use crate::test_support::ENV_LOCK;
+    use crate::turn_evidence::TurnEvidenceState;
     use tempfile::TempDir;
 
     #[test]
-    fn task_status_display_uses_lowercase_api_names() {
-        assert_eq!(TaskStatus::Ready.to_string(), "ready");
-        assert_eq!(TaskStatus::Running.to_string(), "running");
-        assert_eq!(
-            TaskStatus::AwaitingApproval.to_string(),
-            "awaiting_approval"
-        );
-        assert_eq!(TaskStatus::Cancelling.to_string(), "cancelling");
-        assert_eq!(TaskStatus::Completed.to_string(), "completed");
-        assert_eq!(TaskStatus::Failed.to_string(), "failed");
-        assert_eq!(TaskStatus::Cancelled.to_string(), "cancelled");
-        assert_eq!(TaskStatus::MaxTurnsReached.to_string(), "max_turns_reached");
-    }
-
-    #[test]
-    fn test_task_state_survives_atomic_write_and_reload() {
+    fn task_state_survives_atomic_write_and_reload() {
         let dir = TempDir::new().unwrap();
         let state = TaskState {
             id: "task-001".to_string(),
@@ -482,7 +301,7 @@ mod tests {
     }
 
     #[test]
-    fn test_task_state_pre_adr029_file_loads_with_default_new_fields() {
+    fn pre_adr029_file_loads_with_default_new_fields() {
         let dir = TempDir::new().unwrap();
         let legacy_json = r#"{
             "id": "task-legacy",
@@ -506,7 +325,7 @@ mod tests {
     }
 
     #[test]
-    fn test_task_state_load_backfills_missing_tool_invocation_step_ids() {
+    fn load_backfills_missing_tool_invocation_step_ids() {
         let dir = TempDir::new().unwrap();
         let legacy_json = r#"{
             "id": "task-step-legacy",
@@ -545,18 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cache_usage_stats_accumulate() {
-        let mut stats = CacheUsageStats::default();
-        stats.total_cache_creation_tokens += 100;
-        stats.total_cache_read_tokens += 400;
-        stats.total_cache_creation_tokens += 50;
-        stats.total_cache_read_tokens += 600;
-        assert_eq!(stats.total_cache_creation_tokens, 150);
-        assert_eq!(stats.total_cache_read_tokens, 1000);
-    }
-
-    #[test]
-    fn test_task_state_marks_interrupted_commands_on_reload() {
+    fn marks_interrupted_commands_on_reload() {
         let dir = TempDir::new().unwrap();
         let state = TaskState {
             id: "task-456".to_string(),
@@ -594,14 +402,7 @@ mod tests {
     }
 
     #[test]
-    fn test_max_turns_reached_is_distinct_from_completed() {
-        assert_ne!(TaskStatus::MaxTurnsReached, TaskStatus::Completed);
-        assert_ne!(TaskStatus::MaxTurnsReached, TaskStatus::Cancelled);
-        assert_ne!(TaskStatus::MaxTurnsReached, TaskStatus::Failed);
-    }
-
-    #[test]
-    fn test_state_dir_defaults_to_repo_root_for_subdirs() {
+    fn state_dir_defaults_to_repo_root_for_subdirs() {
         let _env_lock = ENV_LOCK.blocking_lock();
         let temp = TempDir::new().unwrap();
         std::fs::create_dir_all(temp.path().join(".git")).unwrap();
@@ -616,7 +417,7 @@ mod tests {
     }
 
     #[test]
-    fn test_state_dir_relative_env_is_anchored_to_repo_root() {
+    fn state_dir_relative_env_is_anchored_to_repo_root() {
         let _env_lock = ENV_LOCK.blocking_lock();
         let temp = TempDir::new().unwrap();
         std::fs::create_dir_all(temp.path().join(".git")).unwrap();
@@ -633,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn test_state_dir_absolute_env_is_preserved() {
+    fn state_dir_absolute_env_is_preserved() {
         let _env_lock = ENV_LOCK.blocking_lock();
         let temp = TempDir::new().unwrap();
         let absolute = temp.path().join("absolute-state");
@@ -645,7 +446,7 @@ mod tests {
     }
 
     #[test]
-    fn test_state_search_dirs_include_legacy_subdir_path() {
+    fn state_search_dirs_include_legacy_subdir_path() {
         let _env_lock = ENV_LOCK.blocking_lock();
         let temp = TempDir::new().unwrap();
         std::fs::create_dir_all(temp.path().join(".git")).unwrap();
@@ -659,7 +460,7 @@ mod tests {
     }
 
     #[test]
-    fn test_state_search_dirs_include_legacy_relative_env_path() {
+    fn state_search_dirs_include_legacy_relative_env_path() {
         let _env_lock = ENV_LOCK.blocking_lock();
         let temp = TempDir::new().unwrap();
         std::fs::create_dir_all(temp.path().join(".git")).unwrap();
@@ -679,7 +480,7 @@ mod tests {
     }
 
     #[test]
-    fn test_live_session_task_counts_from_reads_inline_state_summary() {
+    fn live_session_task_counts_from_reads_inline_state_summary() {
         let _env_lock = ENV_LOCK.blocking_lock();
         let temp = TempDir::new().unwrap();
         std::fs::create_dir_all(temp.path().join(".git")).unwrap();
@@ -699,7 +500,7 @@ mod tests {
     }
 
     #[test]
-    fn test_state_files_prefer_newest_copy_of_duplicate_task_ids() {
+    fn state_files_prefer_newest_copy_of_duplicate_task_ids() {
         use filetime::{set_file_mtime, FileTime};
 
         let _env_lock = ENV_LOCK.blocking_lock();
@@ -735,7 +536,7 @@ mod tests {
     }
 
     #[test]
-    fn test_live_session_task_counts_prefer_newest_copy_of_duplicate_task_ids() {
+    fn live_session_task_counts_prefer_newest_copy_of_duplicate_task_ids() {
         use filetime::{set_file_mtime, FileTime};
 
         let _env_lock = ENV_LOCK.blocking_lock();
@@ -778,30 +579,5 @@ mod tests {
         let counts = TaskState::live_session_task_counts_from(&nested).unwrap();
         assert_eq!(counts.get("legacy-reviewer"), Some(&1));
         assert!(!counts.contains_key("repo-reviewer"));
-    }
-
-    #[test]
-    fn test_add_and_update_session_task() {
-        let mut state = TaskState::new("task-parent".to_string());
-        let session_task = SessionTask::new(
-            "task-parent",
-            "docs-reviewer",
-            "review docs",
-            Some(PathBuf::from(
-                ".vex/state/worktrees/task-parent-docs-reviewer",
-            )),
-        );
-        let session_task_id = session_task.id.clone();
-
-        state.add_session_task(session_task);
-        assert_eq!(state.session_tasks.len(), 1);
-
-        assert!(state.update_session_task_status(&session_task_id, SessionTaskStatus::Running));
-        assert_eq!(
-            state
-                .session_task(&session_task_id)
-                .map(|task| &task.lifecycle_state),
-            Some(&SessionTaskStatus::Running)
-        );
     }
 }
