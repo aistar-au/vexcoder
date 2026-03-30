@@ -464,7 +464,7 @@ tests in the current tree:
    `src/app/tests/model_turn.rs::test_tool_approval_request_persists_awaiting_approval_status_in_task_state`,
    `src/app/tests/model_turn.rs::test_tui_edit_loop_completion_persists_max_turn_status_in_task_state`,
    and
-   `src/runtime/task_state.rs::test_max_turns_reached_is_distinct_from_completed`
+   `src/runtime/task_state/mod.rs::max_turns_reached_is_distinct_from_completed`
 
 ## Invariant violations fixed 2026-03-17
 

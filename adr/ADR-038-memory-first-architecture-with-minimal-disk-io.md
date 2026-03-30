@@ -1,6 +1,6 @@
 # ADR-038: Memory-First Architecture with Minimal Disk I/O
 
-- **Status:** Active
+- **Status:** Accepted
 - **Date:** 2026-03-30
 - **Deciders:** Core maintainer
 - **Depends on:** ADR-029, ADR-030, ADR-033, ADR-034
@@ -26,8 +26,8 @@ explicitly durable:
 
 - `src/tools/{index,search,semantic}.rs` persist code-search indexes under
   `.vex/index/`
-- `src/runtime/task_state.rs` persists the multi-agent handoff map under
-  `.vex/state/`
+- `src/runtime/task_state/{mod,persist}.rs` persists the multi-agent handoff map
+  under `.vex/state/`
 
 That means the remaining mandatory turn-time disk I/O is mostly accidental,
 not architectural. If Vex wants lower time-to-first-chunk, it must remove
@@ -105,8 +105,8 @@ Adopt a memory-first contract for turn assembly:
   operator opts in or the command explicitly asks for git data.
 - Process-local caches add invalidation and eviction rules that need direct
   test coverage.
-- This ADR is intentionally partial; operator-level policy wiring and optional
-  task-state WAL remain follow-up work.
+- Operator-level policy wiring and WAL evaluation are complete as of Batch H
+  (PR #283). No remaining follow-up items.
 
 ## Implementation status
 
