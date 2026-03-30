@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "New version (e.g. 0.1.0-alpha.4). No 'v' prefix."
+        description: "New version (e.g. 0.1.0-alpha.4 or 0.1.0-rc.1). No 'v' prefix; numeric prerelease parts cannot have leading zeros."
         required: true
         type: string
 

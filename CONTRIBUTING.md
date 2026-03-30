@@ -1,6 +1,6 @@
 # Contributing to vexcoder
 
-> **Version:** This workflow applies from `v0.1.0-beta.9` onward.
+> **Version:** This workflow applies from `v0.1.0-rc.1` onward.
 > **Architecture decisions** live in [`adr/`](adr/ADR-README.md).
 > The ADRs explain *why* the project is structured this way. Read them before opening a PR.
 >
@@ -117,21 +117,21 @@ bash scripts/check_forbidden_names.sh
 Package release changes on a review branch first, verify them locally, and open the PR without waiting on a duplicate packaging workflow run.
 
 ```bash
-git switch -c work/v0.1.0-beta.9-packaging
+git switch -c work/v0.1.0-rc.1-packaging
 make gate
 make release TARGET=x86_64-unknown-linux-gnu
-git push -u origin work/v0.1.0-beta.9-packaging
+git push -u origin work/v0.1.0-rc.1-packaging
 ```
 
 On Windows PowerShell 7, use the native packaging script instead of `make release`:
 
 ```powershell
-git switch -c work/v0.1.0-beta.9-packaging
+git switch -c work/v0.1.0-rc.1-packaging
 $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
 cargo nextest run -j 2
 cargo test --all-targets
 .\scripts\release.ps1 -Target x86_64-pc-windows-msvc
-git push -u origin work/v0.1.0-beta.9-packaging
+git push -u origin work/v0.1.0-rc.1-packaging
 ```
 
 Windows packaging is currently an unsigned alpha path. Platform trust warnings are expected until code signing lands; evaluate a compatible signing service only when the packaging ADR set explicitly requires it.
@@ -141,8 +141,8 @@ The packaging scripts derive the archive tag from `Cargo.toml` and reject mismat
 ```bash
 git switch main
 git pull --ff-only origin main
-git tag -a v0.1.0-beta.9 -m "Release v0.1.0-beta.9"
-git push origin v0.1.0-beta.9
+git tag -a v0.1.0-rc.1 -m "Release v0.1.0-rc.1"
+git push origin v0.1.0-rc.1
 ```
 
 The pushed tag now drives the rest of the release flow automatically: archive packaging, checksums, signature bundles, the release entry, and a generated `CHANGELOG-<tag>.md` asset all publish from the same tag event.
