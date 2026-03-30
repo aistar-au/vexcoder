@@ -370,6 +370,30 @@ mod tests {
         );
     }
 
+    /// Regression: exclude prefix with trailing slash must not match
+    /// directories that merely share a common stem (e.g. `"src/data/"`
+    /// must not match `"src/data_backup/lib.rs"`).  The config layer
+    /// normalizes entries to include a trailing slash.
+    #[test]
+    fn exclude_prefix_requires_path_boundary() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let data = tmp.path().join("src").join("data");
+        let data_backup = tmp.path().join("src").join("data_backup");
+        fs::create_dir_all(&data).expect("mkdir data");
+        fs::create_dir_all(&data_backup).expect("mkdir data_backup");
+        fs::write(data.join("lib.rs"), "pub fn in_data() {}\n").expect("write");
+        fs::write(data_backup.join("lib.rs"), "pub fn in_data_backup() {}\n").expect("write");
+
+        // With trailing slash — only src/data/ is excluded, not src/data_backup/.
+        let chunks = build_index_filtered(tmp.path(), &["src/data/".to_string()], usize::MAX);
+        let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
+        assert!(!names.contains(&"in_data"), "src/data/ must be excluded");
+        assert!(
+            names.contains(&"in_data_backup"),
+            "src/data_backup/ must NOT be excluded by src/data/ prefix"
+        );
+    }
+
     /// Anchor test: a file write followed by `update_index` must refresh the
     /// index incrementally without a full rebuild.
     #[test]
