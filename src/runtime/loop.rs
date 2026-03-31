@@ -10,10 +10,11 @@ pub struct Runtime<M: RuntimeMode> {
 }
 
 const IDLE_RENDER_TICK: Duration = Duration::from_millis(120);
-// Tuning note (ADR-021 Item 33): effective idle cadence is bounded by the
-// frontend poll interval (16ms in tui_frontend.rs), so the practical idle
-// rate is around 62Hz regardless of this value. Re-evaluate via profiling
-// before reducing further.
+// Tuning note (ADR-021 Item 33): the frontend poll interval in
+// tui_frontend.rs is adaptive — 1ms during active model turns, 16ms when
+// idle — so the practical idle loop rate is around 62Hz while streaming
+// iterations run at near-1kHz. Re-evaluate via profiling before reducing
+// further.
 const IDLE_LOOP_BACKOFF: Duration = Duration::from_millis(4);
 
 impl<M: RuntimeMode> Runtime<M> {

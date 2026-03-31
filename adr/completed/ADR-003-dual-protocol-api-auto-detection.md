@@ -30,6 +30,7 @@ Implement a single `ApiClient` that supports both `messages-v1` and chat-compati
 
 **Protocol inference rules** (`infer_api_protocol()`):
 - URL contains `/chat/completions` → chat-completions protocol
+- URL contains `/messages` → `messages-v1` protocol (covers both `/v1/messages` and the transposed `/messages/v1`)
 - URL ends with `/v1` → chat-completions protocol (base path convention)
 - Anything else → `messages-v1` (default)
 
@@ -37,6 +38,7 @@ Implement a single `ApiClient` that supports both `messages-v1` and chat-compati
 - `messages-v1` mode maps `/v1` → `/v1/messages`
 - chat-compatible mode maps `/v1` → `/v1/chat/completions`
 - explicit `/messages` and `/chat/completions` URLs are preserved for their configured protocol
+- transposed `/messages/v1` is rewritten to the canonical `/v1/messages` or `/v1/chat/completions` form
 
 **Stream parser** (`src/api/stream.rs`): attempts `messages-v1` SSE parse first; on failure attempts chat-completions chunk parse. Chat-completions tool calls are translated into the same `StreamEvent` enum used by the `messages-v1` path, so `ConversationManager` is protocol-agnostic above the stream layer.
 
