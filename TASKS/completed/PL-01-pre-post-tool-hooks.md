@@ -3,7 +3,7 @@
 **Target Files:** `src/config.rs`, `src/app.rs`, `src/runtime.rs`,
 `src/runtime/sandbox.rs`, `src/state/conversation/tools.rs`,
 `src/state/conversation/state.rs`, `src/state/conversation/core.rs`,
-`src/state/conversation/tests.rs`, `src/tools/operator.rs`,
+`src/state/conversation/tests.rs`, `src/tools/operator/mod.rs`,
 `src/api/client.rs`, `src/batch_mode.rs`, `tests/integration_test.rs`
 
 **ADR:** ADR-024 Gap 26
