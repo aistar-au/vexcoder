@@ -47,8 +47,24 @@ impl TuiMode {
         self.timeline_follow_mode = true;
         self.inspector_scroll_offset = 0;
         self.turn_started_at = None;
+        self.ttft = None;
         self.turn_completion_pending = false;
         self.plan_turn_active = false;
+    }
+
+    /// Append a `[ttft: …s | total: …s]` timing summary to the transcript
+    /// after a turn finishes so the operator can see latency at a glance.
+    fn append_turn_timing_line(&mut self) {
+        let total = match self.last_turn_duration {
+            Some(d) => d,
+            None => return,
+        };
+        let mut parts = Vec::new();
+        if let Some(ttft) = self.last_turn_ttft {
+            parts.push(format!("ttft:{:.1}s", ttft.as_secs_f64()));
+        }
+        parts.push(format!("total:{:.1}s", total.as_secs_f64()));
+        self.push_history_line(format!("[{}]", parts.join(" | ")));
     }
 
     pub(super) fn reset_last_turn_display(&mut self) {
@@ -130,6 +146,7 @@ impl TuiMode {
         self.resolve_pending_patch_approval(false);
         self.active_stream_blocks.clear();
         self.commit_completed_turn(ctx);
+        self.append_turn_timing_line();
         self.maybe_extract_auto_memory();
         self.history_state.cancel_pending = false;
         self.history_state.turn_in_progress = false;
@@ -169,6 +186,7 @@ impl TuiMode {
         self.last_turn_response = self.current_turn_response.clone();
         self.last_turn_input_display = self.current_turn_input.clone();
         self.last_turn_duration = self.turn_started_at.map(|started| started.elapsed());
+        self.last_turn_ttft = self.ttft;
         self.last_error_message = None;
 
         let changed_files = self

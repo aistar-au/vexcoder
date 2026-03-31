@@ -26,6 +26,12 @@ impl TuiMode {
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
                 }
+                // Capture client-side TTFT on the very first content delta.
+                if self.ttft.is_none() {
+                    if let Some(started) = self.turn_started_at {
+                        self.ttft = Some(started.elapsed());
+                    }
+                }
                 self.current_turn_response.push_str(&text);
                 let idx = match self.history_state.active_assistant_index {
                     Some(idx) => idx,

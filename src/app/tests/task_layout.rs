@@ -8,12 +8,13 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
     mode.on_user_input("hi".to_string(), &mut ctx);
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert_eq!(
-        state.output_rows,
-        vec![
-            "> hi".to_string(),
-            "[thinking] Mapping adjacent sectors...".to_string()
-        ]
+    assert_eq!(state.output_rows.len(), 2);
+    assert_eq!(state.output_rows[0], "> hi");
+    // The second row is the ADR-039 canonical waiting phrase with elapsed suffix.
+    assert!(
+        state.output_rows[1].starts_with("[thinking] Mapping adjacent sectors..."),
+        "expected canonical ADR-039 waiting row, got: {:?}",
+        state.output_rows[1]
     );
 }
 

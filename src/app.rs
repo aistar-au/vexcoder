@@ -864,6 +864,11 @@ pub struct TuiMode {
     inspector_scroll_offset: usize,
     /// Wall-clock start instant for the active turn.
     turn_started_at: Option<Instant>,
+    /// Client-side time-to-first-token (TTFT), measured from turn start
+    /// to the first `StreamDelta` received from the model.
+    ttft: Option<Duration>,
+    /// TTFT from the most recently completed turn, kept for display.
+    last_turn_ttft: Option<Duration>,
     /// Last completed turn's tool invocations (kept for persistent display).
     last_turn_tool_invocations: Vec<ToolInvocationSummary>,
     /// Last completed turn's response text (kept for persistent display).
