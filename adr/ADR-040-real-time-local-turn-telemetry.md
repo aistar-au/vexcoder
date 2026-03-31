@@ -9,13 +9,20 @@
 
 ## Context
 
-Local chat-compatible inference servers can spend substantial time in prompt
-evaluation before the first text token arrives. On local inference servers
-that support the chat-completions streaming protocol, the prompt phase can
-already emit useful stream metadata such as:
+Local inference servers can spend substantial time in prompt evaluation before
+the first text token arrives. Both streaming protocols supported by the
+runtime — chat-compatible (`/v1/chat/completions`) and messages/v1
+(`/messages/v1`) — can carry prompt-eval telemetry, but through different
+mechanisms.
+
+On endpoints that support the chat-completions protocol, the prompt phase can
+emit useful stream metadata such as:
 
 1. `prompt_progress` counters while prompt tokens are still being ingested.
 2. `timings` snapshots that distinguish prompt-eval time from generation time.
+
+On endpoints that support the messages/v1 protocol, the same telemetry is
+carried natively inside event metadata without requiring opt-in request flags.
 
 The operator-facing problem was not one bug but one broken feedback loop:
 
@@ -34,46 +41,90 @@ has been produced yet.
 
 ## Decision
 
-Treat local prompt-eval telemetry as first-class turn state.
+Treat local prompt-eval telemetry as first-class turn state across both
+streaming protocols.
 
 ### Scope boundaries
 
-1. This ADR applies to local chat-compatible streaming requests and their
+1. This ADR applies to local streaming requests on both protocols and their
    operator-facing transcript/status surfaces.
 2. This ADR does **not** change canonical persisted task-state machine fields.
 3. This ADR does **not** add provider-specific telemetry to remote API-server
    payloads by default.
 4. This ADR does **not** replace the ADR-039 canonical waiting phrase.
 
-### Request contract
+### Request contract — chat-compatible protocol
 
 5. Local chat-compatible streaming requests must ask for prompt progress and
    per-token timing metadata when the backend supports it.
 6. The request contract for that local path includes `return_progress = true`
-   and `timings_per_token = true`.
+   and `timings_per_token = true` as extra body parameters.
 7. Remote API-server payloads remain unchanged unless a separate ADR expands
    provider-specific telemetry on those paths.
 
-### Stream conversion contract
+### Request contract — messages/v1 protocol
 
-8. Metadata-only chat-compatible chunks are valid turn progress and must not be
-   dropped merely because `content` is `null`.
-9. Prompt-eval progress and timing snapshots must flow through the runtime as
-   structured updates, not as ad hoc transcript spam.
-10. Text, tool blocks, and timing/progress metadata remain separate concerns in
-   the update pipeline.
+8. Messages/v1 streaming requests do not require opt-in flags for telemetry.
+   Prompt progress and timing data arrive as metadata on standard stream
+   events when the backend supports them.
+9. The system prompt is passed as a top-level `system` field, not embedded in
+   messages.
+10. Tool choice uses structured format (`{"type": "auto"}`), and stop
+    conditions use the `stop_sequences` key.
+
+### Stream conversion contract — chat-compatible protocol
+
+11. Metadata-only chat-compatible chunks are valid turn progress and must not
+    be dropped merely because `content` is `null`.
+12. The chat-compatible chunk struct carries `prompt_progress` and `timings`
+    as top-level fields. The stream parser converts these into
+    `StreamChunkMetadata` and emits them on `MessageStart` or `MessageDelta`
+    events.
+13. A `[DONE]` sentinel terminates the chat-compatible stream.
+
+### Stream conversion contract — messages/v1 protocol
+
+14. Messages/v1 events deserialize directly into the `StreamEvent` enum
+    without an intermediate conversion step.
+15. Telemetry arrives inside `StreamChunkMetadata` nested within
+    `MessageStart.message.metadata` or `MessageDelta.delta.metadata`.
+16. Usage data on messages/v1 appears as a top-level peer of `delta` in
+    `MessageDelta` events, not nested inside chunk metadata.
+17. No `[DONE]` sentinel is used; the stream ends with a `MessageStop` event.
+
+### Shared telemetry types
+
+18. Both protocols share the same telemetry structs after stream parsing:
+    - `StreamPromptProgress`: `total`, `cache`, `processed`, `time_ms`.
+    - `StreamTimings`: `cache_n`, `prompt_n`, `prompt_ms`,
+      `prompt_per_token_ms`, `prompt_per_second`, `predicted_n`,
+      `predicted_ms`, `predicted_per_token_ms`, `predicted_per_second`.
+    - `ApiUsage`: `input_tokens` / `prompt_tokens`, `output_tokens` /
+      `completion_tokens`, `cache_creation_input_tokens`,
+      `cache_read_input_tokens`, plus `prompt_tokens_details` and
+      `completion_tokens_details` sub-objects.
+19. Text, tool blocks, and timing/progress metadata remain separate concerns
+    in the update pipeline.
+
+### Stream parser dispatch
+
+20. The stream parser attempts messages/v1 deserialization first. On failure
+    it falls back to chat-compatible parsing. This ordering means
+    messages/v1 events are never misinterpreted as chat-compatible chunks.
 
 ### Operator-surface contract
 
-11. The waiting lane keeps the ADR-039 canonical phrase
+21. The waiting lane keeps the ADR-039 canonical phrase
     `Mapping adjacent sectors...` and appends telemetry rather than replacing
     the phrase.
-12. While a turn is waiting for first text, the operator surface may append
+22. While a turn is waiting for first text, the operator surface may append
     live counters such as `read:2048/2641` in the same status lane.
-13. After a turn completes, the transcript may append a compact timing summary
+23. After a turn completes, the transcript may append a compact timing summary
     such as `ttft`, `read`, `generate`, and `total`.
-14. These additions remain subordinate status telemetry, not primary response
+24. These additions remain subordinate status telemetry, not primary response
     prose.
+25. The surface contract is protocol-agnostic; both protocols produce the
+    same `StreamEvent` variants and telemetry types after parsing.
 
 ## Consequences
 
@@ -83,25 +134,33 @@ Treat local prompt-eval telemetry as first-class turn state.
   frozen.
 - Operators can distinguish prompt-eval latency from generation latency.
 - The UI preserves ADR-039 voice while gaining concrete runtime telemetry.
+- Both protocols converge to the same internal event model, so downstream
+  runtime and surface code is protocol-agnostic.
 
 ### Negative
 
 - The local chat-compatible path now knowingly depends on backend-specific
-  progress fields.
+  progress fields and opt-in request flags.
+- The messages/v1 path carries telemetry natively but depends on per-backend
+  support for populating `prompt_progress` and `timings` metadata.
 - Tests must cover metadata-only chunks because they are now semantically
   meaningful.
 - Telemetry availability still depends on backend support; unsupported servers
-  fall back to elapsed-only waiting state.
+  fall back to elapsed-only waiting state on either protocol.
 
 ## Implementation notes
 
 Candidate implementation areas:
 
-- `src/api/client.rs`
-- `src/api/stream.rs`
-- `src/state/conversation/`
-- `src/runtime/context.rs`
-- `src/app/`
+- `src/api/client.rs` — request payload construction for both protocols;
+  `apply_local_chat_compat_stream_flags()` inserts telemetry opt-in flags.
+- `src/api/stream.rs` — `StreamParser` with messages/v1-first fallback chain;
+  `ChatCompatChunk` intermediate struct for chat-compatible conversion.
+- `src/types/api_types.rs` — shared `StreamEvent` enum, `StreamChunkMetadata`,
+  `StreamPromptProgress`, `StreamTimings`, `ApiUsage`.
+- `src/state/conversation/` — turn state consumption of telemetry events.
+- `src/runtime/context.rs` — runtime dispatch and protocol selection.
+- `src/app/` — operator-surface rendering of telemetry counters.
 
 ## References
 
