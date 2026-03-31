@@ -108,7 +108,7 @@ Adopt a neutral spatial voice for operator-facing CLI text.
 
 ## Implementation batches
 
-### Batch A -- Status anchors and semantic color feedback (subtle introduction phase 1, implemented in this branch)
+### Batch A -- Status anchors and semantic color feedback (subtle introduction phase 1, merged on main in PR #292)
 
 - Introduce `Mapping adjacent sectors...` as the default human-facing thinking
    text when a more specific operator status is not available.
@@ -166,9 +166,11 @@ Adopt a neutral spatial voice for operator-facing CLI text.
 
 ## Implementation status
 
-Batch A is implemented in this branch. Existing operator-facing surfaces now
+Batch A is merged on main (PR #292). Existing operator-facing surfaces now
 use the low-gain status pass: semantic color feedback plus
 `Mapping adjacent sectors...` and `State synchronized.` on the current layout.
+A follow-up fix in PR #293 normalizes `search.exclude` entries with a trailing
+slash so path-prefix matching enforces directory boundaries by construction.
 Remaining work is Batch B vocabulary normalization, Batch C active-indicator
 affordance, and Batch D paragraph-progress consolidation.
 
