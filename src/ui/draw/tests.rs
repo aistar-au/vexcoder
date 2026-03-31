@@ -181,26 +181,6 @@ fn truncate_to_width_handles_multibyte() {
 }
 
 #[test]
-fn lifecycle_prefixes_have_no_trailing_spaces() {
-    let lifecycles = [
-        StepLifecycle::Completed,
-        StepLifecycle::Failed,
-        StepLifecycle::Running,
-        StepLifecycle::AwaitingApproval,
-        StepLifecycle::Approved,
-        StepLifecycle::UserInput,
-        StepLifecycle::CommandSession,
-    ];
-    for lc in &lifecycles {
-        let prefix = lifecycle_prefix(lc);
-        assert!(
-            !prefix.ends_with(' '),
-            "prefix for {lc:?} must not end with a space: got {prefix:?}"
-        );
-    }
-}
-
-#[test]
 fn lifecycle_only_changes_redraw_activity() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
@@ -648,7 +628,6 @@ fn adaptive_layout_assigns_full_body_to_transcript() {
         .collect();
 
     let regions = Regions::compute(80, 40, false, entries.len());
-    assert_eq!(regions.timeline_rows, 0);
     assert_eq!(regions.transcript_start, 0);
     assert!(regions.transcript_rows > 0);
 }

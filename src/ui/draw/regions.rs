@@ -14,8 +14,6 @@ pub(super) struct Regions {
     pub(super) cols: u16,
     pub(super) rows: u16,
     pub(super) files_row: Option<u16>,
-    pub(super) timeline_start: u16,
-    pub(super) timeline_rows: u16,
     pub(super) transcript_start: u16,
     pub(super) transcript_rows: u16,
     pub(super) composer_start: u16,
@@ -70,10 +68,8 @@ impl Regions {
         // timeline strip. The transcript owns the full body above the
         // composer and renders tool/state paragraphs directly.
         let _ = timeline_entry_count;
-        let timeline_rows = 0;
         let transcript_rows = available;
 
-        let timeline_start = 0;
         let transcript_start = 0;
         let composer_start = transcript_start + transcript_rows;
 
@@ -81,8 +77,6 @@ impl Regions {
             cols,
             rows,
             files_row,
-            timeline_start,
-            timeline_rows,
             transcript_start,
             transcript_rows,
             composer_start,
