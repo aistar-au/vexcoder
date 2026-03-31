@@ -3,8 +3,8 @@
 //! This binary is embedded in Vex.app at Contents/MacOS/vex-launcher.  Its
 //! sole responsibilities are:
 //!
-//!   PH-01 — Locate the bundled vex binary and open a system terminal session
-//!            with it running.  The launcher exits once the terminal is open;
+//!   PH-01 — Locate the bundled vex binary and open a system cli session
+//!            with it running.  The launcher exits once the cli is open;
 //!            all agent logic runs inside the spawned vex process.
 //!
 //!   PH-02 — Read VEX_MODEL_TOKEN from the macOS system keychain before
@@ -33,7 +33,7 @@ fn main() {
     // non-fatal: the vex binary produces its own missing-token diagnostic.
     let token = keychain::read_model_token();
 
-    // Build and exec into the terminal command.  On success the exec call
+    // Build and exec into the cli command.  On success the exec call
     // replaces this process image; control only returns on failure.
     let mut cmd = terminal_command(&vex_binary, token.as_deref());
 
@@ -57,7 +57,7 @@ fn main() {
     }
 }
 
-/// Builds the command that opens a terminal session running the vex binary.
+/// Builds the command that opens a cli session running the vex binary.
 ///
 /// On macOS the system Terminal.app is launched via `osascript` so that the
 /// new window inherits the full GUI session context.  The launcher process

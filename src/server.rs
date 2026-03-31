@@ -60,7 +60,7 @@ pub struct ResolvedHttpSurface {
 }
 
 #[derive(Debug)]
-#[cfg_attr(not(unix), allow(dead_code))]
+#[cfg_attr(not(unix), allow(unused))]
 pub struct ResolvedUnixSurface {
     pub socket_path: PathBuf,
 }

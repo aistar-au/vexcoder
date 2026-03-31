@@ -101,7 +101,7 @@ For the current ADR chain, transport means the ADR-026 `LocalApiServer` surface 
 **Non-responsibilities**
 
 - no HTTP, SSE, or socket implementation;
-- no terminal rendering;
+- no cli rendering;
 - no provider wire parsing;
 - no second canonical event-envelope model separate from ADR-025.
 
@@ -154,7 +154,7 @@ When machine-readable event streaming is needed, the facade emits ADR-025 `Runti
 
 - no transport framing;
 - no CLI parsing;
-- no terminal rendering ownership;
+- no cli rendering ownership;
 - no direct transport or server dependency.
 
 ### 4. Runtime core engine
@@ -216,7 +216,7 @@ When machine-readable event streaming is needed, the facade emits ADR-025 `Runti
 
 - `Runtime -> CLI`
 - `Runtime -> Transport`
-- `Runtime -> terminal UI`
+- `Runtime -> cli UI`
 - `Application facade -> HTTP/SSE/socket internals`
 - `Application facade -> CLI`
 - `Transport -> Runtime` except through facade-owned entrypoints
@@ -346,19 +346,19 @@ the matching endpoint path for the configured protocol.
 
 **Location:** `src/terminal.rs`
 
-**Root cause:** The terminal lifecycle notes drifted into contradictory wording.
+**Root cause:** The cli lifecycle notes drifted into contradictory wording.
 The interactive task surface is a fullscreen session and therefore must own the
 alternate screen buffer consistently instead of mixing primary-surface wording
 with alternate-screen enter/leave calls.
 
 **Fix:** `enter_full_screen_mode()` now executes `EnterAlternateScreen` before
 `EnableBracketedPaste`.  `restore()` now executes `LeaveAlternateScreen` before
-`Show`, cleanly returning the user to their pre-session terminal state. The
+`Show`, cleanly returning the user to their pre-session cli state. The
 fullscreen task surface keeps its own transcript scroll model inside the
-session; host-terminal PageUp after exit shows the pre-session shell history,
+session; host cli PageUp after exit shows the pre-session shell history,
 not the in-session transcript.
 
-### Bug 3 — Orchestrator activity pane does not show live steps
+### Bug 3 — Orchestrator activity pane does not show active steps
 
 **Location:** `src/app/layout.rs` (`task_activity_rows`), `src/ui/render.rs`
 (`render_task_layout`, `pipeline_activity_line`)
@@ -378,7 +378,7 @@ monochrome `Line::from` strings with no structured prefix styling.
 - Completed calls use `[ok]` / `[!]` prefixes matching existing render colours.
 - Added `pipeline_activity_line()` helper that splits each row into a bold
   coloured prefix `Span` and a body `Span`, giving the orchestration view a
-  structured live-pipeline appearance without copying proprietary CLI tool
+  structured pipeline appearance without copying proprietary CLI tool
   names or logos.
 - `render_task_layout` activity title now reflects state: "Orchestrating" when
   pending steps exist, "Steps" otherwise.
@@ -394,7 +394,7 @@ monochrome `Line::from` strings with no structured prefix styling.
 
 As part of ADR-034 Phase B-E baseline (PR #230), the application facade was
 extended with three new synchronous entrypoints for multi-agent session-task
-management.  These entrypoints live in the new module `src/app/task_facade.rs`
+management.  These entrypoints are placed in the new module `src/app/task_facade.rs`
 and are re-exported from `src/app.rs`.
 
 ### New module: `src/app/task_facade.rs`
@@ -404,7 +404,7 @@ and are re-exported from `src/app.rs`.
 | `facade_list_agents` | Loads the agents config from `working_dir` and returns a thin `FacadeAgentsListing` describing available agents and teams. |
 | `facade_delegate_session_task` | Acquires a worktree lease (via `WorktreeLeaseManager`), creates a `SessionTask` record with a UUID-scoped ID, and returns `FacadeDelegateResult { parent_task_id, session_task_id }`. |
 | `facade_watch_snapshot` | Searches saved task-state directories for an existing task or session task by ID and returns `Option<FacadeWatchSnapshot>` with stable lowercase status text and worktree path. |
-| `facade_release_session_task` | Marks a live session task complete, releases any recorded worktree lease, and returns whether a matching session task was found. |
+| `facade_release_session_task` | Marks an active session task complete, releases any recorded worktree lease, and returns whether a matching session task was found. |
 
 ### Transport-side changes
 

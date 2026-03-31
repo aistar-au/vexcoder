@@ -935,7 +935,7 @@ fn validate_mcp_servers_with_mode(
 /// environment variable values to current neutral equivalents.
 ///
 /// `envs` is a slice of `(name, value)` pairs used in tests. Pass `&[]` to
-/// read from the live environment via `std::env::var`. Non-destructive: never
+/// read from the process environment via `std::env::var`. Non-destructive: never
 /// writes to disk itself. Called by `vex migrate config`.
 pub(super) fn migrate_config_from_env(envs: &[(&str, &str)]) -> String {
     let get = |name: &str| -> Option<String> {

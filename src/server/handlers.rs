@@ -648,10 +648,10 @@ fn lifecycle_state_is_terminal(state: &str) -> bool {
 ///
 /// Returns an SSE stream.  The server emits a `session_task` event each time
 /// the session task's `updated_at_ms` timestamp advances.  The initial
-/// snapshot is always emitted on connect.  Live updates are fanned out through
+/// snapshot is always emitted on connect.  Updates are fanned out through
 /// `LocalApiState`'s in-process broadcast channel while the persisted
 /// task-state files remain the durable source of truth for reconnects.  The
-/// stream terminates automatically once the session task reaches a terminal
+/// stream terminates automatically once the session task reaches a final
 /// state (`failed`, `cancelled`, or `completed`).
 ///
 /// Returns 404 when no session task with the given id exists at connection
@@ -781,7 +781,7 @@ pub struct TodoItemResponse {
     pub lifecycle_state: String,
 }
 
-/// Return all live (non-terminal) session tasks as a flat todo list.
+/// Return all active (non-final) session tasks as a flat todo list.
 ///
 /// `GET /v1/todos`
 #[tracing::instrument(skip_all)]

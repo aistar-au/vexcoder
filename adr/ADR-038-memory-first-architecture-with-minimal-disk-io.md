@@ -9,7 +9,7 @@
 
 ## Context
 
-Vex already keeps most session state in memory once a process is live, but the
+Vex already keeps most session state in memory once a process is running, but the
 turn hot path still performs avoidable synchronous work before the first token
 can render.
 

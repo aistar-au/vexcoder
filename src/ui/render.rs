@@ -243,7 +243,7 @@ fn classify_diff_line(line: &str) -> DiffLineKind {
     }
 }
 
-/// Map a `DiffLineKind` to a terminal color, using `other_color` as the
+/// Map a `DiffLineKind` to a display color, using `other_color` as the
 /// fallback for `DiffLineKind::Other`.  Centralizes the Added/Removed/Header
 /// mapping that is shared by `history_row_style` and `styled_diff_line`.
 fn diff_line_color(kind: DiffLineKind, other_color: Color) -> Color {

@@ -75,10 +75,10 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | Image/screenshot input | Deferred until the model backend seam (ADR-022 Phase 1) is stable and a multimodal local runtime target exists |
 | Multi-agent / parallel task execution | Out of scope for the first milestone per ADR-022 Decision item 5 (single active task). This gate also covers git worktree isolation per-agent (`isolation: worktree`), agent team definitions, inter-agent coordination, and background task lifecycle. ADR-034 now defines that post-milestone lane; no implementation may bypass ADR-034's sequencing and isolation rules. |
 | Cloud task delegation | Deferred indefinitely; contradicts the self-hostable, zero-licensing-cost posture established by the dependency licensing constraint above |
-| Inline code completion (LSP/language-server) | Fundamentally different runtime category from a turn-based agent. Requires a persistent language-server process, real-time keystroke handling, and IDE surface integration — none of which are compatible with the terminal-first, turn-based interaction model. Deferred indefinitely. |
+| Inline code completion (LSP/language-server) | Fundamentally different runtime category from a turn-based agent. Requires a persistent language-server process, real-time keystroke handling, and IDE surface integration — none of which are compatible with the cli-first, turn-based interaction model. Deferred indefinitely. |
 | Enterprise governance (audit logs, seat management, org policy) | Single-user, self-hosted by design. Multi-tenant governance infrastructure contradicts the zero-licensing-cost constraint and the self-hostable posture. Deferred indefinitely. |
 | OS-managed settings (macOS plist, Windows Registry fleet policy) | Requires platform-specific policy distribution infrastructure. Deferred indefinitely; operators use the layered config chain (ADR-024 Gap 3). Must not be implemented without a dedicated ADR. |
-| Voice input | Requires audio I/O subsystem incompatible with terminal-first constraint. Deferred indefinitely. |
+| Voice input | Requires audio I/O subsystem incompatible with cli-first constraint. Deferred indefinitely. |
 | Platform API integration (hosting-platform PR creation via REST API) | `vex pr-summary` (Gap 24) produces text for pipe to the operator's platform CLI; direct REST API calls require credential management for each platform and a dedicated ADR. Deferred indefinitely. |
 | Built-in web search | Depends on MCP (Gap 5). Implementing web search before MCP exists would permanently couple it to the core runtime |
 | IDE extensions | Deferred to a post-first-milestone ADR per ADR-022 amendment Decision item 11. File-based editor extensions must use `vex exec` (Gap 2). Native GUI surfaces (IDE panels with live streaming, macOS native client) must use the `LocalApiServer` path reserved in Phase I |
@@ -268,7 +268,7 @@ A native macOS application under `packaging/macos/` that:
 - Launches and manages the `vex` binary as a managed process.
 - Embeds the compiled `vex` binary in the app bundle at `Contents/MacOS/vex`.
 - Reads `VEX_MODEL_TOKEN` from the system keychain via `Security.framework` and injects it as an environment variable into the managed process at launch. It must not write the token to disk.
-- Presents a terminal surface (initially: launches the system terminal with the embedded binary; an embedded `NSTextView`-based terminal surface is a separately-scoped follow-up and not required for Phase H correctness).
+- Presents a cli surface (initially: launches the system cli with the embedded binary; an embedded `NSTextView`-based cli surface is a separately-scoped follow-up and not required for Phase H correctness).
 - Distributes via a `.dmg` attached to the hosted release entry.
 
 **Code signing and notarisation (required for distribution):** the macOS wrapper must be signed with a Developer ID Application certificate and notarised via `xcrun notarytool` before distribution. An unsigned `.dmg` will be blocked by Gatekeeper on every supported macOS version. The release workflow must include a signing and notarisation step. The certificate and notary API key must be stored as CI secrets (`APPLE_DEVELOPER_ID_CERT`, `APPLE_NOTARYTOOL_KEY`). If these secrets are absent, the workflow must skip signing and attach a clearly labelled "unsigned development build" to the release rather than failing silently.
@@ -377,7 +377,7 @@ Reference CLIs expose runtime commands that let operators inspect and mutate the
     if omitted. Valid capability names are the kebab-case lowercase of each
     Capability variant (e.g. "apply-patch", "run-command", "mcp-tool").
     Unknown capability name → "[allow: unknown capability '<name>']", no grant.
-    Updates active_grants on the live TaskState in-session; does not persist to
+    Updates active_grants on the current TaskState in-session; does not persist to
     disk (grants are session-scoped by design; TaskState::save is not called).
     Emits "[allow: apply-patch granted for session]" on success.
 
@@ -393,7 +393,7 @@ Reference CLIs expose runtime commands that let operators inspect and mutate the
 - `/allow` and `/deny` must never start a model turn. All output is via `push_history_line`.
 - Capability names in the command surface must be derived from the `Capability` enum's variant list at compile time. No hardcoded string list is permitted — the kebab-case conversion must be a function that iterates the enum to prevent silent drift.
 - `/allow session` does not persist to `.vex/state/`. Session grants expire when the process exits. Persistence of capability policy belongs to `.vex/config.toml` (ADR-024 Gap 3 layered config), not to interactive grants.
-- `/permissions` renders the live `active_grants` from `TuiMode`'s task-state reference, not a cached snapshot.
+- `/permissions` renders the current `active_grants` from `TuiMode`'s task-state reference, not a cached snapshot.
 
 **Anchor tests:** `test_tui_permissions_renders_empty_grants`; `test_tui_allow_grants_capability_once`; `test_tui_allow_defaults_to_once_scope`; `test_tui_deny_removes_grant`; `test_tui_allow_unknown_capability_emits_error`; `test_tui_allow_does_not_call_start_turn`.
 
@@ -487,7 +487,7 @@ Gap 5 defined `McpRegistry` config and tool dispatch. Reference CLIs additionall
 
 ```
 /mcp list
-    Renders all loaded MCP servers from the live McpRegistry snapshot to transcript.
+    Renders all loaded MCP servers from the current McpRegistry snapshot to transcript.
     No model turn. Output format:
       [mcp]
       [mcp] 2 server(s), 15 tool(s) loaded
@@ -529,7 +529,7 @@ artifact lives under `~/.config/vex/session-state/<session-id>/` (XDG path) or
 `~/.vex/session-state/<session-id>/` as fallback. Plain UTF-8 Markdown is the
 required format. `plan.md` is the canonical filename for turn-local planning
 state. These files are operator-local scratch artifacts: they may be read back
-into the terminal runtime or local API surface for the same session, but they
+into the cli runtime or local API surface for the same session, but they
 do not replace ADR-022's structured durable `TaskState` and must never be
 committed to the repo.
 
@@ -612,7 +612,7 @@ vex init [--dir <path>]
 
 ### Gap 18 — Graceful Exit and Session Metadata Display (`/quit`, `/exit`, `/about`)
 
-**`/quit` and `/exit`:** Both reference CLIs expose an explicit exit command. Currently the only TUI exit path is Ctrl+C or Ctrl+D; nothing in the command directory tells an operator how to exit. Both `/quit` and `/exit` must be registered in the dispatch table and therefore appear in `/commands` output. They must trigger a clean shutdown: save any live `TaskState`, flush the TUI, and exit with code 0. A running `EditLoop` must be cancelled via its `CancellationToken` before shutdown proceeds.
+**`/quit` and `/exit`:** Both reference CLIs expose an explicit exit command. Currently the only TUI exit path is Ctrl+C or Ctrl+D; nothing in the command directory tells an operator how to exit. Both `/quit` and `/exit` must be registered in the dispatch table and therefore appear in `/commands` output. They must trigger a clean shutdown: save the current `TaskState`, flush the TUI, and exit with code 0. A running `EditLoop` must be cancelled via its `CancellationToken` before shutdown proceeds.
 
 **`/about`:** Zero-turn display of build metadata to transcript:
 
@@ -720,7 +720,7 @@ Operators need to inspect what tools the agent can invoke in the current session
     Renders built-in tools plus any loaded MCP tools.
     No model turn. Output format:
       [tools]
-        [tools] live registry: 18 built-in tool(s), 2 MCP server(s), 15 MCP tool(s)
+        [tools] active registry: 18 built-in tool(s), 2 MCP server(s), 15 MCP tool(s)
       [tools:mcp]
         mcp.my-server.read_file
         mcp.my-server.write_file
@@ -730,10 +730,10 @@ Operators need to inspect what tools the agent can invoke in the current session
         apply_patch
         run_command
     /tools desc — includes one-line description per tool from the tool schema.
-    If no MCP servers are loaded: "[tools] live registry: built-in tools only".
+    If no MCP servers are loaded: "[tools] active registry: built-in tools only".
 ```
 
-**Constraints:** `/tools` and `/tools desc` must never start a model turn. Tool list must be read from the live dispatch table, not a hardcoded list. MCP-namespaced tools use the same `mcp.<server>.<tool>` format as `/mcp show`.
+**Constraints:** `/tools` and `/tools desc` must never start a model turn. Tool list must be read from the current dispatch table, not a hardcoded list. MCP-namespaced tools use the same `mcp.<server>.<tool>` format as `/mcp show`.
 
 **Anchor tests:** `test_tui_tools_renders_builtin_tools`; `test_tui_tools_includes_mcp_tools`; `test_tui_tools_desc_includes_descriptions`; `test_tui_tools_does_not_start_model_turn`.
 
@@ -1484,7 +1484,7 @@ Rejected. Skills are workflow documents. A package manager adds lockfiles, depen
 
 ### Make the macOS wrapper a full native UI replacing the TUI
 
-Rejected. A native UI that replaces the TUI would require duplicating or closely tracking the Rust TUI state in the native layer indefinitely. Any change to the Rust TUI would require a corresponding native change. Wrapping the terminal surface preserves the single canonical implementation and eliminates that maintenance surface.
+Rejected. A native UI that replaces the TUI would require duplicating or closely tracking the Rust TUI state in the native layer indefinitely. Any change to the Rust TUI would require a corresponding native change. Wrapping the cli surface preserves the single canonical implementation and eliminates that maintenance surface.
 
 ### Use `x86_64-pc-windows-msvc` as the Windows build target from the start
 
@@ -1519,7 +1519,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 - `[[mcp_servers]]` must not be permitted in repo-local config. Reject with a diagnostic.
 - `SandboxDriver::wrap` must be called on every `CommandRequest` before it reaches `CommandRunner`. Bypassing it must use `PassthroughSandbox` explicitly. This includes `CommandRequest` instances produced by `ValidationSuite::run` (ADR-023) and by tool dispatch during edit-loop turns — the sandbox boundary applies uniformly to all subprocess execution regardless of the call site.
 - `BatchMode` must not import `ratatui` or `crossterm`. The REF-02 CI grep check must stay green.
-- The native macOS application layer (Phase H) must not contain agent logic. Any changeset to `packaging/macos/` that also modifies `src/` is out of scope for Phase H and must be rejected. This constraint is Phase H scoped — a future `LocalApiServer: RuntimeMode + FrontendAdapter` implementation will legitimately reside in `src/` and is the intended expansion path for a full native macOS client.
+- The native macOS application layer (Phase H) must not contain agent logic. Any changeset to `packaging/macos/` that also modifies `src/` is out of scope for Phase H and must be rejected. This constraint is Phase H scoped — a future `LocalApiServer: RuntimeMode + FrontendAdapter` implementation will legitimately be placed in `src/` and is the intended expansion path for a full native macOS client.
 - `src/index/` must not be implemented without a dedicated ADR. Gap 12 is a formal gate.
 - Phases G and H must not begin until milestone-1 correctness work is validated end-to-end.
 - Runtime code and config must use only neutral, non-branded names. Documentation may reference external tools by name where necessary for operator clarity.
@@ -1550,7 +1550,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PG-01** | Hosted release workflow — Linux and macOS targets | [x] |
 | **PG-02** | Hosted release workflow — Windows (gnu) target | [x] |
 | **PG-03** | Package-manager tap formula + auto-update dispatch (formula template complete 2026-03-28; auto-update dispatch deferred until the tap repo exists) | [ ] |
-| **PH-01** | macOS application layer — process management + terminal surface | [x] |
+| **PH-01** | macOS application layer — process management + cli surface | [x] |
 | **PH-02** | macOS application layer — keychain credential storage + env injection | [x] |
 | **PH-03** | macOS code signing, notarisation, and `.dmg` release attachment | [x] |
 | **PI-01** | `/permissions` — renders active_grants table; no model turn | [x] |
@@ -1568,7 +1568,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PI-13** | `LocalApiServer` transport adapter with `POST /v1/turns`, `POST /v1/interrupt`, `POST /v1/approve`, and `GET /v1/health` | [x] |
 | **PI-14** | `GET /v1/schema` serving the ADR-025 schema bundle; exempt from envelope validation | [x] |
 | **PI-15** | Unix-socket transport, HTTP bearer auth, TLS-required non-loopback TCP, explicit loopback detection (`127.0.0.0/8`, `::1`, `localhost` resolving only to loopback), minimum TLS version 1.2 with 1.3 preferred, private-network certificate support (self-signed/internal-CA/public-CA), `tls_cert`/`tls_key` PEM and key-match validation, `tls_ca_cert` operator trust-bundle support, explicit `tls_skip_verify` rejection, reserved `vpn_trust` config guard, stale-socket cleanup, clean-shutdown socket removal, `transport = "both"` HTTP-vs-Unix split, config guards, and repo-local secret rejection | [x] |
-| **PI-16** | Integration tests for stream order, keepalive emission, auth failures, loopback classification (`127.0.0.1`, other `127/8`, `::1`, and `localhost`), schema validation, mid-stream runtime error, max-turns terminal sequence, interrupt `404`, reconnect/new-turn behavior, non-loopback-without-TLS rejection, TLS 1.2 minimum enforcement, `tls_cert`/`tls_key` mismatch rejection, `tls_skip_verify=true` rejection, and `vpn_trust=true` rejection until a dedicated ADR exists | [x] |
+| **PI-16** | Integration tests for stream order, keepalive emission, auth failures, loopback classification (`127.0.0.1`, other `127/8`, `::1`, and `localhost`), schema validation, mid-stream runtime error, max-turns final sequence, interrupt `404`, reconnect/new-turn behavior, non-loopback-without-TLS rejection, TLS 1.2 minimum enforcement, `tls_cert`/`tls_key` mismatch rejection, `tls_skip_verify=true` rejection, and `vpn_trust=true` rejection until a dedicated ADR exists | [x] |
 
 **Phase I continuation note:** PI-09 through PI-16 are the post-PI-08 continuation of ADR-024's reserved LocalApiServer track. PI-08 (`/plan` and `/context`) remains tracked in ADR-023 EL-11/EL-12 and is listed here only for cross-reference. ADR-028 adds the application-facade and transport-boundary constraint that later CLI and LocalApiServer refactors must follow.
 | **PJ-01** | `/compact` — clears conversation history; preserves task and grants; clears `active_edit_loop` | [x] |
@@ -1580,7 +1580,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PK-03** | `@<path>` inline injection — workspace-confined; truncation annotation; multi-token | [x] |
 | **PK-04** | `!<command>` passthrough — SandboxDriver + ApprovalPolicy; no model turn | [x] |
 | **PK-05** | User-defined commands — TOML loader; project + user scopes; `/commands` integration | [x] |
-| **PK-06** | `/tools [desc]` — live dispatch table enumeration; MCP-namespaced tools | [x] |
+| **PK-06** | `/tools [desc]` — current dispatch table enumeration; MCP-namespaced tools | [x] |
 | **PK-07** | `/diff [--staged]` — spawn_blocking git diff; truncation; no model turn | [x] |
 | **PK-08** | `vex branch` and `vex pr-summary` — thin git wrappers; stdout output; no platform API | [x] |
 | **PK-09** | `/generate-tests` — generate_tests_template.txt; non-test patch filter; framework flag | [x] |
@@ -1638,7 +1638,7 @@ When checking a box above, append an evidence block under this section:
 | `/allow` and `/deny` must derive capability names from the `Capability` enum at compile time | No hardcoded string list permitted; drift between enum and command surface must be a compile error |
 | `/allow session` must not call `TaskState::save` | Session grants are in-memory only; persistence belongs to config layering (Gap 3) |
 | `/mcp add` and `/mcp remove` must not be implemented under this ADR | Runtime MCP lifecycle management requires a dedicated ADR |
-| `/new` must call `TaskState::save` before resetting; abort if save fails | Data loss prevention — never discard a live task state without a successful save |
+| `/new` must call `TaskState::save` before resetting; abort if save fails | Data loss prevention — never discard an active task state without a successful save |
 | `/compact` must clear `active_edit_loop` on `TuiMode` | A running edit loop cannot continue after its conversation history is discarded |
 | `/fork` must call `TaskState::save` for the parent before creating the fork; abort fork if save fails | Data loss prevention — never branch without preserving the parent |
 | `/fork` must not copy conversation history to the fork | The fork begins with an empty conversation window and inherited grants only |
@@ -1903,8 +1903,8 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Historical branch name: omitted
 - Commit: `03b84ced0cc7f5952f8091c996d56cc2efae1d48`
 - Files changed:
-  - `src/app.rs` (+N -0): `current_task`-backed session lifecycle; monotonic `new_task_id()` helper; transcript reset helper; no-argument `/resume` selection flow; `/fork` label sanitization; task-layout now reads live `current_task` state
-  - `src/runtime/context.rs` (+N -0): synchronous `clear_conversation()` helper that works in both sync tests and a live Tokio runtime
+  - `src/app.rs` (+N -0): `current_task`-backed session lifecycle; monotonic `new_task_id()` helper; transcript reset helper; no-argument `/resume` selection flow; `/fork` label sanitization; task-layout now reads from the running `current_task` state
+  - `src/runtime/context.rs` (+N -0): synchronous `clear_conversation()` helper that works in both sync tests and a running Tokio runtime
   - `src/state/conversation/state.rs` (+N -0): `clear_messages()` now resets `api_messages`, `current_turn_blocks`, and `read_file_history_cache`
   - `src/app.rs` (+N -0): 13 ADR anchor tests for PI-04/PI-05/PJ-01/PJ-02
   - `src/state/conversation/tests.rs` (+N -0): cache-reset coverage for `clear_messages()`
@@ -1927,7 +1927,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - `/new`, `/resume`, `/compact`, and `/fork` all reset the live conversation window in both the TUI transcript and `RuntimeContext`.
+  - `/new`, `/resume`, `/compact`, and `/fork` all reset the active conversation window in both the TUI transcript and `RuntimeContext`.
   - `/resume` without an explicit task id now lists the five most recent state files and routes numeric selection through the existing overlay input path.
   - `new_task_id()` uses a monotonic UTC-millisecond generator so rapid `/new` or `/fork` sequences cannot collide on the same state filename.
   - `/fork` sanitizes the optional label before embedding it into the task id, preventing path separator leakage into `VEX_STATE_DIR`.
@@ -2038,7 +2038,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `bash scripts/check_no_alternate_routing.sh` : pass
   - `bash scripts/check_forbidden_imports.sh` : pass
 - Notes:
-  - Project and user custom commands now load at startup, `/tools` enumerates the live dispatch table, and `/generate-tests` routes through a dedicated prompt template with non-test patch filtering.
+  - Project and user custom commands now load at startup, `/tools` enumerates the current dispatch table, and `/generate-tests` routes through a dedicated prompt template with non-test patch filtering.
   - This batch also refreshed the tracked-file map for the new custom command module.
 
 ### [PL-02 / PL-03 / PL-04] - doctor, usage accounting, and export
@@ -2117,7 +2117,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Files:
   - `src/runtime/approval.rs` — `Capability::McpTool` variant; default approval scope `once`
   - `src/state/conversation/state.rs` — MCP tool approval check wired into tool dispatch
-  - `src/app/commands.rs` — `/mcp list` and `/mcp tools` slash commands; renders live `McpRegistry` snapshot
+  - `src/app/commands.rs` — `/mcp list` and `/mcp tools` slash commands; renders current `McpRegistry` snapshot
   - `src/app/tests/slash_commands.rs` — ADR anchor tests for PF-01/PF-02 approval and `/mcp` commands
   - `src/batch_mode.rs` — MCP tool calls propagated through batch execution path
 - Validation:

@@ -53,7 +53,7 @@ It does not define new runtime semantics. It projects the existing runtime throu
 Normative rule:
 
 - runtime logic remains in Rust core/runtime code;
-- transport parsing, auth checks, and stream framing live in the server adapter;
+- transport parsing, auth checks, and stream framing are located in the server adapter;
 - native clients, editor panels, local automation, and any later JSON-capable adapter all consume the same canonical event model over a scoped transport surface.
 
 This ADR defines a JSON transport adapter, not a browser frontend contract. CORS, origin allowlists, browser auth flows, and in-tree web-UI behavior require a later ADR if that surface is added.
@@ -690,7 +690,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
   - `bash scripts/check_forbidden_imports.sh` : pass
   - `bash scripts/check_forbidden_names.sh` : pass
 - Notes:
-  - Added LocalApiServer tests for SSE keepalive emission, stream-envelope ordering, invalid bearer tokens, schema-invalid turn requests, runtime-error terminal sequencing, loopback classification for `127/8`, `::1`, and `localhost`, and control-endpoint `404`/`409` behavior.
+  - Added LocalApiServer tests for SSE keepalive emission, stream-envelope ordering, invalid bearer tokens, schema-invalid turn requests, runtime-error final sequencing, loopback classification for `127/8`, `::1`, and `localhost`, and control-endpoint `404`/`409` behavior.
   - Added config and serve-config regression coverage to keep `api.vpn_trust` rejected in Phase I and keep non-loopback TLS rules aligned with ADR-026.
 
 ---
@@ -742,7 +742,7 @@ When checking any PI-13…PI-16 box, append an evidence block:
 | Tunnel-proxy internet exposure keeps `LocalApiServer` in loopback mode | Tunnel proxies target `127.0.0.1:6274` by default; if `api.port` changes, operator docs must update the tunnel target |
 | Direct internet exposure must not be presented as the default Phase I path | Operator docs must warn that public binds need upstream rate limiting and hardening beyond TLS plus bearer auth |
 | `transport = "both"` applies TLS rules only to the HTTP surface | Unix-socket transport remains filesystem-auth only and is unaffected by TLS config |
-| Do not use SSE event-name taxonomy as semantic state | Event name is always `runtime`; semantics live in JSON |
+| Do not use SSE event-name taxonomy as semantic state | Event name is always `runtime`; semantics are kept in JSON |
 | LocalApiServer clients must parse `event: runtime` only | Ignore semantic transport taxonomies such as `chunk`/`done` for this server |
 | Do not alter `vex exec --format jsonl` here | BatchMode remains unchanged |
 | Do not implement WebSocket here | Explicitly out of scope |

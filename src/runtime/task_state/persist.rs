@@ -164,7 +164,7 @@ impl TaskState {
                     task_id = %file.id,
                     state_dir = %file.dir.display(),
                     %error,
-                    "skipping unreadable task state during inline live agent scan"
+                    "skipping unreadable task state during inline active agent scan"
                 ),
             }
         }

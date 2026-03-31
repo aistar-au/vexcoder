@@ -35,7 +35,7 @@ left implicit:
    `None`; undo interprets that as "remove the newly created file".
 4. Restoring a checkpoint writes the captured bytes back to disk with
    `std::fs::write`, preserving binary content exactly.
-5. Checkpoints are held only in the live session's in-memory undo stack and are
+5. Checkpoints are held only in the running session's in-memory undo stack and are
    evicted in oldest-first order once the configured maximum depth is reached.
 
 ### Scope boundaries

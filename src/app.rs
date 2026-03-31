@@ -154,9 +154,9 @@ enum ApprovalSelection {
     Deny,
 }
 
-// Interactive sessions keep terminal-style scrollback by default. Bounding
+// Interactive sessions keep scrollback by default. Bounding
 // memory is future work for a paged or file-backed transcript store rather than
-// default truncation of the live session history.
+// default truncation of the current session history.
 const DEFAULT_MAX_HISTORY_LINES: usize = usize::MAX;
 const MAX_HISTORY_LINES_ENV: &str = "VEX_MAX_HISTORY_LINES";
 const HISTORY_CONTENT_WIDTH_FALLBACK: usize = usize::MAX;
@@ -351,7 +351,7 @@ const SLASH_COMMANDS: &[SlashCommandSpec] = &[
             prefix: "/tools ",
         },
         "/tools [desc]",
-        "show live tool registry; no model turn",
+        "show active tool registry; no model turn",
     ),
     SlashCommandSpec::new(
         SlashCommandId::Usage,
@@ -597,7 +597,7 @@ fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
         SlashCommandId::Mcp => "inspect loaded MCP servers and per-server tool inventory",
         SlashCommandId::Tools => "tool directory plus retrieval workflow guidance",
         SlashCommandId::GenerateTests => "assemble context and draft tests for one path",
-        SlashCommandId::Agents => "show configured agents, teams, and live session-task counts",
+        SlashCommandId::Agents => "show configured agents, teams, and active session-task counts",
         SlashCommandId::Watch => "inspect persisted session-task status by id or agent",
         SlashCommandId::Reindex => "force a full structural rebuild of the codebase search index",
         SlashCommandId::Edit | SlashCommandId::Fix => "edit loop that may patch files",
@@ -770,7 +770,7 @@ pub struct TaskLayoutState {
     pub output_scroll_anchor: OutputScrollAnchor,
     pub pending_approval: Option<String>,
     pub input_hint: String,
-    /// Live composer buffer for the fullscreen task surface.
+    /// Active composer buffer for the fullscreen task surface.
     pub composer_text: String,
     /// Cursor byte offset within `composer_text`.
     pub composer_cursor: usize,
@@ -883,7 +883,7 @@ pub struct TuiMode {
     last_turn_input_display: String,
     /// Last completed or failed turn duration.
     last_turn_duration: Option<Duration>,
-    /// Last visible terminal error for the task surface.
+    /// Last visible cli error for the task surface.
     last_error_message: Option<String>,
     /// Remembers a runtime turn completion event until the last command session exits.
     turn_completion_pending: bool,

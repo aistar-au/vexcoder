@@ -25,8 +25,8 @@ prompt edge and expands the composer into a larger multiline surface so slash
 commands, `@path` expansion, pasted blocks, and long prompts remain usable
 without dropping out of fullscreen task mode, including visual-row cursor
 navigation for wrapped prompt text. That composer now behaves as a responsive
-fullscreen surface: it reflows against the live terminal row and column budget
-so resizing or snapping the terminal window does not leave a stale fixed-height
+fullscreen surface: it reflows against the current display row and column budget
+so resizing or snapping the display does not leave a stale fixed-height
 prompt reservation behind.
 
 Batch A and Batch B are now merged into `main`, so the remaining ADR-031
@@ -35,7 +35,7 @@ scope is the post-derivation alignment pass:
 - aligns transcript/output semantics across `src/app/layout.rs`,
   `src/ui/draw/`, and the fallback renderer paths;
 - removes obsolete fixed-row assumptions once the adaptive task surface is the
-  only live layout path;
+  only current layout path;
 - replaces transient formatting/string-coupling where the renderer still
   derives structured header fields from flattened status text.
 
@@ -56,8 +56,8 @@ coverage.
 Adopt a batched, task-state-first implementation strategy for the operator
 surface overhaul. The UI target is a timeline-driven task view where every
 visible row is derived from canonical task state, selection identity is
-runtime-visible, the timeline/transcript/composer regions scale with live
-terminal rows and columns, and header or composer content stays human-readable.
+runtime-visible, the timeline/transcript/composer regions scale with current
+display rows and columns, and header or composer content stays human-readable.
 
 ### Operator surface target
 
@@ -91,12 +91,12 @@ Key changes from the current implementation:
 3. Scroll ownership moves to the task surface: the timeline remains
    independently navigable, while the transcript/output area redraws from the
    same task-derived state and scrolls upward from the prompt edge.
-4. The visible timeline window scales with terminal height instead of
+4. The visible timeline window scales with display height instead of
    remaining fixed at six rows.
 5. The composer becomes a larger multiline prompt surface with persistent
   affordances for slash commands, `@path` expansion, pasted blocks, and
   newline insertion, and it auto-fits within the current fullscreen viewport
-  as terminal rows or columns change.
+  as display rows or columns change.
 
 ### Task-state-first rule for this ADR
 

@@ -2,7 +2,7 @@
 
 **Amendment status:** Proposed
 **Amends:** ADR-022 Decision item 1 and the final Compliance note; adds Decision item 11
-**Reason:** ADR-022 as written frames terminal-agent-first and no-editor-integration as permanent identity statements. This amendment re-scopes them as first-milestone sequencing constraints, preserving architectural priority without permanently prohibiting native application packaging or future editor surfaces.
+**Reason:** ADR-022 as written frames cli-agent-first and no-editor-integration as permanent identity statements. This amendment re-scopes them as first-milestone sequencing constraints, preserving architectural priority without permanently prohibiting native application packaging or future editor surfaces.
 
 ---
 
@@ -11,10 +11,10 @@
 ### Decision item 1 — amended
 
 **Before:**
-> `vexcoder` remains terminal-agent-first, not editor-first.
+> `vexcoder` remains cli-agent-first, not editor-first.
 
 **After:**
-> `vexcoder` is terminal-agent-first for the first milestone. The terminal runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the first milestone and must not be allowed to drive architectural changes to the runtime core.
+> `vexcoder` is cli-agent-first for the first milestone. The cli runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the first milestone and must not be allowed to drive architectural changes to the runtime core.
 
 ### Decision item 11 — added
 
@@ -34,13 +34,13 @@
 
 The original wording was written to prevent scope creep during the first milestone, which was the correct intent. However, permanently prohibiting native packaging and editor surfaces would make `vexcoder` harder to distribute and adopt — both of which are required for it to function as a viable, self-hostable coding agent whose dependency chain carries no per-call licensing fee or royalty obligation.
 
-This amendment preserves the sequencing intent (terminal core first, packaging layers second) while leaving room for:
+This amendment preserves the sequencing intent (cli core first, packaging layers second) while leaving room for:
 
-1. **A macOS application wrapper (Phase H).** A wrapper that launches and manages the `vex` binary, provides OS-native credential storage, and presents a terminal surface in an application window is a *packaging layer*. The Rust runtime runs unchanged inside it. This is a post-first-milestone macOS surface; it must not begin before the edit loop, approval system, and task state persistence are validated end-to-end.
+1. **A macOS application wrapper (Phase H).** A wrapper that launches and manages the `vex` binary, provides OS-native credential storage, and presents a cli surface in an application window is a *packaging layer*. The Rust runtime runs unchanged inside it. This is a post-first-milestone macOS surface; it must not begin before the edit loop, approval system, and task state persistence are validated end-to-end.
 
 2. **A full native macOS client (post-Phase H).** A native macOS application that communicates with a `LocalApiServer: RuntimeMode + FrontendAdapter` running in-process or as a local daemon is a *new surface implementation* over the shared runtime core. It is architecturally equivalent to how cloud API servers work — the transport may stay on private IPC or extend to TLS-protected TCP, but the interface contract is identical. This path enables a full-featured native macOS application without duplicating any Rust logic in the native layer. It requires a dedicated ADR and must not begin before `BatchMode` and the core correctness milestone are validated end-to-end.
 
-3. **A future editor surface.** An extension that shells out to `vex exec` and renders JSONL output in a panel is a thin editor surface over an unmodified terminal runtime, provided the extension never owns the agent loop itself.
+3. **A future editor surface.** An extension that shells out to `vex exec` and renders JSONL output in a panel is a thin editor surface over an unmodified cli runtime, provided the extension never owns the agent loop itself.
 
 The critical architectural constraint preserved by this amendment:
 

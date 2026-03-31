@@ -41,7 +41,7 @@ Introduce a **runtime seam**: a thin abstraction layer between the conversation 
 
 | Module | Owns | Must not depend on |
 | :--- | :--- | :--- |
-| `src/runtime/` | Event loop, turn orchestration | `ratatui`, `crossterm`, any terminal I/O |
+| `src/runtime/` | Event loop, turn orchestration | `ratatui`, `crossterm`, any cli I/O |
 | `src/state/` | Conversation correctness, message history | All UI crates |
 | `src/ui/` | Rendering, input reading | Business logic |
 | `src/tools/` | Filesystem and git execution | All UI crates |
@@ -103,7 +103,7 @@ Adding the TUI on top of the current `App` structure would require simultaneous 
 
 ### Why a trait instead of an enum of modes?
 
-An enum of modes would require `src/runtime/loop.rs` to import from `src/ui/`, defeating the dependency boundary. A trait allows each mode to live in its own module with its own dependencies.
+An enum of modes would require `src/runtime/loop.rs` to import from `src/ui/`, defeating the dependency boundary. A trait allows each mode to be placed in its own module with its own dependencies.
 
 ### Why `RuntimeContext<'a>` with a lifetime?
 

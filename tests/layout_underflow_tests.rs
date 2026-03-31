@@ -59,6 +59,6 @@ fn test_four_region_layout_keeps_prompt_fixed_on_tall_terminals() {
     assert_eq!(layout.input.height, 3);
     assert!(
         layout.output.height >= 36,
-        "output pane should remain the dominant region on tall terminals"
+        "output pane should remain the dominant region on tall displays"
     );
 }

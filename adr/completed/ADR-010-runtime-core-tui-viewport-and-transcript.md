@@ -32,7 +32,7 @@ and overlays.
 
 ## Rationale
 
-Conventional terminal chat UX depends on predictable scroll behavior and explicit
+Conventional cli chat UX depends on predictable scroll behavior and explicit
 focus management, especially during tool approvals and long sessions.
 
 ## Consequences

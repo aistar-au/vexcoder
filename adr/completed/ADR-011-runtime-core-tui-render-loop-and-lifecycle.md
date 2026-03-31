@@ -9,7 +9,7 @@
 ## Context
 
 Runtime-core dispatch is established, but a production-quality ratatui app also
-needs explicit render-loop, frame scheduling, and terminal lifecycle guarantees.
+needs explicit render-loop, frame scheduling, and cli lifecycle guarantees.
 
 ## Decision (normative)
 
@@ -19,18 +19,18 @@ needs explicit render-loop, frame scheduling, and terminal lifecycle guarantees.
    overlay changes) and periodic ticks only when required (cursor blink, timers).
 3. MUST: Frame cadence and poll interval MUST be configurable via bounded env
    settings with safe defaults.
-4. MUST: Terminal lifecycle MUST be resilient:
+4. MUST: CLI lifecycle MUST be resilient:
    raw mode, bracketed paste, and cursor visibility are restored on normal exit,
    panic, and interruption paths.
 5. MUST: Runtime loop behavior under idle conditions MUST avoid unnecessary CPU
    load from hot redraw loops.
-6. MUST: Runtime/UI error paths MUST keep terminal state recoverable and emit
+6. MUST: Runtime/UI error paths MUST keep cli state recoverable and emit
    visible diagnostics.
 
 ## Rationale
 
 Conventional ratatui applications prioritize predictable responsiveness, stable
-terminal restoration, and bounded idle resource use.
+cli restoration, and bounded idle resource use.
 
 ## Consequences
 
@@ -41,5 +41,5 @@ terminal restoration, and bounded idle resource use.
 ## Compliance checks
 
 1. Tests for render-trigger behavior (state-driven vs idle loops).
-2. Tests/manual checks for terminal restoration on panic and cancellation.
+2. Tests/manual checks for cli restoration on panic and cancellation.
 3. Profiling/checks showing bounded idle redraw behavior.

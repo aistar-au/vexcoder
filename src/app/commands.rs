@@ -676,13 +676,13 @@ impl TuiMode {
             .filter(|snapshot| !snapshot.is_empty())
         {
             self.push_history_line(format!(
-                "[tools] live registry: {} built-in tool(s), {} MCP server(s), {} MCP tool(s)",
+                "[tools] active registry: {} built-in tool(s), {} MCP server(s), {} MCP tool(s)",
                 builtin_tool_summaries().len(),
                 snapshot.servers.len(),
                 snapshot.all_tools().len()
             ));
         } else {
-            self.push_history_line("[tools] live registry: built-in tools only".to_string());
+            self.push_history_line("[tools] active registry: built-in tools only".to_string());
         }
         self.push_history_line(
             "[tools] discovery flow: list_files/find_files -> search_content/codebase_search -> read_file"
@@ -771,7 +771,7 @@ impl TuiMode {
                 self.push_history_line("[agents]".to_string());
                 for agent in &listing.agents {
                     self.push_history_line(format!(
-                        "  {} profile={} isolation={} max_parallel={} live={}",
+                        "  {} profile={} isolation={} max_parallel={} active={}",
                         agent.name,
                         agent.profile,
                         agent.isolation,

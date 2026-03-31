@@ -44,7 +44,7 @@ if let Some(dir) = &req.working_dir {
 ### PTY Support
 
 - Interactive tools (vim, top) use PTY emulation
-- Known limitation: some terminal features may not work perfectly
+- Known limitation: some cli features may not work perfectly
 - Future enhancement: full tokio-pty integration
 
 ## Roadmap Updates

@@ -1697,7 +1697,7 @@ mod tests {
         assert_eq!(payload.get("timings_per_token"), Some(&json!(true)));
     }
 
-    // ── Live-server smoke test (optional; skips if server unreachable) ───
+    // ── Connected-server smoke test (optional; skips if server unreachable) ───
 
     #[tokio::test]
     async fn test_live_server_chat_completions_reachable() {
@@ -1724,13 +1724,13 @@ mod tests {
                 assert_ne!(
                     resp.status().as_u16(),
                     404,
-                    "live server returned 404 on native chat/completions endpoint"
+                    "connected server returned 404 on native chat/completions endpoint"
                 );
             }
             Err(_) => {
                 // Server not available — skip gracefully.
                 eprintln!(
-                    "SKIP: live server at {} not reachable, skipping connectivity check",
+                    "SKIP: server at {} not reachable, skipping connectivity check",
                     endpoint
                 );
             }
@@ -1761,12 +1761,12 @@ mod tests {
                 assert_ne!(
                     resp.status().as_u16(),
                     404,
-                    "live server returned 404 on messages/v1 endpoint"
+                    "connected server returned 404 on messages/v1 endpoint"
                 );
             }
             Err(_) => {
                 eprintln!(
-                    "SKIP: live server at {} not reachable, skipping connectivity check",
+                    "SKIP: server at {} not reachable, skipping connectivity check",
                     endpoint
                 );
             }

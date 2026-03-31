@@ -90,7 +90,7 @@ All 4 verification items confirmed in-tree:
 - ADR-029: All 8 decision items verified present (StreamEvent, ContentBlock, Delta, ApiUsage, MessageDelta, MessageStartData, chat-completions, TaskState)
 - ADR-030: All 6 coverage requirements have named tests in the tree
 - ADR-032: Items 4 (character count indicator) and 5 (focus indicator) verified implemented in src/ui/draw/mod.rs
-- ADR-031/ADR-032/docs: fullscreen composer auto-fit behavior documented consistently for live row/column resize and snapped terminal layouts
+- ADR-031/ADR-032/docs: fullscreen composer auto-fit behavior documented consistently for current display row/column resize and snapped display layouts
 
 ### ~~Tier 6 -- Code Quality (ADR-021 P2)~~ (cleared 2026-03-28)
 
@@ -102,7 +102,7 @@ All 13 tracked items complete.
 - ~~Item 12: Diff row styling logic duplicated~~ (done 2026-03-28; `diff_line_color` helper centralized; both callers delegate to it)
 - ~~Item 13: required_tool_string variants overlapping~~ (done 2026-03-28; `required_tool_string` delegates to `required_tool_string_any`)
 - ~~Item 14: Auto-follow behavior duplication~~ (done 2026-03-28; `apply_auto_follow_or_clamp` helper extracted; both sites in model_update.rs delegate to it)
-- ~~Item 15: MAX_INPUT_PANE_ROWS not applied in prod~~ (done 2026-03-28; fullscreen composer now auto-fits within the live terminal viewport)
+- ~~Item 15: MAX_INPUT_PANE_ROWS not applied in prod~~ (done 2026-03-28; fullscreen composer now auto-fits within the current display viewport)
 - ~~Item 20: edit_file TOCTOU race condition~~ (done 2026-03-28; TOCTOU risk documented with structured comment)
 - ~~Item 22: StreamBlock::ToolCall deltas ignored~~ (done 2026-03-28)
 - ~~Item 24: Startup event draining heuristics~~ (done 2026-03-28; `VEX_DISABLE_STARTUP_FILTER=1` env gate added)
@@ -209,7 +209,7 @@ Candidate implementation areas:
 **Batch D -- paragraph progress stream**
 - Consolidate long-running tool and agent updates into one paragraph-oriented
   progress lane.
-- Add live counters such as files processed and active agents where the runtime
+- Add active counters such as files processed and active agents where the runtime
   already knows those values.
 - Keep code / diff output visually dominant over status text.
 
@@ -220,7 +220,7 @@ Candidate implementation areas:
 | `src/ui/draw/transcript.rs` | Paragraph-stream layout for tool/agent updates in the ANSI renderer |
 | `src/ui/render.rs` | ratatui paragraph widget for orchestrator progress lane |
 | `src/app/model_update.rs` | Coalesce sequential tool-status updates into a rolling paragraph |
-| `src/runtime/core.rs` | Expose live file-count and active-agent-count to the UI update channel |
+| `src/runtime/core.rs` | Expose active file-count and active-agent-count to the UI update channel |
 
 **Previously planned ANSI semantic-role work is now part of merged Batch A**
 - Keep default transcript and code text phosphor white.

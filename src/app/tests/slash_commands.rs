@@ -287,8 +287,8 @@ allowed_capabilities = ["read-file"]
     assert!(
         mode.history_lines()
             .iter()
-            .any(|line| line.contains("reviewer") && line.contains("live=1")),
-        "expected /agents to count live assignments from saved task state",
+            .any(|line| line.contains("reviewer") && line.contains("active=1")),
+        "expected /agents to count active assignments from saved task state",
     );
 }
 
@@ -514,7 +514,7 @@ fn test_tui_tools_renders_builtin_tools() {
     assert!(mode
         .history_lines()
         .iter()
-        .any(|line| line.contains("live registry: built-in tools only")));
+        .any(|line| line.contains("active registry: built-in tools only")));
     assert!(mode.history_lines().iter().any(|line| line.contains(
         "discovery flow: list_files/find_files -> search_content/codebase_search -> read_file"
     )));

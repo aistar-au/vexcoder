@@ -46,7 +46,7 @@ Adopt the **Test-Driven Manifest (TDM)** as the canonical workflow for all bug f
 
 ### Why manifest files over a standard issue tracker?
 
-GitHub Issues and Jira are web interfaces not accessible to a CLI agent running in a terminal. File-based task manifests are universally accessible. An agent reading `TASKS/CRIT-01-protocol.md` has everything it needs in one `cat` command.
+GitHub Issues and Jira are web interfaces not accessible to a CLI agent running in a command line interface. File-based task manifests are universally accessible. An agent reading `TASKS/CRIT-01-protocol.md` has everything it needs in one `cat` command.
 
 ### Why size-constrained manifests?
 

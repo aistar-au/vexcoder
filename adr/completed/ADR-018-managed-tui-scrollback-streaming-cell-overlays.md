@@ -9,7 +9,7 @@
 
 ## Context
 
-Current runtime canonical path is append-terminal (`src/bin/vex.rs`). It is
+Current runtime canonical path is append-cli (`src/bin/vex.rs`). It is
 simple and stable, but it does not provide managed in-app scrollback or a
 viewport model that supports transcript navigation while composing input.
 
@@ -27,15 +27,15 @@ This aligns with common open-source Rust TUI patterns (`ratatui`,
 3. Use one active streaming cell; commit on `TurnComplete`.
 4. Route keyboard/mouse navigation into widget scrolling APIs.
 5. Keep overlays lifecycle-managed (enter/leave paired, panic-safe).
-6. The canonical terminal surface must preserve operator access to pre-launch
-   shell history. Managed TUI rendering therefore targets the primary terminal
-   session rather than treating the terminal as a disposable full-screen
+6. The canonical cli surface must preserve operator access to pre-launch
+   shell history. Managed TUI rendering therefore targets the primary cli
+   session rather than treating the cli as a disposable full-screen
    surface. Operators must be able to inspect shell output that existed before
-   `vex` launched using ordinary terminal scrollback, while the runtime-owned
+   `vex` launched using ordinary cli scrollback, while the runtime-owned
    transcript begins at the launch boundary.
 7. Overlay prompts are the canonical operator-input surface for bounded
    mid-task decisions. Approval, confirmation, resume-selection, credential
-   retry, and similar handoff prompts must render in-terminal without tearing
+   retry, and similar handoff prompts must render in-cli without tearing
    down the active task view. Resolving an overlay must preserve transcript
    state, output-pane state, changed-file visibility, and scroll position, then
    return control to the active task.
@@ -55,21 +55,21 @@ If tool lifecycle requires dedicated events, only additive tool-specific
 variants are allowed (e.g., `ToolCallStarted`, `ToolCallCompleted`) and must
 not overlap existing `StreamBlock*` streaming semantics.
 
-## Terminal Abstraction Compatibility
+## CLI Abstraction Compatibility
 
 `CustomTerminal` may use ratatui insertion APIs for inline viewport behavior.
 Implementation must be validated against the pinned ratatui version in this
 repo (`ratatui = 0.29`) before task dispatch is considered complete.
 
 The managed TUI is not permitted to rely on a rendering strategy that makes
-pre-launch shell history unreachable until process exit. Primary-terminal
-rendering, inline insertion, or an equivalent terminal mode that leaves shell
-scrollback available during runtime are acceptable; terminal takeover that
+pre-launch shell history unreachable until process exit. Primary-cli
+rendering, inline insertion, or an equivalent cli mode that leaves shell
+scrollback available during runtime are acceptable; cli takeover that
 hides prior shell history for the duration of the session is not.
 
 ## Migration
 
-1. CORE-15 adds terminal abstraction and insertion support.
+1. CORE-15 adds cli abstraction and insertion support.
 2. CORE-16 adds chat widget state and stream/event mapping.
 3. CORE-17 wires app/frontend to the managed viewport and retires direct
    append rendering path.
@@ -126,4 +126,4 @@ See ADR-027 for the corrected implementation details.
 
 ## Architecture Boundary Note (2026-03-15)
 
-ADR-028 defines the longer-term application and transport split that ADR-018 did not make explicit. This superseded ADR must not be read as permission for the long-term application layer to keep mixing TUI/session state, runtime coordination, shared command semantics, or startup wiring. Those concerns now belong behind an explicit application facade, with terminal and transport concerns implemented in separate outer modules.
+ADR-028 defines the longer-term application and transport split that ADR-018 did not make explicit. This superseded ADR must not be read as permission for the long-term application layer to keep mixing TUI/session state, runtime coordination, shared command semantics, or startup wiring. Those concerns now belong behind an explicit application facade, with cli and transport concerns implemented in separate outer modules.

@@ -32,7 +32,7 @@ pub struct ApiClient {
 }
 ```
 
-The `MockStreamProducer` trait and `MockApiClient` implementation live in `src/api/mock_client.rs`, which is compiled only under `#[cfg(test)]`.
+The `MockStreamProducer` trait and `MockApiClient` implementation are placed in `src/api/mock_client.rs`, which is compiled only under `#[cfg(test)]`.
 
 ---
 

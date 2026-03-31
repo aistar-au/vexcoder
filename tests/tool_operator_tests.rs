@@ -275,7 +275,7 @@ fn test_empty_path_rejected_for_all_tool_operations() {
     let temp = TempDir::new().expect("temp dir");
     let executor = ToolOperator::new(temp.path().to_path_buf());
 
-    // read_file — empty string (matches live regression where @-mention
+    // read_file — empty string (matches a regression observed where @-mention
     // resolves to "" when the model omits the path argument)
     let err = executor
         .read_file("")

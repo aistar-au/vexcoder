@@ -33,7 +33,7 @@ struct ChatCompatToolState {
 // Fields that are not yet consumed by the conversion logic are retained so that
 // serde does not silently drop documented values if future code needs them.
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
+#[allow(unused)]
 struct ChatCompatChunk {
     #[serde(default)]
     id: Option<String>,
@@ -58,7 +58,7 @@ struct ChatCompatChunk {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
+#[allow(unused)]
 struct ChatCompatChoice {
     #[serde(default)]
     index: Option<usize>,
@@ -71,7 +71,7 @@ struct ChatCompatChoice {
 }
 
 #[derive(Debug, Default, Deserialize)]
-#[allow(dead_code)]
+#[allow(unused)]
 struct ChatCompatDelta {
     #[serde(default)]
     role: Option<String>,
@@ -84,7 +84,7 @@ struct ChatCompatDelta {
 }
 
 #[derive(Debug, Default, Deserialize)]
-#[allow(dead_code)]
+#[allow(unused)]
 struct ChatCompatToolCallDelta {
     #[serde(default)]
     index: Option<usize>,

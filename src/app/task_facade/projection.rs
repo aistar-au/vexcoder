@@ -32,7 +32,7 @@ pub struct TaskGraphSnapshot {
     pub nodes: Vec<FacadeTaskGraphNode>,
 }
 
-/// Serialisable snapshot of all live session tasks, written to
+/// Serialisable snapshot of all active session tasks, written to
 /// `.vex/state/projections/todos.json` after every facade mutation.
 #[derive(Debug, Serialize)]
 pub struct TodosSnapshot {

@@ -3,7 +3,7 @@ use crate::ui::layout::MAX_INPUT_PANE_ROWS;
 
 // ── Adaptive region geometry ────────────────────────────────────────
 
-/// Adaptive layout regions that scale with terminal dimensions.
+/// Adaptive layout regions that scale with display dimensions.
 ///
 /// ```text
 /// row 0..C     │  transcript (remaining rows)    │  (fills remaining)
