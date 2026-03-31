@@ -6,7 +6,7 @@
 - `src/batch_mode.rs` — new file
 - `src/bin/vex.rs` — add `vex exec` subcommand
 - `src/lib.rs` — expose `batch_mode` module
-- `src/runtime/task_state.rs` — add `MaxTurnsReached` batch status surface
+- `src/runtime/task_state/mod.rs` — add `MaxTurnsReached` batch status surface
 - `tests/integration_test.rs` — anchor tests
 
 **ADR:** ADR-024 Gap 2
