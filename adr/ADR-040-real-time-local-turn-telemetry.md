@@ -117,13 +117,17 @@ streaming protocols.
 21. The waiting lane keeps the ADR-039 canonical phrase
     `Mapping adjacent sectors...` and appends telemetry rather than replacing
     the phrase.
-22. While a turn is waiting for first text, the operator surface may append
-    live counters such as `read:2048/2641` in the same status lane.
-23. After a turn completes, the transcript may append a compact timing summary
+22. The live ANSI operator surface does not reserve a dedicated timeline strip;
+  the transcript owns the full body above the composer and renders waiting
+  status, tool activity, and assistant output as paragraphs in that shared
+  stream.
+23. While a turn is waiting for first text, the operator surface may append
+  live counters such as `read:2048/2641` in the same status lane.
+24. After a turn completes, the transcript may append a compact timing summary
     such as `ttft`, `read`, `generate`, and `total`.
-24. These additions remain subordinate status telemetry, not primary response
+25. These additions remain subordinate status telemetry, not primary response
     prose.
-25. The surface contract is protocol-agnostic; both protocols produce the
+26. The surface contract is protocol-agnostic; both protocols produce the
     same `StreamEvent` variants and telemetry types after parsing.
 
 ## Consequences

@@ -68,6 +68,9 @@ mod tests {
         assert!(is_waiting_placeholder("[waiting for response...]"));
         assert!(is_waiting_placeholder("[awaiting model response]"));
         assert!(is_waiting_placeholder(WAITING_FOR_RESPONSE_LINE));
+        assert!(is_waiting_placeholder(
+            "[thinking] Mapping adjacent sectors... 2.5s | read:512/2641"
+        ));
         assert!(!is_waiting_placeholder("[thinking] trace branch"));
     }
 
