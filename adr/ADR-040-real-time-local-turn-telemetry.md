@@ -10,8 +10,9 @@
 ## Context
 
 Local chat-compatible inference servers can spend substantial time in prompt
-evaluation before the first text token arrives. On `llama.cpp`, that prompt
-phase can already emit useful stream metadata such as:
+evaluation before the first text token arrives. On local inference servers
+that support the chat-completions streaming protocol, the prompt phase can
+already emit useful stream metadata such as:
 
 1. `prompt_progress` counters while prompt tokens are still being ingested.
 2. `timings` snapshots that distinguish prompt-eval time from generation time.
