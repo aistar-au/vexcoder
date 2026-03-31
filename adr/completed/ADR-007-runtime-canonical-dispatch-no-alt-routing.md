@@ -18,7 +18,7 @@ After REF-08:
 - MUST NOT: `src/state`, `src/api`, `src/tools` MUST NOT import runtime dispatch
   interfaces (`runtime::context`, `runtime::mode`, `runtime::loop`,
   `runtime::frontend`, `runtime::update`, `runtime::event`) or `crate::app`.
-- MUST: `RuntimeContext::start_turn` MUST emit exactly one terminal event per turn
+- MUST: `RuntimeContext::start_turn` MUST emit exactly one final event per turn
   (`TurnComplete` or `Error`).
 - MUST: `RuntimeContext::start_turn` MUST check for an active Tokio runtime before
   spawning; on failure it emits `UiUpdate::Error` and returns without touching history.

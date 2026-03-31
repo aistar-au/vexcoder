@@ -268,7 +268,7 @@ ADR-028 clarifies the outer-layer split that this superseded cutover ADR left im
 ## Supersession Note (2026-03-13)
 
 ADR-027 replaces the follow-up execution contract recorded here for the
-interactive terminal surface. The checklist and evidence in this file remain the
+interactive cli surface. The checklist and evidence in this file remain the
 historical record of the managed-TUI cutover work, but new operator-facing TUI
 and passthrough changes must follow ADR-027.
 

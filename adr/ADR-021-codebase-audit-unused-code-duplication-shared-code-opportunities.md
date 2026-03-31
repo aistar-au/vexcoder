@@ -78,7 +78,7 @@ git diff --numstat -- src/ui/editor.rs src/app.rs src/bin/vex.rs src/ui.rs src/u
 ### 6) `looks_like_terminal_transcript` family likely bypassed
 - **Status**: **Not accurate (current tree)**
 - **Correction**:
-  - Functions are live and used in production path:
+  - Functions are active and used in production path:
     `src/bin/vex.rs:101` and `src/bin/vex.rs:113`.
 
 ### 7) Empty `on_model_update` in `runtime/loop.rs` as unreachable production code
@@ -133,9 +133,9 @@ git diff --numstat -- src/ui/editor.rs src/app.rs src/bin/vex.rs src/ui.rs src/u
 - **Status**: **Completed (2026-03-28)**
 - **Evidence**:
   - `src/ui/layout.rs` exports `MAX_INPUT_PANE_ROWS` for shared production use.
-  - `src/tui_frontend.rs` clamps the live composer against that shared cap.
+  - `src/tui_frontend.rs` clamps the current composer against that shared cap.
   - `src/ui/render.rs` and `src/ui/draw/regions.rs` recompute composer height
-    from wrapped content and live terminal geometry, so the fullscreen surface
+    from wrapped content and current display geometry, so the fullscreen surface
     auto-fits to row and column changes instead of reserving a fixed prompt
     block.
 
@@ -358,9 +358,9 @@ git diff --numstat -- src/runtime/loop.rs
 - **Evidence**:
   - Filter is present in `src/tui_frontend.rs` at line 736:
     `if key.kind == KeyEventKind::Release { return None; }`.
-  - ADR-021 item referenced `src/bin/vex.rs` but the live code is in
+  - ADR-021 item referenced `src/bin/vex.rs` but the current code is in
     `src/tui_frontend.rs`; behavior is correct.
-  - Behavior can vary by terminal/backend; current filtering does not
+  Behavior can vary by cli/backend; current filtering does not
     imply guaranteed double-processing by itself.
 - **Priority**: **P2** (closed)
 - **Follow-up**:

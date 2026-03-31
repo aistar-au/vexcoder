@@ -45,7 +45,7 @@ implemented and verified:
 6. Render-loop efficiency:
    frontend redraw MUST be state/tick-driven; hot idle redraw loops are
    forbidden.
-7. Terminal lifecycle:
+7. CLI lifecycle:
    raw mode, cursor visibility, and bracketed paste MUST restore on normal
    exit, panic, and interrupt paths.
 
@@ -59,7 +59,7 @@ implemented and verified:
 3. New targeted tests are required for each gate above:
    input preservation, idle `Ctrl+C`, scrollback behavior, overlay visibility
    and focus routing, three-area frame composition and overlay z-order/geometry
-   invariance, transcript retention, idle redraw behavior, terminal restore
+   invariance, transcript retention, idle redraw behavior, cli restore
    behavior.
 
 ## No-go policy

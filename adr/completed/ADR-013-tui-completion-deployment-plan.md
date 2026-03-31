@@ -59,7 +59,7 @@ stability, unified modal renderer, diff viewer, multiline input, history safety)
 | `scroll_offset: 0` is hard-coded in `render_messages` | gate #3 | FEAT-15 |
 | `TuiMode::history` is unbounded `Vec<String>` | gate #5 | CORE-12 |
 | `poll(Duration::from_millis(16))` redraws unconditionally | gate #6 | CORE-13 |
-| No panic hook to restore terminal on unwind | gate #7 | CORE-14 |
+| No panic hook to restore cli on unwind | gate #7 | CORE-14 |
 | Idle `Ctrl+C` has no feedback; input silently dropped during turn | gate #1/#2 | FEAT-16 |
 
 ---
@@ -103,7 +103,7 @@ New task manifests at `adr/completed/CORE-12-*.md`, `adr/completed/CORE-13-*.md`
 
 **Dispatch order for Phase 2:** CORE-14 (panic hook) is independent and low-risk — it
 must be dispatched before any Phase 1 task because raw mode is already active and a
-panic during Phase 1 testing leaves the terminal broken without it. FEAT-15 and CORE-12
+panic during Phase 1 testing leaves the cli broken without it. FEAT-15 and CORE-12
 are independent of the Phase 1 chain and may be dispatched in parallel with CORE-07
 once CORE-09 is green. CORE-13 may run in parallel with CORE-10. FEAT-16 requires
 CORE-10 (shared interrupt/input routing path).
@@ -118,7 +118,7 @@ in code review and CI:
 1. **Overlay z-order:** `TuiFrontend::render` MUST draw the modal surface as the last
    draw call in every frame. No pane geometry may change due to overlay presence.
 
-2. **Scroll parameters:** `render_messages` callers MUST pass live
+2. **Scroll parameters:** `render_messages` callers MUST pass current
    `scroll_offset` state from `TuiMode`/`HistoryState`; hard-coded `0` is forbidden.
 
 3. **History cap:** `TuiMode::history.len()` (or the equivalent `HistoryState`
@@ -214,7 +214,7 @@ cargo test input_drop_shows_feedback
 focus. Frame composition order is deterministic and tested. All `UiUpdate` variants
 have an explicit overlay mapping with one-shot resolution guarantees.
 
-**After Phase 2:** The terminal is unconditionally restored on normal exit, panic,
+**After Phase 2:** The cli is unconditionally restored on normal exit, panic,
 and interrupt. Transcript memory is bounded. Idle redraw cost is eliminated. Users
 receive visible feedback on every rejected or interrupted input.
 

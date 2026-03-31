@@ -54,7 +54,7 @@ pub trait RuntimeMode {
 ```
 
 Design constraints:
-- The trait must not mention `ratatui`, `crossterm`, or any terminal I/O type.
+- The trait must not mention `ratatui`, `crossterm`, or any cli I/O type.
 - `RuntimeContext` is passed by `&mut` so modes can drive side-effects (start turns, cancel, etc.) without holding a long-lived reference.
 - Return types are `()` — modes communicate back through `ctx`, not through return values.
 

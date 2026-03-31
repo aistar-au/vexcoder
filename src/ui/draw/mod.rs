@@ -1,15 +1,15 @@
 //! Adaptive ANSI draw engine for the operator workspace surface.
 //!
 //! This module writes ANSI escape sequences directly to a `Write` sink,
-//! owning the full terminal for the entire session. The design goals are:
+//! owning the full cli for the entire session. The design goals are:
 //!
 //! 1. **Persistent full-screen ownership** — the draw engine owns the
-//!    terminal at all times; the prompt is never yielded between tool
+//!    cli at all times; the prompt is never yielded between tool
 //!    calls or after a turn completes.
 //! 2. **Flowing transcript** — tool calls, results, and model responses
 //!    stream vertically in a continuous log, not a fixed-height window.
 //! 3. **Adaptive layout** — the transcript body and composer area scale with
-//!    the terminal dimensions rather than using fixed row counts.
+//!    the display dimensions rather than using fixed row counts.
 //! 4. **Human-readable status** — the header shows plain-language state
 //!    instead of machine-debug flags.
 //! 5. **Minimal redraw** — only dirty regions are rewritten each frame.
@@ -40,7 +40,7 @@ use std::io::Write;
 /// `FrontendAdapter::render`. Each call to [`draw`] emits only the ANSI
 /// sequences needed to update dirty regions from the previous frame.
 pub struct TaskDraw {
-    /// Number of transcript lines already flushed to the terminal.
+    /// Number of transcript lines already flushed to the cli.
     output_lines_flushed: usize,
     /// Whether the previous frame reserved a changed-files row.
     last_has_files: bool,
@@ -52,7 +52,7 @@ pub struct TaskDraw {
     last_header_hash: u64,
     /// Last rendered composer (for dirty detection).
     last_composer_hash: u64,
-    /// Terminal dimensions at last draw.
+    /// Display dimensions at last draw.
     last_cols: u16,
     last_rows: u16,
     /// Whether the very first frame has been drawn.
@@ -124,7 +124,7 @@ impl TaskDraw {
             &state.composer_text,
         );
 
-        // On first frame or terminal resize: full repaint.
+        // On first frame or display resize: full repaint.
         if !self.first_frame_done || size_changed || layout_changed {
             hide_cursor(w);
             self.draw_full(w, state, &regions);

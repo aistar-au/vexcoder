@@ -33,7 +33,7 @@ questions below:
 1. Where are agent roles and teams configured?
 2. How are concurrent agents isolated from each other at the filesystem layer?
 3. Which layer is allowed to spawn, suspend, resume, or terminate session tasks?
-4. How do operators inspect live session-task progress without making the UI the
+4. How do operators inspect active session-task progress without making the UI the
    source of execution truth?
 5. What information must survive export, resume, and cross-surface handoff?
 
@@ -56,7 +56,7 @@ The runtime orchestrator remains the only authority allowed to:
 - assign a session task to an agent definition;
 - mark a session task as pending, running, blocked, failed, cancelled, or
   completed;
-- determine whether a background session task is still live;
+- determine whether a background session task is still active;
 - merge session-task results back into parent task state.
 
 Provider-native stream events, UI state, and transport-specific sessions MUST
@@ -64,7 +64,7 @@ NOT become the source of truth for session-task lifecycle.
 
 ### 2. Agent definitions are explicit and repo-readable
 
-Project-scoped multi-agent definitions live in `.vex/agents.toml`.
+Project-scoped multi-agent definitions are stored in `.vex/agents.toml`.
 
 The file defines:
 
@@ -128,13 +128,13 @@ Task state must record, at minimum:
 - handoff/export summary
 
 Resuming a parent task must reconstruct its session-task graph from task state
-before any UI or transport surface renders live status.
+before any UI or transport surface renders current status.
 
 ### 5. Operator surfaces are observational, not authoritative
 
 The initial operator command surface for this ADR is:
 
-- `/agents` — list configured agents, teams, and live assignment status;
+- `/agents` — list configured agents, teams, and current assignment status;
 - `/delegate <agent> <prompt>` — request a session task assignment from the
   orchestrator;
 - `/watch [task-id|agent-id]` — follow a session-task transcript or status board;
@@ -154,7 +154,7 @@ Implications:
 - exported task graphs must serialize parent/subtask relationships explicitly;
 - background session-task progress exposed via `LocalApiServer` must be projected
   from canonical runtime/task state rather than provider-native wire values;
-- resume must restore session-task metadata before replaying any live status to
+- resume must restore session-task metadata before replaying any current status to
   the UI or transport surface.
 
 ## Implementation phases
@@ -251,7 +251,7 @@ already-merged Phase A / Phase B-E baseline.
   files (`src/app/task_facade.rs`).
 - **O-2** — Replace string-comparison error routing with a typed `DelegateError`
   enum via `thiserror` (`src/app/task_facade.rs`, `Cargo.toml`).
-- **O-3** — Inline live-count computation in `facade_list_agents`; sidecar
+- **O-3** — Inline active-count computation in `facade_list_agents`; sidecar
   index was removed because correct decrement-on-task-completion would require
   threading `working_dir` through the transition path, and without decrement
   the cache monotonically inflates (`src/app/task_facade.rs`).
@@ -275,7 +275,7 @@ PR `#256` continues the ADR-034 hardening lane with the following
 correctness-focused follow-up changes on top of the Phase A/B-E baseline:
 
 - `facade_delegate_session_task` now rejects delegation requests when the
-  target agent already has `max_parallel_tasks` live session tasks recorded in
+  target agent already has `max_parallel_tasks` active session tasks recorded in
   persisted task state, and the check now runs inside a serialized delegate
   critical section backed by an in-process mutex plus a state-dir lock file so
   concurrent callers cannot over-allocate the same agent slot. The handler maps
@@ -285,7 +285,7 @@ correctness-focused follow-up changes on top of the Phase A/B-E baseline:
   `MAX_DELEGATE_PROMPT_BYTES` before state files or transport payloads grow
   without bound.
 - `facade_release_session_task` plus `POST /v1/session-tasks/{id}/release`
-  gives operators and completion hooks an explicit release path that marks live
+  gives operators and completion hooks an explicit release path that marks active
   session tasks complete and drops the associated worktree lease. Handler-level
   coverage now verifies both the success and not-found HTTP mappings.
 - `facade_watch_snapshot` now renders parent task statuses through

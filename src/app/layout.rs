@@ -434,7 +434,7 @@ fn timeline_label_for_invocation(invocation: &ToolInvocationSummary) -> String {
 /// Produce a compact summary string from the first outcome line.
 ///
 /// Truncates to at most 60 display characters so the summary line stays
-/// readable on typical terminal widths without wrapping.
+/// readable on typical display widths without wrapping.
 fn compact_outcome_summary(line: &str) -> String {
     const MAX_SUMMARY_WIDTH: usize = 60;
     let trimmed = line.trim();

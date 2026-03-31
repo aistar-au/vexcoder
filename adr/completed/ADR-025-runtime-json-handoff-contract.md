@@ -33,7 +33,7 @@ That seam is broader than a future HTTP server. In milestone 1 it must already s
 
 **Checklist continuation note:** ADR-024 Phase I checklist items PI-01 through PI-08 cover session lifecycle and command-surface work (`/permissions`, `/allow`, `/deny`, `/new`, `/resume`, `/mcp list`, `/mcp show`, `/plan`/`/context`). **Note:** PI-08 (`/plan` and `/context`) is tracked in ADR-023 EL-11/EL-12 and is only listed in ADR-024 for cross-reference. This ADR extends the Phase I checklist from PI-09 through PI-12. ADR-026 continues from PI-13 through PI-16. ADR-028 defines the application-facade and transport-boundary rule that later CLI and server work must respect. A reconciliation change must keep ADR-024's Phase I checklist and config-key section aligned with ADR-025 and ADR-026 before transport work is treated as merge-ready.
 
-**Current codebase naming note:** the live repository currently contains both provider-facing `ContentBlock::ToolUse { id }` / `ToolResult { tool_use_id, content, is_error }` types in `src/types/api_types.rs` and runtime-facing tool event names such as `StreamBlock::ToolCall` / `ToolResult { tool_call_id, output, is_error }` in the internal streaming path. This ADR does not require those existing names to unify immediately. PI-10 is the normalization layer that maps both existing shapes into one canonical runtime JSON contract.
+**Current codebase naming note:** the current repository contains both provider-facing `ContentBlock::ToolUse { id }` / `ToolResult { tool_use_id, content, is_error }` types in `src/types/api_types.rs` and runtime-facing tool event names such as `StreamBlock::ToolCall` / `ToolResult { tool_call_id, output, is_error }` in the internal streaming path. This ADR does not require those existing names to unify immediately. PI-10 is the normalization layer that maps both existing shapes into one canonical runtime JSON contract.
 
 ---
 
@@ -156,7 +156,7 @@ This envelope model is the **single source of truth** for machine-readable runti
 
 This rule resolves the ambiguity that existed when provider-facing types (e.g. `ContentBlock::ToolUse { id }`) appeared to carry a model-originated id. Those ids are provider-protocol artifacts; PI-10 normalization replaces them with a runtime-generated id before the event reaches the canonical layer.
 
-**`MaxTurnsReached` event:** emitted as the terminal event for a turn when `BatchMode` or `LocalApiServer` exhausts `--max-turns`. A `TurnEnd { status: "failed" }` follows immediately. This allows clients to distinguish normal completion from limit-triggered termination without inspecting exit codes. `MaxTurnsReached` is a first-class event in the canonical layer, not a transport side-channel.
+**`MaxTurnsReached` event:** emitted as the final event for a turn when `BatchMode` or `LocalApiServer` exhausts `--max-turns`. A `TurnEnd { status: "failed" }` follows immediately. This allows clients to distinguish normal completion from limit-triggered termination without inspecting exit codes. `MaxTurnsReached` is a first-class event in the canonical layer, not a transport side-channel.
 
 **Usage deferral note:** `TurnEnd.usage` remains optional until ADR-024 Gap 28 / PL-03 lands. Before that point, omission is valid and expected. This ADR defines the JSON slot now so later transport/API work does not need a schema-breaking change.
 
@@ -173,20 +173,20 @@ PI-10 is the canonical normalization layer. It must map provider-facing and curr
 | `StreamBlock::ToolCall { id, name, input }` | `ToolCall { id, name, arguments }` | **Runtime discards any provider id and generates a new `call_<utc-ms>_<4-hex>` id**; `input` becomes `arguments` |
 | `StreamBlock::ToolResult { tool_call_id, output, is_error }` | `ToolResult { tool_call_id, tool_name, is_error, output }` | `tool_call_id` is re-keyed to the runtime-generated id for the matching call; `output` and `is_error` pass-through; `tool_name` resolved from the pending-call table when available |
 | `UiUpdate::StreamDelta(text)` | `AssistantDelta { text }` | direct pass-through |
-| `UiUpdate::TurnComplete` | `AssistantMessage { content }` then `TurnEnd { status: "completed", ... }` | the normalization layer accumulates all `AssistantDelta.text` emitted for the turn and, on `TurnComplete`, emits a single `AssistantMessage { content: accumulated_text }` immediately before the terminal `TurnEnd` |
+| `UiUpdate::TurnComplete` | `AssistantMessage { content }` then `TurnEnd { status: "completed", ... }` | the normalization layer accumulates all `AssistantDelta.text` emitted for the turn and, on `TurnComplete`, emits a single `AssistantMessage { content: accumulated_text }` immediately before the final `TurnEnd` |
 | `UiUpdate::Error(message)` | `Error { code, message, recoverable }` then `TurnEnd { status: "failed", ... }` when possible | normalized failure path |
 | `UiUpdate::ToolApprovalRequest(req)` | `ApprovalRequest { capability, scope, tool_name }` | extract fields from `ToolApprovalRequest`; `tool_name` resolved from pending-call table when available |
 | `RuntimeRequest::ApproveCapability` processed | `ApprovalResolved { capability, scope, approved: true }` | emitted after the runtime processes an approval grant; precedes the resumed `ToolCall` |
 | `RuntimeRequest::DenyCapability` processed | `ApprovalResolved { capability, scope, approved: false }` | emitted after the runtime processes an approval denial |
 | `UiUpdate::StreamBlockStart`, `StreamBlockDelta`, `StreamBlockComplete` | *(not projected)* | TUI render bookkeeping only; must not cross the machine-readable seam |
-| `BatchMode` / `LocalApiServer` max-turns limit reached | `MaxTurnsReached { max_turns }` then `TurnEnd { status: "failed", ... }` | emitted as the terminal sequence when the turn limit is exhausted |
+| `BatchMode` / `LocalApiServer` max-turns limit reached | `MaxTurnsReached { max_turns }` then `TurnEnd { status: "failed", ... }` | emitted as the final sequence when the turn limit is exhausted |
 | Grammar `tool_call_array` (array of tool calls) | one `ToolCall` envelope per array element | when the grammar produces `[{...},{...}]`, PI-10 splits the array into individual `ToolCall` envelopes, each with its own runtime-generated `id` and its own `seq` number; single bare `{...}` objects are treated as a one-element array |
 
-**Current-path note:** the live `UiUpdate` surface does not yet contain a dedicated `AssistantMessage` variant. PI-10 therefore treats the `TurnComplete` path above as the normative source of `AssistantMessage` for current streaming backends: deltas are accumulated across the turn, a terminal `AssistantMessage` is emitted immediately before `TurnEnd`, and BatchMode derives `TurnRecord.response` from that assembled content when present. A future non-streaming backend may add a direct full-message update, but it must normalize to the same `AssistantMessage` envelope shape.
+**Current-path note:** the current `UiUpdate` surface does not yet contain a dedicated `AssistantMessage` variant. PI-10 therefore treats the `TurnComplete` path above as the normative source of `AssistantMessage` for current streaming backends: deltas are accumulated across the turn, a final `AssistantMessage` is emitted immediately before `TurnEnd`, and BatchMode derives `TurnRecord.response` from that assembled content when present. A future non-streaming backend may add a direct full-message update, but it must normalize to the same `AssistantMessage` envelope shape.
 
 **Validation integration note:** `ValidationOutputEnvelope` is the API-facing projection of ADR-023 `ValidationSuite` output. Its `label` field corresponds to validation command names such as `cargo test`, `cargo clippy`, or `npm test`. This gives API clients structured validation data without coupling them to ADR-023's internal Rust types.
 
-**Implementation note (PF-01 / PF-02 dependency):** `ToolResult.tool_name` remains `Option<String>` because ADR-024 PF-01 / PF-02 (`McpRegistry` and `Capability::McpTool` approval wiring) are not yet green in the live roadmap. The PI-10 normalization layer must resolve `tool_name` from the pending-call table when that name is available. When it is not available — especially for future MCP-originated tool results before registry wiring is complete — the canonical envelope must emit `tool_name = null` rather than inventing a placeholder string.
+**Implementation note (PF-01 / PF-02 dependency):** `ToolResult.tool_name` remains `Option<String>` because ADR-024 PF-01 / PF-02 (`McpRegistry` and `Capability::McpTool` approval wiring) are not yet green in the current roadmap. The PI-10 normalization layer must resolve `tool_name` from the pending-call table when that name is available. When it is not available — especially for future MCP-originated tool results before registry wiring is complete — the canonical envelope must emit `tool_name = null` rather than inventing a placeholder string.
 
 ### 3. Transport neutrality is mandatory
 
@@ -282,7 +282,7 @@ However, ADR-025 imposes a new internal rule:
 **BatchMode derivation rules:**
 
 - `TurnRecord.input` is the `TurnStart.input` for the corresponding turn.
-- `TurnRecord.response` is the `AssistantMessage.content` value when that terminal message event is emitted; otherwise it is the concatenation of all `AssistantDelta.text` values in order. `AssistantMessage.content` is the authoritative full-turn response string and supersedes delta concatenation when present.
+- `TurnRecord.response` is the `AssistantMessage.content` value when that final message event is emitted; otherwise it is the concatenation of all `AssistantDelta.text` values in order. `AssistantMessage.content` is the authoritative full-turn response string and supersedes delta concatenation when present.
 - `TurnRecord.changed_files` is copied from `TurnEnd.changed_files`.
 - `SummaryRecord.status` is copied from the final `TurnEnd.status`.
 - `SummaryRecord.total_turns` equals the count of completed turns.
@@ -321,7 +321,7 @@ The canonical envelope model must obey these rules:
 - `seq` must never decrease within a turn and is monotonically increasing within that turn;
 - clients may use `seq` to detect dropped or duplicated envelopes in streaming transports;
 - `ToolResult.tool_call_id` must match the runtime-generated `ToolCall.id` for the matching call in the same task;
-- `TurnEnd` is the terminal event for a turn unless the transport itself fails before completion.
+- `TurnEnd` is the final event for a turn unless the transport itself fails before completion.
 - PI-12 tests must assert that the first envelope of every turn has `seq == 1`.
 
 **Error recovery behavior:**
@@ -540,7 +540,7 @@ When checking any PI-09…PI-12 box, append an evidence block:
   - `cargo test --all-targets` : fail on local Windows shell due existing forbidden-name integration tests invoking missing `python` alias
   - `make gate-fast` : unavailable in local PowerShell shell (`make` missing)
 - Notes:
-  - Added serde round-trip, error-ordering, max-turn terminal-sequence, and BatchMode-derivation coverage for the canonical runtime handoff layer.
+  - Added serde round-trip, error-ordering, max-turn final-sequence, and BatchMode-derivation coverage for the canonical runtime handoff layer.
   - The new derivation helper proves `AssistantMessage` precedence, `AssistantDelta` fallback, turn-level `seq` reset, and summary/status parity against the existing JSONL evidence shape.
 
 ## Compliance notes for agents

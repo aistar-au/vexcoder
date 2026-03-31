@@ -8,10 +8,10 @@
 
 ## Context
 
-`vexcoder` is already a Rust terminal coding assistant, but the current product
+`vexcoder` is already a Rust cli coding assistant, but the current product
 shape is still closer to a chat-first TUI than a full coding agent.
 
-The roadmap target is a terminal-first coding agent built only around free/open
+The roadmap target is a cli-first coding agent built only around free/open
 software and no-cost, self-hostable deployment paths.
 
 The current codebase has several material gaps relative to that target:
@@ -49,7 +49,7 @@ agent loop is stable.
 
 This ADR locks the following decisions:
 
-1. `vexcoder` is terminal-agent-first for the first milestone. The terminal runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the first milestone and must not be allowed to drive architectural changes to the runtime core.
+1. `vexcoder` is cli-agent-first for the first milestone. The cli runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the first milestone and must not be allowed to drive architectural changes to the runtime core.
 2. The default operating posture is approval-first.
 3. The first milestone supports both local model runtimes and self-hosted,
    neutral-compatible model servers.
@@ -198,12 +198,12 @@ support when required by an interactive command.
 Command and tool results must be surfaced as structured task evidence in the UI.
 They are not permitted to exist only as model-generated summaries.
 
-When command execution is initiated from the interactive terminal surface, the
+When command execution is initiated from the interactive cli surface, the
 runtime owns the subprocess lifecycle and output ingestion. Command stdout,
 stderr, exit status, and cancellation state must remain visible inside the
 active runtime surface rather than being delegated exclusively to the parent
 shell. The command surface may mirror evidence into durable task state, but the
-operator must be able to inspect live command output from inside the app while
+the operator must be able to inspect active command output from inside the app while
 the task remains active.
 
 `ApprovalPolicy` is separate from `RuntimeCorePolicy`. `RuntimeCorePolicy`
@@ -330,7 +330,7 @@ evidence, changed-file tracking, and task-scoped approvals.
 
 ### Phase 6 — Rework the TUI around task execution
 
-**Objective:** move the terminal UI from conversation-first to task-first.
+**Objective:** move the cli UI from conversation-first to task-first.
 
 **Implementation direction:** build the persistent task-execution layout on top
 of ADR-018's managed TUI and streaming primitives.

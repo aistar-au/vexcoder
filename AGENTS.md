@@ -15,7 +15,7 @@ If this is a repository-hosted background session:
 - Use English only in agent-authored output, including plans, logs, pull
   requests, comments, and status updates.
 - Use text-only verification and reporting. Do not create screenshots, screen
-  captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or
+  captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or
   temporary visual-surrogate files.
 - Do not create ad hoc temporary projects or files whose only purpose is to
   simulate, capture, or restyle the UI for visual verification.
@@ -117,7 +117,7 @@ A–H post-session checklist.
 - Do not read any `SKILL.md` file in a repository-hosted session.
 - Use English only in agent-authored output.
 - Use text-only verification and reporting. Do not create screenshots, screen
-  captures, pseudo-screenshots, parsed terminal snapshots, image artifacts, or
+  captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or
   temporary visual-surrogate files.
 - Do not create ad hoc temporary projects or files whose only purpose is to
   simulate, capture, or restyle the UI for visual verification.

@@ -219,7 +219,7 @@ async fn test_schedule_team_handler_enforces_max_parallel_tasks_under_parallel_r
     assert_eq!(
         arr.len(),
         ok,
-        "expected one live task per successful schedule"
+        "expected one active task per successful schedule"
     );
     assert!(arr
         .iter()
@@ -234,7 +234,7 @@ async fn test_schedule_team_handler_enforces_max_parallel_tasks_under_parallel_r
 async fn test_join_status_handler_returns_pending_for_active_tasks() {
     let temp = tempfile::tempdir().unwrap();
 
-    // Seed a live session task so the parent task has session tasks pending.
+    // Seed an active session task so the parent task has session tasks pending.
     let _ = delegate_one(setup_team_router(temp.path()), "join-parent", temp.path()).await;
 
     let router = setup_team_router(temp.path());
@@ -251,7 +251,7 @@ async fn test_join_status_handler_returns_pending_for_active_tasks() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
-    // With a live session task the join is still pending.
+    // With an active session task the join is still pending.
     assert_eq!(payload.get("pending"), Some(&Value::Bool(true)));
     assert_eq!(payload.get("all_done"), Some(&Value::Bool(false)));
 }

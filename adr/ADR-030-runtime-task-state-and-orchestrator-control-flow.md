@@ -116,7 +116,7 @@ The orchestrator is the runtime control authority that decides what happens next
 after task state is updated.
 
 The orchestrator is responsible for continuation, pausing, retrying, validation
-sequencing, and terminal completion.
+sequencing, and completion.
 
 ## Ownership model
 
@@ -228,7 +228,7 @@ NOT by itself terminate a task.
 
 ### Invariant 3: runtime state decides continuation
 
-Continuation and terminal completion MUST be decided by the orchestrator after
+Continuation and completion MUST be decided by the orchestrator after
 task state has been updated.
 
 ### Invariant 4: managed command sessions outlive provider stream chunks
@@ -267,7 +267,7 @@ representing at least:
 - patch/mutation status
 - pending approval state
 - managed command session attachment and lifecycle
-- blocked/interrupted/failed/completed terminal states
+- blocked/interrupted/failed/completed final states
 - maximum-turn and retry conditions
 
 ## Managed command session rules
@@ -299,7 +299,7 @@ Examples of valid completion conditions include:
 - the requested edits and required validations have succeeded
 - an explicit final response is consistent with task state and no further
   runtime action is pending
-- the task reaches a runtime-owned terminal failure or max-turn condition
+- the task reaches a runtime-owned failure or max-turn condition
 
 Invalid completion signals include:
 

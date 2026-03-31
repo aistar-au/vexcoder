@@ -482,7 +482,7 @@ fn test_hook_repo_local_config_rejected_at_load() {
 
 // -- PE-01 / PE-02 public API contract -----------------------------------------
 //
-// The six async anchor tests that depend on MockApiClient live in
+// The six async anchor tests that depend on MockApiClient are located in
 // src/batch_mode.rs #[cfg(test)] (MockApiClient is not pub to integration tests).
 // These tests cover the integration-layer contract using only pub API.
 
@@ -549,7 +549,7 @@ async fn test_build_batch_runtime_succeeds_with_local_config() {
     let result = build_batch_runtime(&config, "test task".to_string(), BatchRunOpts::default());
     assert!(
         result.is_ok(),
-        "build_batch_runtime must succeed without a live server: {:?}",
+        "build_batch_runtime must succeed without a running server: {:?}",
         result.err()
     );
 }

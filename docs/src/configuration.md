@@ -425,7 +425,7 @@ Authorization = "Bearer ${VEX_MCP_AUTH}"
 
 When MCP servers are loaded successfully:
 
-- `/mcp list` shows the live server inventory.
+- `/mcp list` shows the current server inventory.
 - `/mcp show <server>` shows the tool names exported by one server.
 - `/tools` includes both built-in tools and MCP tools.
 

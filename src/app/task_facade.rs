@@ -137,7 +137,7 @@ pub enum DelegateError {
     /// The agent's `max_parallel_tasks` limit is already reached.
     ///
     /// ADR-034 §1 requires the orchestrator to enforce per-agent concurrency
-    /// limits at delegation time.  The caller must wait for a live session task
+    /// limits at delegation time.  The caller must wait for an active session task
     /// to complete before retrying.
     #[error("concurrency_limit_reached")]
     ConcurrencyLimitReached,
@@ -225,7 +225,7 @@ pub fn facade_delegate_session_task(
     with_delegate_lock(&state_dir, || {
         // Per-agent concurrency enforcement (ADR-034 §1) must be uninterruptible
         // with session-task creation so concurrent callers cannot both observe
-        // the same live-count snapshot and over-allocate a shared agent slot.
+        // the same active-count snapshot and over-allocate a shared agent slot.
         let live_counts = TaskState::live_session_task_counts_from(working_dir)?;
         let live = *live_counts.get(agent_id).unwrap_or(&0);
         if live >= max_parallel_tasks {
@@ -313,8 +313,8 @@ pub fn facade_watch_snapshot(working_dir: &Path, id: &str) -> Result<Option<Faca
 /// Returns `true` when the session task was found; `false` when no matching
 /// session task exists in any saved task-state file.
 ///
-/// If the task is in a live state it is transitioned to `Completed` before
-/// the lease is released.  If the task is already in a terminal state
+/// If the task is in an active (non-final) state it is transitioned to `Completed` before
+/// the lease is released.  If the task is already in a final state
 /// (`Completed`, `Failed`, `Cancelled`) the lease is released without
 /// re-transitioning.
 ///
@@ -330,7 +330,7 @@ pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) ->
         return Ok(false);
     };
 
-    // Transition to Completed only when currently live.
+    // Transition to Completed only when currently in a non-final state.
     if parent_state
         .session_task(session_task_id)
         .map(|t| t.lifecycle_state.is_live())
@@ -435,9 +435,9 @@ pub fn facade_schedule_team(
 
 /// Check the fan-out join gate for a parent task.
 ///
-/// Returns `Ok(None)` when at least one session task is still live.  Returns
+/// Returns `Ok(None)` when at least one session task is still active.  Returns
 /// `Ok(Some(FacadeJoinOutcome))` when every session task has reached a
-/// terminal state.  When the outcome is returned, the caller should call the
+/// final state.  When the outcome is returned, the caller should call the
 /// apply-join endpoint to persist the merged handoff summary.
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_poll_join(
@@ -516,9 +516,9 @@ pub fn facade_get_session_task(
 /// Accepted `status_str` values: `running`, `blocked`, `failed`,
 /// `cancelled`, `completed`.
 ///
-/// Transitions from terminal states (`Failed`, `Cancelled`, `Completed`) are
+/// Transitions from final states (`Failed`, `Cancelled`, `Completed`) are
 /// rejected with `TransitionNotAllowed` — use
-/// `facade_release_session_task` to clean up a terminal task instead.
+/// `facade_release_session_task` to clean up a completed task instead.
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_update_session_task_status(
     working_dir: &Path,
@@ -576,7 +576,7 @@ pub fn facade_task_graph(working_dir: &Path) -> Result<FacadeTaskGraph> {
     Ok(FacadeTaskGraph { nodes })
 }
 
-/// Return all live (non-terminal) session tasks as todo items.
+/// Return all active (non-final) session tasks as todo items.
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_todos(working_dir: &Path) -> Result<Vec<FacadeTodoItem>> {
     let mut out = Vec::new();

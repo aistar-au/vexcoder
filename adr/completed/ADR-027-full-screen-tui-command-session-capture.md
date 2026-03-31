@@ -19,7 +19,7 @@ style full-screen session model:
 
 ## Decision
 
-1. **Interactive sessions own the full terminal**
+1. **Interactive sessions own the full cli**
    - The TUI enters the alternate screen buffer for normal interactive use.
    - Pre-launch shell scrollback is hidden during the session and restored on exit.
 
@@ -33,13 +33,13 @@ style full-screen session model:
    - Session cleanup uses `kill_on_drop(true)` and process-tree termination on cancel.
    - Validation and model-visible `run_command` calls use the same command runner contract as inline command sessions.
 
-4. **Interactive terminal tools remain a distinct path**
-   - PTY attach remains available for tools that require a real terminal.
+4. **Interactive cli tools remain a distinct path**
+   - PTY attach remains available for tools that require a real cli.
    - Full async PTY integration is deferred.
 
 ## Merged Implementation
 
-### Terminal lifecycle
+### CLI lifecycle
 - `src/terminal.rs` enters the alternate screen, clears the terminal, and restores terminal state on exit.
 - `src/bin/vex.rs` renders the task layout against the full viewport instead of the earlier bottom-overlay path.
 
@@ -66,20 +66,20 @@ style full-screen session model:
 | TUI rendering | Ctrl+C cancels current LLM request |
 | Command execution | Ctrl+C requests cancellation; the command runner terminates the active command session tree |
 | Input mode | Esc clears input, Enter submits |
-| Application exit | Ctrl+Q quits cleanly, restores terminal |
+| Application exit | Ctrl+Q quits cleanly, restores cli |
 
 ## Current Limits And Follow-ups
 
-- Model-visible `run_command` now uses the same managed command-session path as inline `!command`: live output is captured into the full-screen transcript while the tool result still returns the completed stdout/stderr summary to the model loop.
-- Command output accumulation for the model tool result is capped to a 50 KiB tail buffer (`VEX_MAX_COMMAND_OUTPUT_BYTES`). The full output is always streamed to the TUI via `TranscriptLine` updates, so the terminal retains complete scrollback while the in-process buffer stays bounded. When the cap is exceeded, only the tail is kept and the tool result header notes the truncation.
+- Model-visible `run_command` now uses the same managed command-session path as inline `!command`: streaming output is captured into the full-screen transcript while the tool result still returns the completed stdout/stderr summary to the model loop.
+- Command output accumulation for the model tool result is capped to a 50 KiB tail buffer (`VEX_MAX_COMMAND_OUTPUT_BYTES`). The full output is always streamed to the TUI via `TranscriptLine` updates, so the cli retains complete scrollback while the in-process buffer stays bounded. When the cap is exceeded, only the tail is kept and the tool result header notes the truncation.
 - Concurrent inline command sessions now share the same managed transcript, but saved task evidence still records the batch at task-turn level rather than as independent structured session records.
-- Interactive transcript history remains uncapped by default so the full-screen session keeps terminal-style scrollback semantics. Bounding RAM is deferred to a paged or file-backed transcript store; `VEX_MAX_HISTORY_LINES` remains an operator override rather than the default behavior.
-- PTY-backed interactive tools still depend on `portable_pty` through `src/runtime/command.rs::attach_pty()`. That dependency remains live in this branch and was not removed by the full-screen capture cutover. A full async PTY integration remains future work.
+- Interactive transcript history remains uncapped by default so the full-screen session keeps cli-style scrollback semantics. Bounding RAM is deferred to a paged or file-backed transcript store; `VEX_MAX_HISTORY_LINES` remains an operator override rather than the default behavior.
+- PTY-backed interactive tools still depend on `portable_pty` through `src/runtime/command.rs::attach_pty()`. That dependency is retained in this branch and was not removed by the full-screen capture cutover. A full async PTY integration remains future work.
 - ADR-028 is the follow-up boundary ADR for splitting long-term application coordination away from transport framing and startup routing. This ADR covers the full-screen TUI and captured command-session behavior only; it does not authorize `src/app.rs` or `src/bin/vex.rs` to remain the permanent home of shared machine-readable runtime seams or server transport code.
 
 ## Regression Coverage
 
-- `tests/layout_underflow_tests.rs` covers the small-terminal layouts called out during the cutover (`10x3`, `20x5`, `40x12`) and asserts that three-pane and four-region splits stay bounded within the viewport without panicking.
+- `tests/layout_underflow_tests.rs` covers the small-display layouts called out during the cutover (`10x3`, `20x5`, `40x12`) and asserts that three-pane and four-region splits stay bounded within the viewport without panicking.
 - `tests/signal_handling_tests.rs` covers the command-session cancellation path and the runtime turn-cancellation token reset path that back the interactive Ctrl+C behavior.
 - `src/app.rs` retains the command-session cancellation regression around inline `!command` execution and turn completion.
 

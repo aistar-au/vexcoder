@@ -147,7 +147,7 @@ fn zero_terminal_size_is_noop() {
     let mut draw = TaskDraw::new();
     let state = make_state(vec![], vec!["text"]);
     draw.draw(&mut buf, &state, 0, 0);
-    assert!(buf.is_empty(), "zero-size terminal must produce no output");
+    assert!(buf.is_empty(), "zero-size display must produce no output");
 }
 
 #[test]
@@ -574,7 +574,7 @@ fn streaming_cursor_uses_live_cursor_accent() {
     );
     assert!(
         output.contains("\x1b[1m\x1b[38;5;6m\u{258c}"),
-        "streaming cursor must use the live cyan cursor accent: {output}"
+        "streaming cursor must use the current cyan cursor accent: {output}"
     );
 }
 
@@ -637,19 +637,19 @@ fn adaptive_composer_scales_with_terminal_height() {
     let small = Regions::compute(80, 12, false, 0);
     assert_eq!(
         small.composer_rows, 3,
-        "small terminal keeps the prompt surface fixed to three rows"
+        "small display keeps the prompt surface fixed to three rows"
     );
 
     let medium = Regions::compute(80, 20, false, 0);
     assert_eq!(
         medium.composer_rows, 3,
-        "medium terminal keeps the prompt surface fixed to three rows"
+        "medium display keeps the prompt surface fixed to three rows"
     );
 
     let large = Regions::compute(80, 40, false, 0);
     assert_eq!(
         large.composer_rows, 3,
-        "large terminal keeps the prompt surface fixed to three rows"
+        "large display keeps the prompt surface fixed to three rows"
     );
 
     let multiline = (0..8)
@@ -863,7 +863,7 @@ fn composer_renders_live_input_text() {
 
     assert!(
         output.contains("hello fullscreen"),
-        "composer must render the live editor buffer"
+        "composer must render the active editor buffer"
     );
 }
 
@@ -971,7 +971,7 @@ fn composer_hash_tracks_live_input_changes() {
     assert_ne!(
         draw.compute_composer_hash(&first),
         draw.compute_composer_hash(&second),
-        "composer hash must change when the live input buffer changes"
+        "composer hash must change when the current input buffer changes"
     );
 }
 
@@ -1005,7 +1005,7 @@ fn composer_hash_tracks_cursor_only_changes() {
     assert_ne!(
         draw.compute_composer_hash(&first),
         draw.compute_composer_hash(&second),
-        "composer hash must change when the live cursor moves"
+        "composer hash must change when the current cursor moves"
     );
 }
 

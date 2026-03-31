@@ -6,7 +6,7 @@
 //! strategies declared in `AgentsConfig`:
 //!
 //! - `FanOutJoin` — all member session tasks are created immediately; the join
-//!   gate resolves once every task reaches a terminal state.
+//!   gate resolves once every task reaches a final state.
 //! - `Sequential` — only the first member's task is created; subsequent tasks
 //!   are created one at a time after the preceding task completes.
 //!
@@ -41,7 +41,7 @@ pub struct TeamDecomposition {
 /// Records the outcome of a completed join poll.
 #[derive(Debug, Clone)]
 pub struct JoinOutcome {
-    /// `true` when every session task has reached a terminal state.
+    /// `true` when every session task has reached a final state.
     pub all_done: bool,
     /// Number of tasks that completed successfully.
     pub completed: usize,
@@ -147,9 +147,9 @@ impl SubtaskOrchestrator {
 
     /// Check whether all session tasks attached to `parent_task_id` are done.
     ///
-    /// Returns `None` when at least one task is still live (`Pending`,
+    /// Returns `None` when at least one task is still active (`Pending`,
     /// `Running`, or `Blocked`).  Returns `Some(JoinOutcome)` when every
-    /// task has reached a terminal state (`Completed`, `Failed`, or
+    /// task has reached a final state (`Completed`, `Failed`, or
     /// `Cancelled`).
     ///
     /// The caller is responsible for calling [`apply_join_outcome`] once the
@@ -183,7 +183,7 @@ impl SubtaskOrchestrator {
                     cancelled += 1;
                 }
                 _ => {
-                    // Still live — join gate is not satisfied.
+                    // Still active — join gate is not satisfied.
                     return Ok(None);
                 }
             }
@@ -205,9 +205,9 @@ impl SubtaskOrchestrator {
     /// Advance a sequential schedule by creating the next member's session task.
     ///
     /// Walks `team.members` in declaration order to find the first member
-    /// that has no session task yet.  If the preceding task is still live
+    /// that has no session task yet.  If the preceding task is still active
     /// the function returns `Ok(None)` — the caller must wait.  If all
-    /// members have terminal tasks the function returns `Ok(None)` to signal
+    /// members have completed tasks the function returns `Ok(None)` to signal
     /// schedule exhaustion.
     ///
     /// Returns `Ok(Some(session_task_id))` when a new task was created and
@@ -223,8 +223,8 @@ impl SubtaskOrchestrator {
         let mut parent_state = TaskState::load(&self.state_dir, parent_task_id)?;
 
         // Find the next member to schedule:
-        // - skip members whose task has reached a terminal state,
-        // - return None when the current member's task is still live,
+        // - skip members whose task has reached a final state,
+        // - return None when the current member's task is still active,
         // - create a task for the first member with no task entry.
         let mut next_member: Option<&str> = None;
 
@@ -245,14 +245,14 @@ impl SubtaskOrchestrator {
                     return Ok(None);
                 }
                 Some(_) => {
-                    // Terminal state — continue to the next member.
+                    // Final state — continue to the next member.
                 }
             }
         }
 
         let member_name = match next_member {
             Some(name) => name,
-            None => return Ok(None), // All members have terminal tasks.
+            None => return Ok(None), // All members have completed tasks.
         };
 
         let agent = find_agent(agents, member_name)?;
@@ -303,9 +303,9 @@ impl SubtaskOrchestrator {
     // Graph query helpers
     // -----------------------------------------------------------------------
 
-    /// Return the number of live session tasks attached to `parent_task_id`.
+    /// Return the number of active session tasks attached to `parent_task_id`.
     ///
-    /// A task is live when its `lifecycle_state` is `Pending`, `Running`, or
+    /// A task is active when its `lifecycle_state` is `Pending`, `Running`, or
     /// `Blocked`.
     #[tracing::instrument(skip(self))]
     pub fn live_session_task_count(&self, parent_task_id: &str) -> Result<usize> {
@@ -318,7 +318,7 @@ impl SubtaskOrchestrator {
     }
 
     /// Return `true` when every member of `team` has a session task in a
-    /// terminal state attached to `parent_task_id`.
+    /// final state attached to `parent_task_id`.
     #[tracing::instrument(skip(self, team))]
     pub fn is_team_schedule_exhausted(
         &self,
@@ -452,9 +452,9 @@ mod tests {
         orc.schedule_team("parent-poll", &team, &agents, "work")
             .unwrap();
 
-        // Tasks default to Pending (live) — join should not fire.
+        // Tasks default to Pending (active) — join should not fire.
         let outcome = orc.poll_fan_out_join("parent-poll").unwrap();
-        assert!(outcome.is_none(), "expected None while tasks are live");
+        assert!(outcome.is_none(), "expected None while tasks are active");
     }
 
     #[test]
@@ -466,7 +466,7 @@ mod tests {
         orc.schedule_team("parent-done", &team, &agents, "work")
             .unwrap();
 
-        // Transition both tasks to terminal states.
+        // Transition both tasks to final states.
         let mut state = TaskState::load(orc.state_dir.as_path(), "parent-done").unwrap();
         let ids: Vec<String> = state.session_tasks.iter().map(|t| t.id.clone()).collect();
         for id in &ids {
@@ -498,7 +498,7 @@ mod tests {
         let next = orc
             .advance_sequential("parent-seq2", &team, &agents, "work")
             .unwrap();
-        assert!(next.is_none(), "expected None while alpha is still live");
+        assert!(next.is_none(), "expected None while alpha is still active");
     }
 
     #[test]
@@ -601,7 +601,7 @@ mod tests {
 
         assert!(
             !orc.is_team_schedule_exhausted("parent-ex", &team).unwrap(),
-            "should not be exhausted while tasks are live"
+            "should not be exhausted while tasks are active"
         );
     }
 
@@ -636,7 +636,7 @@ mod tests {
         orc.schedule_team("parent-count", &team, &agents, "work")
             .unwrap();
 
-        // Both tasks are Pending (live).
+        // Both tasks are Pending (active).
         assert_eq!(orc.live_session_task_count("parent-count").unwrap(), 2);
 
         // Complete one.

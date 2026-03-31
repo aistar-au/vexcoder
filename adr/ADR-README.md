@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-All ADR files live under `adr/`.
+All ADR files are stored under `adr/`.
 
 - Open ADRs: `adr/ADR-XXX-*.md`
 - Accepted/superseded ADR records: `adr/completed/ADR-XXX-*.md`
@@ -63,7 +63,7 @@ a trailing slash. Remaining work covers the broader vocabulary sweep, active
 indicator, and paragraph-stream restructuring. ADR-038 is accepted and
 complete. The only deferred external prerequisite remains ADR-024 PG-03 tap
 auto-dispatch, which stays blocked until the separate tap repository exists.
-Full history and ADR status detail live in `TASKS/ACTIVE-ROADMAP.md`.
+Full history and ADR status detail are located in `TASKS/ACTIVE-ROADMAP.md`.
 
 | Tier | Source | Items | Description |
 | :--- | :--- | :--- | :--- |

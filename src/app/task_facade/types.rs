@@ -134,7 +134,7 @@ pub struct FacadeTaskGraph {
     pub nodes: Vec<FacadeTaskGraphNode>,
 }
 
-/// One live (non-terminal) session task returned by `facade_list_todos`.
+/// One active (non-final) session task returned by `facade_list_todos`.
 #[derive(Debug, Clone, Serialize)]
 pub struct FacadeTodoItem {
     pub id: String,

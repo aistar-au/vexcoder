@@ -1019,7 +1019,7 @@ data: {"type":"message_stop"}"#.to_string(),
 
         assert_eq!(
             terminal_count, 1,
-            "cancel path must emit exactly one terminal event"
+            "cancel path must emit exactly one final event"
         );
     }
 }

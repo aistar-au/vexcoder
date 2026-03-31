@@ -17,7 +17,7 @@ mdbook serve docs
 - [Configuration](docs/src/configuration.md)
 - [CLI and TUI Commands](docs/src/commands.md)
 
-Architecture records live under [`adr/`](adr/ADR-README.md). They are kept in
+Architecture records are stored under [`adr/`](adr/ADR-README.md). They are kept in
 the repository for design history, but are not part of the published user
 guide. The current runtime, application, and transport layout is summarized in
 [`docs/src/architecture.md`](docs/src/architecture.md), with ADR-025 through ADR-033 carrying the detailed design history.

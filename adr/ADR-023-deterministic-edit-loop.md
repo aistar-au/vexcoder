@@ -126,7 +126,7 @@ Constraints:
 - `ModelProfile` is loaded and validated at startup. An invalid or missing profile path is a hard failure with a diagnostic, not a silent fallback.
 - `ModelProfile` does not introduce a new runtime mode. It is consumed by `RuntimeContext` when building the API request payload; it affects request parameters only.
 - The `system_prompt` field is a path to a prompt template file, not an inlined text blob.
-- Profile files live in `models/` at the repo root, are committed to source control, and must not reference proprietary names.
+- Profile files are located in `models/` at the repo root, are committed to source control, and must not reference proprietary names.
 - **`structured_tools = false` fallback:** When a profile sets `structured_tools = false`, the runtime must fall back to tagged-fallback tool call mode (the same path used by `model_protocol = "chat-compat"` backends in ADR-022). This is the correct default for models that do not reliably follow structured tool schemas. A profile must never be loaded without a well-defined tool call mode resolution; the absence of a `structured_tools` key is a hard validation failure at load time.
 - **`reasoning_budget` semantics:** When `reasoning_budget > 0`, the value is passed to the active `ModelProtocol` implementation as a chain-of-thought token budget hint. Each protocol implementation maps this to the backend-specific wire parameter where one exists: `chat-compat` backends that implement a `reasoning_effort`-equivalent extension use that integer field; backends that have no standardised reasoning-budget parameter surface no extra parameter and emit a startup informational note. When `reasoning_budget = 0`, no reasoning parameter is emitted regardless of backend. A profile that sets `reasoning_budget > 0` on a backend that does not support it must not abort the session.
 - **Sequencing gate:** `ModelProfile` config integration (`model_profile` TOML key, `VEX_MODEL_PROFILE` env var) is gated on ADR-022 Phase 1 (layered config) completion. EL-07 (struct and files) may proceed; EL-08 (config integration) may not.
@@ -818,7 +818,7 @@ When checking a box above, append an evidence block under this section:
     - `check_forbidden_imports.sh` : pass
     - `check_forbidden_names.sh` : pass
 - Notes:
-    - `/commands` renders from the live `SLASH_COMMANDS` registration table.
+    - `/commands` renders from the current `SLASH_COMMANDS` registration table.
     - `/help` remains an alias to the same handler, and the anchor tests verify neither path starts a model turn.
 
 ### Milestone-1 validation gate - ADR-023 command-surface regression pass
@@ -892,9 +892,9 @@ All tasks require `cargo test --all-targets`, `check_no_alternate_routing.sh`, `
 | `/plan` must never call `apply_patch`, invoke `EditLoop`, or surface a `PendingApproval` overlay | Any `PendingPatch` produced during a `/plan` turn must be silently dropped; verified by `test_tui_plan_drops_pending_patch_silently` |
 | `/context` must never call `ctx.start_turn` | All output must be rendered via `push_history_line` only; verified by `test_tui_context_renders_without_model_turn` |
 | `/review --base <ref>` must validate `<ref>` via `git rev-parse --verify` before starting a turn | Invalid ref must emit a structured error message and return without calling `ctx.start_turn` |
-| `ValidationSuite::run` has no patch precondition at the function level | The EditLoop-internal "only validate after apply" policy must live in `EditLoop` step 6, not in `ValidationSuite::run` |
+| `ValidationSuite::run` has no patch precondition at the function level | The EditLoop-internal "only validate after apply" policy must be placed in `EditLoop` step 6, not in `ValidationSuite::run` |
 | `try_handle_slash_command` must return `None` for all non-`/` input | The existing `ctx.start_turn(input)` path must be reached unchanged for free-form turns |
-| `/commands` and `/help` must render from the live dispatch table, not a hardcoded string | Any command added to `try_handle_slash_command` without a registered description is a compile error; verified by `test_missing_command_description_is_compile_error` |
+| `/commands` and `/help` must render from the current dispatch table, not a hardcoded string | Any command added to `try_handle_slash_command` without a registered description is a compile error; verified by `test_missing_command_description_is_compile_error` |
 | `/commands` and `/help` must never call `ctx.start_turn` | All output via `push_history_line` only; verified by `test_commands_output_does_not_call_start_turn` |
 | `/diff` must use the `spawn_blocking` + `tokio::time::timeout` + `child.kill()` pattern | Same as `ContextAssembler` git calls; must never start a model turn |
 | `/quit` and `/exit` must cancel `active_edit_loop` via `CancellationToken` before shutdown | Never force-exit while a loop is running |

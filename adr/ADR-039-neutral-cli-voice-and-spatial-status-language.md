@@ -82,7 +82,7 @@ Adopt a neutral spatial voice for operator-facing CLI text.
 
 14. Long-running work renders as one continuous paragraph-oriented timeline,
     not a sequence of congratulatory callouts.
-15. When available, live progress counters such as files processed or agents
+15. When available, active progress counters such as files processed or agents
     active appear in the same status lane as orchestrator updates.
 16. Tool operator output and agent-enrichment output must remain visually
     subordinate to primary code / diff text so the transcript stays legible
@@ -138,7 +138,7 @@ Adopt a neutral spatial voice for operator-facing CLI text.
 
 - Consolidate long-running tool and agent updates into one paragraph-oriented
    status stream.
-- Add live counters for files processed and active agents where the runtime
+- Add active counters for files processed and active agents where the runtime
    already knows those values.
 - Render the orchestrator lane as a continuous enriched paragraph while
    keeping code and diff text visually dominant in phosphor white / green / red.

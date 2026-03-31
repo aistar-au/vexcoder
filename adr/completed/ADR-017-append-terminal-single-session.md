@@ -8,12 +8,12 @@
 ## Context
 
 The runtime had accumulated multiple UI execution paths (`App`, `TuiFrontend`,
-`TtyApp`, and direct terminal execution behavior), creating duplicate
+`TtyApp`, and direct cli execution behavior), creating duplicate
 state/render plumbing and inconsistent prompt behavior.
 
 ## Decision
 
-1. Use append-only terminal session as the canonical runtime path for
+1. Use append-only cli session as the canonical runtime path for
    `cargo run`.
 2. Remove parallel window-buffer app/frontend wrappers from runtime execution.
 3. Keep runtime dispatch on `Runtime::run` with `FrontendAdapter<TuiMode>`.
@@ -21,7 +21,7 @@ state/render plumbing and inconsistent prompt behavior.
 ## Consequences
 
 - Simplified runtime surface and reduced duplicate UI paths.
-- Improved terminal prompt continuity for append-only sessions.
+- Improved cli prompt continuity for append-only sessions.
 
 ## Supersession Note
 

@@ -1,7 +1,7 @@
 //! App bundle path resolution — ADR-024 Phase H PH-01.
 //!
 //! Resolves the path of the embedded vex binary at runtime.  In a correctly
-//! assembled Vex.app bundle both `vex-launcher` and `vex` reside at
+//! assembled Vex.app bundle both `vex-launcher` and `vex` are placed at
 //! `Contents/MacOS/`.  Outside a bundle the binary is located via `PATH`
 //! so the launcher can be tested during development.
 

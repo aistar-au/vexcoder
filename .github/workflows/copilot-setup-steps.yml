@@ -126,7 +126,7 @@ jobs:
               echo "Missing text-only verification guardrail in $file"
               exit 1
             }
-            has_match "screenshots, screen|pseudo-screenshots|parsed terminal snapshots|visual-surrogate" "$file" || {
+            has_match "screenshots, screen|pseudo-screenshots|parsed cli snapshots|visual-surrogate" "$file" || {
               echo "Missing no-visual-artifact guardrail in $file"
               exit 1
             }

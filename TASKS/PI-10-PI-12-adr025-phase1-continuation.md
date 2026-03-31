@@ -91,7 +91,7 @@ Scope defined in `adr/ADR-025-runtime-json-handoff-contract.md`:
   - Grammar `tool_call_array` produces one `ToolCall` envelope per array
     element with runtime-generated `id` and `seq`
 - `AssistantMessage` assembly: `TurnComplete` is the normative source; deltas
-  are accumulated, a terminal `AssistantMessage` is emitted immediately before
+  are accumulated, a final `AssistantMessage` is emitted immediately before
   `TurnEnd`, and `BatchMode` derives `TurnRecord.response` from that content.
 - `ToolResult.tool_name` remains `Option<String>` until ADR-024 PF-01/PF-02
   (McpRegistry and approval wiring) are complete.

@@ -1,6 +1,6 @@
 [book]
 title = "VexCoder"
-description = "Terminal-first coding assistant with streaming responses, tool execution, and a terminal UI."
+description = "Command-line-first coding assistant with streaming responses, tool execution, and a cli UI."
 authors = ["aistar-au"]
 language = "en"
 src = "docs/src"

@@ -13,10 +13,10 @@ larger multiline composer. Tool calls, waiting-state telemetry, and assistant
 responses stream into transcript paragraphs on that shared body instead of a
 dedicated visible timeline strip. When completed turns record usage metadata, the
 header appends a compact `~N.Nk ctx` cumulative session indicator. The prompt
-surface keeps live `/` command hints, live `@path` file suggestions, a live
+surface keeps active `/` command hints, active `@path` file suggestions, a current
 character count and focus marker in the composer header, submit-time `@path`
 expansion, pasted blocks, and multiline editing available in the same
-fullscreen layout. The composer auto-fits to the available terminal rows and
+fullscreen layout. The composer auto-fits to the available display rows and
 columns as the window grows, shrinks, or snaps to smaller layouts, so the
 prompt surface reflows instead of holding onto a stale fixed-height block. For
 repo-overview prompts, the runtime now steers the model
@@ -320,12 +320,12 @@ streaming.
 - `Ctrl+C` requests cancellation for the active turn.
 - `Alt+Up` and `Alt+Down` move the selected entry in the adaptive task timeline.
 - `Tab` and `Shift+Tab` also move timeline selection forward and backward while the task surface is active.
-- The visible timeline window scales with terminal height instead of staying fixed at six rows.
-- The composer auto-fits to the live terminal row and column budget, so snapping the terminal to half-screen or quarter-screen sizes reflows the prompt surface instead of overflowing or leaving empty space.
+- The visible timeline window scales with display height instead of staying fixed at six rows.
+- The composer auto-fits to the current display row and column budget, so snapping the display to half-screen or quarter-screen sizes reflows the prompt surface instead of overflowing or leaving empty space.
 - `PageUp`, `PageDown`, `Ctrl+Up`, and `Ctrl+Down` scroll the transcript/output pane upward from the prompt edge instead of moving the cursor.
-- `Ctrl+Home` jumps to the oldest visible transcript content, and `Ctrl+End` returns to the live bottom edge.
+- `Ctrl+Home` jumps to the oldest visible transcript content, and `Ctrl+End` returns to the current bottom edge.
 - The transcript pane keeps the full session scrollback visible while follow mode is on; new model responses append at the bottom instead of replacing the prior response view.
 - Selecting older timeline entries manually switches the output pane into inspector detail for that step until follow mode resumes.
 - `Shift+Enter` inserts a newline without submitting the turn.
 - Pasted text is inserted into the larger multiline prompt surface during normal editing.
-- The composer header shows a live focus indicator (`focused` / `unfocused`) and a character count that updates as you type.
+- The composer header shows a current focus indicator (`focused` / `unfocused`) and a character count that updates as you type.

@@ -200,7 +200,7 @@ async fn test_list_todos_endpoint_returns_live_tasks() {
     assert!(
         arr.iter()
             .any(|t| t.get("id") == Some(&Value::String(st_id.clone()))),
-        "expected live session task {st_id} in /v1/todos response"
+        "expected active session task {st_id} in /v1/todos response"
     );
 }
 
@@ -327,12 +327,12 @@ async fn test_list_todos_endpoint_scans_large_state_dirs_and_ignores_older_dupli
     assert_eq!(
         arr.len(),
         LARGE_SCAN_REPO_TASKS + LARGE_SCAN_LEGACY_LIVE_TASKS,
-        "expected only live tasks from the newest copy of each parent task"
+        "expected only active tasks from the newest copy of each parent task"
     );
     assert!(
         !arr.iter()
             .any(|item| { item.get("parent_task_id") == Some(&Value::String("task-dup".into())) }),
-        "older duplicate live task should not appear when a newer completed copy exists"
+        "older duplicate active task should not appear when a newer completed copy exists"
     );
 }
 

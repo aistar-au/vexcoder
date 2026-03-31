@@ -50,7 +50,7 @@ fn delegate_enforces_max_parallel_tasks() {
         "[[agents]]\nname = \"worker\"\nisolation = \"shared\"\nmax_parallel_tasks = 1\n",
     );
 
-    // Seed a live session task for the same agent so the limit is already
+    // Seed an active session task for the same agent so the limit is already
     // at capacity before the next delegate call.
     let state_dir = TaskState::state_dir_from(dir.path());
     std::fs::create_dir_all(&state_dir).unwrap();
