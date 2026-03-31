@@ -238,6 +238,7 @@ impl RuntimeEnvelopeNormalizer {
             UiUpdate::ToolApprovalRequest(request) => {
                 vec![self.next_envelope(runtime_approval_request_event(request))]
             }
+            UiUpdate::ServerMetadata(_) => Vec::new(),
             UiUpdate::StreamBlockStart { .. }
             | UiUpdate::StreamBlockDelta { .. }
             | UiUpdate::StreamBlockComplete { .. }

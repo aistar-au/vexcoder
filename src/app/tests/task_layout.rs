@@ -8,13 +8,37 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
     mode.on_user_input("hi".to_string(), &mut ctx);
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert_eq!(
-        state.output_rows,
-        vec![
-            "> hi".to_string(),
-            "[thinking] Mapping adjacent sectors...".to_string()
-        ]
+    assert_eq!(state.output_rows.len(), 2);
+    assert_eq!(state.output_rows[0], "> hi");
+    // The second row is the ADR-039 canonical waiting phrase with elapsed suffix.
+    assert!(
+        state.output_rows[1].starts_with("[thinking] Mapping adjacent sectors..."),
+        "expected canonical ADR-039 waiting row, got: {:?}",
+        state.output_rows[1]
     );
+}
+
+#[test]
+fn test_task_layout_state_shows_server_read_progress_in_waiting_row() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("hi".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::ServerMetadata(Box::new(crate::types::StreamChunkMetadata {
+            prompt_progress: Some(crate::types::StreamPromptProgress {
+                total: Some(2641),
+                processed: Some(2048),
+                cache: Some(0),
+                time_ms: Some(153341.0),
+            }),
+            ..Default::default()
+        })),
+        &mut ctx,
+    );
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert!(state.output_rows[1].contains("read:2048/2641"));
 }
 
 #[test]

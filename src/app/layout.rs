@@ -1,7 +1,20 @@
 use super::*;
 use crate::status_contract::{
-    completed_status_label, pending_status_label, waiting_for_response_line,
+    completed_status_label, is_waiting_placeholder, pending_status_label, waiting_for_response_line,
 };
+
+fn format_waiting_status(
+    elapsed: String,
+    prompt_progress: Option<&crate::types::StreamPromptProgress>,
+) -> String {
+    let mut status = format!("{} {elapsed}", waiting_for_response_line());
+    if let Some(progress) = prompt_progress {
+        if let (Some(processed), Some(total)) = (progress.processed, progress.total) {
+            status.push_str(&format!(" | read:{processed}/{total}"));
+        }
+    }
+    status
+}
 
 struct TaskStepView {
     step_id: u64,
@@ -225,11 +238,18 @@ impl TuiMode {
 
         if self.history_state.turn_in_progress
             && !self.history_state.cancel_pending
-            && rows.last().is_some_and(|line| line.is_empty())
+            && rows
+                .last()
+                .is_some_and(|line| line.is_empty() || is_waiting_placeholder(line))
         {
             if self.current_turn_response.is_empty() {
+                let elapsed = self
+                    .turn_started_at
+                    .map(|t| format!("{:.1}s", t.elapsed().as_secs_f64()))
+                    .unwrap_or_default();
                 if let Some(last) = rows.last_mut() {
-                    *last = waiting_for_response_line().to_string();
+                    *last =
+                        format_waiting_status(elapsed, self.current_turn_prompt_progress.as_ref());
                 }
             } else {
                 rows.pop();

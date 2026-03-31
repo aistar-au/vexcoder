@@ -34,3 +34,5 @@ scratch-*
 
 # --- Generated docs output ---
 docs/book/
+vex-debug.log
+vex-timing.log

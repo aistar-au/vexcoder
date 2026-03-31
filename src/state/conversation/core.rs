@@ -5,7 +5,7 @@ use super::{
 };
 use crate::api::stream::StreamParser;
 use crate::runtime::policy::{default_runtime_policy, RuntimeCorePolicy};
-use crate::types::{ApiMessage, ApiUsage, Content, ContentBlock, StreamEvent};
+use crate::types::{ApiMessage, ApiUsage, Content, ContentBlock, StreamChunkMetadata, StreamEvent};
 use crate::usage::TurnTokens;
 use anyhow::{anyhow, Result};
 use futures::{future::join_all, StreamExt};
@@ -17,6 +17,22 @@ struct CompletedToolCall {
     name: String,
     input: serde_json::Value,
     result: Result<String>,
+}
+
+fn emit_server_metadata_update(
+    metadata: Option<&StreamChunkMetadata>,
+    stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
+) {
+    let Some(metadata) = metadata else {
+        return;
+    };
+    if metadata.prompt_progress.is_none() && metadata.timings.is_none() {
+        return;
+    }
+    emit_stream_update(
+        stream_delta_tx,
+        ConversationStreamUpdate::ServerMetadata(Box::new(metadata.clone())),
+    );
 }
 
 impl ConversationManager {
@@ -220,6 +236,7 @@ impl ConversationManager {
                     match event {
                         StreamEvent::MessageStart { message } => {
                             accumulate_usage(&mut turn_tokens, message.usage.as_ref());
+                            emit_server_metadata_update(message.metadata.as_ref(), stream_delta_tx);
                             if !use_structured_blocks && stream_server_events {
                                 emit_text_update(
                                     stream_delta_tx,
@@ -399,6 +416,7 @@ impl ConversationManager {
                         }
                         StreamEvent::MessageDelta { delta, usage } => {
                             accumulate_usage(&mut turn_tokens, usage.as_ref());
+                            emit_server_metadata_update(delta.metadata.as_ref(), stream_delta_tx);
                             if !use_structured_blocks && stream_server_events {
                                 let stop_reason =
                                     delta.stop_reason.unwrap_or_else(|| "none".to_string());

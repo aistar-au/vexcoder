@@ -1,6 +1,7 @@
 use super::edit_loop::EditLoopOutcome;
 use super::validation::ValidationResult;
 use crate::state::{StreamBlock, ToolApprovalRequest};
+use crate::types::StreamChunkMetadata;
 
 pub enum UiUpdate {
     TranscriptLine(String),
@@ -17,6 +18,7 @@ pub enum UiUpdate {
         index: usize,
     },
     ToolApprovalRequest(ToolApprovalRequest),
+    ServerMetadata(Box<StreamChunkMetadata>),
     CommandSessionStarted {
         session_id: u64,
         command: String,

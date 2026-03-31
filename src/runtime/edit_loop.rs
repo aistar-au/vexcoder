@@ -543,6 +543,7 @@ args = ["/C", "echo still failing 1>&2 && exit /b 1"]
                         transcript_reader.lock().unwrap().push(line);
                     }
                     UiUpdate::StreamDelta(_)
+                    | UiUpdate::ServerMetadata(_)
                     | UiUpdate::StreamBlockStart { .. }
                     | UiUpdate::StreamBlockDelta { .. }
                     | UiUpdate::StreamBlockComplete { .. }
