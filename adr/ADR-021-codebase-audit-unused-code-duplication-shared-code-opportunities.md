@@ -371,9 +371,10 @@ git diff --numstat -- src/runtime/loop.rs
 - **Status**: **Completed (2026-03-28)**
 - **Evidence**:
   - Runtime now uses tick/state-driven rendering (P0.17 complete).
-  - Effective idle cadence is also bounded by frontend polling
-    (`event::poll(16ms)` in `src/tui_frontend.rs`), so the practical loop rate
-    is around 62Hz regardless of `IDLE_LOOP_BACKOFF`.
+  - Frontend polling in `src/tui_frontend.rs` is now adaptive: 1ms during
+    an active model turn (streaming) and 16ms when idle. The practical idle
+    loop rate is around 62Hz; during streaming the shorter timeout reduces
+    per-iteration latency.
 - **Priority**: **P3** (closed)
 - **Follow-up**:
   - Tuning comment added to `IDLE_LOOP_BACKOFF` in `src/runtime/loop.rs`
