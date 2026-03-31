@@ -297,3 +297,95 @@ fn test_chat_compat_state_reset_after_done() {
         "second message should emit MessageStart after [DONE]"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Regression: metadata-only chunks must not be dropped (ADR-040)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_regression_metadata_only_chunk_not_dropped() {
+    let mut parser = StreamParser::new();
+
+    // First chunk: MessageStart (required to set chat_compat_message_started)
+    let start = br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}],"prompt_progress":{"total":2641,"processed":512,"cache":0,"time_ms":38000},"timings":{"prompt_n":512,"prompt_ms":38000.0,"predicted_n":0,"predicted_ms":0.0}}
+
+"#;
+    let events = parser
+        .process(start)
+        .expect("metadata-only chunk should parse");
+
+    // Prior to the fix, metadata-only chunks (content: null, no finish_reason)
+    // were silently dropped because the code only emitted MessageDelta when
+    // refusal, finish_reason, logprobs, or server progress was present.
+    // The fix in PR #297 added has_server_progress to the emission guard.
+    assert!(
+        events.len() >= 2,
+        "metadata-only chunk must produce at least MessageStart + MessageDelta, got {} events",
+        events.len()
+    );
+
+    let has_prompt_progress = events.iter().any(|e| match e {
+        StreamEvent::MessageDelta { delta, .. } => delta
+            .metadata
+            .as_ref()
+            .is_some_and(|m| m.prompt_progress.is_some()),
+        _ => false,
+    });
+    assert!(
+        has_prompt_progress,
+        "prompt_progress must be forwarded through MessageDelta metadata"
+    );
+
+    let has_timings = events.iter().any(|e| match e {
+        StreamEvent::MessageDelta { delta, .. } => {
+            delta.metadata.as_ref().is_some_and(|m| m.timings.is_some())
+        }
+        _ => false,
+    });
+    assert!(
+        has_timings,
+        "timings must be forwarded through MessageDelta metadata"
+    );
+}
+
+#[test]
+fn test_regression_progress_updates_across_multiple_chunks() {
+    let mut parser = StreamParser::new();
+
+    // Simulate a multi-chunk prompt-eval sequence where each chunk carries
+    // increasing processed counts but no text content.
+    let chunks = [
+        br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}],"prompt_progress":{"total":2641,"processed":512,"cache":0,"time_ms":38000}}
+
+"#
+        .as_slice(),
+        br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":null},"finish_reason":null}],"prompt_progress":{"total":2641,"processed":1024,"cache":0,"time_ms":76000}}
+
+"#
+        .as_slice(),
+        br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":null},"finish_reason":null}],"prompt_progress":{"total":2641,"processed":2048,"cache":0,"time_ms":153000}}
+
+"#
+        .as_slice(),
+    ];
+
+    let mut progress_values = Vec::new();
+    for chunk in &chunks {
+        let events = parser.process(chunk).expect("chunk should parse");
+        for event in &events {
+            if let StreamEvent::MessageDelta { delta, .. } = event {
+                if let Some(meta) = &delta.metadata {
+                    if let Some(pp) = &meta.prompt_progress {
+                        progress_values.push(pp.processed.unwrap_or(0));
+                    }
+                }
+            }
+        }
+    }
+
+    assert_eq!(
+        progress_values,
+        vec![512, 1024, 2048],
+        "all three prompt_progress.processed updates must be forwarded"
+    );
+}
