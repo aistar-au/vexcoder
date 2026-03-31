@@ -512,9 +512,10 @@ fn first_pathish_token(text: &str) -> Option<String> {
 mod tests {
     use super::{
         compact_outcome_summary, timeline_label_for_invocation, tool_outcome_is_error,
-        tool_scope_detail, tool_target_summary,
+        tool_scope_detail, tool_target_summary, waiting_for_response_line, HistoryState, TuiMode,
     };
     use crate::app::ToolInvocationSummary;
+    use crate::types::StreamPromptProgress;
 
     #[test]
     fn short_outcome_preserved() {
@@ -616,5 +617,52 @@ mod tests {
         let label = timeline_label_for_invocation(&invocation);
         assert!(!label.contains('\n'));
         assert_eq!(label, "write_file · Cargo.toml · failed");
+    }
+
+    #[test]
+    fn transcript_display_rows_replaces_streaming_history_tail_with_current_response() {
+        let mut mode = TuiMode::new();
+        mode.history_state = HistoryState {
+            lines: vec!["> hi".to_string(), "Hello".to_string()],
+            turn_in_progress: true,
+            cancel_pending: false,
+            active_assistant_index: Some(1),
+            scroll_offset: 0,
+            auto_follow: true,
+        };
+        mode.current_turn_response = "Hello!\nHow can I help you today?".to_string();
+
+        assert_eq!(
+            mode.transcript_display_rows(),
+            vec![
+                "> hi".to_string(),
+                "Hello!".to_string(),
+                "How can I help you today?▌".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn transcript_display_rows_keeps_formatted_waiting_status_inline() {
+        let mut mode = TuiMode::new();
+        mode.history_state = HistoryState {
+            lines: vec!["> hi".to_string(), waiting_for_response_line().to_string()],
+            turn_in_progress: true,
+            cancel_pending: false,
+            active_assistant_index: Some(1),
+            scroll_offset: 0,
+            auto_follow: true,
+        };
+        mode.current_turn_prompt_progress = Some(StreamPromptProgress {
+            total: Some(2641),
+            processed: Some(512),
+            cache: None,
+            time_ms: None,
+        });
+
+        let rows = mode.transcript_display_rows();
+        assert_eq!(rows[0], "> hi");
+        assert!(rows[1].starts_with(waiting_for_response_line()));
+        assert!(rows[1].contains("read:512/2641"));
     }
 }

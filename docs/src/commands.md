@@ -8,8 +8,10 @@ This page documents the commands and flags implemented in the current binary.
 
 Starts the interactive full-screen CLI UI. While a task is running, the task
 surface uses a direct ANSI renderer for a human-readable header, optional
-changed-file row, adaptive timeline, prompt-anchored transcript area, and a
-larger multiline composer. When completed turns record usage metadata, the
+changed-file row, a full-height transcript body above the composer, and a
+larger multiline composer. Tool calls, waiting-state telemetry, and assistant
+responses stream into transcript paragraphs on that shared body instead of a
+dedicated visible timeline strip. When completed turns record usage metadata, the
 header appends a compact `~N.Nk ctx` cumulative session indicator. The prompt
 surface keeps live `/` command hints, live `@path` file suggestions, a live
 character count and focus marker in the composer header, submit-time `@path`

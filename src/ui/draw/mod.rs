@@ -8,8 +8,8 @@
 //!    calls or after a turn completes.
 //! 2. **Flowing transcript** — tool calls, results, and model responses
 //!    stream vertically in a continuous log, not a fixed-height window.
-//! 3. **Adaptive layout** — the timeline, transcript, and composer areas
-//!    scale with the terminal dimensions rather than using fixed row counts.
+//! 3. **Adaptive layout** — the transcript body and composer area scale with
+//!    the terminal dimensions rather than using fixed row counts.
 //! 4. **Human-readable status** — the header shows plain-language state
 //!    instead of machine-debug flags.
 //! 5. **Minimal redraw** — only dirty regions are rewritten each frame.
