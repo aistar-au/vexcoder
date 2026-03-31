@@ -232,6 +232,7 @@ data: {"type":"message_stop"}"#.to_string(),
                     | ConversationStreamUpdate::BlockDelta { .. }
                     | ConversationStreamUpdate::BlockComplete { .. }
                     | ConversationStreamUpdate::TranscriptLine(_)
+                    | ConversationStreamUpdate::ServerMetadata(_)
                     | ConversationStreamUpdate::CommandSessionStarted { .. }
                     | ConversationStreamUpdate::CommandSessionAttached { .. }
                     | ConversationStreamUpdate::CommandSessionFinished { .. }
@@ -385,6 +386,7 @@ data: {"type":"message_stop"}"#.to_string(),
                     | ConversationStreamUpdate::BlockDelta { .. }
                     | ConversationStreamUpdate::BlockComplete { .. }
                     | ConversationStreamUpdate::TranscriptLine(_)
+                    | ConversationStreamUpdate::ServerMetadata(_)
                     | ConversationStreamUpdate::CommandSessionStarted { .. }
                     | ConversationStreamUpdate::CommandSessionAttached { .. }
                     | ConversationStreamUpdate::CommandSessionFinished { .. }

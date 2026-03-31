@@ -39,7 +39,7 @@ use crate::turn_evidence::{
     command_evidence_from_tool_result, note_changed_files_from_tool_call, ToolInvocationSummary,
     TurnEvidenceState,
 };
-use crate::types::ModelProfile;
+use crate::types::{ModelProfile, StreamPromptProgress, StreamTimings};
 use crate::ui::render::history_visual_line_count;
 use anyhow::Result;
 #[cfg(test)]
@@ -869,6 +869,12 @@ pub struct TuiMode {
     ttft: Option<Duration>,
     /// TTFT from the most recently completed turn, kept for display.
     last_turn_ttft: Option<Duration>,
+    /// Latest server-side prompt-eval progress for the active turn.
+    current_turn_prompt_progress: Option<StreamPromptProgress>,
+    /// Latest server-side timings reported for the active turn.
+    current_turn_timings: Option<StreamTimings>,
+    /// Final server-side timings for the most recently completed turn.
+    last_turn_timings: Option<StreamTimings>,
     /// Last completed turn's tool invocations (kept for persistent display).
     last_turn_tool_invocations: Vec<ToolInvocationSummary>,
     /// Last completed turn's response text (kept for persistent display).

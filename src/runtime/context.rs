@@ -481,6 +481,9 @@ fn forward_conversation_update(
         ConversationStreamUpdate::TranscriptLine(line) => {
             let _ = tx.send(UiUpdate::TranscriptLine(line));
         }
+        ConversationStreamUpdate::ServerMetadata(metadata) => {
+            let _ = tx.send(UiUpdate::ServerMetadata(metadata));
+        }
         ConversationStreamUpdate::CommandSessionStarted {
             session_id,
             command,

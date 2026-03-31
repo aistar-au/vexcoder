@@ -48,11 +48,14 @@ impl TuiMode {
         self.inspector_scroll_offset = 0;
         self.turn_started_at = None;
         self.ttft = None;
+        self.current_turn_prompt_progress = None;
+        self.current_turn_timings = None;
         self.turn_completion_pending = false;
         self.plan_turn_active = false;
     }
 
-    /// Append a `[ttft: …s | total: …s]` timing summary to the transcript
+    /// Append a `[ttft: …s | read: …s | generate: …s | total: …s]`
+    /// timing summary to the transcript
     /// after a turn finishes so the operator can see latency at a glance.
     fn append_turn_timing_line(&mut self) {
         let total = match self.last_turn_duration {
@@ -63,6 +66,14 @@ impl TuiMode {
         if let Some(ttft) = self.last_turn_ttft {
             parts.push(format!("ttft:{:.1}s", ttft.as_secs_f64()));
         }
+        if let Some(timings) = self.last_turn_timings.as_ref() {
+            if let Some(prompt_ms) = timings.prompt_ms {
+                parts.push(format!("read:{:.1}s", prompt_ms / 1000.0));
+            }
+            if let Some(predicted_ms) = timings.predicted_ms {
+                parts.push(format!("generate:{:.1}s", predicted_ms / 1000.0));
+            }
+        }
         parts.push(format!("total:{:.1}s", total.as_secs_f64()));
         self.push_history_line(format!("[{}]", parts.join(" | ")));
     }
@@ -72,6 +83,7 @@ impl TuiMode {
         self.last_turn_response.clear();
         self.last_turn_input_display.clear();
         self.last_turn_duration = None;
+        self.last_turn_timings = None;
         self.last_error_message = None;
     }
 
@@ -187,6 +199,7 @@ impl TuiMode {
         self.last_turn_input_display = self.current_turn_input.clone();
         self.last_turn_duration = self.turn_started_at.map(|started| started.elapsed());
         self.last_turn_ttft = self.ttft;
+        self.last_turn_timings = self.current_turn_timings.clone();
         self.last_error_message = None;
 
         let changed_files = self

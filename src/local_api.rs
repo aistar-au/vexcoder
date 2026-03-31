@@ -180,6 +180,7 @@ impl RuntimeMode for LocalApiMode {
                 let envelope = shared.normalizer.emit_event(event);
                 Self::emit_envelopes(&mut shared, vec![envelope]);
             }
+            UiUpdate::ServerMetadata(_) => {}
             UiUpdate::TurnComplete => {
                 let envelopes = if shared.interrupted {
                     shared.normalizer.emit_cancelled(TurnEndContext::default())

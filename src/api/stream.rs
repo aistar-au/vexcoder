@@ -1,7 +1,7 @@
 use super::logging::emit_sse_parse_error;
 use crate::types::{
     ApiStreamError, ApiUsage, ContentBlock, Delta, MessageDelta, MessageStartData,
-    StreamChunkMetadata, StreamEvent, ToolUseMetadata,
+    StreamChunkMetadata, StreamEvent, StreamPromptProgress, StreamTimings, ToolUseMetadata,
 };
 use anyhow::Result;
 use serde::Deserialize;
@@ -47,6 +47,10 @@ struct ChatCompatChunk {
     system_fingerprint: Option<String>,
     #[serde(default)]
     service_tier: Option<String>,
+    #[serde(default)]
+    prompt_progress: Option<StreamPromptProgress>,
+    #[serde(default)]
+    timings: Option<StreamTimings>,
     #[serde(default)]
     choices: Vec<ChatCompatChoice>,
     #[serde(default)]
@@ -222,14 +226,7 @@ impl StreamParser {
                     stop_sequence: None,
                     role: None,
                     refusal: None,
-                    metadata: self.chat_compat_metadata(
-                        chunk.object.clone(),
-                        chunk.created,
-                        chunk.system_fingerprint.clone(),
-                        chunk.service_tier.clone(),
-                        None,
-                        None,
-                    ),
+                    metadata: self.chat_compat_metadata(&chunk, None, None),
                 },
                 usage: Some(usage),
             });
@@ -238,6 +235,35 @@ impl StreamParser {
         if chunk.choices.is_empty() {
             return Some(events);
         }
+
+        let chunk_object = chunk.object.clone();
+        let chunk_created = chunk.created;
+        let chunk_system_fingerprint = chunk.system_fingerprint.clone();
+        let chunk_service_tier = chunk.service_tier.clone();
+        let chunk_prompt_progress = chunk.prompt_progress.clone();
+        let chunk_timings = chunk.timings.clone();
+        let metadata_for_choice =
+            |choice_index: Option<usize>, logprobs: Option<serde_json::Value>| {
+                let metadata = StreamChunkMetadata {
+                    object: chunk_object.clone(),
+                    created: chunk_created,
+                    system_fingerprint: chunk_system_fingerprint.clone(),
+                    service_tier: chunk_service_tier.clone(),
+                    choice_index,
+                    logprobs,
+                    prompt_progress: chunk_prompt_progress.clone(),
+                    timings: chunk_timings.clone(),
+                };
+                (metadata.object.is_some()
+                    || metadata.created.is_some()
+                    || metadata.system_fingerprint.is_some()
+                    || metadata.service_tier.is_some()
+                    || metadata.choice_index.is_some()
+                    || metadata.logprobs.is_some()
+                    || metadata.prompt_progress.is_some()
+                    || metadata.timings.is_some())
+                .then_some(metadata)
+            };
 
         for choice in chunk.choices {
             let ChatCompatChoice {
@@ -273,21 +299,20 @@ impl StreamParser {
                 }
             }
 
-            if refusal.is_some() || finish_reason.is_some() || logprobs.is_some() {
+            let has_logprobs = logprobs.is_some();
+            let metadata = metadata_for_choice(choice_index, logprobs);
+            let has_server_progress = metadata
+                .as_ref()
+                .is_some_and(|meta| meta.prompt_progress.is_some() || meta.timings.is_some());
+
+            if refusal.is_some() || finish_reason.is_some() || has_logprobs || has_server_progress {
                 events.push(StreamEvent::MessageDelta {
                     delta: MessageDelta {
                         stop_reason: finish_reason.clone(),
                         stop_sequence: None,
                         role,
                         refusal,
-                        metadata: self.chat_compat_metadata(
-                            chunk.object.clone(),
-                            chunk.created,
-                            chunk.system_fingerprint.clone(),
-                            chunk.service_tier.clone(),
-                            choice_index,
-                            logprobs,
-                        ),
+                        metadata,
                     },
                     usage: None,
                 });
@@ -314,14 +339,7 @@ impl StreamParser {
             .choices
             .iter()
             .find_map(|choice| choice.delta.role.clone());
-        let metadata = self.chat_compat_metadata(
-            chunk.object.clone(),
-            chunk.created,
-            chunk.system_fingerprint.clone(),
-            chunk.service_tier.clone(),
-            None,
-            None,
-        );
+        let metadata = self.chat_compat_metadata(chunk, None, None);
         let has_message_fields =
             chunk.id.is_some() || chunk.model.is_some() || role.is_some() || metadata.is_some();
         if !has_message_fields {
@@ -346,27 +364,28 @@ impl StreamParser {
 
     fn chat_compat_metadata(
         &self,
-        object: Option<String>,
-        created: Option<u64>,
-        system_fingerprint: Option<String>,
-        service_tier: Option<String>,
+        chunk: &ChatCompatChunk,
         choice_index: Option<usize>,
         logprobs: Option<serde_json::Value>,
     ) -> Option<StreamChunkMetadata> {
         let metadata = StreamChunkMetadata {
-            object,
-            created,
-            system_fingerprint,
-            service_tier,
+            object: chunk.object.clone(),
+            created: chunk.created,
+            system_fingerprint: chunk.system_fingerprint.clone(),
+            service_tier: chunk.service_tier.clone(),
             choice_index,
             logprobs,
+            prompt_progress: chunk.prompt_progress.clone(),
+            timings: chunk.timings.clone(),
         };
         (metadata.object.is_some()
             || metadata.created.is_some()
             || metadata.system_fingerprint.is_some()
             || metadata.service_tier.is_some()
             || metadata.choice_index.is_some()
-            || metadata.logprobs.is_some())
+            || metadata.logprobs.is_some()
+            || metadata.prompt_progress.is_some()
+            || metadata.timings.is_some())
         .then_some(metadata)
     }
 
@@ -573,6 +592,39 @@ mod tests {
                 let metadata = delta.metadata.as_ref().expect("metadata should be present");
                 assert_eq!(metadata.choice_index, Some(2));
                 assert!(metadata.logprobs.is_some());
+            }
+            other => panic!("expected MessageDelta event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_process_chat_compat_emits_prompt_progress_and_timings_without_text() {
+        let mut parser = StreamParser::new();
+        let events = parser
+            .process(
+                br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}],"prompt_progress":{"total":2641,"processed":2048,"cache":0,"time_ms":153341},"timings":{"prompt_n":2048,"prompt_ms":153341.0,"predicted_n":0,"predicted_ms":0.0}}
+
+"#,
+            )
+            .unwrap();
+
+        assert_eq!(events.len(), 2);
+        match &events[1] {
+            StreamEvent::MessageDelta { delta, usage } => {
+                assert!(usage.is_none());
+                let metadata = delta.metadata.as_ref().expect("metadata should be present");
+                let prompt_progress = metadata
+                    .prompt_progress
+                    .as_ref()
+                    .expect("prompt progress should be present");
+                assert_eq!(prompt_progress.total, Some(2641));
+                assert_eq!(prompt_progress.processed, Some(2048));
+                let timings = metadata
+                    .timings
+                    .as_ref()
+                    .expect("timings should be present");
+                assert_eq!(timings.prompt_n, Some(2048));
+                assert_eq!(timings.prompt_ms, Some(153341.0));
             }
             other => panic!("expected MessageDelta event, got {other:?}"),
         }

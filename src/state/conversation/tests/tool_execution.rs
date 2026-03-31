@@ -577,6 +577,7 @@ async fn test_execute_tool_run_command_streams_managed_session_updates() -> Resu
             | ConversationStreamUpdate::BlockDelta { .. }
             | ConversationStreamUpdate::BlockComplete { .. }
             | ConversationStreamUpdate::ToolApprovalRequest(_)
+            | ConversationStreamUpdate::ServerMetadata(_)
             | ConversationStreamUpdate::ContextCompacted { .. }
             | ConversationStreamUpdate::StreamError(_) => {}
         }

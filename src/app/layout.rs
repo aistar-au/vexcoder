@@ -3,6 +3,19 @@ use crate::status_contract::{
     completed_status_label, is_waiting_placeholder, pending_status_label, waiting_for_response_line,
 };
 
+fn format_waiting_status(
+    elapsed: String,
+    prompt_progress: Option<&crate::types::StreamPromptProgress>,
+) -> String {
+    let mut status = format!("{} {elapsed}", waiting_for_response_line());
+    if let Some(progress) = prompt_progress {
+        if let (Some(processed), Some(total)) = (progress.processed, progress.total) {
+            status.push_str(&format!(" | read:{processed}/{total}"));
+        }
+    }
+    status
+}
+
 struct TaskStepView {
     step_id: u64,
     lifecycle: StepLifecycle,
@@ -235,7 +248,8 @@ impl TuiMode {
                     .map(|t| format!("{:.1}s", t.elapsed().as_secs_f64()))
                     .unwrap_or_default();
                 if let Some(last) = rows.last_mut() {
-                    *last = format!("{} {elapsed}", waiting_for_response_line());
+                    *last =
+                        format_waiting_status(elapsed, self.current_turn_prompt_progress.as_ref());
                 }
             } else {
                 rows.pop();

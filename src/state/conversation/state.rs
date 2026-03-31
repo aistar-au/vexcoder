@@ -5,7 +5,7 @@ use crate::mcp::McpRegistry;
 use crate::runtime::ConfiguredSandbox;
 use crate::tool_preview::ReadFileSnapshotCache;
 use crate::tools::ToolOperator;
-use crate::types::{ApiMessage, Content};
+use crate::types::{ApiMessage, Content, StreamChunkMetadata};
 use crate::usage::TurnTokens;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -41,6 +41,7 @@ pub enum ConversationStreamUpdate {
     },
     ToolApprovalRequest(ToolApprovalRequest),
     TranscriptLine(String),
+    ServerMetadata(Box<StreamChunkMetadata>),
     CommandSessionStarted {
         session_id: u64,
         command: String,

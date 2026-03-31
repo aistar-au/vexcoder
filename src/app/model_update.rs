@@ -61,6 +61,21 @@ impl TuiMode {
                 self.apply_auto_follow_or_clamp();
                 self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
+            UiUpdate::ServerMetadata(metadata) => {
+                let metadata = *metadata;
+                if self.history_state.cancel_pending {
+                    return;
+                }
+                if self.history_state.turn_in_progress {
+                    self.current_task.status = TaskStatus::Running;
+                }
+                if let Some(progress) = metadata.prompt_progress {
+                    self.current_turn_prompt_progress = Some(progress);
+                }
+                if let Some(timings) = metadata.timings {
+                    self.current_turn_timings = Some(timings);
+                }
+            }
             UiUpdate::StreamBlockStart { index, block } => {
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
@@ -361,6 +376,7 @@ impl TuiMode {
                 self.active_stream_blocks.clear();
                 self.tool_input_raw_buffers.clear();
                 self.last_turn_duration = self.turn_started_at.map(|started| started.elapsed());
+                self.last_turn_timings = self.current_turn_timings.clone();
                 self.last_error_message = Some(msg.clone());
                 self.reset_turn_capture();
                 self.history_state.cancel_pending = false;

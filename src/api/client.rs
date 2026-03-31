@@ -306,6 +306,12 @@ impl ApiClient {
                     "stream": true,
                     "messages": chat_compat_messages(messages, &system_prompt),
                 });
+                if self.is_local_endpoint() {
+                    let payload_object = payload
+                        .as_object_mut()
+                        .expect("payload must be a JSON object");
+                    apply_local_chat_compat_stream_flags(payload_object);
+                }
                 if self.supports_structured_tool_protocol() {
                     let payload_object = payload
                         .as_object_mut()
@@ -1022,6 +1028,11 @@ fn tool_definitions_chat_compat_with_extra(extra: &[Value]) -> Value {
     Value::Array(converted)
 }
 
+fn apply_local_chat_compat_stream_flags(payload_object: &mut serde_json::Map<String, Value>) {
+    payload_object.insert("return_progress".to_string(), json!(true));
+    payload_object.insert("timings_per_token".to_string(), json!(true));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1674,6 +1685,16 @@ mod tests {
     fn test_adapt_chat_compat_url_already_correct() {
         let adapted = adapt_to_chat_compat_url("http://localhost:8000/v1/chat/completions");
         assert_eq!(adapted, "http://localhost:8000/v1/chat/completions");
+    }
+
+    #[test]
+    fn test_apply_local_chat_compat_stream_flags_adds_progress_fields() {
+        let mut payload = serde_json::Map::new();
+
+        apply_local_chat_compat_stream_flags(&mut payload);
+
+        assert_eq!(payload.get("return_progress"), Some(&json!(true)));
+        assert_eq!(payload.get("timings_per_token"), Some(&json!(true)));
     }
 
     // ── Live-server smoke test (optional; skips if server unreachable) ───
