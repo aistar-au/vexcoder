@@ -1,4 +1,3 @@
-use crate::app::StepLifecycle;
 use std::io::Write;
 
 // ── ANSI escape helpers ─────────────────────────────────────────────
@@ -70,27 +69,3 @@ pub(super) const GRAY: u8 = 245;
 pub(super) const DIM_GRAY: u8 = 240;
 pub(super) const WHITE: u8 = 15;
 pub(super) const BLUE: u8 = 4;
-
-pub(super) fn lifecycle_color(lifecycle: &StepLifecycle) -> u8 {
-    match lifecycle {
-        StepLifecycle::Completed => GREEN,
-        StepLifecycle::Failed => RED,
-        StepLifecycle::Running => MAGENTA,
-        StepLifecycle::AwaitingApproval => YELLOW,
-        StepLifecycle::Approved => GREEN,
-        StepLifecycle::UserInput => DIM_GRAY,
-        StepLifecycle::CommandSession => MAGENTA,
-    }
-}
-
-pub(super) fn lifecycle_prefix(lifecycle: &StepLifecycle) -> &'static str {
-    match lifecycle {
-        StepLifecycle::Completed => "\u{2605}",        // ★
-        StepLifecycle::Failed => "\u{2716}",           // ✖
-        StepLifecycle::Running => "\u{2726}",          // ✦
-        StepLifecycle::AwaitingApproval => "\u{2606}", // ☆
-        StepLifecycle::Approved => "\u{2713}",         // ✓
-        StepLifecycle::UserInput => "\u{203a}",        // ›
-        StepLifecycle::CommandSession => "\u{25c6}",   // ◆
-    }
-}

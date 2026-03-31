@@ -24,7 +24,7 @@ pub(crate) mod transcript;
 #[cfg(test)]
 mod tests;
 
-use crate::app::{OutputScrollAnchor, StepLifecycle, TaskLayoutState, TimelineEntry};
+use crate::app::{OutputScrollAnchor, StepLifecycle, TaskLayoutState};
 use crate::ui::input_metrics::{
     cursor_row_col, display_width, truncate_to_display_width, visual_window_start, wrap_input_lines,
 };
@@ -44,8 +44,6 @@ pub struct TaskDraw {
     output_lines_flushed: usize,
     /// Whether the previous frame reserved a changed-files row.
     last_has_files: bool,
-    /// Last rendered timeline content (for dirty detection).
-    last_timeline_hash: u64,
     /// Last rendered changed-files row.
     last_files_hash: u64,
     /// Last rendered transcript content.
@@ -72,7 +70,6 @@ impl TaskDraw {
         Self {
             output_lines_flushed: 0,
             last_has_files: false,
-            last_timeline_hash: 0,
             last_files_hash: 0,
             last_transcript_hash: 0,
             last_header_hash: 0,
@@ -90,7 +87,6 @@ impl TaskDraw {
     pub fn reset(&mut self) {
         self.output_lines_flushed = 0;
         self.last_has_files = false;
-        self.last_timeline_hash = 0;
         self.last_files_hash = 0;
         self.last_transcript_hash = 0;
         self.last_header_hash = 0;
@@ -156,13 +152,6 @@ impl TaskDraw {
             self.last_files_hash = files_hash;
         }
 
-        // Timeline.
-        let timeline_hash = self.compute_timeline_hash(state);
-        if timeline_hash != self.last_timeline_hash {
-            self.draw_timeline(w, state, &regions);
-            self.last_timeline_hash = timeline_hash;
-        }
-
         // Transcript.
         let transcript_hash = self.compute_transcript_hash(state);
         if transcript_hash != self.last_transcript_hash {
@@ -207,9 +196,6 @@ impl TaskDraw {
         }
         self.last_files_hash = self.compute_files_hash(state);
 
-        self.draw_timeline(w, state, regions);
-        self.last_timeline_hash = self.compute_timeline_hash(state);
-
         self.draw_transcript_full(w, state, regions);
         self.last_transcript_hash = self.compute_transcript_hash(state);
 
@@ -232,171 +218,6 @@ impl TaskDraw {
     // ── Changed files ───────────────────────────────────────────────
 
     fn draw_files<W: Write>(&self, _w: &mut W, _state: &TaskLayoutState, _row: u16, _cols: u16) {}
-
-    // ── Timeline (adaptive height) ──────────────────────────────────
-
-    fn draw_timeline<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
-        if regions.timeline_rows == 0 {
-            return;
-        }
-
-        let visible_slots = (regions.timeline_rows.saturating_sub(1)) as usize; // -1 for separator
-
-        if state.timeline_entries.is_empty() {
-            // No entries — draw separator only.
-            let sep_row = regions.transcript_start.saturating_sub(1);
-            if sep_row >= regions.timeline_start {
-                draw_labeled_separator(w, sep_row, regions.cols, &state.output_title);
-            }
-            return;
-        }
-
-        let total = state.timeline_entries.len();
-        let selected = state.selected_step.min(total.saturating_sub(1));
-
-        // If everything fits, no indicators needed.
-        if total <= visible_slots {
-            for slot in 0..total {
-                let row = regions.timeline_start + slot as u16;
-                if row >= regions.transcript_start {
-                    break;
-                }
-                move_to(w, row, 0);
-                clear_line(w);
-                let entry = &state.timeline_entries[slot];
-                let is_selected = slot == selected;
-                self.draw_timeline_entry(w, entry, is_selected, regions.cols);
-            }
-            // Clear remaining slots.
-            for slot in total..visible_slots {
-                let row = regions.timeline_start + slot as u16;
-                if row >= regions.transcript_start {
-                    break;
-                }
-                move_to(w, row, 0);
-                clear_line(w);
-            }
-        } else {
-            // Scrolling required. Pessimistically reserve 2 indicator slots,
-            // then reclaim if only one indicator is actually needed.
-            let mut entry_cap = visible_slots.saturating_sub(2);
-            let mut window_start = if selected >= entry_cap {
-                selected + 1 - entry_cap
-            } else {
-                0
-            };
-            if window_start + entry_cap > total {
-                window_start = total.saturating_sub(entry_cap);
-            }
-
-            let mut show_above = window_start > 0;
-            let mut show_below = window_start + entry_cap < total;
-
-            // Reclaim spare slot when only one indicator is needed.
-            if !show_above || !show_below {
-                entry_cap = visible_slots - show_above as usize - show_below as usize;
-                if selected >= window_start + entry_cap {
-                    window_start = selected + 1 - entry_cap;
-                }
-                if window_start + entry_cap > total {
-                    window_start = total.saturating_sub(entry_cap);
-                }
-                show_above = window_start > 0;
-                show_below = window_start + entry_cap < total;
-            }
-
-            let above_count = window_start;
-            let below_count = total.saturating_sub(window_start + entry_cap);
-
-            for slot in 0..visible_slots {
-                let row = regions.timeline_start + slot as u16;
-                if row >= regions.transcript_start {
-                    break;
-                }
-                move_to(w, row, 0);
-                clear_line(w);
-
-                if slot == 0 && show_above {
-                    set_dim(w);
-                    set_fg(w, DIM_GRAY);
-                    let _ = write!(w, "   \u{25b2} {above_count} more above"); // ▲
-                    reset_style(w);
-                    continue;
-                }
-
-                if slot == visible_slots - 1 && show_below {
-                    set_dim(w);
-                    set_fg(w, DIM_GRAY);
-                    let _ = write!(w, "   \u{25bc} {below_count} more below"); // ▼
-                    reset_style(w);
-                    continue;
-                }
-
-                let entry_slot = slot - show_above as usize;
-                let entry_index = window_start + entry_slot;
-                if entry_index >= total {
-                    continue;
-                }
-                let entry = &state.timeline_entries[entry_index];
-                let is_selected = entry_index == selected;
-                self.draw_timeline_entry(w, entry, is_selected, regions.cols);
-            }
-        }
-
-        // Separator line between timeline and transcript — star accent.
-        let sep_row = regions.transcript_start.saturating_sub(1);
-        if sep_row >= regions.timeline_start {
-            draw_labeled_separator(w, sep_row, regions.cols, &state.output_title);
-        }
-    }
-
-    fn draw_timeline_entry<W: Write>(
-        &self,
-        w: &mut W,
-        entry: &TimelineEntry,
-        is_selected: bool,
-        cols: u16,
-    ) {
-        // For running entries, use animated spinner instead of static prefix.
-        let spinner_buf;
-        let prefix = if entry.lifecycle == StepLifecycle::Running {
-            let idx = (self.frame_counter as usize) % SPINNER_FRAMES.len();
-            spinner_buf = SPINNER_FRAMES[idx];
-            spinner_buf
-        } else {
-            lifecycle_prefix(&entry.lifecycle)
-        };
-        let color = lifecycle_color(&entry.lifecycle);
-
-        // Selection indicator — star-themed pointer.
-        if is_selected {
-            set_bold(w);
-            set_fg(w, YELLOW);
-            let _ = write!(w, " \u{2726} "); // ✦
-        } else {
-            let _ = write!(w, "   ");
-        }
-
-        // Lifecycle prefix.
-        set_bold(w);
-        set_fg(w, color);
-        let _ = write!(w, "{prefix}");
-        reset_style(w);
-
-        // Label.
-        let _ = write!(w, " ");
-        if is_selected {
-            set_bold(w);
-            set_fg(w, WHITE);
-        } else {
-            set_fg(w, GRAY);
-        }
-        let used = 3 + display_width(prefix) + 1; // selector(3) + prefix + space
-        let remaining = (cols as usize).saturating_sub(used);
-        let truncated = truncate_to_width(&entry.label, remaining);
-        let _ = write!(w, "{truncated}");
-        reset_style(w);
-    }
 
     // ── Transcript (flowing) ────────────────────────────────────────
 
@@ -756,29 +577,6 @@ impl TaskDraw {
 
     // ── Hash computation ────────────────────────────────────────────
 
-    fn compute_timeline_hash(&self, state: &TaskLayoutState) -> u64 {
-        let has_running = state
-            .timeline_entries
-            .iter()
-            .any(|e| e.lifecycle == StepLifecycle::Running);
-
-        let mut h: u64 = state.selected_step as u64;
-        h = h
-            .wrapping_mul(31)
-            .wrapping_add(state.timeline_entries.len() as u64);
-        for entry in &state.timeline_entries {
-            h = h
-                .wrapping_mul(31)
-                .wrapping_add(entry_lifecycle_id(&entry.lifecycle));
-            h = h.wrapping_mul(31).wrapping_add(simple_hash(&entry.label));
-        }
-        // Include frame counter when running to force spinner redraws.
-        if has_running {
-            h = h.wrapping_mul(31).wrapping_add(self.frame_counter);
-        }
-        h
-    }
-
     fn compute_header_hash(&self, state: &TaskLayoutState) -> u64 {
         let _ = state;
         0
@@ -927,37 +725,6 @@ fn transcript_render_start_row(
     regions.transcript_start
 }
 
-/// Draw a labeled separator line at the given row.
-fn draw_labeled_separator(w: &mut dyn Write, row: u16, cols: u16, label: &str) {
-    move_to(w, row, 0);
-    clear_line(w);
-    set_dim(w);
-    set_fg(w, DIM_GRAY);
-    let safe_label = truncate_to_width(label, cols.saturating_sub(10) as usize);
-    let left_rule = 3.min(cols as usize);
-    for _ in 0..left_rule {
-        let _ = write!(w, "\u{2500}");
-    }
-    if !safe_label.is_empty() {
-        set_fg(w, BLUE);
-        let _ = write!(w, " {safe_label} ");
-        set_fg(w, DIM_GRAY);
-    } else {
-        let _ = write!(w, "\u{2500}");
-    }
-
-    let used = left_rule
-        + if safe_label.is_empty() {
-            1
-        } else {
-            display_width(&safe_label) + 2
-        };
-    for _ in 0..(cols as usize).saturating_sub(used).min(120) {
-        let _ = write!(w, "\u{2500}");
-    }
-    reset_style(w);
-}
-
 /// Draw a thin scroll indicator on the right edge of the transcript area.
 ///
 /// Uses Unicode block characters to show a thumb position proportional to
@@ -1008,18 +775,6 @@ fn simple_hash(s: &str) -> u64 {
         h = h.wrapping_mul(31).wrapping_add(b as u64);
     }
     h
-}
-
-fn entry_lifecycle_id(lifecycle: &StepLifecycle) -> u64 {
-    match lifecycle {
-        StepLifecycle::Completed => 1,
-        StepLifecycle::Failed => 2,
-        StepLifecycle::Running => 3,
-        StepLifecycle::AwaitingApproval => 4,
-        StepLifecycle::Approved => 5,
-        StepLifecycle::UserInput => 6,
-        StepLifecycle::CommandSession => 7,
-    }
 }
 
 fn composer_cursor_position(state: &TaskLayoutState, regions: &Regions) -> (u16, u16) {

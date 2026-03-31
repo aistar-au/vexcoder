@@ -236,23 +236,49 @@ impl TuiMode {
             }
         }
 
-        if self.history_state.turn_in_progress
-            && !self.history_state.cancel_pending
-            && rows
-                .last()
-                .is_some_and(|line| line.is_empty() || is_waiting_placeholder(line))
-        {
+        if self.history_state.turn_in_progress && !self.history_state.cancel_pending {
             if self.current_turn_response.is_empty() {
+                // No content yet — show the waiting status with elapsed time
+                // and prompt-eval progress counters.
                 let elapsed = self
                     .turn_started_at
                     .map(|t| format!("{:.1}s", t.elapsed().as_secs_f64()))
                     .unwrap_or_default();
-                if let Some(last) = rows.last_mut() {
-                    *last =
-                        format_waiting_status(elapsed, self.current_turn_prompt_progress.as_ref());
+                if rows
+                    .last()
+                    .is_some_and(|line| line.is_empty() || is_waiting_placeholder(line))
+                {
+                    if let Some(last) = rows.last_mut() {
+                        *last = format_waiting_status(
+                            elapsed,
+                            self.current_turn_prompt_progress.as_ref(),
+                        );
+                    }
                 }
             } else {
-                rows.pop();
+                // Response is streaming — replace the history tail (which
+                // contains stale text from push_str in model_update) with the
+                // canonical current_turn_response and append the cursor.
+                if rows
+                    .last()
+                    .is_some_and(|line| line.is_empty() || is_waiting_placeholder(line))
+                {
+                    rows.pop();
+                }
+                // Remove lines that model_update.rs wrote directly to
+                // history_state.lines[active_assistant_index] so we can
+                // replace them with the complete current_turn_response.
+                if let Some(idx) = self.history_state.active_assistant_index {
+                    // The active assistant index corresponds to a single
+                    // entry in history_state.lines which may have expanded
+                    // into multiple visual rows above. Trim back to the
+                    // row count preceding the assistant entry.
+                    let preceding_lines = self.history_state.lines[..idx]
+                        .iter()
+                        .map(|l| if l.is_empty() { 1 } else { l.lines().count() })
+                        .sum::<usize>();
+                    rows.truncate(preceding_lines);
+                }
                 let mut response_rows = self
                     .current_turn_response
                     .lines()
@@ -262,14 +288,6 @@ impl TuiMode {
                     last.push('▌');
                 }
                 rows.extend(response_rows);
-            }
-        } else if self.history_state.turn_in_progress
-            && !self.history_state.cancel_pending
-            && !self.current_turn_response.is_empty()
-            && rows.last().is_some_and(|line| !line.ends_with('▌'))
-        {
-            if let Some(last) = rows.last_mut() {
-                last.push('▌');
             }
         }
 

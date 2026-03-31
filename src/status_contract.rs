@@ -26,12 +26,18 @@ pub const fn waiting_for_response_line() -> &'static str {
 }
 
 pub fn is_waiting_placeholder(line: &str) -> bool {
-    matches!(
+    if matches!(
         line,
         WAITING_FOR_RESPONSE_LINE
             | LEGACY_WAITING_FOR_RESPONSE_LINE
             | LEGACY_AWAITING_MODEL_RESPONSE_LINE
-    )
+    ) {
+        return true;
+    }
+    // Match the formatted waiting status with elapsed time and progress
+    // counters appended by format_waiting_status() (e.g.
+    // "[thinking] Mapping adjacent sectors... 2.5s | read:512/2641").
+    line.starts_with(WAITING_FOR_RESPONSE_LINE)
 }
 
 pub fn status_tone(status: &str) -> Option<StatusTone> {
