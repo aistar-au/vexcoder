@@ -8,7 +8,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
 - Total tracked files: 289
-- Last updated: 2026-03-31 (post-merge path-boundary hardening)
+- Last updated: 2026-04-01 (ADR-039 Batch A merged; Batch B-D targets defined)
 
 | # | Path | ~Lines | Raw URL |
 | :--- | :--- | ---: | :--- |
@@ -35,7 +35,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 21 | `Makefile` | ~318 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Makefile> |
 | 22 | `README.md` | ~31 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/README.md> |
 | 23 | `RELEASING.md` | ~215 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/RELEASING.md> |
-| 24 | `TASKS/ACTIVE-ROADMAP.md` | ~260 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
+| 24 | `TASKS/ACTIVE-ROADMAP.md` | ~292 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
 | 25 | `TASKS/PE-01-batch-mode.md` | ~239 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PE-01-batch-mode.md> |
 | 26 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | ~192 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PI-10-PI-12-adr025-phase1-continuation.md> |
 | 27 | `TASKS/PJ-03-memory-notes-injection.md` | ~165 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes-injection.md> |
@@ -44,7 +44,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 30 | `TASKS/PM-02-undo-checkpoints.md` | ~116 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PM-02-undo-checkpoints.md> |
 | 31 | `TASKS/PM-03-code-search.md` | ~119 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PM-03-code-search.md> |
 | 32 | `TASKS/PM-04-auto-memory.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PM-04-auto-memory.md> |
-| 33 | `TASKS/TASKS-DISPATCH-MAP.md` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
+| 33 | `TASKS/TASKS-DISPATCH-MAP.md` | ~107 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
 | 34 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/PL-01-pre-post-tool-hooks.md> |
 | 35 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~303 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 36 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | ~423 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md> |
@@ -62,8 +62,8 @@ Canonical raw URL index for every tracked file in this repository.
 | 48 | `adr/ADR-034-multi-agent-parallel-task-execution.md` | ~304 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-034-multi-agent-parallel-task-execution.md> |
 | 49 | `adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md> |
 | 50 | `adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md` | ~205 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md> |
-| 51 | `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | ~187 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md> |
-| 52 | `adr/ADR-README.md` | ~93 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
+| 51 | `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | ~189 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md> |
+| 52 | `adr/ADR-README.md` | ~94 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 53 | `adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
 | 54 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~77 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |
 | 55 | `adr/completed/ADR-003-dual-protocol-api-auto-detection.md` | ~88 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-003-dual-protocol-api-auto-detection.md> |
@@ -92,7 +92,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 78 | `docs/src/SUMMARY.md` | ~13 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/SUMMARY.md> |
 | 79 | `docs/src/architecture.md` | ~60 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/architecture.md> |
 | 80 | `docs/src/commands.md` | ~329 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/commands.md> |
-| 81 | `docs/src/configuration.md` | ~460 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/configuration.md> |
+| 81 | `docs/src/configuration.md` | ~462 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/configuration.md> |
 | 82 | `docs/src/introduction.md` | ~16 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/introduction.md> |
 | 83 | `docs/src/migration.md` | ~14 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/migration.md> |
 | 84 | `docs/src/quick-start.md` | ~100 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/quick-start.md> |

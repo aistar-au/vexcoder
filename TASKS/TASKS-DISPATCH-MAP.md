@@ -36,7 +36,7 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-034-multi-agent-parallel-task-execution.md` | Active (Phase A + B-E merged) | Hardening: serialized delegate concurrency enforcement, prompt-length guard, explicit session-task release, handler/stress coverage, and normalized watch status |
 | `adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md` | Accepted | 0 items remaining; Gap 14 rollback strategy formalized for `/undo` |
 | `adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md` | Accepted (Batches D-H merged) | 0 items remaining; ADR-038 post-merge bug fix landed in PR #284 |
-| `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | Proposed | Batch A status anchors and semantic color feedback implemented in branch; 3 remaining batches (B-D): vocabulary, active indicator, paragraph progress stream |
+| `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | Proposed (Batch A merged on main) | Batch A merged in PR #292; search.exclude path-boundary fix in PR #293; 3 remaining batches (B-D): vocabulary, active indicator, paragraph progress stream |
 
 ### Moved to completed/ (2026-03-27)
 
@@ -48,9 +48,10 @@ ADR-023 is complete (EL-01 through EL-13) and remains in `adr/`.
 Tiers 1–10 are complete for existing in-tree work. ADR-039 now defines the
 next proposed operator-surface lane around neutral spatial CLI voice, status
 copy, ANSI semantic roles, and paragraph-oriented long-running progress text.
-Batch A is implemented in this branch: `Mapping adjacent sectors...`,
+Batch A is merged on main (PR #292): `Mapping adjacent sectors...`,
 `State synchronized.`, and semantic color feedback now land on existing
-surfaces. Remaining work covers the broader vocabulary set, active indicator,
+surfaces. A follow-up fix in PR #293 normalizes `search.exclude` entries with
+a trailing slash. Remaining work covers the broader vocabulary set, active indicator,
 and denser paragraph stream. The only deferred external follow-up remains
 ADR-024 PG-03 tap auto-dispatch, which stays deferred until the separate tap
 repository exists.
@@ -94,7 +95,7 @@ operator-surface lane. ADR-025, ADR-026, and ADR-027 have been moved to
 
 Tiers 1–10 are complete for existing in-tree work. ADR-039 is the next
 proposed lane, starting with low-gain status anchors and semantic color
-feedback before later vocabulary and transcript-model changes. The only deferred external follow-up is PG-03
+feedback (Batch A, merged on main) before later vocabulary and transcript-model changes. The only deferred external follow-up is PG-03
 tap auto-dispatch, which depends on the separate tap repository existing first.
 See `TASKS/ACTIVE-ROADMAP.md` for the current breakdown.
 

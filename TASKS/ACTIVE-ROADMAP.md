@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-03-31 (ADR-039 Batch A status anchors landed in branch; ADR-038 post-merge audit follow-up)
+Last updated: 2026-04-01 (ADR-039 Batch A status anchors merged on main in PR #292; search.exclude path-boundary normalization fix in PR #293)
 
 ---
 
@@ -27,7 +27,7 @@ Last updated: 2026-03-31 (ADR-039 Batch A status anchors landed in branch; ADR-0
 | ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate snapshot + broadcast fan-out; PR #261 closes Phase E watch-stream |
 | ADR-035 | Accepted | 0 items remaining | Gap 14 `/undo` rollback strategy is now specified and implemented with binary-safe checkpoints |
 | ADR-038 | Accepted (Batches D-H merged) | 0 items remaining | Phase 1: bounded context cache + opt-in auto git; Phase 1a: search lane tightening; Phase 2: disk_policy.rs + config/cache.rs; Batch C: config/load.rs -> directory module (PR #279); Batch D: operator.rs -> directory module (PR #280); Batch E/F: context_assembler split + strict disk-policy gate (PR #281); Batch G: operator policy module + disk-policy wiring (PR #282); Batch H: task-state persist extraction + WAL evaluation (PR #283) |
-| ADR-039 | Proposed | 3 batches (B-D) | Batch A status anchors and semantic color feedback implemented in branch; remaining work is broader vocabulary, active indicator, and paragraph-oriented progress stream without renaming machine statuses |
+| ADR-039 | Proposed (Batch A merged on main) | 3 batches (B-D) | Batch A status anchors and semantic color feedback merged in PR #292; search.exclude path-boundary normalization fix in PR #293; remaining work is broader vocabulary, active indicator, and paragraph-oriented progress stream without renaming machine statuses |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -47,9 +47,11 @@ Last updated: 2026-03-31 (ADR-039 Batch A status anchors landed in branch; ADR-0
 ADR-039 now tracks the next operator-surface lane: a neutral spatial CLI voice
 for human-facing transcript text, status copy, ANSI semantic roles, and the
 paragraph-oriented progress stream used during long-running tasks. Batch A is
-implemented in this branch: `Mapping adjacent sectors...`,
+merged on main (PR #292): `Mapping adjacent sectors...`,
 `State synchronized.`, and the semantic status-color lane now land on existing
-surfaces. Remaining work extends into the wider spatial vocabulary, then adds
+surfaces. A follow-up fix in PR #293 normalizes `search.exclude` entries with
+a trailing slash so path-prefix matching enforces directory boundaries.
+Remaining work extends into the wider spatial vocabulary, then adds
 the active indicator, and only later consolidates the long-running paragraph
 stream. ADR-038 is Accepted and
 complete: context cache, disk-policy classifier, config cache, module
@@ -165,7 +167,7 @@ ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-
 The next operator-facing lane standardizes the human-facing CLI voice
 without changing machine-facing lifecycle values or diff color semantics.
 
-**Batch A -- status anchors and semantic color feedback** -- implemented in this branch
+**Batch A -- status anchors and semantic color feedback** -- merged on main (PR #292)
 - `Mapping adjacent sectors...` is now the default human-facing in-progress
   phrase when a more specific display string is unavailable.
 - `State synchronized.` now appears on human-facing completion surfaces.
@@ -179,9 +181,30 @@ without changing machine-facing lifecycle values or diff color semantics.
   display-only.
 - Do not rename code symbols, persisted schema fields, or JSON payload keys.
 
+Concrete targets (9 display-facing strings across 5 files):
+
+| File | Count | Terms to normalize |
+| :--- | :--- | :--- |
+| `src/app/commands.rs` | 3 | `parent=` -> `origin=` in watch lines; `branched from` -> `derived from`; `fork aborted` -> `fork halted` |
+| `src/bin/vex.rs` | 2 | `parent=` -> `origin=` in session-task status lines |
+| `src/app/model_update.rs` | 1 | `aborted` -> `halted` in edit loop approval denial |
+| `src/app/input.rs` | 2 | `busy` -> `occupied` in turn-in-progress status lines |
+
+Lower-priority internal-only targets (5 strings): `spawn` -> `start` in error
+contexts (`src/mcp.rs`, `src/runtime/command.rs`, `src/runtime/git_snapshot.rs`);
+`parent directory` -> `containing directory` (`src/server/socket.rs`, `src/util.rs`).
+
 **Batch C -- active indicator affordance**
 - Add the single pulsing-star active indicator where the renderer supports it.
 - Ensure reduced-color and plain-text fallbacks remain readable.
+
+Candidate implementation areas:
+
+| File | Scope |
+| :--- | :--- |
+| `src/ui/render.rs` | ratatui widget for pulsing-star glyph paired with mapping status text |
+| `src/ui/draw/transcript.rs` | ANSI plain-text fallback rendering the star as a static glyph |
+| `src/status_contract.rs` | `ACTIVE_INDICATOR_GLYPH` constant and accessibility fallback string |
 
 **Batch D -- paragraph progress stream**
 - Consolidate long-running tool and agent updates into one paragraph-oriented
@@ -190,7 +213,16 @@ without changing machine-facing lifecycle values or diff color semantics.
   already knows those values.
 - Keep code / diff output visually dominant over status text.
 
-**Previously planned ANSI semantic-role work is now part of implemented Batch A**
+Candidate implementation areas:
+
+| File | Scope |
+| :--- | :--- |
+| `src/ui/draw/transcript.rs` | Paragraph-stream layout for tool/agent updates in the ANSI renderer |
+| `src/ui/render.rs` | ratatui paragraph widget for orchestrator progress lane |
+| `src/app/model_update.rs` | Coalesce sequential tool-status updates into a rolling paragraph |
+| `src/runtime/core.rs` | Expose live file-count and active-agent-count to the UI update channel |
+
+**Previously planned ANSI semantic-role work is now part of merged Batch A**
 - Keep default transcript and code text phosphor white.
 - Preserve green insertions and red deletions.
 - Reserve deep nebula violet for tool-call, orchestrator, and agent-enrichment

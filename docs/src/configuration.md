@@ -108,6 +108,8 @@ session startup.
 
 `exclude` entries are literal workspace-relative prefixes, not glob patterns.
 Use trailing slashes for directory trees such as `target/` or `src/vendor/`.
+Entries missing a trailing slash are automatically normalized at config load
+time (e.g. `"src"` becomes `"src/"`).
 
 ```toml
 [search]
