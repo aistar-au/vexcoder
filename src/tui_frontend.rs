@@ -8,6 +8,7 @@ use crate::app::{
     FileMentionPickerState, PickerOverlayLine, SlashPickerMatch, SlashPickerState, TuiMode,
 };
 use crate::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
+use crate::runtime::mode::RuntimeMode;
 use crate::startup::{
     looks_like_terminal_transcript, should_ignore_startup_paste_text, STARTUP_NOISE_GUARD,
 };
@@ -730,7 +731,10 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
             return None;
         }
 
-        let Ok(has_event) = event::poll(Duration::from_millis(16)) else {
+        // Use a shorter poll timeout during active model turns so streamed
+        // tokens flow through the render loop with minimal latency.
+        let poll_ms = if mode.is_turn_in_progress() { 1 } else { 16 };
+        let Ok(has_event) = event::poll(Duration::from_millis(poll_ms)) else {
             self.quit = true;
             return None;
         };

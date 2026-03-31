@@ -50,7 +50,12 @@ pub(crate) fn parse_sandbox_kind(value: String) -> Option<SandboxKind> {
 
 pub(crate) fn infer_model_protocol(api_url: &str) -> ModelProtocol {
     let normalized = api_url.trim().to_ascii_lowercase();
-    if normalized.contains("/chat/completions") || normalized.ends_with("/v1") {
+    if normalized.contains("/chat/completions") {
+        ModelProtocol::ChatCompat
+    } else if normalized.contains("/messages") {
+        // Covers both "/v1/messages" and the transposed "/messages/v1".
+        ModelProtocol::MessagesV1
+    } else if normalized.ends_with("/v1") {
         ModelProtocol::ChatCompat
     } else {
         ModelProtocol::MessagesV1

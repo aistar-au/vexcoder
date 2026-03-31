@@ -1350,3 +1350,38 @@ fn test_http_hook_loaded_from_user_config() {
     assert_eq!(config.http_hooks[0].url, "https://ci.example.com/webhook");
     assert_eq!(config.http_hooks[0].tool, "apply_patch");
 }
+
+// ---------------------------------------------------------------------------
+// Transposed /messages/v1 URL inference
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_infer_model_protocol_messages_v1_for_transposed_messages_v1_url() {
+    assert_eq!(
+        super::infer_model_protocol("http://127.0.0.1:8000/messages/v1"),
+        crate::runtime::ModelProtocol::MessagesV1
+    );
+}
+
+#[test]
+fn test_interactive_model_selection_preserves_protocol_for_transposed_url() {
+    let cwd = tempfile::tempdir().unwrap();
+    let user_cfg = tempfile::tempdir().unwrap();
+    let user_cfg_file = user_cfg.path().join("config.toml");
+    std::fs::write(
+        &user_cfg_file,
+        "model_url = \"http://127.0.0.1:8000/v1/messages\"\n",
+    )
+    .unwrap();
+
+    let mut config = Config::load_for_tests(cwd.path(), Some(&user_cfg_file), None).unwrap();
+    config.apply_interactive_model_selection(
+        "http://127.0.0.1:8000/messages/v1".to_string(),
+        Some("test-model".to_string()),
+    );
+
+    assert_eq!(
+        config.model_protocol,
+        crate::runtime::ModelProtocol::MessagesV1
+    );
+}

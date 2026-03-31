@@ -549,7 +549,12 @@ fn resolve_max_tokens(default_max_tokens: u32) -> u32 {
 
 fn infer_api_protocol(api_url: &str) -> ApiProtocol {
     let normalized = api_url.trim().to_ascii_lowercase();
-    if normalized.contains("/chat/completions") || normalized.ends_with("/v1") {
+    if normalized.contains("/chat/completions") {
+        ApiProtocol::ChatCompat
+    } else if normalized.contains("/messages") {
+        // Covers both "/v1/messages" and the transposed "/messages/v1".
+        ApiProtocol::MessagesV1
+    } else if normalized.ends_with("/v1") {
         ApiProtocol::ChatCompat
     } else {
         ApiProtocol::MessagesV1
@@ -574,6 +579,10 @@ fn adapt_to_chat_compat_url(api_url: &str) -> String {
     if normalized.ends_with("/chat/completions") {
         return normalized.to_string();
     }
+    // Detect "/messages/v1" as a transposed variant of "/v1/messages".
+    if let Some(prefix) = normalized.strip_suffix("/messages/v1") {
+        return format!("{prefix}/v1/chat/completions");
+    }
     if let Some(prefix) = normalized.strip_suffix("/messages") {
         return format!("{prefix}/chat/completions");
     }
@@ -587,6 +596,10 @@ fn adapt_to_messages_v1_url(api_url: &str) -> String {
     let normalized = api_url.trim_end_matches('/');
     if normalized.ends_with("/messages") {
         return normalized.to_string();
+    }
+    // Detect "/messages/v1" as a transposed variant of "/v1/messages".
+    if let Some(prefix) = normalized.strip_suffix("/messages/v1") {
+        return format!("{prefix}/v1/messages");
     }
     if let Some(prefix) = normalized.strip_suffix("/chat/completions") {
         return format!("{prefix}/messages");
@@ -1589,5 +1602,153 @@ mod tests {
         let msg = format!("{}", err);
         assert!(msg.contains("500"), "got: {msg}");
         assert!(msg.contains("out of memory"), "got: {msg}");
+    }
+
+    // ── URL adaptation: transposed /messages/v1 variant ──────────────────
+
+    #[test]
+    fn test_adapt_chat_compat_url_from_transposed_messages_v1() {
+        let adapted = adapt_to_chat_compat_url("http://127.0.0.1:8000/messages/v1");
+        assert_eq!(adapted, "http://127.0.0.1:8000/v1/chat/completions");
+    }
+
+    #[test]
+    fn test_adapt_messages_v1_url_from_transposed_messages_v1() {
+        let adapted = adapt_to_messages_v1_url("http://127.0.0.1:8000/messages/v1");
+        assert_eq!(adapted, "http://127.0.0.1:8000/v1/messages");
+    }
+
+    #[test]
+    fn test_adapt_chat_compat_url_from_transposed_messages_v1_with_trailing_slash() {
+        let adapted = adapt_to_chat_compat_url("http://127.0.0.1:8000/messages/v1/");
+        assert_eq!(adapted, "http://127.0.0.1:8000/v1/chat/completions");
+    }
+
+    #[test]
+    fn test_adapt_messages_v1_url_from_transposed_messages_v1_with_trailing_slash() {
+        let adapted = adapt_to_messages_v1_url("http://127.0.0.1:8000/messages/v1/");
+        assert_eq!(adapted, "http://127.0.0.1:8000/v1/messages");
+    }
+
+    // ── Protocol inference: transposed /messages/v1 ──────────────────────
+
+    #[test]
+    fn test_protocol_inference_transposed_messages_v1_is_messages() {
+        let protocol = infer_api_protocol("http://127.0.0.1:8000/messages/v1");
+        assert_eq!(protocol, ApiProtocol::MessagesV1);
+    }
+
+    #[test]
+    fn test_protocol_inference_standard_v1_messages_is_messages() {
+        let protocol = infer_api_protocol("http://localhost:8000/v1/messages");
+        assert_eq!(protocol, ApiProtocol::MessagesV1);
+    }
+
+    #[test]
+    fn test_protocol_inference_bare_v1_is_chat_compat() {
+        let protocol = infer_api_protocol("http://localhost:8000/v1");
+        assert_eq!(protocol, ApiProtocol::ChatCompat);
+    }
+
+    // ── Existing URL adaptations still correct ───────────────────────────
+
+    #[test]
+    fn test_adapt_messages_v1_url_from_chat_completions() {
+        let adapted = adapt_to_messages_v1_url("http://localhost:8000/v1/chat/completions");
+        assert_eq!(adapted, "http://localhost:8000/v1/messages");
+    }
+
+    #[test]
+    fn test_adapt_messages_v1_url_from_bare_v1() {
+        let adapted = adapt_to_messages_v1_url("http://localhost:8000/v1");
+        assert_eq!(adapted, "http://localhost:8000/v1/messages");
+    }
+
+    #[test]
+    fn test_adapt_messages_v1_url_already_correct() {
+        let adapted = adapt_to_messages_v1_url("http://localhost:8000/v1/messages");
+        assert_eq!(adapted, "http://localhost:8000/v1/messages");
+    }
+
+    #[test]
+    fn test_adapt_chat_compat_url_already_correct() {
+        let adapted = adapt_to_chat_compat_url("http://localhost:8000/v1/chat/completions");
+        assert_eq!(adapted, "http://localhost:8000/v1/chat/completions");
+    }
+
+    // ── Live-server smoke test (optional; skips if server unreachable) ───
+
+    #[tokio::test]
+    async fn test_live_server_chat_completions_reachable() {
+        let url = std::env::var("VEX_TEST_LIVE_SERVER_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:8000".to_string());
+        let endpoint = format!("{}/v1/chat/completions", url.trim_end_matches('/'));
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .expect("http client");
+
+        let payload = serde_json::json!({
+            "model": "test",
+            "max_tokens": 4,
+            "temperature": 0.0,
+            "stream": false,
+            "messages": [{"role": "user", "content": "Reply OK"}]
+        });
+
+        match client.post(&endpoint).json(&payload).send().await {
+            Ok(resp) => {
+                // Server is reachable — verify it doesn't 404 on the native endpoint.
+                assert_ne!(
+                    resp.status().as_u16(),
+                    404,
+                    "live server returned 404 on native chat/completions endpoint"
+                );
+            }
+            Err(_) => {
+                // Server not available — skip gracefully.
+                eprintln!(
+                    "SKIP: live server at {} not reachable, skipping connectivity check",
+                    endpoint
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_live_server_messages_v1_reachable() {
+        let url = std::env::var("VEX_TEST_LIVE_SERVER_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:8000".to_string());
+        let endpoint = format!("{}/v1/messages", url.trim_end_matches('/'));
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .expect("http client");
+
+        let payload = serde_json::json!({
+            "model": "test",
+            "max_tokens": 4,
+            "stream": false,
+            "system": "Reply OK",
+            "messages": [{"role": "user", "content": "OK"}]
+        });
+
+        match client.post(&endpoint).json(&payload).send().await {
+            Ok(resp) => {
+                assert_ne!(
+                    resp.status().as_u16(),
+                    404,
+                    "live server returned 404 on messages/v1 endpoint"
+                );
+            }
+            Err(_) => {
+                eprintln!(
+                    "SKIP: live server at {} not reachable, skipping connectivity check",
+                    endpoint
+                );
+            }
+        }
     }
 }
