@@ -41,6 +41,13 @@ Not every metadata field is rendered in the interactive transcript today, but
 the parser keeps those values in the normalized event surface instead of
 dropping them during protocol conversion.
 
+A `StreamTextNormaliser` layer at the `forward_conversation_update` boundary
+intercepts embedded tool call markup (XML-like tags from local inference
+servers) and converts them into structured `[tool]`/`[detail]` transcript
+lines before they reach the TUI.  This prevents raw SSE event data from
+leaking to the display and ensures all tool invocations render as paragraph
+blocks in the scrolling transcript pane.
+
 ## Ongoing boundary work
 
 The long-term architecture work is tracked in the ADR set under `adr/`.

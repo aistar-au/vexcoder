@@ -477,6 +477,236 @@ impl StreamParser {
     }
 }
 
+// ── Stream text normaliser ──────────────────────────────────────────
+//
+// Detects and strips embedded tool call markup from server text content
+// that arrives outside the structured `tool_calls` field.  Some local
+// inference servers (llama.cpp, vLLM) emit tool invocations inline as
+// XML-like tags within the assistant text response:
+//
+//   function=runshellcommand>
+//   parameter=command>
+//   cat file.txt
+//   parameter>
+//   function>
+//
+// This normaliser extracts such fragments and converts them into
+// structured paragraph rows so the TUI never renders raw markup.
+//
+// The normaliser also collapses consecutive blank lines in the text
+// stream to avoid large empty runs in the transcript pane.
+
+/// State machine for detecting embedded tool call markup in text deltas.
+#[derive(Default)]
+pub struct StreamTextNormaliser {
+    /// Accumulated text buffer for detecting multi-line tool call patterns.
+    pending: String,
+    /// Whether we are currently inside an embedded tool call block.
+    in_tool_block: bool,
+    /// Tool name captured from `function=<name>` open tag.
+    current_tool_name: Option<String>,
+    /// Parameter name captured from `parameter=<name>` open tag.
+    current_param_name: Option<String>,
+    /// Accumulated parameter value lines.
+    current_param_value: String,
+    /// Count of consecutive blank lines emitted (for collapsing).
+    consecutive_blanks: usize,
+}
+
+/// Result of normalising a text delta.
+pub enum NormalisedChunk {
+    /// Clean text to pass through to the TUI as a stream delta.
+    Text(String),
+    /// A structured transcript line (e.g. `[tool] ...`, `[detail] ...`).
+    TranscriptLine(String),
+}
+
+impl StreamTextNormaliser {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Process a text delta and return normalised output chunks.
+    ///
+    /// Embedded tool call markup is converted to `TranscriptLine` entries.
+    /// Clean text passes through as `Text` chunks.  Consecutive blank lines
+    /// are collapsed to at most one.
+    pub fn normalise(&mut self, text: &str) -> Vec<NormalisedChunk> {
+        let mut output = Vec::new();
+
+        for line in text.split('\n') {
+            let trimmed = line.trim();
+
+            // Detect function open tag: `function=<name>` or `<function=name>`
+            if let Some(tool_name) = parse_embedded_function_open(trimmed) {
+                self.in_tool_block = true;
+                self.current_tool_name = Some(tool_name.clone());
+                self.current_param_name = None;
+                self.current_param_value.clear();
+                output.push(NormalisedChunk::TranscriptLine(format!(
+                    "[tool] {tool_name} · processing"
+                )));
+                continue;
+            }
+
+            // Detect function close tag: `function>`, `</function>`
+            if self.in_tool_block && is_embedded_function_close(trimmed) {
+                let tool_name = self
+                    .current_tool_name
+                    .take()
+                    .unwrap_or_else(|| "unknown".to_string());
+                // Flush any pending parameter.
+                if let Some(param_name) = self.current_param_name.take() {
+                    let value = std::mem::take(&mut self.current_param_value);
+                    let compact = compact_param_value(&value);
+                    output.push(NormalisedChunk::TranscriptLine(format!(
+                        "[detail] {param_name}: {compact}"
+                    )));
+                }
+                output.push(NormalisedChunk::TranscriptLine(format!(
+                    "[tool] {tool_name} · dispatched"
+                )));
+                self.in_tool_block = false;
+                continue;
+            }
+
+            // Inside a tool block: detect parameter tags.
+            if self.in_tool_block {
+                if let Some(param_name) = parse_embedded_parameter_open(trimmed) {
+                    // Flush previous parameter if any.
+                    if let Some(prev_name) = self.current_param_name.take() {
+                        let value = std::mem::take(&mut self.current_param_value);
+                        let compact = compact_param_value(&value);
+                        output.push(NormalisedChunk::TranscriptLine(format!(
+                            "[detail] {prev_name}: {compact}"
+                        )));
+                    }
+                    self.current_param_name = Some(param_name);
+                    self.current_param_value.clear();
+                    continue;
+                }
+                if is_embedded_parameter_close(trimmed) {
+                    if let Some(param_name) = self.current_param_name.take() {
+                        let value = std::mem::take(&mut self.current_param_value);
+                        let compact = compact_param_value(&value);
+                        output.push(NormalisedChunk::TranscriptLine(format!(
+                            "[detail] {param_name}: {compact}"
+                        )));
+                    }
+                    continue;
+                }
+                // Accumulate parameter value.
+                if self.current_param_name.is_some() {
+                    if !self.current_param_value.is_empty() {
+                        self.current_param_value.push('\n');
+                    }
+                    self.current_param_value.push_str(line);
+                    continue;
+                }
+                // Inside tool block but no active parameter — treat as text
+                // between tags (e.g. post-function text).
+                if !trimmed.is_empty() {
+                    output.push(NormalisedChunk::Text(line.to_string()));
+                }
+                continue;
+            }
+
+            // Outside tool block: collapse consecutive blank lines.
+            if trimmed.is_empty() {
+                self.consecutive_blanks += 1;
+                if self.consecutive_blanks <= 1 {
+                    output.push(NormalisedChunk::Text(String::new()));
+                }
+                continue;
+            }
+            self.consecutive_blanks = 0;
+            output.push(NormalisedChunk::Text(line.to_string()));
+        }
+
+        output
+    }
+
+    /// Reset normaliser state between turns.
+    pub fn reset(&mut self) {
+        self.pending.clear();
+        self.in_tool_block = false;
+        self.current_tool_name = None;
+        self.current_param_name = None;
+        self.current_param_value.clear();
+        self.consecutive_blanks = 0;
+    }
+}
+
+/// Parse `function=<name>` or `<function=name>` open tags.
+fn parse_embedded_function_open(text: &str) -> Option<String> {
+    let trimmed = text.trim().trim_end_matches('>');
+    // Match `function=<name>` (common llama.cpp format).
+    if let Some(name) = trimmed.strip_prefix("function=") {
+        let name = name.trim().trim_matches(|c| c == '<' || c == '>');
+        if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Some(name.to_string());
+        }
+    }
+    // Match `<function=name>`.
+    if let Some(rest) = trimmed.strip_prefix("<function=") {
+        let name = rest.trim().trim_matches(|c| c == '<' || c == '>');
+        if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Some(name.to_string());
+        }
+    }
+    None
+}
+
+/// Check for function close tags: `function>`, `</function>`, `</function>`.
+fn is_embedded_function_close(text: &str) -> bool {
+    let trimmed = text.trim();
+    trimmed == "function>"
+        || trimmed == "</function>"
+        || trimmed == "</function"
+        || trimmed == "function"
+}
+
+/// Parse `parameter=<name>` or `<parameter=name>` open tags.
+fn parse_embedded_parameter_open(text: &str) -> Option<String> {
+    let trimmed = text.trim().trim_end_matches('>');
+    if let Some(name) = trimmed.strip_prefix("parameter=") {
+        let name = name.trim().trim_matches(|c| c == '<' || c == '>');
+        if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Some(name.to_string());
+        }
+    }
+    if let Some(rest) = trimmed.strip_prefix("<parameter=") {
+        let name = rest.trim().trim_matches(|c| c == '<' || c == '>');
+        if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Some(name.to_string());
+        }
+    }
+    None
+}
+
+/// Check for parameter close tags.
+fn is_embedded_parameter_close(text: &str) -> bool {
+    let trimmed = text.trim();
+    trimmed == "parameter>"
+        || trimmed == "</parameter>"
+        || trimmed == "</parameter"
+        || trimmed == "parameter"
+}
+
+/// Compact a multi-line parameter value for transcript display.
+fn compact_param_value(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.len() <= 80 {
+        return trimmed.replace('\n', " ");
+    }
+    let first_line = trimmed.lines().next().unwrap_or(trimmed);
+    if first_line.len() <= 77 {
+        format!("{first_line}\u{2026}")
+    } else {
+        format!("{}\u{2026}", &first_line[..77])
+    }
+}
+
 fn looks_like_raw_json_frame(text: &str) -> bool {
     let trimmed = text.trim();
     !trimmed.is_empty()
@@ -680,5 +910,146 @@ mod tests {
             }
             other => panic!("expected StreamEvent::Error on overflow, got {other:?}"),
         }
+    }
+
+    // ── StreamTextNormaliser tests ──────────────────────────────────
+
+    use super::{NormalisedChunk, StreamTextNormaliser};
+
+    fn collect_text(chunks: &[NormalisedChunk]) -> String {
+        chunks
+            .iter()
+            .filter_map(|c| match c {
+                NormalisedChunk::Text(t) => Some(t.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn collect_transcript_lines(chunks: &[NormalisedChunk]) -> Vec<String> {
+        chunks
+            .iter()
+            .filter_map(|c| match c {
+                NormalisedChunk::TranscriptLine(line) => Some(line.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_normaliser_passes_clean_text_through() {
+        let mut normaliser = StreamTextNormaliser::new();
+        let chunks = normaliser.normalise("Hello world");
+        assert_eq!(collect_text(&chunks), "Hello world");
+        assert!(collect_transcript_lines(&chunks).is_empty());
+    }
+
+    #[test]
+    fn test_normaliser_detects_embedded_tool_call() {
+        let mut normaliser = StreamTextNormaliser::new();
+        let input =
+            "function=runshellcommand>\nparameter=command>\ncat file.txt\nparameter>\nfunction>";
+        let chunks = normaliser.normalise(input);
+        let lines = collect_transcript_lines(&chunks);
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.contains("[tool]") && l.contains("runshellcommand")),
+            "should emit tool transcript line: {lines:?}"
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.contains("[detail]") && l.contains("command")),
+            "should emit detail transcript line: {lines:?}"
+        );
+        // No raw markup should appear in text output.
+        let text = collect_text(&chunks);
+        assert!(
+            !text.contains("function="),
+            "raw markup must not leak to text: {text:?}"
+        );
+    }
+
+    #[test]
+    fn test_normaliser_detects_angle_bracket_tool_call() {
+        let mut normaliser = StreamTextNormaliser::new();
+        let input =
+            "<function=read_file>\n<parameter=path>\nsrc/main.rs\n</parameter>\n</function>";
+        let chunks = normaliser.normalise(input);
+        let lines = collect_transcript_lines(&chunks);
+        assert!(
+            lines.iter().any(|l| l.contains("read_file")),
+            "should detect angle-bracket format: {lines:?}"
+        );
+    }
+
+    #[test]
+    fn test_normaliser_collapses_consecutive_blank_lines() {
+        let mut normaliser = StreamTextNormaliser::new();
+        let input = "line1\n\n\n\n\n\nline2";
+        let chunks = normaliser.normalise(input);
+        let text = collect_text(&chunks);
+        // Should collapse to at most 2 blank lines between content.
+        let blank_run = text
+            .split("line1")
+            .nth(1)
+            .unwrap()
+            .split("line2")
+            .next()
+            .unwrap();
+        let blank_count = blank_run.matches('\n').count();
+        assert!(
+            blank_count <= 3,
+            "should collapse blank lines, got {blank_count} newlines between content"
+        );
+    }
+
+    #[test]
+    fn test_normaliser_handles_mixed_tool_and_text() {
+        let mut normaliser = StreamTextNormaliser::new();
+        let input = "Here is the result:\nfunction=read_file>\nparameter=path>\nsrc/lib.rs\nparameter>\nfunction>\nI found the file.";
+        let chunks = normaliser.normalise(input);
+        let text = collect_text(&chunks);
+        assert!(
+            text.contains("Here is the result:"),
+            "pre-tool text preserved"
+        );
+        assert!(
+            text.contains("I found the file."),
+            "post-tool text preserved"
+        );
+        assert!(!text.contains("function="), "tool markup stripped");
+        let lines = collect_transcript_lines(&chunks);
+        assert!(
+            lines.iter().any(|l| l.contains("read_file")),
+            "tool call detected: {lines:?}"
+        );
+    }
+
+    #[test]
+    fn test_normaliser_reset_clears_state() {
+        let mut normaliser = StreamTextNormaliser::new();
+        // Start a tool block but don't close it.
+        normaliser.normalise("function=some_tool>");
+        assert!(normaliser.in_tool_block);
+        normaliser.reset();
+        assert!(!normaliser.in_tool_block);
+        assert!(normaliser.current_tool_name.is_none());
+    }
+
+    #[test]
+    fn test_normaliser_compact_param_value_short() {
+        let result = super::compact_param_value("short value");
+        assert_eq!(result, "short value");
+    }
+
+    #[test]
+    fn test_normaliser_compact_param_value_long() {
+        let long = "a".repeat(100);
+        let result = super::compact_param_value(&long);
+        assert!(result.len() <= 81, "should be truncated: {}", result.len());
+        assert!(result.ends_with('\u{2026}'));
     }
 }

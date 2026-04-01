@@ -445,13 +445,19 @@ impl TuiMode {
 }
 
 fn extend_visual_rows(rows: &mut Vec<String>, history_lines: &[String], skip_index: Option<usize>) {
+    let mut consecutive_blanks: usize = 0;
     for (index, line) in history_lines.iter().enumerate() {
         if skip_index == Some(index) {
             continue;
         }
         if line.is_empty() {
-            rows.push(String::new());
+            consecutive_blanks += 1;
+            // Collapse runs of more than 2 consecutive blank lines.
+            if consecutive_blanks <= 2 {
+                rows.push(String::new());
+            }
         } else {
+            consecutive_blanks = 0;
             rows.extend(line.lines().map(ToOwned::to_owned));
         }
     }
@@ -869,5 +875,29 @@ mod tests {
             "last evidence row should indicate remaining lines: {:?}",
             evidence_rows.last()
         );
+    }
+
+    #[test]
+    fn consecutive_blank_lines_collapsed_in_visual_rows() {
+        use super::extend_visual_rows;
+        let lines: Vec<String> = vec![
+            "line1".to_string(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            "line2".to_string(),
+        ];
+        let mut rows = Vec::new();
+        extend_visual_rows(&mut rows, &lines, None);
+        // Should have line1, at most 2 blanks, then line2.
+        let blank_count = rows.iter().filter(|r| r.is_empty()).count();
+        assert!(
+            blank_count <= 2,
+            "expected at most 2 blank rows, got {blank_count}: {rows:?}"
+        );
+        assert_eq!(rows.first().unwrap(), "line1");
+        assert_eq!(rows.last().unwrap(), "line2");
     }
 }

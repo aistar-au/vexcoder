@@ -92,6 +92,7 @@ impl RuntimeContext {
             });
 
             let mut textual_block_by_index = std::collections::HashMap::<usize, bool>::new();
+            let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
             let mut cancelled = false;
 
             loop {
@@ -103,7 +104,7 @@ impl RuntimeContext {
                     }
                     update = delta_rx.recv() => {
                         match update {
-                            Some(update) => forward_conversation_update(update, &mut textual_block_by_index, &tx),
+                            Some(update) => forward_conversation_update(update, &mut textual_block_by_index, &mut normaliser, &tx),
                             None => break,
                         }
                     }
@@ -211,8 +212,9 @@ impl RuntimeContext {
         });
 
         let mut textual_block_by_index = std::collections::HashMap::<usize, bool>::new();
+        let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
         while let Some(update) = delta_rx.recv().await {
-            forward_conversation_update(update, &mut textual_block_by_index, &tx);
+            forward_conversation_update(update, &mut textual_block_by_index, &mut normaliser, &tx);
         }
 
         match send_handle.await {
@@ -443,11 +445,12 @@ fn estimate_char_count(messages: &[crate::types::ApiMessage]) -> usize {
 fn forward_conversation_update(
     update: ConversationStreamUpdate,
     textual_block_by_index: &mut std::collections::HashMap<usize, bool>,
+    normaliser: &mut crate::api::stream::StreamTextNormaliser,
     tx: &mpsc::UnboundedSender<UiUpdate>,
 ) {
     match update {
         ConversationStreamUpdate::Delta(text) => {
-            let _ = tx.send(UiUpdate::StreamDelta(text));
+            emit_normalised_text(normaliser, &text, tx);
         }
         ConversationStreamUpdate::BlockStart { index, block } => {
             let is_textual = matches!(
@@ -457,7 +460,7 @@ fn forward_conversation_update(
             textual_block_by_index.insert(index, is_textual);
             if let StreamBlock::FinalText { content } = &block {
                 if !content.is_empty() {
-                    let _ = tx.send(UiUpdate::StreamDelta(content.clone()));
+                    emit_normalised_text(normaliser, content, tx);
                 }
             }
             let _ = tx.send(UiUpdate::StreamBlockStart { index, block });
@@ -468,7 +471,7 @@ fn forward_conversation_update(
                 delta: delta.clone(),
             });
             if textual_block_by_index.get(&index).copied().unwrap_or(false) {
-                let _ = tx.send(UiUpdate::StreamDelta(delta));
+                emit_normalised_text(normaliser, &delta, tx);
             }
         }
         ConversationStreamUpdate::BlockComplete { index } => {
@@ -514,6 +517,31 @@ fn forward_conversation_update(
         // ADR-021 Item 19.
         ConversationStreamUpdate::StreamError(msg) => {
             let _ = tx.send(UiUpdate::Error(msg));
+        }
+    }
+}
+
+/// Route text through the normaliser before sending to the UI.
+///
+/// Embedded tool call markup is intercepted and converted to structured
+/// `TranscriptLine` entries.  Clean text passes through as `StreamDelta`.
+/// This is the single authoritative boundary between the stream parser
+/// (which normalises SSE events in memory) and the task state orchestrator
+/// (which displays drawn paragraphs in the TUI).
+fn emit_normalised_text(
+    normaliser: &mut crate::api::stream::StreamTextNormaliser,
+    text: &str,
+    tx: &mpsc::UnboundedSender<UiUpdate>,
+) {
+    use crate::api::stream::NormalisedChunk;
+    for chunk in normaliser.normalise(text) {
+        match chunk {
+            NormalisedChunk::Text(t) => {
+                let _ = tx.send(UiUpdate::StreamDelta(t));
+            }
+            NormalisedChunk::TranscriptLine(line) => {
+                let _ = tx.send(UiUpdate::TranscriptLine(line));
+            }
         }
     }
 }
@@ -814,6 +842,7 @@ data: {"type":"message_stop"}"#.to_string(),
         let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
         let mut textual_block_by_index = std::collections::HashMap::new();
 
+        let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
         forward_conversation_update(
             ConversationStreamUpdate::BlockStart {
                 index: 1,
@@ -825,6 +854,7 @@ data: {"type":"message_stop"}"#.to_string(),
                 },
             },
             &mut textual_block_by_index,
+            &mut normaliser,
             &tx,
         );
 
@@ -834,6 +864,7 @@ data: {"type":"message_stop"}"#.to_string(),
                 delta: "{\"path\":\"file.txt\"}".to_string(),
             },
             &mut textual_block_by_index,
+            &mut normaliser,
             &tx,
         );
 
@@ -866,6 +897,7 @@ data: {"type":"message_stop"}"#.to_string(),
     async fn test_ref_08_unknown_block_index_delta_does_not_mirror_to_stream_delta() {
         let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
         let mut textual_block_by_index = std::collections::HashMap::new();
+        let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
 
         forward_conversation_update(
             ConversationStreamUpdate::BlockDelta {
@@ -873,6 +905,7 @@ data: {"type":"message_stop"}"#.to_string(),
                 delta: "mystery".to_string(),
             },
             &mut textual_block_by_index,
+            &mut normaliser,
             &tx,
         );
 
@@ -897,6 +930,7 @@ data: {"type":"message_stop"}"#.to_string(),
     async fn test_ref_08_command_session_updates_forward_to_ui() {
         let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
         let mut textual_block_by_index = std::collections::HashMap::new();
+        let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
 
         forward_conversation_update(
             ConversationStreamUpdate::CommandSessionStarted {
@@ -904,6 +938,7 @@ data: {"type":"message_stop"}"#.to_string(),
                 command: "echo forwarded".to_string(),
             },
             &mut textual_block_by_index,
+            &mut normaliser,
             &tx,
         );
         forward_conversation_update(
@@ -912,16 +947,19 @@ data: {"type":"message_stop"}"#.to_string(),
                 pid: Some(4100),
             },
             &mut textual_block_by_index,
+            &mut normaliser,
             &tx,
         );
         forward_conversation_update(
             ConversationStreamUpdate::TranscriptLine("forwarded".to_string()),
             &mut textual_block_by_index,
+            &mut normaliser,
             &tx,
         );
         forward_conversation_update(
             ConversationStreamUpdate::CommandSessionFinished { session_id: 41 },
             &mut textual_block_by_index,
+            &mut normaliser,
             &tx,
         );
 
@@ -1021,5 +1059,75 @@ data: {"type":"message_stop"}"#.to_string(),
             terminal_count, 1,
             "cancel path must emit exactly one final event"
         );
+    }
+
+    #[tokio::test]
+    async fn test_normaliser_intercepts_embedded_tool_markup_in_delta() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let mut textual_block_by_index = std::collections::HashMap::new();
+        let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
+
+        // Simulate a FinalText block that contains embedded tool call markup.
+        forward_conversation_update(
+            ConversationStreamUpdate::BlockStart {
+                index: 0,
+                block: StreamBlock::FinalText {
+                    content:
+                        "function=runshellcommand>\nparameter=command>\nls\nparameter>\nfunction>"
+                            .to_string(),
+                },
+            },
+            &mut textual_block_by_index,
+            &mut normaliser,
+            &tx,
+        );
+
+        let mut saw_transcript_line = false;
+        let mut leaked_markup = false;
+        while let Ok(update) = rx.try_recv() {
+            match update {
+                UiUpdate::TranscriptLine(line) => {
+                    if line.contains("[tool]") && line.contains("runshellcommand") {
+                        saw_transcript_line = true;
+                    }
+                }
+                UiUpdate::StreamDelta(text) => {
+                    if text.contains("function=") || text.contains("parameter=") {
+                        leaked_markup = true;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        assert!(
+            saw_transcript_line,
+            "normaliser should convert embedded tool markup to transcript lines"
+        );
+        assert!(
+            !leaked_markup,
+            "raw tool markup must not leak through as StreamDelta"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_normaliser_passes_clean_text_through_delta() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let mut textual_block_by_index = std::collections::HashMap::new();
+        let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
+
+        forward_conversation_update(
+            ConversationStreamUpdate::Delta("Hello, world!".to_string()),
+            &mut textual_block_by_index,
+            &mut normaliser,
+            &tx,
+        );
+
+        match rx.try_recv() {
+            Ok(UiUpdate::StreamDelta(text)) => {
+                assert_eq!(text, "Hello, world!");
+            }
+            _ => panic!("expected StreamDelta with clean text"),
+        }
     }
 }
