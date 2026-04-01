@@ -99,6 +99,18 @@ impl TuiMode {
             .sum()
     }
 
+    pub(super) fn tokens_sent_total(&self) -> u64 {
+        self.current_task.turns.iter().map(|t| t.tokens.input).sum()
+    }
+
+    pub(super) fn tokens_received_total(&self) -> u64 {
+        self.current_task
+            .turns
+            .iter()
+            .map(|t| t.tokens.output)
+            .sum()
+    }
+
     pub fn status_line(&self) -> String {
         format!(
             "mode:{} approval:{} history:{} repo:{} inst:{} tokens:{}",

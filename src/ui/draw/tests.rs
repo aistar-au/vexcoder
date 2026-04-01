@@ -149,6 +149,15 @@ fn zero_terminal_size_is_noop() {
     let state = make_state(vec![], vec!["text"]);
     draw.draw(&mut buf, &state, 0, 0);
     assert!(buf.is_empty(), "zero-size display must produce no output");
+
+    // Sub-minimum sizes (< 10 cols or < 4 rows) are also no-ops to handle
+    // transient resize states across Windows Terminal, GNOME, and macOS.
+    buf.clear();
+    draw.draw(&mut buf, &state, 5, 3);
+    assert!(
+        buf.is_empty(),
+        "sub-minimum size display must produce no output"
+    );
 }
 
 #[test]
@@ -936,14 +945,17 @@ fn fullscreen_surface_uses_three_regions_without_fixed_bottom_pane() {
         approval: "pending".into(),
         history_rows: 7,
         total_tokens: 1234,
+        tokens_sent: 800,
+        tokens_received: 434,
         active_tools: 2,
         active_commands: 1,
         waiting_summary: Some("lat:2.5s".into()),
         timing_summary: None,
+        git_branch: "main".into(),
     };
     state.changed_files = vec!["src/config.rs".into(), "src/ui/draw/mod.rs".into()];
 
-    draw.draw(&mut buf, &state, 80, 24);
+    draw.draw(&mut buf, &state, 120, 30);
     let output = String::from_utf8_lossy(&buf);
 
     assert!(
@@ -960,11 +972,14 @@ fn fullscreen_surface_uses_three_regions_without_fixed_bottom_pane() {
     );
     assert!(
         output.contains("task:test-001")
+            && output.contains("\u{e0a0}main")
             && output.contains("m:streaming")
             && output.contains("ap:pending")
+            && output.contains("\u{2191}800")
+            && output.contains("\u{2193}434")
             && output.contains("lat:2.5s")
             && output.contains("chg:2"),
-        "the separate status bar should fold compact telemetry and git summaries from the removed pane"
+        "the separate status bar should fold compact telemetry, git branch, and token counters from the removed pane"
     );
 }
 
@@ -992,10 +1007,13 @@ fn status_bar_summary_truncates_to_available_width() {
         approval: "pending".into(),
         history_rows: 99,
         total_tokens: 9999,
+        tokens_sent: 6000,
+        tokens_received: 3999,
         active_tools: 4,
         active_commands: 2,
         waiting_summary: Some("latency:2.5s read:512/1024 generate:128".into()),
         timing_summary: None,
+        git_branch: String::new(),
     };
     state.changed_files = vec![
         "src/config.rs".into(),
@@ -1008,6 +1026,35 @@ fn status_bar_summary_truncates_to_available_width() {
     assert!(display_width(&summary) <= 32);
     assert!(summary.contains("task:test-001"));
     assert!(summary.contains("m:streaming"));
+}
+
+#[test]
+fn status_bar_shows_git_branch_and_token_counters() {
+    let mut state = make_state(vec![], vec!["response text"]);
+    state.telemetry = crate::app::TaskTelemetryState {
+        mode: "ready".into(),
+        approval: String::new(),
+        history_rows: 5,
+        total_tokens: 150,
+        tokens_sent: 100,
+        tokens_received: 50,
+        active_tools: 0,
+        active_commands: 0,
+        waiting_summary: None,
+        timing_summary: None,
+        git_branch: "feat/my-branch".into(),
+    };
+
+    let summary = status_bar_summary(&state, 120);
+
+    assert!(
+        summary.contains("feat/my-branch"),
+        "status bar should display the git branch: {summary}"
+    );
+    assert!(
+        summary.contains("\u{2191}100") && summary.contains("\u{2193}50"),
+        "status bar should show token counters with up/down arrows: {summary}"
+    );
 }
 
 #[test]

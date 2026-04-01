@@ -381,10 +381,13 @@ impl TuiMode {
                 approval: self.approval_status_label().to_string(),
                 history_rows: self.history_row_count(),
                 total_tokens: self.total_session_tokens(),
+                tokens_sent: self.tokens_sent_total(),
+                tokens_received: self.tokens_received_total(),
                 active_tools,
                 active_commands,
                 waiting_summary: telemetry_waiting_summary(&output_rows),
                 timing_summary: telemetry_timing_summary(&output_rows),
+                git_branch: self.git_branch.clone(),
             },
             timeline_entries,
             selected_step,
@@ -652,13 +655,20 @@ pub(super) fn completed_tool_paragraph_rows(
         "[detail] Result: {}",
         compact_outcome_summary(first_line)
     ));
-    for line in output
+    const MAX_EVIDENCE_LINES: usize = 6;
+    let nonempty: Vec<&str> = output
         .lines()
         .map(str::trim_end)
         .filter(|line| !line.trim().is_empty())
-        .take(3)
-    {
+        .collect();
+    for line in nonempty.iter().take(MAX_EVIDENCE_LINES) {
         rows.push(format!("[evidence] {line}"));
+    }
+    if nonempty.len() > MAX_EVIDENCE_LINES {
+        rows.push(format!(
+            "[evidence] +{} more lines",
+            nonempty.len() - MAX_EVIDENCE_LINES
+        ));
     }
     rows
 }
@@ -828,5 +838,36 @@ mod tests {
         assert_eq!(rows[0], "> hi");
         assert!(rows[1].starts_with(waiting_for_response_line()));
         assert!(rows[1].contains("read:512/2641"));
+    }
+
+    #[test]
+    fn completed_tool_paragraphs_truncate_at_six_lines_with_overflow() {
+        use super::completed_tool_paragraph_rows;
+
+        let output_lines: Vec<String> = (1..=20).map(|i| format!("output line {i}")).collect();
+        let output = output_lines.join("\n");
+
+        let rows = completed_tool_paragraph_rows(
+            "bash",
+            &serde_json::json!({"command": "ls -la"}),
+            &output,
+            false,
+        );
+
+        let evidence_rows: Vec<&String> = rows
+            .iter()
+            .filter(|r| r.starts_with("[evidence]"))
+            .collect();
+
+        assert_eq!(
+            evidence_rows.len(),
+            7,
+            "should have 6 evidence lines + 1 overflow indicator: {evidence_rows:?}"
+        );
+        assert!(
+            evidence_rows.last().unwrap().contains("+14 more lines"),
+            "last evidence row should indicate remaining lines: {:?}",
+            evidence_rows.last()
+        );
     }
 }

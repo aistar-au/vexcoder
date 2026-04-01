@@ -89,12 +89,19 @@ Key changes from the current implementation:
    same task-derived state, starts at the top of its pane, and scrolls upward
    indefinitely as new paragraphs arrive.
 4. Telemetry remains inline in transcript paragraphs, while the separate status
-   bar may fold compact telemetry and git summaries into one truncated line
-   rather than reintroducing a dedicated fixed pane.
+   bar folds compact telemetry, git branch (`\ue0a0branch`), and token counters
+   (`↑sent ↓received`) into one truncated line rather than reintroducing a
+   dedicated fixed pane.
 5. The composer remains a multiline prompt surface with persistent affordances
    for slash commands, `@path` expansion, pasted blocks, and newline insertion,
    and it auto-fits within the current fullscreen viewport as display rows or
    columns change.
+6. Enriched tool-call paragraphs show the first 6 evidence lines of output
+   followed by a `+N more lines` overflow indicator when output exceeds
+   the cap.
+7. Cross-platform resize robustness: the draw engine enforces a minimum viable
+   surface (10×4), resets all hash state on resize, and performs a full repaint
+   to ensure consistent layout across Windows Terminal, GNOME, and macOS.
 
 ### Task-state-first rule for this ADR
 

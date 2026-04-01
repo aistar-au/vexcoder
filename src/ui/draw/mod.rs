@@ -95,7 +95,11 @@ impl TaskDraw {
         term_cols: u16,
         term_rows: u16,
     ) {
-        if term_cols == 0 || term_rows == 0 {
+        // Minimum viable surface: need at least a few rows and columns to
+        // render anything useful. Bail silently for degenerate sizes — this
+        // handles transient zero-sized states during resize on Windows
+        // Terminal, GNOME, and macOS Terminal alike.
+        if term_cols < 10 || term_rows < 4 {
             return;
         }
 
@@ -113,7 +117,13 @@ impl TaskDraw {
         );
 
         // On first frame or display resize: full repaint.
+        // Reset hash state on resize so incremental detection starts fresh
+        // after the geometry changes — prevents stale hash matches across
+        // different layouts (critical for cross-platform resize robustness).
         if !self.first_frame_done || size_changed {
+            self.last_transcript_hash = 0;
+            self.last_composer_hash = 0;
+            self.output_lines_flushed = 0;
             hide_cursor(w);
             self.draw_full(w, state, &regions);
             self.first_frame_done = true;
@@ -691,6 +701,14 @@ fn status_bar_summary(state: &TaskLayoutState, max_width: usize) -> String {
         segments.push(format!("task:{}", state.task_id));
     }
 
+    // Git branch indicator.
+    if !state.telemetry.git_branch.is_empty() {
+        segments.push(format!(
+            "\u{e0a0}{}",
+            truncate_to_width(&state.telemetry.git_branch, 20)
+        ));
+    }
+
     if state.output_scroll_offset > 0 {
         segments.push(match state.output_scroll_anchor {
             OutputScrollAnchor::Bottom => format!("scroll:+{}", state.output_scroll_offset),
@@ -708,6 +726,14 @@ fn status_bar_summary(state: &TaskLayoutState, max_width: usize) -> String {
         segments.push(format!(
             "ap:{}",
             truncate_to_width(&state.telemetry.approval, 12)
+        ));
+    }
+
+    // Inline token counters: ↑sent ↓received.
+    if state.telemetry.tokens_sent > 0 || state.telemetry.tokens_received > 0 {
+        segments.push(format!(
+            "\u{2191}{} \u{2193}{}",
+            state.telemetry.tokens_sent, state.telemetry.tokens_received
         ));
     }
 

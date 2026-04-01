@@ -21,6 +21,7 @@ impl TuiMode {
             next_command_session_id: 1,
             history_line_cap: resolve_history_line_cap(),
             repo_label: resolve_repo_label(),
+            git_branch: util::resolve_git_branch(),
             instructions_path: None,
             mcp_snapshot: None,
             history_content_width: Cell::new(HISTORY_CONTENT_WIDTH_FALLBACK),

@@ -99,7 +99,10 @@ workflows, or documentation tied to the same feature lane.
 
 - Keep `bash scripts/check_forbidden_names.sh` green. The repository status-term
   and naming gate applies to docs, ADRs, plans, PR text, and agent-authored
-  notes.
+  notes. Non-neutral tone words (listed in the `tone_words` array of
+  `scripts/check_forbidden_names.sh`) are banned from documentation targets.
+  Use neutral alternatives (e.g. "stale" or "inactive" instead of non-neutral
+  lifecycle terms).
 - In operator-surface prose, prefer `CLI`, `CLI app`, or `surface` over generic
   `terminal` wording unless the exact technical term is required for a crate
   name, ANSI control, terminal-size API, or quoted log line.

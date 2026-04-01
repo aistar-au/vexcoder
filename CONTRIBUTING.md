@@ -525,7 +525,7 @@ vexcoder/ (standalone view)
 | `src/types/api_types.rs` | API request/response content and streaming event structs/enums. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/api_types.rs> |
 | `src/types/model_profile.rs` | ModelProfile configuration for LLM models with system prompt and parameters. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/model_profile.rs> |
 | `src/ui.rs` | UI module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui.rs> |
-| `src/ui/draw/mod.rs` | Adaptive ANSI draw engine for persistent full-screen operator workspace surface. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/mod.rs> |
+| `src/ui/draw/mod.rs` | Adaptive ANSI draw engine for persistent full-screen operator workspace surface. Status bar folds git branch, token counters, and telemetry. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/mod.rs> |
 | `src/ui/draw/ansi.rs` | ANSI escape helpers, color palette, spinner and progress animation frames. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/ansi.rs> |
 | `src/ui/draw/regions.rs` | Adaptive layout region computation for the fullscreen three-region workspace surface. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/regions.rs> |
 | `src/ui/draw/transcript.rs` | Transcript line rendering with markdown, checklists, numbered lists, and inline formatting. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/transcript.rs> |
