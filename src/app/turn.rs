@@ -43,7 +43,10 @@ impl TuiMode {
         self.current_turn_tool_invocations.clear();
         self.pending_turn_tool_calls.clear();
         self.last_completed_tool_header = None;
+        self.last_completed_tool_name = None;
+        self.last_pending_tool_name = None;
         self.duplicate_tool_count = 1;
+        self.same_name_tool_count = 0;
         self.overlay_state.approved_tool_steps.clear();
         self.selected_timeline_index = 0;
         self.timeline_follow_mode = true;
@@ -59,7 +62,7 @@ impl TuiMode {
     /// Append a `[ttft: …s | ↑:…s (N tok) | ↓:…s (N tok) | total: …s]`
     /// timing and token-count summary to the transcript
     /// after a turn finishes so the operator can see latency at a glance.
-    fn append_turn_timing_line(&mut self) {
+    pub(super) fn append_turn_timing_line(&mut self) {
         let total = match self.last_turn_duration {
             Some(d) => d,
             None => return,

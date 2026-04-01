@@ -213,7 +213,7 @@ caret_phrase=$'\\b\x63\x75\x72\x73\x6f\x72 ai\\b'
 claude_code_phrase=$'\\b\x63\x6c\x61\x75\x64\x65 \x63\x6f\x64\x65\\b'
 editor_brand=$'\\bVS Code\\b'
 
-PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|${claude_code_phrase}|peter-evans/create-pull-request|leonardomso/rust-skills|actions/checkout|actions/cache|actions/upload-pages-artifact|actions/deploy-pages|dtolnay/rust-toolchain|uncenter/setup-taplo|\\bvexcoder/vexcoder\\b|${editor_brand}"
+PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|${claude_code_phrase}|peter-evans/create-pull-request|leonardomso/rust-skills|actions/checkout|actions/cache|actions/upload-pages-artifact|actions/deploy-pages|dtolnay/rust-toolchain|uncenter/setup-taplo|\\bvexcoder/vexcoder\\b|${editor_brand}|\\bdead\\b"
 
 BRAND_PATTERN="\\b(${brand_regex})\\b|${caret_host}|${caret_phrase}|${claude_code_phrase}|${editor_brand}"
 

@@ -326,7 +326,7 @@ fn enriched_paragraph_output_renders_paragraph_markers() {
     let state = make_state(
         vec![],
         vec![
-            "[tool] read_file · src/main.rs · State synchronized.",
+            "[tool] read_file · src/main.rs · Response complete.",
             "[detail] Scope: Read file content",
             "[detail] Command: read_file",
             "[detail] Result: 42 lines read from src/main.rs",
@@ -362,7 +362,7 @@ fn enriched_paragraph_output_renders_paragraph_markers() {
         "detail label and value must appear in output"
     );
     assert!(
-        output.contains("\x1b[38;5;2mState synchronized."),
+        output.contains("\x1b[38;5;2mResponse complete."),
         "completed status should use the success accent color"
     );
     assert!(
@@ -378,7 +378,7 @@ fn six_space_evidence_renders_dimmer_than_four_space() {
     let state = make_state(
         vec![],
         vec![
-            "[tool] bash · exit code 0 · State synchronized.",
+            "[tool] bash · exit code 0 · Response complete.",
             "[detail] Scope: Tool invocation recorded in the completed turn.",
             "[detail] Command: bash",
             "[detail] Result: exit code 0",
@@ -416,7 +416,7 @@ fn paragraph_tree_summary_prefers_target_hint() {
     let state = make_state(
         vec![],
         vec![
-            "[tool] read_file · 42 lines read from src/main.rs · State synchronized.",
+            "[tool] read_file · 42 lines read from src/main.rs · Response complete.",
             "[detail] Scope: Read file content",
             "[detail] Command: read_file",
             "[detail] Result: 42 lines read from src/main.rs",
@@ -453,7 +453,7 @@ fn paragraph_block_uses_four_to_six_lines_per_tool() {
     let state = make_state(
         vec![],
         vec![
-            "[tool] read_file · State synchronized.",
+            "[tool] read_file · Response complete.",
             "[detail] Scope: Read file content",
             "[detail] Command: read_file",
             "[detail] Result: ok",
@@ -1392,7 +1392,7 @@ fn tool_detail_renders_at_four_space_indent() {
     let mut draw = TaskDraw::new();
     let state = make_state(
         vec![],
-        vec!["[detail] Status: State synchronized., 42 lines"],
+        vec!["[detail] Status: Response complete., 42 lines"],
     );
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -1431,7 +1431,7 @@ fn paragraph_block_disclosure_levels_render_as_tree() {
         vec![],
         vec![
             "[tool] read_file src/main.rs",
-            "[detail] Status: State synchronized., 42 lines",
+            "[detail] Status: Response complete., 42 lines",
             "[detail] Path: src/main.rs",
             "[evidence] fn main() {",
             "[evidence]     println!(\"hello\");",
@@ -1677,5 +1677,149 @@ fn picker_overlay_hash_changes_on_selection_move() {
         draw.compute_composer_hash(&base),
         draw.compute_composer_hash(&moved),
         "hash must change when picker selection moves"
+    );
+}
+
+// ── Edit loop transcript rendering ─────────────────────────────────
+
+#[test]
+fn edit_loop_turn_renders_with_progress_icon() {
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[edit loop turn 2/6]"]);
+    let mut buf = Vec::new();
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    assert!(
+        output.contains("turn 2/6"),
+        "edit loop turn must render turn counter in transcript"
+    );
+}
+
+#[test]
+fn edit_loop_validation_passed_renders_with_icon() {
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[edit loop: validation passed]"]);
+    let mut buf = Vec::new();
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    assert!(
+        output.contains("validation passed"),
+        "edit loop validation passed must render in transcript"
+    );
+}
+
+#[test]
+fn edit_loop_complete_renders_with_icon() {
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec!["[edit loop complete: patch_applied=true validate_passed=true]"],
+    );
+    let mut buf = Vec::new();
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    assert!(
+        output.contains("patch_applied=true"),
+        "edit loop complete must render outcome details in transcript"
+    );
+}
+
+#[test]
+fn edit_loop_warning_renders_with_warning_icon() {
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec!["[edit loop warning: workspace has uncommitted changes; proceeding without mutating git state]"],
+    );
+    let mut buf = Vec::new();
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    assert!(
+        output.contains("workspace has uncommitted changes"),
+        "edit loop warning must render in transcript; got: {output}"
+    );
+}
+
+#[test]
+fn edit_loop_turn_error_renders_with_error_icon() {
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec!["[edit loop turn error: timeout contacting model]"],
+    );
+    let mut buf = Vec::new();
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    assert!(
+        output.contains("timeout contacting model"),
+        "edit loop turn error must render detail in transcript; got: {output}"
+    );
+}
+
+#[test]
+fn edit_loop_aborted_renders_with_error_icon() {
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[edit loop aborted: approval denied]"]);
+    let mut buf = Vec::new();
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    assert!(
+        output.contains("approval denied"),
+        "edit loop aborted must render in transcript; got: {output}"
+    );
+}
+
+#[test]
+fn edit_loop_cancelled_renders_with_warning_icon() {
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[edit loop cancelled]"]);
+    let mut buf = Vec::new();
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    assert!(
+        output.contains("edit loop cancelled"),
+        "edit loop cancelled must render in transcript; got: {output}"
+    );
+}
+
+#[test]
+fn edit_loop_validation_failed_renders_with_error_icon() {
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[edit loop: validation failed, retrying]"]);
+    let mut buf = Vec::new();
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    assert!(
+        output.contains("validation failed"),
+        "edit loop validation failed must render; got: {output}"
+    );
+}
+
+#[test]
+fn edit_loop_no_patch_renders_with_warning_icon() {
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["[edit loop: no patch applied, retrying]"]);
+    let mut buf = Vec::new();
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    assert!(
+        output.contains("no patch applied"),
+        "edit loop no patch must render; got: {output}"
+    );
+}
+
+#[test]
+fn edit_loop_max_turns_renders_with_warning_icon() {
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec!["[edit loop reached max turns — last error: cargo test exited with 1]"],
+    );
+    let mut buf = Vec::new();
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+    assert!(
+        output.contains("max turns"),
+        "edit loop max turns must render; got: {output}"
     );
 }

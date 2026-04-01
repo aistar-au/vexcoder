@@ -15,7 +15,20 @@ impl TuiMode {
                     }
                     self.current_turn_response.push_str(&line);
                 }
-                self.push_history_line(line);
+                // Truncate very long transcript lines (e.g. large git diff
+                // output, verbose validation stderr) to keep the TUI
+                // responsive and avoid memory bloat.
+                const MAX_TRANSCRIPT_LINE_CHARS: usize = 512;
+                if line.len() > MAX_TRANSCRIPT_LINE_CHARS {
+                    let truncated = format!(
+                        "{}... (+{} chars truncated)",
+                        &line[..MAX_TRANSCRIPT_LINE_CHARS],
+                        line.len() - MAX_TRANSCRIPT_LINE_CHARS
+                    );
+                    self.push_history_line(truncated);
+                } else {
+                    self.push_history_line(line);
+                }
                 self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
             UiUpdate::StreamDelta(text) => {
@@ -110,10 +123,27 @@ impl TuiMode {
                             &pending,
                             StepLifecycle::Running,
                         );
+                        // Fold pending tool calls with the same name into
+                        // the existing paragraph — only show detail rows
+                        // (skip the [tool] header) to avoid per-file spam.
+                        let is_pending_same_name = self
+                            .last_pending_tool_name
+                            .as_ref()
+                            .map(|prev| prev == name)
+                            .unwrap_or(false);
                         self.pending_turn_tool_calls.insert(id.clone(), pending);
                         self.tool_input_raw_buffers.insert(index, String::new());
-                        for row in transcript_rows {
-                            self.push_history_line(row);
+                        if is_pending_same_name {
+                            // Suppress the [tool] header, only emit detail lines.
+                            for row in transcript_rows.iter().skip(1) {
+                                self.push_history_line(row.clone());
+                            }
+                        } else {
+                            for row in transcript_rows {
+                                self.push_history_line(row);
+                            }
+                            // Track the name for subsequent pending calls.
+                            self.last_pending_tool_name = Some(name.clone());
                         }
                         self.preserve_transcript_scroll_on_growth(previous_output_len);
                         // Auto-advance timeline selection when follow mode is on.
@@ -155,13 +185,22 @@ impl TuiMode {
                             // Fold consecutive identical tool calls into a
                             // single count-annotated line to prevent screen
                             // flooding when the model retries the same call.
+                            // Also fold consecutive same-name tool calls
+                            // (e.g. list_files for different paths) into a
+                            // single paragraph with a count annotation.
                             let header = transcript_rows.first().cloned().unwrap_or_default();
-                            let is_duplicate = self
+                            let is_exact_duplicate = self
                                 .last_completed_tool_header
                                 .as_ref()
                                 .map(|prev| *prev == header)
                                 .unwrap_or(false);
-                            if is_duplicate {
+                            let is_same_name = self
+                                .last_completed_tool_name
+                                .as_ref()
+                                .map(|prev| *prev == pending.name)
+                                .unwrap_or(false);
+
+                            if is_exact_duplicate {
                                 self.duplicate_tool_count += 1;
                                 // Replace the previous folded-count line if present.
                                 if let Some(last_line) = self.history_state.lines.last_mut() {
@@ -177,9 +216,39 @@ impl TuiMode {
                                         ));
                                     }
                                 }
+                            } else if is_same_name {
+                                // Same tool name but different target/args —
+                                // fold into a paragraph: suppress the header
+                                // and only append the detail/evidence rows.
+                                self.duplicate_tool_count = 1;
+                                self.same_name_tool_count += 1;
+                                self.last_completed_tool_header = Some(header);
+                                // Pop the existing batch count line (if any),
+                                // append the new detail rows, then re-add the
+                                // updated count so every folded call keeps its
+                                // transcript rows.
+                                let had_count_line = self
+                                    .history_state
+                                    .lines
+                                    .last()
+                                    .map(|l| l.starts_with("[detail] (") && l.contains("files)"))
+                                    .unwrap_or(false);
+                                if had_count_line {
+                                    self.history_state.lines.pop();
+                                }
+                                // Append detail rows (skip the [tool] header).
+                                for row in transcript_rows.iter().skip(1) {
+                                    self.push_history_line(row.clone());
+                                }
+                                self.push_history_line(format!(
+                                    "[detail] ({} files)",
+                                    self.same_name_tool_count
+                                ));
                             } else {
                                 self.duplicate_tool_count = 1;
+                                self.same_name_tool_count = 1;
                                 self.last_completed_tool_header = Some(header);
+                                self.last_completed_tool_name = Some(pending.name.clone());
                                 for row in transcript_rows {
                                     self.push_history_line(row);
                                 }
@@ -362,6 +431,14 @@ impl TuiMode {
                         self.push_history_line("[edit loop cancelled]".to_string());
                     }
                 }
+                // Capture telemetry from edit loop turns before resetting
+                // turn state. The edit loop's individual model turns emit
+                // ServerMetadata, but no TurnComplete fires to flush the
+                // timing summary, so we emit it here.
+                self.last_turn_duration = self.turn_started_at.map(|started| started.elapsed());
+                self.last_turn_timings = self.current_turn_timings.clone();
+                self.last_turn_ttft = self.ttft;
+                self.append_turn_timing_line();
                 self.apply_auto_follow_or_clamp();
                 self.transcript_scroll_offset = 0;
                 self.inspector_scroll_offset = 0;

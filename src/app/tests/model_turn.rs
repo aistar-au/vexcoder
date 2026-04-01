@@ -1707,7 +1707,7 @@ fn test_tool_blocks_emit_paragraph_rows_into_history() {
     assert!(
         mode.history_lines()
             .iter()
-            .any(|line| line == "[tool] read_file · src/main.rs · State synchronized."),
+            .any(|line| line == "[tool] read_file · src/main.rs · Response complete."),
         "completed tool calls must render their terminal paragraph header"
     );
     assert!(
@@ -1924,6 +1924,217 @@ fn test_tool_fold_state_resets_after_turn_ends() {
     assert!(
         !lines.iter().any(|l| l.starts_with("[detail] (repeated")),
         "tool call in new turn must not fold against previous turn; got:\n{:#?}",
+        lines
+    );
+}
+
+#[test]
+fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("list project".to_string(), &mut ctx);
+
+    // First list_files call for path "src"
+    mode.on_model_update(
+        tool_call_start(0, "t1", "list_files", serde_json::json!({"path": "src"})),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(1, "t1", "src/main.rs\nsrc/lib.rs"), &mut ctx);
+
+    // Second list_files call for a different path "tests"
+    mode.on_model_update(
+        tool_call_start(2, "t2", "list_files", serde_json::json!({"path": "tests"})),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(3, "t2", "tests/integration.rs"), &mut ctx);
+
+    let lines = &mode.history_state.lines;
+
+    // The second completed call must NOT produce its own [tool] header —
+    // it should be folded into the paragraph started by the first call.
+    // Expect exactly 2 completed [tool] headers: 1 pending for t1 (before
+    // its result), 1 completed for t1, and t2's pending and completed
+    // headers are both folded. The pending header for t1 is emitted before
+    // t2 exists, so 2 pending + 1 completed = 3 max.
+    let tool_headers: Vec<_> = lines
+        .iter()
+        .filter(|l| l.starts_with("[tool] list_files"))
+        .collect();
+    assert!(
+        tool_headers.len() <= 3,
+        "same-name tool calls must fold; expected <= 3 [tool] headers \
+         (1 pending + 1 completed + 1 pending), got {}:\n{:#?}",
+        tool_headers.len(),
+        lines
+    );
+
+    // Must show a batch count annotation.
+    assert!(
+        lines.iter().any(|l| l.contains("2 files")),
+        "folded same-name tool calls must show a batch count; got:\n{:#?}",
+        lines
+    );
+
+    // Both results must have their evidence rows in the transcript.
+    assert!(
+        lines.iter().any(|l| l.contains("src/main.rs")),
+        "first tool result evidence must be preserved; got:\n{:#?}",
+        lines
+    );
+    assert!(
+        lines.iter().any(|l| l.contains("tests/integration.rs")),
+        "second tool result evidence must be preserved after folding; got:\n{:#?}",
+        lines
+    );
+
+    assert_eq!(
+        mode.same_name_tool_count, 2,
+        "same_name_tool_count should be 2 after two list_files calls with different paths"
+    );
+}
+
+#[test]
+fn test_long_transcript_line_truncated() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("task".to_string(), &mut ctx);
+
+    // Simulate a very long transcript line (e.g. large git diff output).
+    let long_line = "x".repeat(1024);
+    mode.on_model_update(UiUpdate::TranscriptLine(long_line.clone()), &mut ctx);
+
+    let lines = &mode.history_state.lines;
+    let last = lines.last().expect("should have at least one line");
+    assert!(
+        last.len() < long_line.len(),
+        "transcript lines exceeding 512 chars must be truncated; got {} chars",
+        last.len()
+    );
+    assert!(
+        last.contains("truncated"),
+        "truncated transcript line must indicate truncation; got: {}",
+        &last[last.len().saturating_sub(60)..]
+    );
+}
+
+#[test]
+fn test_edit_loop_lines_rendered_as_transcript() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("edit task".to_string(), &mut ctx);
+
+    // Edit loop turn markers must be stored in history.
+    mode.on_model_update(
+        UiUpdate::TranscriptLine("[edit loop turn 1/6]".to_string()),
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::TranscriptLine("[edit loop: running validation]".to_string()),
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::TranscriptLine("[edit loop: validation passed]".to_string()),
+        &mut ctx,
+    );
+
+    let lines = &mode.history_state.lines;
+    assert!(
+        lines.iter().any(|l| l.contains("edit loop turn 1/6")),
+        "edit loop turn marker must appear in transcript history"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("edit loop: validation passed")),
+        "edit loop validation status must appear in transcript history"
+    );
+}
+
+#[test]
+fn test_edit_loop_warning_preserved_in_transcript() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("edit task".to_string(), &mut ctx);
+
+    mode.on_model_update(
+        UiUpdate::TranscriptLine(
+            "[edit loop warning: workspace has uncommitted changes; proceeding without mutating git state]"
+                .to_string(),
+        ),
+        &mut ctx,
+    );
+
+    let lines = &mode.history_state.lines;
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("edit loop warning: workspace has uncommitted changes")),
+        "edit loop warning must appear in transcript history; got:\n{:#?}",
+        lines
+    );
+}
+
+#[test]
+fn test_edit_loop_turn_error_preserved_in_transcript() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("edit task".to_string(), &mut ctx);
+
+    mode.on_model_update(
+        UiUpdate::TranscriptLine("[edit loop turn error: connection timeout]".to_string()),
+        &mut ctx,
+    );
+
+    let lines = &mode.history_state.lines;
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("edit loop turn error: connection timeout")),
+        "edit loop turn error must appear in transcript history; got:\n{:#?}",
+        lines
+    );
+}
+
+#[test]
+fn test_edit_loop_complete_emits_telemetry_line() {
+    use crate::runtime::edit_loop::EditLoopOutcome;
+    use crate::types::StreamTimings;
+    use std::time::Instant;
+
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("edit task".to_string(), &mut ctx);
+
+    // Simulate server metadata arriving during the edit loop turn.
+    mode.turn_started_at = Some(Instant::now());
+    mode.ttft = Some(std::time::Duration::from_millis(200));
+    mode.current_turn_timings = Some(StreamTimings {
+        prompt_ms: Some(500.0),
+        prompt_n: Some(100),
+        predicted_ms: Some(1500.0),
+        predicted_n: Some(50),
+        ..Default::default()
+    });
+
+    // EditLoopComplete should capture and emit telemetry.
+    mode.on_model_update(
+        UiUpdate::EditLoopComplete {
+            outcome: EditLoopOutcome::Success {
+                patch_applied: true,
+                validate_passed: true,
+            },
+            last_validation_result: None,
+        },
+        &mut ctx,
+    );
+
+    let lines = &mode.history_state.lines;
+    // Must contain the timing summary line.
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("total:") && l.contains("ttft:")),
+        "EditLoopComplete must emit a telemetry summary line; got:\n{:#?}",
         lines
     );
 }

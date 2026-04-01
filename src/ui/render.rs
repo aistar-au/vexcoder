@@ -1331,7 +1331,7 @@ mod tests {
             .map(|index| crate::app::TimelineEntry {
                 step_id: index as u64,
                 lifecycle: crate::app::StepLifecycle::Completed,
-                label: format!("step_{index} · State synchronized."),
+                label: format!("step_{index} · Response complete."),
                 detail: format!("Tool: step_{index}"),
                 session_id: None,
             })
@@ -1383,7 +1383,7 @@ mod tests {
             timeline_entries: vec![crate::app::TimelineEntry {
                 step_id: 1,
                 lifecycle: crate::app::StepLifecycle::Completed,
-                label: "step_1 · State synchronized.".into(),
+                label: "step_1 · Response complete.".into(),
                 detail: "Tool: step_1".into(),
                 session_id: None,
             }],
@@ -1428,7 +1428,7 @@ mod tests {
 
     #[test]
     fn transcript_output_line_styles_paragraph_markers() {
-        let tool = transcript_output_line("[tool] read_file · State synchronized.");
+        let tool = transcript_output_line("[tool] read_file · Response complete.");
         let detail = transcript_output_line("[detail] Scope: Read file content");
         let evidence = transcript_output_line("[evidence] Outcome: ok");
 

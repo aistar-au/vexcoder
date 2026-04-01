@@ -763,7 +763,7 @@ impl TaskDraw {
     ///
     /// ```text
     ///   ✦ read_file src/main.rs              ← 2-space: tool activity summary
-    ///     Status: State synchronized., 42 lines ← 4-space: phase detail
+    ///     Status: Response complete., 42 lines ← 4-space: phase detail
     ///       ✧ fn main() { … }                ← 6-space: evidence snippet
     /// ```
     pub(super) fn draw_transcript_line(&mut self, w: &mut dyn Write, line: &str, cols: u16) {
@@ -918,6 +918,100 @@ impl TaskDraw {
                 RED,
                 true,
             );
+            return;
+        }
+
+        // ── Edit loop paragraph markers ──────────────────────────
+        if let Some(rest) = line.strip_prefix("[edit loop turn ") {
+            // Renders: "⟳ turn 2/6" with progress accent.
+            let label = format!("turn {}", rest.trim_end_matches(']'));
+            draw_status_paragraph_header(w, CYAN, "\u{27f3}", &label, cols, CYAN);
+            return;
+        }
+        if line == "[edit loop: running validation]" {
+            draw_status_paragraph_header(w, YELLOW, "\u{2699}", "running validation", cols, YELLOW);
+            return;
+        }
+        if line == "[edit loop: validation passed]" {
+            draw_icon_line(w, GREEN, "\u{2714}", WHITE, "validation passed", cols, true);
+            return;
+        }
+        if line == "[edit loop: validation failed, retrying]" {
+            draw_icon_line(
+                w,
+                RED,
+                "\u{2716}",
+                WHITE,
+                "validation failed, retrying",
+                cols,
+                true,
+            );
+            return;
+        }
+        if line == "[edit loop: no patch applied, retrying]" {
+            draw_icon_line(
+                w,
+                YELLOW,
+                "\u{26a0}",
+                WHITE,
+                "no patch applied, retrying",
+                cols,
+                true,
+            );
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[edit loop complete: ") {
+            let detail = rest.trim_end_matches(']');
+            draw_icon_line(w, GREEN, "\u{2605}", WHITE, detail, cols, true);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[edit loop reached max turns") {
+            let detail = rest.trim_end_matches(']').trim_start_matches(" — ");
+            let text = if detail.is_empty() {
+                "reached max turns".to_string()
+            } else {
+                format!("max turns: {detail}")
+            };
+            draw_icon_line(w, YELLOW, "\u{26a0}", WHITE, &text, cols, true);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[edit loop warning: ") {
+            let detail = rest.trim_end_matches(']');
+            draw_icon_line(w, YELLOW, "\u{26a0}", WHITE, detail, cols, true);
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("[edit loop turn error: ") {
+            let detail = rest.trim_end_matches(']');
+            draw_icon_line(w, RED, "\u{2716}", WHITE, detail, cols, true);
+            return;
+        }
+        if line == "[edit loop aborted: approval denied]" {
+            draw_icon_line(
+                w,
+                RED,
+                "\u{2716}",
+                WHITE,
+                "edit loop aborted: approval denied",
+                cols,
+                true,
+            );
+            return;
+        }
+        if line == "[edit loop cancelled]" {
+            draw_icon_line(
+                w,
+                YELLOW,
+                "\u{26a0}",
+                WHITE,
+                "edit loop cancelled",
+                cols,
+                true,
+            );
+            return;
+        }
+        if line.starts_with("[edit loop") {
+            let inner = line.trim_start_matches('[').trim_end_matches(']');
+            draw_prefixed_disclosure_line(w, "  ", None, inner, cols, CYAN, GRAY, true);
             return;
         }
 
