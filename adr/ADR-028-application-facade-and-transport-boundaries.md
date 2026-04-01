@@ -57,7 +57,8 @@ Adopt a layered boundary model with strict inward dependency direction.
 - `src/server/http.rs`
 - `src/server/sse.rs`
 - `src/server/socket.rs`
-- `src/server/handlers.rs`
+- `src/server/handlers/mod.rs`
+- `src/server/handlers/session.rs`
 - `src/server/util.rs`
 
 **Responsibilities**
@@ -84,7 +85,7 @@ For the current ADR chain, transport means the ADR-026 `LocalApiServer` surface 
 
 - `src/app.rs`                    # module root during transition
 - `src/app/core.rs`
-- `src/app/commands.rs`
+- `src/app/commands/mod.rs`
 - `src/app/context.rs`
 - `src/app/errors.rs`
 - `src/app/util.rs`
@@ -251,7 +252,7 @@ This prevents duplication between provider-native events, facade-local ad hoc ev
 
 - module moves and compatibility shims are required during migration.
 - some TUI-centric behavior currently living near app wiring will need relocation.
-- short-term churn in imports and tests is expected as code is decomposed.
+- short-term churn in imports and tests is expected as code is extracted.
 
 ---
 
@@ -325,7 +326,7 @@ in the debug commit on this date and recorded here for traceability.
 
 ### Bug 1 — local protocol routing mismatch
 
-**Location:** `src/api/client.rs` — `should_prefer_chat_compat_wire_protocol()`
+**Location:** `src/api/client/mod.rs` — `should_prefer_chat_compat_wire_protocol()`
 
 **Root cause:** The client mixed explicit protocol selection with URL heuristics.
 An explicit `messages-v1` configuration could still be redirected to the
@@ -360,7 +361,7 @@ not the in-session transcript.
 
 ### Bug 3 — Orchestrator activity pane does not show active steps
 
-**Location:** `src/app/layout.rs` (`task_activity_rows`), `src/ui/render.rs`
+**Location:** `src/app/layout.rs` (`task_activity_rows`), `src/ui/render/mod.rs`
 (`render_task_layout`, `pipeline_activity_line`)
 
 **Root cause:** `task_activity_rows()` only iterated `current_turn_tool_invocations`
@@ -408,7 +409,7 @@ and are re-exported from `src/app.rs`.
 
 ### Transport-side changes
 
-`src/server/handlers.rs` was refactored to remove all direct `crate::runtime`
+`src/server/handlers/mod.rs` and `src/server/handlers/session.rs` were refactored to remove all direct `crate::runtime`
 imports from the `agents`, `delegate`, and `watch` route handlers.  Those three
 handlers now call only `facade_list_agents`, `facade_delegate_session_task`, and
 `facade_watch_snapshot` respectively.  The only remaining `crate::runtime`

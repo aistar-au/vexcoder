@@ -705,16 +705,16 @@ When checking a box above, append an evidence block under this section:
 - Operator: coding agent
 - Commit: `19c688b846892651ab4e81d8a74eab8c601601c3`
 - Files changed:
-    - `src/app/commands.rs` (existing — already present on `main`)
+    - `src/app/commands/mod.rs` (existing — already present on `main`)
     - `src/app/turn_start.rs` (existing — already present on `main`)
     - `src/app/tests/model_turn.rs` (existing — already present on `main`)
     - `src/app/tests/slash_commands.rs` (existing — already present on `main`)
 - Line references:
-    - `src/app/commands.rs:31`
-    - `src/app/commands.rs:178`
-    - `src/app/commands.rs:354`
-    - `src/app/commands.rs:392`
-    - `src/app/commands.rs:415`
+    - `src/app/commands/mod.rs:31`
+    - `src/app/commands/mod.rs:178`
+    - `src/app/commands/mod.rs:354`
+    - `src/app/commands/mod.rs:392`
+    - `src/app/commands/mod.rs:415`
     - `src/app/turn_start.rs:49`
     - `src/app/tests/model_turn.rs:573`
     - `src/app/tests/model_turn.rs:698`
@@ -765,13 +765,13 @@ When checking a box above, append an evidence block under this section:
 - Operator: coding agent
 - Commit: `19c688b846892651ab4e81d8a74eab8c601601c3`
 - Files changed:
-    - `src/app/commands.rs` (existing — already present on `main`)
+    - `src/app/commands/mod.rs` (existing — already present on `main`)
     - `src/prompts.rs` (existing — already present on `main`)
     - `docs/src/commands.md` (existing — already present on `main`)
     - `src/app/tests/model_turn.rs` (existing — already present on `main`)
 - Line references:
-    - `src/app/commands.rs:204`
-    - `src/app/commands.rs:354`
+    - `src/app/commands/mod.rs:204`
+    - `src/app/commands/mod.rs:354`
     - `src/prompts.rs:49`
     - `src/prompts.rs:86`
     - `src/app/tests/model_turn.rs:791`
@@ -789,11 +789,11 @@ When checking a box above, append an evidence block under this section:
 - Operator: coding agent
 - Commit: 37f379d42f2fee392e5fbfebff9ef131e4174de8
 - Files changed:
-    - `src/app/commands.rs` (existing — `handle_context_command` already present on `main`)
-    - `src/app/tests.rs` (existing — EL-12 anchor tests already present on `main`)
+    - `src/app/commands/mod.rs` (existing — `handle_context_command` already present on `main`)
+    - `src/app/tests/mod.rs` (existing — EL-12 anchor tests already present on `main`)
 - Line references:
-    - `src/app/commands.rs:407`
-    - `src/app/tests.rs:3402`
+    - `src/app/commands/mod.rs:407`
+    - `src/app/tests/mod.rs:3402`
 - Validation:
     - `cargo test --all-targets` : pass
     - `check_no_alternate_routing.sh` : pass
@@ -807,11 +807,11 @@ When checking a box above, append an evidence block under this section:
 - Operator: coding agent
 - Commit: 37f379d42f2fee392e5fbfebff9ef131e4174de8
 - Files changed:
-    - `src/app/commands.rs` (existing — `handle_commands_command` already present on `main`)
-    - `src/app/tests.rs` (existing — EL-13 anchor tests already present on `main`)
+    - `src/app/commands/mod.rs` (existing — `handle_commands_command` already present on `main`)
+    - `src/app/tests/mod.rs` (existing — EL-13 anchor tests already present on `main`)
 - Line references:
-    - `src/app/commands.rs:470`
-    - `src/app/tests.rs:3481`
+    - `src/app/commands/mod.rs:470`
+    - `src/app/tests/mod.rs:3481`
 - Validation:
     - `cargo test --all-targets` : pass
     - `check_no_alternate_routing.sh` : pass

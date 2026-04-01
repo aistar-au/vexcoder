@@ -76,7 +76,7 @@ PI-08 (`/plan`, `/context`) merged in ADR-023 batch.
 
 ### ~~Tier 4 -- Security Hardening (ADR-021 P1)~~ (cleared 2026-03-27)
 
-- Item 18: editor MAX_INPUT_BYTES cap in src/ui/editor.rs
+- Item 18: editor MAX_INPUT_BYTES cap in src/ui/editor/mod.rs
 - Item 26: SSE buffer renamed to MAX_SSE_BUFFER_BYTES; overflow now emits
   StreamEvent::Error instead of bail!, surfacing cleanly to UiUpdate::Error
 - Item 19: parse_frame_bytes emits StreamEvent::Error on failure;
@@ -141,12 +141,12 @@ ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-
 
 - Phase 1 complete: bounded in-memory context snapshot cache and opt-in automatic git context merged.
 - Phase 2 complete: `src/disk_policy.rs` (DiskPermission classifier) and `src/config/cache.rs` (OnceLock config cache) merged in PR #278.
-- Batch C complete: `src/config/load.rs` decomposed into directory module (`load/paths.rs`, `load/merge.rs`, `load/parse.rs`) in PR #279.
-- Batch D complete: `src/tools/operator.rs` decomposed into `src/tools/operator/{mod,core,file_ops,git_ops,search}.rs` in PR #280.
-- Batch E complete: `src/runtime/context_assembler.rs` decomposed into `src/runtime/context_assembler/{mod,reads}.rs` in PR #281.
+- Batch C complete: `src/config/load.rs` extracted into directory module (`load/paths.rs`, `load/merge.rs`, `load/parse.rs`) in PR #279.
+- Batch D complete: `src/tools/operator.rs` extracted into `src/tools/operator/{mod,core,file_ops,git_ops,search}.rs` in PR #280.
+- Batch E complete: `src/runtime/context_assembler.rs` extracted into `src/runtime/context_assembler/{mod,reads}.rs` in PR #281.
 - Batch F complete: `src/disk_policy.rs` gains `enforce()` / `enforce_runtime()`, `tests/disk_policy_tests.rs` adds strict/warn/off coverage, `make check-disk-policy` is wired into `arch-contracts.yml` in PR #281.
 - Batch G complete: `src/tools/operator/policy.rs` wraps `disk_policy::enforce` for operator-level durable-access assertions; `TaskState::save()` and `TaskState::load()` wired through `assert_durable_access()`; cross-platform `check_path()` fix for Windows backslash separators in PR #282.
-- Batch H complete: `src/runtime/task_state.rs` (807 lines) decomposed into `src/runtime/task_state/{mod.rs, persist.rs}` in PR #283. WAL evaluation concluded: not warranted because task-state saves are per-session and `write_json_safe` already performs crash-safe writes (temp + fsync + rename).
+- Batch H complete: `src/runtime/task_state.rs` (807 lines) extracted into `src/runtime/task_state/{mod.rs, persist.rs}` in PR #283. WAL evaluation concluded: not warranted because task-state saves are per-session and `write_json_safe` already performs crash-safe writes (temp + fsync + rename).
 
 #### ~~Planned remaining batches (ADR-038)~~ (all complete)
 
@@ -185,7 +185,7 @@ Concrete targets (9 display-facing strings across 5 files):
 
 | File | Count | Terms to normalize |
 | :--- | :--- | :--- |
-| `src/app/commands.rs` | 3 | `parent=` -> `origin=` in watch lines; `branched from` -> `derived from`; `fork aborted` -> `fork halted` |
+| `src/app/commands/mod.rs` | 3 | `parent=` -> `origin=` in watch lines; `branched from` -> `derived from`; `fork aborted` -> `fork halted` |
 | `src/bin/vex.rs` | 2 | `parent=` -> `origin=` in session-task status lines |
 | `src/app/model_update.rs` | 1 | `aborted` -> `halted` in edit loop approval denial |
 | `src/app/input.rs` | 2 | `busy` -> `occupied` in turn-in-progress status lines |
@@ -202,7 +202,7 @@ Candidate implementation areas:
 
 | File | Scope |
 | :--- | :--- |
-| `src/ui/render.rs` | ratatui widget for pulsing-star glyph paired with mapping status text |
+| `src/ui/render/mod.rs` | ratatui widget for pulsing-star glyph paired with mapping status text |
 | `src/ui/draw/transcript.rs` | ANSI plain-text fallback rendering the star as a static glyph |
 | `src/status_contract.rs` | `ACTIVE_INDICATOR_GLYPH` constant and accessibility fallback string |
 
@@ -218,7 +218,7 @@ Candidate implementation areas:
 | File | Scope |
 | :--- | :--- |
 | `src/ui/draw/transcript.rs` | Paragraph-stream layout for tool/agent updates in the ANSI renderer |
-| `src/ui/render.rs` | ratatui paragraph widget for orchestrator progress lane |
+| `src/ui/render/mod.rs` | ratatui paragraph widget for orchestrator progress lane |
 | `src/app/model_update.rs` | Coalesce sequential tool-status updates into a rolling paragraph |
 | `src/runtime/core.rs` | Expose active file-count and active-agent-count to the UI update channel |
 
@@ -234,6 +234,7 @@ Candidate implementation areas:
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| EL-extract | `work/vexcoder-edit-loop-tui-extract` | #311 | Draft PR, CI green | Extract oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |
 | ADR-038-EF | `work/vexcoder-adr-038-reads-and-policy-gate` | #281 | **Merged** | `context_assembler/{mod,reads}.rs` split plus strict disk-policy test/CI gate for ADR-038 Batches E/F |
 | ADR-038-G | `work/vexcoder-adr-038-operator-policy-wiring` | #282 | **Merged** | Operator policy module and disk-policy wiring into task-state I/O (ADR-038 Batch G) |
 | ADR-038-H | `work/vexcoder-adr-038-task-state-persist` | #283 | **Merged** | Task-state persist extraction + WAL evaluation (ADR-038 Batch H) |

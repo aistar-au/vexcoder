@@ -266,14 +266,23 @@ impl CommandRunner for DefaultCommandRunner {
         });
 
         tokio::spawn(async move {
-            let wait_result = tokio::select! {
+            let (cancelled, wait_result) = tokio::select! {
                 _ = cancel_rx => {
                     kill_process_group(pid);
                     let _ = process.kill().await;
-                    process.wait().await
+                    (true, process.wait().await)
                 }
-                result = process.wait() => result,
+                result = process.wait() => (false, result),
             };
+
+            if cancelled {
+                // Windows can keep pipe readers blocked briefly after the
+                // process tree has been torn down. Abort them so cancellation
+                // always releases the completion waiter promptly.
+                stdout_task.abort();
+                stderr_task.abort();
+            }
+
             let _ = stdout_task.await;
             let _ = stderr_task.await;
             let result = wait_result
@@ -405,6 +414,27 @@ mod tests {
 
         assert!(result.is_ok(), "cancel must complete within 2 seconds");
         assert!(result.unwrap().is_ok(), "cancel must not error");
+    }
+
+    #[tokio::test]
+    async fn test_command_runner_cancelled_handle_wait_completes_promptly() {
+        let runner = DefaultCommandRunner::new();
+        let (tx, _rx) = tokio::sync::mpsc::channel(16);
+        let req = long_running_request();
+
+        let mut handle = runner.run_streaming(req, tx).await.expect("spawn failed");
+        handle.cancel().expect("cancel should not error");
+
+        let result = tokio::time::timeout(tokio::time::Duration::from_secs(5), handle.wait()).await;
+
+        assert!(
+            result.is_ok(),
+            "cancelled command wait must complete promptly"
+        );
+        assert!(
+            result.unwrap().is_ok(),
+            "cancelled command wait must not error"
+        );
     }
 
     #[tokio::test]

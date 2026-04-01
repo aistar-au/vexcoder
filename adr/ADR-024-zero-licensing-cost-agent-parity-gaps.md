@@ -1420,7 +1420,7 @@ fn skills_install_rejects_raw_url() {
     assert!(result.is_err());
 }
 
-// src/app/tests.rs
+// src/app/tests/mod.rs
 
 #[test]
 fn model_switch_name_only_succeeds() {
@@ -1783,12 +1783,12 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `src/app.rs` (+2 -1)
   - `src/runtime.rs` (+2 -0)
   - `src/runtime/sandbox.rs` (+33 -0)
-  - `src/state/conversation/tools.rs` (+161 -3)
+  - `src/state/conversation/tools/mod.rs` (+161 -3)
   - `src/state/conversation/state.rs` (+12 -0)
   - `src/state/conversation/core.rs` (+6 -1)
   - `src/state/conversation/tests.rs` (+319 -0)
   - `src/tools/operator.rs` (+22 -0)
-  - `src/api/client.rs` (+16 -0)
+  - `src/api/client/mod.rs` (+16 -0)
   - `src/batch_mode.rs` (+6 -3)
   - `tests/integration_test.rs` (+23 -0)
 - Validation:
@@ -1815,7 +1815,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `src/runtime/project_instructions.rs` — PA-02 loading logic
   - `src/app.rs` — TuiMode injection at startup
   - `src/batch_mode.rs` — BatchMode injection
-  - `src/api/client.rs` — `with_project_instructions` system prompt wrapping
+  - `src/api/client/mod.rs` — `with_project_instructions` system prompt wrapping
   - `src/config.rs` — `max_project_instructions_tokens` config field
 - Validation:
   - `cargo test test_within_budget_is_loaded --all-targets` : pass
@@ -1834,7 +1834,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Files:
   - `src/runtime/sandbox.rs` — `SandboxDriver` trait + `PassthroughSandbox`
   - `src/runtime.rs` — re-export
-  - `src/state/conversation/tools.rs` — tool dispatch uses `PassthroughSandbox`
+  - `src/state/conversation/tools/mod.rs` — tool dispatch uses `PassthroughSandbox`
 - Validation:
   - `cargo test passthrough_sandbox_is_identity --all-targets` : pass
   - `cargo test --all-targets` : pass
@@ -1987,7 +1987,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `src/runtime/context.rs` (+14 -0)
   - `src/runtime/context_assembler.rs` (+14 -0)
   - `src/state/conversation/state.rs` (+8 -0)
-  - `src/api/client.rs` (+25 -18)
+  - `src/api/client/mod.rs` (+25 -18)
 - Validation:
   - `cargo test --all-targets` : pass
   - `make gate-fast` : pass
@@ -2023,13 +2023,13 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Files changed:
   - `src/app.rs` (+619 -0)
   - `src/custom_commands.rs` (+231 -0)
-  - `src/state/conversation/tools.rs` (+163 -0)
+  - `src/state/conversation/tools/mod.rs` (+163 -0)
   - `src/state/conversation/core.rs` (+55 -0)
   - `src/state/conversation/tests.rs` (+81 -0)
   - `src/runtime/context.rs` (+18 -0)
   - `src/prompts.rs` (+30 -0)
   - `src/prompts/generate_tests_template.txt` (+1 -0)
-  - `src/api/client.rs` (+24 -0)
+  - `src/api/client/mod.rs` (+24 -0)
   - `docs/src/commands.md` (+16 -0)
   - `TASKS/completed/REPO-RAW-URL-MAP.md` (+265 -265)
 - Validation:
@@ -2099,8 +2099,8 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `src/app/ctor.rs` — `McpRegistry` constructed from config at session open
   - `src/app/facade.rs` — registry injected into `AppFacade`; STDIO servers started on session start
   - `src/app/runtime_build.rs` — registry wired into session builder
-  - `src/api/client.rs` — MCP tool call dispatch path
-  - `src/state/conversation/tools.rs` — MCP tools merged into dispatch table
+  - `src/api/client/mod.rs` — MCP tool call dispatch path
+  - `src/state/conversation/tools/mod.rs` — MCP tools merged into dispatch table
   - `docs/src/configuration.md` — `[[mcp_servers]]` table documentation
 - Validation:
   - `cargo test --all-targets` : pass
@@ -2117,7 +2117,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Files:
   - `src/runtime/approval.rs` — `Capability::McpTool` variant; default approval scope `once`
   - `src/state/conversation/state.rs` — MCP tool approval check wired into tool dispatch
-  - `src/app/commands.rs` — `/mcp list` and `/mcp tools` slash commands; renders current `McpRegistry` snapshot
+  - `src/app/commands/mod.rs` — `/mcp list` and `/mcp tools` slash commands; renders current `McpRegistry` snapshot
   - `src/app/tests/slash_commands.rs` — ADR anchor tests for PF-01/PF-02 approval and `/mcp` commands
   - `src/batch_mode.rs` — MCP tool calls propagated through batch execution path
 - Validation:
@@ -2132,7 +2132,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Operator: work/vexcoder-adr024-tier2
 - Commit: merged in Phase F batch (PR 232 / work/vexcoder-adr024-mcp-runtime)
 - Files changed:
-  - `src/app/commands.rs` — `handle_mcp_command` handles `list` subcommand
+  - `src/app/commands/mod.rs` — `handle_mcp_command` handles `list` subcommand
 - Validation:
   - `cargo nextest run -j 2` : pass (anchor tests in slash_commands.rs)
 - Notes:
@@ -2142,7 +2142,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Operator: work/vexcoder-adr024-tier2
 - Commit: merged in Phase F batch (PR 232 / work/vexcoder-adr024-mcp-runtime)
 - Files changed:
-  - `src/app/commands.rs` — `handle_mcp_command` handles `show <server>` subcommand
+  - `src/app/commands/mod.rs` — `handle_mcp_command` handles `show <server>` subcommand
 - Validation:
   - `cargo nextest run -j 2` : pass
 - Notes:
@@ -2153,7 +2153,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Operator: ADR-023 EL-11/EL-12
 - Commit: merged in ADR-023 implementation batch
 - Files changed:
-  - `src/app/commands.rs` — `handle_plan_command`, `handle_context_command`
+  - `src/app/commands/mod.rs` — `handle_plan_command`, `handle_context_command`
 - Notes:
   - Tracked in ADR-023; listed here for cross-reference only.
 
@@ -2179,8 +2179,8 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `src/tools/workspace_explore.rs` (+290 lines) — `list_dir` and `glob_files` handler functions; all anchor tests
   - `src/tools/operator.rs` — `walk_workspace_files` now loads `WorkspaceIgnore` and skips ignored paths; helper methods exposed `pub(super)` for workspace_explore
   - `src/tools.rs` — `workspace_ignore` and `workspace_explore` modules declared; `list_dir` and `glob_files` re-exported
-  - `src/state/conversation/tools.rs` — `list_dir` and `glob_files` wired into tool dispatch; added to `is_read_only_tool_name`
-  - `src/api/client.rs` — tool definitions added for `list_dir` and `glob_files`; dispatch coverage test updated
+  - `src/state/conversation/tools/mod.rs` — `list_dir` and `glob_files` wired into tool dispatch; added to `is_read_only_tool_name`
+  - `src/api/client/mod.rs` — tool definitions added for `list_dir` and `glob_files`; dispatch coverage test updated
   - `src/app/util.rs` — `list_dir`, `glob_files` added to `capability_for_tool_name` under `ReadFile`
   - `src/runtime/json_handoff.rs` — `list_dir`, `glob_files` added to capability name map
   - `src/app.rs` — `list_dir`, `glob_files` added to `builtin_tool_menu_group` (retrieve) and `builtin_tool_usage_hint`

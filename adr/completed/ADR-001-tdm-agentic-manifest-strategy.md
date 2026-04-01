@@ -91,13 +91,13 @@ Standard ADR practice (as documented in this directory) is used for *architectur
 - Code review scope is bounded by the task's `Target File` constraint.
 
 **Harder:**
-- Cross-cutting refactors that touch many files must be decomposed into sequential tasks, which takes more upfront planning.
+- Cross-cutting refactors that touch many files must be extracted into sequential tasks, which takes more upfront planning.
 - The human architect must write the failing test (the red phase) before dispatching an agent. This is intentional but requires discipline.
 - Removing completed tasks from `TASKS/` is tempting but destroys audit history.
 
 **Constraints imposed on future work:**
 - New bug reports must produce a task manifest + anchor test before any agent is dispatched. "Fix this" prompts with no manifest are out of scope for the TDM loop.
-- Task manifests must be kept under ~2 KB. If a task description grows beyond that, it is a signal to decompose the task.
+- Task manifests must be kept under ~2 KB. If a task description grows beyond that, it is a signal to extract the task.
 - The `TASKS/completed/` directory must not be purged as part of cleanup automation.
 
 ---

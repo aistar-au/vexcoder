@@ -52,7 +52,7 @@ creating a second execution model.
 
 The runtime orchestrator remains the only authority allowed to:
 
-- decompose a parent task into session tasks;
+- extract a parent task into session tasks;
 - assign a session task to an agent definition;
 - mark a session task as pending, running, blocked, failed, cancelled, or
   completed;
@@ -204,12 +204,12 @@ Phase B-E baseline (PR `#230`) added:
   `agent_id`, `worktree_path`, and backward-compat `child_tasks` serde alias;
 - `/agents`, `/delegate`, `/watch/{id}`, and `/session-tasks/{id}/release`
   HTTP routes and handlers in
-  `src/server/handlers.rs`, routed through the **ADR-028 application facade**
+  `src/server/handlers/mod.rs` and `src/server/handlers/session.rs`, routed through the **ADR-028 application facade**
   via new entrypoints `facade_list_agents`, `facade_delegate_session_task`, and
   `facade_watch_snapshot` / `facade_release_session_task` in
   `src/app/task_facade.rs`;
 - `/agents`, `/delegate <agent> <prompt>`, `/watch [id]` slash commands in
-  `src/app/commands.rs`;
+  `src/app/commands/`;
 - `vex tasks list` / `vex tasks watch <id>` sub-commands in `src/bin/vex.rs`;
 - session-task state wired into batch-mode JSONL summary, Markdown export, and
   existing `TurnEvidence` records.
@@ -260,7 +260,7 @@ already-merged Phase A / Phase B-E baseline.
 - **O-5** — Replace hand-rolled `strip_ansi` with the `strip-ansi-escapes`
   crate (`src/app.rs`, `Cargo.toml`).
 - **O-6** — Route internal errors through `tracing::error!` in
-  `internal_anyhow` for structured observability (`src/server/handlers.rs`).
+  `internal_anyhow` for structured observability (`src/server/handlers/mod.rs`).
 - **O-7** — Filter comment lines in the dependency-direction enforcement tests
   to avoid false positives on `//` lines (`tests/dependency_direction_tests.rs`).
 - **O-8** — Replace unchecked `as u64` cast with

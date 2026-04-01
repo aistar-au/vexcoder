@@ -295,15 +295,15 @@ repository-hosted sessions.
 Recommended shard ownership for UI-overhaul work:
 
 - `vexcoder-ui-parity-orchestrator`
-  `src/app.rs`, `src/app/accessors.rs`, `src/app/commands.rs`,
+  `src/app.rs`, `src/app/accessors.rs`, `src/app/commands/mod.rs`,
   `src/app/input.rs`, `src/app/inline.rs`, `src/app/model_update.rs`,
-  `src/app/turn.rs`, `src/bin/vex.rs`, `src/ui/editor.rs`, and final
+  `src/app/turn.rs`, `src/bin/vex.rs`, `src/ui/editor/mod.rs`, and final
   workflow/doc cleanup only when explicitly assigned.
 - `vexcoder-ui-paragraph-renderer`
   `src/ui/draw/mod.rs`, `src/ui/draw/transcript.rs`, `src/ui/draw/ansi.rs`,
   `src/ui/draw/tests.rs`, and closely related transcript helpers.
 - `vexcoder-transcript-renderer-overhaul`
-  `src/app/layout.rs`, `src/app/tests.rs`, `src/ui/render.rs`,
+  `src/app/layout.rs`, `src/app/tests/`, `src/ui/render/mod.rs`,
   `src/ui/layout.rs`, `src/ui/draw/regions.rs`,
   `tests/layout_underflow_tests.rs`, and related layout/timeline helpers.
 
@@ -317,7 +317,7 @@ git push -u origin work/vexcoder-ui-overhaul
 gh agent-task create \
   --base work/vexcoder-ui-overhaul \
   --custom-agent vexcoder-ui-parity-orchestrator \
-  "Shard: prompt interactivity. Own only src/app.rs, src/app/accessors.rs, src/app/commands.rs, src/app/input.rs, src/app/inline.rs, src/app/model_update.rs, src/app/turn.rs, src/bin/vex.rs, and src/ui/editor.rs. Focus on prompt submission, slash commands, @file expansion, and startup API/model prompting. Do not edit layout or ANSI-surface files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Shard: prompt interactivity. Own only src/app.rs, src/app/accessors.rs, src/app/commands/mod.rs, src/app/input.rs, src/app/inline.rs, src/app/model_update.rs, src/app/turn.rs, src/bin/vex.rs, and src/ui/editor/mod.rs. Focus on prompt submission, slash commands, @file expansion, and startup API/model prompting. Do not edit layout or ANSI-surface files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 
 gh agent-task create \
@@ -329,7 +329,7 @@ gh agent-task view <session-id-from-create-output> --log --follow
 gh agent-task create \
   --base work/vexcoder-ui-overhaul \
   --custom-agent vexcoder-transcript-renderer-overhaul \
-  "Shard: task-state layout and fallback renderer. Own only src/app/layout.rs, src/app/tests.rs, src/ui/render.rs, src/ui/layout.rs, src/ui/draw/regions.rs, tests/layout_underflow_tests.rs, and directly related helpers. Focus on single-stream transcript layout, fixed 3-line prompt geometry, blank initial transcript behavior, and fallback parity. Do not edit ANSI transcript files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Shard: task-state layout and fallback renderer. Own only src/app/layout.rs, src/app/tests/, src/ui/render/mod.rs, src/ui/layout.rs, src/ui/draw/regions.rs, tests/layout_underflow_tests.rs, and directly related helpers. Focus on single-stream transcript layout, fixed 3-line prompt geometry, blank initial transcript behavior, and fallback parity. Do not edit ANSI transcript files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 ```
 
@@ -456,13 +456,13 @@ vexcoder/ (standalone view)
 | `src/lib.rs` | Crate root exporting runtime/app/api/state/tools/ui modules. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/lib.rs> |
 | `src/bin/vex.rs` | Production binary entrypoint and managed TUI startup loop. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/bin/vex.rs> |
 | `src/api.rs` | API module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api.rs> |
-| `src/api/client.rs` | HTTP client, protocol selection, request/stream setup, tool schemas. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client.rs> |
+| `src/api/client/mod.rs` | HTTP client module root for protocol selection, request/stream setup, and shared payload wiring; tool schemas now live under `src/api/client/tools.rs`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client/mod.rs> |
 | `src/api/logging.rs` | Shared API debug/error logger and env-based log path handling. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/logging.rs> |
 | `src/api/mock_client.rs` | Mock streaming client used by tests. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
 | `src/api/stream.rs` | Stream/SSE event parsing helpers used by API layer. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
 | `src/app.rs` | Current interactive application module root: TUI mode state, input, overlays, history, and runtime-facing coordination. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
 | `src/app/accessors.rs` | TuiMode status and read-only accessor methods extracted from app facade under ADR-028 phase 4. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/accessors.rs> |
-| `src/app/commands.rs` | Slash-command handler methods extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/commands.rs> |
+| `src/app/commands/mod.rs` | Slash-command handler module root; command families are split across focused files under `src/app/commands/`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/commands/mod.rs> |
 | `src/app/ctor.rs` | TuiMode construction methods extracted from app facade under ADR-028 phase 4. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/ctor.rs> |
 | `src/app/errors.rs` | AppError wrapper type and AppResult type alias for error handling. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/errors.rs> |
 | `src/app/facade.rs` | API client facade builder with project instructions and bootstrap configuration. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/facade.rs> |
@@ -474,7 +474,7 @@ vexcoder/ (standalone view)
 | `src/app/runtime_build.rs` | Runtime-construction functions `build_runtime` and `build_runtime_with_resume` extracted from app facade under ADR-028 phase 6. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/runtime_build.rs> |
 | `src/app/scroll.rs` | Viewport and history scroll methods extracted from app facade under ADR-028 phase 2. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/scroll.rs> |
 | `src/app/shell.rs` | Bang-command approval and command-session spawn methods extracted from app facade under ADR-028 phase 3. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/shell.rs> |
-| `src/app/tests.rs` | App-level unit and integration tests extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests.rs> |
+| `src/app/tests/mod.rs` | App-level unit and integration tests module root extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/tests/mod.rs> |
 | `src/app/turn.rs` | Turn-lifecycle and command-session tracking methods extracted from app facade under ADR-028 phase 2. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/turn.rs> |
 | `src/app/turn_start.rs` | Turn-dispatch and context-assembly helper methods extracted from app facade under ADR-028 phase 3. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/turn_start.rs> |
 | `src/app/util.rs` | Module-level helper functions extracted from app facade under ADR-028 phase 1. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/util.rs> |
@@ -514,7 +514,7 @@ vexcoder/ (standalone view)
 | `src/state/conversation/state.rs` | Conversation state types and `ConversationManager` constructors/accessors. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/state.rs> |
 | `src/state/conversation/streaming.rs` | Stream block lifecycle helpers, block promotion, and delta emission utilities. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/streaming.rs> |
 | `src/state/conversation/tests.rs` | Conversation module tests covering protocol flow, loop guards, and regression anchors. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tests.rs> |
-| `src/state/conversation/tools.rs` | Tool execution dispatch, approval gating, input parsing, and tool-loop guard helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools.rs> |
+| `src/state/conversation/tools/mod.rs` | Tool execution dispatch module root; approval gating, guard helpers, and search/config helpers now live under `src/state/conversation/tools/`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/mod.rs> |
 | `src/state/stream_block.rs` | Structured stream block models and tool status enum. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/stream_block.rs> |
 | `src/terminal.rs` | CLI raw-mode lifecycle and panic-safe restore guard. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/terminal.rs> |
 | `src/test_support.rs` | Shared test synchronization helpers (e.g., env lock). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/test_support.rs> |
@@ -533,10 +533,10 @@ vexcoder/ (standalone view)
 | `src/ui/draw/regions.rs` | Adaptive layout region computation for the fullscreen three-region workspace surface. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/regions.rs> |
 | `src/ui/draw/transcript.rs` | Transcript line rendering with markdown, checklists, numbered lists, and inline formatting. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/transcript.rs> |
 | `src/ui/draw/tests.rs` | Draw engine unit tests covering layout, rendering, and hash computation. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/tests.rs> |
-| `src/ui/editor.rs` | Text input editor with history, undo/redo stacks, and cursor management. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/editor.rs> |
+| `src/ui/editor/mod.rs` | Text input editor module root with history, undo/redo stacks, and cursor management; editor tests now live under `src/ui/editor/tests.rs`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/editor/mod.rs> |
 | `src/ui/input_metrics.rs` | Input editor row/width metrics for viewport-safe rendering. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/input_metrics.rs> |
 | `src/ui/layout.rs` | Ratatui pane layout splitting and geometry helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/layout.rs> |
-| `src/ui/render.rs` | Ratatui render functions for status, history, input, and overlays. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render.rs> |
+| `src/ui/render/mod.rs` | Ratatui render module root for status, history, input, and overlays; transcript rendering and tests now live under `src/ui/render/`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render/mod.rs> |
 | `src/util.rs` | Shared utility functions (bool/env parsing and endpoint helpers). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/util.rs> |
 | `src/usage.rs` | Token usage tracking structures for turns and sessions. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/usage.rs> |
 | `src/workspace.rs` | Repo-root and workspace-relative path helpers for repo-scoped state. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/workspace.rs> |

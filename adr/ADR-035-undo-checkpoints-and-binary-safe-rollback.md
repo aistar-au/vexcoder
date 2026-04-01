@@ -63,7 +63,7 @@ Implemented on `work/vexcoder-undo-checkpoints` as of 2026-03-30.
 
 Key source files:
 - `src/state/conversation/state.rs`
-- `src/app/commands.rs`
+- `src/app/commands/mod.rs`
 - `src/state/conversation/tests/undo.rs`
 - `src/config.rs`
 - `src/config/load/mod.rs`

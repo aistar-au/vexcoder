@@ -92,7 +92,7 @@ surface.
      incremental and persistent.
    - **Diff-native edits**: `apply_diff` / patch-style edits preferred over
      full-file writes to prevent truncation on files exceeding ~500 lines.
-   - **Task decomposition**: complex refactors decomposed into isolated
+   - **Task extraction**: complex refactors extracted into isolated
      subtasks with slim per-task context. Results summarized before passing
      back to the orchestrator.
    - **Context condensing**: conversation history auto-summarized; oldest

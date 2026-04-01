@@ -113,10 +113,10 @@ All four phases are implemented on `main` as of 2026-03-26.
 
 | Phase | Feature | Key source files |
 | :--- | :--- | :--- |
-| 1 | Structural search (`codebase_search`) | `src/api/client.rs` (tool definition), `src/state/conversation/tools.rs` (index lifecycle) |
-| 2 | Semantic vector search | `src/state/conversation/tools.rs` (embedding config readers) |
-| 3 | Write guards | `src/state/conversation/tools.rs` (`write_file_diff_preferred_above_lines`, `write_file_max_lines`), `src/api/client.rs` (tool description) |
-| 4 | Context condensing | `src/state/conversation/history.rs` (`condense_old_tool_results`, `compact_for_context_overflow`), `src/api/client.rs` (system prompt guidance) |
+| 1 | Structural search (`codebase_search`) | `src/api/client/tools.rs` (tool definition), `src/state/conversation/tools/mod.rs` (index lifecycle) |
+| 2 | Semantic vector search | `src/state/conversation/tools/` (embedding config readers) |
+| 3 | Write guards | `src/state/conversation/tools/mod.rs` (`write_file_diff_preferred_above_lines`, `write_file_max_lines`), `src/api/client/tools.rs` (tool description) |
+| 4 | Context condensing | `src/state/conversation/history.rs` (`condense_old_tool_results`, `compact_for_context_overflow`), `src/api/client/mod.rs` (system prompt guidance) |
 
 System prompt guidance and tool descriptions now reference all four phases.
 

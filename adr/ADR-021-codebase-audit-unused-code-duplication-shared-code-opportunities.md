@@ -20,7 +20,7 @@ Items are marked as:
 ### 1) `InputEditor` test-only coverage vs production behavior
 - **Status**: **Completed (2026-02-22)**
 - **Evidence**:
-  - Added shared production editor module: `src/ui/editor.rs`.
+  - Added shared production editor module: `src/ui/editor/mod.rs`.
   - Exported editor module from `src/ui.rs`.
   - `src/bin/vex.rs` now owns `InputEditor` and delegates editing/submit actions through `InputAction`.
   - Removed test-only editor implementation duplication from `src/app.rs`.
@@ -36,7 +36,7 @@ Items are marked as:
 ### 3) Scroll metrics mismatch with wrapped rendering
 - **Status**: **Completed (2026-02-22)**
 - **Evidence**:
-  - `src/ui/render.rs` now computes visual line count with wrapping:
+  - `src/ui/render/mod.rs` now computes visual line count with wrapping:
     `history_visual_line_count(messages, content_width)`.
   - Added shared width helper: `history_content_width_for_area(messages, area)`.
   - `src/app.rs` uses width-aware count for `status_line()` and `max_scroll_offset()`.
@@ -45,7 +45,7 @@ Items are marked as:
 ### 4) UTF-8 cursor logic duplicated across test/prod editors
 - **Status**: **Completed (2026-02-22)**
 - **Evidence**:
-  - Consolidated UTF-8 cursor and edit operations into `src/ui/editor.rs`.
+  - Consolidated UTF-8 cursor and edit operations into `src/ui/editor/mod.rs`.
   - Removed duplicate cursor/edit implementations from `src/bin/vex.rs`.
   - `src/app.rs` tests now import and exercise the shared editor module.
 
@@ -54,17 +54,17 @@ Items are marked as:
 Measured with:
 
 ```bash
-git add -N src/ui/editor.rs
-git diff --numstat -- src/ui/editor.rs src/app.rs src/bin/vex.rs src/ui.rs src/ui/render.rs
+git add -N src/ui/editor/mod.rs
+git diff --numstat -- src/ui/editor/mod.rs src/app.rs src/bin/vex.rs src/ui.rs src/ui/render/mod.rs
 ```
 
 | File | Insertions | Deletions |
 | :--- | ---: | ---: |
-| `src/ui/editor.rs` | 274 | 0 |
+| `src/ui/editor/mod.rs` | 274 | 0 |
 | `src/app.rs` | 14 | 258 |
 | `src/bin/vex.rs` | 45 | 139 |
 | `src/ui.rs` | 1 | 0 |
-| `src/ui/render.rs` | 25 | 8 |
+| `src/ui/render/mod.rs` | 25 | 8 |
 | **Total** | **359** | **405** |
 
 ## P1 — Unused Code / Cleanup Claims
@@ -73,7 +73,7 @@ git diff --numstat -- src/ui/editor.rs src/app.rs src/bin/vex.rs src/ui.rs src/u
 - **Status**: **Not accurate (current tree)**
 - **Correction**:
   - Non-test wrapper is used by production execution path from
-    `execute_tool_with_timeout` in `src/state/conversation/tools.rs`.
+    `execute_tool_with_timeout` in `src/state/conversation/tools/mod.rs`.
 
 ### 6) `looks_like_terminal_transcript` family likely bypassed
 - **Status**: **Not accurate (current tree)**
@@ -115,7 +115,7 @@ git diff --numstat -- src/ui/editor.rs src/app.rs src/bin/vex.rs src/ui.rs src/u
 ### 12) Diff row styling logic duplicated
 - **Status**: **Confirmed**
 - **Evidence**:
-  - `history_row_style` and `styled_diff_line` in `src/ui/render.rs`.
+  - `history_row_style` and `styled_diff_line` in `src/ui/render/mod.rs`.
 
 ### 13) `required_tool_string*` variants are mostly overlapping
 - **Status**: **Completed (2026-03-28)**
@@ -134,7 +134,7 @@ git diff --numstat -- src/ui/editor.rs src/app.rs src/bin/vex.rs src/ui.rs src/u
 - **Evidence**:
   - `src/ui/layout.rs` exports `MAX_INPUT_PANE_ROWS` for shared production use.
   - `src/tui_frontend.rs` clamps the current composer against that shared cap.
-  - `src/ui/render.rs` and `src/ui/draw/regions.rs` recompute composer height
+  - `src/ui/render/mod.rs` and `src/ui/draw/regions.rs` recompute composer height
     from wrapped content and current display geometry, so the fullscreen surface
     auto-fits to row and column changes instead of reserving a fixed prompt
     block.
@@ -144,8 +144,8 @@ git diff --numstat -- src/ui/editor.rs src/app.rs src/bin/vex.rs src/ui.rs src/u
 The following are design proposals and were not evaluated as strict true/false
 bugs in this pass:
 
-- Decompose `send_message` in `src/state/conversation/core.rs`.
-- Promote editor into production module (e.g., `src/ui/editor.rs`).
+- Extract `send_message` in `src/state/conversation/core.rs`.
+- Promote editor into production module (e.g., `src/ui/editor/mod.rs`).
 - Unify scroll behavior behind shared abstraction.
 - Introduce shared approval parser helper.
 - Centralize tool metadata (`ToolKind`/registry approach).
@@ -154,7 +154,7 @@ bugs in this pass:
 - Split large app module for navigation ergonomics.
 - Expand `src/util.rs` for repeated parsing/truncation helpers.
 - Add stronger `src/test_support.rs` harness helpers.
-- Move prompt/schema blobs out of `src/api/client.rs` where practical.
+- Move prompt/schema blobs out of `src/api/client/mod.rs` where practical.
 
 ## External Audit Follow-up (2026-02-22)
 
@@ -204,7 +204,7 @@ git diff --numstat -- src/runtime/loop.rs
 ### 18) Unbounded input buffer in production editor
 - **Status**: **Confirmed**
 - **Evidence**:
-  - `src/ui/editor.rs::insert_str` appends without size cap.
+  - `src/ui/editor/mod.rs::insert_str` appends without size cap.
   - Large paste input can grow buffer unbounded.
 - **Priority**: **P1**
 - **Follow-up**:
@@ -314,7 +314,7 @@ git diff --numstat -- src/runtime/loop.rs
 ### 28) Read-only intent heuristic can produce false positives
 - **Status**: **Completed (2026-03-28)**
 - **Evidence**:
-  - `src/state/conversation/tools.rs::is_read_only_user_request` uses keyword
+  - `src/state/conversation/tools/mod.rs::is_read_only_user_request` uses keyword
     heuristics over read-only/mutating hint sets.
   - Mixed-intent prompts can still be misclassified despite mutating hint
     checks.
@@ -323,7 +323,7 @@ git diff --numstat -- src/runtime/loop.rs
   - Guard is preserved as default safety net; `VEX_FORCE_MUTATING_TURN=1` env
     override added so operators can bypass the heuristic when needed.
   - Unit test `test_vex_force_mutating_turn_overrides_heuristic` added to
-    `src/state/conversation/tools.rs`.
+    `src/state/conversation/tools/mod.rs`.
 
 ### 29) `append_incremental_suffix` overlap algorithm cost on large deltas
 - **Status**: **Completed (2026-02-24 via PR #16 / run-2026-02-24-040000)**

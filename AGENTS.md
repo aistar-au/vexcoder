@@ -46,8 +46,8 @@ Ignore this section in repository-hosted background sessions.
 
 ## Rules
 
-- If the prompt touches `src/app/layout.rs`, `src/ui/render.rs`,
-  `src/ui/draw/**`, `src/app/tests.rs`,
+- If the prompt touches `src/app/layout.rs`, `src/ui/render/`,
+  `src/ui/draw/**`, `src/app/tests/`,
   `.github/instructions/**`, `CONTRIBUTING.md`, or workflow/docs files tied to
   the same feature lane, treat it as one comprehensive task. Do not split the
   same lane across multiple overlapping draft branches or PRs unless the lane
