@@ -152,8 +152,37 @@ impl TuiMode {
                                 output,
                                 *is_error,
                             );
-                            for row in transcript_rows {
-                                self.push_history_line(row);
+                            // Fold consecutive identical tool calls into a
+                            // single count-annotated line to prevent screen
+                            // flooding when the model retries the same call.
+                            let header = transcript_rows.first().cloned().unwrap_or_default();
+                            let is_duplicate = self
+                                .last_completed_tool_header
+                                .as_ref()
+                                .map(|prev| *prev == header)
+                                .unwrap_or(false);
+                            if is_duplicate {
+                                self.duplicate_tool_count += 1;
+                                // Replace the previous folded-count line if present.
+                                if let Some(last_line) = self.history_state.lines.last_mut() {
+                                    if last_line.starts_with("[detail] (repeated") {
+                                        *last_line = format!(
+                                            "[detail] (repeated {}\u{d7}, same call)",
+                                            self.duplicate_tool_count
+                                        );
+                                    } else {
+                                        self.push_history_line(format!(
+                                            "[detail] (repeated {}\u{d7}, same call)",
+                                            self.duplicate_tool_count
+                                        ));
+                                    }
+                                }
+                            } else {
+                                self.duplicate_tool_count = 1;
+                                self.last_completed_tool_header = Some(header);
+                                for row in transcript_rows {
+                                    self.push_history_line(row);
+                                }
                             }
                             self.preserve_transcript_scroll_on_growth(previous_output_len);
 

@@ -871,6 +871,10 @@ pub struct TuiMode {
     current_turn_command_history: Vec<crate::runtime::CommandEvidence>,
     current_turn_tool_invocations: Vec<ToolInvocationSummary>,
     pending_turn_tool_calls: std::collections::HashMap<String, PendingTurnToolCall>,
+    /// Tracks the last completed tool header for consecutive-duplicate folding.
+    last_completed_tool_header: Option<String>,
+    /// Running count of consecutive identical completed tool calls.
+    duplicate_tool_count: usize,
     /// Index of the currently selected timeline entry in the activity pane.
     selected_timeline_index: usize,
     /// Monotonic counter for stable [`TimelineEntry::step_id`] values.
