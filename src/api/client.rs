@@ -8,9 +8,105 @@ use crate::util::{is_local_endpoint_url, preferred_plain_http_url_for_local_endp
 use anyhow::anyhow;
 use anyhow::Result;
 use futures::StreamExt;
+use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
 use std::sync::{Arc, OnceLock, RwLock};
+
+/// Server capabilities discovered from a local inference server.
+/// Populated by `poll_server_info()` once per session for local endpoints.
+#[derive(Debug, Clone, Default)]
+pub struct ServerInfo {
+    /// Total context window (tokens). 0 if unknown.
+    pub n_ctx: u32,
+    /// Decode batch size. 0 if unknown.
+    pub n_batch: u32,
+    /// Model identifier reported by the server.
+    pub model: String,
+}
+
+/// Response shape for a local inference server `/props` endpoint.
+#[derive(Debug, Deserialize, Default)]
+struct LocalServerProps {
+    #[serde(default)]
+    default_generation_settings: Option<LocalServerGenSettings>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct LocalServerGenSettings {
+    #[serde(default)]
+    n_ctx: u32,
+    #[serde(default)]
+    n_batch: u32,
+    #[serde(default)]
+    model: String,
+}
+
+/// Attempt to discover server capabilities from a local inference endpoint.
+/// Returns `None` if the server is not reachable or does not expose a
+/// recognised discovery endpoint. Best-effort; never blocks the session.
+pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<ServerInfo> {
+    if !is_local_endpoint_url(api_url) {
+        return None;
+    }
+    let base = api_url
+        .trim_end_matches('/')
+        .trim_end_matches("/chat/completions")
+        .trim_end_matches("/v1")
+        .trim_end_matches('/');
+
+    // Try the /props discovery endpoint first (supported by some local servers).
+    if let Ok(resp) = http
+        .get(format!("{base}/props"))
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await
+    {
+        if resp.status().is_success() {
+            if let Ok(props) = resp.json::<LocalServerProps>().await {
+                if let Some(gen) = props.default_generation_settings {
+                    if gen.n_ctx > 0 {
+                        return Some(ServerInfo {
+                            n_ctx: gen.n_ctx,
+                            n_batch: gen.n_batch,
+                            model: gen.model,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback: try /v1/models for other servers.
+    if let Ok(resp) = http
+        .get(format!("{base}/v1/models"))
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await
+    {
+        if resp.status().is_success() {
+            if let Ok(body) = resp.json::<Value>().await {
+                let model = body
+                    .get("data")
+                    .and_then(|d| d.as_array())
+                    .and_then(|arr| arr.first())
+                    .and_then(|m| m.get("id"))
+                    .and_then(|id| id.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                if !model.is_empty() {
+                    return Some(ServerInfo {
+                        n_ctx: 0,
+                        n_batch: 0,
+                        model,
+                    });
+                }
+            }
+        }
+    }
+
+    None
+}
 /// Base system prompt applied to every API call.
 /// Project instructions are appended at runtime via
 /// `ApiClient::with_project_instructions`.
@@ -36,6 +132,7 @@ For code edits, prefer this sequence: search_files -> read_file -> edit_file -> 
 For read-only requests (show/read/list/count/status/log/diff), use read-only tools and do not call mutating tools unless the user explicitly asks for changes.\n\
 If asked what git tools are available, only list built-in git tools: git_status, git_diff, git_log, git_show, git_add, git_commit.\n\
 Do not claim unsupported git tools like git_clone, git_init, git_remote, git_config, git_pull, git_push, git_branch, git_checkout, or git_stash.\n\
+Available tools are exactly: read_file, write_file, apply_patch, edit_file, rename_file, list_files, list_directory, list_dir, glob_files, search_files, search, git_status, git_diff, git_log, git_show, git_add, git_commit, search_content, find_files, codebase_search, run_command. Do not call tools not in this list (e.g. do not call run_shell_command, bash, wc, or shell utilities directly).\n\
 Always send non-empty string paths for file tools.\n\
 Avoid redundant loops: do not repeat identical read/search tool calls without new evidence.\n\
 Tool results from earlier turns may be condensed to their first few lines; if you need the full output, re-run the tool instead of assuming the truncated text is complete.";
@@ -65,6 +162,7 @@ pub struct ApiClient {
     project_instructions: Option<String>,
     notes_content: Option<String>,
     extra_tool_definitions: Vec<Value>,
+    server_info: Arc<RwLock<Option<ServerInfo>>>,
     #[cfg(test)]
     mock_stream_producer: Option<Arc<dyn MockStreamProducer>>,
 }
@@ -98,6 +196,7 @@ impl ApiClient {
             project_instructions: None,
             notes_content: None,
             extra_tool_definitions: Vec::new(),
+            server_info: Arc::new(RwLock::new(None)),
             #[cfg(test)]
             mock_stream_producer: None,
         })
@@ -125,6 +224,7 @@ impl ApiClient {
             project_instructions: None,
             notes_content: None,
             extra_tool_definitions: Vec::new(),
+            server_info: Arc::new(RwLock::new(None)),
             mock_stream_producer: Some(mock_producer),
         }
     }
@@ -137,6 +237,19 @@ impl ApiClient {
     pub fn with_extra_tool_definitions(mut self, extra_tools: Vec<Value>) -> Self {
         self.extra_tool_definitions = extra_tools;
         self
+    }
+
+    /// Store server capabilities discovered by `poll_server_info()`.
+    pub fn set_server_info(&self, info: ServerInfo) {
+        *self.server_info.write().expect("server_info lock poisoned") = Some(info);
+    }
+
+    /// Read cached server info, if available.
+    pub fn server_info(&self) -> Option<ServerInfo> {
+        self.server_info
+            .read()
+            .expect("server_info lock poisoned")
+            .clone()
     }
 
     /// Attach project-instructions text. Builder pattern; consumes and
@@ -264,7 +377,8 @@ impl ApiClient {
         }
 
         let request_url = self.request_url();
-        let max_tokens = resolve_max_tokens(self.max_tokens);
+        let server_n_ctx = self.server_info().map(|si| si.n_ctx).unwrap_or(0);
+        let max_tokens = resolve_max_tokens(self.max_tokens, server_n_ctx);
         let api_protocol = self.api_protocol();
         let model = self.model_name();
         let system_prompt = self.system_prompt();
@@ -543,14 +657,23 @@ fn local_plain_http_hint(request_url: &str) -> String {
         .unwrap_or_default()
 }
 
-fn resolve_max_tokens(default_max_tokens: u32) -> u32 {
-    if let Some(value) = std::env::var("VEX_MAX_TOKENS")
+fn resolve_max_tokens(default_max_tokens: u32, server_n_ctx: u32) -> u32 {
+    let base = if let Some(value) = std::env::var("VEX_MAX_TOKENS")
         .ok()
         .and_then(|v| v.trim().parse::<u32>().ok())
     {
-        return value.clamp(128, 8192);
-    }
-    default_max_tokens
+        value
+    } else {
+        default_max_tokens
+    };
+    // When server context is known, cap at 75% of n_ctx to leave room for
+    // the prompt. When unknown (0), use a generous default ceiling.
+    let ceiling = if server_n_ctx > 0 {
+        (server_n_ctx as f64 * 0.75) as u32
+    } else {
+        16384
+    };
+    base.clamp(128, ceiling)
 }
 
 fn infer_api_protocol(api_url: &str) -> ApiProtocol {
@@ -1250,8 +1373,30 @@ mod tests {
 
     #[test]
     fn test_resolve_max_tokens_defaults_to_profile_budget() {
-        let tokens = resolve_max_tokens(4096);
+        // server_n_ctx=0 → ceiling=16384; default 4096 < 16384 → 4096
+        let tokens = resolve_max_tokens(4096, 0);
         assert_eq!(tokens, 4096);
+    }
+
+    #[test]
+    fn test_resolve_max_tokens_uses_server_n_ctx() {
+        // 75% of 65536 = 49152; default 4096 < 49152 → 4096
+        let tokens = resolve_max_tokens(4096, 65536);
+        assert_eq!(tokens, 4096);
+    }
+
+    #[test]
+    fn test_resolve_max_tokens_caps_at_half_server_n_ctx() {
+        // 75% of 65536 = 49152; default 60000 > 49152 → capped at 49152
+        let tokens = resolve_max_tokens(60000, 65536);
+        assert_eq!(tokens, 49152);
+    }
+
+    #[test]
+    fn test_resolve_max_tokens_unknown_server_caps_at_ceiling() {
+        // server_n_ctx=0 → ceiling=16384; default 40000 > 16384 → capped at 16384
+        let tokens = resolve_max_tokens(40000, 0);
+        assert_eq!(tokens, 16384);
     }
 
     #[test]

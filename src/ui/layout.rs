@@ -14,7 +14,7 @@ pub fn split_three_pane_layout(area: Rect, input_rows: u16) -> ThreePaneLayout {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),
+            Constraint::Length(0),
             Constraint::Min(1),
             Constraint::Length(input_rows.max(1)),
         ])
@@ -80,11 +80,11 @@ mod tests {
         let area = Rect::new(0, 0, 80, 20);
         let panes = split_three_pane_layout(area, 4);
 
-        assert_eq!(panes.header.height, 1);
-        assert_eq!(panes.history.height, 15);
+        assert_eq!(panes.header.height, 0);
+        assert_eq!(panes.history.height, 16);
         assert_eq!(panes.input.height, 4);
         assert_eq!(panes.header.y, 0);
-        assert_eq!(panes.history.y, 1);
+        assert_eq!(panes.history.y, 0);
         assert_eq!(panes.input.y, 16);
     }
 
@@ -94,8 +94,8 @@ mod tests {
         let panes = split_three_pane_layout(area, 6);
 
         assert_eq!(panes.input.height, 6);
-        assert_eq!(panes.header.height, 1);
-        assert_eq!(panes.history.height, 5);
+        assert_eq!(panes.header.height, 0);
+        assert_eq!(panes.history.height, 6);
     }
 
     #[test]
