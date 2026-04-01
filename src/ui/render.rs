@@ -1216,6 +1216,7 @@ mod tests {
         let state = crate::app::TaskLayoutState {
             task_id: "task-001".into(),
             status_line: "AwaitingApproval".into(),
+            telemetry: crate::app::TaskTelemetryState::default(),
             timeline_entries: vec![crate::app::TimelineEntry {
                 step_id: 1,
                 lifecycle: crate::app::StepLifecycle::AwaitingApproval,
@@ -1269,6 +1270,7 @@ mod tests {
         let state = crate::app::TaskLayoutState {
             task_id: "task-002".into(),
             status_line: "Running".into(),
+            telemetry: crate::app::TaskTelemetryState::default(),
             timeline_entries: vec![
                 crate::app::TimelineEntry {
                     step_id: 1,
@@ -1337,6 +1339,7 @@ mod tests {
         let state = crate::app::TaskLayoutState {
             task_id: "task-003".into(),
             status_line: "Running".into(),
+            telemetry: crate::app::TaskTelemetryState::default(),
             timeline_entries,
             selected_step: 8,
             total_steps: 12,
@@ -1376,6 +1379,7 @@ mod tests {
         let state = crate::app::TaskLayoutState {
             task_id: "task-004".into(),
             status_line: "Running".into(),
+            telemetry: crate::app::TaskTelemetryState::default(),
             timeline_entries: vec![crate::app::TimelineEntry {
                 step_id: 1,
                 lifecycle: crate::app::StepLifecycle::Completed,

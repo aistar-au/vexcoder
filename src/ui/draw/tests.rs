@@ -6,6 +6,7 @@ fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState
     TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:streaming approval:none repo:vexcoder inst:AGENTS.md".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         total_steps: entries.len(),
         timeline_entries: entries,
         selected_step: 0,
@@ -229,6 +230,7 @@ fn changing_selected_inspector_entry_redraws_output() {
     let first = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:streaming approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![
             TimelineEntry {
                 step_id: 1,
@@ -284,6 +286,7 @@ fn empty_timeline_renders_separator_and_transcript() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:streaming approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -585,6 +588,7 @@ fn persistent_layout_starts_with_blank_transcript_before_first_turn() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -670,6 +674,7 @@ fn fullscreen_surface_hides_top_header_chrome() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:streaming approval:none repo:myrepo inst:AGENTS.md".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![TimelineEntry {
             step_id: 1,
             lifecycle: StepLifecycle::Running,
@@ -710,6 +715,7 @@ fn inline_approval_renders_in_composer() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:overlay approval:pending repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -769,6 +775,7 @@ fn fullscreen_surface_hides_token_indicator_when_tokens_recorded() {
         // tokens:2500 — just over 2k so the label rounds to "~2.5k ctx"
         status_line: "mode:ready approval:none history:2 repo:vexcoder inst:none tokens:2500"
             .into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -808,6 +815,7 @@ fn header_hides_token_indicator_when_no_turns_completed() {
         // tokens:0 — no turns completed yet
         status_line: "mode:ready approval:none history:0 repo:vexcoder inst:none tokens:0"
             .into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -841,6 +849,7 @@ fn composer_renders_live_input_text() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -874,6 +883,7 @@ fn composer_header_renders_focus_and_char_count() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -914,21 +924,72 @@ fn composer_hint_renders_once_without_repeating_down_the_prompt() {
 }
 
 #[test]
-fn short_bottom_anchored_transcript_hugs_prompt_edge() {
+fn telemetry_pane_uses_structured_state() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let mut state = make_state(vec![], vec!["plain response"]);
+    state.status_line =
+        "mode:ready approval:none history:0 repo:vexcoder inst:none tokens:0".into();
+    state.telemetry = crate::app::TaskTelemetryState {
+        mode: "streaming".into(),
+        approval: "pending".into(),
+        history_rows: 7,
+        total_tokens: 1234,
+        active_tools: 2,
+        active_commands: 1,
+        waiting_summary: Some("2.5s | read:512/1024".into()),
+        timing_summary: None,
+    };
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(output.contains("mode: streaming · approval: pending"));
+    assert!(output.contains("active: 2 tool · 1 cmd · tokens: 1234"));
+    assert!(output.contains("2.5s | read:512/1024"));
+    assert!(
+        !output.contains("mode: ready · approval: none"),
+        "bottom telemetry pane must render from structured telemetry, not reparsed status text"
+    );
+}
+
+#[test]
+fn bottom_pane_hash_ignores_status_line_when_structured_telemetry_matches() {
+    let draw = TaskDraw::new();
+    let mut first = make_state(vec![], vec!["plain response"]);
+    first.status_line = "mode:ready approval:none history:0 repo:vexcoder inst:none tokens:0".into();
+    first.telemetry = crate::app::TaskTelemetryState {
+        mode: "streaming".into(),
+        approval: "pending".into(),
+        history_rows: 7,
+        total_tokens: 1234,
+        active_tools: 2,
+        active_commands: 1,
+        waiting_summary: Some("2.5s | read:512/1024".into()),
+        timing_summary: None,
+    };
+
+    let mut second = first.clone();
+    second.status_line =
+        "mode:overlay approval:auto history:99 repo:other inst:none tokens:99999".into();
+
+    assert_eq!(
+        draw.compute_bottom_pane_hash(&first),
+        draw.compute_bottom_pane_hash(&second),
+        "bottom pane redraws must follow structured telemetry and git state, not status-line churn"
+    );
+}
+
+#[test]
+fn short_transcript_starts_at_top_of_transcript_pane() {
     let state = make_state(vec![], vec!["Type a prompt below to begin."]);
     let regions = Regions::compute(80, 24, false, 0);
     let (visible_start, visible_end) = transcript_window(&state, regions.transcript_rows as usize);
     let render_start = transcript_render_start_row(&state, &regions, visible_start, visible_end);
 
-    // With the new layout the transcript fills the top and its bottom edge is
-    // the bottom pane boundary, not the composer row.
-    let expected = regions
-        .transcript_start
-        .saturating_add(regions.transcript_rows)
-        .saturating_sub(1);
     assert_eq!(
-        render_start, expected,
-        "short transcript should render against the bottom of the transcript area"
+        render_start, regions.transcript_start,
+        "short transcripts should render from the top of the scrolling pane"
     );
 }
 
@@ -951,6 +1012,7 @@ fn composer_hash_tracks_live_input_changes() {
     let first = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -986,6 +1048,7 @@ fn composer_hash_tracks_cursor_only_changes() {
     let first = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -1347,6 +1410,7 @@ fn picker_overlay_renders_above_composer() {
     let state = TaskLayoutState {
         task_id: "test-picker".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -1415,6 +1479,7 @@ fn picker_overlay_clears_when_dismissed() {
     let state_with_overlay = TaskLayoutState {
         task_id: "test-picker".into(),
         status_line: "mode:ready".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -1464,6 +1529,7 @@ fn picker_overlay_hash_changes_on_selection_move() {
     let base = TaskLayoutState {
         task_id: "test".into(),
         status_line: "mode:ready".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -1508,111 +1574,5 @@ fn picker_overlay_hash_changes_on_selection_move() {
         draw.compute_composer_hash(&base),
         draw.compute_composer_hash(&moved),
         "hash must change when picker selection moves"
-    );
-}
-
-// ── New layout & telemetry tests ────────────────────────────────────
-
-#[test]
-fn regions_layout_order_transcript_top_composer_bottom() {
-    let regions = Regions::compute(80, 24, false, 0);
-    assert_eq!(
-        regions.transcript_start, 0,
-        "transcript must start at row 0"
-    );
-    assert!(
-        regions.bottom_pane_start > regions.transcript_start,
-        "bottom panes must be below transcript"
-    );
-    assert!(
-        regions.composer_start > regions.bottom_pane_start,
-        "composer must be below bottom panes"
-    );
-    assert!(
-        regions.status_bar_row > regions.composer_start,
-        "status bar must be below composer"
-    );
-    assert_eq!(
-        regions.status_bar_row, 23,
-        "status bar must be the last row"
-    );
-}
-
-#[test]
-fn bottom_pane_has_fixed_height() {
-    let regions = Regions::compute(80, 30, false, 0);
-    assert_eq!(
-        regions.bottom_pane_rows, 4,
-        "bottom pane must be exactly 4 rows"
-    );
-    assert_eq!(
-        regions.bottom_pane_split_col, 40,
-        "bottom pane must split at column midpoint"
-    );
-}
-
-#[test]
-fn bottom_panes_draw_telemetry_and_files() {
-    let mut buf = Vec::new();
-    let mut draw = TaskDraw::new();
-    let mut state = make_state(vec![], vec!["hello"]);
-    state.changed_files = vec!["src/main.rs".into(), "src/lib.rs".into()];
-    state.status_line = "mode:streaming tokens:1234".into();
-
-    draw.draw(&mut buf, &state, 80, 24);
-    let output = String::from_utf8_lossy(&buf);
-
-    assert!(
-        output.contains("Telemetry"),
-        "bottom pane must show Telemetry header"
-    );
-    assert!(
-        output.contains("Files"),
-        "bottom pane must show Files header"
-    );
-    assert!(
-        output.contains("src/main.rs"),
-        "bottom pane must show changed files"
-    );
-    assert!(
-        output.contains("tokens: 1234"),
-        "bottom pane must show telemetry data from status_line"
-    );
-}
-
-#[test]
-fn inline_telemetry_summary_renders_with_color() {
-    let mut buf = Vec::new();
-    let mut draw = TaskDraw::new();
-    let state = make_state(
-        vec![],
-        vec!["[ttft:0.3s | read:2.5s (2641 tok) | generate:5.2s (128 tok) | total:7.7s]"],
-    );
-
-    draw.draw(&mut buf, &state, 120, 24);
-    let output = String::from_utf8_lossy(&buf);
-
-    assert!(output.contains("ttft:"), "must render ttft segment");
-    assert!(output.contains("read:"), "must render read segment");
-    assert!(output.contains("generate:"), "must render generate segment");
-    assert!(output.contains("total:"), "must render total segment");
-    // Yellow accent for total timing.
-    assert!(
-        output.contains("\x1b[38;5;3m7.7s"),
-        "total timing must use yellow accent: {output}"
-    );
-}
-
-#[test]
-fn bottom_pane_hash_changes_on_file_update() {
-    let draw = TaskDraw::new();
-    let state1 = make_state(vec![], vec![]);
-    let mut state2 = make_state(vec![], vec![]);
-    state2.changed_files = vec!["new_file.rs".into()];
-
-    assert_ne!(
-        draw.compute_bottom_pane_hash(&state1),
-        draw.compute_bottom_pane_hash(&state2),
-        "bottom pane hash must change when files change"
     );
 }

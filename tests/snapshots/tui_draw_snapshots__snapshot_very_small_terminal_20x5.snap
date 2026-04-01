@@ -1,5 +1,6 @@
 ---
 source: tests/tui_draw_snapshots.rs
+assertion_line: 138
 expression: rendered
 ---
- │ hiPrompt› submit: / commands PgUp/PgDn transcript  Shift+Enter newline  Enter submittask:snap-001
+ │ hi────────────────────┬ Telemetr Git ──────────────────── Prompt › submit: / commands PgUp/PgDn transcript  Shift+Enter newline  Enter submittask:snap-001

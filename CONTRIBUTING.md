@@ -46,6 +46,23 @@ naming-policy changes.
 
 ---
 
+## Language and PR Hygiene
+
+Use neutral repository-approved status terms in docs, ADRs, plans, PR text, and
+agent-authored notes. Keep `bash scripts/check_forbidden_names.sh` green and
+treat that gate as authoritative for wording that must not ship.
+
+When describing the operator surface in prose, prefer `CLI`, `CLI app`, or
+`surface` over generic `terminal` wording unless the exact technical term is
+required for a crate name, ANSI control sequence, terminal-size API, or quoted
+log output.
+
+Every PR body uses five sections in this order: `Summary`, `Motivation`,
+`Approach`, `Validation`, and `Risks`. Do not omit `Risks`, even for docs-only
+or small cleanup lanes.
+
+---
+
 ## Task Naming Convention
 
 | Prefix | Type | Example |

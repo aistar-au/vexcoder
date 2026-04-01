@@ -756,6 +756,7 @@ pub enum OutputScrollAnchor {
 pub struct TaskLayoutState {
     pub task_id: String,
     pub status_line: String,
+    pub telemetry: TaskTelemetryState,
     /// Structured timeline entries derived from canonical task state.
     pub timeline_entries: Vec<TimelineEntry>,
     /// Index of the selected timeline entry (for inspector focus).
@@ -781,6 +782,18 @@ pub struct TaskLayoutState {
     pub follow_mode: bool,
     /// Floating picker overlay rendered above the composer when a picker is active.
     pub picker_overlay: Vec<PickerOverlayLine>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TaskTelemetryState {
+    pub mode: String,
+    pub approval: String,
+    pub history_rows: usize,
+    pub total_tokens: u64,
+    pub active_tools: usize,
+    pub active_commands: usize,
+    pub waiting_summary: Option<String>,
+    pub timing_summary: Option<String>,
 }
 
 /// A single line in the floating picker overlay.

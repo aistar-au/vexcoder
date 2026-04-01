@@ -1,5 +1,6 @@
 ---
 source: tests/tui_draw_snapshots.rs
+assertion_line: 161
 expression: rendered
 ---
- │ create new modulePreparing write...Approval  y approve  n deny  s approve all• write_file → src/agents.rs•  y approve  n deny  s approve all                                 task:snap-001
+ │ create new modulePreparing write...────────────────────────────────────────────────────────────────────────────────┬ Telemetry  Git │││mode: streaming · approval: pendingactive: 1 tool · 0 cmd · tokens: 0history: 0changed: 0repo clean──────────────────────────────────────────────────────────────────────────────── Approval  y approve  n deny  s approve all • write_file → src/agents.rs•  y approve  n deny  s approve all                                 task:snap-001

@@ -8,14 +8,14 @@
 //!    calls or after a turn completes.
 //! 2. **Flowing transcript** — tool calls, results, and model responses
 //!    stream vertically in a continuous log, not a fixed-height window.
-//!    Paragraphs scroll upward indefinitely consistent with ADR-031.
-//! 3. **Adaptive layout** — the transcript body, composer, and bottom
-//!    panes scale with the display dimensions.
-//! 4. **Human-readable status** — the header shows plain-language state
-//!    instead of machine-debug flags.
+//!    Paragraphs scroll upward indefinitely within the top pane.
+//! 3. **Adaptive layout** — the transcript body, telemetry/git pane,
+//!    and composer scale with the display dimensions.
+//! 4. **Human-readable status** — live telemetry and enriched tool activity
+//!    stay visible without reintroducing top chrome.
 //! 5. **Minimal redraw** — only dirty regions are rewritten each frame.
-//! 6. **Inline telemetry** — tool call activity and enriched responses
-//!    are drawn with inline timing counters (ADR-040).
+//! 6. **Inline telemetry** — waiting/progress and turn timing data render in
+//!    the scrolling transcript as well as the fixed telemetry pane.
 //!
 //! The public entry point is [`TaskDraw`] which persists across the
 //! session and is called from the `FrontendAdapter::render` path.
@@ -105,10 +105,10 @@ impl TaskDraw {
 
         self.frame_counter = self.frame_counter.wrapping_add(1);
         let size_changed = term_cols != self.last_cols || term_rows != self.last_rows;
+        let has_files = !state.changed_files.is_empty();
         self.last_cols = term_cols;
         self.last_rows = term_rows;
 
-        let has_files = !state.changed_files.is_empty();
         let regions = Regions::compute_with_composer(
             term_cols,
             term_rows,
@@ -147,7 +147,7 @@ impl TaskDraw {
             self.last_bottom_pane_hash = bottom_pane_hash;
         }
 
-        // Composer (bottom, persistent prompt area).
+        // Composer.
         let composer_hash = self.compute_composer_hash(state);
         if composer_hash != self.last_composer_hash {
             self.draw_composer(w, state, &regions);
@@ -323,16 +323,14 @@ impl TaskDraw {
         move_to(w, regions.composer_start, 0);
 
         if let Some(ref approval) = state.pending_approval {
-            set_bold(w);
-            set_fg(w, YELLOW);
-            let _ = write!(w, "Approval");
-            reset_style(w);
-            set_dim(w);
-            set_fg(w, DIM_GRAY);
-            let actions = "  y approve  n deny  s approve all";
-            let truncated = truncate_to_width(actions, regions.cols.saturating_sub(10) as usize);
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
+            draw_rule_row(
+                w,
+                regions.composer_start,
+                regions.cols,
+                "Approval",
+                YELLOW,
+                Some(("y approve  n deny  s approve all", DIM_GRAY)),
+            );
 
             let lines: Vec<&str> = approval.lines().collect();
             let body_width = regions.cols.saturating_sub(2).max(1) as usize;
@@ -362,16 +360,6 @@ impl TaskDraw {
             let hint_lines: Vec<&str> = state.input_hint.lines().collect();
             let composer_char_count = state.composer_text.chars().count();
 
-            if state.composer_focused {
-                set_bold(w);
-                set_fg(w, WHITE);
-            } else {
-                set_dim(w);
-                set_fg(w, DIM_GRAY);
-            }
-            let _ = write!(w, "Prompt");
-            reset_style(w);
-
             let status = format!(
                 "{} · {} chars",
                 if state.composer_focused {
@@ -381,25 +369,17 @@ impl TaskDraw {
                 },
                 composer_char_count
             );
-            let status_width = display_width(&status);
-            let prompt_width = display_width("Prompt");
-            if status_width + prompt_width + 1 < regions.cols as usize {
-                let gap = (regions.cols as usize).saturating_sub(prompt_width + status_width);
-                for _ in 0..gap {
-                    let _ = write!(w, " ");
-                }
-                set_dim(w);
-                set_fg(
-                    w,
-                    if state.composer_focused {
-                        CYAN
-                    } else {
-                        DIM_GRAY
-                    },
-                );
-                let _ = write!(w, "{status}");
-                reset_style(w);
-            }
+            draw_rule_row(
+                w,
+                regions.composer_start,
+                regions.cols,
+                "Prompt",
+                if state.composer_focused { WHITE } else { DIM_GRAY },
+                Some((
+                    &status,
+                    if state.composer_focused { CYAN } else { DIM_GRAY },
+                )),
+            );
 
             for offset in 0..body_rows {
                 let row = regions.composer_start + 1 + offset as u16;
@@ -442,19 +422,15 @@ impl TaskDraw {
         }
     }
 
-    // ── Bottom panes (telemetry + git) ────────────────────────────
+    // ── Bottom panes (telemetry + git) ───────────────────────────────
 
     fn draw_bottom_panes<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
         if regions.bottom_pane_rows == 0 {
             return;
         }
 
-        let split = regions.bottom_pane_split_col as usize;
-        let cols = regions.cols as usize;
-
-        // Clear the bottom pane area.
-        for i in 0..regions.bottom_pane_rows {
-            let row = regions.bottom_pane_start + i;
+        for offset in 0..regions.bottom_pane_rows {
+            let row = regions.bottom_pane_start + offset;
             if row >= regions.rows {
                 break;
             }
@@ -462,94 +438,63 @@ impl TaskDraw {
             clear_line(w);
         }
 
-        // ── Left half: telemetry ──
-        // Show a header and any available timing data from status_line.
-        move_to(w, regions.bottom_pane_start, 0);
-        set_dim(w);
-        set_fg(w, CYAN);
-        let _ = write!(w, " Telemetry");
-        reset_style(w);
+        let split = regions.bottom_pane_split_col;
+        let left_width = split.saturating_sub(1) as usize;
+        let right_start = split.saturating_add(1);
+        let right_width = regions.cols.saturating_sub(right_start) as usize;
 
-        // Parse timing data from status_line if present.
-        let status = &state.status_line;
-        let mut telem_lines: Vec<String> = Vec::new();
-        for part in status.split_whitespace() {
-            if let Some(val) = part.strip_prefix("tokens:") {
-                telem_lines.push(format!("tokens: {val}"));
-            } else if let Some(val) = part.strip_prefix("mode:") {
-                telem_lines.push(format!("mode: {val}"));
+        draw_split_rule_row(
+            w,
+            regions.bottom_pane_start,
+            regions.cols,
+            split,
+            "Telemetry",
+            "Git",
+        );
+
+        for offset in 1..regions.bottom_pane_rows {
+            let row = regions.bottom_pane_start + offset;
+            if row >= regions.rows {
+                break;
             }
+            move_to(w, row, split);
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, "\u{2502}");
+            reset_style(w);
         }
-        if telem_lines.is_empty() {
-            telem_lines.push("waiting…".to_string());
-        }
-        let left_width = split.saturating_sub(2);
-        for (i, line) in telem_lines
+
+        let telemetry_lines = telemetry_panel_lines(state);
+        for (index, line) in telemetry_lines
             .iter()
             .take(regions.bottom_pane_rows.saturating_sub(1) as usize)
             .enumerate()
         {
-            let row = regions.bottom_pane_start + 1 + i as u16;
+            let row = regions.bottom_pane_start + 1 + index as u16;
             if row >= regions.bottom_pane_start + regions.bottom_pane_rows {
                 break;
             }
             move_to(w, row, 1);
             set_fg(w, GRAY);
-            let truncated = truncate_to_width(line, left_width);
+            let truncated = truncate_to_width(line, left_width.saturating_sub(1));
             let _ = write!(w, "{truncated}");
             reset_style(w);
         }
 
-        // ── Separator ──
-        for i in 0..regions.bottom_pane_rows {
-            let row = regions.bottom_pane_start + i;
-            if row >= regions.rows {
+        let git_lines = git_panel_lines(state);
+        for (index, line) in git_lines
+            .iter()
+            .take(regions.bottom_pane_rows.saturating_sub(1) as usize)
+            .enumerate()
+        {
+            let row = regions.bottom_pane_start + 1 + index as u16;
+            if row >= regions.bottom_pane_start + regions.bottom_pane_rows {
                 break;
             }
-            move_to(w, row, regions.bottom_pane_split_col);
-            set_fg(w, DIM_GRAY);
-            let _ = write!(w, "\u{2502}"); // │
+            move_to(w, row, right_start);
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(line, right_width.saturating_sub(1));
+            let _ = write!(w, "{truncated}");
             reset_style(w);
-        }
-
-        // ── Right half: git / changed files ──
-        move_to(
-            w,
-            regions.bottom_pane_start,
-            regions.bottom_pane_split_col + 1,
-        );
-        set_dim(w);
-        set_fg(w, CYAN);
-        let _ = write!(w, " Files");
-        reset_style(w);
-
-        let right_start = (regions.bottom_pane_split_col + 2) as usize;
-        let right_width = cols.saturating_sub(right_start + 1);
-        if state.changed_files.is_empty() {
-            let row = regions.bottom_pane_start + 1;
-            if row < regions.bottom_pane_start + regions.bottom_pane_rows {
-                move_to(w, row, right_start as u16);
-                set_fg(w, DIM_GRAY);
-                let _ = write!(w, "no changes");
-                reset_style(w);
-            }
-        } else {
-            for (i, file) in state
-                .changed_files
-                .iter()
-                .take(regions.bottom_pane_rows.saturating_sub(1) as usize)
-                .enumerate()
-            {
-                let row = regions.bottom_pane_start + 1 + i as u16;
-                if row >= regions.bottom_pane_start + regions.bottom_pane_rows {
-                    break;
-                }
-                move_to(w, row, right_start as u16);
-                set_fg(w, GRAY);
-                let truncated = truncate_to_width(file, right_width);
-                let _ = write!(w, "{truncated}");
-                reset_style(w);
-            }
         }
     }
 
@@ -565,8 +510,6 @@ impl TaskDraw {
         let visible = state.picker_overlay.len().min(max_rows) as u16;
 
         // Clear stale overlay rows from the previous frame.
-        // Picker renders upward from just above the composer (bottom), overlaying
-        // the bottom panes / transcript area.
         let overlay_start = regions.composer_start.saturating_sub(visible);
         if self.last_overlay_rows > visible {
             let old_start = regions
@@ -680,15 +623,13 @@ impl TaskDraw {
     }
 
     fn compute_bottom_pane_hash(&self, state: &TaskLayoutState) -> u64 {
-        let mut h: u64 = simple_hash(&state.status_line);
-        h = h
-            .wrapping_mul(31)
-            .wrapping_add(state.changed_files.len() as u64);
-        for f in &state.changed_files {
-            h = h.wrapping_mul(31).wrapping_add(simple_hash(f));
+        let mut h: u64 = 0;
+        for line in telemetry_panel_lines(state) {
+            h = h.wrapping_mul(31).wrapping_add(simple_hash(&line));
         }
-        // Include frame counter so spinner animates.
-        h = h.wrapping_mul(31).wrapping_add(self.frame_counter);
+        for line in git_panel_lines(state) {
+            h = h.wrapping_mul(31).wrapping_add(simple_hash(&line));
+        }
         h
     }
 
@@ -793,20 +734,11 @@ fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize,
 }
 
 fn transcript_render_start_row(
-    state: &TaskLayoutState,
+    _state: &TaskLayoutState,
     regions: &Regions,
-    visible_start: usize,
-    visible_end: usize,
+    _visible_start: usize,
+    _visible_end: usize,
 ) -> u16 {
-    let visible_len = visible_end.saturating_sub(visible_start);
-    if state.output_scroll_anchor == OutputScrollAnchor::Bottom
-        && visible_len < regions.transcript_rows as usize
-    {
-        return regions
-            .transcript_start
-            .saturating_add(regions.transcript_rows.saturating_sub(visible_len as u16));
-    }
-
     regions.transcript_start
 }
 
@@ -852,6 +784,126 @@ fn truncate_to_width(text: &str, max_width: usize) -> String {
         return text.to_string();
     }
     truncate_to_display_width(text, max_width)
+}
+
+fn telemetry_panel_lines(state: &TaskLayoutState) -> Vec<String> {
+    let mut lines = vec![
+        format!(
+            "mode: {} · approval: {}",
+            state.telemetry.mode, state.telemetry.approval
+        ),
+        format!(
+            "active: {} tool · {} cmd · tokens: {}",
+            state.telemetry.active_tools,
+            state.telemetry.active_commands,
+            state.telemetry.total_tokens
+        ),
+    ];
+
+    if let Some(waiting) = state.telemetry.waiting_summary.as_deref() {
+        lines.push(waiting.to_string());
+    } else if let Some(summary) = state.telemetry.timing_summary.as_deref() {
+        lines.push(summary.to_string());
+    } else {
+        lines.push(format!("history: {}", state.telemetry.history_rows));
+    }
+
+    lines
+}
+
+fn git_panel_lines(state: &TaskLayoutState) -> Vec<String> {
+    if state.changed_files.is_empty() {
+        return vec!["changed: 0".to_string(), "repo clean".to_string()];
+    }
+
+    let mut lines = vec![format!("changed: {}", state.changed_files.len())];
+    lines.extend(state.changed_files.iter().take(2).cloned());
+    lines
+}
+
+fn draw_rule_row<W: Write>(
+    w: &mut W,
+    row: u16,
+    cols: u16,
+    label: &str,
+    label_color: u8,
+    right_text: Option<(&str, u8)>,
+) {
+    move_to(w, row, 0);
+    clear_line(w);
+    set_dim(w);
+    set_fg(w, DIM_GRAY);
+    for _ in 0..cols {
+        let _ = write!(w, "\u{2500}");
+    }
+    reset_style(w);
+
+    let label_text = format!(" {label} ");
+    move_to(w, row, 0);
+    set_dim(w);
+    set_fg(w, label_color);
+    let _ = write!(w, "{}", truncate_to_width(&label_text, cols as usize));
+    reset_style(w);
+
+    if let Some((text, color)) = right_text {
+        let right_text = format!(" {text} ");
+        let total_width = display_width(&label_text) + display_width(&right_text);
+        if total_width < cols as usize {
+            move_to(w, row, cols.saturating_sub(display_width(&right_text) as u16));
+            set_dim(w);
+            set_fg(w, color);
+            let _ = write!(w, "{right_text}");
+            reset_style(w);
+        }
+    }
+}
+
+fn draw_split_rule_row<W: Write>(
+    w: &mut W,
+    row: u16,
+    cols: u16,
+    split_col: u16,
+    left_label: &str,
+    right_label: &str,
+) {
+    move_to(w, row, 0);
+    clear_line(w);
+    set_dim(w);
+    set_fg(w, DIM_GRAY);
+    for _ in 0..cols {
+        let _ = write!(w, "\u{2500}");
+    }
+    if split_col < cols {
+        move_to(w, row, split_col);
+        let _ = write!(w, "\u{252c}");
+    }
+    reset_style(w);
+
+    move_to(w, row, 0);
+    set_dim(w);
+    set_fg(w, CYAN);
+    let _ = write!(
+        w,
+        "{}",
+        truncate_to_width(&format!(" {left_label} "), split_col.saturating_sub(1) as usize)
+    );
+    reset_style(w);
+
+    let right_start = split_col.saturating_add(1);
+    if right_start < cols {
+        move_to(w, row, right_start);
+        set_dim(w);
+        set_fg(w, CYAN);
+        let _ = write!(
+            w,
+            "{}",
+            truncate_to_width(
+                &format!(" {right_label} "),
+                cols.saturating_sub(right_start) as usize
+            )
+        );
+        reset_style(w);
+    }
 }
 
 fn simple_hash(s: &str) -> u64 {

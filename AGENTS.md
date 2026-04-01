@@ -95,6 +95,17 @@ Commit and push only after these checks pass.
 Run `make gate-fast` when the branch touches layout, renderers, tests,
 workflows, or documentation tied to the same feature lane.
 
+## Language and review hygiene
+
+- Keep `bash scripts/check_forbidden_names.sh` green. The repository status-term
+  and naming gate applies to docs, ADRs, plans, PR text, and agent-authored
+  notes.
+- In operator-surface prose, prefer `CLI`, `CLI app`, or `surface` over generic
+  `terminal` wording unless the exact technical term is required for a crate
+  name, ANSI control, terminal-size API, or quoted log line.
+- PR bodies always use `Summary`, `Motivation`, `Approach`, `Validation`, and
+  `Risks`. `Risks` is mandatory even for narrow cleanup or documentation lanes.
+
 ## Pull requests
 
 Use five sections: Summary, Motivation, Approach, Validation, Risks.

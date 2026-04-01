@@ -1,5 +1,6 @@
 ---
 source: tests/tui_draw_snapshots.rs
+assertion_line: 149
 expression: rendered
 ---
- │ edit configPatched successfully.Prompt                                                         focused · 0 chars› submit: / commands  @ files  ! shell   PgUp/PgDn transcript  Shift+Enter newline  Enter submit          task:snap-001
+ │ edit configPatched successfully.────────────────────────────────────────────────────────────────────────────────┬ Telemetry  Git │││mode: streaming · approval: noneactive: 0 tool · 0 cmd · tokens: 0history: 0changed: 2src/config.rssrc/agents.rs──────────────────────────────────────────────────────────────────────────────── Prompt  focused · 0 chars › submit: / commands  @ files  ! shell   PgUp/PgDn transcript  Shift+Enter newline  Enter submit          task:snap-001

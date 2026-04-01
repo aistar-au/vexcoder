@@ -117,25 +117,22 @@ streaming protocols.
 21. The waiting lane keeps the ADR-039 canonical phrase
     `Mapping adjacent sectors...` and appends telemetry rather than replacing
     the phrase.
-22. The ANSI operator surface renders telemetry in two complementary ways:
-    (a) **inline in the transcript** — turn timing summaries
-    (`[ttft:… | read:… | generate:… | total:…]`) are styled with
-    per-segment coloring (cyan for ttft, magenta for read, green for
-    generate, yellow for total) directly within the scrolling transcript;
-    (b) **bottom telemetry pane** — a fixed-height (4-row) non-scrolling
-    pane between the transcript and the composer shows live telemetry
-    counters (left half) and changed files / git status (right half).
-  The transcript owns the full body above the bottom panes, and renders
-  waiting status, tool activity, and assistant output as paragraphs in that
-  shared stream.
-23. While a turn is waiting for first text, the operator surface may append
-  active counters such as `read:2048/2641` in the same status lane.
-24. After a turn completes, the transcript may append a compact timing summary
-    such as `ttft`, `read`, `generate`, and `total`.
-25. These additions remain subordinate status telemetry, not primary response
+22. The direct ANSI CLI/app surface does not reserve a dedicated timeline
+    strip; one top-aligned scrolling transcript pane owns the full upper body
+    and renders waiting status, tool activity, approvals, and assistant output
+    as paragraphs in that shared stream.
+23. A fixed bottom split pane above the composer renders structured telemetry
+    on one side and changed-file/git context on the other.
+24. While a turn is waiting for first text, the operator surface may append
+    active counters such as `read:2048/2641` in the transcript status lane and
+    mirror the same progress in the telemetry pane.
+25. After a turn completes, the transcript may append a compact timing summary
+    such as `ttft`, `read`, `generate`, and `total`, and the telemetry pane may
+    surface the same compact summary.
+26. These additions remain subordinate status telemetry, not primary response
     prose.
-26. The surface contract is protocol-agnostic; both protocols produce the
-    same `StreamEvent` variants and telemetry types after parsing.
+27. The surface contract is protocol-agnostic; both protocols produce the same
+    `StreamEvent` variants and telemetry types after parsing.
 
 ## Consequences
 

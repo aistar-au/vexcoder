@@ -249,8 +249,8 @@ async fn test_tool_approval_auto_approves_matching_session_grant() {
     assert!(
         mode.history_lines()
             .iter()
-            .any(|line| line.contains("[auto-approved tool: run_command session grant]")),
-        "expected auto-approval transcript entry"
+            .any(|line| line.contains("[approval] run_command auto-approved via session grant")),
+        "expected paragraph-style auto-approval transcript entry"
     );
 }
 #[tokio::test]
@@ -1599,8 +1599,14 @@ fn test_verb_first_read_file_empty_path() {
     assert!(
         mode.history_lines()
             .iter()
-            .any(|line| line.starts_with("[!] read_file:")),
-        "read_file with empty path and error must show error verb line"
+            .any(|line| line == "[tool] read_file · failed"),
+        "read_file with empty path and error must show paragraph tool header"
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("[detail] Result: I need an explicit file path")),
+        "read_file with empty path and error must preserve the result summary"
     );
 }
 
@@ -1637,8 +1643,78 @@ fn test_verb_first_list_files_empty_path() {
     assert!(
         mode.history_lines()
             .iter()
-            .any(|line| line.contains("Listed workspace")),
-        "list_files with empty path must show 'Listed workspace' verb line"
+            .any(|line| line.starts_with("[tool] list_files · ")),
+        "list_files with empty path must show a paragraph tool header"
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[evidence] src/main.rs")
+            && mode
+                .history_lines()
+                .iter()
+                .any(|line| line == "[evidence] Cargo.toml"),
+        "list_files with empty path must retain the listed workspace evidence"
+    );
+}
+
+#[test]
+fn test_tool_blocks_emit_paragraph_rows_into_history() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("inspect the file".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "tc-read".to_string(),
+                name: "read_file".to_string(),
+                input: serde_json::json!({"path":"src/main.rs"}),
+                status: crate::state::ToolStatus::Executing,
+            },
+        },
+        &mut ctx,
+    );
+
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[tool] read_file · src/main.rs · Mapping adjacent sectors..."),
+        "pending tool calls must render into the scrolling transcript"
+    );
+    assert!(
+        mode.history_lines().iter().any(|line| {
+            line.starts_with("[detail] Input: ")
+                && line.contains("\"path\"")
+                && line.contains("src/main.rs")
+        }),
+        "pending tool calls must preserve the compact input preview"
+    );
+
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 1,
+            block: StreamBlock::ToolResult {
+                tool_call_id: "tc-read".to_string(),
+                output: "42 lines read from src/main.rs\nfn main() {}".to_string(),
+                is_error: false,
+            },
+        },
+        &mut ctx,
+    );
+
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[tool] read_file · src/main.rs · State synchronized."),
+        "completed tool calls must render their terminal paragraph header"
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[evidence] fn main() {}"),
+        "completed tool calls must keep enriched evidence in the transcript"
     );
 }
 #[test]
