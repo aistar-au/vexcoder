@@ -527,7 +527,7 @@ vexcoder/ (standalone view)
 | `src/ui.rs` | UI module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui.rs> |
 | `src/ui/draw/mod.rs` | Adaptive ANSI draw engine for persistent full-screen operator workspace surface. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/mod.rs> |
 | `src/ui/draw/ansi.rs` | ANSI escape helpers, color palette, spinner and progress animation frames. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/ansi.rs> |
-| `src/ui/draw/regions.rs` | Adaptive layout region computation for the four-region workspace surface. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/regions.rs> |
+| `src/ui/draw/regions.rs` | Adaptive layout region computation for the fullscreen three-region workspace surface. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/regions.rs> |
 | `src/ui/draw/transcript.rs` | Transcript line rendering with markdown, checklists, numbered lists, and inline formatting. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/transcript.rs> |
 | `src/ui/draw/tests.rs` | Draw engine unit tests covering layout, rendering, and hash computation. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/tests.rs> |
 | `src/ui/editor.rs` | Text input editor with history, undo/redo stacks, and cursor management. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/editor.rs> |

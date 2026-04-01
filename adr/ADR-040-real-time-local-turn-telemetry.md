@@ -121,14 +121,13 @@ streaming protocols.
     strip; one top-aligned scrolling transcript pane owns the full upper body
     and renders waiting status, tool activity, approvals, and assistant output
     as paragraphs in that shared stream.
-23. A fixed bottom split pane above the composer renders structured telemetry
-    on one side and changed-file/git context on the other.
+23. The persistent bottom surface is limited to the multiline composer and
+    separate status bar; telemetry remains inline in transcript paragraphs
+    instead of claiming a dedicated fixed pane.
 24. While a turn is waiting for first text, the operator surface may append
-    active counters such as `read:2048/2641` in the transcript status lane and
-    mirror the same progress in the telemetry pane.
+    active counters such as `read:2048/2641` in the transcript status lane.
 25. After a turn completes, the transcript may append a compact timing summary
-    such as `ttft`, `read`, `generate`, and `total`, and the telemetry pane may
-    surface the same compact summary.
+    such as `ttft`, `read`, `generate`, and `total`.
 26. These additions remain subordinate status telemetry, not primary response
     prose.
 27. The surface contract is protocol-agnostic; both protocols produce the same

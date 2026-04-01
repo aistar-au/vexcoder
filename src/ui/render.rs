@@ -271,7 +271,7 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
     );
 }
 
-/// Render the four-region task-first layout.
+/// Render the legacy four-region task-first layout.
 ///
 /// The activity pane uses structured `timeline_entries` to render
 /// the selected timeline entry highlighted with its detail shown

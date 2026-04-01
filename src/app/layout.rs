@@ -54,7 +54,7 @@ impl TuiMode {
     /// the output/inspector pane.
     ///
     /// When no turn is in progress, entries are derived from the last
-    /// completed turn so the four-region layout remains populated.
+    /// completed turn so the task surface remains populated.
     fn task_timeline_entries_from(steps: &[TaskStepView]) -> Vec<TimelineEntry> {
         steps
             .iter()
@@ -322,7 +322,7 @@ impl TuiMode {
 
     pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
         // Always return the task-state control surface. The fullscreen CLI/app
-        // stays in the top transcript + bottom panes + composer arrangement
+        // stays in the top transcript + prompt + status-bar arrangement
         // between tool calls and after turn completion instead of yielding back
         // to a separate transcript-only layout.
         // This follows ADR-031: the operator surface derives from canonical

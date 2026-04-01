@@ -16,8 +16,8 @@ defined the runtime as a task-state-owned orchestrator.
 
 The current implementation has now converged on a direct ANSI CLI/app surface
 where the scrolling transcript owns the full upper body, live tool/approval/
-orchestrator updates render as transcript paragraphs, and a fixed split pane
-above the composer carries telemetry and git context.
+orchestrator updates render as transcript paragraphs, and the only persistent
+bottom regions are the multiline composer and separate status bar.
 
 The active operator surface also keeps the composer as a larger multiline
 surface so slash commands, `@path` expansion, pasted blocks, and long prompts
@@ -55,14 +55,14 @@ coverage.
 Adopt a batched, task-state-first implementation strategy for the operator
 surface overhaul. The UI target is a task-derived fullscreen CLI/app view where
 every visible paragraph is derived from canonical task state, selection
-identity remains runtime-visible, the transcript/bottom-pane/composer regions
-scale with current display rows and columns, and status or composer content
-stays human-readable.
+identity remains runtime-visible, the transcript/composer/status regions scale
+with current display rows and columns, and status or composer content stays
+human-readable.
 
 ### Operator surface target
 
-The accepted direct ANSI surface now uses one top transcript pane, one fixed
-bottom split pane, the persistent composer, and the status bar:
+The accepted direct ANSI surface now uses one top transcript pane, the
+persistent composer, and the status bar:
 
 ```text
 +--------------------------------------------------------+
@@ -70,10 +70,6 @@ bottom split pane, the persistent composer, and the status bar:
 |  [thinking] Mapping adjacent sectors... 2.5s | read... |
 |  [tool] read_file · src/main.rs · State synchronized.  |
 |  [approval] apply_patch · awaiting approval            |
-+--------------------------------------------------------+
-| Telemetry pane                 | Git pane              |
-| mode · approval · active       | changed files         |
-| latency / timing summary       | repo status           |
 +--------------------------------------------------------+
 | Composer / Approval card                               |
 +--------------------------------------------------------+
@@ -92,9 +88,9 @@ Key changes from the current implementation:
 3. Scroll ownership moves to the task surface: the transcript redraws from the
    same task-derived state, starts at the top of its pane, and scrolls upward
    indefinitely as new paragraphs arrive.
-4. Telemetry and changed-file context move to a fixed bottom split pane above
-   the composer and render from structured task layout state rather than
-   renderer-local parsing.
+4. Telemetry remains inline in transcript paragraphs and any lightweight file
+   context belongs in the separate status bar rather than a dedicated fixed
+   pane.
 5. The composer remains a multiline prompt surface with persistent affordances
    for slash commands, `@path` expansion, pasted blocks, and newline insertion,
    and it auto-fits within the current fullscreen viewport as display rows or

@@ -1,6 +1,5 @@
 ---
 source: tests/tui_draw_snapshots.rs
-assertion_line: 89
 expression: rendered
 ---
-────────────────────────────────────────────────────────────────────────────────┬ Telemetry  Git │││mode: streaming · approval: noneactive: 0 tool · 0 cmd · tokens: 0history: 0changed: 0repo clean──────────────────────────────────────────────────────────────────────────────── Prompt  focused · 0 chars › submit: / commands  @ files  ! shell   PgUp/PgDn transcript  Shift+Enter newline  Enter submit          task:snap-001
+──────────────────────────────────────────────────────────────────────────────── Prompt  focused · 0 chars › submit: / commands  @ files  ! shell   PgUp/PgDn transcript  Shift+Enter newline  Enter submit          task:snap-001

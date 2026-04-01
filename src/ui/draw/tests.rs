@@ -924,60 +924,49 @@ fn composer_hint_renders_once_without_repeating_down_the_prompt() {
 }
 
 #[test]
-fn telemetry_pane_uses_structured_state() {
+fn fullscreen_surface_uses_three_regions_without_fixed_bottom_pane() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();
-    let mut state = make_state(vec![], vec!["plain response"]);
-    state.status_line =
-        "mode:ready approval:none history:0 repo:vexcoder inst:none tokens:0".into();
-    state.telemetry = crate::app::TaskTelemetryState {
-        mode: "streaming".into(),
-        approval: "pending".into(),
-        history_rows: 7,
-        total_tokens: 1234,
-        active_tools: 2,
-        active_commands: 1,
-        waiting_summary: Some("2.5s | read:512/1024".into()),
-        timing_summary: None,
-    };
+    let mut state = make_state(
+        vec![],
+        vec!["[thinking] Mapping adjacent sectors... 2.5s | read:512/1024"],
+    );
+    state.changed_files = vec!["src/config.rs".into(), "src/ui/draw/mod.rs".into()];
 
     draw.draw(&mut buf, &state, 80, 24);
     let output = String::from_utf8_lossy(&buf);
 
-    assert!(output.contains("mode: streaming · approval: pending"));
-    assert!(output.contains("active: 2 tool · 1 cmd · tokens: 1234"));
-    assert!(output.contains("2.5s | read:512/1024"));
     assert!(
-        !output.contains("mode: ready · approval: none"),
-        "bottom telemetry pane must render from structured telemetry, not reparsed status text"
+        !output.contains("Telemetry") && !output.contains("Git"),
+        "the fullscreen surface should not reserve a dedicated telemetry/git pane"
+    );
+    assert!(
+        output.contains("Mapping adjacent sectors...") && output.contains("read:512/1024"),
+        "telemetry should stay inline in the scrolling transcript"
+    );
+    assert!(
+        output.contains("Prompt"),
+        "the prompt region must remain visible"
+    );
+    assert!(
+        output.contains("files:2") && output.contains("task:test-001"),
+        "the separate status bar should carry lightweight file/task context"
     );
 }
 
 #[test]
-fn bottom_pane_hash_ignores_status_line_when_structured_telemetry_matches() {
-    let draw = TaskDraw::new();
-    let mut first = make_state(vec![], vec!["plain response"]);
-    first.status_line =
-        "mode:ready approval:none history:0 repo:vexcoder inst:none tokens:0".into();
-    first.telemetry = crate::app::TaskTelemetryState {
-        mode: "streaming".into(),
-        approval: "pending".into(),
-        history_rows: 7,
-        total_tokens: 1234,
-        active_tools: 2,
-        active_commands: 1,
-        waiting_summary: Some("2.5s | read:512/1024".into()),
-        timing_summary: None,
-    };
-
-    let mut second = first.clone();
-    second.status_line =
-        "mode:overlay approval:auto history:99 repo:other inst:none tokens:99999".into();
+fn regions_compute_three_pane_surface() {
+    let regions = Regions::compute(80, 24, false, 0);
 
     assert_eq!(
-        draw.compute_bottom_pane_hash(&first),
-        draw.compute_bottom_pane_hash(&second),
-        "bottom pane redraws must follow structured telemetry and git state, not status-line churn"
+        regions.transcript_start + regions.transcript_rows,
+        regions.composer_start,
+        "the composer should begin immediately after the scrolling transcript"
+    );
+    assert_eq!(
+        regions.transcript_rows + regions.composer_rows + 1,
+        regions.rows,
+        "the fullscreen surface should consist only of transcript, composer, and status bar rows"
     );
 }
 
