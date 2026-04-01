@@ -61,23 +61,19 @@ display rows and columns, and header or composer content stays human-readable.
 
 ### Operator surface target
 
-The target layout retains the four-region structure from ADR-022 Phase 6:
+The target layout adopts a three-pane structure:
 
 ```text
 +--------------------------------------------------------+
-| Header: repo · status · files changed · active · ctx  |
+| Transcript / Output area (scrollable, fills top)       |
+| (flowing transcript with inline tool telemetry)        |
 +--------------------------------------------------------+
-| Changed files row (optional)                           |
+| Telemetry            │  Changed files / Git status     |
+| (fixed 4-row height, non-scrolling)                    |
 +--------------------------------------------------------+
-| Timeline / Activity (adaptive height)                  |
-|  [ok] read_file: README.md                             |
-|  [->] validate: running...                             |
-|  [?]  apply_patch: src/main.rs                         |
+| Composer / Approval card (persistent, adaptive height) |
 +--------------------------------------------------------+
-| Transcript / Output area                               |
-| (flowing transcript, tool detail, or last-turn output) |
-+--------------------------------------------------------+
-| Composer / Approval card                               |
+| Status bar                                             |
 +--------------------------------------------------------+
 ```
 

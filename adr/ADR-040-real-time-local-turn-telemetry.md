@@ -117,10 +117,17 @@ streaming protocols.
 21. The waiting lane keeps the ADR-039 canonical phrase
     `Mapping adjacent sectors...` and appends telemetry rather than replacing
     the phrase.
-22. The ANSI operator surface does not reserve a dedicated timeline strip;
-  the transcript owns the full body above the composer and renders waiting
-  status, tool activity, and assistant output as paragraphs in that shared
-  stream.
+22. The ANSI operator surface renders telemetry in two complementary ways:
+    (a) **inline in the transcript** — turn timing summaries
+    (`[ttft:… | read:… | generate:… | total:…]`) are styled with
+    per-segment coloring (cyan for ttft, magenta for read, green for
+    generate, yellow for total) directly within the scrolling transcript;
+    (b) **bottom telemetry pane** — a fixed-height (4-row) non-scrolling
+    pane between the transcript and the composer shows live telemetry
+    counters (left half) and changed files / git status (right half).
+  The transcript owns the full body above the bottom panes, and renders
+  waiting status, tool activity, and assistant output as paragraphs in that
+  shared stream.
 23. While a turn is waiting for first text, the operator surface may append
   active counters such as `read:2048/2641` in the same status lane.
 24. After a turn completes, the transcript may append a compact timing summary

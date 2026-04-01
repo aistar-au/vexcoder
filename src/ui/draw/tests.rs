@@ -920,10 +920,15 @@ fn short_bottom_anchored_transcript_hugs_prompt_edge() {
     let (visible_start, visible_end) = transcript_window(&state, regions.transcript_rows as usize);
     let render_start = transcript_render_start_row(&state, &regions, visible_start, visible_end);
 
+    // With the new layout the transcript fills the top and its bottom edge is
+    // the bottom pane boundary, not the composer row.
+    let expected = regions
+        .transcript_start
+        .saturating_add(regions.transcript_rows)
+        .saturating_sub(1);
     assert_eq!(
-        render_start,
-        regions.composer_start.saturating_sub(1),
-        "short transcript should render against the prompt edge"
+        render_start, expected,
+        "short transcript should render against the bottom of the transcript area"
     );
 }
 
@@ -1503,5 +1508,111 @@ fn picker_overlay_hash_changes_on_selection_move() {
         draw.compute_composer_hash(&base),
         draw.compute_composer_hash(&moved),
         "hash must change when picker selection moves"
+    );
+}
+
+// ── New layout & telemetry tests ────────────────────────────────────
+
+#[test]
+fn regions_layout_order_transcript_top_composer_bottom() {
+    let regions = Regions::compute(80, 24, false, 0);
+    assert_eq!(
+        regions.transcript_start, 0,
+        "transcript must start at row 0"
+    );
+    assert!(
+        regions.bottom_pane_start > regions.transcript_start,
+        "bottom panes must be below transcript"
+    );
+    assert!(
+        regions.composer_start > regions.bottom_pane_start,
+        "composer must be below bottom panes"
+    );
+    assert!(
+        regions.status_bar_row > regions.composer_start,
+        "status bar must be below composer"
+    );
+    assert_eq!(
+        regions.status_bar_row, 23,
+        "status bar must be the last row"
+    );
+}
+
+#[test]
+fn bottom_pane_has_fixed_height() {
+    let regions = Regions::compute(80, 30, false, 0);
+    assert_eq!(
+        regions.bottom_pane_rows, 4,
+        "bottom pane must be exactly 4 rows"
+    );
+    assert_eq!(
+        regions.bottom_pane_split_col, 40,
+        "bottom pane must split at column midpoint"
+    );
+}
+
+#[test]
+fn bottom_panes_draw_telemetry_and_files() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let mut state = make_state(vec![], vec!["hello"]);
+    state.changed_files = vec!["src/main.rs".into(), "src/lib.rs".into()];
+    state.status_line = "mode:streaming tokens:1234".into();
+
+    draw.draw(&mut buf, &state, 80, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("Telemetry"),
+        "bottom pane must show Telemetry header"
+    );
+    assert!(
+        output.contains("Files"),
+        "bottom pane must show Files header"
+    );
+    assert!(
+        output.contains("src/main.rs"),
+        "bottom pane must show changed files"
+    );
+    assert!(
+        output.contains("tokens: 1234"),
+        "bottom pane must show telemetry data from status_line"
+    );
+}
+
+#[test]
+fn inline_telemetry_summary_renders_with_color() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec!["[ttft:0.3s | read:2.5s (2641 tok) | generate:5.2s (128 tok) | total:7.7s]"],
+    );
+
+    draw.draw(&mut buf, &state, 120, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(output.contains("ttft:"), "must render ttft segment");
+    assert!(output.contains("read:"), "must render read segment");
+    assert!(output.contains("generate:"), "must render generate segment");
+    assert!(output.contains("total:"), "must render total segment");
+    // Yellow accent for total timing.
+    assert!(
+        output.contains("\x1b[38;5;3m7.7s"),
+        "total timing must use yellow accent: {output}"
+    );
+}
+
+#[test]
+fn bottom_pane_hash_changes_on_file_update() {
+    let draw = TaskDraw::new();
+    let state1 = make_state(vec![], vec![]);
+    let mut state2 = make_state(vec![], vec![]);
+    state2.changed_files = vec!["new_file.rs".into()];
+
+    assert_ne!(
+        draw.compute_bottom_pane_hash(&state1),
+        draw.compute_bottom_pane_hash(&state2),
+        "bottom pane hash must change when files change"
     );
 }

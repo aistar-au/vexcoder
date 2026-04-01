@@ -1,18 +1,21 @@
-//! Adaptive ANSI draw engine for the operator workspace surface.
+//! Adaptive ANSI draw engine for the operator CLI surface.
 //!
 //! This module writes ANSI escape sequences directly to a `Write` sink,
-//! owning the full cli for the entire session. The design goals are:
+//! owning the full screen for the entire session. The design goals are:
 //!
 //! 1. **Persistent full-screen ownership** — the draw engine owns the
-//!    cli at all times; the prompt is never yielded between tool
+//!    display at all times; the prompt is never yielded between tool
 //!    calls or after a turn completes.
 //! 2. **Flowing transcript** — tool calls, results, and model responses
 //!    stream vertically in a continuous log, not a fixed-height window.
-//! 3. **Adaptive layout** — the transcript body and composer area scale with
-//!    the display dimensions rather than using fixed row counts.
+//!    Paragraphs scroll upward indefinitely consistent with ADR-031.
+//! 3. **Adaptive layout** — the transcript body, composer, and bottom
+//!    panes scale with the display dimensions.
 //! 4. **Human-readable status** — the header shows plain-language state
 //!    instead of machine-debug flags.
 //! 5. **Minimal redraw** — only dirty regions are rewritten each frame.
+//! 6. **Inline telemetry** — tool call activity and enriched responses
+//!    are drawn with inline timing counters (ADR-040).
 //!
 //! The public entry point is [`TaskDraw`] which persists across the
 //! session and is called from the `FrontendAdapter::render` path.
@@ -40,18 +43,14 @@ use std::io::Write;
 /// `FrontendAdapter::render`. Each call to [`draw`] emits only the ANSI
 /// sequences needed to update dirty regions from the previous frame.
 pub struct TaskDraw {
-    /// Number of transcript lines already flushed to the cli.
+    /// Number of transcript lines already flushed to the display.
     output_lines_flushed: usize,
-    /// Whether the previous frame reserved a changed-files row.
-    last_has_files: bool,
-    /// Last rendered changed-files row.
-    last_files_hash: u64,
     /// Last rendered transcript content.
     last_transcript_hash: u64,
-    /// Last rendered header (for dirty detection).
-    last_header_hash: u64,
     /// Last rendered composer (for dirty detection).
     last_composer_hash: u64,
+    /// Last rendered bottom pane content hash.
+    last_bottom_pane_hash: u64,
     /// Display dimensions at last draw.
     last_cols: u16,
     last_rows: u16,
@@ -69,11 +68,9 @@ impl TaskDraw {
     pub fn new() -> Self {
         Self {
             output_lines_flushed: 0,
-            last_has_files: false,
-            last_files_hash: 0,
             last_transcript_hash: 0,
-            last_header_hash: 0,
             last_composer_hash: 0,
+            last_bottom_pane_hash: 0,
             last_cols: 0,
             last_rows: 0,
             first_frame_done: false,
@@ -83,14 +80,12 @@ impl TaskDraw {
         }
     }
 
-    /// Reset for a new turn (keeps terminal state but resets line counters).
+    /// Reset for a new turn (keeps display state but resets line counters).
     pub fn reset(&mut self) {
         self.output_lines_flushed = 0;
-        self.last_has_files = false;
-        self.last_files_hash = 0;
         self.last_transcript_hash = 0;
-        self.last_header_hash = 0;
         self.last_composer_hash = 0;
+        self.last_bottom_pane_hash = 0;
         self.first_frame_done = false;
         self.in_code_block = false;
         self.last_overlay_rows = 0;
@@ -110,12 +105,10 @@ impl TaskDraw {
 
         self.frame_counter = self.frame_counter.wrapping_add(1);
         let size_changed = term_cols != self.last_cols || term_rows != self.last_rows;
-        let has_files = !state.changed_files.is_empty();
-        let layout_changed = has_files != self.last_has_files;
         self.last_cols = term_cols;
         self.last_rows = term_rows;
-        self.last_has_files = has_files;
 
+        let has_files = !state.changed_files.is_empty();
         let regions = Regions::compute_with_composer(
             term_cols,
             term_rows,
@@ -125,7 +118,7 @@ impl TaskDraw {
         );
 
         // On first frame or display resize: full repaint.
-        if !self.first_frame_done || size_changed || layout_changed {
+        if !self.first_frame_done || size_changed {
             hide_cursor(w);
             self.draw_full(w, state, &regions);
             self.first_frame_done = true;
@@ -136,23 +129,7 @@ impl TaskDraw {
         // Incremental update: only redraw dirty regions.
         hide_cursor(w);
 
-        // Header.
-        let header_hash = self.compute_header_hash(state);
-        if header_hash != self.last_header_hash {
-            self.draw_header(w, state, &regions);
-            self.last_header_hash = header_hash;
-        }
-
-        // Changed files row.
-        let files_hash = self.compute_files_hash(state);
-        if files_hash != self.last_files_hash {
-            if let Some(files_row) = regions.files_row {
-                self.draw_files(w, state, files_row, regions.cols);
-            }
-            self.last_files_hash = files_hash;
-        }
-
-        // Transcript.
+        // Transcript (top, scrollable).
         let transcript_hash = self.compute_transcript_hash(state);
         if transcript_hash != self.last_transcript_hash {
             if self.transcript_is_append_only(state) {
@@ -163,14 +140,21 @@ impl TaskDraw {
             self.last_transcript_hash = transcript_hash;
         }
 
-        // Composer.
+        // Bottom panes (telemetry + git, fixed height).
+        let bottom_pane_hash = self.compute_bottom_pane_hash(state);
+        if bottom_pane_hash != self.last_bottom_pane_hash {
+            self.draw_bottom_panes(w, state, &regions);
+            self.last_bottom_pane_hash = bottom_pane_hash;
+        }
+
+        // Composer (bottom, persistent prompt area).
         let composer_hash = self.compute_composer_hash(state);
         if composer_hash != self.last_composer_hash {
             self.draw_composer(w, state, &regions);
             self.last_composer_hash = composer_hash;
         }
 
-        // Picker overlay (always redraw when composer changes — overlays transcript).
+        // Picker overlay (overlays above the composer).
         self.draw_picker_overlay(w, state, &regions);
 
         // Status bar (always redraw — cheap single-line write).
@@ -188,16 +172,11 @@ impl TaskDraw {
         move_to(w, 0, 0);
         clear_to_end(w);
 
-        self.draw_header(w, state, regions);
-        self.last_header_hash = self.compute_header_hash(state);
-
-        if let Some(files_row) = regions.files_row {
-            self.draw_files(w, state, files_row, regions.cols);
-        }
-        self.last_files_hash = self.compute_files_hash(state);
-
         self.draw_transcript_full(w, state, regions);
         self.last_transcript_hash = self.compute_transcript_hash(state);
+
+        self.draw_bottom_panes(w, state, regions);
+        self.last_bottom_pane_hash = self.compute_bottom_pane_hash(state);
 
         self.draw_composer(w, state, regions);
         self.last_composer_hash = self.compute_composer_hash(state);
@@ -210,14 +189,6 @@ impl TaskDraw {
         move_to(w, cursor_row, cursor_col);
         show_cursor(w);
     }
-
-    // ── Header ──────────────────────────────────────────────────────
-
-    fn draw_header<W: Write>(&self, _w: &mut W, _state: &TaskLayoutState, _regions: &Regions) {}
-
-    // ── Changed files ───────────────────────────────────────────────
-
-    fn draw_files<W: Write>(&self, _w: &mut W, _state: &TaskLayoutState, _row: u16, _cols: u16) {}
 
     // ── Transcript (flowing) ────────────────────────────────────────
 
@@ -471,6 +442,117 @@ impl TaskDraw {
         }
     }
 
+    // ── Bottom panes (telemetry + git) ────────────────────────────
+
+    fn draw_bottom_panes<W: Write>(&self, w: &mut W, state: &TaskLayoutState, regions: &Regions) {
+        if regions.bottom_pane_rows == 0 {
+            return;
+        }
+
+        let split = regions.bottom_pane_split_col as usize;
+        let cols = regions.cols as usize;
+
+        // Clear the bottom pane area.
+        for i in 0..regions.bottom_pane_rows {
+            let row = regions.bottom_pane_start + i;
+            if row >= regions.rows {
+                break;
+            }
+            move_to(w, row, 0);
+            clear_line(w);
+        }
+
+        // ── Left half: telemetry ──
+        // Show a header and any available timing data from status_line.
+        move_to(w, regions.bottom_pane_start, 0);
+        set_dim(w);
+        set_fg(w, CYAN);
+        let _ = write!(w, " Telemetry");
+        reset_style(w);
+
+        // Parse timing data from status_line if present.
+        let status = &state.status_line;
+        let mut telem_lines: Vec<String> = Vec::new();
+        for part in status.split_whitespace() {
+            if let Some(val) = part.strip_prefix("tokens:") {
+                telem_lines.push(format!("tokens: {val}"));
+            } else if let Some(val) = part.strip_prefix("mode:") {
+                telem_lines.push(format!("mode: {val}"));
+            }
+        }
+        if telem_lines.is_empty() {
+            telem_lines.push("waiting…".to_string());
+        }
+        let left_width = split.saturating_sub(2);
+        for (i, line) in telem_lines
+            .iter()
+            .take(regions.bottom_pane_rows.saturating_sub(1) as usize)
+            .enumerate()
+        {
+            let row = regions.bottom_pane_start + 1 + i as u16;
+            if row >= regions.bottom_pane_start + regions.bottom_pane_rows {
+                break;
+            }
+            move_to(w, row, 1);
+            set_fg(w, GRAY);
+            let truncated = truncate_to_width(line, left_width);
+            let _ = write!(w, "{truncated}");
+            reset_style(w);
+        }
+
+        // ── Separator ──
+        for i in 0..regions.bottom_pane_rows {
+            let row = regions.bottom_pane_start + i;
+            if row >= regions.rows {
+                break;
+            }
+            move_to(w, row, regions.bottom_pane_split_col);
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, "\u{2502}"); // │
+            reset_style(w);
+        }
+
+        // ── Right half: git / changed files ──
+        move_to(
+            w,
+            regions.bottom_pane_start,
+            regions.bottom_pane_split_col + 1,
+        );
+        set_dim(w);
+        set_fg(w, CYAN);
+        let _ = write!(w, " Files");
+        reset_style(w);
+
+        let right_start = (regions.bottom_pane_split_col + 2) as usize;
+        let right_width = cols.saturating_sub(right_start + 1);
+        if state.changed_files.is_empty() {
+            let row = regions.bottom_pane_start + 1;
+            if row < regions.bottom_pane_start + regions.bottom_pane_rows {
+                move_to(w, row, right_start as u16);
+                set_fg(w, DIM_GRAY);
+                let _ = write!(w, "no changes");
+                reset_style(w);
+            }
+        } else {
+            for (i, file) in state
+                .changed_files
+                .iter()
+                .take(regions.bottom_pane_rows.saturating_sub(1) as usize)
+                .enumerate()
+            {
+                let row = regions.bottom_pane_start + 1 + i as u16;
+                if row >= regions.bottom_pane_start + regions.bottom_pane_rows {
+                    break;
+                }
+                move_to(w, row, right_start as u16);
+                set_fg(w, GRAY);
+                let truncated = truncate_to_width(file, right_width);
+                let _ = write!(w, "{truncated}");
+                reset_style(w);
+            }
+        }
+    }
+
     // ── Picker overlay ────────────────────────────────────────────
 
     fn draw_picker_overlay<W: Write>(
@@ -483,14 +565,16 @@ impl TaskDraw {
         let visible = state.picker_overlay.len().min(max_rows) as u16;
 
         // Clear stale overlay rows from the previous frame.
+        // Picker renders upward from just above the composer (bottom), overlaying
+        // the bottom panes / transcript area.
+        let overlay_start = regions.composer_start.saturating_sub(visible);
         if self.last_overlay_rows > visible {
             let old_start = regions
                 .composer_start
                 .saturating_sub(self.last_overlay_rows);
-            let new_start = regions.composer_start.saturating_sub(visible);
-            for row in old_start..new_start {
-                if row >= regions.composer_start {
-                    break;
+            for row in old_start..overlay_start {
+                if row < regions.transcript_start {
+                    continue;
                 }
                 move_to(w, row, 0);
                 clear_line(w);
@@ -502,15 +586,13 @@ impl TaskDraw {
             return;
         }
 
-        let start_row = regions.composer_start.saturating_sub(visible);
-
         for (i, line) in state
             .picker_overlay
             .iter()
             .take(visible as usize)
             .enumerate()
         {
-            let row = start_row + i as u16;
+            let row = overlay_start + i as u16;
             if row >= regions.composer_start {
                 break;
             }
@@ -577,16 +659,6 @@ impl TaskDraw {
 
     // ── Hash computation ────────────────────────────────────────────
 
-    fn compute_header_hash(&self, state: &TaskLayoutState) -> u64 {
-        let _ = state;
-        0
-    }
-
-    fn compute_files_hash(&self, state: &TaskLayoutState) -> u64 {
-        let _ = state;
-        0
-    }
-
     fn compute_transcript_hash(&self, state: &TaskLayoutState) -> u64 {
         let mut h: u64 = state.output_rows.len() as u64;
         h = h
@@ -604,6 +676,19 @@ impl TaskDraw {
         for row in &state.output_rows {
             h = h.wrapping_mul(31).wrapping_add(simple_hash(row));
         }
+        h
+    }
+
+    fn compute_bottom_pane_hash(&self, state: &TaskLayoutState) -> u64 {
+        let mut h: u64 = simple_hash(&state.status_line);
+        h = h
+            .wrapping_mul(31)
+            .wrapping_add(state.changed_files.len() as u64);
+        for f in &state.changed_files {
+            h = h.wrapping_mul(31).wrapping_add(simple_hash(f));
+        }
+        // Include frame counter so spinner animates.
+        h = h.wrapping_mul(31).wrapping_add(self.frame_counter);
         h
     }
 
