@@ -189,7 +189,6 @@ impl TuiMode {
 
                             if is_exact_duplicate {
                                 self.duplicate_tool_count += 1;
-                                self.same_name_tool_count += 1;
                                 // Replace the previous folded-count line if present.
                                 if let Some(last_line) = self.history_state.lines.last_mut() {
                                     if last_line.starts_with("[detail] (repeated") {
@@ -211,27 +210,27 @@ impl TuiMode {
                                 self.duplicate_tool_count = 1;
                                 self.same_name_tool_count += 1;
                                 self.last_completed_tool_header = Some(header);
-                                // Replace or append the batch count line.
-                                if let Some(last_line) = self.history_state.lines.last_mut() {
-                                    if last_line.starts_with("[detail] (")
-                                        && last_line.contains("files)")
-                                    {
-                                        *last_line = format!(
-                                            "[detail] ({} files)",
-                                            self.same_name_tool_count
-                                        );
-                                    } else {
-                                        // Append only the detail rows (skip the
-                                        // [tool] header to avoid per-file repetition).
-                                        for row in transcript_rows.iter().skip(1) {
-                                            self.push_history_line(row.clone());
-                                        }
-                                        self.push_history_line(format!(
-                                            "[detail] ({} files)",
-                                            self.same_name_tool_count
-                                        ));
-                                    }
+                                // Pop the existing batch count line (if any),
+                                // append the new detail rows, then re-add the
+                                // updated count so every folded call keeps its
+                                // transcript rows.
+                                let had_count_line = self
+                                    .history_state
+                                    .lines
+                                    .last()
+                                    .map(|l| l.starts_with("[detail] (") && l.contains("files)"))
+                                    .unwrap_or(false);
+                                if had_count_line {
+                                    self.history_state.lines.pop();
                                 }
+                                // Append detail rows (skip the [tool] header).
+                                for row in transcript_rows.iter().skip(1) {
+                                    self.push_history_line(row.clone());
+                                }
+                                self.push_history_line(format!(
+                                    "[detail] ({} files)",
+                                    self.same_name_tool_count
+                                ));
                             } else {
                                 self.duplicate_tool_count = 1;
                                 self.same_name_tool_count = 1;

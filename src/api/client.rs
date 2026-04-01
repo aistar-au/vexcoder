@@ -126,8 +126,9 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
 }
 
 /// Probe both `/v1/chat/completions` and `/v1/messages` to determine which
-/// protocol the server handles natively. Returns `None` when the server
-/// accepts both without conversion or when probing fails.
+/// protocol the server handles natively. When both endpoints respond, returns
+/// `ChatCompat` as local inference servers typically handle it natively.
+/// Returns `None` only when probing fails entirely.
 async fn detect_native_protocol(http: &reqwest::Client, base: &str) -> Option<ModelProtocol> {
     let timeout = std::time::Duration::from_secs(2);
 

@@ -7,7 +7,10 @@ pub enum StatusTone {
 }
 
 pub const MAPPING_ADJACENT_SECTORS: &str = "Mapping adjacent sectors...";
-pub const STATE_SYNCHRONIZED: &str = "Response complete.";
+/// Canonical completed-status label shown after the model finishes a turn.
+pub const RESPONSE_COMPLETE: &str = "Response complete.";
+/// Legacy alias retained for backward compatibility. Prefer [`RESPONSE_COMPLETE`].
+pub const STATE_SYNCHRONIZED: &str = RESPONSE_COMPLETE;
 pub const WAITING_FOR_RESPONSE_LINE: &str = "[thinking] Mapping adjacent sectors...";
 
 const LEGACY_WAITING_FOR_RESPONSE_LINE: &str = "[waiting for response...]";
@@ -18,7 +21,7 @@ pub const fn pending_status_label() -> &'static str {
 }
 
 pub const fn completed_status_label() -> &'static str {
-    STATE_SYNCHRONIZED
+    RESPONSE_COMPLETE
 }
 
 pub const fn waiting_for_response_line() -> &'static str {
@@ -52,7 +55,7 @@ pub fn status_tone(status: &str) -> Option<StatusTone> {
 }
 
 pub fn is_completed_status(status: &str) -> bool {
-    matches!(status, "completed" | STATE_SYNCHRONIZED)
+    matches!(status, "completed" | RESPONSE_COMPLETE)
 }
 
 pub fn is_progress_status(status: &str) -> bool {
@@ -77,7 +80,7 @@ mod tests {
     #[test]
     fn status_tone_accepts_legacy_and_batch_a_status_labels() {
         assert_eq!(status_tone("completed"), Some(StatusTone::Success));
-        assert_eq!(status_tone(STATE_SYNCHRONIZED), Some(StatusTone::Success));
+        assert_eq!(status_tone(RESPONSE_COMPLETE), Some(StatusTone::Success));
         assert_eq!(status_tone("running"), Some(StatusTone::Progress));
         assert_eq!(
             status_tone(MAPPING_ADJACENT_SECTORS),
@@ -90,16 +93,21 @@ mod tests {
         assert_eq!(
             completed_status_label(),
             "Response complete.",
-            "completed status must say 'Response complete.' not 'State synchronized.'"
+            "completed status must say 'Response complete.'"
         );
     }
 
     #[test]
-    fn state_synchronized_constant_updated() {
-        assert_eq!(STATE_SYNCHRONIZED, "Response complete.");
+    fn response_complete_constant_correct() {
+        assert_eq!(RESPONSE_COMPLETE, "Response complete.");
         assert!(
-            is_completed_status(STATE_SYNCHRONIZED),
-            "STATE_SYNCHRONIZED must be recognised as a completed status"
+            is_completed_status(RESPONSE_COMPLETE),
+            "RESPONSE_COMPLETE must be recognised as a completed status"
         );
+    }
+
+    #[test]
+    fn legacy_alias_matches_canonical() {
+        assert_eq!(STATE_SYNCHRONIZED, RESPONSE_COMPLETE);
     }
 }

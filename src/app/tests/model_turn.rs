@@ -1950,19 +1950,21 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
 
     let lines = &mode.history_state.lines;
 
-    // The second call must NOT produce its own [tool] header — it should
-    // be folded into the paragraph started by the first call.
-    let completed_tool_headers: Vec<_> = lines
+    // The second completed call must NOT produce its own [tool] header —
+    // it should be folded into the paragraph started by the first call.
+    // Expect exactly 2 completed [tool] headers: 1 pending for t1 (before
+    // its result), 1 completed for t1, and t2's pending and completed
+    // headers are both folded. The pending header for t1 is emitted before
+    // t2 exists, so 2 pending + 1 completed = 3 max.
+    let tool_headers: Vec<_> = lines
         .iter()
         .filter(|l| l.starts_with("[tool] list_files"))
         .collect();
-    // We expect 2 pending headers + 1 completed header (the first completed
-    // call emits its header; the second is folded under the same paragraph).
-    let completed_count = completed_tool_headers.len();
     assert!(
-        completed_count <= 3,
-        "same-name tool calls (list_files) must fold into a single paragraph, \
-         but got {completed_count} [tool] headers:\n{:#?}",
+        tool_headers.len() <= 3,
+        "same-name tool calls must fold; expected <= 3 [tool] headers \
+         (1 pending + 1 completed + 1 pending), got {}:\n{:#?}",
+        tool_headers.len(),
         lines
     );
 
@@ -1970,6 +1972,18 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
     assert!(
         lines.iter().any(|l| l.contains("2 files")),
         "folded same-name tool calls must show a batch count; got:\n{:#?}",
+        lines
+    );
+
+    // Both results must have their evidence rows in the transcript.
+    assert!(
+        lines.iter().any(|l| l.contains("src/main.rs")),
+        "first tool result evidence must be preserved; got:\n{:#?}",
+        lines
+    );
+    assert!(
+        lines.iter().any(|l| l.contains("tests/integration.rs")),
+        "second tool result evidence must be preserved after folding; got:\n{:#?}",
         lines
     );
 
