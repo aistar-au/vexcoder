@@ -288,9 +288,14 @@ Controls startup fallback when the selected sandbox probe fails.
 
 ### `VEX_MAX_TOKENS`
 
-Base context-window size used by auto-cap calculations. The runtime derives
-per-file read limits and search result budgets from this value when explicit
-overrides are not set. Inferred from the model profile when available.
+Upper bound override for the per-turn generation budget. When set, the value
+is treated as the maximum `max_tokens` for a single turn. The runtime also
+polls the local inference server's context size at startup and derives an
+effective ceiling of 75% of `n_ctx`; the actual `max_tokens` sent is
+`min(VEX_MAX_TOKENS, n_ctx × 0.75)`. When not set, the model profile's
+`max_tokens` value serves as the default, still bounded by the server cap.
+The runtime also derives per-file read limits and search result budgets from
+the effective token budget when explicit overrides are not set.
 
 ### `VEX_MAX_COMMAND_OUTPUT_BYTES`
 
