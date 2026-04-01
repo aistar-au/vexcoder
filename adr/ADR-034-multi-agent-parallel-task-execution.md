@@ -52,7 +52,7 @@ creating a second execution model.
 
 The runtime orchestrator remains the only authority allowed to:
 
-- decompose a parent task into session tasks;
+- extract a parent task into session tasks;
 - assign a session task to an agent definition;
 - mark a session task as pending, running, blocked, failed, cancelled, or
   completed;

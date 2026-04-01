@@ -358,7 +358,7 @@ pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) ->
 // Phase C facade entrypoints — subtask orchestration
 // ---------------------------------------------------------------------------
 
-/// Decompose a parent task into session tasks for a named team.
+/// Extract a parent task into session tasks for a named team.
 ///
 /// `team_name` must match a `[[teams]]` entry in `.vex/agents.toml`.
 /// Returns `Err` with `agents_config_missing` when no config is found,

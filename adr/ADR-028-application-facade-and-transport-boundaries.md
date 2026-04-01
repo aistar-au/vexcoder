@@ -252,7 +252,7 @@ This prevents duplication between provider-native events, facade-local ad hoc ev
 
 - module moves and compatibility shims are required during migration.
 - some TUI-centric behavior currently living near app wiring will need relocation.
-- short-term churn in imports and tests is expected as code is decomposed.
+- short-term churn in imports and tests is expected as code is extracted.
 
 ---
 

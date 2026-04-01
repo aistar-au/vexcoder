@@ -81,7 +81,7 @@ Adopt a memory-first contract for turn assembly:
   into `TaskState::save()` / `TaskState::load()`. Also fixes cross-platform
   `check_path()` to handle Windows backslash separators.
 6. ~~Evaluate optional task-state WAL once the in-memory first-turn path is
-  stable and measurable.~~ Batch H (PR #283) decomposes
+  stable and measurable.~~ Batch H (PR #283) extracts
   `src/runtime/task_state.rs` (807 lines) into
   `src/runtime/task_state/{mod.rs, persist.rs}`, isolating all persistence
   logic. WAL evaluation concluded: not warranted because task-state saves

@@ -141,12 +141,12 @@ ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-
 
 - Phase 1 complete: bounded in-memory context snapshot cache and opt-in automatic git context merged.
 - Phase 2 complete: `src/disk_policy.rs` (DiskPermission classifier) and `src/config/cache.rs` (OnceLock config cache) merged in PR #278.
-- Batch C complete: `src/config/load.rs` decomposed into directory module (`load/paths.rs`, `load/merge.rs`, `load/parse.rs`) in PR #279.
-- Batch D complete: `src/tools/operator.rs` decomposed into `src/tools/operator/{mod,core,file_ops,git_ops,search}.rs` in PR #280.
-- Batch E complete: `src/runtime/context_assembler.rs` decomposed into `src/runtime/context_assembler/{mod,reads}.rs` in PR #281.
+- Batch C complete: `src/config/load.rs` extracted into directory module (`load/paths.rs`, `load/merge.rs`, `load/parse.rs`) in PR #279.
+- Batch D complete: `src/tools/operator.rs` extracted into `src/tools/operator/{mod,core,file_ops,git_ops,search}.rs` in PR #280.
+- Batch E complete: `src/runtime/context_assembler.rs` extracted into `src/runtime/context_assembler/{mod,reads}.rs` in PR #281.
 - Batch F complete: `src/disk_policy.rs` gains `enforce()` / `enforce_runtime()`, `tests/disk_policy_tests.rs` adds strict/warn/off coverage, `make check-disk-policy` is wired into `arch-contracts.yml` in PR #281.
 - Batch G complete: `src/tools/operator/policy.rs` wraps `disk_policy::enforce` for operator-level durable-access assertions; `TaskState::save()` and `TaskState::load()` wired through `assert_durable_access()`; cross-platform `check_path()` fix for Windows backslash separators in PR #282.
-- Batch H complete: `src/runtime/task_state.rs` (807 lines) decomposed into `src/runtime/task_state/{mod.rs, persist.rs}` in PR #283. WAL evaluation concluded: not warranted because task-state saves are per-session and `write_json_safe` already performs crash-safe writes (temp + fsync + rename).
+- Batch H complete: `src/runtime/task_state.rs` (807 lines) extracted into `src/runtime/task_state/{mod.rs, persist.rs}` in PR #283. WAL evaluation concluded: not warranted because task-state saves are per-session and `write_json_safe` already performs crash-safe writes (temp + fsync + rename).
 
 #### ~~Planned remaining batches (ADR-038)~~ (all complete)
 
@@ -234,7 +234,7 @@ Candidate implementation areas:
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| EL-decompose | `work/vexcoder-edit-loop-tui-decompose` | #311 | Draft PR, CI green | Decompose oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |
+| EL-extract | `work/vexcoder-edit-loop-tui-decompose` | #311 | Draft PR, CI green | Extract oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |
 | ADR-038-EF | `work/vexcoder-adr-038-reads-and-policy-gate` | #281 | **Merged** | `context_assembler/{mod,reads}.rs` split plus strict disk-policy test/CI gate for ADR-038 Batches E/F |
 | ADR-038-G | `work/vexcoder-adr-038-operator-policy-wiring` | #282 | **Merged** | Operator policy module and disk-policy wiring into task-state I/O (ADR-038 Batch G) |
 | ADR-038-H | `work/vexcoder-adr-038-task-state-persist` | #283 | **Merged** | Task-state persist extraction + WAL evaluation (ADR-038 Batch H) |

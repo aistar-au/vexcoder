@@ -144,7 +144,7 @@ git diff --numstat -- src/ui/editor/mod.rs src/app.rs src/bin/vex.rs src/ui.rs s
 The following are design proposals and were not evaluated as strict true/false
 bugs in this pass:
 
-- Decompose `send_message` in `src/state/conversation/core.rs`.
+- Extract `send_message` in `src/state/conversation/core.rs`.
 - Promote editor into production module (e.g., `src/ui/editor/mod.rs`).
 - Unify scroll behavior behind shared abstraction.
 - Introduce shared approval parser helper.
