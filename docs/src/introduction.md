@@ -13,4 +13,4 @@ This book focuses on the public user surface:
 - configuring the model endpoint and token
 - using the current CLI flags and interactive commands
 
-The shortest path to a running session is in [Quick Start](quick-start.md). For the current code layout and the planned `src/app.rs` split, see [Architecture Overview](architecture.md).
+The shortest path to a running session is in [Quick Start](quick-start.md). For the current code layout, see [Architecture Overview](architecture.md).

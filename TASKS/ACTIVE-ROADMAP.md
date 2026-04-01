@@ -234,6 +234,7 @@ Candidate implementation areas:
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| EL-decompose | `work/vexcoder-edit-loop-tui-decompose` | #311 | Draft PR, CI green | Decompose oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |
 | ADR-038-EF | `work/vexcoder-adr-038-reads-and-policy-gate` | #281 | **Merged** | `context_assembler/{mod,reads}.rs` split plus strict disk-policy test/CI gate for ADR-038 Batches E/F |
 | ADR-038-G | `work/vexcoder-adr-038-operator-policy-wiring` | #282 | **Merged** | Operator policy module and disk-policy wiring into task-state I/O (ADR-038 Batch G) |
 | ADR-038-H | `work/vexcoder-adr-038-task-state-persist` | #283 | **Merged** | Task-state persist extraction + WAL evaluation (ADR-038 Batch H) |
