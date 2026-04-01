@@ -9,8 +9,6 @@ pub enum StatusTone {
 pub const MAPPING_ADJACENT_SECTORS: &str = "Mapping adjacent sectors...";
 /// Canonical completed-status label shown after the model finishes a turn.
 pub const RESPONSE_COMPLETE: &str = "Response complete.";
-/// Legacy alias retained for backward compatibility. Prefer [`RESPONSE_COMPLETE`].
-pub const STATE_SYNCHRONIZED: &str = RESPONSE_COMPLETE;
 pub const WAITING_FOR_RESPONSE_LINE: &str = "[thinking] Mapping adjacent sectors...";
 
 const LEGACY_WAITING_FOR_RESPONSE_LINE: &str = "[waiting for response...]";
@@ -104,10 +102,5 @@ mod tests {
             is_completed_status(RESPONSE_COMPLETE),
             "RESPONSE_COMPLETE must be recognised as a completed status"
         );
-    }
-
-    #[test]
-    fn legacy_alias_matches_canonical() {
-        assert_eq!(STATE_SYNCHRONIZED, RESPONSE_COMPLETE);
     }
 }

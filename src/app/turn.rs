@@ -62,7 +62,7 @@ impl TuiMode {
     /// Append a `[ttft: …s | ↑:…s (N tok) | ↓:…s (N tok) | total: …s]`
     /// timing and token-count summary to the transcript
     /// after a turn finishes so the operator can see latency at a glance.
-    fn append_turn_timing_line(&mut self) {
+    pub(super) fn append_turn_timing_line(&mut self) {
         let total = match self.last_turn_duration {
             Some(d) => d,
             None => return,

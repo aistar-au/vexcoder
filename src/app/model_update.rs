@@ -15,7 +15,20 @@ impl TuiMode {
                     }
                     self.current_turn_response.push_str(&line);
                 }
-                self.push_history_line(line);
+                // Truncate very long transcript lines (e.g. large git diff
+                // output, verbose validation stderr) to keep the TUI
+                // responsive and avoid memory bloat.
+                const MAX_TRANSCRIPT_LINE_CHARS: usize = 512;
+                if line.len() > MAX_TRANSCRIPT_LINE_CHARS {
+                    let truncated = format!(
+                        "{}... (+{} chars truncated)",
+                        &line[..MAX_TRANSCRIPT_LINE_CHARS],
+                        line.len() - MAX_TRANSCRIPT_LINE_CHARS
+                    );
+                    self.push_history_line(truncated);
+                } else {
+                    self.push_history_line(line);
+                }
                 self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
             UiUpdate::StreamDelta(text) => {
@@ -418,6 +431,14 @@ impl TuiMode {
                         self.push_history_line("[edit loop cancelled]".to_string());
                     }
                 }
+                // Capture telemetry from edit loop turns before resetting
+                // turn state. The edit loop's individual model turns emit
+                // ServerMetadata, but no TurnComplete fires to flush the
+                // timing summary, so we emit it here.
+                self.last_turn_duration = self.turn_started_at.map(|started| started.elapsed());
+                self.last_turn_timings = self.current_turn_timings.clone();
+                self.last_turn_ttft = self.ttft;
+                self.append_turn_timing_line();
                 self.apply_auto_follow_or_clamp();
                 self.transcript_scroll_offset = 0;
                 self.inspector_scroll_offset = 0;
