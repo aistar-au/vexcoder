@@ -599,7 +599,7 @@ surface (already defined) and actual use at runtime:
 
 ### Context
 
-Some local inference servers (llama.cpp, vLLM) emit tool invocations as
+Some local inference servers emit tool invocations as
 inline XML-like markup within the assistant text response rather than
 using the structured `tool_calls` field.  This markup
 (`function=<name>`, `parameter=<name>`, close tags) reached the TUI

@@ -481,7 +481,7 @@ impl StreamParser {
 //
 // Detects and strips embedded tool call markup from server text content
 // that arrives outside the structured `tool_calls` field.  Some local
-// inference servers (llama.cpp, vLLM) emit tool invocations inline as
+// local inference servers emit tool invocations inline as
 // XML-like tags within the assistant text response:
 //
 //   function=runshellcommand>
@@ -640,7 +640,7 @@ impl StreamTextNormaliser {
 /// Parse `function=<name>` or `<function=name>` open tags.
 fn parse_embedded_function_open(text: &str) -> Option<String> {
     let trimmed = text.trim().trim_end_matches('>');
-    // Match `function=<name>` (common llama.cpp format).
+    // Match `function=<name>` (common local-inference format).
     if let Some(name) = trimmed.strip_prefix("function=") {
         let name = name.trim().trim_matches(|c| c == '<' || c == '>');
         if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
