@@ -1146,4 +1146,58 @@ data: {"type":"message_stop"}"#.to_string(),
             _ => panic!("expected StreamDelta with clean text"),
         }
     }
+
+    #[tokio::test]
+    async fn test_normaliser_flushes_stale_tool_markup_before_follow_up_text_block() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
+        let mut textual_block_by_index = std::collections::HashMap::new();
+        let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
+
+        forward_conversation_update(
+            ConversationStreamUpdate::Delta(
+                "function=read_file>\nparameter=path>\nsrc/main.rs".to_string(),
+            ),
+            &mut textual_block_by_index,
+            &mut normaliser,
+            &tx,
+        );
+        forward_conversation_update(
+            ConversationStreamUpdate::BlockStart {
+                index: 0,
+                block: StreamBlock::FinalText {
+                    content: "Recovered answer.".to_string(),
+                },
+            },
+            &mut textual_block_by_index,
+            &mut normaliser,
+            &tx,
+        );
+
+        let mut transcript_lines = Vec::new();
+        let mut stream_deltas = Vec::new();
+        while let Ok(update) = rx.try_recv() {
+            match update {
+                UiUpdate::TranscriptLine(line) => transcript_lines.push(line),
+                UiUpdate::StreamDelta(text) => stream_deltas.push(text),
+                _ => {}
+            }
+        }
+
+        assert!(
+            transcript_lines
+                .iter()
+                .any(|line| line == "[detail] path: src/main.rs"),
+            "flush should preserve the orphaned parameter detail: {transcript_lines:?}"
+        );
+        assert!(
+            transcript_lines
+                .iter()
+                .any(|line| line == "[tool] read_file · dispatched"),
+            "flush should close the orphaned tool block: {transcript_lines:?}"
+        );
+        assert!(
+            stream_deltas.iter().any(|text| text == "Recovered answer."),
+            "follow-up text must be forwarded after the flush: {stream_deltas:?}"
+        );
+    }
 }

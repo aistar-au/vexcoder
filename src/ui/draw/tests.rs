@@ -984,6 +984,32 @@ fn fullscreen_surface_uses_three_regions_without_fixed_bottom_pane() {
 }
 
 #[test]
+fn inline_telemetry_truncation_rewrites_legacy_labels_before_fallback() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec!["[ttft:0.3s | read:2.5s (2641 tok) | generate:1.1s (357 tok) | total:7.7s]"],
+    );
+
+    draw.draw(&mut buf, &state, 46, 12);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("↑:"),
+        "truncated inline telemetry should use arrow labels: {output:?}"
+    );
+    assert!(
+        !output.contains("read:"),
+        "legacy read label should be rewritten before truncation: {output:?}"
+    );
+    assert!(
+        !output.contains("generate:"),
+        "legacy generate label should be rewritten before truncation: {output:?}"
+    );
+}
+
+#[test]
 fn regions_compute_three_pane_surface() {
     let regions = Regions::compute(80, 24, false, 0);
 
