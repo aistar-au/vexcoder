@@ -2,4 +2,4 @@
 source: tests/tui_draw_snapshots.rs
 expression: rendered
 ---
-──────────────────────────────────────────────────────────────────────────────── Prompt  focused · 0 chars › submit: / commands  @ files  ! shell   PgUp/PgDn transcript  Shift+Enter newline  Enter submit          task:snap-001
+──────────────────────────────────────────────────────────────────────────────── Prompt  focused · 0 chars › submit: / commands  @ files  ! shell  task:snap-001 m:streaming ap:none hist:0 clean act:0/0 PgUp/PgDn  Enter  S-Enter

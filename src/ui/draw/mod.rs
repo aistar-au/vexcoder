@@ -481,43 +481,27 @@ impl TaskDraw {
         set_dim(w);
         set_fg(w, DIM_GRAY);
 
-        // Left side: key hints.
-        let is_approval = state.pending_approval.is_some();
-        let hints = if is_approval {
-            " y approve  n deny  s approve all"
+        let hints = if state.pending_approval.is_some() {
+            "y approve  n deny  s all"
         } else {
-            " PgUp/PgDn transcript  Shift+Enter newline  Enter submit"
+            "PgUp/PgDn  Enter  S-Enter"
         };
-        let _ = write!(w, "{hints}");
+        let hints = truncate_to_width(hints, regions.cols as usize);
+        let summary_width =
+            (regions.cols as usize).saturating_sub(display_width(&hints).saturating_add(1));
+        let summary = status_bar_summary(state, summary_width);
+        let summary_len = display_width(&summary);
+        let hints_len = display_width(&hints);
 
-        // Right side: task ID (right-aligned).
-        if !state.task_id.is_empty() {
-            let scroll_state = if state.output_scroll_offset > 0 {
-                match state.output_scroll_anchor {
-                    OutputScrollAnchor::Bottom => {
-                        format!("scroll:+{}  ", state.output_scroll_offset)
-                    }
-                    OutputScrollAnchor::Top => {
-                        format!("detail:{}  ", state.output_scroll_offset + 1)
-                    }
-                }
-            } else {
-                String::new()
-            };
-            let changed_files = if state.changed_files.is_empty() {
-                String::new()
-            } else {
-                format!("files:{}  ", state.changed_files.len())
-            };
-            let right_text = format!("{scroll_state}{changed_files}task:{} ", state.task_id);
-            let right_len = display_width(&right_text);
-            let left_len = display_width(hints);
-            let gap = (regions.cols as usize).saturating_sub(left_len + right_len);
-            for _ in 0..gap {
-                let _ = write!(w, " ");
-            }
-            let _ = write!(w, "{right_text}");
+        if !summary.is_empty() {
+            let _ = write!(w, "{summary}");
         }
+
+        let gap = (regions.cols as usize).saturating_sub(summary_len + hints_len);
+        for _ in 0..gap {
+            let _ = write!(w, " ");
+        }
+        let _ = write!(w, "{hints}");
 
         reset_style(w);
     }
@@ -695,6 +679,91 @@ fn truncate_to_width(text: &str, max_width: usize) -> String {
         return text.to_string();
     }
     truncate_to_display_width(text, max_width)
+}
+
+fn status_bar_summary(state: &TaskLayoutState, max_width: usize) -> String {
+    if max_width == 0 {
+        return String::new();
+    }
+
+    let mut segments = Vec::new();
+    if !state.task_id.is_empty() {
+        segments.push(format!("task:{}", state.task_id));
+    }
+
+    if state.output_scroll_offset > 0 {
+        segments.push(match state.output_scroll_anchor {
+            OutputScrollAnchor::Bottom => format!("scroll:+{}", state.output_scroll_offset),
+            OutputScrollAnchor::Top => format!("detail:{}", state.output_scroll_offset + 1),
+        });
+    }
+
+    if !state.telemetry.mode.is_empty() {
+        segments.push(format!(
+            "m:{}",
+            truncate_to_width(&state.telemetry.mode, 12)
+        ));
+    }
+    if !state.telemetry.approval.is_empty() {
+        segments.push(format!(
+            "ap:{}",
+            truncate_to_width(&state.telemetry.approval, 12)
+        ));
+    }
+
+    if let Some(summary) = state
+        .telemetry
+        .waiting_summary
+        .as_deref()
+        .or(state.telemetry.timing_summary.as_deref())
+    {
+        let compact = summary.replace(" | ", " ");
+        let compact = compact.split_whitespace().collect::<Vec<_>>().join(" ");
+        segments.push(truncate_to_width(&compact, 18));
+    } else {
+        segments.push(format!("hist:{}", state.telemetry.history_rows));
+    }
+
+    segments.push(if state.changed_files.is_empty() {
+        "clean".to_string()
+    } else {
+        format!("chg:{}", state.changed_files.len())
+    });
+    segments.push(format!(
+        "act:{}/{}",
+        state.telemetry.active_tools, state.telemetry.active_commands
+    ));
+
+    fit_status_bar_segments(&segments, max_width)
+}
+
+fn fit_status_bar_segments(segments: &[String], max_width: usize) -> String {
+    let mut rendered = String::new();
+
+    for segment in segments.iter().filter(|segment| !segment.is_empty()) {
+        if rendered.is_empty() {
+            rendered = truncate_to_width(segment, max_width);
+            if display_width(segment) > max_width {
+                break;
+            }
+            continue;
+        }
+
+        let candidate = format!("{rendered} {segment}");
+        if display_width(&candidate) <= max_width {
+            rendered = candidate;
+            continue;
+        }
+
+        let remaining = max_width.saturating_sub(display_width(&rendered).saturating_add(1));
+        if remaining > 4 {
+            rendered.push(' ');
+            rendered.push_str(&truncate_to_width(segment, remaining));
+        }
+        break;
+    }
+
+    rendered
 }
 
 fn draw_rule_row<W: Write>(

@@ -931,6 +931,16 @@ fn fullscreen_surface_uses_three_regions_without_fixed_bottom_pane() {
         vec![],
         vec!["[thinking] Mapping adjacent sectors... 2.5s | read:512/1024"],
     );
+    state.telemetry = crate::app::TaskTelemetryState {
+        mode: "streaming".into(),
+        approval: "pending".into(),
+        history_rows: 7,
+        total_tokens: 1234,
+        active_tools: 2,
+        active_commands: 1,
+        waiting_summary: Some("lat:2.5s".into()),
+        timing_summary: None,
+    };
     state.changed_files = vec!["src/config.rs".into(), "src/ui/draw/mod.rs".into()];
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -949,8 +959,12 @@ fn fullscreen_surface_uses_three_regions_without_fixed_bottom_pane() {
         "the prompt region must remain visible"
     );
     assert!(
-        output.contains("files:2") && output.contains("task:test-001"),
-        "the separate status bar should carry lightweight file/task context"
+        output.contains("task:test-001")
+            && output.contains("m:streaming")
+            && output.contains("ap:pending")
+            && output.contains("lat:2.5s")
+            && output.contains("chg:2"),
+        "the separate status bar should fold compact telemetry and git summaries from the removed pane"
     );
 }
 
@@ -968,6 +982,32 @@ fn regions_compute_three_pane_surface() {
         regions.rows,
         "the fullscreen surface should consist only of transcript, composer, and status bar rows"
     );
+}
+
+#[test]
+fn status_bar_summary_truncates_to_available_width() {
+    let mut state = make_state(vec![], vec!["plain response"]);
+    state.telemetry = crate::app::TaskTelemetryState {
+        mode: "streaming".into(),
+        approval: "pending".into(),
+        history_rows: 99,
+        total_tokens: 9999,
+        active_tools: 4,
+        active_commands: 2,
+        waiting_summary: Some("latency:2.5s read:512/1024 generate:128".into()),
+        timing_summary: None,
+    };
+    state.changed_files = vec![
+        "src/config.rs".into(),
+        "src/ui/draw/mod.rs".into(),
+        "src/ui/draw/tests.rs".into(),
+    ];
+
+    let summary = status_bar_summary(&state, 32);
+
+    assert!(display_width(&summary) <= 32);
+    assert!(summary.contains("task:test-001"));
+    assert!(summary.contains("m:streaming"));
 }
 
 #[test]

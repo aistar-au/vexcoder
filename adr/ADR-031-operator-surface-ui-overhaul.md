@@ -88,9 +88,9 @@ Key changes from the current implementation:
 3. Scroll ownership moves to the task surface: the transcript redraws from the
    same task-derived state, starts at the top of its pane, and scrolls upward
    indefinitely as new paragraphs arrive.
-4. Telemetry remains inline in transcript paragraphs and any lightweight file
-   context belongs in the separate status bar rather than a dedicated fixed
-   pane.
+4. Telemetry remains inline in transcript paragraphs, while the separate status
+   bar may fold compact telemetry and git summaries into one truncated line
+   rather than reintroducing a dedicated fixed pane.
 5. The composer remains a multiline prompt surface with persistent affordances
    for slash commands, `@path` expansion, pasted blocks, and newline insertion,
    and it auto-fits within the current fullscreen viewport as display rows or

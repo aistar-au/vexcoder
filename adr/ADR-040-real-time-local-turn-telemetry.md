@@ -122,8 +122,9 @@ streaming protocols.
     and renders waiting status, tool activity, approvals, and assistant output
     as paragraphs in that shared stream.
 23. The persistent bottom surface is limited to the multiline composer and
-    separate status bar; telemetry remains inline in transcript paragraphs
-    instead of claiming a dedicated fixed pane.
+    separate status bar; telemetry remains inline in transcript paragraphs,
+    while the status bar may fold compact telemetry and git summaries into a
+    single truncated line instead of claiming a dedicated fixed pane.
 24. While a turn is waiting for first text, the operator surface may append
     active counters such as `read:2048/2641` in the transcript status lane.
 25. After a turn completes, the transcript may append a compact timing summary
