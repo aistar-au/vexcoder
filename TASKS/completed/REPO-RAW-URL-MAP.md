@@ -174,7 +174,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 160 | `src/app/turn_start.rs` | ~81 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/turn_start.rs> |
 | 161 | `src/app/util.rs` | ~325 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/util.rs> |
 | 162 | `src/auto_memory.rs` | ~233 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/auto_memory.rs> |
-| 163 | `src/batch_mode/mod.rs` | ~737 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode/mod.rs> |
+| 163 | `src/batch_mode.rs` | ~737 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode.rs> |
 | 164 | `src/batch_mode/tests.rs` | ~713 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/batch_mode/tests.rs> |
 | 165 | `src/bin/vex.rs` | ~385 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/bin/vex.rs> |
 | 166 | `src/bin/vex/cli.rs` | ~153 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/bin/vex/cli.rs> |
@@ -299,7 +299,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 285 | `src/tools/semantic.rs` | ~460 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/semantic.rs> |
 | 286 | `src/tools/workspace_explore.rs` | ~441 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/workspace_explore.rs> |
 | 287 | `src/tools/workspace_ignore.rs` | ~333 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/workspace_ignore.rs> |
-| 288 | `src/tui_frontend/mod.rs` | ~638 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_frontend/mod.rs> |
+| 288 | `src/tui_frontend.rs` | ~638 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_frontend.rs> |
 | 289 | `src/tui_frontend/picker.rs` | ~233 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_frontend/picker.rs> |
 | 290 | `src/turn_evidence.rs` | ~206 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/turn_evidence.rs> |
 | 291 | `src/types.rs` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types.rs> |
