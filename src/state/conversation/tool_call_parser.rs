@@ -25,22 +25,17 @@ pub(crate) enum ToolParserMode {
 }
 
 impl ToolParserMode {
-    /// Resolve mode from the environment (`VEX_TOOL_PARSER`), falling back
-    /// to the supplied default.
-    pub(crate) fn from_env_or(default: Self) -> Self {
+    /// Resolve mode from the environment (`VEX_TOOL_PARSER`), then the
+    /// optional profile name, falling back to the supplied default.
+    pub(crate) fn from_env_or(profile_name: Option<&str>, default: Self) -> Self {
         match std::env::var("VEX_TOOL_PARSER").ok().as_deref() {
             Some("hybrid") => Self::Hybrid,
             Some("tagged") => Self::Tagged,
-            _ => default,
-        }
-    }
-
-    /// Parse a mode name string (e.g. from a model profile).
-    #[allow(unused)]
-    pub(crate) fn from_name(name: &str) -> Self {
-        match name {
-            "hybrid" => Self::Hybrid,
-            _ => Self::Tagged,
+            _ => match profile_name {
+                Some("hybrid") => Self::Hybrid,
+                Some("tagged") => Self::Tagged,
+                _ => default,
+            },
         }
     }
 }
@@ -134,54 +129,48 @@ impl XmlFallbackParser {
 
         loop {
             match reader.read_event_into(&mut buf) {
-                Ok(XmlEvent::Start(ref e)) => {
-                    let tag = String::from_utf8_lossy(e.name().as_ref()).to_string();
-                    match tag.as_str() {
-                        "invoke" | "tool_use" => {
-                            depth += 1;
-                            current_name = e
-                                .attributes()
-                                .filter_map(Result::ok)
-                                .find(|a| a.key.as_ref() == b"name")
-                                .and_then(|a| String::from_utf8(a.value.to_vec()).ok());
-                            current_params = serde_json::Map::new();
-                        }
-                        "parameter" | "argument" if depth > 0 => {
-                            current_key = e
-                                .attributes()
-                                .filter_map(Result::ok)
-                                .find(|a| a.key.as_ref() == b"name" || a.key.as_ref() == b"key")
-                                .and_then(|a| String::from_utf8(a.value.to_vec()).ok());
-                        }
-                        _ => {}
+                Ok(XmlEvent::Start(ref e)) => match e.name().as_ref() {
+                    b"invoke" | b"tool_use" => {
+                        depth += 1;
+                        current_name = e
+                            .attributes()
+                            .filter_map(Result::ok)
+                            .find(|a| a.key.as_ref() == b"name")
+                            .and_then(|a| String::from_utf8(a.value.to_vec()).ok());
+                        current_params = serde_json::Map::new();
                     }
-                }
+                    b"parameter" | b"argument" if depth > 0 => {
+                        current_key = e
+                            .attributes()
+                            .filter_map(Result::ok)
+                            .find(|a| a.key.as_ref() == b"name" || a.key.as_ref() == b"key")
+                            .and_then(|a| String::from_utf8(a.value.to_vec()).ok());
+                    }
+                    _ => {}
+                },
                 Ok(XmlEvent::Text(ref e)) if depth > 0 && current_key.is_some() => {
                     if let (Some(key), Ok(val)) = (current_key.take(), e.unescape()) {
                         current_params.insert(key, serde_json::Value::String(val.into_owned()));
                     }
                 }
-                Ok(XmlEvent::End(ref e)) => {
-                    let tag = String::from_utf8_lossy(e.name().as_ref()).to_string();
-                    match tag.as_str() {
-                        "invoke" | "tool_use" if depth > 0 => {
-                            depth -= 1;
-                            if let Some(name) = current_name.take() {
-                                if !name.is_empty() {
-                                    calls.push(TaggedToolCall {
-                                        name,
-                                        input: serde_json::Value::Object(std::mem::take(
-                                            &mut current_params,
-                                        )),
-                                    });
-                                }
+                Ok(XmlEvent::End(ref e)) => match e.name().as_ref() {
+                    b"invoke" | b"tool_use" if depth > 0 => {
+                        depth -= 1;
+                        if let Some(name) = current_name.take() {
+                            if !name.is_empty() {
+                                calls.push(TaggedToolCall {
+                                    name,
+                                    input: serde_json::Value::Object(std::mem::take(
+                                        &mut current_params,
+                                    )),
+                                });
                             }
                         }
-                        _ => {
-                            current_key = None;
-                        }
                     }
-                }
+                    _ => {
+                        current_key = None;
+                    }
+                },
                 Ok(XmlEvent::Eof) => break,
                 Err(_) => break,
                 _ => {}
@@ -360,5 +349,25 @@ not valid json at all
         let calls = XmlFallbackParser::parse_xml_tool_calls(text);
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].name, "read_file");
+    }
+
+    #[test]
+    fn from_env_or_respects_profile_name() {
+        assert_eq!(
+            ToolParserMode::from_env_or(Some("hybrid"), ToolParserMode::Tagged),
+            ToolParserMode::Hybrid
+        );
+        assert_eq!(
+            ToolParserMode::from_env_or(Some("tagged"), ToolParserMode::Tagged),
+            ToolParserMode::Tagged
+        );
+        assert_eq!(
+            ToolParserMode::from_env_or(Some("unknown"), ToolParserMode::Tagged),
+            ToolParserMode::Tagged
+        );
+        assert_eq!(
+            ToolParserMode::from_env_or(None, ToolParserMode::Tagged),
+            ToolParserMode::Tagged
+        );
     }
 }

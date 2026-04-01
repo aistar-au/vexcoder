@@ -1,5 +1,5 @@
 use super::super::stream_block::{StreamBlock, ToolStatus};
-use super::tool_call_parser::{parser_for_mode, ToolParserMode};
+use super::tool_call_parser::{parser_for_mode, ToolCallParser, ToolParserMode};
 use super::{
     history::*, streaming::*, tools::*, ConversationManager, ConversationStreamUpdate,
     TurnToolPolicy, UndoCheckpoint,
@@ -176,6 +176,8 @@ impl ConversationManager {
         let mut last_assistant_text_for_history = String::new();
         let mut turn_tokens = TurnTokens::default();
         let mut compacted_this_turn = false;
+        let tool_parser: Box<dyn ToolCallParser> =
+            parser_for_mode(ToolParserMode::from_env_or(None, ToolParserMode::Tagged));
         // Condense once per user turn, not per API round, to stay idempotent.
         self.condense_old_tool_results(history_keep_turns);
         loop {
@@ -472,9 +474,7 @@ impl ConversationManager {
             let mut tool_use_blocks: Vec<ContentBlock> =
                 tool_use_blocks.into_iter().flatten().collect();
             if tool_use_blocks.is_empty() && self.client.is_local_endpoint() {
-                let mode = ToolParserMode::from_env_or(ToolParserMode::Tagged);
-                let parser = parser_for_mode(mode);
-                let tagged_calls = parser.parse(&assistant_text);
+                let tagged_calls = tool_parser.parse(&assistant_text);
                 if !tagged_calls.is_empty() {
                     used_tagged_fallback = true;
                     assistant_text_for_history =
