@@ -1,4 +1,4 @@
-use super::transcript::{is_horizontal_rule, parse_numbered_list_item};
+use super::transcript_helpers::{is_horizontal_rule, parse_numbered_list_item};
 use super::*;
 use crate::app::{StepLifecycle, TaskLayoutState, TimelineEntry};
 

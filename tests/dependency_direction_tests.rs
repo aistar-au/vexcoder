@@ -603,6 +603,9 @@ fn server_module_exists() {
     );
     for submodule in &["http.rs", "sse.rs", "socket.rs", "handlers.rs", "util.rs"] {
         let path = server_dir.join(submodule);
-        assert!(path.is_file(), "ADR-028: src/server/{submodule} must exist");
+        assert!(
+            path.is_file() || server_dir.join(submodule.trim_end_matches(".rs")).is_dir(),
+            "ADR-028: src/server/{submodule} must exist"
+        );
     }
 }

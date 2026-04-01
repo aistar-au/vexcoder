@@ -22,7 +22,10 @@
 
 mod ansi;
 mod regions;
+mod transcript_helpers;
 pub(crate) mod transcript;
+
+pub(crate) use transcript_helpers::parse_numbered_list_item;
 
 #[cfg(test)]
 mod tests;

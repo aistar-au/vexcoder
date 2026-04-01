@@ -8,7 +8,10 @@ fn test_conversation_module_structure() {
 
     assert!(Path::new("src/state/conversation/state.rs").exists());
     assert!(Path::new("src/state/conversation/core.rs").exists());
-    assert!(Path::new("src/state/conversation/tools.rs").exists());
+    assert!(
+        Path::new("src/state/conversation/tools.rs").exists()
+            || Path::new("src/state/conversation/tools").is_dir()
+    );
     assert!(Path::new("src/state/conversation/streaming.rs").exists());
     assert!(Path::new("src/state/conversation/history.rs").exists());
 }
