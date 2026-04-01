@@ -464,7 +464,7 @@ pub(super) fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
     }
 }
 
-pub(crate) fn builtin_tool_menu_group(name: &str) -> &'static str {
+pub(super) fn builtin_tool_menu_group(name: &str) -> &'static str {
     match name {
         "list_files" | "list_directory" | "list_dir" | "glob_files" | "find_files" | "search"
         | "search_files" | "search_content" | "codebase_search" | "read_file" => "retrieve",
@@ -474,7 +474,7 @@ pub(crate) fn builtin_tool_menu_group(name: &str) -> &'static str {
     }
 }
 
-pub(crate) fn builtin_tool_usage_hint(name: &str) -> &'static str {
+pub(super) fn builtin_tool_usage_hint(name: &str) -> &'static str {
     match name {
         "list_files" | "list_directory" | "list_dir" => {
             "start broad at the workspace or directory level"
