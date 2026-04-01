@@ -38,7 +38,7 @@ fn test_task_layout_state_shows_server_read_progress_in_waiting_row() {
     );
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert!(state.output_rows[1].contains("read:2048/2641"));
+    assert!(state.output_rows[1].contains("\u{2191}:2048/2641"));
     assert_eq!(state.telemetry.mode, "streaming");
     assert_eq!(state.telemetry.approval, "none");
     assert!(
@@ -46,7 +46,7 @@ fn test_task_layout_state_shows_server_read_progress_in_waiting_row() {
             .telemetry
             .waiting_summary
             .as_deref()
-            .is_some_and(|summary| summary.contains("read:2048/2641")),
+            .is_some_and(|summary| summary.contains("\u{2191}:2048/2641")),
         "structured telemetry must preserve prompt-read progress"
     );
 }
@@ -478,14 +478,14 @@ fn test_task_layout_state_exposes_turn_timing_summary_in_structured_telemetry() 
         .as_deref()
         .expect("timing summary");
     assert!(
-        summary.contains("read:1.0s (10 tok)") && summary.contains("generate:0.5s (5 tok)"),
+        summary.contains("\u{2191}:1.0s (10 tok)") && summary.contains("\u{2193}:0.5s (5 tok)"),
         "structured telemetry must expose the compact timing summary, got: {summary}"
     );
     assert!(
         state
             .output_rows
             .iter()
-            .any(|line| line.starts_with("[read:1.0s")),
+            .any(|line| line.starts_with("[\u{2191}:1.0s")),
         "the transcript should continue to carry the inline timing line"
     );
 }

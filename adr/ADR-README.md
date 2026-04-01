@@ -36,6 +36,8 @@ All ADR files are stored under `adr/`.
 | [ADR-035](ADR-035-undo-checkpoints-and-binary-safe-rollback.md) | Undo checkpoints and binary-safe rollback | Accepted | 0 items remaining; Gap 14 rollback strategy formalized for `/undo` |
 | [ADR-038](ADR-038-memory-first-architecture-with-minimal-disk-io.md) | Memory-first architecture with minimal disk I/O | Accepted (Batches D-H merged) | 0 items remaining |
 | [ADR-039](ADR-039-neutral-cli-voice-and-spatial-status-language.md) | Neutral CLI voice and spatial status language | Proposed (Batch A merged on main) | Batch A merged in PR #292; search.exclude path-boundary fix in PR #293; remaining batches B-D cover vocabulary, active indicator, and paragraph progress stream |
+| [ADR-040](ADR-040-real-time-local-turn-telemetry.md) | Real-time local turn telemetry | Proposed | Telemetry labels updated to arrow notation in ADR-041 |
+| [ADR-041](ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md) | Transcript renderer wiring and compact tool paragraphs | Accepted | Normaliser flush, compact tool paragraphs, arrow telemetry labels |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 

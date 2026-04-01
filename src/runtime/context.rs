@@ -458,6 +458,22 @@ fn forward_conversation_update(
                 StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. }
             );
             textual_block_by_index.insert(index, is_textual);
+            // Flush any stale normaliser state when a new textual block
+            // begins (e.g. the model producing response text after tool
+            // execution).  This prevents inline tool markup with missing
+            // close tags from swallowing subsequent response content.
+            if is_textual {
+                for chunk in normaliser.flush() {
+                    match chunk {
+                        crate::api::stream::NormalisedChunk::Text(t) => {
+                            let _ = tx.send(UiUpdate::StreamDelta(t));
+                        }
+                        crate::api::stream::NormalisedChunk::TranscriptLine(line) => {
+                            let _ = tx.send(UiUpdate::TranscriptLine(line));
+                        }
+                    }
+                }
+            }
             if let StreamBlock::FinalText { content } = &block {
                 if !content.is_empty() {
                     emit_normalised_text(normaliser, content, tx);

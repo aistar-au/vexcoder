@@ -10,7 +10,7 @@ fn format_waiting_status(
     let mut status = format!("{} {elapsed}", waiting_for_response_line());
     if let Some(progress) = prompt_progress {
         if let (Some(processed), Some(total)) = (progress.processed, progress.total) {
-            status.push_str(&format!(" | read:{processed}/{total}"));
+            status.push_str(&format!(" | \u{2191}:{processed}/{total}"));
         }
     }
     status
@@ -534,6 +534,7 @@ fn tool_outcome_is_error(outcome: &str) -> bool {
         || lowered.starts_with("canceled")
 }
 
+#[cfg(test)]
 fn tool_scope_detail(tool_name: &str) -> String {
     builtin_tool_summaries()
         .into_iter()
@@ -622,11 +623,7 @@ pub(super) fn pending_tool_paragraph_rows(
         "[tool] {}",
         tool_header_summary(&pending.name, target, status)
     )];
-    rows.push(format!(
-        "[detail] Scope: {}",
-        tool_scope_detail(&pending.name)
-    ));
-    rows.push(format!("[detail] Command: {}", pending.name));
+    // Compact: single Input detail line only (no Scope/Command verbosity).
     let input_preview = compact_preview_text(&pending.input_preview);
     if !input_preview.is_empty() {
         rows.push(format!("[detail] Input: {input_preview}"));
@@ -652,8 +649,7 @@ pub(super) fn completed_tool_paragraph_rows(
         "[tool] {}",
         tool_header_summary(name, target, status)
     )];
-    rows.push(format!("[detail] Scope: {}", tool_scope_detail(name)));
-    rows.push(format!("[detail] Command: {name}"));
+    // Compact: single Input detail line, single Result line, brief evidence.
     if !input_preview.trim().is_empty() && input_preview != "{}" {
         rows.push(format!("[detail] Input: {input_preview}"));
     }
@@ -661,7 +657,7 @@ pub(super) fn completed_tool_paragraph_rows(
         "[detail] Result: {}",
         compact_outcome_summary(first_line)
     ));
-    const MAX_EVIDENCE_LINES: usize = 6;
+    const MAX_EVIDENCE_LINES: usize = 3;
     let nonempty: Vec<&str> = output
         .lines()
         .map(str::trim_end)
@@ -843,7 +839,7 @@ mod tests {
         let rows = mode.transcript_display_rows();
         assert_eq!(rows[0], "> hi");
         assert!(rows[1].starts_with(waiting_for_response_line()));
-        assert!(rows[1].contains("read:512/2641"));
+        assert!(rows[1].contains("\u{2191}:512/2641"));
     }
 
     #[test]
@@ -867,11 +863,11 @@ mod tests {
 
         assert_eq!(
             evidence_rows.len(),
-            7,
-            "should have 6 evidence lines + 1 overflow indicator: {evidence_rows:?}"
+            4,
+            "should have 3 evidence lines + 1 overflow indicator: {evidence_rows:?}"
         );
         assert!(
-            evidence_rows.last().unwrap().contains("+14 more lines"),
+            evidence_rows.last().unwrap().contains("+17 more lines"),
             "last evidence row should indicate remaining lines: {:?}",
             evidence_rows.last()
         );

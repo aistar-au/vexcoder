@@ -54,7 +54,7 @@ impl TuiMode {
         self.plan_turn_active = false;
     }
 
-    /// Append a `[ttft: …s | read: …s (N tok) | generate: …s (N tok) | total: …s]`
+    /// Append a `[ttft: …s | ↑…s (N tok) | ↓…s (N tok) | total: …s]`
     /// timing and token-count summary to the transcript
     /// after a turn finishes so the operator can see latency at a glance.
     fn append_turn_timing_line(&mut self) {
@@ -72,7 +72,7 @@ impl TuiMode {
                     .prompt_n
                     .map(|n| format!(" ({n} tok)"))
                     .unwrap_or_default();
-                parts.push(format!("read:{:.1}s{tok_suffix}", prompt_ms / 1000.0));
+                parts.push(format!("\u{2191}:{:.1}s{tok_suffix}", prompt_ms / 1000.0));
             }
             if let Some(predicted_ms) = timings.predicted_ms {
                 let tok_suffix = timings
@@ -80,7 +80,7 @@ impl TuiMode {
                     .map(|n| format!(" ({n} tok)"))
                     .unwrap_or_default();
                 parts.push(format!(
-                    "generate:{:.1}s{tok_suffix}",
+                    "\u{2193}:{:.1}s{tok_suffix}",
                     predicted_ms / 1000.0
                 ));
             }
