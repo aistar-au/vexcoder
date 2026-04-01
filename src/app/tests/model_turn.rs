@@ -1785,3 +1785,145 @@ fn test_stream_block_delta_updates_pending_tool_call_input() {
         "complete delta must replace the partial preview with the parsed preview"
     );
 }
+
+// -- duplicate tool-call folding -------------------------------------------------
+
+fn tool_call_start(index: usize, id: &str, name: &str, input: serde_json::Value) -> UiUpdate {
+    UiUpdate::StreamBlockStart {
+        index,
+        block: StreamBlock::ToolCall {
+            id: id.to_string(),
+            name: name.to_string(),
+            input,
+            status: crate::state::ToolStatus::Executing,
+        },
+    }
+}
+
+fn tool_result(index: usize, tool_call_id: &str, output: &str) -> UiUpdate {
+    UiUpdate::StreamBlockStart {
+        index,
+        block: StreamBlock::ToolResult {
+            tool_call_id: tool_call_id.to_string(),
+            output: output.to_string(),
+            is_error: false,
+        },
+    }
+}
+
+#[test]
+fn test_duplicate_tool_calls_fold_to_repeated_indicator() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("task".to_string(), &mut ctx);
+
+    let input = serde_json::json!({"path": "src/main.rs"});
+
+    // First call
+    mode.on_model_update(
+        tool_call_start(0, "t1", "read_file", input.clone()),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(1, "t1", "fn main() {}"), &mut ctx);
+    // Second identical call
+    mode.on_model_update(
+        tool_call_start(2, "t2", "read_file", input.clone()),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(3, "t2", "fn main() {}"), &mut ctx);
+
+    let lines = &mode.history_state.lines;
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("[detail] (repeated 2\u{d7}, same result)")),
+        "expected folded-duplicate indicator in history; got:\n{:#?}",
+        lines
+    );
+    assert_eq!(
+        mode.duplicate_tool_count, 2,
+        "duplicate_tool_count should be 2 after two identical consecutive tool calls"
+    );
+}
+
+#[test]
+fn test_different_consecutive_tool_calls_not_folded() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("task".to_string(), &mut ctx);
+
+    // First call: read_file
+    mode.on_model_update(
+        tool_call_start(0, "t1", "read_file", serde_json::json!({"path": "a.rs"})),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(1, "t1", "content of a"), &mut ctx);
+
+    // Second call: different tool
+    mode.on_model_update(
+        tool_call_start(
+            2,
+            "t2",
+            "write_file",
+            serde_json::json!({"path": "b.rs", "content": "x"}),
+        ),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(3, "t2", "written"), &mut ctx);
+
+    let lines = &mode.history_state.lines;
+    assert!(
+        !lines.iter().any(|l| l.starts_with("[detail] (repeated")),
+        "different tool calls must not produce a folded-duplicate line; got:\n{:#?}",
+        lines
+    );
+    // Each unique tool result must produce its own completed [tool] header row.
+    // Pending rows also emit [tool] headers, so we expect 4 total (2 pending + 2 completed).
+    let tool_headers: Vec<_> = lines.iter().filter(|l| l.starts_with("[tool]")).collect();
+    assert!(
+        tool_headers.len() >= 2,
+        "expected at least two [tool] header lines for different tool calls; got:\n{:#?}",
+        lines
+    );
+}
+
+#[test]
+fn test_tool_fold_state_resets_after_turn_ends() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    // Turn 1: complete a tool call.
+    mode.on_user_input("first".to_string(), &mut ctx);
+    let input = serde_json::json!({"path": "src/main.rs"});
+    mode.on_model_update(
+        tool_call_start(0, "t1", "read_file", input.clone()),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(1, "t1", "content"), &mut ctx);
+    assert_eq!(
+        mode.duplicate_tool_count, 1,
+        "count should be 1 after first completion"
+    );
+
+    // End the turn via Error (causes reset_turn_capture).
+    mode.on_model_update(UiUpdate::Error("test reset".to_string()), &mut ctx);
+    assert!(
+        mode.last_completed_tool_header.is_none(),
+        "last_completed_tool_header must be cleared after turn reset"
+    );
+
+    // Turn 2: same tool call in a fresh turn must not fold.
+    mode.on_user_input("second".to_string(), &mut ctx);
+    mode.on_model_update(
+        tool_call_start(0, "t2", "read_file", input.clone()),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(1, "t2", "content"), &mut ctx);
+
+    let lines = &mode.history_state.lines;
+    assert!(
+        !lines.iter().any(|l| l.starts_with("[detail] (repeated")),
+        "tool call in new turn must not fold against previous turn; got:\n{:#?}",
+        lines
+    );
+}
