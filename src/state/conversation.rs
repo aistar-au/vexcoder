@@ -2,6 +2,7 @@ mod core;
 mod history;
 mod state;
 mod streaming;
+pub(crate) mod tool_call_parser;
 mod tools;
 
 #[cfg(test)]

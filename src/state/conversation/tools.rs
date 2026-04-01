@@ -1451,12 +1451,12 @@ pub(super) fn tool_input_preview(tool_name: &str, input: &serde_json::Value) -> 
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct TaggedToolCall {
-    pub(super) name: String,
-    pub(super) input: serde_json::Value,
+pub(crate) struct TaggedToolCall {
+    pub(crate) name: String,
+    pub(crate) input: serde_json::Value,
 }
 
-pub(super) fn parse_tagged_tool_calls(text: &str) -> Vec<TaggedToolCall> {
+pub(crate) fn parse_tagged_tool_calls(text: &str) -> Vec<TaggedToolCall> {
     let mut calls = Vec::new();
     let mut cursor = 0usize;
 

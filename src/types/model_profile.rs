@@ -18,6 +18,10 @@ pub struct ModelProfile {
     pub stop_sequences: Vec<String>,
     pub structured_tools: bool,
     pub reasoning_budget: u32,
+    /// Optional tool-call parser override: "tagged" (default) or "hybrid".
+    /// When absent, defaults to "tagged" (fast path only).
+    #[serde(default)]
+    pub tool_parser: Option<String>,
 }
 
 impl ModelProfile {
@@ -44,6 +48,7 @@ impl ModelProfile {
             stop_sequences: Vec::new(),
             structured_tools: matches!(backend, ModelBackendKind::ApiServer),
             reasoning_budget: 0,
+            tool_parser: None,
         }
     }
 
@@ -53,6 +58,12 @@ impl ModelProfile {
         } else {
             ToolCallMode::TaggedFallback
         }
+    }
+
+    /// Return the raw tool parser setting from the profile, if any.
+    /// Caller is responsible for mapping to `ToolParserMode`.
+    pub fn tool_parser_name(&self) -> Option<&str> {
+        self.tool_parser.as_deref()
     }
 
     pub fn system_prompt_text(&self) -> Result<&'static str> {
