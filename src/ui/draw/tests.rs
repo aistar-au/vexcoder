@@ -938,7 +938,7 @@ fn fullscreen_surface_uses_three_regions_without_fixed_bottom_pane() {
     let mut draw = TaskDraw::new();
     let mut state = make_state(
         vec![],
-        vec!["[thinking] Mapping adjacent sectors... 2.5s | read:512/1024"],
+        vec!["[thinking] Mapping adjacent sectors... 2.5s | \u{2191}:512/1024"],
     );
     state.telemetry = crate::app::TaskTelemetryState {
         mode: "streaming".into(),
@@ -963,7 +963,7 @@ fn fullscreen_surface_uses_three_regions_without_fixed_bottom_pane() {
         "the fullscreen surface should not reserve a dedicated telemetry/git pane"
     );
     assert!(
-        output.contains("Mapping adjacent sectors...") && output.contains("read:512/1024"),
+        output.contains("Mapping adjacent sectors...") && output.contains("\u{2191}:512/1024"),
         "telemetry should stay inline in the scrolling transcript"
     );
     assert!(
@@ -1011,7 +1011,7 @@ fn status_bar_summary_truncates_to_available_width() {
         tokens_received: 3999,
         active_tools: 4,
         active_commands: 2,
-        waiting_summary: Some("latency:2.5s read:512/1024 generate:128".into()),
+        waiting_summary: Some("latency:2.5s \u{2191}:512/1024 \u{2193}:128".into()),
         timing_summary: None,
         git_branch: String::new(),
     };

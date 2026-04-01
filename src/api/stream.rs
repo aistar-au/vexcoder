@@ -539,6 +539,11 @@ impl StreamTextNormaliser {
 
             // Detect function open tag: `function=<name>` or `<function=name>`
             if let Some(tool_name) = parse_embedded_function_open(trimmed) {
+                // Auto-close any stale tool block so subsequent text is not
+                // swallowed when the previous block had a missing close tag.
+                if self.in_tool_block {
+                    self.flush_stale_tool_block(&mut output);
+                }
                 self.in_tool_block = true;
                 self.current_tool_name = Some(tool_name.clone());
                 self.current_param_name = None;
@@ -634,6 +639,41 @@ impl StreamTextNormaliser {
         self.current_param_name = None;
         self.current_param_value.clear();
         self.consecutive_blanks = 0;
+    }
+
+    /// Drain any pending tool block state that was never properly closed.
+    ///
+    /// Returns transcript lines for the orphaned block so the TUI shows
+    /// partial tool call information rather than silently dropping it.
+    /// Called between streaming rounds within a turn (e.g. after tool
+    /// execution, before the model produces its follow-up response).
+    pub fn flush(&mut self) -> Vec<NormalisedChunk> {
+        let mut output = Vec::new();
+        if self.in_tool_block {
+            self.flush_stale_tool_block(&mut output);
+        }
+        self.consecutive_blanks = 0;
+        output
+    }
+
+    /// Close a stale tool block, emitting any buffered parameter value.
+    fn flush_stale_tool_block(&mut self, output: &mut Vec<NormalisedChunk>) {
+        if let Some(param_name) = self.current_param_name.take() {
+            let value = std::mem::take(&mut self.current_param_value);
+            let compact = compact_param_value(&value);
+            output.push(NormalisedChunk::TranscriptLine(format!(
+                "[detail] {param_name}: {compact}"
+            )));
+        }
+        let tool_name = self
+            .current_tool_name
+            .take()
+            .unwrap_or_else(|| "unknown".to_string());
+        output.push(NormalisedChunk::TranscriptLine(format!(
+            "[tool] {tool_name} · dispatched"
+        )));
+        self.in_tool_block = false;
+        self.current_param_value.clear();
     }
 }
 

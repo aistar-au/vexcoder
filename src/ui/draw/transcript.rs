@@ -157,8 +157,8 @@ fn is_inline_telemetry_summary(line: &str) -> bool {
 fn telemetry_segment_color(label: &str) -> u8 {
     match label {
         "ttft" => CYAN,
-        "read" => MAGENTA,
-        "generate" => GREEN,
+        "\u{2191}" | "read" => MAGENTA,
+        "\u{2193}" | "generate" => GREEN,
         "total" => YELLOW,
         _ => DIM_GRAY,
     }
@@ -198,10 +198,15 @@ fn draw_inline_telemetry_summary(w: &mut dyn Write, line: &str, cols: u16) {
             reset_style(w);
         }
         if let Some((label, value)) = segment.split_once(':') {
+            let display_label = match label {
+                "read" => "\u{2191}",
+                "generate" => "\u{2193}",
+                _ => label,
+            };
             let color = telemetry_segment_color(label);
             set_bold(w);
             set_fg(w, color);
-            let _ = write!(w, "{label}:");
+            let _ = write!(w, "{display_label}:");
             reset_style(w);
             set_fg(w, color);
             let _ = write!(w, "{value}");
@@ -468,7 +473,7 @@ fn is_telemetry_summary(line: &str) -> bool {
 }
 
 /// Render a telemetry summary line with per-segment coloring:
-///   `ttft` → cyan, `read` → magenta, `generate` → green, `total` → yellow,
+///   `ttft` → cyan, `↑` (read) → magenta, `↓` (generate) → green, `total` → yellow,
 ///   token counts → dim gray.
 fn draw_telemetry_summary(w: &mut dyn Write, line: &str, cols: u16) {
     let trimmed = line.trim();
@@ -495,9 +500,9 @@ fn draw_telemetry_summary(w: &mut dyn Write, line: &str, cols: u16) {
         }
         let color = if segment.starts_with("ttft:") {
             CYAN
-        } else if segment.starts_with("read:") {
+        } else if segment.starts_with("read:") || segment.starts_with("\u{2191}:") {
             MAGENTA
-        } else if segment.starts_with("generate:") {
+        } else if segment.starts_with("generate:") || segment.starts_with("\u{2193}:") {
             GREEN
         } else if segment.starts_with("total:") {
             YELLOW
@@ -507,9 +512,15 @@ fn draw_telemetry_summary(w: &mut dyn Write, line: &str, cols: u16) {
 
         // Split segment into label:value and optional (N tok) suffix.
         if let Some((label, rest)) = segment.split_once(':') {
+            // Rewrite verbose labels to compact arrows.
+            let display_label = match label {
+                "read" => "\u{2191}",
+                "generate" => "\u{2193}",
+                _ => label,
+            };
             // Label
             set_fg(w, DIM_GRAY);
-            let lbl = format!("{label}:");
+            let lbl = format!("{display_label}:");
             let trun = truncate_to_width(&lbl, max.saturating_sub(used));
             let _ = write!(w, "{trun}");
             used += display_width(&trun);
