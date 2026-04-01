@@ -1836,7 +1836,7 @@ fn test_duplicate_tool_calls_fold_to_repeated_indicator() {
     assert!(
         lines
             .iter()
-            .any(|l| l.starts_with("[detail] (repeated 2\u{d7}, same result)")),
+            .any(|l| l.starts_with("[detail] (repeated 2\u{d7}, same call)")),
         "expected folded-duplicate indicator in history; got:\n{:#?}",
         lines
     );

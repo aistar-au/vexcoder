@@ -363,6 +363,17 @@ impl RuntimeContext {
             .map(|conversation| estimate_token_count(&conversation.messages_for_api()))
             .unwrap_or(0)
     }
+
+    /// Poll the configured local inference server for capabilities and cache
+    /// the result on the shared `ApiClient`. No-op for remote endpoints or
+    /// when the server does not expose a discovery endpoint.
+    pub async fn populate_local_server_info(&self) {
+        let client = {
+            let manager = self.conversation.lock().await;
+            manager.client()
+        };
+        client.populate_server_info().await;
+    }
 }
 
 async fn set_runtime_prompt(

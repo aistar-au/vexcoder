@@ -113,6 +113,7 @@ where
         Some(state) => build_runtime_with_resume(config, state)?,
         None => build_runtime(config)?,
     };
+    ctx.populate_local_server_info().await;
     runtime.run(frontend, &mut ctx).await;
     ctx.shutdown_resources().await;
     Ok(())

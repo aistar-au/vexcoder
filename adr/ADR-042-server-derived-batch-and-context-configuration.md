@@ -47,32 +47,33 @@ or an unrecognised schema, the client falls back to the existing defaults.
 
 ### D2: Derive max_tokens from server context
 
-`resolve_max_tokens()` now accepts an optional `ServerInfo` reference. When
-available, `max_tokens` is calculated as:
+`resolve_max_tokens()` accepts the server's `n_ctx` as a plain `u32`. When
+the server context is known (non-zero), `max_tokens` is capped at 75% of
+`n_ctx` to leave headroom for the prompt:
 
 ```
-max_tokens = min(
-    server_info.n_ctx - prompt_tokens_estimate,
-    user_override_or_default
-)
+ceiling = server_n_ctx × 0.75
+max_tokens = clamp(user_override_or_default, 128, ceiling)
 ```
 
-Where `prompt_tokens_estimate` is a conservative upper bound derived from
-the system-prompt length and conversation history token count. This prevents
-the generation budget from exceeding the remaining context capacity.
+When `server_n_ctx` is zero (server unreachable or non-local), the ceiling
+falls back to a generous constant of 16 384 tokens.
 
-The `VEX_MAX_TOKENS` environment variable still overrides the default, but
-is now clamped against the server-reported `n_ctx` rather than the
-hardcoded `128..8192` range.
+The `VEX_MAX_TOKENS` environment variable overrides the compiled-in model
+default, but the result is still bounded by the server-derived ceiling.
 
 ### D3: Expose batch and context in telemetry
 
-The turning-timing summary line includes the server's `n_ctx` and effective
-`max_tokens` so the operator can see the derivation at a glance:
+The turn-timing summary line emitted at the end of each turn already
+reports prompt-eval and predict timing with token counts:
 
 ```
-[ctx:65536 batch:2048 budget:4096 | ttft:1.2s | ↑:512/2641 | ↓:77/4096 | total:52.0s]
+[ttft:1.2s | ↑:1.2s (512 tok) | ↓:52.0s (77 tok) | total:53.2s]
 ```
+
+Exposing the server's `n_ctx` and effective `max_tokens` in that line is
+tracked as a follow-up improvement once stable server-info polling is in
+place.
 
 ### D4: Prevent stray tool calls
 

@@ -167,12 +167,12 @@ impl TuiMode {
                                 if let Some(last_line) = self.history_state.lines.last_mut() {
                                     if last_line.starts_with("[detail] (repeated") {
                                         *last_line = format!(
-                                            "[detail] (repeated {}×, same result)",
+                                            "[detail] (repeated {}\u{d7}, same call)",
                                             self.duplicate_tool_count
                                         );
                                     } else {
                                         self.push_history_line(format!(
-                                            "[detail] (repeated {}×, same result)",
+                                            "[detail] (repeated {}\u{d7}, same call)",
                                             self.duplicate_tool_count
                                         ));
                                     }

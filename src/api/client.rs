@@ -52,6 +52,7 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
     let base = api_url
         .trim_end_matches('/')
         .trim_end_matches("/chat/completions")
+        .trim_end_matches("/messages")
         .trim_end_matches("/v1")
         .trim_end_matches('/');
 
@@ -132,7 +133,7 @@ For code edits, prefer this sequence: search_files -> read_file -> edit_file -> 
 For read-only requests (show/read/list/count/status/log/diff), use read-only tools and do not call mutating tools unless the user explicitly asks for changes.\n\
 If asked what git tools are available, only list built-in git tools: git_status, git_diff, git_log, git_show, git_add, git_commit.\n\
 Do not claim unsupported git tools like git_clone, git_init, git_remote, git_config, git_pull, git_push, git_branch, git_checkout, or git_stash.\n\
-Available tools are exactly: read_file, write_file, apply_patch, edit_file, rename_file, list_files, list_directory, list_dir, glob_files, search_files, search, git_status, git_diff, git_log, git_show, git_add, git_commit, search_content, find_files, codebase_search, run_command. Do not call tools not in this list (e.g. do not call run_shell_command, bash, wc, or shell utilities directly).\n\
+Available tools are exactly: read_file, write_file, apply_patch, edit_file, rename_file, list_files, list_directory, list_dir, glob_files, search_files, search, git_status, git_diff, git_log, git_show, git_add, git_commit, search_content, find_files, codebase_search. Do not call tools not in this list (e.g. do not call run_shell_command, bash, wc, or shell utilities directly).\n\
 Always send non-empty string paths for file tools.\n\
 Avoid redundant loops: do not repeat identical read/search tool calls without new evidence.\n\
 Tool results from earlier turns may be condensed to their first few lines; if you need the full output, re-run the tool instead of assuming the truncated text is complete.";
@@ -237,6 +238,14 @@ impl ApiClient {
     pub fn with_extra_tool_definitions(mut self, extra_tools: Vec<Value>) -> Self {
         self.extra_tool_definitions = extra_tools;
         self
+    }
+
+    /// Poll the local inference server for capabilities and cache the result.
+    /// No-op if the endpoint is not local or the server does not respond.
+    pub async fn populate_server_info(&self) {
+        if let Some(info) = poll_server_info(&self.http, &self.api_url).await {
+            self.set_server_info(info);
+        }
     }
 
     /// Store server capabilities discovered by `poll_server_info()`.
@@ -1386,7 +1395,7 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_max_tokens_caps_at_half_server_n_ctx() {
+    fn test_resolve_max_tokens_caps_at_seventy_five_percent_of_server_n_ctx() {
         // 75% of 65536 = 49152; default 60000 > 49152 → capped at 49152
         let tokens = resolve_max_tokens(60000, 65536);
         assert_eq!(tokens, 49152);
