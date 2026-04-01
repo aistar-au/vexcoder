@@ -7,7 +7,7 @@ pub enum StatusTone {
 }
 
 pub const MAPPING_ADJACENT_SECTORS: &str = "Mapping adjacent sectors...";
-pub const STATE_SYNCHRONIZED: &str = "State synchronized.";
+pub const STATE_SYNCHRONIZED: &str = "Response complete.";
 pub const WAITING_FOR_RESPONSE_LINE: &str = "[thinking] Mapping adjacent sectors...";
 
 const LEGACY_WAITING_FOR_RESPONSE_LINE: &str = "[waiting for response...]";
@@ -82,6 +82,24 @@ mod tests {
         assert_eq!(
             status_tone(MAPPING_ADJACENT_SECTORS),
             Some(StatusTone::Progress)
+        );
+    }
+
+    #[test]
+    fn completed_status_label_is_response_complete() {
+        assert_eq!(
+            completed_status_label(),
+            "Response complete.",
+            "completed status must say 'Response complete.' not 'State synchronized.'"
+        );
+    }
+
+    #[test]
+    fn state_synchronized_constant_updated() {
+        assert_eq!(STATE_SYNCHRONIZED, "Response complete.");
+        assert!(
+            is_completed_status(STATE_SYNCHRONIZED),
+            "STATE_SYNCHRONIZED must be recognised as a completed status"
         );
     }
 }

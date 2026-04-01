@@ -873,8 +873,14 @@ pub struct TuiMode {
     pending_turn_tool_calls: std::collections::HashMap<String, PendingTurnToolCall>,
     /// Tracks the last completed tool header for consecutive-duplicate folding.
     last_completed_tool_header: Option<String>,
+    /// Tracks the last completed tool name for same-name paragraph folding.
+    last_completed_tool_name: Option<String>,
+    /// Tracks the last pending tool name for same-name pending folding.
+    last_pending_tool_name: Option<String>,
     /// Running count of consecutive identical completed tool calls.
     duplicate_tool_count: usize,
+    /// Running count of consecutive same-name (but different target) tool calls.
+    same_name_tool_count: usize,
     /// Index of the currently selected timeline entry in the activity pane.
     selected_timeline_index: usize,
     /// Monotonic counter for stable [`TimelineEntry::step_id`] values.

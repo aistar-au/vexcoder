@@ -23,6 +23,10 @@ pub struct ServerInfo {
     pub n_batch: u32,
     /// Model identifier reported by the server.
     pub model: String,
+    /// The protocol the server handles natively without conversion.
+    /// When `Some`, the client prefers this over the user-configured
+    /// protocol to avoid server-side format conversion overhead.
+    pub native_protocol: Option<ModelProtocol>,
 }
 
 /// Response shape for a local inference server `/props` endpoint.
@@ -57,6 +61,7 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
         .trim_end_matches('/');
 
     // Try the /props discovery endpoint first (supported by some local servers).
+    let mut info: Option<ServerInfo> = None;
     if let Ok(resp) = http
         .get(format!("{base}/props"))
         .timeout(std::time::Duration::from_secs(3))
@@ -67,10 +72,11 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
             if let Ok(props) = resp.json::<LocalServerProps>().await {
                 if let Some(gen) = props.default_generation_settings {
                     if gen.n_ctx > 0 {
-                        return Some(ServerInfo {
+                        info = Some(ServerInfo {
                             n_ctx: gen.n_ctx,
                             n_batch: gen.n_batch,
                             model: gen.model,
+                            native_protocol: None,
                         });
                     }
                 }
@@ -79,34 +85,113 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
     }
 
     // Fallback: try /v1/models for other servers.
-    if let Ok(resp) = http
-        .get(format!("{base}/v1/models"))
-        .timeout(std::time::Duration::from_secs(3))
-        .send()
-        .await
-    {
-        if resp.status().is_success() {
-            if let Ok(body) = resp.json::<Value>().await {
-                let model = body
-                    .get("data")
-                    .and_then(|d| d.as_array())
-                    .and_then(|arr| arr.first())
-                    .and_then(|m| m.get("id"))
-                    .and_then(|id| id.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                if !model.is_empty() {
-                    return Some(ServerInfo {
-                        n_ctx: 0,
-                        n_batch: 0,
-                        model,
-                    });
+    if info.is_none() {
+        if let Ok(resp) = http
+            .get(format!("{base}/v1/models"))
+            .timeout(std::time::Duration::from_secs(3))
+            .send()
+            .await
+        {
+            if resp.status().is_success() {
+                if let Ok(body) = resp.json::<Value>().await {
+                    let model = body
+                        .get("data")
+                        .and_then(|d| d.as_array())
+                        .and_then(|arr| arr.first())
+                        .and_then(|m| m.get("id"))
+                        .and_then(|id| id.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    if !model.is_empty() {
+                        info = Some(ServerInfo {
+                            n_ctx: 0,
+                            n_batch: 0,
+                            model,
+                            native_protocol: None,
+                        });
+                    }
                 }
             }
         }
     }
 
-    None
+    // Probe native protocol support. If the server handles ChatCompat
+    // natively, prefer it to avoid MessagesV1 -> ChatCompat conversion
+    // overhead on the server side.
+    if let Some(ref mut server_info) = info {
+        server_info.native_protocol = detect_native_protocol(http, base).await;
+    }
+
+    info
+}
+
+/// Probe both `/v1/chat/completions` and `/v1/messages` to determine which
+/// protocol the server handles natively. Returns `None` when the server
+/// accepts both without conversion or when probing fails.
+async fn detect_native_protocol(http: &reqwest::Client, base: &str) -> Option<ModelProtocol> {
+    let timeout = std::time::Duration::from_secs(2);
+
+    // A minimal probe payload — we only care about whether the endpoint
+    // responds successfully (2xx/4xx-with-body), not whether it generates.
+    let probe = serde_json::json!({
+        "model": "probe",
+        "max_tokens": 1,
+        "stream": false,
+        "messages": [{"role": "user", "content": "probe"}]
+    });
+
+    let chat_ok = async {
+        let resp = http
+            .post(format!("{base}/v1/chat/completions"))
+            .json(&probe)
+            .timeout(timeout)
+            .send()
+            .await
+            .ok()?;
+        // 2xx or 4xx (server understood the format) counts as supported.
+        // 404 means the endpoint doesn't exist.
+        if resp.status().as_u16() == 404 {
+            None
+        } else {
+            Some(())
+        }
+    };
+
+    let messages_ok = async {
+        let messages_probe = serde_json::json!({
+            "model": "probe",
+            "max_tokens": 1,
+            "stream": false,
+            "system": "probe",
+            "messages": [{"role": "user", "content": [{"type": "text", "text": "probe"}]}]
+        });
+        let resp = http
+            .post(format!("{base}/v1/messages"))
+            .json(&messages_probe)
+            .timeout(timeout)
+            .send()
+            .await
+            .ok()?;
+        if resp.status().as_u16() == 404 {
+            None
+        } else {
+            Some(())
+        }
+    };
+
+    let (chat_result, messages_result) = tokio::join!(chat_ok, messages_ok);
+
+    match (chat_result, messages_result) {
+        // Server accepts chat completions but not messages — native ChatCompat.
+        (Some(()), None) => Some(ModelProtocol::ChatCompat),
+        // Server accepts messages but not chat completions — native MessagesV1.
+        (None, Some(())) => Some(ModelProtocol::MessagesV1),
+        // Both or neither — cannot determine; return ChatCompat if both
+        // are accepted since most local inference servers handle ChatCompat
+        // natively and convert MessagesV1 internally.
+        (Some(()), Some(())) => Some(ModelProtocol::ChatCompat),
+        (None, None) => None,
+    }
 }
 /// Base system prompt applied to every API call.
 /// Project instructions are appended at runtime via
@@ -133,7 +218,7 @@ For code edits, prefer this sequence: search_files -> read_file -> edit_file -> 
 For read-only requests (show/read/list/count/status/log/diff), use read-only tools and do not call mutating tools unless the user explicitly asks for changes.\n\
 If asked what git tools are available, only list built-in git tools: git_status, git_diff, git_log, git_show, git_add, git_commit.\n\
 Do not claim unsupported git tools like git_clone, git_init, git_remote, git_config, git_pull, git_push, git_branch, git_checkout, or git_stash.\n\
-Available tools are exactly: read_file, write_file, apply_patch, edit_file, rename_file, list_files, list_directory, list_dir, glob_files, search_files, search, git_status, git_diff, git_log, git_show, git_add, git_commit, search_content, find_files, codebase_search. Do not call tools not in this list (e.g. do not call run_shell_command, bash, wc, or shell utilities directly).\n\
+Available tools are exactly: read_file, write_file, apply_patch, edit_file, rename_file, list_files, list_directory, list_dir, glob_files, search_files, search, git_status, git_diff, git_log, git_show, git_add, git_commit, search_content, find_files, codebase_search. Do not call tools not in this list. Shell utilities (run_shell_command, bash, wc, cat, grep, find) are not available; use the file and search tools above. For counting, aggregation, or analysis, use search_files/read_file results and compute in your response. Rely on workspace context and prior tool results (memory) rather than assuming shell access.\n\
 Always send non-empty string paths for file tools.\n\
 Avoid redundant loops: do not repeat identical read/search tool calls without new evidence.\n\
 Tool results from earlier turns may be condensed to their first few lines; if you need the full output, re-run the tool instead of assuming the truncated text is complete.";
@@ -311,6 +396,16 @@ impl ApiClient {
     }
 
     fn api_protocol(&self) -> ApiProtocol {
+        // When a local server's native protocol has been detected, prefer it
+        // to avoid server-side format conversion (e.g. MessagesV1 -> ChatCompat).
+        // This is the core boundary: if both protocols are supported, the
+        // client sends in the server's native format directly.
+        if let Some(native) = self.server_info().and_then(|si| si.native_protocol) {
+            return match native {
+                ModelProtocol::MessagesV1 => ApiProtocol::MessagesV1,
+                ModelProtocol::ChatCompat => ApiProtocol::ChatCompat,
+            };
+        }
         match self.model_protocol {
             ModelProtocol::MessagesV1 => ApiProtocol::MessagesV1,
             ModelProtocol::ChatCompat => ApiProtocol::ChatCompat,
@@ -1163,6 +1258,9 @@ fn tool_definitions_chat_compat_with_extra(extra: &[Value]) -> Value {
 fn apply_local_chat_compat_stream_flags(payload_object: &mut serde_json::Map<String, Value>) {
     payload_object.insert("return_progress".to_string(), json!(true));
     payload_object.insert("timings_per_token".to_string(), json!(true));
+    // Enable prompt caching so the server can reuse KV-cache across turns
+    // and batch prompt evaluation instead of processing one token at a time.
+    payload_object.insert("cache_prompt".to_string(), json!(true));
 }
 
 #[cfg(test)]
@@ -1849,6 +1947,11 @@ mod tests {
 
         assert_eq!(payload.get("return_progress"), Some(&json!(true)));
         assert_eq!(payload.get("timings_per_token"), Some(&json!(true)));
+        assert_eq!(
+            payload.get("cache_prompt"),
+            Some(&json!(true)),
+            "cache_prompt must be enabled for local servers to allow batch prompt evaluation"
+        );
     }
 
     // ── Connected-server smoke test (optional; skips if server unreachable) ───
@@ -1925,5 +2028,113 @@ mod tests {
                 );
             }
         }
+    }
+
+    // ── Protocol conversion boundary regression tests ────────────────────
+
+    #[test]
+    fn test_native_protocol_overrides_configured_protocol() {
+        // When server discovery detects native ChatCompat, the client must
+        // use ChatCompat even if the user configured MessagesV1 — this is
+        // the core boundary that prevents server-side conversion.
+        let client = ApiClient {
+            http: reqwest::Client::new(),
+            api_key: None,
+            model: Arc::new(RwLock::new("test".to_string())),
+            supplementary_system_prompt: Arc::new(RwLock::new(None)),
+            api_url: "http://localhost:8000/v1/messages".to_string(),
+            model_backend: ModelBackendKind::LocalRuntime,
+            model_protocol: ModelProtocol::MessagesV1,
+            tool_call_mode: ToolCallMode::Structured,
+            model_headers: reqwest::header::HeaderMap::new(),
+            temperature: 0.3,
+            top_p: 1.0,
+            max_tokens: 4096,
+            stop_sequences: Vec::new(),
+            reasoning_budget: 0,
+            project_instructions: None,
+            notes_content: None,
+            extra_tool_definitions: Vec::new(),
+            server_info: Arc::new(RwLock::new(Some(ServerInfo {
+                n_ctx: 65536,
+                n_batch: 2048,
+                model: "test".to_string(),
+                native_protocol: Some(ModelProtocol::ChatCompat),
+            }))),
+            #[cfg(test)]
+            mock_stream_producer: None,
+        };
+
+        assert_eq!(
+            client.api_protocol(),
+            ApiProtocol::ChatCompat,
+            "client must use native ChatCompat when server reports it, \
+             even when user configured MessagesV1"
+        );
+    }
+
+    #[test]
+    fn test_no_native_protocol_falls_back_to_configured() {
+        // When server discovery did not detect a native protocol, the
+        // client must respect the user-configured protocol.
+        let client = ApiClient {
+            http: reqwest::Client::new(),
+            api_key: None,
+            model: Arc::new(RwLock::new("test".to_string())),
+            supplementary_system_prompt: Arc::new(RwLock::new(None)),
+            api_url: "http://localhost:8000/v1/messages".to_string(),
+            model_backend: ModelBackendKind::LocalRuntime,
+            model_protocol: ModelProtocol::MessagesV1,
+            tool_call_mode: ToolCallMode::Structured,
+            model_headers: reqwest::header::HeaderMap::new(),
+            temperature: 0.3,
+            top_p: 1.0,
+            max_tokens: 4096,
+            stop_sequences: Vec::new(),
+            reasoning_budget: 0,
+            project_instructions: None,
+            notes_content: None,
+            extra_tool_definitions: Vec::new(),
+            server_info: Arc::new(RwLock::new(Some(ServerInfo {
+                n_ctx: 65536,
+                n_batch: 2048,
+                model: "test".to_string(),
+                native_protocol: None,
+            }))),
+            #[cfg(test)]
+            mock_stream_producer: None,
+        };
+
+        assert_eq!(
+            client.api_protocol(),
+            ApiProtocol::MessagesV1,
+            "without native_protocol, client must fall back to configured MessagesV1"
+        );
+    }
+
+    #[test]
+    fn test_server_info_native_protocol_field_default() {
+        let info = ServerInfo::default();
+        assert!(
+            info.native_protocol.is_none(),
+            "ServerInfo::default() must have native_protocol = None"
+        );
+    }
+
+    #[test]
+    fn test_system_prompt_forbids_shell_utilities() {
+        let prompt = BASE_SYSTEM_PROMPT;
+        assert!(
+            prompt.contains("run_shell_command"),
+            "system prompt must explicitly forbid run_shell_command"
+        );
+        assert!(
+            prompt.contains("Shell utilities"),
+            "system prompt must mention shell utilities are unavailable"
+        );
+        assert!(
+            !prompt.contains("e.g. do not call run_shell_command"),
+            "system prompt must use the stronger shell-utility prohibition"
+        );
     }
 }

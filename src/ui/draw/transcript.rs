@@ -763,7 +763,7 @@ impl TaskDraw {
     ///
     /// ```text
     ///   ✦ read_file src/main.rs              ← 2-space: tool activity summary
-    ///     Status: State synchronized., 42 lines ← 4-space: phase detail
+    ///     Status: Response complete., 42 lines ← 4-space: phase detail
     ///       ✧ fn main() { … }                ← 6-space: evidence snippet
     /// ```
     pub(super) fn draw_transcript_line(&mut self, w: &mut dyn Write, line: &str, cols: u16) {

@@ -1707,7 +1707,7 @@ fn test_tool_blocks_emit_paragraph_rows_into_history() {
     assert!(
         mode.history_lines()
             .iter()
-            .any(|line| line == "[tool] read_file · src/main.rs · State synchronized."),
+            .any(|line| line == "[tool] read_file · src/main.rs · Response complete."),
         "completed tool calls must render their terminal paragraph header"
     );
     assert!(
@@ -1925,5 +1925,56 @@ fn test_tool_fold_state_resets_after_turn_ends() {
         !lines.iter().any(|l| l.starts_with("[detail] (repeated")),
         "tool call in new turn must not fold against previous turn; got:\n{:#?}",
         lines
+    );
+}
+
+#[test]
+fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("list project".to_string(), &mut ctx);
+
+    // First list_files call for path "src"
+    mode.on_model_update(
+        tool_call_start(0, "t1", "list_files", serde_json::json!({"path": "src"})),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(1, "t1", "src/main.rs\nsrc/lib.rs"), &mut ctx);
+
+    // Second list_files call for a different path "tests"
+    mode.on_model_update(
+        tool_call_start(2, "t2", "list_files", serde_json::json!({"path": "tests"})),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(3, "t2", "tests/integration.rs"), &mut ctx);
+
+    let lines = &mode.history_state.lines;
+
+    // The second call must NOT produce its own [tool] header — it should
+    // be folded into the paragraph started by the first call.
+    let completed_tool_headers: Vec<_> = lines
+        .iter()
+        .filter(|l| l.starts_with("[tool] list_files"))
+        .collect();
+    // We expect 2 pending headers + 1 completed header (the first completed
+    // call emits its header; the second is folded under the same paragraph).
+    let completed_count = completed_tool_headers.len();
+    assert!(
+        completed_count <= 3,
+        "same-name tool calls (list_files) must fold into a single paragraph, \
+         but got {completed_count} [tool] headers:\n{:#?}",
+        lines
+    );
+
+    // Must show a batch count annotation.
+    assert!(
+        lines.iter().any(|l| l.contains("2 files")),
+        "folded same-name tool calls must show a batch count; got:\n{:#?}",
+        lines
+    );
+
+    assert_eq!(
+        mode.same_name_tool_count, 2,
+        "same_name_tool_count should be 2 after two list_files calls with different paths"
     );
 }

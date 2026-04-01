@@ -777,7 +777,7 @@ mod tests {
 
         assert_eq!(
             timeline_label_for_invocation(&invocation),
-            "read_file · src/main.rs · State synchronized."
+            "read_file · src/main.rs · Response complete."
         );
     }
 

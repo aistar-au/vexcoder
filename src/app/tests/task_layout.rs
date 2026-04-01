@@ -362,7 +362,7 @@ fn test_task_layout_state_keeps_command_sessions_alongside_other_steps() {
         labels,
         vec![
             "run the validation".to_string(),
-            "read_file · State synchronized.".to_string(),
+            "read_file · Response complete.".to_string(),
             "run_command: Mapping adjacent sectors...".to_string(),
             "cargo nextest run -j 2: Mapping adjacent sectors...".to_string(),
         ]
