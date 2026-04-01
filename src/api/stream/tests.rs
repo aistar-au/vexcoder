@@ -364,3 +364,13 @@ fn test_normaliser_compact_param_value_long() {
     assert!(result.len() <= 81, "should be truncated: {}", result.len());
     assert!(result.ends_with('\u{2026}'));
 }
+
+#[test]
+fn test_normaliser_compact_param_value_long_unicode_is_boundary_safe() {
+    let long = format!("{}{}", "你".repeat(78), "\nsecond line");
+    let result = super::text_normaliser::compact_param_value(&long);
+
+    assert_eq!(result.chars().count(), 78);
+    assert!(result.ends_with('\u{2026}'));
+    assert!(result.starts_with(&"你".repeat(77)));
+}

@@ -25,7 +25,7 @@ pub(crate) fn builtin_tool_summaries() -> Vec<ToolSummary> {
     summaries
 }
 
-pub(super) fn tool_definitions() -> serde_json::Value {
+pub(super) fn tool_definitions() -> &'static Value {
     static TOOL_DEFINITIONS: OnceLock<Value> = OnceLock::new();
 
     TOOL_DEFINITIONS
@@ -266,12 +266,11 @@ pub(super) fn tool_definitions() -> serde_json::Value {
                 }
             ])
         })
-        .clone()
 }
 
 pub(super) fn tool_definitions_with_extra(extra: &[Value]) -> serde_json::Value {
     if extra.is_empty() {
-        return tool_definitions();
+        return tool_definitions().clone();
     }
     let mut definitions = tool_definitions().as_array().cloned().unwrap_or_default();
     definitions.extend(extra.iter().cloned());

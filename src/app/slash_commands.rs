@@ -1,5 +1,5 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum SlashCommandId {
+pub(super) enum SlashCommandId {
     Quit,
     Exit,
     About,
@@ -41,7 +41,7 @@ pub(crate) enum SlashCommandId {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum SlashCommandPattern {
+pub(super) enum SlashCommandPattern {
     Exact(&'static str),
     ExactOrPrefix {
         exact: &'static str,
@@ -50,7 +50,7 @@ pub(crate) enum SlashCommandPattern {
 }
 
 impl SlashCommandPattern {
-    pub(crate) fn parse<'a>(&self, input: &'a str) -> Option<&'a str> {
+    pub(super) fn parse<'a>(&self, input: &'a str) -> Option<&'a str> {
         match self {
             SlashCommandPattern::Exact(command) => (input == *command).then_some(""),
             SlashCommandPattern::ExactOrPrefix { exact, prefix } => {
@@ -65,11 +65,11 @@ impl SlashCommandPattern {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct SlashCommandSpec {
-    pub(crate) id: SlashCommandId,
-    pub(crate) pattern: SlashCommandPattern,
-    pub(crate) display: &'static str,
-    pub(crate) description: &'static str,
+pub(super) struct SlashCommandSpec {
+    pub(super) id: SlashCommandId,
+    pub(super) pattern: SlashCommandPattern,
+    pub(super) display: &'static str,
+    pub(super) description: &'static str,
 }
 
 impl SlashCommandSpec {
@@ -96,7 +96,7 @@ impl SlashCommandSpec {
     }
 }
 
-pub(crate) const SLASH_COMMANDS: &[SlashCommandSpec] = &[
+pub(super) const SLASH_COMMANDS: &[SlashCommandSpec] = &[
     SlashCommandSpec::new(
         SlashCommandId::Edit,
         SlashCommandPattern::ExactOrPrefix {
@@ -384,7 +384,7 @@ pub(crate) const SLASH_COMMANDS: &[SlashCommandSpec] = &[
     ),
 ];
 
-pub(crate) fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
+pub(super) fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
     match id {
         SlashCommandId::Plan
         | SlashCommandId::Explain
@@ -425,7 +425,7 @@ pub(crate) fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
     }
 }
 
-pub(crate) fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
+pub(super) fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
     match id {
         SlashCommandId::Plan => "read-only plan from current repo context",
         SlashCommandId::Explain => "read-only explanation with context assembly",

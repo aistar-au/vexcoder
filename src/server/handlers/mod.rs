@@ -1,27 +1,21 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::convert::Infallible;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::{broadcast, mpsc};
-use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio::sync::mpsc;
 
 use super::sse::runtime_sse_response;
 use super::util::{bad_request, conflict, internal_error, not_found};
 use super::SSE_KEEPALIVE_INTERVAL;
 use crate::app::{
     execute_facade_runtime, facade_delegate_session_task, facade_get_session_task,
-    facade_list_agents, facade_list_session_tasks, facade_list_tasks, facade_list_todos,
-    facade_poll_join, facade_release_session_task, facade_schedule_team, facade_task_graph,
-    facade_update_session_task_status, facade_watch_snapshot, task_graph_snapshot_path,
-    todos_snapshot_path, write_projection_snapshot, DelegateError, ScheduleTeamError,
-    SessionTaskStatusError,
+    facade_list_agents, facade_poll_join, facade_release_session_task, facade_schedule_team,
+    facade_watch_snapshot, DelegateError, ScheduleTeamError,
 };
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,

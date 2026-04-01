@@ -1,8 +1,8 @@
 # Task PM-02: /undo and Per-Change Checkpoints
 
 **Target Files:** `src/state/conversation/state.rs`,
-`src/state/conversation/core.rs`, `src/state/conversation/tools.rs`,
-`src/app/commands.rs`, `src/runtime/task_state/mod.rs`, `src/runtime/task_state/persist.rs`, `src/config.rs`,
+`src/state/conversation/core.rs`, `src/state/conversation/tools/mod.rs`,
+`src/app/commands/mod.rs`, `src/runtime/task_state/mod.rs`, `src/runtime/task_state/persist.rs`, `src/config.rs`,
 `src/config/load/mod.rs`
 
 **Depends on:** None (green on current main)

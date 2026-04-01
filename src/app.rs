@@ -162,7 +162,7 @@ const MAX_HISTORY_LINES_ENV: &str = "VEX_MAX_HISTORY_LINES";
 const HISTORY_CONTENT_WIDTH_FALLBACK: usize = usize::MAX;
 
 mod slash_commands;
-pub(crate) use slash_commands::*;
+use self::slash_commands::*;
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct GenerateTestsArgs {

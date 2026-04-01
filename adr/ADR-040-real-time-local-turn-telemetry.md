@@ -165,7 +165,7 @@ streaming protocols.
 
 Candidate implementation areas:
 
-- `src/api/client.rs` — request payload construction for both protocols;
+- `src/api/client/mod.rs` — request payload construction for both protocols;
   `apply_local_chat_compat_stream_flags()` inserts telemetry opt-in flags.
 - `src/api/stream.rs` — `StreamParser` with messages/v1-first fallback chain;
   `ChatCompatChunk` intermediate struct for chat-compatible conversion.

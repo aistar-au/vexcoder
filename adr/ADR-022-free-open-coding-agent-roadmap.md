@@ -20,7 +20,7 @@ The current codebase has several material gaps relative to that target:
   variables, branded endpoint defaults, and vendor-specific model validation
   rules in `src/config.rs`
 - the model layer is still organized around a provider-shaped client abstraction
-  in `src/api/client.rs`, rather than a neutral backend seam
+  in `src/api/client/mod.rs`, rather than a neutral backend seam
 - existing file mutation helpers in `src/tools/operator/file_ops.rs` perform direct
   writes and edit-in-place replacement without a diff-native approval flow
 - no general command runner exists today; the tool layer provides file and git

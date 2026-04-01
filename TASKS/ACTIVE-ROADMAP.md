@@ -76,7 +76,7 @@ PI-08 (`/plan`, `/context`) merged in ADR-023 batch.
 
 ### ~~Tier 4 -- Security Hardening (ADR-021 P1)~~ (cleared 2026-03-27)
 
-- Item 18: editor MAX_INPUT_BYTES cap in src/ui/editor.rs
+- Item 18: editor MAX_INPUT_BYTES cap in src/ui/editor/mod.rs
 - Item 26: SSE buffer renamed to MAX_SSE_BUFFER_BYTES; overflow now emits
   StreamEvent::Error instead of bail!, surfacing cleanly to UiUpdate::Error
 - Item 19: parse_frame_bytes emits StreamEvent::Error on failure;
@@ -185,7 +185,7 @@ Concrete targets (9 display-facing strings across 5 files):
 
 | File | Count | Terms to normalize |
 | :--- | :--- | :--- |
-| `src/app/commands.rs` | 3 | `parent=` -> `origin=` in watch lines; `branched from` -> `derived from`; `fork aborted` -> `fork halted` |
+| `src/app/commands/mod.rs` | 3 | `parent=` -> `origin=` in watch lines; `branched from` -> `derived from`; `fork aborted` -> `fork halted` |
 | `src/bin/vex.rs` | 2 | `parent=` -> `origin=` in session-task status lines |
 | `src/app/model_update.rs` | 1 | `aborted` -> `halted` in edit loop approval denial |
 | `src/app/input.rs` | 2 | `busy` -> `occupied` in turn-in-progress status lines |
@@ -202,7 +202,7 @@ Candidate implementation areas:
 
 | File | Scope |
 | :--- | :--- |
-| `src/ui/render.rs` | ratatui widget for pulsing-star glyph paired with mapping status text |
+| `src/ui/render/mod.rs` | ratatui widget for pulsing-star glyph paired with mapping status text |
 | `src/ui/draw/transcript.rs` | ANSI plain-text fallback rendering the star as a static glyph |
 | `src/status_contract.rs` | `ACTIVE_INDICATOR_GLYPH` constant and accessibility fallback string |
 
@@ -218,7 +218,7 @@ Candidate implementation areas:
 | File | Scope |
 | :--- | :--- |
 | `src/ui/draw/transcript.rs` | Paragraph-stream layout for tool/agent updates in the ANSI renderer |
-| `src/ui/render.rs` | ratatui paragraph widget for orchestrator progress lane |
+| `src/ui/render/mod.rs` | ratatui paragraph widget for orchestrator progress lane |
 | `src/app/model_update.rs` | Coalesce sequential tool-status updates into a rolling paragraph |
 | `src/runtime/core.rs` | Expose active file-count and active-agent-count to the UI update channel |
 

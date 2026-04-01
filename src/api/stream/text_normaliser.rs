@@ -214,13 +214,14 @@ fn is_embedded_parameter_close(text: &str) -> bool {
 
 pub(super) fn compact_param_value(value: &str) -> String {
     let trimmed = value.trim();
-    if trimmed.len() <= 80 {
+    if trimmed.chars().count() <= 80 {
         return trimmed.replace('\n', " ");
     }
     let first_line = trimmed.lines().next().unwrap_or(trimmed);
-    if first_line.len() <= 77 {
+    if first_line.chars().count() <= 77 {
         format!("{first_line}\u{2026}")
     } else {
-        format!("{}\u{2026}", &first_line[..77])
+        let truncated: String = first_line.chars().take(77).collect();
+        format!("{truncated}\u{2026}")
     }
 }
