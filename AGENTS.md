@@ -73,6 +73,10 @@ Ignore this section in repository-hosted background sessions.
   explicitly instructs the agent to merge in the current conversation, execute
   `gh pr merge --merge --delete-branch` immediately without re-asking. The
   user's instruction is the confirmation.
+- Release tags are a local operator step after the reviewed merge commit lands
+  on `main`. Do not open a separate PR patch just to publish `v<version>`; sync
+  `main`, create the annotated tag locally with `git` or `gh`, and push the tag
+  from that local checkout.
 
 ## Before committing
 

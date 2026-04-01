@@ -36,7 +36,7 @@ pub fn is_waiting_placeholder(line: &str) -> bool {
     }
     // Match the formatted waiting status with elapsed time and progress
     // counters appended by format_waiting_status() (e.g.
-    // "[thinking] Mapping adjacent sectors... 2.5s | read:512/2641").
+    // "[thinking] Mapping adjacent sectors... 2.5s | ↑:512/2641").
     line.starts_with(WAITING_FOR_RESPONSE_LINE)
 }
 
@@ -69,7 +69,7 @@ mod tests {
         assert!(is_waiting_placeholder("[awaiting model response]"));
         assert!(is_waiting_placeholder(WAITING_FOR_RESPONSE_LINE));
         assert!(is_waiting_placeholder(
-            "[thinking] Mapping adjacent sectors... 2.5s | read:512/2641"
+            "[thinking] Mapping adjacent sectors... 2.5s | ↑:512/2641"
         ));
         assert!(!is_waiting_placeholder("[thinking] trace branch"));
     }

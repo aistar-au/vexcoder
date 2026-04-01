@@ -54,7 +54,7 @@ impl TuiMode {
         self.plan_turn_active = false;
     }
 
-    /// Append a `[ttft: …s | ↑…s (N tok) | ↓…s (N tok) | total: …s]`
+    /// Append a `[ttft: …s | ↑:…s (N tok) | ↓:…s (N tok) | total: …s]`
     /// timing and token-count summary to the transcript
     /// after a turn finishes so the operator can see latency at a glance.
     fn append_turn_timing_line(&mut self) {

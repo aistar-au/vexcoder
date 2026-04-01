@@ -87,7 +87,8 @@ jobs:
           - \`CONTRIBUTING.md\` version references
           - \`RELEASING.md\` example version references
 
-          After merge, create and push the matching annotated tag. The tag-triggered
+          After merge, create and push the matching annotated tag locally. The tag
+          itself is not another PR patch. The tag-triggered
           release workflow publishes the archives, checksums, signatures, release notes,
           and generated changelog asset automatically:
           \`\`\`bash

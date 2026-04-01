@@ -3,6 +3,7 @@ use crate::status_contract::{
     completed_status_label, is_waiting_placeholder, pending_status_label, status_tone,
     waiting_for_response_line, StatusTone,
 };
+use std::borrow::Cow;
 use std::io::Write;
 
 // ── Shared transcript rendering helpers ────────────────────────────
@@ -164,6 +165,26 @@ fn telemetry_segment_color(label: &str) -> u8 {
     }
 }
 
+fn rewrite_telemetry_label(label: &str) -> &str {
+    match label {
+        "read" => "\u{2191}",
+        "generate" => "\u{2193}",
+        _ => label,
+    }
+}
+
+fn rewrite_telemetry_segment(segment: &str) -> Cow<'_, str> {
+    let Some((label, value)) = segment.split_once(':') else {
+        return Cow::Borrowed(segment);
+    };
+    let display_label = rewrite_telemetry_label(label);
+    if display_label == label {
+        Cow::Borrowed(segment)
+    } else {
+        Cow::Owned(format!("{display_label}:{value}"))
+    }
+}
+
 fn draw_inline_telemetry_summary(w: &mut dyn Write, line: &str, cols: u16) {
     let inner = line
         .strip_prefix('[')
@@ -174,8 +195,16 @@ fn draw_inline_telemetry_summary(w: &mut dyn Write, line: &str, cols: u16) {
         .split(" | ")
         .map(str::trim)
         .filter(|segment| !segment.is_empty())
+        .map(rewrite_telemetry_segment)
         .collect::<Vec<_>>();
-    let compact = format!("[{}]", segments.join(" | "));
+    let compact = format!(
+        "[{}]",
+        segments
+            .iter()
+            .map(|segment| segment.as_ref())
+            .collect::<Vec<_>>()
+            .join(" | ")
+    );
     let truncated = truncate_to_width(&compact, available);
     if truncated != compact {
         set_dim(w);
@@ -191,6 +220,7 @@ fn draw_inline_telemetry_summary(w: &mut dyn Write, line: &str, cols: u16) {
     reset_style(w);
 
     for (index, segment) in segments.iter().enumerate() {
+        let segment = segment.as_ref();
         if index > 0 {
             set_dim(w);
             set_fg(w, DIM_GRAY);
@@ -198,15 +228,10 @@ fn draw_inline_telemetry_summary(w: &mut dyn Write, line: &str, cols: u16) {
             reset_style(w);
         }
         if let Some((label, value)) = segment.split_once(':') {
-            let display_label = match label {
-                "read" => "\u{2191}",
-                "generate" => "\u{2193}",
-                _ => label,
-            };
             let color = telemetry_segment_color(label);
             set_bold(w);
             set_fg(w, color);
-            let _ = write!(w, "{display_label}:");
+            let _ = write!(w, "{label}:");
             reset_style(w);
             set_fg(w, color);
             let _ = write!(w, "{value}");
@@ -464,7 +489,7 @@ fn starts_with_literal(chars: &[char], literals: &[&str]) -> bool {
     })
 }
 
-/// Detect an inline telemetry summary like `[ttft:0.3s | read:2.5s (2641 tok) | total:7.7s]`.
+/// Detect an inline telemetry summary like `[ttft:0.3s | ↑:2.5s (2641 tok) | total:7.7s]`.
 fn is_telemetry_summary(line: &str) -> bool {
     let trimmed = line.trim();
     trimmed.starts_with('[')
@@ -513,11 +538,7 @@ fn draw_telemetry_summary(w: &mut dyn Write, line: &str, cols: u16) {
         // Split segment into label:value and optional (N tok) suffix.
         if let Some((label, rest)) = segment.split_once(':') {
             // Rewrite verbose labels to compact arrows.
-            let display_label = match label {
-                "read" => "\u{2191}",
-                "generate" => "\u{2193}",
-                _ => label,
-            };
+            let display_label = rewrite_telemetry_label(label);
             // Label
             set_fg(w, DIM_GRAY);
             let lbl = format!("{display_label}:");
@@ -1027,7 +1048,7 @@ impl TaskDraw {
         }
 
         // ── Inline telemetry summary (ADR-040) ───────────────────
-        // Turn completion emits: [ttft:0.3s | read:2.5s (2641 tok) | … | total:7.7s]
+        // Turn completion emits: [ttft:0.3s | ↑:2.5s (2641 tok) | … | total:7.7s]
         if is_telemetry_summary(line) {
             draw_telemetry_summary(w, line, cols);
             return;

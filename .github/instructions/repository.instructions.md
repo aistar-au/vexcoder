@@ -167,6 +167,10 @@ gh pr checks <pr> --watch
   product names unless a file path, URL, quoted log line, or command requires
   the exact string.
 - Watch all PR checks to completion and fix any failures before merge.
+- Release tags are a local operator follow-up on the merged `main` commit. Do
+  not open a separate PR or remote patch set just to publish the matching
+  `v<version>` tag; create and push the annotated tag locally with `git` or
+  `gh` once `main` contains the target commit.
 - Refresh documentation and the raw URL map when the branch changes workflow,
   instructions, UI behavior, or file ownership.
 

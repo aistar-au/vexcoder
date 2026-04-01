@@ -45,6 +45,8 @@ pre-release label. This ensures correct semver precedence ordering:
   or patch tag instead of retagging an existing version.
 - Tag names must match the `Cargo.toml` version exactly (with the `v` prefix):
   if `Cargo.toml` says `<current-version>`, the tag is `v<current-version>`.
+- Create and push the tag locally from a synced `main` checkout. The tag is a
+  post-merge release action, not a separate PR patch.
 
 ### Creating a tag
 
@@ -157,7 +159,8 @@ manual dispatch workflow that automates the version bump process:
 3. The workflow runs `scripts/bump-version.sh`, commits the version bump, and
   opens a PR targeting `main`.
 4. Review and merge the PR.
-5. After merge, create and push the annotated tag (see above).
+5. After merge, create and push the annotated tag locally (see above). This is
+   the release step; do not open another PR just for the tag.
 
 This replaces the manual `make bump V=<version>` step for operators who
 prefer a fully browser-based release flow.

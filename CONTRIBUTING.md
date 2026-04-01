@@ -162,6 +162,9 @@ git tag -a v<current-version> -m "Release v<current-version>"
 git push origin v<current-version>
 ```
 
+The tag push is a local post-merge release step. Do not open a second PR patch
+just to publish the matching `v<current-version>` tag.
+
 The pushed tag now drives the rest of the release flow automatically: archive packaging, checksums, signature bundles, the release entry, and a generated `CHANGELOG-<tag>.md` asset all publish from the same tag event.
 
 Do not merge packaging work directly from a local debug session; keep the review and merge step explicit.

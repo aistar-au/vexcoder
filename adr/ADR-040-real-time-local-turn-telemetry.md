@@ -128,10 +128,10 @@ streaming protocols.
     change/activity counts into a single truncated line instead of claiming
     a dedicated fixed pane.
 24. While a turn is waiting for first text, the operator surface may append
-    active counters such as `read:2048/2641` in the transcript status lane.
+    active counters such as `↑:2048/2641` in the transcript status lane.
 25. After a turn completes, the transcript may append a compact timing summary
-    such as `ttft`, `read`, `generate`, and `total`.
-26. Enriched tool-call paragraphs show up to 6 evidence lines from tool output
+    such as `ttft`, `↑`, `↓`, and `total`.
+26. Enriched tool-call paragraphs show up to 3 evidence lines from tool output
     followed by a `+N more lines` overflow indicator to keep the transcript
     readable without losing the full context.
 27. These additions remain subordinate status telemetry, not primary response

@@ -96,7 +96,7 @@ Key changes from the current implementation:
    for slash commands, `@path` expansion, pasted blocks, and newline insertion,
    and it auto-fits within the current fullscreen viewport as display rows or
    columns change.
-6. Enriched tool-call paragraphs show the first 6 evidence lines of output
+6. Enriched tool-call paragraphs show the first 3 evidence lines of output
    followed by a `+N more lines` overflow indicator when output exceeds
    the cap.
 7. Cross-platform resize robustness: the draw engine enforces a minimum viable

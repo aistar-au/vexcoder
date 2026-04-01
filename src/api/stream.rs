@@ -1080,6 +1080,50 @@ mod tests {
     }
 
     #[test]
+    fn test_normaliser_recovers_from_unterminated_tool_before_next_tool() {
+        let mut normaliser = StreamTextNormaliser::new();
+
+        let first = normaliser.normalise("function=read_file>\nparameter=path>\nsrc/main.rs");
+        assert_eq!(
+            collect_transcript_lines(&first),
+            vec!["[tool] read_file · processing"]
+        );
+
+        let second = normaliser.normalise(
+            "function=runshellcommand>\nparameter=command>\npwd\nparameter>\nfunction>\nRecovered answer.",
+        );
+        assert_eq!(
+            collect_transcript_lines(&second),
+            vec![
+                "[detail] path: src/main.rs",
+                "[tool] read_file · dispatched",
+                "[tool] runshellcommand · processing",
+                "[detail] command: pwd",
+                "[tool] runshellcommand · dispatched",
+            ]
+        );
+        assert_eq!(collect_text(&second), "Recovered answer.");
+    }
+
+    #[test]
+    fn test_normaliser_flush_emits_orphaned_tool_and_resets_for_follow_up_text() {
+        let mut normaliser = StreamTextNormaliser::new();
+
+        normaliser.normalise("function=read_file>\nparameter=path>\nsrc/lib.rs");
+
+        let flushed = normaliser.flush();
+        assert_eq!(
+            collect_transcript_lines(&flushed),
+            vec!["[detail] path: src/lib.rs", "[tool] read_file · dispatched",]
+        );
+        assert!(!normaliser.in_tool_block);
+
+        let follow_up = normaliser.normalise("Recovered answer.");
+        assert_eq!(collect_text(&follow_up), "Recovered answer.");
+        assert!(collect_transcript_lines(&follow_up).is_empty());
+    }
+
+    #[test]
     fn test_normaliser_compact_param_value_short() {
         let result = super::compact_param_value("short value");
         assert_eq!(result, "short value");

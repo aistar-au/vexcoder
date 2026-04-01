@@ -26,7 +26,7 @@ defects in the TUI transcript pipeline:
    lines + overflow).  With multiple tool retry attempts this fills
    the entire viewport, pushing the prompt area off-screen.
 
-3. **Telemetry label verbosity** — The `read:` and `generate:`
+3. **Telemetry label verbosity** — The older `read:` and `generate:`
    segment labels in the turn-timing summary consume horizontal space
    without adding clarity for operators who run dozens of turns.
 
@@ -56,8 +56,8 @@ indicator.  This keeps each tool call to 5-6 rows maximum instead of
 
 ### D3: Arrow telemetry labels
 
-The turn-timing summary replaces the `read:` label with `↑` and
-`generate:` with `↓`.  Both the generation path (`append_turn_timing_line`)
+The turn-timing summary replaces the `read:` label with `↑:` and
+`generate:` with `↓:`.  Both the generation path (`append_turn_timing_line`)
 and the rendering paths (`draw_telemetry_summary`,
 `draw_inline_telemetry_summary`, `format_waiting_status`) are updated.
 
