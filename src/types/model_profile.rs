@@ -18,6 +18,10 @@ pub struct ModelProfile {
     pub stop_sequences: Vec<String>,
     pub structured_tools: bool,
     pub reasoning_budget: u32,
+    /// Optional tool-call parser override: "tagged" (default) or "hybrid".
+    /// When absent, defaults to "tagged" (fast path only).
+    #[serde(default)]
+    pub tool_parser: Option<String>,
 }
 
 impl ModelProfile {
@@ -44,6 +48,7 @@ impl ModelProfile {
             stop_sequences: Vec::new(),
             structured_tools: matches!(backend, ModelBackendKind::ApiServer),
             reasoning_budget: 0,
+            tool_parser: None,
         }
     }
 
@@ -53,6 +58,12 @@ impl ModelProfile {
         } else {
             ToolCallMode::TaggedFallback
         }
+    }
+
+    /// Return the raw tool parser setting from the profile, if any.
+    /// Caller is responsible for mapping to `ToolParserMode`.
+    pub fn tool_parser_name(&self) -> Option<&str> {
+        self.tool_parser.as_deref()
     }
 
     pub fn system_prompt_text(&self) -> Result<&'static str> {
@@ -74,6 +85,14 @@ impl ModelProfile {
         }
         if self.max_tokens == 0 {
             bail!("max_tokens must be greater than zero");
+        }
+        if let Some(ref tp) = self.tool_parser {
+            match tp.as_str() {
+                "tagged" | "hybrid" => {}
+                other => {
+                    bail!("unsupported tool_parser value '{other}': expected 'tagged' or 'hybrid'")
+                }
+            }
         }
         let _ = resolve_system_prompt_text(&self.system_prompt)?;
         Ok(self)
@@ -165,5 +184,25 @@ mod tests {
             ModelProfile::default_for_backend(ModelBackendKind::ApiServer).tool_call_mode(),
             ToolCallMode::Structured
         );
+    }
+
+    #[test]
+    fn test_model_profile_rejects_invalid_tool_parser() {
+        let mut p = ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime);
+        p.tool_parser = Some("invalid".to_string());
+        let err = p
+            .validated()
+            .expect_err("should reject invalid tool_parser");
+        assert!(
+            err.to_string().contains("unsupported tool_parser"),
+            "error should mention tool_parser: {err}"
+        );
+    }
+
+    #[test]
+    fn test_model_profile_accepts_valid_tool_parser() {
+        let mut p = ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime);
+        p.tool_parser = Some("hybrid".to_string());
+        assert!(p.validated().is_ok());
     }
 }
