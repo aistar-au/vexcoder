@@ -65,4 +65,3 @@ pub(super) fn append_capped(buf: &mut String, text: &str, cap: usize) {
         buf.drain(..drain_end);
     }
 }
-

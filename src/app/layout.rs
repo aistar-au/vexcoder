@@ -5,12 +5,14 @@ use crate::status_contract::{
 
 mod helpers;
 
-use self::helpers::{display_status_text, extend_visual_rows, timeline_label_for_invocation, tool_outcome_is_error};
+#[cfg(test)]
+use self::helpers::{compact_outcome_summary, tool_scope_detail, tool_target_summary};
 pub(crate) use self::helpers::{
     completed_tool_paragraph_rows, pending_tool_paragraph_rows, tool_approval_paragraph_rows,
 };
-#[cfg(test)]
-use self::helpers::{compact_outcome_summary, tool_scope_detail, tool_target_summary};
+use self::helpers::{
+    display_status_text, extend_visual_rows, timeline_label_for_invocation, tool_outcome_is_error,
+};
 
 fn format_waiting_status(
     elapsed: String,

@@ -415,6 +415,5 @@ impl Default for InputEditor {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

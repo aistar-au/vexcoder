@@ -351,6 +351,5 @@ fn find_agent<'a>(agents: &'a [AgentProfile], name: &str) -> Result<&'a AgentPro
 // Tests
 // ---------------------------------------------------------------------------
 
-
 #[cfg(test)]
 mod tests;

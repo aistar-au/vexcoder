@@ -1,8 +1,7 @@
-use super::*;
 use super::transcript_helpers::*;
+use super::*;
 use crate::status_contract::{
-    completed_status_label, is_waiting_placeholder, pending_status_label,
-    waiting_for_response_line,
+    completed_status_label, is_waiting_placeholder, pending_status_label, waiting_for_response_line,
 };
 use std::io::Write;
 
@@ -582,4 +581,3 @@ impl TaskDraw {
         }
     }
 }
-

@@ -22,8 +22,8 @@
 
 mod ansi;
 mod regions;
-mod transcript_helpers;
 pub(crate) mod transcript;
+mod transcript_helpers;
 
 pub(crate) use transcript_helpers::parse_numbered_list_item;
 

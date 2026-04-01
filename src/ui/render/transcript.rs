@@ -289,8 +289,7 @@ pub(crate) fn structured_transcript_line(
             ),
         ]);
     }
-    if let Some((prefix, rest, _)) = crate::ui::draw::parse_numbered_list_item(trimmed)
-    {
+    if let Some((prefix, rest, _)) = crate::ui::draw::parse_numbered_list_item(trimmed) {
         return Line::from(vec![
             Span::styled(
                 format!("{indent}{}", marker.unwrap_or("")),
@@ -440,7 +439,10 @@ pub(crate) fn truncate_line(input: &str, width: usize) -> String {
     out
 }
 
-pub(crate) fn task_output_window(state: &TaskLayoutState, viewport_height: usize) -> (usize, usize) {
+pub(crate) fn task_output_window(
+    state: &TaskLayoutState,
+    viewport_height: usize,
+) -> (usize, usize) {
     const INSPECTOR_VIEWPORT_ROWS: usize = 6;
 
     let total = state.output_rows.len();
@@ -465,7 +467,11 @@ pub(crate) fn task_output_window(state: &TaskLayoutState, viewport_height: usize
     }
 }
 
-pub(crate) fn task_output_render_area(state: &TaskLayoutState, area: Rect, visible_rows: usize) -> Rect {
+pub(crate) fn task_output_render_area(
+    state: &TaskLayoutState,
+    area: Rect,
+    visible_rows: usize,
+) -> Rect {
     if area.height == 0 || visible_rows == 0 {
         return Rect {
             x: area.x,
@@ -493,5 +499,3 @@ pub(crate) fn task_output_render_area(state: &TaskLayoutState, area: Rect, visib
         height: visible_rows.min(area.height as usize) as u16,
     }
 }
-
-

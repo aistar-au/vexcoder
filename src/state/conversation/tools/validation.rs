@@ -187,6 +187,3 @@ pub(super) fn is_test_target_path(path: &str) -> bool {
         || file_name.ends_with("_test.tsx")
         || file_name.ends_with("_spec.rb")
 }
-
-
-

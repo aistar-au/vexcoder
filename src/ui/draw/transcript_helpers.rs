@@ -1,7 +1,5 @@
 use super::*;
-use crate::status_contract::{
-    status_tone, StatusTone,
-};
+use crate::status_contract::{status_tone, StatusTone};
 use std::borrow::Cow;
 use std::io::Write;
 
@@ -274,7 +272,13 @@ pub(crate) fn draw_prefixed_disclosure_line(
     let _ = write!(w, "{truncated}");
     reset_style(w);
 }
-pub(crate) fn draw_nested_bar_line(w: &mut dyn Write, indent: &str, text: &str, cols: u16, dim: bool) {
+pub(crate) fn draw_nested_bar_line(
+    w: &mut dyn Write,
+    indent: &str,
+    text: &str,
+    cols: u16,
+    dim: bool,
+) {
     if dim {
         set_dim(w);
     }
@@ -415,7 +419,13 @@ pub(crate) fn draw_json_tail(w: &mut dyn Write, text: &str, cols: u16, mut used:
     }
 }
 
-pub(crate) fn draw_json_line(w: &mut dyn Write, indent: &str, marker: Option<&str>, text: &str, cols: u16) {
+pub(crate) fn draw_json_line(
+    w: &mut dyn Write,
+    indent: &str,
+    marker: Option<&str>,
+    text: &str,
+    cols: u16,
+) {
     let used = write_disclosure_prefix(w, indent, marker, DIM_GRAY, true);
     draw_json_tail(w, text, cols, used);
     reset_style(w);

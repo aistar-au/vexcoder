@@ -131,7 +131,10 @@ fn test_process_chat_compat_emits_prompt_progress_and_timings_without_text() {
                 .expect("prompt progress should be present");
             assert_eq!(prompt_progress.total, Some(2641));
             assert_eq!(prompt_progress.processed, Some(2048));
-            let timings = metadata.timings.as_ref().expect("timings should be present");
+            let timings = metadata
+                .timings
+                .as_ref()
+                .expect("timings should be present");
             assert_eq!(timings.prompt_n, Some(2048));
             assert_eq!(timings.prompt_ms, Some(153341.0));
         }
@@ -243,8 +246,7 @@ fn test_normaliser_detects_embedded_tool_call() {
 #[test]
 fn test_normaliser_detects_angle_bracket_tool_call() {
     let mut normaliser = StreamTextNormaliser::new();
-    let input =
-        "<function=read_file>\n<parameter=path>\nsrc/main.rs\n</parameter>\n</function>";
+    let input = "<function=read_file>\n<parameter=path>\nsrc/main.rs\n</parameter>\n</function>";
     let chunks = normaliser.normalise(input);
     let lines = collect_transcript_lines(&chunks);
     assert!(

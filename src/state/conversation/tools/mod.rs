@@ -561,7 +561,6 @@ fn render_command_session_command(program: &str, args: &[String]) -> String {
     command
 }
 
-
 // Submodules extracted from this file
 pub(crate) mod config;
 pub(crate) mod dispatch;

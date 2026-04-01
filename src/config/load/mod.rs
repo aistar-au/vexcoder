@@ -8,9 +8,8 @@ use std::path::{Path, PathBuf};
 use crate::util::parse_bool_flag;
 
 use super::{
-    ApiConfigLayer, AutoMemoryConfigLayer,
-    CompactionConfigLayer, Config, ConfigLayer, DoctorConfigSnapshot,
-    SearchConfigLayer, UndoConfigLayer,
+    ApiConfigLayer, AutoMemoryConfigLayer, CompactionConfigLayer, Config, ConfigLayer,
+    DoctorConfigSnapshot, SearchConfigLayer, UndoConfigLayer,
 };
 
 use merge::apply_over;
@@ -535,7 +534,6 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
 
     Ok(Some(layer))
 }
-
 
 mod resolve;
 use resolve::*;

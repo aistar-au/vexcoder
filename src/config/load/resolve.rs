@@ -6,10 +6,10 @@ use crate::runtime::{ModelBackendKind, SandboxConfig, SandboxKind, ToolCallMode}
 use crate::util::is_local_endpoint_url;
 
 use super::super::{
-    ApiConfig, ApiConfigLayer, ApiTransport, CompactionConfig,
-    CompactionConfigLayer, Config, ConfigLayer, DoctorConfigLayer,
-    DoctorMcpServer, HttpHookConfig, McpServerConfig, McpTransport, SearchConfig,
-    SearchConfigLayer, UndoConfig, UndoConfigLayer, DEFAULT_LOCAL_API_HOST, DEFAULT_LOCAL_API_PORT,
+    ApiConfig, ApiConfigLayer, ApiTransport, CompactionConfig, CompactionConfigLayer, Config,
+    ConfigLayer, DoctorConfigLayer, DoctorMcpServer, HttpHookConfig, McpServerConfig, McpTransport,
+    SearchConfig, SearchConfigLayer, UndoConfig, UndoConfigLayer, DEFAULT_LOCAL_API_HOST,
+    DEFAULT_LOCAL_API_PORT,
 };
 
 use super::merge::resolve_auto_memory_config;
@@ -473,5 +473,3 @@ pub(crate) fn migrate_config_from_env(envs: &[(&str, &str)]) -> String {
 
     lines.join("\n") + "\n"
 }
-
-

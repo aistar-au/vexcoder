@@ -953,14 +953,11 @@ fn tool_input_to_json_string(value: &Value) -> String {
     }
 }
 
-
 mod tools;
 pub(crate) use tools::builtin_tool_summaries;
-use tools::{
-    tool_definitions_chat_compat_with_extra, tool_definitions_with_extra,
-};
 #[cfg(test)]
 use tools::tool_definitions;
+use tools::{tool_definitions_chat_compat_with_extra, tool_definitions_with_extra};
 
 fn apply_local_chat_compat_stream_flags(payload_object: &mut serde_json::Map<String, Value>) {
     payload_object.insert("return_progress".to_string(), json!(true));

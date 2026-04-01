@@ -105,4 +105,3 @@ pub(crate) fn force_full_reindex_with_config(
 ) -> usize {
     rebuild_codebase_index_with_config(workspace_root, exclude, max_file_size)
 }
-

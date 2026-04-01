@@ -487,7 +487,6 @@ impl ManagedTuiFrontend {
 /// Maximum number of visible entries in the floating picker overlay.
 const MAX_PICKER_OVERLAY_VISIBLE: usize = 12;
 
-
 impl Drop for ManagedTuiFrontend {
     fn drop(&mut self) {
         let _ = crate::terminal::restore();

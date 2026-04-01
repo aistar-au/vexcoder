@@ -230,4 +230,3 @@ pub fn apply_file_picker_selection(editor: &mut InputEditor, range: &Range<usize
     };
     editor.replace_range(range.start, range.end, &replacement);
 }
-

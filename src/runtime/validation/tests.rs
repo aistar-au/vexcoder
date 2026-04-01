@@ -114,8 +114,7 @@ fn test_makefile_target_detection_rejects_indented_test_target() {
 #[test]
 fn test_makefile_target_detection_accepts_column_zero_test_target() {
     let workspace = tempfile::tempdir().expect("tempdir");
-    fs::write(workspace.path().join("Makefile"), "test:\n\tcargo test\n")
-        .expect("write Makefile");
+    fs::write(workspace.path().join("Makefile"), "test:\n\tcargo test\n").expect("write Makefile");
     assert!(
         makefile_has_test_target(workspace.path()),
         "column-zero test: must be detected"
@@ -133,7 +132,10 @@ async fn test_validation_suite_empty_suite_exits_on_clean_patch() {
         .await
         .expect("empty suite must not error");
 
-    assert!(result.passed, "empty validation suite must report passed=true");
+    assert!(
+        result.passed,
+        "empty validation suite must report passed=true"
+    );
     assert!(
         result.outputs.is_empty(),
         "empty validation suite must produce no outputs"

@@ -1,7 +1,6 @@
 use crate::app::TaskLayoutState;
 use crate::ui::input_metrics::{
-    cursor_row_col, visual_row_count,
-    visual_window_start, wrap_input_lines,
+    cursor_row_col, visual_row_count, visual_window_start, wrap_input_lines,
 };
 use crate::ui::layout::{preferred_four_region_input_rows_for_content, split_four_region_layout};
 use ratatui::{

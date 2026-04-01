@@ -935,7 +935,6 @@ impl ConversationManager {
     }
 }
 
-
 /// Centralizes the repeated guard-error tail pattern (ADR-021 Item 9).
 ///
 /// After a tool-guard fires, this helper emits the clarification text to the
@@ -992,5 +991,3 @@ fn accumulate_usage(turn_tokens: &mut TurnTokens, usage: Option<&ApiUsage>) {
             .saturating_add(cache_read);
     }
 }
-
-

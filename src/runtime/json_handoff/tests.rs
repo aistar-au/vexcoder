@@ -213,12 +213,10 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
     let mut envelopes = Vec::new();
 
     envelopes.push(normalizer.start_turn(1, Some("inspect src/main.rs".to_string())));
-    envelopes.extend(
-        normalizer.normalize_ui_update(&UiUpdate::StreamDelta("hello ".to_string()), None),
-    );
-    envelopes.extend(
-        normalizer.normalize_ui_update(&UiUpdate::StreamDelta("world".to_string()), None),
-    );
+    envelopes
+        .extend(normalizer.normalize_ui_update(&UiUpdate::StreamDelta("hello ".to_string()), None));
+    envelopes
+        .extend(normalizer.normalize_ui_update(&UiUpdate::StreamDelta("world".to_string()), None));
     envelopes.extend(normalizer.normalize_stream_block(&StreamBlock::ToolCall {
         id: "provider-1".to_string(),
         name: "git_commit".to_string(),

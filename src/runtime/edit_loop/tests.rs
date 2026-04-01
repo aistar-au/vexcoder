@@ -75,15 +75,13 @@ fn test_edit_loop_detects_dirty_workspace_for_target_paths() {
         ],
     );
 
-    let clean =
-        EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("tracked.txt")])
-            .expect("clean check");
+    let clean = EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("tracked.txt")])
+        .expect("clean check");
     assert!(!clean, "workspace should be clean after commit");
 
     fs::write(workspace.path().join("tracked.txt"), "v2\n").expect("mutate file");
-    let dirty =
-        EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("tracked.txt")])
-            .expect("dirty check");
+    let dirty = EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("tracked.txt")])
+        .expect("dirty check");
     assert!(dirty, "workspace should be dirty after tracked file change");
 }
 
@@ -120,9 +118,8 @@ fn test_edit_loop_emits_dirty_workspace_warning() {
         ],
     );
 
-    let clean =
-        EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("target.rs")])
-            .expect("clean check");
+    let clean = EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("target.rs")])
+        .expect("clean check");
     assert!(
         !clean,
         "workspace should report clean immediately after commit"
@@ -133,9 +130,8 @@ fn test_edit_loop_emits_dirty_workspace_warning() {
         "fn main() { /* dirty */ }\n",
     )
     .expect("mutate");
-    let dirty =
-        EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("target.rs")])
-            .expect("dirty check");
+    let dirty = EditLoop::check_workspace_dirty(workspace.path(), &[PathBuf::from("target.rs")])
+        .expect("dirty check");
     assert!(
         dirty,
         "workspace should report dirty after tracked file change"
@@ -354,8 +350,8 @@ args = ["/C", "echo still failing 1>&2 && exit /b 1"]
         workspace.path().join("src/lib.rs").is_file(),
         "write_file turn must mutate the workspace before validation retries"
     );
-    let content = std::fs::read_to_string(workspace.path().join("src/lib.rs"))
-        .expect("read retried file");
+    let content =
+        std::fs::read_to_string(workspace.path().join("src/lib.rs")).expect("read retried file");
     assert!(
         content.contains("RETRY_ROUND"),
         "mutation turn must leave a concrete edit behind before validation retries: {content}"

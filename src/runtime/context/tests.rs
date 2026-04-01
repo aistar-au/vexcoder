@@ -16,7 +16,8 @@ async fn test_ref_04_start_turn_dispatches_message() {
 
     let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![vec![
         "data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\n".to_string(),
-        "data: {\"choices\":[{\"delta\":{\"content\":\" world\"},\"finish_reason\":\"stop\"}]}\n\n".to_string(),
+        "data: {\"choices\":[{\"delta\":{\"content\":\" world\"},\"finish_reason\":\"stop\"}]}\n\n"
+            .to_string(),
     ]])));
     let conversation = ConversationManager::new_mock(client, HashMap::new());
 
@@ -326,9 +327,7 @@ async fn test_ref_08_block_delta_partial_json_not_mirrored_to_stream_delta() {
             Ok(UiUpdate::StreamBlockDelta { delta, .. }) if delta.contains("path") => {
                 saw_block_delta = true
             }
-            Ok(UiUpdate::StreamDelta(text)) if text.contains("path") => {
-                leaked_stream_delta = true
-            }
+            Ok(UiUpdate::StreamDelta(text)) if text.contains("path") => leaked_stream_delta = true,
             Ok(_) => {}
             Err(_) => break,
         }
@@ -490,7 +489,8 @@ async fn test_ref_08_cancel_path_emits_single_terminal_event() {
     let (tx, mut rx) = mpsc::unbounded_channel::<UiUpdate>();
     let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![vec![
         "data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\n".to_string(),
-    ]])));    let conversation = ConversationManager::new_mock(client, HashMap::new());
+    ]])));
+    let conversation = ConversationManager::new_mock(client, HashMap::new());
     let mut ctx = RuntimeContext::new(conversation, tx, CancellationToken::new());
 
     ctx.start_turn("test".to_string());
@@ -521,9 +521,8 @@ async fn test_normaliser_intercepts_embedded_tool_markup_in_delta() {
         ConversationStreamUpdate::BlockStart {
             index: 0,
             block: StreamBlock::FinalText {
-                content:
-                    "function=runshellcommand>\nparameter=command>\nls\nparameter>\nfunction>"
-                        .to_string(),
+                content: "function=runshellcommand>\nparameter=command>\nls\nparameter>\nfunction>"
+                    .to_string(),
             },
         },
         &mut textual_block_by_index,

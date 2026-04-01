@@ -732,6 +732,5 @@ pub async fn capture_batch_text(task: &str, max_turns: usize) -> Result<String> 
     Ok(mode.output_lines.join("\n"))
 }
 
-
 #[cfg(test)]
 mod tests;

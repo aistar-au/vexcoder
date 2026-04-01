@@ -1,11 +1,11 @@
 use super::super::stream_block::ToolStatus;
 use super::{
-    streaming::*, tools::*, ConversationManager, ConversationStreamUpdate,
-    TurnToolPolicy, UndoCheckpoint,
+    streaming::*, tools::*, ConversationManager, ConversationStreamUpdate, TurnToolPolicy,
+    UndoCheckpoint,
 };
 use crate::types::{ContentBlock, StreamChunkMetadata};
 use anyhow::{anyhow, Result};
-use futures::{future::join_all};
+use futures::future::join_all;
 use tokio::sync::mpsc;
 
 pub(super) struct CompletedToolCall {
@@ -127,7 +127,6 @@ impl ConversationManager {
         self.send_message_with_policy(content, stream_delta_tx, TurnToolPolicy::Default)
             .await
     }
-
 }
 
 #[cfg(test)]

@@ -1,6 +1,8 @@
-use super::*;
-use super::config::{read_file_max_lines, write_file_diff_preferred_above_lines, write_file_max_lines};
+use super::config::{
+    read_file_max_lines, write_file_diff_preferred_above_lines, write_file_max_lines,
+};
 use super::index::{build_codebase_index, CODEBASE_INDEX};
+use super::*;
 use crate::config::SearchConfig;
 use crate::tools::search;
 use crate::tools::{glob_files, list_dir, ToolOperator, WriteFileOutcome};
@@ -427,4 +429,3 @@ pub(crate) fn missing_read_only_location_prompt(
         _ => None,
     }
 }
-
