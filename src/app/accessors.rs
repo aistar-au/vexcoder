@@ -87,27 +87,39 @@ impl TuiMode {
         }
     }
 
-    pub fn status_line(&self) -> String {
-        let history_rows =
-            history_visual_line_count(&self.history_state.lines, self.history_content_width.get());
+    pub(super) fn history_row_count(&self) -> usize {
+        history_visual_line_count(&self.history_state.lines, self.history_content_width.get())
+    }
 
-        // Sum session tokens from all completed turns so the draw layer can
-        // surface a context-window indicator without knowing RuntimeContext.
-        let total_tokens: u64 = self
-            .current_task
+    pub(super) fn total_session_tokens(&self) -> u64 {
+        self.current_task
             .turns
             .iter()
             .map(|t| t.tokens.input + t.tokens.output)
-            .sum();
+            .sum()
+    }
 
+    pub(super) fn tokens_sent_total(&self) -> u64 {
+        self.current_task.turns.iter().map(|t| t.tokens.input).sum()
+    }
+
+    pub(super) fn tokens_received_total(&self) -> u64 {
+        self.current_task
+            .turns
+            .iter()
+            .map(|t| t.tokens.output)
+            .sum()
+    }
+
+    pub fn status_line(&self) -> String {
         format!(
             "mode:{} approval:{} history:{} repo:{} inst:{} tokens:{}",
             self.mode_status_label(),
             self.approval_status_label(),
-            history_rows,
+            self.history_row_count(),
             self.repo_label,
             self.instructions_path.as_deref().unwrap_or("none"),
-            total_tokens,
+            self.total_session_tokens(),
         )
     }
 

@@ -39,6 +39,16 @@ fn test_task_layout_state_shows_server_read_progress_in_waiting_row() {
 
     let state = mode.task_layout_state().expect("task layout state");
     assert!(state.output_rows[1].contains("read:2048/2641"));
+    assert_eq!(state.telemetry.mode, "streaming");
+    assert_eq!(state.telemetry.approval, "none");
+    assert!(
+        state
+            .telemetry
+            .waiting_summary
+            .as_deref()
+            .is_some_and(|summary| summary.contains("read:2048/2641")),
+        "structured telemetry must preserve prompt-read progress"
+    );
 }
 
 #[test]
@@ -442,4 +452,40 @@ fn test_output_scroll_commands_use_bottom_anchored_prompt_surface() {
     );
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(state.output_scroll_offset, 0);
+}
+
+#[test]
+fn test_task_layout_state_exposes_turn_timing_summary_in_structured_telemetry() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("summarise the diff".to_string(), &mut ctx);
+    mode.turn_started_at = Some(std::time::Instant::now() - std::time::Duration::from_secs(3));
+    mode.current_turn_timings = Some(crate::types::StreamTimings {
+        prompt_ms: Some(1000.0),
+        prompt_n: Some(10),
+        predicted_ms: Some(500.0),
+        predicted_n: Some(5),
+        ..Default::default()
+    });
+
+    mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+
+    let state = mode.task_layout_state().expect("task layout state");
+    let summary = state
+        .telemetry
+        .timing_summary
+        .as_deref()
+        .expect("timing summary");
+    assert!(
+        summary.contains("read:1.0s (10 tok)") && summary.contains("generate:0.5s (5 tok)"),
+        "structured telemetry must expose the compact timing summary, got: {summary}"
+    );
+    assert!(
+        state
+            .output_rows
+            .iter()
+            .any(|line| line.starts_with("[read:1.0s")),
+        "the transcript should continue to carry the inline timing line"
+    );
 }

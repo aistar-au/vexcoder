@@ -595,6 +595,46 @@ surface (already defined) and actual use at runtime:
   cache fields from per-turn `ApiUsage` and add them to the task total; this
   wires a new data path through the existing save point.
 
+## Amendment — 2026-04-01: Stream Text Normalisation Layer
+
+### Context
+
+Some local inference servers emit tool invocations as
+inline XML-like markup within the assistant text response rather than
+using the structured `tool_calls` field.  This markup
+(`function=<name>`, `parameter=<name>`, close tags) reached the TUI
+as raw text via `UiUpdate::StreamDelta`, rendering as unparsed content
+in the transcript pane.
+
+### Decision
+
+Add a `StreamTextNormaliser` (in `src/api/stream.rs`) that sits at the
+`forward_conversation_update` boundary in `src/runtime/context.rs`.
+Every text delta that flows to the TUI passes through the normaliser
+before reaching `UiUpdate::StreamDelta`.
+
+The normaliser:
+
+1. Detects embedded tool call open/close tags (`function=<name>`,
+   `parameter=<name>`, and their angle-bracket variants).
+2. Extracts tool name and parameter values from the markup.
+3. Emits structured `[tool]`/`[detail]` transcript lines that the
+   existing `draw_transcript_line` renderer already handles.
+4. Passes clean text (with markup stripped) to `StreamDelta`.
+5. Collapses runs of more than 2 consecutive blank lines.
+
+The `extend_visual_rows` helper in `src/app/layout.rs` also gained
+blank-line collapsing (max 2 consecutive) to prevent large empty runs
+in the transcript regardless of their origin.
+
+### Boundary Contract
+
+The `forward_conversation_update` function is the authoritative
+boundary between the stream parser (which normalises SSE events in
+memory) and the task state orchestrator (which displays drawn
+paragraphs in the TUI).  No raw SSE event data should reach the TUI
+without first passing through this boundary.
+
 ## Compliance Notes for Agents
 
 - Do not add provider-branded field names to the type surface.
@@ -604,3 +644,6 @@ surface (already defined) and actual use at runtime:
   relying on the `Unknown` catch-all for these variants is not compliant.
 - New `TaskState` fields must use `#[serde(default)]` to preserve backward
   compatibility with pre-ADR-029 state files.
+- All text deltas routed to the TUI must pass through `StreamTextNormaliser`
+  at the `forward_conversation_update` boundary.  Direct `UiUpdate::StreamDelta`
+  sends that bypass the normaliser are not compliant.

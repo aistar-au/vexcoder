@@ -756,6 +756,7 @@ pub enum OutputScrollAnchor {
 pub struct TaskLayoutState {
     pub task_id: String,
     pub status_line: String,
+    pub telemetry: TaskTelemetryState,
     /// Structured timeline entries derived from canonical task state.
     pub timeline_entries: Vec<TimelineEntry>,
     /// Index of the selected timeline entry (for inspector focus).
@@ -781,6 +782,24 @@ pub struct TaskLayoutState {
     pub follow_mode: bool,
     /// Floating picker overlay rendered above the composer when a picker is active.
     pub picker_overlay: Vec<PickerOverlayLine>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TaskTelemetryState {
+    pub mode: String,
+    pub approval: String,
+    pub history_rows: usize,
+    pub total_tokens: u64,
+    /// Cumulative input (prompt) tokens sent across all turns.
+    pub tokens_sent: u64,
+    /// Cumulative output (completion) tokens received across all turns.
+    pub tokens_received: u64,
+    pub active_tools: usize,
+    pub active_commands: usize,
+    pub waiting_summary: Option<String>,
+    pub timing_summary: Option<String>,
+    /// Current git branch name (empty when not in a git repository).
+    pub git_branch: String,
 }
 
 /// A single line in the floating picker overlay.
@@ -818,6 +837,7 @@ pub struct TuiMode {
     next_command_session_id: u64,
     history_line_cap: usize,
     repo_label: String,
+    git_branch: String,
     instructions_path: Option<String>,
     mcp_snapshot: Option<McpRegistrySnapshot>,
     history_content_width: Cell<usize>,

@@ -16,6 +16,25 @@ fn format_waiting_status(
     status
 }
 
+fn telemetry_waiting_summary(rows: &[String]) -> Option<String> {
+    rows.iter().rev().find_map(|line| {
+        line.strip_prefix(waiting_for_response_line())
+            .map(str::trim)
+            .filter(|suffix| !suffix.is_empty())
+            .map(ToOwned::to_owned)
+    })
+}
+
+fn telemetry_timing_summary(rows: &[String]) -> Option<String> {
+    rows.iter().rev().find_map(|line| {
+        (line.starts_with('[') && line.ends_with(']') && line.contains("total:")).then(|| {
+            line.trim_start_matches('[')
+                .trim_end_matches(']')
+                .to_string()
+        })
+    })
+}
+
 struct TaskStepView {
     step_id: u64,
     lifecycle: StepLifecycle,
@@ -35,7 +54,7 @@ impl TuiMode {
     /// the output/inspector pane.
     ///
     /// When no turn is in progress, entries are derived from the last
-    /// completed turn so the four-region layout remains populated.
+    /// completed turn so the task surface remains populated.
     fn task_timeline_entries_from(steps: &[TaskStepView]) -> Vec<TimelineEntry> {
         steps
             .iter()
@@ -227,14 +246,34 @@ impl TuiMode {
     }
 
     fn transcript_display_rows(&self) -> Vec<String> {
-        let mut rows = Vec::new();
-        for line in &self.history_state.lines {
-            if line.is_empty() {
-                rows.push(String::new());
+        let assistant_index = self.history_state.active_assistant_index;
+        let skip_assistant_line =
+            if self.history_state.turn_in_progress && !self.history_state.cancel_pending {
+                if self.current_turn_response.is_empty() {
+                    assistant_index.filter(|idx| {
+                        let current_line = self
+                            .history_state
+                            .lines
+                            .get(*idx)
+                            .map(String::as_str)
+                            .unwrap_or("");
+                        (current_line.is_empty() || is_waiting_placeholder(current_line))
+                            && self
+                                .history_state
+                                .lines
+                                .iter()
+                                .skip(idx.saturating_add(1))
+                                .any(|line| !line.is_empty())
+                    })
+                } else {
+                    assistant_index
+                }
             } else {
-                rows.extend(line.lines().map(ToOwned::to_owned));
-            }
-        }
+                None
+            };
+
+        let mut rows = Vec::new();
+        extend_visual_rows(&mut rows, &self.history_state.lines, skip_assistant_line);
 
         if self.history_state.turn_in_progress && !self.history_state.cancel_pending {
             if self.current_turn_response.is_empty() {
@@ -256,28 +295,15 @@ impl TuiMode {
                     }
                 }
             } else {
-                // Response is streaming — replace the history tail (which
-                // contains stale text from push_str in model_update) with the
-                // canonical current_turn_response and append the cursor.
+                // Response is streaming — rebuild the visible response from the
+                // canonical current_turn_response and append it after any tool
+                // or approval transcript rows that were recorded during the
+                // turn.
                 if rows
                     .last()
                     .is_some_and(|line| line.is_empty() || is_waiting_placeholder(line))
                 {
                     rows.pop();
-                }
-                // Remove lines that model_update.rs wrote directly to
-                // history_state.lines[active_assistant_index] so we can
-                // replace them with the complete current_turn_response.
-                if let Some(idx) = self.history_state.active_assistant_index {
-                    // The active assistant index corresponds to a single
-                    // entry in history_state.lines which may have expanded
-                    // into multiple visual rows above. Trim back to the
-                    // row count preceding the assistant entry.
-                    let preceding_lines = self.history_state.lines[..idx]
-                        .iter()
-                        .map(|l| if l.is_empty() { 1 } else { l.lines().count() })
-                        .sum::<usize>();
-                    rows.truncate(preceding_lines);
                 }
                 let mut response_rows = self
                     .current_turn_response
@@ -295,9 +321,10 @@ impl TuiMode {
     }
 
     pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
-        // Always return the four-region layout. The task-state control surface
-        // is persistent — it is never yielded back to the transcript-only
-        // three-pane view between tool calls or after a turn completes.
+        // Always return the task-state control surface. The fullscreen CLI/app
+        // stays in the top transcript + prompt + status-bar arrangement
+        // between tool calls and after turn completion instead of yielding back
+        // to a separate transcript-only layout.
         // This follows ADR-031: the operator surface derives from canonical
         // task state and remains visible at all times.
 
@@ -323,6 +350,21 @@ impl TuiMode {
             OutputScrollAnchor::Bottom => self.transcript_scroll_offset,
             OutputScrollAnchor::Top => self.inspector_scroll_offset,
         };
+        let active_tools = timeline_entries
+            .iter()
+            .filter(|entry| {
+                matches!(
+                    entry.lifecycle,
+                    StepLifecycle::Running
+                        | StepLifecycle::AwaitingApproval
+                        | StepLifecycle::Approved
+                )
+            })
+            .count();
+        let active_commands = timeline_entries
+            .iter()
+            .filter(|entry| entry.lifecycle == StepLifecycle::CommandSession)
+            .count();
 
         let input_hint = if let Some(approval) = pending_approval.clone() {
             format!("{approval}\n[y/n/s] ")
@@ -334,6 +376,19 @@ impl TuiMode {
         Some(TaskLayoutState {
             task_id: self.current_task.id.clone(),
             status_line: self.status_line(),
+            telemetry: TaskTelemetryState {
+                mode: self.mode_status_label().to_string(),
+                approval: self.approval_status_label().to_string(),
+                history_rows: self.history_row_count(),
+                total_tokens: self.total_session_tokens(),
+                tokens_sent: self.tokens_sent_total(),
+                tokens_received: self.tokens_received_total(),
+                active_tools,
+                active_commands,
+                waiting_summary: telemetry_waiting_summary(&output_rows),
+                timing_summary: telemetry_timing_summary(&output_rows),
+                git_branch: self.git_branch.clone(),
+            },
             timeline_entries,
             selected_step,
             total_steps,
@@ -386,6 +441,25 @@ impl TuiMode {
         Self::registered_slash_command(input)
             .map(|(spec, _)| matches!(spec.id, SlashCommandId::Edit | SlashCommandId::Fix))
             .unwrap_or(false)
+    }
+}
+
+fn extend_visual_rows(rows: &mut Vec<String>, history_lines: &[String], skip_index: Option<usize>) {
+    let mut consecutive_blanks: usize = 0;
+    for (index, line) in history_lines.iter().enumerate() {
+        if skip_index == Some(index) {
+            continue;
+        }
+        if line.is_empty() {
+            consecutive_blanks += 1;
+            // Collapse runs of more than 2 consecutive blank lines.
+            if consecutive_blanks <= 2 {
+                rows.push(String::new());
+            }
+        } else {
+            consecutive_blanks = 0;
+            rows.extend(line.lines().map(ToOwned::to_owned));
+        }
     }
 }
 
@@ -460,7 +534,6 @@ fn tool_outcome_is_error(outcome: &str) -> bool {
         || lowered.starts_with("canceled")
 }
 
-#[cfg(test)]
 fn tool_scope_detail(tool_name: &str) -> String {
     builtin_tool_summaries()
         .into_iter()
@@ -506,6 +579,113 @@ fn first_pathish_token(text: &str) -> Option<String> {
                 .unwrap_or(false);
         looks_pathish.then(|| candidate.to_string())
     })
+}
+
+fn first_nonempty_line(text: &str) -> Option<&str> {
+    text.lines()
+        .map(str::trim_end)
+        .find(|line| !line.trim().is_empty())
+}
+
+fn compact_preview_text(text: &str) -> String {
+    let compact = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if compact.is_empty() {
+        compact
+    } else {
+        compact_outcome_summary(&compact)
+    }
+}
+
+fn tool_header_summary(name: &str, target: Option<String>, status: &str) -> String {
+    match target {
+        Some(target) if !target.is_empty() => format!("{name} · {target} · {status}"),
+        _ => format!("{name} · {status}"),
+    }
+}
+
+pub(super) fn pending_tool_paragraph_rows(
+    pending: &PendingTurnToolCall,
+    lifecycle: StepLifecycle,
+) -> Vec<String> {
+    let status = match lifecycle {
+        StepLifecycle::AwaitingApproval => "awaiting approval",
+        StepLifecycle::Approved => "approved",
+        _ => pending_status_label(),
+    };
+    let target = tool_target_summary(&pending.input_preview);
+    let mut rows = vec![format!(
+        "[tool] {}",
+        tool_header_summary(&pending.name, target, status)
+    )];
+    rows.push(format!(
+        "[detail] Scope: {}",
+        tool_scope_detail(&pending.name)
+    ));
+    rows.push(format!("[detail] Command: {}", pending.name));
+    let input_preview = compact_preview_text(&pending.input_preview);
+    if !input_preview.is_empty() {
+        rows.push(format!("[detail] Input: {input_preview}"));
+    }
+    rows
+}
+
+pub(super) fn completed_tool_paragraph_rows(
+    name: &str,
+    input: &serde_json::Value,
+    output: &str,
+    is_error: bool,
+) -> Vec<String> {
+    let status = if is_error {
+        "failed"
+    } else {
+        completed_status_label()
+    };
+    let input_preview = serde_json::to_string(input).unwrap_or_else(|_| input.to_string());
+    let first_line = first_nonempty_line(output).unwrap_or(status);
+    let target = tool_target_summary(first_line).or_else(|| tool_target_summary(&input_preview));
+    let mut rows = vec![format!(
+        "[tool] {}",
+        tool_header_summary(name, target, status)
+    )];
+    rows.push(format!("[detail] Scope: {}", tool_scope_detail(name)));
+    rows.push(format!("[detail] Command: {name}"));
+    if !input_preview.trim().is_empty() && input_preview != "{}" {
+        rows.push(format!("[detail] Input: {input_preview}"));
+    }
+    rows.push(format!(
+        "[detail] Result: {}",
+        compact_outcome_summary(first_line)
+    ));
+    const MAX_EVIDENCE_LINES: usize = 6;
+    let nonempty: Vec<&str> = output
+        .lines()
+        .map(str::trim_end)
+        .filter(|line| !line.trim().is_empty())
+        .collect();
+    for line in nonempty.iter().take(MAX_EVIDENCE_LINES) {
+        rows.push(format!("[evidence] {line}"));
+    }
+    if nonempty.len() > MAX_EVIDENCE_LINES {
+        rows.push(format!(
+            "[evidence] +{} more lines",
+            nonempty.len() - MAX_EVIDENCE_LINES
+        ));
+    }
+    rows
+}
+
+pub(super) fn tool_approval_paragraph_rows(summary: &str, input_preview: &str) -> Vec<String> {
+    let mut rows = vec![format!("[approval] {summary}")];
+    let input_detail = compact_preview_text(input_preview);
+    if !input_detail.is_empty() {
+        rows.push(format!("[approval_detail] Input: {input_detail}"));
+    }
+    rows
 }
 
 #[cfg(test)]
@@ -664,5 +844,60 @@ mod tests {
         assert_eq!(rows[0], "> hi");
         assert!(rows[1].starts_with(waiting_for_response_line()));
         assert!(rows[1].contains("read:512/2641"));
+    }
+
+    #[test]
+    fn completed_tool_paragraphs_truncate_at_six_lines_with_overflow() {
+        use super::completed_tool_paragraph_rows;
+
+        let output_lines: Vec<String> = (1..=20).map(|i| format!("output line {i}")).collect();
+        let output = output_lines.join("\n");
+
+        let rows = completed_tool_paragraph_rows(
+            "bash",
+            &serde_json::json!({"command": "ls -la"}),
+            &output,
+            false,
+        );
+
+        let evidence_rows: Vec<&String> = rows
+            .iter()
+            .filter(|r| r.starts_with("[evidence]"))
+            .collect();
+
+        assert_eq!(
+            evidence_rows.len(),
+            7,
+            "should have 6 evidence lines + 1 overflow indicator: {evidence_rows:?}"
+        );
+        assert!(
+            evidence_rows.last().unwrap().contains("+14 more lines"),
+            "last evidence row should indicate remaining lines: {:?}",
+            evidence_rows.last()
+        );
+    }
+
+    #[test]
+    fn consecutive_blank_lines_collapsed_in_visual_rows() {
+        use super::extend_visual_rows;
+        let lines: Vec<String> = vec![
+            "line1".to_string(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            "line2".to_string(),
+        ];
+        let mut rows = Vec::new();
+        extend_visual_rows(&mut rows, &lines, None);
+        // Should have line1, at most 2 blanks, then line2.
+        let blank_count = rows.iter().filter(|r| r.is_empty()).count();
+        assert!(
+            blank_count <= 2,
+            "expected at most 2 blank rows, got {blank_count}: {rows:?}"
+        );
+        assert_eq!(rows.first().unwrap(), "line1");
+        assert_eq!(rows.last().unwrap(), "line2");
     }
 }

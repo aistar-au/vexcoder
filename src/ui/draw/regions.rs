@@ -6,14 +6,13 @@ use crate::ui::layout::MAX_INPUT_PANE_ROWS;
 /// Adaptive layout regions that scale with display dimensions.
 ///
 /// ```text
-/// row 0..C     │  transcript (remaining rows)    │  (fills remaining)
-/// row C..end   ├─ composer (adaptive) ───────────┤
-///              └─────────────────────────────────┘
+/// row 0..T     │  transcript (scrollable)        │  (fills top)
+/// row T..C     ├─ composer (adaptive) ───────────┤
+/// row end-1    └─ status bar ────────────────────┘
 /// ```
 pub(super) struct Regions {
     pub(super) cols: u16,
     pub(super) rows: u16,
-    pub(super) files_row: Option<u16>,
     pub(super) transcript_start: u16,
     pub(super) transcript_rows: u16,
     pub(super) composer_start: u16,
@@ -44,13 +43,11 @@ impl Regions {
         timeline_entry_count: usize,
         composer_text: &str,
     ) -> Self {
-        let files_row = None;
-
         // Reserve 1 row for status bar at the very bottom.
         let status_bar_row = rows.saturating_sub(1);
 
         // The fullscreen prompt grows with wrapped content up to the shared
-        // input cap, while preserving at least two transcript rows above it.
+        // input cap, while preserving transcript rows above it.
         let _ = has_files;
         let available = rows.saturating_sub(1);
         let input_width = cols.saturating_sub(2).max(1) as usize;
@@ -62,13 +59,11 @@ impl Regions {
             .min(max_composer_rows)
             .max(MIN_COMPOSER_ROWS.min(max_composer_rows));
 
-        let available = available.saturating_sub(composer_rows);
-
-        // The fullscreen ANSI surface does not reserve a dedicated top
-        // timeline strip. The transcript owns the full body above the
-        // composer and renders tool/state paragraphs directly.
+        // The fullscreen ANSI surface now reserves only three regions:
+        // transcript, composer, and status bar. Telemetry stays inline in the
+        // transcript instead of claiming its own fixed pane.
         let _ = timeline_entry_count;
-        let transcript_rows = available;
+        let transcript_rows = available.saturating_sub(composer_rows);
 
         let transcript_start = 0;
         let composer_start = transcript_start + transcript_rows;
@@ -76,7 +71,6 @@ impl Regions {
         Regions {
             cols,
             rows,
-            files_row,
             transcript_start,
             transcript_rows,
             composer_start,

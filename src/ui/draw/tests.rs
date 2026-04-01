@@ -6,6 +6,7 @@ fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState
     TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:streaming approval:none repo:vexcoder inst:AGENTS.md".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         total_steps: entries.len(),
         timeline_entries: entries,
         selected_step: 0,
@@ -148,6 +149,15 @@ fn zero_terminal_size_is_noop() {
     let state = make_state(vec![], vec!["text"]);
     draw.draw(&mut buf, &state, 0, 0);
     assert!(buf.is_empty(), "zero-size display must produce no output");
+
+    // Sub-minimum sizes (< 10 cols or < 4 rows) are also no-ops to handle
+    // transient resize states across Windows Terminal, GNOME, and macOS.
+    buf.clear();
+    draw.draw(&mut buf, &state, 5, 3);
+    assert!(
+        buf.is_empty(),
+        "sub-minimum size display must produce no output"
+    );
 }
 
 #[test]
@@ -229,6 +239,7 @@ fn changing_selected_inspector_entry_redraws_output() {
     let first = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:streaming approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![
             TimelineEntry {
                 step_id: 1,
@@ -284,6 +295,7 @@ fn empty_timeline_renders_separator_and_transcript() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:streaming approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -585,6 +597,7 @@ fn persistent_layout_starts_with_blank_transcript_before_first_turn() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -670,6 +683,7 @@ fn fullscreen_surface_hides_top_header_chrome() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:streaming approval:none repo:myrepo inst:AGENTS.md".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![TimelineEntry {
             step_id: 1,
             lifecycle: StepLifecycle::Running,
@@ -710,6 +724,7 @@ fn inline_approval_renders_in_composer() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:overlay approval:pending repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -769,6 +784,7 @@ fn fullscreen_surface_hides_token_indicator_when_tokens_recorded() {
         // tokens:2500 — just over 2k so the label rounds to "~2.5k ctx"
         status_line: "mode:ready approval:none history:2 repo:vexcoder inst:none tokens:2500"
             .into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -808,6 +824,7 @@ fn header_hides_token_indicator_when_no_turns_completed() {
         // tokens:0 — no turns completed yet
         status_line: "mode:ready approval:none history:0 repo:vexcoder inst:none tokens:0"
             .into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -841,6 +858,7 @@ fn composer_renders_live_input_text() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -874,6 +892,7 @@ fn composer_header_renders_focus_and_char_count() {
     let state = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -914,16 +933,140 @@ fn composer_hint_renders_once_without_repeating_down_the_prompt() {
 }
 
 #[test]
-fn short_bottom_anchored_transcript_hugs_prompt_edge() {
+fn fullscreen_surface_uses_three_regions_without_fixed_bottom_pane() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let mut state = make_state(
+        vec![],
+        vec!["[thinking] Mapping adjacent sectors... 2.5s | read:512/1024"],
+    );
+    state.telemetry = crate::app::TaskTelemetryState {
+        mode: "streaming".into(),
+        approval: "pending".into(),
+        history_rows: 7,
+        total_tokens: 1234,
+        tokens_sent: 800,
+        tokens_received: 434,
+        active_tools: 2,
+        active_commands: 1,
+        waiting_summary: Some("lat:2.5s".into()),
+        timing_summary: None,
+        git_branch: "main".into(),
+    };
+    state.changed_files = vec!["src/config.rs".into(), "src/ui/draw/mod.rs".into()];
+
+    draw.draw(&mut buf, &state, 120, 30);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        !output.contains("Telemetry") && !output.contains("Git"),
+        "the fullscreen surface should not reserve a dedicated telemetry/git pane"
+    );
+    assert!(
+        output.contains("Mapping adjacent sectors...") && output.contains("read:512/1024"),
+        "telemetry should stay inline in the scrolling transcript"
+    );
+    assert!(
+        output.contains("Prompt"),
+        "the prompt region must remain visible"
+    );
+    assert!(
+        output.contains("task:test-001")
+            && output.contains("\u{e0a0}main")
+            && output.contains("m:streaming")
+            && output.contains("ap:pending")
+            && output.contains("\u{2191}800")
+            && output.contains("\u{2193}434")
+            && output.contains("lat:2.5s")
+            && output.contains("chg:2"),
+        "the separate status bar should fold compact telemetry, git branch, and token counters from the removed pane"
+    );
+}
+
+#[test]
+fn regions_compute_three_pane_surface() {
+    let regions = Regions::compute(80, 24, false, 0);
+
+    assert_eq!(
+        regions.transcript_start + regions.transcript_rows,
+        regions.composer_start,
+        "the composer should begin immediately after the scrolling transcript"
+    );
+    assert_eq!(
+        regions.transcript_rows + regions.composer_rows + 1,
+        regions.rows,
+        "the fullscreen surface should consist only of transcript, composer, and status bar rows"
+    );
+}
+
+#[test]
+fn status_bar_summary_truncates_to_available_width() {
+    let mut state = make_state(vec![], vec!["plain response"]);
+    state.telemetry = crate::app::TaskTelemetryState {
+        mode: "streaming".into(),
+        approval: "pending".into(),
+        history_rows: 99,
+        total_tokens: 9999,
+        tokens_sent: 6000,
+        tokens_received: 3999,
+        active_tools: 4,
+        active_commands: 2,
+        waiting_summary: Some("latency:2.5s read:512/1024 generate:128".into()),
+        timing_summary: None,
+        git_branch: String::new(),
+    };
+    state.changed_files = vec![
+        "src/config.rs".into(),
+        "src/ui/draw/mod.rs".into(),
+        "src/ui/draw/tests.rs".into(),
+    ];
+
+    let summary = status_bar_summary(&state, 32);
+
+    assert!(display_width(&summary) <= 32);
+    assert!(summary.contains("task:test-001"));
+    assert!(summary.contains("m:streaming"));
+}
+
+#[test]
+fn status_bar_shows_git_branch_and_token_counters() {
+    let mut state = make_state(vec![], vec!["response text"]);
+    state.telemetry = crate::app::TaskTelemetryState {
+        mode: "ready".into(),
+        approval: String::new(),
+        history_rows: 5,
+        total_tokens: 150,
+        tokens_sent: 100,
+        tokens_received: 50,
+        active_tools: 0,
+        active_commands: 0,
+        waiting_summary: None,
+        timing_summary: None,
+        git_branch: "feat/my-branch".into(),
+    };
+
+    let summary = status_bar_summary(&state, 120);
+
+    assert!(
+        summary.contains("feat/my-branch"),
+        "status bar should display the git branch: {summary}"
+    );
+    assert!(
+        summary.contains("\u{2191}100") && summary.contains("\u{2193}50"),
+        "status bar should show token counters with up/down arrows: {summary}"
+    );
+}
+
+#[test]
+fn short_transcript_starts_at_top_of_transcript_pane() {
     let state = make_state(vec![], vec!["Type a prompt below to begin."]);
     let regions = Regions::compute(80, 24, false, 0);
     let (visible_start, visible_end) = transcript_window(&state, regions.transcript_rows as usize);
     let render_start = transcript_render_start_row(&state, &regions, visible_start, visible_end);
 
     assert_eq!(
-        render_start,
-        regions.composer_start.saturating_sub(1),
-        "short transcript should render against the prompt edge"
+        render_start, regions.transcript_start,
+        "short transcripts should render from the top of the scrolling pane"
     );
 }
 
@@ -946,6 +1089,7 @@ fn composer_hash_tracks_live_input_changes() {
     let first = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -981,6 +1125,7 @@ fn composer_hash_tracks_cursor_only_changes() {
     let first = TaskLayoutState {
         task_id: "test-001".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -1342,6 +1487,7 @@ fn picker_overlay_renders_above_composer() {
     let state = TaskLayoutState {
         task_id: "test-picker".into(),
         status_line: "mode:ready approval:none repo:vexcoder inst:none".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -1410,6 +1556,7 @@ fn picker_overlay_clears_when_dismissed() {
     let state_with_overlay = TaskLayoutState {
         task_id: "test-picker".into(),
         status_line: "mode:ready".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,
@@ -1459,6 +1606,7 @@ fn picker_overlay_hash_changes_on_selection_move() {
     let base = TaskLayoutState {
         task_id: "test".into(),
         status_line: "mode:ready".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
         timeline_entries: vec![],
         selected_step: 0,
         total_steps: 0,

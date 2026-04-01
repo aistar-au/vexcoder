@@ -2,4 +2,4 @@
 source: tests/tui_draw_snapshots.rs
 expression: rendered
 ---
- │ create new modulePreparing write...Approval  y approve  n deny  s approve all• write_file → src/agents.rs•  y approve  n deny  s approve all                                 task:snap-001
+ │ create new modulePreparing write...──────────────────────────────────────────────────────────────────────────────── Approval  y approve  n deny  s approve all • write_file → src/agents.rs• task:snap-001 m:streaming ap:pending hist:0 clean act:1 y approve  n deny  s all

@@ -14,20 +14,19 @@ four-region layout (header, activity trail, output pane, input pane). ADR-028
 established the application facade and transport boundary model. ADR-030
 defined the runtime as a task-state-owned orchestrator.
 
-The current implementation has reached the point where the adaptive timeline
-reflects pending tool calls (ADR-030 invariant 6 fix), the direct ANSI
-renderer owns a human-readable header plus transcript/composer path, and the
-task surface includes structured prefix styling, inline approval cards, and a
-cumulative context indicator in the header.
+The current implementation has now converged on a direct ANSI CLI/app surface
+where the scrolling transcript owns the full upper body, live tool/approval/
+orchestrator updates render as transcript paragraphs, and the only persistent
+bottom regions are the multiline composer and separate status bar.
 
-The active operator surface now also keeps transcript scroll anchored to the
-prompt edge and expands the composer into a larger multiline surface so slash
-commands, `@path` expansion, pasted blocks, and long prompts remain usable
-without dropping out of fullscreen task mode, including visual-row cursor
-navigation for wrapped prompt text. That composer now behaves as a responsive
-fullscreen surface: it reflows against the current display row and column budget
-so resizing or snapping the display does not leave a stale fixed-height
-prompt reservation behind.
+The active operator surface also keeps the composer as a larger multiline
+surface so slash commands, `@path` expansion, pasted blocks, and long prompts
+remain usable without dropping out of fullscreen task mode, including
+visual-row cursor navigation for wrapped prompt text. That composer behaves as
+a responsive fullscreen surface: it reflows against the current display row
+and column budget so resizing or snapping the display does not leave a stale
+fixed-height prompt reservation behind. Short transcripts now render from the
+top of the transcript pane rather than hugging the composer edge.
 
 Batch A and Batch B are now merged into `main`, so the remaining ADR-031
 scope is the post-derivation alignment pass:
@@ -54,49 +53,55 @@ coverage.
 ## Decision
 
 Adopt a batched, task-state-first implementation strategy for the operator
-surface overhaul. The UI target is a timeline-driven task view where every
-visible row is derived from canonical task state, selection identity is
-runtime-visible, the timeline/transcript/composer regions scale with current
-display rows and columns, and header or composer content stays human-readable.
+surface overhaul. The UI target is a task-derived fullscreen CLI/app view where
+every visible paragraph is derived from canonical task state, selection
+identity remains runtime-visible, the transcript/composer/status regions scale
+with current display rows and columns, and status or composer content stays
+human-readable.
 
 ### Operator surface target
 
-The target layout retains the four-region structure from ADR-022 Phase 6:
+The accepted direct ANSI surface now uses one top transcript pane, the
+persistent composer, and the status bar:
 
 ```text
 +--------------------------------------------------------+
-| Header: repo · status · files changed · active · ctx  |
-+--------------------------------------------------------+
-| Changed files row (optional)                           |
-+--------------------------------------------------------+
-| Timeline / Activity (adaptive height)                  |
-|  [ok] read_file: README.md                             |
-|  [->] validate: running...                             |
-|  [?]  apply_patch: src/main.rs                         |
-+--------------------------------------------------------+
-| Transcript / Output area                               |
-| (flowing transcript, tool detail, or last-turn output) |
+| Scrolling transcript / task-state paragraphs           |
+|  [thinking] Mapping adjacent sectors... 2.5s | read... |
+|  [tool] read_file · src/main.rs · State synchronized.  |
+|  [approval] apply_patch · awaiting approval            |
 +--------------------------------------------------------+
 | Composer / Approval card                               |
++--------------------------------------------------------+
+| Status bar                                             |
 +--------------------------------------------------------+
 ```
 
 Key changes from the current implementation:
 
-1. Timeline rows are derived from canonical task-state step lifecycle, not
-   from completed-tool-invocation history alone.
-2. Selected-step identity is a runtime-visible concept shared across the task
-   surface, even while the transcript/output contract continues to be aligned
-   across the direct ANSI and fallback renderers.
-3. Scroll ownership moves to the task surface: the timeline remains
-   independently navigable, while the transcript/output area redraws from the
-   same task-derived state and scrolls upward from the prompt edge.
-4. The visible timeline window scales with display height instead of
-   remaining fixed at six rows.
-5. The composer becomes a larger multiline prompt surface with persistent
-  affordances for slash commands, `@path` expansion, pasted blocks, and
-  newline insertion, and it auto-fits within the current fullscreen viewport
-  as display rows or columns change.
+1. The scrolling transcript becomes the authoritative visible stream for
+   waiting status, tool activity, approvals, orchestrator updates, and
+   assistant output.
+2. Structured timeline entries remain derived from canonical task-state step
+   lifecycle, but the direct ANSI surface no longer reserves a separate
+   activity strip for them.
+3. Scroll ownership moves to the task surface: the transcript redraws from the
+   same task-derived state, starts at the top of its pane, and scrolls upward
+   indefinitely as new paragraphs arrive.
+4. Telemetry remains inline in transcript paragraphs, while the separate status
+   bar folds compact telemetry, git branch (`\ue0a0branch`), and token counters
+   (`↑sent ↓received`) into one truncated line rather than reintroducing a
+   dedicated fixed pane.
+5. The composer remains a multiline prompt surface with persistent affordances
+   for slash commands, `@path` expansion, pasted blocks, and newline insertion,
+   and it auto-fits within the current fullscreen viewport as display rows or
+   columns change.
+6. Enriched tool-call paragraphs show the first 6 evidence lines of output
+   followed by a `+N more lines` overflow indicator when output exceeds
+   the cap.
+7. Cross-platform resize robustness: the draw engine enforces a minimum viable
+   surface (10×4), resets all hash state on resize, and performs a full repaint
+   to ensure consistent layout across Windows Terminal, GNOME, and macOS.
 
 ### Task-state-first rule for this ADR
 

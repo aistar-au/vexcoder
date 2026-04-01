@@ -7,15 +7,44 @@
 //! Run `cargo insta review` after adding or updating these tests.
 
 use insta::assert_snapshot;
-use vexcoder::app::{OutputScrollAnchor, StepLifecycle, TaskLayoutState, TimelineEntry};
+use vexcoder::app::{
+    OutputScrollAnchor, StepLifecycle, TaskLayoutState, TaskTelemetryState, TimelineEntry,
+};
 use vexcoder::ui::draw::TaskDraw;
 
 // ── Helpers ────────────────────────────────────────────────────────
 
 fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState {
+    let active_tools = entries
+        .iter()
+        .filter(|entry| {
+            matches!(
+                entry.lifecycle,
+                StepLifecycle::Running | StepLifecycle::AwaitingApproval | StepLifecycle::Approved
+            )
+        })
+        .count();
+    let active_commands = entries
+        .iter()
+        .filter(|entry| entry.lifecycle == StepLifecycle::CommandSession)
+        .count();
+
     TaskLayoutState {
         task_id: "snap-001".to_string(),
         status_line: "mode:streaming approval:none repo:vexcoder inst:AGENTS.md".to_string(),
+        telemetry: TaskTelemetryState {
+            mode: "streaming".to_string(),
+            approval: "none".to_string(),
+            history_rows: 0,
+            total_tokens: 0,
+            tokens_sent: 0,
+            tokens_received: 0,
+            active_tools,
+            active_commands,
+            waiting_summary: None,
+            timing_summary: None,
+            git_branch: String::new(),
+        },
         timeline_entries: entries,
         selected_step: 0,
         total_steps: 0,
@@ -130,6 +159,7 @@ fn snapshot_pending_approval_80x24() {
         vec!["> create new module", "Preparing write..."],
     );
     state.pending_approval = Some("write_file → src/agents.rs".to_string());
+    state.telemetry.approval = "pending".to_string();
     let rendered = render_plain(&state, 80, 24);
     assert_snapshot!(rendered);
 }

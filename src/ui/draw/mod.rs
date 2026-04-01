@@ -1,18 +1,21 @@
-//! Adaptive ANSI draw engine for the operator workspace surface.
+//! Adaptive ANSI draw engine for the operator CLI surface.
 //!
 //! This module writes ANSI escape sequences directly to a `Write` sink,
-//! owning the full cli for the entire session. The design goals are:
+//! owning the full screen for the entire session. The design goals are:
 //!
 //! 1. **Persistent full-screen ownership** — the draw engine owns the
-//!    cli at all times; the prompt is never yielded between tool
+//!    display at all times; the prompt is never yielded between tool
 //!    calls or after a turn completes.
 //! 2. **Flowing transcript** — tool calls, results, and model responses
 //!    stream vertically in a continuous log, not a fixed-height window.
-//! 3. **Adaptive layout** — the transcript body and composer area scale with
-//!    the display dimensions rather than using fixed row counts.
-//! 4. **Human-readable status** — the header shows plain-language state
-//!    instead of machine-debug flags.
+//!    Paragraphs scroll upward indefinitely within the top pane.
+//! 3. **Adaptive layout** — the scrolling transcript and multiline composer
+//!    scale with the display dimensions while the status bar stays pinned.
+//! 4. **Human-readable status** — live telemetry and enriched tool activity
+//!    stay visible without reintroducing top chrome.
 //! 5. **Minimal redraw** — only dirty regions are rewritten each frame.
+//! 6. **Inline telemetry** — waiting/progress and turn timing data render in
+//!    the scrolling transcript while the prompt and status bars remain fixed.
 //!
 //! The public entry point is [`TaskDraw`] which persists across the
 //! session and is called from the `FrontendAdapter::render` path.
@@ -40,16 +43,10 @@ use std::io::Write;
 /// `FrontendAdapter::render`. Each call to [`draw`] emits only the ANSI
 /// sequences needed to update dirty regions from the previous frame.
 pub struct TaskDraw {
-    /// Number of transcript lines already flushed to the cli.
+    /// Number of transcript lines already flushed to the display.
     output_lines_flushed: usize,
-    /// Whether the previous frame reserved a changed-files row.
-    last_has_files: bool,
-    /// Last rendered changed-files row.
-    last_files_hash: u64,
     /// Last rendered transcript content.
     last_transcript_hash: u64,
-    /// Last rendered header (for dirty detection).
-    last_header_hash: u64,
     /// Last rendered composer (for dirty detection).
     last_composer_hash: u64,
     /// Display dimensions at last draw.
@@ -69,10 +66,7 @@ impl TaskDraw {
     pub fn new() -> Self {
         Self {
             output_lines_flushed: 0,
-            last_has_files: false,
-            last_files_hash: 0,
             last_transcript_hash: 0,
-            last_header_hash: 0,
             last_composer_hash: 0,
             last_cols: 0,
             last_rows: 0,
@@ -83,13 +77,10 @@ impl TaskDraw {
         }
     }
 
-    /// Reset for a new turn (keeps terminal state but resets line counters).
+    /// Reset for a new turn (keeps display state but resets line counters).
     pub fn reset(&mut self) {
         self.output_lines_flushed = 0;
-        self.last_has_files = false;
-        self.last_files_hash = 0;
         self.last_transcript_hash = 0;
-        self.last_header_hash = 0;
         self.last_composer_hash = 0;
         self.first_frame_done = false;
         self.in_code_block = false;
@@ -104,28 +95,35 @@ impl TaskDraw {
         term_cols: u16,
         term_rows: u16,
     ) {
-        if term_cols == 0 || term_rows == 0 {
+        // Minimum viable surface: need at least a few rows and columns to
+        // render anything useful. Bail silently for degenerate sizes — this
+        // handles transient zero-sized states during resize on Windows
+        // Terminal, GNOME, and macOS Terminal alike.
+        if term_cols < 10 || term_rows < 4 {
             return;
         }
 
         self.frame_counter = self.frame_counter.wrapping_add(1);
         let size_changed = term_cols != self.last_cols || term_rows != self.last_rows;
-        let has_files = !state.changed_files.is_empty();
-        let layout_changed = has_files != self.last_has_files;
         self.last_cols = term_cols;
         self.last_rows = term_rows;
-        self.last_has_files = has_files;
 
         let regions = Regions::compute_with_composer(
             term_cols,
             term_rows,
-            has_files,
+            !state.changed_files.is_empty(),
             state.timeline_entries.len(),
             &state.composer_text,
         );
 
         // On first frame or display resize: full repaint.
-        if !self.first_frame_done || size_changed || layout_changed {
+        // Reset hash state on resize so incremental detection starts fresh
+        // after the geometry changes — prevents stale hash matches across
+        // different layouts (critical for cross-platform resize robustness).
+        if !self.first_frame_done || size_changed {
+            self.last_transcript_hash = 0;
+            self.last_composer_hash = 0;
+            self.output_lines_flushed = 0;
             hide_cursor(w);
             self.draw_full(w, state, &regions);
             self.first_frame_done = true;
@@ -136,23 +134,7 @@ impl TaskDraw {
         // Incremental update: only redraw dirty regions.
         hide_cursor(w);
 
-        // Header.
-        let header_hash = self.compute_header_hash(state);
-        if header_hash != self.last_header_hash {
-            self.draw_header(w, state, &regions);
-            self.last_header_hash = header_hash;
-        }
-
-        // Changed files row.
-        let files_hash = self.compute_files_hash(state);
-        if files_hash != self.last_files_hash {
-            if let Some(files_row) = regions.files_row {
-                self.draw_files(w, state, files_row, regions.cols);
-            }
-            self.last_files_hash = files_hash;
-        }
-
-        // Transcript.
+        // Transcript (top, scrollable).
         let transcript_hash = self.compute_transcript_hash(state);
         if transcript_hash != self.last_transcript_hash {
             if self.transcript_is_append_only(state) {
@@ -170,7 +152,7 @@ impl TaskDraw {
             self.last_composer_hash = composer_hash;
         }
 
-        // Picker overlay (always redraw when composer changes — overlays transcript).
+        // Picker overlay (overlays above the composer).
         self.draw_picker_overlay(w, state, &regions);
 
         // Status bar (always redraw — cheap single-line write).
@@ -188,14 +170,6 @@ impl TaskDraw {
         move_to(w, 0, 0);
         clear_to_end(w);
 
-        self.draw_header(w, state, regions);
-        self.last_header_hash = self.compute_header_hash(state);
-
-        if let Some(files_row) = regions.files_row {
-            self.draw_files(w, state, files_row, regions.cols);
-        }
-        self.last_files_hash = self.compute_files_hash(state);
-
         self.draw_transcript_full(w, state, regions);
         self.last_transcript_hash = self.compute_transcript_hash(state);
 
@@ -210,14 +184,6 @@ impl TaskDraw {
         move_to(w, cursor_row, cursor_col);
         show_cursor(w);
     }
-
-    // ── Header ──────────────────────────────────────────────────────
-
-    fn draw_header<W: Write>(&self, _w: &mut W, _state: &TaskLayoutState, _regions: &Regions) {}
-
-    // ── Changed files ───────────────────────────────────────────────
-
-    fn draw_files<W: Write>(&self, _w: &mut W, _state: &TaskLayoutState, _row: u16, _cols: u16) {}
 
     // ── Transcript (flowing) ────────────────────────────────────────
 
@@ -352,16 +318,14 @@ impl TaskDraw {
         move_to(w, regions.composer_start, 0);
 
         if let Some(ref approval) = state.pending_approval {
-            set_bold(w);
-            set_fg(w, YELLOW);
-            let _ = write!(w, "Approval");
-            reset_style(w);
-            set_dim(w);
-            set_fg(w, DIM_GRAY);
-            let actions = "  y approve  n deny  s approve all";
-            let truncated = truncate_to_width(actions, regions.cols.saturating_sub(10) as usize);
-            let _ = write!(w, "{truncated}");
-            reset_style(w);
+            draw_rule_row(
+                w,
+                regions.composer_start,
+                regions.cols,
+                "Approval",
+                YELLOW,
+                Some(("y approve  n deny  s approve all", DIM_GRAY)),
+            );
 
             let lines: Vec<&str> = approval.lines().collect();
             let body_width = regions.cols.saturating_sub(2).max(1) as usize;
@@ -391,16 +355,6 @@ impl TaskDraw {
             let hint_lines: Vec<&str> = state.input_hint.lines().collect();
             let composer_char_count = state.composer_text.chars().count();
 
-            if state.composer_focused {
-                set_bold(w);
-                set_fg(w, WHITE);
-            } else {
-                set_dim(w);
-                set_fg(w, DIM_GRAY);
-            }
-            let _ = write!(w, "Prompt");
-            reset_style(w);
-
             let status = format!(
                 "{} · {} chars",
                 if state.composer_focused {
@@ -410,25 +364,25 @@ impl TaskDraw {
                 },
                 composer_char_count
             );
-            let status_width = display_width(&status);
-            let prompt_width = display_width("Prompt");
-            if status_width + prompt_width + 1 < regions.cols as usize {
-                let gap = (regions.cols as usize).saturating_sub(prompt_width + status_width);
-                for _ in 0..gap {
-                    let _ = write!(w, " ");
-                }
-                set_dim(w);
-                set_fg(
-                    w,
+            draw_rule_row(
+                w,
+                regions.composer_start,
+                regions.cols,
+                "Prompt",
+                if state.composer_focused {
+                    WHITE
+                } else {
+                    DIM_GRAY
+                },
+                Some((
+                    &status,
                     if state.composer_focused {
                         CYAN
                     } else {
                         DIM_GRAY
                     },
-                );
-                let _ = write!(w, "{status}");
-                reset_style(w);
-            }
+                )),
+            );
 
             for offset in 0..body_rows {
                 let row = regions.composer_start + 1 + offset as u16;
@@ -483,14 +437,14 @@ impl TaskDraw {
         let visible = state.picker_overlay.len().min(max_rows) as u16;
 
         // Clear stale overlay rows from the previous frame.
+        let overlay_start = regions.composer_start.saturating_sub(visible);
         if self.last_overlay_rows > visible {
             let old_start = regions
                 .composer_start
                 .saturating_sub(self.last_overlay_rows);
-            let new_start = regions.composer_start.saturating_sub(visible);
-            for row in old_start..new_start {
-                if row >= regions.composer_start {
-                    break;
+            for row in old_start..overlay_start {
+                if row < regions.transcript_start {
+                    continue;
                 }
                 move_to(w, row, 0);
                 clear_line(w);
@@ -502,15 +456,13 @@ impl TaskDraw {
             return;
         }
 
-        let start_row = regions.composer_start.saturating_sub(visible);
-
         for (i, line) in state
             .picker_overlay
             .iter()
             .take(visible as usize)
             .enumerate()
         {
-            let row = start_row + i as u16;
+            let row = overlay_start + i as u16;
             if row >= regions.composer_start {
                 break;
             }
@@ -539,53 +491,32 @@ impl TaskDraw {
         set_dim(w);
         set_fg(w, DIM_GRAY);
 
-        // Left side: key hints.
-        let is_approval = state.pending_approval.is_some();
-        let hints = if is_approval {
-            " y approve  n deny  s approve all"
+        let hints = if state.pending_approval.is_some() {
+            "y approve  n deny  s all"
         } else {
-            " PgUp/PgDn transcript  Shift+Enter newline  Enter submit"
+            "PgUp/PgDn  Enter  S-Enter"
         };
-        let _ = write!(w, "{hints}");
+        let hints = truncate_to_width(hints, regions.cols as usize);
+        let summary_width =
+            (regions.cols as usize).saturating_sub(display_width(&hints).saturating_add(1));
+        let summary = status_bar_summary(state, summary_width);
+        let summary_len = display_width(&summary);
+        let hints_len = display_width(&hints);
 
-        // Right side: task ID (right-aligned).
-        if !state.task_id.is_empty() {
-            let scroll_state = if state.output_scroll_offset > 0 {
-                match state.output_scroll_anchor {
-                    OutputScrollAnchor::Bottom => {
-                        format!("scroll:+{}  ", state.output_scroll_offset)
-                    }
-                    OutputScrollAnchor::Top => {
-                        format!("detail:{}  ", state.output_scroll_offset + 1)
-                    }
-                }
-            } else {
-                String::new()
-            };
-            let right_text = format!("{scroll_state}task:{} ", state.task_id);
-            let right_len = display_width(&right_text);
-            let left_len = display_width(hints);
-            let gap = (regions.cols as usize).saturating_sub(left_len + right_len);
-            for _ in 0..gap {
-                let _ = write!(w, " ");
-            }
-            let _ = write!(w, "{right_text}");
+        if !summary.is_empty() {
+            let _ = write!(w, "{summary}");
         }
+
+        let gap = (regions.cols as usize).saturating_sub(summary_len + hints_len);
+        for _ in 0..gap {
+            let _ = write!(w, " ");
+        }
+        let _ = write!(w, "{hints}");
 
         reset_style(w);
     }
 
     // ── Hash computation ────────────────────────────────────────────
-
-    fn compute_header_hash(&self, state: &TaskLayoutState) -> u64 {
-        let _ = state;
-        0
-    }
-
-    fn compute_files_hash(&self, state: &TaskLayoutState) -> u64 {
-        let _ = state;
-        0
-    }
 
     fn compute_transcript_hash(&self, state: &TaskLayoutState) -> u64 {
         let mut h: u64 = state.output_rows.len() as u64;
@@ -708,20 +639,11 @@ fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize,
 }
 
 fn transcript_render_start_row(
-    state: &TaskLayoutState,
+    _state: &TaskLayoutState,
     regions: &Regions,
-    visible_start: usize,
-    visible_end: usize,
+    _visible_start: usize,
+    _visible_end: usize,
 ) -> u16 {
-    let visible_len = visible_end.saturating_sub(visible_start);
-    if state.output_scroll_anchor == OutputScrollAnchor::Bottom
-        && visible_len < regions.transcript_rows as usize
-    {
-        return regions
-            .transcript_start
-            .saturating_add(regions.transcript_rows.saturating_sub(visible_len as u16));
-    }
-
     regions.transcript_start
 }
 
@@ -767,6 +689,148 @@ fn truncate_to_width(text: &str, max_width: usize) -> String {
         return text.to_string();
     }
     truncate_to_display_width(text, max_width)
+}
+
+fn status_bar_summary(state: &TaskLayoutState, max_width: usize) -> String {
+    if max_width == 0 {
+        return String::new();
+    }
+
+    let mut segments = Vec::new();
+    if !state.task_id.is_empty() {
+        segments.push(format!("task:{}", state.task_id));
+    }
+
+    // Git branch indicator.
+    if !state.telemetry.git_branch.is_empty() {
+        segments.push(format!(
+            "\u{e0a0}{}",
+            truncate_to_width(&state.telemetry.git_branch, 20)
+        ));
+    }
+
+    if state.output_scroll_offset > 0 {
+        segments.push(match state.output_scroll_anchor {
+            OutputScrollAnchor::Bottom => format!("scroll:+{}", state.output_scroll_offset),
+            OutputScrollAnchor::Top => format!("detail:{}", state.output_scroll_offset + 1),
+        });
+    }
+
+    if !state.telemetry.mode.is_empty() {
+        segments.push(format!(
+            "m:{}",
+            truncate_to_width(&state.telemetry.mode, 12)
+        ));
+    }
+    if !state.telemetry.approval.is_empty() {
+        segments.push(format!(
+            "ap:{}",
+            truncate_to_width(&state.telemetry.approval, 12)
+        ));
+    }
+
+    // Inline token counters: ↑sent ↓received.
+    if state.telemetry.tokens_sent > 0 || state.telemetry.tokens_received > 0 {
+        segments.push(format!(
+            "\u{2191}{} \u{2193}{}",
+            state.telemetry.tokens_sent, state.telemetry.tokens_received
+        ));
+    }
+
+    if let Some(summary) = state
+        .telemetry
+        .waiting_summary
+        .as_deref()
+        .or(state.telemetry.timing_summary.as_deref())
+    {
+        let compact = summary.replace(" | ", " ");
+        let compact = compact.split_whitespace().collect::<Vec<_>>().join(" ");
+        segments.push(truncate_to_width(&compact, 18));
+    } else {
+        segments.push(format!("hist:{}", state.telemetry.history_rows));
+    }
+
+    segments.push(if state.changed_files.is_empty() {
+        "clean".to_string()
+    } else {
+        format!("chg:{}", state.changed_files.len())
+    });
+    segments.push(format!(
+        "act:{}/{}",
+        state.telemetry.active_tools, state.telemetry.active_commands
+    ));
+
+    fit_status_bar_segments(&segments, max_width)
+}
+
+fn fit_status_bar_segments(segments: &[String], max_width: usize) -> String {
+    let mut rendered = String::new();
+
+    for segment in segments.iter().filter(|segment| !segment.is_empty()) {
+        if rendered.is_empty() {
+            rendered = truncate_to_width(segment, max_width);
+            if display_width(segment) > max_width {
+                break;
+            }
+            continue;
+        }
+
+        let candidate = format!("{rendered} {segment}");
+        if display_width(&candidate) <= max_width {
+            rendered = candidate;
+            continue;
+        }
+
+        let remaining = max_width.saturating_sub(display_width(&rendered).saturating_add(1));
+        if remaining > 4 {
+            rendered.push(' ');
+            rendered.push_str(&truncate_to_width(segment, remaining));
+        }
+        break;
+    }
+
+    rendered
+}
+
+fn draw_rule_row<W: Write>(
+    w: &mut W,
+    row: u16,
+    cols: u16,
+    label: &str,
+    label_color: u8,
+    right_text: Option<(&str, u8)>,
+) {
+    move_to(w, row, 0);
+    clear_line(w);
+    set_dim(w);
+    set_fg(w, DIM_GRAY);
+    for _ in 0..cols {
+        let _ = write!(w, "\u{2500}");
+    }
+    reset_style(w);
+
+    let label_text = format!(" {label} ");
+    move_to(w, row, 0);
+    set_dim(w);
+    set_fg(w, label_color);
+    let _ = write!(w, "{}", truncate_to_width(&label_text, cols as usize));
+    reset_style(w);
+
+    if let Some((text, color)) = right_text {
+        let right_text = format!(" {text} ");
+        let total_width = display_width(&label_text) + display_width(&right_text);
+        if total_width < cols as usize {
+            move_to(
+                w,
+                row,
+                cols.saturating_sub(display_width(&right_text) as u16),
+            );
+            set_dim(w);
+            set_fg(w, color);
+            let _ = write!(w, "{right_text}");
+            reset_style(w);
+        }
+    }
 }
 
 fn simple_hash(s: &str) -> u64 {

@@ -94,21 +94,28 @@ impl TuiMode {
                     } => {
                         let step_id = self.next_step_id;
                         self.next_step_id += 1;
-                        self.pending_turn_tool_calls.insert(
-                            id.clone(),
-                            PendingTurnToolCall {
-                                step_id,
-                                name: name.clone(),
-                                input_preview: preview_tool_input(
-                                    name,
-                                    input,
-                                    ToolPreviewStyle::Compact,
-                                    crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
-                                ),
-                                input: input.clone(),
-                            },
+                        let pending = PendingTurnToolCall {
+                            step_id,
+                            name: name.clone(),
+                            input_preview: preview_tool_input(
+                                name,
+                                input,
+                                ToolPreviewStyle::Compact,
+                                crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
+                            ),
+                            input: input.clone(),
+                        };
+                        let previous_output_len = self.task_output_view().1.len();
+                        let transcript_rows = super::layout::pending_tool_paragraph_rows(
+                            &pending,
+                            StepLifecycle::Running,
                         );
+                        self.pending_turn_tool_calls.insert(id.clone(), pending);
                         self.tool_input_raw_buffers.insert(index, String::new());
+                        for row in transcript_rows {
+                            self.push_history_line(row);
+                        }
+                        self.preserve_transcript_scroll_on_growth(previous_output_len);
                         // Auto-advance timeline selection when follow mode is on.
                         if self.timeline_follow_mode {
                             let total = self.timeline_entry_count();
@@ -138,17 +145,16 @@ impl TuiMode {
                             {
                                 self.current_turn_command_history.push(evidence);
                             }
-                            // Immediately push a verb-first line so the user
-                            // sees tool progress without waiting for the model
-                            // to produce response text.
                             let previous_output_len = self.task_output_view().1.len();
-                            let para = verb_first_tool_paragraph(
+                            let transcript_rows = super::layout::completed_tool_paragraph_rows(
                                 &pending.name,
                                 &pending.input,
                                 output,
                                 *is_error,
                             );
-                            self.push_history_line(para);
+                            for row in transcript_rows {
+                                self.push_history_line(row);
+                            }
                             self.preserve_transcript_scroll_on_growth(previous_output_len);
 
                             self.current_turn_tool_invocations
@@ -232,7 +238,9 @@ impl TuiMode {
                     let step_id = self.pending_tool_step_id(&tool_name, &input_preview);
                     self.mark_tool_step_approved(step_id);
                     let _ = response_tx.send(true);
-                    self.push_history_line(format!("[auto-approved tool: {tool_name} session]"));
+                    self.push_history_line(format!(
+                        "[approval] {tool_name} auto-approved for session"
+                    ));
                     return;
                 }
 
@@ -252,7 +260,7 @@ impl TuiMode {
                     self.mark_tool_step_approved(step_id);
                     let _ = response_tx.send(true);
                     self.push_history_line(format!(
-                        "[auto-approved tool: {tool_name} {} grant]",
+                        "[approval] {tool_name} auto-approved via {} grant",
                         scope_to_label(scope)
                     ));
                     return;
@@ -260,7 +268,14 @@ impl TuiMode {
 
                 let summary = summarize_tool_approval_context(&tool_name, &input_preview);
                 let step_id = self.pending_tool_step_id(&tool_name, &input_preview);
-                self.push_history_line(format!("[tool approval requested: {summary}]"));
+                let previous_output_len = self.task_output_view().1.len();
+                for row in super::layout::tool_approval_paragraph_rows(
+                    &format!("{summary} · awaiting approval"),
+                    &input_preview,
+                ) {
+                    self.push_history_line(row);
+                }
+                self.preserve_transcript_scroll_on_growth(previous_output_len);
                 self.overlay_state.pending_approval = Some(PendingApproval {
                     step_id,
                     tool_name,
@@ -387,125 +402,6 @@ impl TuiMode {
                 self.read_only_turn_active = false;
                 self.transcript_scroll_offset = 0;
                 self.inspector_scroll_offset = 0;
-            }
-        }
-    }
-}
-
-/// Derive a verb-first one-liner from a completed tool call so the transcript
-/// shows immediate progress instead of a blank screen while the model thinks.
-fn verb_first_tool_paragraph(
-    name: &str,
-    input: &serde_json::Value,
-    output: &str,
-    is_error: bool,
-) -> String {
-    if is_error {
-        let short = output
-            .lines()
-            .map(str::trim)
-            .find(|l| !l.is_empty())
-            .unwrap_or("error");
-        let capped = &short[..short.floor_char_boundary(60)];
-        return format!("[!] {name}: {capped}");
-    }
-
-    let str_arg = |keys: &[&str]| -> &str {
-        keys.iter()
-            .find_map(|k| {
-                input
-                    .get(*k)
-                    .and_then(|v| v.as_str())
-                    .filter(|v| !v.is_empty())
-            })
-            .unwrap_or("")
-    };
-
-    match name {
-        "search_files" | "search_content" | "search" | "find_files" | "codebase_search" => {
-            let pat = str_arg(&["pattern", "query", "q", "text", "needle"]);
-            let path = str_arg(&["path", "directory", "dir"]);
-            if !pat.is_empty() && !path.is_empty() {
-                format!("Searched {pat:?} in {path}")
-            } else if !pat.is_empty() {
-                format!("Searched {pat:?}")
-            } else {
-                format!("{name}: ok")
-            }
-        }
-        "glob_files" => {
-            let pattern = str_arg(&["pattern", "glob", "query"]);
-            let count = output.lines().count();
-            if !pattern.is_empty() {
-                format!("Globbed {pattern:?} ({count} files)")
-            } else {
-                format!("{name}: ok")
-            }
-        }
-        "read_file" => {
-            let path = str_arg(&["path", "file"]);
-            let lines = output.lines().count();
-            if !path.is_empty() {
-                format!("Read {path} ({lines} lines)")
-            } else {
-                "Read: (no path given)".to_string()
-            }
-        }
-        "list_files" | "list_directory" | "list_dir" => {
-            let path = str_arg(&["path", "dir", "directory", "root"]);
-            let count = output.lines().count();
-            if !path.is_empty() {
-                format!("Listed {path} ({count} entries)")
-            } else {
-                format!("Listed workspace ({count} entries)")
-            }
-        }
-        "write_file" => {
-            let path = str_arg(&["path", "file"]);
-            let lines = str_arg(&["content"]).lines().count();
-            if !path.is_empty() && lines > 0 {
-                format!("Wrote {lines} lines to {path}")
-            } else if !path.is_empty() {
-                format!("Wrote {path}")
-            } else {
-                format!("{name}: ok")
-            }
-        }
-        "edit_file" => {
-            let path = str_arg(&["path", "file"]);
-            if !path.is_empty() {
-                format!("Edited {path}")
-            } else {
-                format!("{name}: ok")
-            }
-        }
-        "git_status" => "Checked git status".to_string(),
-        "git_diff" => "Fetched git diff".to_string(),
-        "git_log" => "Fetched git log".to_string(),
-        "git_show" => "Showed git object".to_string(),
-        "git_add" => "Staged files".to_string(),
-        "git_commit" => "Committed changes".to_string(),
-        "run_command" => {
-            let cmd = str_arg(&["command", "cmd"]);
-            if !cmd.is_empty() {
-                let capped = &cmd[..cmd.floor_char_boundary(60)];
-                format!("Ran: {capped}")
-            } else {
-                format!("{name}: ok")
-            }
-        }
-        "apply_patch" => "Applied patch".to_string(),
-        _ => {
-            let first = output
-                .lines()
-                .map(str::trim)
-                .find(|l| !l.is_empty())
-                .unwrap_or("");
-            if first.is_empty() {
-                format!("{name}: ok")
-            } else {
-                let capped = &first[..first.floor_char_boundary(60)];
-                format!("{name}: {capped}")
             }
         }
     }

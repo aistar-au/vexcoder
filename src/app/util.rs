@@ -244,6 +244,22 @@ pub(super) fn resolve_repo_label() -> String {
         .unwrap_or_else(|| "workspace".to_string())
 }
 
+/// Resolve the current git branch name via `git rev-parse --abbrev-ref HEAD`.
+///
+/// Returns an empty string when not inside a git repository or when the
+/// command fails for any reason. This is intentionally non-blocking and
+/// best-effort so the draw path never stalls.
+pub(super) fn resolve_git_branch() -> String {
+    std::process::Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default()
+}
+
 pub(super) fn sanitize_task_label(label: &str) -> String {
     let mut out = String::new();
     let mut last_was_dash = false;

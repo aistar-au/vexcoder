@@ -1,6 +1,7 @@
 use super::*;
 use crate::status_contract::{
-    completed_status_label, is_waiting_placeholder, pending_status_label, status_tone, StatusTone,
+    completed_status_label, is_waiting_placeholder, pending_status_label, status_tone,
+    waiting_for_response_line, StatusTone,
 };
 use std::io::Write;
 
@@ -147,6 +148,76 @@ fn status_color(status: &str) -> Option<u8> {
         StatusTone::Progress => Some(MAGENTA),
         StatusTone::Attention => Some(YELLOW),
     }
+}
+
+fn is_inline_telemetry_summary(line: &str) -> bool {
+    line.starts_with('[') && line.ends_with(']') && line.contains("total:")
+}
+
+fn telemetry_segment_color(label: &str) -> u8 {
+    match label {
+        "ttft" => CYAN,
+        "read" => MAGENTA,
+        "generate" => GREEN,
+        "total" => YELLOW,
+        _ => DIM_GRAY,
+    }
+}
+
+fn draw_inline_telemetry_summary(w: &mut dyn Write, line: &str, cols: u16) {
+    let inner = line
+        .strip_prefix('[')
+        .and_then(|rest| rest.strip_suffix(']'))
+        .unwrap_or(line);
+    let available = cols as usize;
+    let segments = inner
+        .split(" | ")
+        .map(str::trim)
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    let compact = format!("[{}]", segments.join(" | "));
+    let truncated = truncate_to_width(&compact, available);
+    if truncated != compact {
+        set_dim(w);
+        set_fg(w, DIM_GRAY);
+        let _ = write!(w, "{truncated}");
+        reset_style(w);
+        return;
+    }
+
+    set_dim(w);
+    set_fg(w, DIM_GRAY);
+    let _ = write!(w, "[");
+    reset_style(w);
+
+    for (index, segment) in segments.iter().enumerate() {
+        if index > 0 {
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, " | ");
+            reset_style(w);
+        }
+        if let Some((label, value)) = segment.split_once(':') {
+            let color = telemetry_segment_color(label);
+            set_bold(w);
+            set_fg(w, color);
+            let _ = write!(w, "{label}:");
+            reset_style(w);
+            set_fg(w, color);
+            let _ = write!(w, "{value}");
+            reset_style(w);
+        } else {
+            set_dim(w);
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, "{segment}");
+            reset_style(w);
+        }
+    }
+
+    set_dim(w);
+    set_fg(w, DIM_GRAY);
+    let _ = write!(w, "]");
+    reset_style(w);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -388,6 +459,95 @@ fn starts_with_literal(chars: &[char], literals: &[&str]) -> bool {
     })
 }
 
+/// Detect an inline telemetry summary like `[ttft:0.3s | read:2.5s (2641 tok) | total:7.7s]`.
+fn is_telemetry_summary(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.starts_with('[')
+        && trimmed.ends_with(']')
+        && (trimmed.contains("total:") || trimmed.contains("ttft:"))
+}
+
+/// Render a telemetry summary line with per-segment coloring:
+///   `ttft` → cyan, `read` → magenta, `generate` → green, `total` → yellow,
+///   token counts → dim gray.
+fn draw_telemetry_summary(w: &mut dyn Write, line: &str, cols: u16) {
+    let trimmed = line.trim();
+    // Strip outer brackets.
+    let inner = trimmed
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+        .unwrap_or(trimmed);
+
+    set_dim(w);
+    set_fg(w, DIM_GRAY);
+    let _ = write!(w, " [");
+    let mut used: usize = 2; // " ["
+    let max = cols as usize;
+
+    for (i, segment) in inner.split(" | ").enumerate() {
+        if i > 0 {
+            if used + 3 >= max {
+                break;
+            }
+            set_fg(w, DIM_GRAY);
+            let _ = write!(w, " | ");
+            used += 3;
+        }
+        let color = if segment.starts_with("ttft:") {
+            CYAN
+        } else if segment.starts_with("read:") {
+            MAGENTA
+        } else if segment.starts_with("generate:") {
+            GREEN
+        } else if segment.starts_with("total:") {
+            YELLOW
+        } else {
+            GRAY
+        };
+
+        // Split segment into label:value and optional (N tok) suffix.
+        if let Some((label, rest)) = segment.split_once(':') {
+            // Label
+            set_fg(w, DIM_GRAY);
+            let lbl = format!("{label}:");
+            let trun = truncate_to_width(&lbl, max.saturating_sub(used));
+            let _ = write!(w, "{trun}");
+            used += display_width(&trun);
+
+            // Value (timing)
+            if let Some((timing, tok_part)) = rest.split_once(" (") {
+                set_fg(w, color);
+                let trun = truncate_to_width(timing, max.saturating_sub(used));
+                let _ = write!(w, "{trun}");
+                used += display_width(&trun);
+
+                // Token count suffix
+                set_fg(w, DIM_GRAY);
+                let suffix = format!(" ({tok_part}");
+                let trun = truncate_to_width(&suffix, max.saturating_sub(used));
+                let _ = write!(w, "{trun}");
+                used += display_width(&trun);
+            } else {
+                set_fg(w, color);
+                let trun = truncate_to_width(rest, max.saturating_sub(used));
+                let _ = write!(w, "{trun}");
+                used += display_width(&trun);
+            }
+        } else {
+            set_fg(w, color);
+            let trun = truncate_to_width(segment, max.saturating_sub(used));
+            let _ = write!(w, "{trun}");
+            used += display_width(&trun);
+        }
+    }
+
+    set_fg(w, DIM_GRAY);
+    if used < max {
+        let _ = write!(w, "]");
+    }
+    reset_style(w);
+}
+
 fn looks_like_json_line(text: &str) -> bool {
     let trimmed = text.trim_start();
     trimmed.starts_with('{')
@@ -589,7 +749,26 @@ impl TaskDraw {
             let idx = (self.frame_counter as usize) % SPINNER_FRAMES.len();
             set_fg(w, MAGENTA);
             let _ = write!(w, " {} {}", SPINNER_FRAMES[idx], pending_status_label());
+            if let Some(suffix) = line.strip_prefix(waiting_for_response_line()) {
+                let suffix = suffix.trim();
+                if !suffix.is_empty() {
+                    reset_style(w);
+                    set_dim(w);
+                    set_fg(w, DIM_GRAY);
+                    let available = (cols as usize).saturating_sub(
+                        display_width(SPINNER_FRAMES[idx])
+                            + display_width(pending_status_label())
+                            + 3,
+                    );
+                    let truncated = truncate_to_width(suffix, available);
+                    let _ = write!(w, " {truncated}");
+                }
+            }
             reset_style(w);
+            return;
+        }
+        if is_inline_telemetry_summary(line) {
+            draw_inline_telemetry_summary(w, line, cols);
             return;
         }
         if let Some(rest) = line.strip_prefix("[thinking] ") {
@@ -833,6 +1012,13 @@ impl TaskDraw {
             let truncated = truncate_to_width(line, cols as usize);
             let _ = write!(w, "{truncated}");
             reset_style(w);
+            return;
+        }
+
+        // ── Inline telemetry summary (ADR-040) ───────────────────
+        // Turn completion emits: [ttft:0.3s | read:2.5s (2641 tok) | … | total:7.7s]
+        if is_telemetry_summary(line) {
+            draw_telemetry_summary(w, line, cols);
             return;
         }
 
