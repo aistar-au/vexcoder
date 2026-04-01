@@ -374,10 +374,18 @@ impl TaskDraw {
                 regions.composer_start,
                 regions.cols,
                 "Prompt",
-                if state.composer_focused { WHITE } else { DIM_GRAY },
+                if state.composer_focused {
+                    WHITE
+                } else {
+                    DIM_GRAY
+                },
                 Some((
                     &status,
-                    if state.composer_focused { CYAN } else { DIM_GRAY },
+                    if state.composer_focused {
+                        CYAN
+                    } else {
+                        DIM_GRAY
+                    },
                 )),
             );
 
@@ -849,7 +857,11 @@ fn draw_rule_row<W: Write>(
         let right_text = format!(" {text} ");
         let total_width = display_width(&label_text) + display_width(&right_text);
         if total_width < cols as usize {
-            move_to(w, row, cols.saturating_sub(display_width(&right_text) as u16));
+            move_to(
+                w,
+                row,
+                cols.saturating_sub(display_width(&right_text) as u16),
+            );
             set_dim(w);
             set_fg(w, color);
             let _ = write!(w, "{right_text}");
@@ -885,7 +897,10 @@ fn draw_split_rule_row<W: Write>(
     let _ = write!(
         w,
         "{}",
-        truncate_to_width(&format!(" {left_label} "), split_col.saturating_sub(1) as usize)
+        truncate_to_width(
+            &format!(" {left_label} "),
+            split_col.saturating_sub(1) as usize
+        )
     );
     reset_style(w);
 

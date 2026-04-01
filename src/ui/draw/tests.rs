@@ -957,7 +957,8 @@ fn telemetry_pane_uses_structured_state() {
 fn bottom_pane_hash_ignores_status_line_when_structured_telemetry_matches() {
     let draw = TaskDraw::new();
     let mut first = make_state(vec![], vec!["plain response"]);
-    first.status_line = "mode:ready approval:none history:0 repo:vexcoder inst:none tokens:0".into();
+    first.status_line =
+        "mode:ready approval:none history:0 repo:vexcoder inst:none tokens:0".into();
     first.telemetry = crate::app::TaskTelemetryState {
         mode: "streaming".into(),
         approval: "pending".into(),
