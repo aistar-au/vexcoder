@@ -149,14 +149,25 @@ fn zero_terminal_size_is_noop() {
     let state = make_state(vec![], vec!["text"]);
     draw.draw(&mut buf, &state, 0, 0);
     assert!(buf.is_empty(), "zero-size display must produce no output");
+}
 
-    // Sub-minimum sizes (< 10 cols or < 4 rows) are also no-ops to handle
-    // transient resize states across Windows Terminal, GNOME, and macOS.
-    buf.clear();
-    draw.draw(&mut buf, &state, 5, 3);
+#[test]
+fn undersized_terminal_shows_resize_notice() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(vec![], vec!["text"]);
+
+    // Sub-minimum sizes (< 10 cols or < 4 rows) render a short resize notice
+    // so the operator knows the surface is waiting for a larger viewport.
+    draw.draw(&mut buf, &state, 9, 3);
+    let output = String::from_utf8_lossy(&buf);
     assert!(
-        buf.is_empty(),
-        "sub-minimum size display must produce no output"
+        output.contains("resize"),
+        "undersized display should show resize notice: {output:?}"
+    );
+    assert!(
+        !output.is_empty(),
+        "undersized notice must produce visible output"
     );
 }
 
