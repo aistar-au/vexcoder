@@ -5,7 +5,7 @@ on:
     # GitHub evaluates this schedule on the default branch, then provisions a runner.
     # Temporary verification slot; restore the production nightly cadence after the
     # scheduled run is observed on main.
-    - cron: "15 22 * * *"
+    - cron: "30 22 * * *"
 
 permissions:
   actions: write
