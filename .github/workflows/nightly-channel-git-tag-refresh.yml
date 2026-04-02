@@ -1,12 +1,11 @@
-name: Refresh Nightly Tag And Dispatch Release
+name: Refresh Nightly Channel Git Tag And Dispatch Release
 
 on:
   schedule:
     # GitHub evaluates this schedule on the default branch, then provisions a runner.
-    # This temporary verification slot is restored to the production nightly cadence
-    # after the scheduled run is observed on main.
-    - cron: "45 21 * * *"
-      timezone: "UTC"
+    # Temporary verification slot; restore the production nightly cadence after the
+    # scheduled run is observed on main.
+    - cron: "30 22 * * *"
 
 permissions:
   actions: write
@@ -14,7 +13,7 @@ permissions:
 
 jobs:
   nightly:
-    name: refresh nightly tag and dispatch release
+    name: refresh nightly channel git tag and dispatch release
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -22,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configure tagger identity
+      - name: Configure channel git tagger identity
         shell: bash
         run: |
           git config user.name  "github-actions[bot]"
@@ -37,7 +36,7 @@ jobs:
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "Short SHA: ${short_sha}"
 
-      - name: Update nightly channel tag
+      - name: Update nightly channel git tag
         shell: bash
         env:
           SHORT_SHA: ${{ steps.sha.outputs.short_sha }}
