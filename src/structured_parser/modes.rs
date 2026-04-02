@@ -261,7 +261,12 @@ impl StructuredParser {
     fn feed_grammar(&mut self, token: &str) -> ValidationResult {
         let (matched, event) = if let Some(engine) = &mut self.grammar {
             if engine.feed(token) {
-                (true, Some(ParserEvent::GrammarMatch { rule: String::new() }))
+                (
+                    true,
+                    Some(ParserEvent::GrammarMatch {
+                        rule: String::new(),
+                    }),
+                )
             } else {
                 (false, None)
             }

@@ -265,7 +265,7 @@ impl GrammarEngine {
     }
 
     /// Check if `text` could be a prefix of a string matching `pattern`.
-    #[allow(dead_code)]
+    #[allow(unused)]
     fn is_valid_prefix(&self, text: &str, _pattern: &str) -> bool {
         // Conservative: accept any partial text.  Upgraded to an NFA
         // matcher when grammar-constrained decoding lands.

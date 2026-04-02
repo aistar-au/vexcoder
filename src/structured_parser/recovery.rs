@@ -30,10 +30,7 @@ pub enum RecoveryAction {
 pub trait RecoveryStrategy: Send + Sync {
     /// Given the parser's current state and the malformed input, decide
     /// what recovery action to take.
-    fn decide(
-        &self,
-        context: &RecoveryContext,
-    ) -> RecoveryAction;
+    fn decide(&self, context: &RecoveryContext) -> RecoveryAction;
 }
 
 /// Context provided to a [`RecoveryStrategy`] when making a decision.

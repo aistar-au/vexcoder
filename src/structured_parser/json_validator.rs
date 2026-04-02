@@ -299,7 +299,10 @@ mod tests {
     fn validates_partial_json_object() {
         let mut v = JsonStreamValidator::new(true);
         let state = v.feed(r#"{"key": "#);
-        assert!(matches!(state, JsonValidationState::Partial(JsonContext::Object { depth: 1 })));
+        assert!(matches!(
+            state,
+            JsonValidationState::Partial(JsonContext::Object { depth: 1 })
+        ));
     }
 
     #[test]

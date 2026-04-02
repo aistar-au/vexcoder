@@ -9,43 +9,27 @@
 pub enum ParserEvent {
     // ── JSON events ──────────────────────────────────────
     /// A complete JSON value has been parsed.
-    JsonComplete {
-        value: Option<serde_json::Value>,
-    },
+    JsonComplete { value: Option<serde_json::Value> },
     /// A JSON key has been encountered.
-    JsonKey {
-        key: String,
-    },
+    JsonKey { key: String },
     /// A JSON value has been encountered (within an object or array).
-    JsonValue {
-        value: serde_json::Value,
-    },
+    JsonValue { value: serde_json::Value },
 
     // ── Tag/XML events ───────────────────────────────────
     /// An opening tag was detected.
-    TagOpen {
-        name: String,
-    },
+    TagOpen { name: String },
     /// A closing tag was detected.
-    TagClose {
-        name: String,
-    },
+    TagClose { name: String },
 
     // ── Grammar events ───────────────────────────────────
     /// A grammar rule was matched.
-    GrammarMatch {
-        rule: String,
-    },
+    GrammarMatch { rule: String },
 
     // ── Generic events ───────────────────────────────────
     /// Raw text delta (for passthrough or unstructured content).
-    TextDelta {
-        content: String,
-    },
+    TextDelta { content: String },
     /// A recovery action was taken after a structural error.
-    RecoveryAttempt {
-        action: String,
-    },
+    RecoveryAttempt { action: String },
     /// Parsing has completed (final event).
     Complete,
 }

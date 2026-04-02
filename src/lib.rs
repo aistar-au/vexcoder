@@ -23,8 +23,9 @@ pub(crate) mod session_notes;
 pub mod skills;
 pub mod startup;
 pub mod state;
-pub mod structured_parser;
 pub(crate) mod status_contract;
+#[allow(unused)]
+pub mod structured_parser;
 pub mod terminal;
 pub mod tool_preview;
 pub mod tools;

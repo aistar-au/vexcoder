@@ -135,9 +135,7 @@ impl TagStack {
                 return true;
             }
             self.errors.push(TagError {
-                message: format!(
-                    "mismatched close tag: expected </{top}>, got </{name}>"
-                ),
+                message: format!("mismatched close tag: expected </{top}>, got </{name}>"),
                 offset,
             });
             // Attempt recovery: search stack for matching open tag.
@@ -347,9 +345,7 @@ impl TagTreeParser {
                 }
 
                 // Unquoted or malformed — take until whitespace.
-                let value_end = after_eq
-                    .find(char::is_whitespace)
-                    .unwrap_or(after_eq.len());
+                let value_end = after_eq.find(char::is_whitespace).unwrap_or(after_eq.len());
                 let value = after_eq[..value_end].to_string();
                 attrs.push((key, value));
                 remaining = after_eq[value_end..].trim();
@@ -482,8 +478,7 @@ mod tests {
     fn display_roundtrip() {
         let mut node = TagNode::new("tool");
         node.attributes.push(("name".into(), "test".into()));
-        node.children
-            .push(TagContent::Text("content".into()));
+        node.children.push(TagContent::Text("content".into()));
         node.closed = true;
         let rendered = format!("{node}");
         assert!(rendered.contains("<tool"));
