@@ -52,11 +52,12 @@ lines before they reach the TUI.  This prevents raw SSE event data from
 leaking to the display and ensures all tool invocations render as paragraph
 blocks in the scrolling transcript pane.
 
-Any future structured-output lane is gated separately under ADR-043. Until
-those adoption gates pass, the live interactive parser path remains the shared
-stream parser, the current tool-call parser selected by the conversation loop,
-and the runtime normalisation boundary that converts malformed inline tool
-markup into transcript-safe rows.
+The live parser path for interactive turns remains the shared stream parser,
+the tool-call parser selected by the conversation loop, and the
+`StreamTextNormaliser` boundary that converts malformed inline tool markup into
+transcript-safe rows. The `structured_parser` module is present in tree as an
+optional framework and does not replace the live runtime parser path unless the
+ADR-043 adoption gates are satisfied.
 
 ## Ongoing boundary work
 
