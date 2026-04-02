@@ -23,6 +23,7 @@ pub(crate) mod session_notes;
 pub mod skills;
 pub mod startup;
 pub mod state;
+pub mod structured_parser;
 pub(crate) mod status_contract;
 pub mod terminal;
 pub mod tool_preview;

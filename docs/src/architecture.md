@@ -45,6 +45,29 @@ Not every metadata field is rendered in the interactive transcript today, but
 the parser keeps those values in the normalized event surface instead of
 dropping them during protocol conversion.
 
+## Structured output parsing
+
+The `src/structured_parser/` module (ADR-043) provides a multi-format parser
+framework that can validate and enforce structured output as it streams:
+
+- **Grammar engine** (`grammar.rs`) — BNF-like rule definitions with a
+  rule-stack validation engine.
+- **JSON streaming validator** (`json_validator.rs`) — incremental depth/escape
+  tracking, best-effort container closing, and configurable strict mode.
+- **Tag tree parser** (`tag_tree.rs`) — nested XML/tag tree builder with a
+  `TagStack` nesting validator that supports error recovery for mismatched tags.
+- **Recovery strategies** (`recovery.rs`) — pluggable `RecoveryStrategy` trait
+  with tolerant (skip/insert) and strict (fatal) built-in policies.
+- **Parse modes** (`modes.rs`) — `StructuredParser` dispatches to JSON, XML,
+  Grammar, Regex, Tag, or Passthrough sub-parsers based on `VEX_PARSE_MODE`.
+- **Validation** (`validate.rs`) — `OutputGuarantee` levels (None, BestEffort,
+  Strict) and `ValidationResult` with Valid/Partial/Recovered/Invalid outcomes.
+- **Callbacks** (`callbacks.rs`) — fine-grained `ParserEvent` enum and
+  `ParserCallback` trait for token-level JSON, tag, grammar, and recovery events.
+
+The structured parser composes with the existing `StreamParser` and
+`ToolCallParser` chain; it does not replace them.
+
 A `StreamTextNormaliser` layer at the `forward_conversation_update` boundary
 intercepts embedded tool call markup (XML-like tags from local inference
 servers) and converts them into structured `[tool]`/`[detail]` transcript
