@@ -1,11 +1,13 @@
 name: Refresh Nightly Channel Git Tag And Dispatch Release
 
 on:
+  workflow_dispatch:
   schedule:
     # GitHub evaluates this schedule on the default branch, then provisions a runner.
-    # Replacement verification slot after the 22:30 UTC schedule was dropped;
-    # restore the production nightly cadence after the scheduled run is observed.
-    - cron: "55 22 * * *"
+    # Third verification slot after the 22:30 UTC and 22:55 UTC schedules were dropped.
+    # Keep workflow_dispatch enabled until the scheduled run is observed, then
+    # restore the production nightly cadence in the follow-up branch.
+    - cron: "40 23 * * *"
 
 permissions:
   actions: write
