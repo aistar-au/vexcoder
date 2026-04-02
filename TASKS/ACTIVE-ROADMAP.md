@@ -245,7 +245,7 @@ Candidate implementation areas:
 | EL-extract | `work/vexcoder-edit-loop-tui-extract` | #311 | Draft PR, CI green | Extract oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |
 | Batch-3-4 | `work/vexcoder-batch3-overlay-detail` | #316 | **Merged** | Browse cues, follow-mode fix, nextest cleanup, timeline discoverability |
 | Batch-5-6 | `work/vexcoder-batch5-overlay-convergence` | #317 | **Merged** | CLI resize notice, inspector row-count title, parser/normaliser hardening fixtures |
-| ADR-amendments | `work/vexcoder-adr-amendments` | #318 | Open | ADR-043 consequences, ACTIVE-ROADMAP parity lane summary |
+| ADR-amendments | `work/vexcoder-adr-amendments` | #318 | Merged | ADR-043 consequences, ACTIVE-ROADMAP parity lane summary |
 | ADR-038-EF | `work/vexcoder-adr-038-reads-and-policy-gate` | #281 | **Merged** | `context_assembler/{mod,reads}.rs` split plus strict disk-policy test/CI gate for ADR-038 Batches E/F |
 | ADR-038-G | `work/vexcoder-adr-038-operator-policy-wiring` | #282 | **Merged** | Operator policy module and disk-policy wiring into task-state I/O (ADR-038 Batch G) |
 | ADR-038-H | `work/vexcoder-adr-038-task-state-persist` | #283 | **Merged** | Task-state persist extraction + WAL evaluation (ADR-038 Batch H) |
