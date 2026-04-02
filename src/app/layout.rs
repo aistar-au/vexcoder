@@ -245,7 +245,16 @@ impl TuiMode {
                         rows.push("--- model response ---".to_string());
                         rows.extend(self.current_turn_response.lines().map(ToOwned::to_owned));
                     }
-                    return ("Inspector".to_string(), rows, OutputScrollAnchor::Top);
+                    return (
+                        format!(
+                            "Inspector · {}/{} · {}",
+                            idx + 1,
+                            entries.len(),
+                            entry.label
+                        ),
+                        rows,
+                        OutputScrollAnchor::Top,
+                    );
                 }
             }
         }

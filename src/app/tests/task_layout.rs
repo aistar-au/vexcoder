@@ -223,12 +223,82 @@ fn test_manual_timeline_selection_opens_tool_inspector() {
     mode.selected_timeline_index = 1;
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert_eq!(state.output_title, "Inspector");
+    assert_eq!(
+        state.output_title,
+        "Inspector · 2/2 · read_file · src/main.rs · Response complete."
+    );
     assert_eq!(state.output_rows[0], "Tool: read_file");
     assert_eq!(
         state.output_rows[1],
         "Outcome: 42 lines read from src/main.rs"
     );
+}
+
+#[test]
+fn test_timeline_home_and_end_via_frontend_event_preserve_browse_contract() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("inspect the file".to_string(), &mut ctx);
+    mode.current_turn_tool_invocations = vec![
+        ToolInvocationSummary {
+            step_id: 1,
+            name: "read_file".to_string(),
+            outcome: "42 lines read from src/main.rs".to_string(),
+        },
+        ToolInvocationSummary {
+            step_id: 2,
+            name: "check".to_string(),
+            outcome: "ok".to_string(),
+        },
+    ];
+    mode.timeline_follow_mode = false;
+    mode.selected_timeline_index = 2;
+
+    mode.on_frontend_event(
+        crate::runtime::frontend::UserInputEvent::Scroll {
+            target: crate::runtime::frontend::ScrollTarget::Timeline,
+            action: crate::runtime::frontend::ScrollAction::Home,
+        },
+        &mut ctx,
+    );
+    assert_eq!(mode.selected_timeline_index, 0);
+    assert!(!mode.timeline_follow_mode);
+
+    mode.on_frontend_event(
+        crate::runtime::frontend::UserInputEvent::Scroll {
+            target: crate::runtime::frontend::ScrollTarget::Timeline,
+            action: crate::runtime::frontend::ScrollAction::End,
+        },
+        &mut ctx,
+    );
+    assert_eq!(mode.selected_timeline_index, 2);
+    assert!(mode.timeline_follow_mode);
+}
+
+#[test]
+fn test_manual_timeline_browse_stays_selected_when_new_transcript_rows_arrive() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("inspect the file".to_string(), &mut ctx);
+    mode.current_turn_tool_invocations = vec![ToolInvocationSummary {
+        step_id: 1,
+        name: "read_file".to_string(),
+        outcome: "42 lines read from src/main.rs".to_string(),
+    }];
+    mode.timeline_follow_mode = false;
+    mode.selected_timeline_index = 1;
+
+    mode.on_model_update(
+        UiUpdate::TranscriptLine("later detail".to_string()),
+        &mut ctx,
+    );
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.selected_step, 1);
+    assert!(!state.follow_mode);
+    assert_eq!(state.output_rows[0], "Tool: read_file");
 }
 
 #[test]
