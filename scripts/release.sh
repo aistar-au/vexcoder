@@ -100,7 +100,7 @@ if is_semver_tag "${VERSION}"; then
 elif is_short_sha_tag "${VERSION}" || is_channel_tag "${VERSION}"; then
   : # Non-semver tags do not require Cargo.toml alignment.
 else
-  echo "FAIL: VERSION must be a semver tag (v0.1.0), a 7-character short SHA, or a channel name (nightly/latest)" >&2
+  echo "FAIL: VERSION must be a semver tag (v0.1.0), a 7-character short SHA, or a channel name (nightly)" >&2
   exit 1
 fi
 

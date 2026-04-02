@@ -291,7 +291,7 @@ if (Test-SemverTag -Value $Version) {
 } elseif ((Test-ShortShaTag -Value $Version) -or (Test-ChannelTag -Value $Version)) {
     # Non-semver tags do not require Cargo.toml alignment.
 } else {
-    throw "FAIL: VERSION must be a semver tag (v0.1.0), a 7-character short SHA, or a channel name (nightly/latest)"
+    throw "FAIL: VERSION must be a semver tag (v0.1.0), a 7-character short SHA, or a channel name (nightly)"
 }
 
 if ($needsBuild) {
