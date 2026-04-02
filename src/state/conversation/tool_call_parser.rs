@@ -370,4 +370,104 @@ not valid json at all
             ToolParserMode::Tagged
         );
     }
+
+    // ── ADR-043 gate 2: parity fixtures ─────────────────────────────
+
+    #[test]
+    fn tagged_and_hybrid_agree_on_well_formed_tagged_input() {
+        let text = r#"<function=read_file>
+<parameter=path>src/main.rs</parameter>
+</function>"#;
+        let tagged = TaggedParser.parse(text);
+        let hybrid = HybridParser.parse(text);
+        assert_eq!(tagged.len(), hybrid.len(), "parsers should agree on count");
+        for (t, h) in tagged.iter().zip(hybrid.iter()) {
+            assert_eq!(t.name, h.name, "tool name mismatch");
+            assert_eq!(t.input, h.input, "tool input mismatch");
+        }
+    }
+
+    #[test]
+    fn tagged_and_hybrid_agree_on_multiple_tagged_calls() {
+        let text = r#"<function=read_file>
+<parameter=path>a.rs</parameter>
+</function>
+<function=write_file>
+<parameter=path>b.rs</parameter>
+<parameter=content>fn main() {}</parameter>
+</function>"#;
+        let tagged = TaggedParser.parse(text);
+        let hybrid = HybridParser.parse(text);
+        assert_eq!(tagged.len(), 2);
+        assert_eq!(hybrid.len(), 2);
+        assert_eq!(tagged[0].name, hybrid[0].name);
+        assert_eq!(tagged[1].name, hybrid[1].name);
+        assert_eq!(tagged[0].input, hybrid[0].input);
+        assert_eq!(tagged[1].input, hybrid[1].input);
+    }
+
+    #[test]
+    fn xml_fallback_recovers_from_malformed_json_between_valid_blocks() {
+        let text = r#"<tool_call>
+not json
+</tool_call>
+<tool_call>
+{"name": "read_file", "arguments": {"path": "ok.rs"}}
+</tool_call>"#;
+        let calls = XmlFallbackParser::parse_xml_tool_calls(text);
+        assert_eq!(
+            calls.len(),
+            1,
+            "should skip the broken block and parse the valid one"
+        );
+        assert_eq!(calls[0].name, "read_file");
+    }
+
+    #[test]
+    fn xml_fallback_handles_nested_json_in_arguments() {
+        let text = r#"<tool_call>
+{"name": "edit_file", "arguments": {"path": "config.json", "content": "{\"key\": \"value\"}"}}
+</tool_call>"#;
+        let calls = XmlFallbackParser::parse_xml_tool_calls(text);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "edit_file");
+        assert!(
+            calls[0].input["content"].as_str().unwrap().contains("key"),
+            "nested JSON in arguments should be preserved"
+        );
+    }
+
+    #[test]
+    fn tagged_parser_ignores_xml_format() {
+        // Tagged parser intentionally does not parse <tool_call> or <invoke>
+        // format — that is the domain of hybrid/xml fallback only.
+        let text = r#"<tool_call>
+{"name": "test", "arguments": {}}
+</tool_call>"#;
+        let calls = TaggedParser.parse(text);
+        assert!(
+            calls.is_empty(),
+            "tagged parser should not match XML format"
+        );
+    }
+
+    #[test]
+    fn hybrid_parser_returns_empty_on_plain_text() {
+        let text = "Just a normal response with no tool calls at all.";
+        let calls = HybridParser.parse(text);
+        assert!(calls.is_empty());
+    }
+
+    #[test]
+    fn xml_fallback_invoke_with_tool_use_tag() {
+        let text = r#"<tool_use name="search_files">
+<parameter name="query">TODO</parameter>
+<parameter name="path">src/</parameter>
+</tool_use>"#;
+        let calls = XmlFallbackParser::parse_xml_tool_calls(text);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "search_files");
+        assert_eq!(calls[0].input["query"], "TODO");
+        assert_eq!(calls[0].input["path"], "src/");
+    }
 }
