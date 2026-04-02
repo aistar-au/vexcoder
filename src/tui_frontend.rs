@@ -287,7 +287,8 @@ impl ManagedTuiFrontend {
         }
 
         match key.code {
-            // Timeline navigation: Alt+Up / Alt+Down.
+            // Timeline navigation: Alt+Up / Alt+Down, plus Alt+Home / Alt+End
+            // to jump directly to the first step or return to live follow mode.
             KeyCode::Up if key.modifiers.contains(KeyModifiers::ALT) => {
                 Some(UserInputEvent::Scroll {
                     target: ScrollTarget::Timeline,
@@ -298,6 +299,18 @@ impl ManagedTuiFrontend {
                 Some(UserInputEvent::Scroll {
                     target: ScrollTarget::Timeline,
                     action: ScrollAction::LineDown,
+                })
+            }
+            KeyCode::Home if key.modifiers.contains(KeyModifiers::ALT) => {
+                Some(UserInputEvent::Scroll {
+                    target: ScrollTarget::Timeline,
+                    action: ScrollAction::Home,
+                })
+            }
+            KeyCode::End if key.modifiers.contains(KeyModifiers::ALT) => {
+                Some(UserInputEvent::Scroll {
+                    target: ScrollTarget::Timeline,
+                    action: ScrollAction::End,
                 })
             }
             // Tab / Shift+Tab also navigate the timeline.

@@ -1211,6 +1211,88 @@ fn status_bar_priority_truncation_drops_low_priority_fields_first() {
 }
 
 #[test]
+fn status_bar_shows_follow_mode_and_selected_step_state() {
+    let mut state = make_state(
+        vec![
+            TimelineEntry {
+                step_id: 1,
+                lifecycle: StepLifecycle::UserInput,
+                label: "inspect the file".into(),
+                detail: String::new(),
+                session_id: None,
+            },
+            TimelineEntry {
+                step_id: 2,
+                lifecycle: StepLifecycle::Completed,
+                label: "read_file · Response complete.".into(),
+                detail: "Tool: read_file\nOutcome: ok".into(),
+                session_id: None,
+            },
+        ],
+        vec!["response text"],
+    );
+
+    let live = status_bar_summary(&state, 120);
+    assert!(
+        live.contains("view:live"),
+        "follow mode should be visible in the status bar: {live}"
+    );
+
+    state.follow_mode = false;
+    state.selected_step = 1;
+    let browse = status_bar_summary(&state, 120);
+    assert!(
+        browse.contains("view:2/2"),
+        "manual browse state should expose the selected step: {browse}"
+    );
+}
+
+#[test]
+fn detail_mode_footer_hints_advertise_live_return() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let mut state = make_state(
+        vec![
+            TimelineEntry {
+                step_id: 1,
+                lifecycle: StepLifecycle::UserInput,
+                label: "inspect the file".into(),
+                detail: String::new(),
+                session_id: None,
+            },
+            TimelineEntry {
+                step_id: 2,
+                lifecycle: StepLifecycle::Completed,
+                label: "read_file · Response complete.".into(),
+                detail: "Tool: read_file\nOutcome: ok".into(),
+                session_id: None,
+            },
+        ],
+        vec!["Tool: read_file", "Outcome: ok"],
+    );
+    state.follow_mode = false;
+    state.selected_step = 1;
+    state.output_title = "Inspector · 2/2 · read_file · Response complete.".into();
+    state.output_scroll_anchor = OutputScrollAnchor::Top;
+
+    draw.draw(&mut buf, &state, 120, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("Tab step"),
+        "detail mode should advertise timeline navigation hints"
+    );
+    assert!(
+        output.contains("Alt+End live"),
+        "detail mode should advertise the live-return hint"
+    );
+    assert!(
+        output.contains("Enter  S-Enter"),
+        "detail mode should keep submit hints visible while browsing"
+    );
+}
+
+#[test]
 fn short_transcript_starts_at_top_of_transcript_pane() {
     let state = make_state(vec![], vec!["Type a prompt below to begin."]);
     let regions = Regions::compute(80, 24, false, 0);

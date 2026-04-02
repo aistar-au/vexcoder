@@ -2,4 +2,4 @@
 source: tests/tui_draw_snapshots.rs
 expression: rendered
 ---
- │ edit configPatched successfully.──────────────────────────────────────────────────────────────────────────────── Prompt  focused · 0 chars › submit: / commands  @ files  ! shell  task:snap-001 m:streaming ap:none hist:0 chg:2 act:0/0 PgUp/PgDn  Enter  S-Enter
+ │ edit configPatched successfully.──────────────────────────────────────────────────────────────────────────────── Prompt  focused · 0 chars › submit: / commands  @ files  ! shell  task:snap-001 m:streaming ap:none view:live  Tab step  Pg scroll  Enter  S-Enter

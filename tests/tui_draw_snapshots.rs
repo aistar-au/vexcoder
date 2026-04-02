@@ -15,6 +15,7 @@ use vexcoder::ui::draw::TaskDraw;
 // ── Helpers ────────────────────────────────────────────────────────
 
 fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState {
+    let total_steps = entries.len();
     let active_tools = entries
         .iter()
         .filter(|entry| {
@@ -51,7 +52,7 @@ fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState
         },
         timeline_entries: entries,
         selected_step: 0,
-        total_steps: 0,
+        total_steps,
         output_title: "Transcript".to_string(),
         output_rows: output.into_iter().map(String::from).collect(),
         output_scroll_offset: 0,

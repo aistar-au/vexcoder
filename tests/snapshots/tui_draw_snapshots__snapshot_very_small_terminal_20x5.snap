@@ -2,4 +2,4 @@
 source: tests/tui_draw_snapshots.rs
 expression: rendered
 ---
- │ hi──────────────────── Prompt › submit: / commandsPgUp/PgDn  Enter  S-
+ │ hi──────────────────── Prompt › submit: / commandsTab step  Pg scroll

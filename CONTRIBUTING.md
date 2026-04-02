@@ -29,7 +29,7 @@ Runtime-core TUI deployment is gated by ADR-012; no deploy if any ADR-012 item i
 Architecture gates enforcing ADR-007 must remain green:
 `bash scripts/check_no_alternate_routing.sh`
 `bash scripts/check_forbidden_imports.sh`
-Tests that mutate process environment variables must hold `crate::test_support::ENV_LOCK`; `cargo test --all-targets` must pass without `--test-threads=1`. Keep `.git/hooks/pre-push` installed and wired to `cargo nextest run -j 2` for every local push. The `ci` workflow runs 8 parallel jobs (lint, clippy, nextest, doctest, test-all-targets on Ubuntu; clippy+fmt, test, package on Windows) with cargo registry and build-artifact caching.
+Tests that mutate process environment variables must hold `crate::test_support::ENV_LOCK`; `cargo test --all-targets` must pass without `--test-threads=1`. Keep `.git/hooks/pre-push` installed and wired to `cargo nextest run` for every local push so nextest uses its default cross-platform concurrency. The `ci` workflow runs 8 parallel jobs (lint, clippy, nextest, doctest, test-all-targets on Ubuntu; clippy+fmt, test, package on Windows) with cargo registry and build-artifact caching.
 
 ---
 
@@ -110,17 +110,17 @@ source "$HOME/.cargo/env"
 cargo install cargo-nextest --locked
 
 # 2. Verify the environment
-cargo nextest run -j 2
+cargo nextest run
 cargo test --all-targets
 
 # 3. Read the relevant ADR in adr/, identify the anchor test
 
 # 4. Implement, then verify
 cargo test test_crit_XX_anchor_name -- --nocapture
-cargo nextest run -j 2
+cargo nextest run
 
 # 5. Confirm no regressions
-cargo nextest run -j 2
+cargo nextest run
 cargo test --all-targets
 bash scripts/check_no_alternate_routing.sh
 bash scripts/check_forbidden_imports.sh
@@ -145,7 +145,7 @@ On Windows PowerShell 7, use the native packaging script instead of `make releas
 ```powershell
 git switch -c work/v<current-version>-packaging
 $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
-cargo nextest run -j 2
+cargo nextest run
 cargo test --all-targets
 .\scripts\release.ps1 -Target x86_64-pc-windows-msvc
 git push -u origin work/v<current-version>-packaging
@@ -400,7 +400,7 @@ order.
 3. **C — Commit-debug loop**: run `vexdraft/scripts/commit-debug.py`, fix
   findings, push after every code-bearing fix, verify the remote head SHA,
   and re-run until `PASS`.
-  Keep `.git/hooks/pre-push` active so each push re-runs `cargo nextest run -j 2`
+  Keep `.git/hooks/pre-push` active so each push re-runs `cargo nextest run`
   before the remote review cycle.
   Before each push from the review branch, run `git fetch origin --prune && git rebase origin/main`
   so the branch is rebased onto the latest moving mainline.

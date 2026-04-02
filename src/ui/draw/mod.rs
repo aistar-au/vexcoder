@@ -496,8 +496,10 @@ impl TaskDraw {
 
         let hints = if state.pending_approval.is_some() {
             "y approve  n deny  s all"
+        } else if state.follow_mode {
+            "Tab step  Pg scroll  Enter  S-Enter"
         } else {
-            "PgUp/PgDn  Enter  S-Enter"
+            "Tab step  Alt+End live  Pg scroll  Enter  S-Enter"
         };
         let hints = truncate_to_width(hints, regions.cols as usize);
         let summary_width =
@@ -733,6 +735,18 @@ fn status_bar_summary(state: &TaskLayoutState, max_width: usize) -> String {
             "ap:{}",
             truncate_to_width(&state.telemetry.approval, 12)
         ));
+    }
+
+    if state.total_steps > 0 {
+        segments.push(if state.follow_mode {
+            "view:live".to_string()
+        } else {
+            format!(
+                "view:{}/{}",
+                state.selected_step.saturating_add(1).min(state.total_steps),
+                state.total_steps
+            )
+        });
     }
 
     if !state.telemetry.model_name.is_empty() {

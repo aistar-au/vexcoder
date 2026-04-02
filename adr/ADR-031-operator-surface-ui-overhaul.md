@@ -135,6 +135,9 @@ Timeline discoverability remains required, but a permanently reserved activity
 strip is not restored. The operator may enter and leave detail modes without
 changing the transcript-first contract.
 
+Compact status-bar cues and explicit return-to-live navigation keep transient
+timeline browsing visible without restoring a permanent activity strip.
+
 The navigator or mapping theme applies to wording, emphasis, and spatial cues
 only. It does not change the structural contract of transcript body, composer,
 and compact status bar.

@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-02 (transcript-first parity Batch 1 state inputs, ADR-043 adoption-gate ADR, and fullscreen surface doc refresh prepared on a review branch)
+Last updated: 2026-04-02 (Batches 1-2 merged in PR #315; Batches 3-4 overlay detail and timeline discoverability branch opened)
 
 ---
 

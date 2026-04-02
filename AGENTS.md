@@ -82,13 +82,13 @@ Ignore this section in repository-hosted background sessions.
 
 ```bash
 cargo fmt --check
-cargo nextest run -j 2
+cargo nextest run
 cargo test --all-targets
 bash scripts/check_forbidden_names.sh
 ```
 
 Keep `.git/hooks/pre-push` installed so the local push path re-runs
-`cargo nextest run -j 2` automatically.
+`cargo nextest run` automatically.
 
 The `ci` workflow runs 8 parallel jobs (lint, clippy, nextest, doctest,
 test-all-targets on Ubuntu; clippy+fmt, test, package on Windows) with

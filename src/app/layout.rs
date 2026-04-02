@@ -245,7 +245,16 @@ impl TuiMode {
                         rows.push("--- model response ---".to_string());
                         rows.extend(self.current_turn_response.lines().map(ToOwned::to_owned));
                     }
-                    return ("Inspector".to_string(), rows, OutputScrollAnchor::Top);
+                    return (
+                        format!(
+                            "Inspector · {}/{} · {}",
+                            idx + 1,
+                            entries.len(),
+                            entry.label
+                        ),
+                        rows,
+                        OutputScrollAnchor::Top,
+                    );
                 }
             }
         }
@@ -376,9 +385,15 @@ impl TuiMode {
         let steps = self.task_step_views();
         let timeline_entries = Self::task_timeline_entries_from(&steps);
         let total_steps = timeline_entries.len();
-        let selected_step = self
-            .selected_timeline_index
-            .min(total_steps.saturating_sub(1));
+        // When follow mode is active, snap the selection to the latest entry
+        // so the status bar and any inspector switch reflect the current head
+        // rather than a stale index from before new entries arrived.
+        let selected_step = if self.timeline_follow_mode && total_steps > 0 {
+            total_steps - 1
+        } else {
+            self.selected_timeline_index
+                .min(total_steps.saturating_sub(1))
+        };
         let (output_title, output_rows, output_scroll_anchor) =
             self.task_output_view_with(&timeline_entries);
         let output_scroll_offset = match output_scroll_anchor {
