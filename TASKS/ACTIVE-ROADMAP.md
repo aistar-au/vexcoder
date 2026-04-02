@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-02 (Batches 1-4 merged in PR #315 and #316; Batch 5-6 overlay convergence and parser hardening branch opened)
+Last updated: 2026-04-02 (Batches 1-6 merged in PR #315, #316, and #317; ADR amendment pack applied via PR #318)
 
 ---
 
@@ -62,12 +62,11 @@ The only deferred external follow-up remains ADR-024 PG-03 tap auto-dispatch,
 which stays blocked until the separate `homebrew-vex` tap repository exists.
 
 Fullscreen transcript-first parity hardening is active under ADR-031,
-ADR-040, and ADR-041. The current lane keeps the three-region surface intact
-while adding state-first footer inputs, richer multiline composer support,
-detail overlays or pagers, transient timeline discoverability, and active or
-fallback fullscreen convergence without introducing a permanent telemetry pane.
-Parser follow-up remains limited to normalisation hardening unless ADR-043's
-adoption gates are satisfied.
+ADR-040, and ADR-041. Scope: richer footer budgeting, stronger multiline
+composer ergonomics, overlay or pager detail surfaces, transient timeline
+discoverability, and active or fallback fullscreen convergence without
+introducing a permanent telemetry pane. Parser work remains limited to
+normalisation hardening unless ADR-043 adoption gates are satisfied.
 
 ### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
 
@@ -245,7 +244,8 @@ Candidate implementation areas:
 | :--- | :--- | :--- | :--- | :--- |
 | EL-extract | `work/vexcoder-edit-loop-tui-extract` | #311 | Draft PR, CI green | Extract oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |
 | Batch-3-4 | `work/vexcoder-batch3-overlay-detail` | #316 | **Merged** | Browse cues, follow-mode fix, nextest cleanup, timeline discoverability |
-| Batch-5-6 | `work/vexcoder-batch5-overlay-convergence` | TBD | Branch created | Undersized-terminal notice, inspector overflow indicator, parser/normaliser hardening fixtures |
+| Batch-5-6 | `work/vexcoder-batch5-overlay-convergence` | #317 | **Merged** | CLI resize notice, inspector row-count title, parser/normaliser hardening fixtures |
+| ADR-amendments | `work/vexcoder-adr-amendments` | #318 | Open | ADR-043 consequences, ACTIVE-ROADMAP parity lane summary |
 | ADR-038-EF | `work/vexcoder-adr-038-reads-and-policy-gate` | #281 | **Merged** | `context_assembler/{mod,reads}.rs` split plus strict disk-policy test/CI gate for ADR-038 Batches E/F |
 | ADR-038-G | `work/vexcoder-adr-038-operator-policy-wiring` | #282 | **Merged** | Operator policy module and disk-policy wiring into task-state I/O (ADR-038 Batch G) |
 | ADR-038-H | `work/vexcoder-adr-038-task-state-persist` | #283 | **Merged** | Task-state persist extraction + WAL evaluation (ADR-038 Batch H) |
