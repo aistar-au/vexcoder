@@ -11,6 +11,8 @@ from pathlib import Path
 SEMVER_TAG_RE = re.compile(
     r"^v\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
+SHORT_SHA_TAG_RE = re.compile(r"^[0-9a-f]{7}$")
+CHANNEL_TAGS = frozenset({"nightly"})
 
 SECTION_ORDER = [
     "Features",
@@ -56,6 +58,20 @@ def get_repo_slug() -> str:
     raise SystemExit(f"FAIL: could not derive repository slug from remote.origin.url: {remote_url}")
 
 
+def classify_tag(tag: str) -> tuple[str, str]:
+    """Return (tag_kind, release_channel) for a supported tag."""
+    if SEMVER_TAG_RE.fullmatch(tag):
+        return "semver", "pre-release" if "-" in tag else "stable"
+    if SHORT_SHA_TAG_RE.fullmatch(tag):
+        return "short-sha", "snapshot"
+    if tag in CHANNEL_TAGS:
+        return "channel", tag
+    raise ValueError(
+        f"tag must be a semver tag like v0.1.0, a 7-character short SHA, "
+        f"or one of {', '.join(sorted(CHANNEL_TAGS))} (got {tag})"
+    )
+
+
 def get_previous_tag(current_tag: str) -> str | None:
     tags = run_git("tag", "--list", "v*", "--sort=-v:refname")
     for candidate in tags.splitlines():
@@ -91,6 +107,7 @@ def classify_subject(subject: str) -> tuple[str, str]:
 
 
 def render_release_notes(tag: str, repo_slug: str, previous_tag: str | None, entries: list[tuple[str, str]]) -> str:
+    tag_kind, release_channel = classify_tag(tag)
     release_date = get_release_date(tag)
     sections = {name: [] for name in SECTION_ORDER}
     for subject, short_sha in entries:
@@ -103,16 +120,17 @@ def render_release_notes(tag: str, repo_slug: str, previous_tag: str | None, ent
         "Generated from the commit history captured by this tag.",
         "",
         f"- Release date: {release_date}",
-        f"- Semver channel: {'pre-release' if '-' in tag else 'stable'}",
+        f"- Release channel: {release_channel}",
+        f"- Tag kind: {tag_kind}",
     ]
 
     if previous_tag:
-        lines.append(f"- Previous tag: {previous_tag}")
+        lines.append(f"- Previous semver tag: {previous_tag}")
         lines.append(
             f"- Compare: https://github.com/{repo_slug}/compare/{previous_tag}...{tag}"
         )
     else:
-        lines.append("- Previous tag: none")
+        lines.append("- Previous semver tag: none")
 
     lines.append("")
 
@@ -149,13 +167,21 @@ def main() -> int:
     changelog_out = Path(sys.argv[3]) if len(sys.argv) == 4 else None
 
     if not SEMVER_TAG_RE.fullmatch(tag):
-        print(f"FAIL: tag must be a semver tag like v0.1.0 or v0.1.0-beta.1 (got {tag})", file=sys.stderr)
-        return 1
+        try:
+            classify_tag(tag)
+        except ValueError as exc:
+            print(f"FAIL: {exc}", file=sys.stderr)
+            return 1
 
     repo_slug = get_repo_slug()
-    previous_tag = get_previous_tag(tag)
-    range_spec = f"{previous_tag}..{tag}" if previous_tag else tag
-    notes = render_release_notes(tag, repo_slug, previous_tag, get_commit_entries(range_spec))
+    try:
+        previous_tag = get_previous_tag(tag)
+        range_spec = f"{previous_tag}..{tag}" if previous_tag else tag
+        notes = render_release_notes(tag, repo_slug, previous_tag, get_commit_entries(range_spec))
+    except subprocess.CalledProcessError as exc:
+        detail = exc.stderr.strip() or str(exc)
+        print(f"FAIL: git command failed while generating release notes: {detail}", file=sys.stderr)
+        return 1
 
     notes_out.parent.mkdir(parents=True, exist_ok=True)
     notes_out.write_text(notes, encoding="utf-8")

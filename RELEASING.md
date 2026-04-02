@@ -37,6 +37,8 @@ pre-release label. This ensures correct semver precedence ordering:
 
 ## Git tag conventions
 
+### Semver tags
+
 - Tags use the `v` prefix: `v0.1.0-beta.1`, `v1.0.0`.
 - Tags are **annotated**, not lightweight, and include a short summary.
 - Tags are applied only to commits on `main` after the PR merge.
@@ -48,7 +50,34 @@ pre-release label. This ensures correct semver precedence ordering:
 - Create and push the tag locally from a synced `main` checkout. The tag is a
   post-merge release action, not a separate PR patch.
 
-### Creating a tag
+### Non-semver tags
+
+- **Short-SHA tags** (7 hex characters, e.g. `bfb531d`) are created
+  manually by the operator after a merge to `main`. They are immutable
+  once pushed and trigger the release pipeline to produce a snapshot
+  pre-release. See "Creating a short-SHA tag" below.
+- **Channel tags** (`nightly`) are force-updated on a nightly schedule
+  by `.github/workflows/auto-tag.yml`. Channel tags are the only tags
+  that may be moved.
+- Non-semver tags do not require a `Cargo.toml` version match. The release
+  pipeline skips the version alignment check for these tags.
+
+### Creating a short-SHA tag
+
+```bash
+git switch main
+git pull --ff-only origin main
+
+# Derive the 7-character short SHA of the merge commit
+short_sha="$(git rev-parse HEAD)"; short_sha="${short_sha:0:7}"
+echo "Short SHA: ${short_sha}"
+
+# Create an annotated snapshot tag
+git tag -a "${short_sha}" -m "Snapshot ${short_sha}"
+git push origin "${short_sha}"
+```
+
+### Creating a semver tag
 
 ```bash
 git switch main
@@ -105,6 +134,14 @@ git push origin v<current-version>
 12. Verify the workflow published the release entry, attached the platform
   archives, the macOS `.dmg` assets, and the matching
   `CHANGELOG-v<current-tag>.md` asset.
+
+### After merge (optional snapshot release)
+
+To produce an immediate snapshot release from the merge commit, create a
+short-SHA tag manually (see "Creating a short-SHA tag" above).
+
+The nightly channel tag is updated automatically by the scheduled `auto-tag`
+workflow (11:59 PM Pacific). No manual action is needed for nightly builds.
 
 ---
 
@@ -167,9 +204,25 @@ prefer a fully browser-based release flow.
 
 ---
 
+## Automated nightly builds
+
+`.github/workflows/auto-tag.yml` runs on a nightly schedule (11:59 PM
+Pacific / 06:59 UTC during PDT). It force-updates the `nightly` channel
+tag to point at the current HEAD of `main`, which triggers the release
+workflow to produce a nightly pre-release build.
+
+Short-SHA snapshot tags are created manually by the operator via
+`git tag` and `git push` (see "Creating a short-SHA tag" above).
+Each pushed short-SHA tag triggers the release workflow automatically.
+
+---
+
 ## Automated release workflow
 
-`.github/workflows/release.yml` triggers on tag pushes matching `v*`.
+`.github/workflows/release.yml` triggers on tag pushes matching semver
+(`v*`), short-SHA (7 hex characters), and channel names (`nightly`).
+It also supports `workflow_dispatch` for re-running a release from the
+Actions UI without creating a new tag.
 The workflow:
 
 1. Builds release archives for 6 targets (Linux musl x86\_64 + aarch64,
@@ -188,8 +241,16 @@ The workflow:
   re-run as complete.
 5. Attaches all archives, macOS `.dmg` assets, checksums, signature bundles,
   and a generated `CHANGELOG-<tag>.md` asset.
-6. Pre-release tags (containing `alpha`, `beta`, or `rc`) are
-   automatically marked as pre-releases.
+6. Semver pre-release tags (containing `alpha`, `beta`, or `rc`), short-SHA
+   tags, and channel tags are automatically marked as pre-releases.
+
+### Tag format summary
+
+| Format | Example | Release type | Cargo.toml check |
+| :--- | :--- | :--- | :--- |
+| `v<semver>` | `v0.1.0-rc.8` | Stable or pre-release | Must match |
+| 7-char hex SHA | `bfb531d` | Pre-release (snapshot) | Skipped |
+| Channel name | `nightly` | Pre-release (channel) | Skipped |
 
 Manual dispatch is available for re-running a failed release without
 re-tagging when the tagged commit already contains the required fix and the
@@ -197,9 +258,10 @@ expected assets were published with the original release entry. If an immutable
 release already exists without the required assets, land the fix and cut the
 next prerelease or patch tag instead of moving the existing tag.
 
-The packaging scripts in `scripts/` derive the archive name from
-`Cargo.toml` and reject mismatched tag inputs to prevent version drift
-between the binary and the tag.
+The packaging scripts in `scripts/` derive the archive name from the tag
+for non-semver tags and from `Cargo.toml` for semver tags. Semver tags
+reject mismatched tag inputs to prevent version drift between the binary
+and the tag.
 
 The package-manager tap formula template lives in `packaging/homebrew/vex.rb`.
 After a tagged release publishes `checksums.txt`, run
