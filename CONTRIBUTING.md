@@ -165,11 +165,16 @@ git push origin v<current-version>
 The tag push is a local post-merge release step. Do not open a second PR patch
 just to publish the matching `v<current-version>` tag.
 
-The pushed tag now drives the rest of the release flow automatically: archive packaging, checksums, signature bundles, the release entry, and a generated `CHANGELOG-<tag>.md` asset all publish from the same tag event.
+For semver and short-SHA tags, the pushed tag drives the rest of the release
+flow automatically: archive packaging, checksums, signature bundles, the
+release entry, and a generated `CHANGELOG-<tag>.md` asset all publish from the
+same tag event.
 
-A nightly schedule (11:59 PM Pacific) automatically force-updates the
-`nightly` channel tag to the current HEAD of `main` via
-`.github/workflows/auto-tag.yml`, triggering a nightly pre-release build.
+A daily GitHub-hosted schedule automatically force-updates the `nightly`
+channel tag to the current HEAD of `main` via
+`.github/workflows/auto-tag.yml`, then dispatches the release workflow against
+the `nightly` ref so the nightly pre-release build runs from the refreshed
+channel tag.
 For immediate snapshot releases, the operator can manually create a
 short-SHA tag after merge. See `RELEASING.md` for the full tag format
 table and manual tagging instructions.
