@@ -235,8 +235,19 @@ impl JsonStreamValidator {
         self.stack.len()
     }
 
-    /// Returns `true` if a complete top-level value has been parsed.
+    /// Returns `true` if a complete, well-formed JSON value has been parsed.
+    ///
+    /// The streaming validator only tracks container/string balancing, so
+    /// this method performs a final `serde_json` parse to confirm the
+    /// accumulated input is truly valid JSON.
     pub fn is_complete(&self) -> bool {
+        self.complete && serde_json::from_str::<serde_json::Value>(&self.raw).is_ok()
+    }
+
+    /// Returns `true` if the streaming state machine considers the
+    /// top-level value structurally closed (containers balanced, not
+    /// inside a string).  This does **not** guarantee full JSON validity.
+    pub fn is_structurally_closed(&self) -> bool {
         self.complete
     }
 

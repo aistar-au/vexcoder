@@ -7,7 +7,7 @@
 use super::callbacks::{ParserCallback, ParserEvent};
 use super::grammar::GrammarEngine;
 use super::json_validator::{JsonStreamValidator, JsonValidationState};
-use super::recovery::{RecoveryContext, RecoveryStrategy, TokenRecovery};
+use super::recovery::{RecoveryAction, RecoveryContext, RecoveryStrategy, TokenRecovery};
 use super::tag_tree::TagTreeParser;
 use super::validate::{OutputGuarantee, ValidationOutcome, ValidationResult};
 
@@ -187,11 +187,27 @@ impl StructuredParser {
                     offending: token.to_string(),
                 };
                 let action = self.recovery.decide(&recovery_ctx);
+
+                // Apply recovery action based on guarantee level.
+                let outcome = match self.guarantee {
+                    OutputGuarantee::None => ValidationOutcome::Recovered,
+                    OutputGuarantee::BestEffort => match &action {
+                        RecoveryAction::Skip { .. } | RecoveryAction::Replace { .. } => {
+                            ValidationOutcome::Recovered
+                        }
+                        _ => ValidationOutcome::Invalid,
+                    },
+                    OutputGuarantee::Strict => ValidationOutcome::Invalid,
+                };
+
                 (
                     Some(ParserEvent::RecoveryAttempt {
                         action: format!("{action:?}"),
                     }),
-                    ValidationResult::error(message.clone()),
+                    ValidationResult {
+                        outcome,
+                        message: Some(message.clone()),
+                    },
                 )
             }
             JsonValidationState::Recovered { offset: _, message } => {
@@ -312,11 +328,24 @@ impl StructuredParser {
             })
             .collect();
 
+        // Reflect structural state from the tag tree parser.
+        let stack = parser.tag_stack();
+        let result = if !stack.errors().is_empty() {
+            ValidationResult::error("invalid tag structure".into())
+        } else if stack.depth() > 0 {
+            ValidationResult {
+                outcome: ValidationOutcome::Partial,
+                message: Some("tags still open".into()),
+            }
+        } else {
+            ValidationResult::valid()
+        };
+
         for ev in events {
             self.emit(ev);
         }
 
-        ValidationResult::valid()
+        result
     }
 
     fn emit(&self, event: ParserEvent) {
@@ -375,7 +404,18 @@ impl StructuredParser {
                     ValidationResult::valid()
                 }
             }
-            ParseMode::Tag | ParseMode::Passthrough => ValidationResult::valid(),
+            ParseMode::Tag => {
+                if let Some(parser) = &self.tag {
+                    if parser.is_valid() {
+                        ValidationResult::valid()
+                    } else {
+                        ValidationResult::error("unclosed or mismatched tags".into())
+                    }
+                } else {
+                    ValidationResult::valid()
+                }
+            }
+            ParseMode::Passthrough => ValidationResult::valid(),
         }
     }
 
@@ -439,7 +479,7 @@ mod tests {
     fn tag_mode_parses_streaming() {
         let mut p = StructuredParser::new(ParseMode::Tag);
         let r1 = p.feed("<tool>");
-        assert_eq!(r1.outcome, ValidationOutcome::Valid);
+        assert_eq!(r1.outcome, ValidationOutcome::Partial);
         let r2 = p.feed("data</tool>");
         assert_eq!(r2.outcome, ValidationOutcome::Valid);
     }
@@ -453,6 +493,10 @@ mod tests {
 
     #[test]
     fn parse_mode_from_env_defaults() {
+        // Clear env to make test hermetic.
+        let saved = std::env::var("VEX_PARSE_MODE").ok();
+        std::env::remove_var("VEX_PARSE_MODE");
+
         assert_eq!(
             ParseMode::from_env_or(None, ParseMode::Passthrough),
             ParseMode::Passthrough
@@ -461,6 +505,11 @@ mod tests {
             ParseMode::from_env_or(Some("json"), ParseMode::Passthrough),
             ParseMode::Json
         );
+
+        // Restore.
+        if let Some(val) = saved {
+            std::env::set_var("VEX_PARSE_MODE", val);
+        }
     }
 
     #[test]

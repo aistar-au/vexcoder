@@ -255,21 +255,54 @@ impl GrammarEngine {
     /// Lightweight prefix check: returns `true` if `text` could plausibly
     /// be the start of something matching `pattern`.
     ///
-    /// This is intentionally conservative (accepts more than it should)
-    /// because the full NFA prefix matcher is future work.
-    fn prefix_matches_pattern(text: &str, _pattern: &str) -> bool {
-        // Accept any non-empty text as a potential prefix.  The grammar
-        // engine is a structural scaffold; real validation happens when
-        // the value is fed to `serde_json` or `quick-xml` downstream.
-        !text.is_empty() || _pattern.is_empty()
+    /// Extracts the literal prefix of the pattern (before the first regex
+    /// metacharacter) and compares overlapping characters.  This is
+    /// intentionally conservative (accepts more than it should) because a
+    /// full NFA prefix matcher is future work.
+    fn prefix_matches_pattern(text: &str, pattern: &str) -> bool {
+        if pattern.is_empty() {
+            return text.is_empty();
+        }
+        if text.is_empty() {
+            return true;
+        }
+
+        // Extract literal prefix before the first regex metacharacter.
+        let metachars = [
+            '.', '+', '*', '?', '(', ')', '[', ']', '{', '}', '|', '^', '$', '\\',
+        ];
+        let literal_end = pattern
+            .char_indices()
+            .find_map(|(idx, ch)| {
+                if metachars.contains(&ch) {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(pattern.len());
+        let literal_prefix = &pattern[..literal_end];
+
+        if literal_prefix.is_empty() {
+            // Pattern starts with a metacharacter; cannot reject any prefix
+            // without full regex support.
+            return true;
+        }
+
+        // Compare overlapping characters.
+        for (p_ch, t_ch) in literal_prefix.chars().zip(text.chars()) {
+            if p_ch != t_ch {
+                return false;
+            }
+        }
+
+        true
     }
 
     /// Check if `text` could be a prefix of a string matching `pattern`.
     #[allow(unused)]
-    fn is_valid_prefix(&self, text: &str, _pattern: &str) -> bool {
-        // Conservative: accept any partial text.  Upgraded to an NFA
-        // matcher when grammar-constrained decoding lands.
-        !text.is_empty()
+    fn is_valid_prefix(&self, text: &str, pattern: &str) -> bool {
+        Self::prefix_matches_pattern(text, pattern)
     }
 
     /// Returns the validated text accumulated so far.

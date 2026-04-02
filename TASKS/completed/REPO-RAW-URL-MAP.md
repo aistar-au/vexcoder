@@ -186,7 +186,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 172 | `src/export.rs` | ~206 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/export.rs> |
 | 173 | `src/git_hooks.rs` | ~237 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/git_hooks.rs> |
 | 174 | `src/init.rs` | ~176 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/init.rs> |
-| 175 | `src/lib.rs` | ~39 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/lib.rs> |
+| 175 | `src/lib.rs` | ~40 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/lib.rs> |
 | 176 | `src/local_api.rs` | ~396 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/local_api.rs> |
 | 177 | `src/mcp.rs` | ~459 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/mcp.rs> |
 | 178 | `src/pr_summary.rs` | ~188 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/pr_summary.rs> |
@@ -273,12 +273,12 @@ Canonical raw URL index for every tracked file in this repository.
 | 259 | `src/state/stream_block.rs` | ~46 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/stream_block.rs> |
 | 260 | `src/status_contract.rs` | ~92 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/status_contract.rs> |
 | 261 | `src/structured_parser.rs` | ~34 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser.rs> |
-| 262 | `src/structured_parser/callbacks.rs` | ~128 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/callbacks.rs> |
-| 263 | `src/structured_parser/grammar.rs` | ~308 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/grammar.rs> |
-| 264 | `src/structured_parser/json_validator.rs` | ~334 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/json_validator.rs> |
-| 265 | `src/structured_parser/modes.rs` | ~425 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/modes.rs> |
-| 266 | `src/structured_parser/recovery.rs` | ~165 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/recovery.rs> |
-| 267 | `src/structured_parser/tag_tree.rs` | ~435 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/tag_tree.rs> |
+| 262 | `src/structured_parser/callbacks.rs` | ~112 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/callbacks.rs> |
+| 263 | `src/structured_parser/grammar.rs` | ~337 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/grammar.rs> |
+| 264 | `src/structured_parser/json_validator.rs` | ~347 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/json_validator.rs> |
+| 265 | `src/structured_parser/modes.rs` | ~474 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/modes.rs> |
+| 266 | `src/structured_parser/recovery.rs` | ~162 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/recovery.rs> |
+| 267 | `src/structured_parser/tag_tree.rs` | ~451 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/tag_tree.rs> |
 | 268 | `src/structured_parser/validate.rs` | ~90 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/validate.rs> |
 | 269 | `src/terminal.rs` | ~71 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/terminal.rs> |
 | 270 | `src/test_support.rs` | ~4 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/test_support.rs> |

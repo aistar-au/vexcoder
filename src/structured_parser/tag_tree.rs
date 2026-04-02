@@ -227,31 +227,51 @@ impl TagTreeParser {
         let mut completed = Vec::new();
 
         loop {
-            let buf = self.buffer.clone();
-            let trimmed = buf.trim_start();
-
-            if trimmed.is_empty() {
+            if self.buffer.is_empty() {
                 break;
             }
 
             // Try to find a tag start.
-            if let Some(tag_start) = trimmed.find('<') {
+            if let Some(tag_start) = self.buffer.find('<') {
                 // Any text before the tag is content.
                 if tag_start > 0 {
-                    let text = trimmed[..tag_start].to_string();
+                    let text = self.buffer[..tag_start].to_string();
                     self.push_text(&text);
-                    self.buffer = trimmed[tag_start..].to_string();
+                    self.buffer = self.buffer[tag_start..].to_string();
                     continue;
                 }
 
                 // Check for closing tag.
-                if trimmed.starts_with("</") {
-                    if let Some(end) = trimmed.find('>') {
-                        let tag_name = trimmed[2..end].trim().to_string();
-                        self.buffer = trimmed[end + 1..].to_string();
+                if self.buffer.starts_with("</") {
+                    if let Some(end) = self.buffer.find('>') {
+                        let tag_name = self.buffer[2..end].trim().to_string();
+                        self.buffer = self.buffer[end + 1..].to_string();
                         self.stack.close(&tag_name, self.offset);
 
-                        if let Some(mut node) = self.build_stack.pop() {
+                        // Unwind the build stack until the matching open tag.
+                        if let Some(pos) = self.build_stack.iter().rposition(|n| n.name == tag_name)
+                        {
+                            // Attach unmatched inner nodes above the match.
+                            while self.build_stack.len() - 1 > pos {
+                                if let Some(node) = self.build_stack.pop() {
+                                    if let Some(parent) = self.build_stack.last_mut() {
+                                        parent.children.push(TagContent::Element(node));
+                                    } else {
+                                        completed.push(node);
+                                    }
+                                }
+                            }
+                            // Pop and close the matching node.
+                            if let Some(mut node) = self.build_stack.pop() {
+                                node.closed = true;
+                                if self.build_stack.is_empty() {
+                                    completed.push(node);
+                                } else if let Some(parent) = self.build_stack.last_mut() {
+                                    parent.children.push(TagContent::Element(node));
+                                }
+                            }
+                        } else if let Some(mut node) = self.build_stack.pop() {
+                            // No matching open tag found; close top of stack.
                             node.closed = true;
                             if self.build_stack.is_empty() {
                                 completed.push(node);
@@ -266,8 +286,8 @@ impl TagTreeParser {
                 }
 
                 // Check for self-closing tag.
-                if let Some(end) = trimmed.find('>') {
-                    let tag_content = &trimmed[1..end];
+                if let Some(end) = self.buffer.find('>') {
+                    let tag_content = &self.buffer[1..end];
                     let is_self_closing = tag_content.ends_with('/');
                     let tag_content = if is_self_closing {
                         &tag_content[..tag_content.len() - 1]
@@ -276,7 +296,7 @@ impl TagTreeParser {
                     };
 
                     let (name, attrs) = Self::parse_tag_opener(tag_content);
-                    self.buffer = trimmed[end + 1..].to_string();
+                    self.buffer = self.buffer[end + 1..].to_string();
 
                     let mut node = TagNode::new(name.clone());
                     node.attributes = attrs;
@@ -299,7 +319,7 @@ impl TagTreeParser {
                 break;
             } else {
                 // No tag found — all remaining content is text.
-                let text = trimmed.to_string();
+                let text = self.buffer.clone();
                 self.push_text(&text);
                 self.buffer.clear();
                 break;
@@ -337,9 +357,9 @@ impl TagTreeParser {
                 if after_eq.starts_with('"') || after_eq.starts_with('\'') {
                     let quote = after_eq.as_bytes()[0] as char;
                     if let Some(end_quote) = after_eq[1..].find(quote) {
-                        let value = after_eq[1..=end_quote].to_string();
+                        let value = after_eq[1..1 + end_quote].to_string();
                         attrs.push((key, value));
-                        remaining = after_eq[end_quote + 2..].trim();
+                        remaining = after_eq[1 + end_quote + 1..].trim();
                         continue;
                     }
                 }
