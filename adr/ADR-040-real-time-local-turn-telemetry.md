@@ -135,9 +135,19 @@ streaming protocols.
     followed by a `+N more lines` overflow indicator to keep the transcript
     readable without losing the full context.
 27. These additions remain subordinate status telemetry, not primary response
-    prose.
-27. The surface contract is protocol-agnostic; both protocols produce the same
+  prose.
+28. The surface contract is protocol-agnostic; both protocols produce the same
     `StreamEvent` variants and telemetry types after parsing.
+29. The status bar is a width-budgeted compression surface. Highest-priority
+  fields are task identity, mode, approval state, model or backend identity,
+  and sandbox state. Second-priority fields are active waiting or timing
+  summaries and context assembly summary. Third-priority fields are git
+  branch, changed-file counts, active tool or command counts, and token
+  counters. Lower-priority fields may truncate or collapse, but the footer
+  must not force a new persistent pane.
+30. The direct ANSI surface and any fallback fullscreen surface must use the
+  same footer-priority rules and the same transcript-first semantics, even
+  when their drawing implementations differ.
 
 ## Consequences
 

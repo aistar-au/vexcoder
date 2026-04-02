@@ -106,6 +106,31 @@ boundaries) is the boundary ADR that Phase I CLI and LocalApiServer work must re
 
 This ADR locks decisions for gaps 1–11, gaps 13–32, and gap 35. Gap 12 is formally deferred with rationale recorded.
 
+### External parity research and IP-safe implementation
+
+External parity research may inform behavior categories only. No shipped
+implementation, documentation, user-facing copy, pane labels, screenshots,
+icons, keybinding summaries, layout ratios, or source code may be copied,
+closely paraphrased, or visually derived from external products.
+
+Shipped behavior must be derived from `vexcoder` runtime contracts,
+task-state requirements, renderer tests, and the repository's own operator
+language decisions. External products may be used only as neutral category
+anchors such as transcript-first layout, compact footer budgeting,
+multiline composer behavior, overlay-based detail work, resize discipline,
+and append-first transcript redraw.
+
+The navigator or mapping theme must use repository-owned wording and symbols.
+External product names must not appear in user-facing surfaces, screenshots,
+release notes, or ADR text outside explicit research context.
+
+Pull requests that cite external inspiration must describe only neutral
+behavior categories and must call out provenance or maintenance risk where
+the implementation could otherwise read too close to an outside source.
+If third-party source code is ever reused, that reuse requires a separate
+license and attribution review. Otherwise, implementation must proceed from
+behavior specifications and repository-local tests only.
+
 ---
 
 ### Gap 1 — OS-level Sandboxing

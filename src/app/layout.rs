@@ -46,6 +46,18 @@ fn telemetry_timing_summary(rows: &[String]) -> Option<String> {
     })
 }
 
+fn telemetry_context_summary(
+    context: Option<&AssembledContext>,
+) -> Option<TaskContextSummaryState> {
+    context.map(|context| TaskContextSummaryState {
+        file_snapshots: context.file_snapshots.len(),
+        related_paths: context.related_paths.len(),
+        cache_hits: context.cache_hits,
+        cache_misses: context.cache_misses,
+        git_context_included: context.git_status_summary.is_some() || context.recent_diff.is_some(),
+    })
+}
+
 struct TaskStepView {
     step_id: u64,
     lifecycle: StepLifecycle,
@@ -331,6 +343,18 @@ impl TuiMode {
         rows
     }
 
+    fn visible_changed_files(&self) -> Vec<String> {
+        let mut visible = std::collections::BTreeSet::new();
+        visible.extend(
+            self.current_task
+                .changed_files
+                .iter()
+                .map(|path| path.to_string_lossy().into_owned()),
+        );
+        visible.extend(self.current_turn_changed_files.iter().cloned());
+        visible.into_iter().collect()
+    }
+
     pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
         // Always return the task-state control surface. The fullscreen CLI/app
         // stays in the top transcript + prompt + status-bar arrangement
@@ -376,6 +400,7 @@ impl TuiMode {
             .iter()
             .filter(|entry| entry.lifecycle == StepLifecycle::CommandSession)
             .count();
+        let changed_files = self.visible_changed_files();
 
         let input_hint = if let Some(approval) = pending_approval.clone() {
             format!("{approval}\n[y/n/s] ")
@@ -390,6 +415,10 @@ impl TuiMode {
             telemetry: TaskTelemetryState {
                 mode: self.mode_status_label().to_string(),
                 approval: self.approval_status_label().to_string(),
+                model_name: self.model_name.clone(),
+                model_backend: Some(self.model_backend),
+                sandbox_kind: Some(self.sandbox.kind()),
+                context_summary: telemetry_context_summary(self.last_assembled_context.as_ref()),
                 history_rows: self.history_row_count(),
                 total_tokens: self.total_session_tokens(),
                 tokens_sent: self.tokens_sent_total(),
@@ -412,12 +441,7 @@ impl TuiMode {
             composer_text: String::new(),
             composer_cursor: 0,
             composer_focused: self.composer_is_focused(),
-            changed_files: self
-                .current_task
-                .changed_files
-                .iter()
-                .map(|path| path.to_string_lossy().into_owned())
-                .collect(),
+            changed_files,
             follow_mode: self.timeline_follow_mode,
             picker_overlay: vec![],
         })

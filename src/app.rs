@@ -292,9 +292,22 @@ pub struct TaskLayoutState {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TaskContextSummaryState {
+    pub file_snapshots: usize,
+    pub related_paths: usize,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
+    pub git_context_included: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TaskTelemetryState {
     pub mode: String,
     pub approval: String,
+    pub model_name: String,
+    pub model_backend: Option<crate::runtime::ModelBackendKind>,
+    pub sandbox_kind: Option<crate::runtime::SandboxKind>,
+    pub context_summary: Option<TaskContextSummaryState>,
     pub history_rows: usize,
     pub total_tokens: u64,
     /// Cumulative input (prompt) tokens sent across all turns.

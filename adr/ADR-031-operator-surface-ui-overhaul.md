@@ -119,6 +119,26 @@ work and must land before dependent UI batches:
 Renderer and layout work may proceed in parallel against those branches, but
 the state-first batch is the merge gate.
 
+### Amendment — transcript ownership and detail surfaces
+
+The fullscreen operator surface remains transcript-first. The primary
+scrolling body owns routine operator-visible content: waiting status,
+assistant output, compact tool paragraphs, command-session summaries,
+compact approval paragraphs, and short evidence snippets.
+
+Detail work does not permanently occupy the transcript. Long diffs, long tool
+evidence, timeline browsing, approval detail, and inspector drill-down use
+overlays, pagers, or transient selection modes instead of restoring a fixed
+activity or telemetry pane.
+
+Timeline discoverability remains required, but a permanently reserved activity
+strip is not restored. The operator may enter and leave detail modes without
+changing the transcript-first contract.
+
+The navigator or mapping theme applies to wording, emphasis, and spatial cues
+only. It does not change the structural contract of transcript body, composer,
+and compact status bar.
+
 ## Dispatch, dependency, and task-state control
 
 This ADR permits implementation work to be split across multiple remote

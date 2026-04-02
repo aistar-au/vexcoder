@@ -38,7 +38,11 @@ fn tool_call_only_marks_changed_files_after_successful_result() {
         &mut ctx,
     );
     assert!(mode.current_turn_changed_files.contains("src/main.rs"));
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.changed_files, vec!["src/main.rs".to_string()]);
 }
+
 #[test]
 fn failed_tool_result_does_not_record_changed_files() {
     let mut mode = TuiMode::new();
@@ -74,6 +78,23 @@ fn failed_tool_result_does_not_record_changed_files() {
     assert!(
         mode.current_turn_changed_files.is_empty(),
         "failed tool calls must not be exported as changed files"
+    );
+}
+
+#[test]
+fn error_reset_clears_live_changed_file_projection() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.current_turn_changed_files
+        .insert("src/main.rs".to_string());
+
+    mode.on_model_update(UiUpdate::Error("reset".to_string()), &mut ctx);
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert!(
+        state.changed_files.is_empty(),
+        "error reset should clear in-flight changed file projection"
     );
 }
 #[test]

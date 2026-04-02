@@ -694,6 +694,24 @@ fn truncate_to_width(text: &str, max_width: usize) -> String {
     truncate_to_display_width(text, max_width)
 }
 
+fn model_backend_label(kind: crate::runtime::ModelBackendKind) -> &'static str {
+    match kind {
+        crate::runtime::ModelBackendKind::LocalRuntime => "local",
+        crate::runtime::ModelBackendKind::ApiServer => "api",
+    }
+}
+
+fn context_summary_segment(summary: &crate::app::TaskContextSummaryState) -> String {
+    let mut segment = format!(
+        "ctx:f{} r{} c{}/{}",
+        summary.file_snapshots, summary.related_paths, summary.cache_hits, summary.cache_misses
+    );
+    if summary.git_context_included {
+        segment.push_str(" git");
+    }
+    segment
+}
+
 fn status_bar_summary(state: &TaskLayoutState, max_width: usize) -> String {
     if max_width == 0 {
         return String::new();
@@ -702,21 +720,6 @@ fn status_bar_summary(state: &TaskLayoutState, max_width: usize) -> String {
     let mut segments = Vec::new();
     if !state.task_id.is_empty() {
         segments.push(format!("task:{}", state.task_id));
-    }
-
-    // Git branch indicator.
-    if !state.telemetry.git_branch.is_empty() {
-        segments.push(format!(
-            "\u{e0a0}{}",
-            truncate_to_width(&state.telemetry.git_branch, 20)
-        ));
-    }
-
-    if state.output_scroll_offset > 0 {
-        segments.push(match state.output_scroll_anchor {
-            OutputScrollAnchor::Bottom => format!("scroll:+{}", state.output_scroll_offset),
-            OutputScrollAnchor::Top => format!("detail:{}", state.output_scroll_offset + 1),
-        });
     }
 
     if !state.telemetry.mode.is_empty() {
@@ -732,12 +735,26 @@ fn status_bar_summary(state: &TaskLayoutState, max_width: usize) -> String {
         ));
     }
 
-    // Inline token counters: ↑sent ↓received.
-    if state.telemetry.tokens_sent > 0 || state.telemetry.tokens_received > 0 {
+    if !state.telemetry.model_name.is_empty() {
         segments.push(format!(
-            "\u{2191}{} \u{2193}{}",
-            state.telemetry.tokens_sent, state.telemetry.tokens_received
+            "mdl:{}",
+            truncate_to_width(&state.telemetry.model_name, 18)
         ));
+    }
+
+    if let Some(kind) = state.telemetry.model_backend {
+        segments.push(format!("be:{}", model_backend_label(kind)));
+    }
+
+    if let Some(kind) = state.telemetry.sandbox_kind {
+        segments.push(format!("sb:{}", kind.as_str()));
+    }
+
+    if state.output_scroll_offset > 0 {
+        segments.push(match state.output_scroll_anchor {
+            OutputScrollAnchor::Bottom => format!("scroll:+{}", state.output_scroll_offset),
+            OutputScrollAnchor::Top => format!("detail:{}", state.output_scroll_offset + 1),
+        });
     }
 
     if let Some(summary) = state
@@ -749,8 +766,20 @@ fn status_bar_summary(state: &TaskLayoutState, max_width: usize) -> String {
         let compact = summary.replace(" | ", " ");
         let compact = compact.split_whitespace().collect::<Vec<_>>().join(" ");
         segments.push(truncate_to_width(&compact, 18));
-    } else {
+    }
+
+    if let Some(summary) = state.telemetry.context_summary.as_ref() {
+        segments.push(truncate_to_width(&context_summary_segment(summary), 20));
+    } else if state.telemetry.waiting_summary.is_none() && state.telemetry.timing_summary.is_none()
+    {
         segments.push(format!("hist:{}", state.telemetry.history_rows));
+    }
+
+    if !state.telemetry.git_branch.is_empty() {
+        segments.push(format!(
+            "\u{e0a0}{}",
+            truncate_to_width(&state.telemetry.git_branch, 20)
+        ));
     }
 
     segments.push(if state.changed_files.is_empty() {
@@ -762,6 +791,14 @@ fn status_bar_summary(state: &TaskLayoutState, max_width: usize) -> String {
         "act:{}/{}",
         state.telemetry.active_tools, state.telemetry.active_commands
     ));
+
+    // Inline token counters: ↑sent ↓received.
+    if state.telemetry.tokens_sent > 0 || state.telemetry.tokens_received > 0 {
+        segments.push(format!(
+            "\u{2191}{} \u{2193}{}",
+            state.telemetry.tokens_sent, state.telemetry.tokens_received
+        ));
+    }
 
     fit_status_bar_segments(&segments, max_width)
 }
