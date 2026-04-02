@@ -2,4 +2,4 @@
 source: tests/tui_draw_snapshots.rs
 expression: rendered
 ---
- │ Fix the config loaderReading src/config.rs...Found 3 issues.Generating patch...──────────────────────────────────────────────────────────────────────────────── Prompt  focused · 0 chars › submit: / commands  @ files  ! shell  task:snap-001 m:streaming ap:none hist:0     Tab step  Pg scroll  Enter  S-Enter
+ │ Fix the config loaderReading src/config.rs...Found 3 issues.Generating patch...──────────────────────────────────────────────────────────────────────────────── Prompt  focused · 0 chars › submit: / commands  @ files  ! shell  task:snap-001 m:streaming ap:none view:live  Tab step  Pg scroll  Enter  S-Enter

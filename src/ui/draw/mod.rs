@@ -499,7 +499,7 @@ impl TaskDraw {
         } else if state.follow_mode {
             "Tab step  Pg scroll  Enter  S-Enter"
         } else {
-            "Tab step  Alt+End live  Pg scroll"
+            "Tab step  Alt+End live  Pg scroll  Enter  S-Enter"
         };
         let hints = truncate_to_width(hints, regions.cols as usize);
         let summary_width =

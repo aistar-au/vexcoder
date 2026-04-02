@@ -1286,6 +1286,10 @@ fn detail_mode_footer_hints_advertise_live_return() {
         output.contains("Alt+End live"),
         "detail mode should advertise the live-return hint"
     );
+    assert!(
+        output.contains("Enter  S-Enter"),
+        "detail mode should keep submit hints visible while browsing"
+    );
 }
 
 #[test]
