@@ -167,6 +167,13 @@ just to publish the matching `v<current-version>` tag.
 
 The pushed tag now drives the rest of the release flow automatically: archive packaging, checksums, signature bundles, the release entry, and a generated `CHANGELOG-<tag>.md` asset all publish from the same tag event.
 
+A nightly schedule (11:59 PM Pacific) automatically force-updates the
+`nightly` channel tag to the current HEAD of `main` via
+`.github/workflows/auto-tag.yml`, triggering a nightly pre-release build.
+For immediate snapshot releases, the operator can manually create a
+short-SHA tag after merge. See `RELEASING.md` for the full tag format
+table and manual tagging instructions.
+
 Do not merge packaging work directly from a local debug session; keep the review and merge step explicit.
 
 ### Automated version bump

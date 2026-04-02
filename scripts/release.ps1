@@ -59,11 +59,27 @@ function Get-NormalizedReleaseTag {
         return $null
     }
 
-    if ($Value.StartsWith("v")) {
-        return $Value
+    # Only prefix bare semver numbers with v; pass short-SHA and channel names through.
+    if ($Value -match '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$') {
+        return "v$Value"
     }
 
-    return "v$Value"
+    return $Value
+}
+
+function Test-SemverTag {
+    param([string]$Value)
+    return $Value -match '^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$'
+}
+
+function Test-ShortShaTag {
+    param([string]$Value)
+    return $Value -match '^[0-9a-f]{7}$'
+}
+
+function Test-ChannelTag {
+    param([string]$Value)
+    return $Value -in @("nightly")
 }
 
 function Get-ExpectedReleaseTag {
@@ -268,12 +284,14 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = $expectedVersion
 }
 
-if ($Version -notmatch '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$') {
-    throw "FAIL: VERSION must look like v0.1.0 or v0.1.0-beta.6"
-}
-
-if ($Version -ne $expectedVersion) {
-    throw "FAIL: VERSION $Version does not match Cargo package tag $expectedVersion"
+if (Test-SemverTag -Value $Version) {
+    if ($Version -ne $expectedVersion) {
+        throw "FAIL: semver VERSION $Version does not match Cargo package tag $expectedVersion"
+    }
+} elseif ((Test-ShortShaTag -Value $Version) -or (Test-ChannelTag -Value $Version)) {
+    # Non-semver tags do not require Cargo.toml alignment.
+} else {
+    throw "FAIL: VERSION must be a semver tag (v0.1.0), a 7-character short SHA, or a channel name (nightly/latest)"
 }
 
 if ($needsBuild) {

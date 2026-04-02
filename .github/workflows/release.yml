@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - "v*"
+      - "nightly"
+      # 7-char glob; the verify step below gates on hex-only.
+      - "???????"
   workflow_dispatch:
 
 permissions:
@@ -92,16 +95,33 @@ jobs:
             | tar -xzf - -C "${bin_dir}" cargo-nextest
           chmod +x "${bin_dir}/cargo-nextest"
 
-      - name: Verify tag matches Cargo package version
+      - name: Verify release tag
         if: github.ref_type == 'tag'
         shell: bash
         run: |
           set -euo pipefail
-          pkgid="$(cargo pkgid --quiet)"
-          pkg_fragment="${pkgid##*#}"
-          expected_tag="v${pkg_fragment##*@}"
-          if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
-            echo "FAIL: Git tag ${GITHUB_REF_NAME} does not match Cargo package tag ${expected_tag}" >&2
+          tag_name="${GITHUB_REF_NAME}"
+
+          if [[ "${tag_name}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            # Semver tag — must match Cargo.toml.
+            pkgid="$(cargo pkgid --quiet)"
+            pkg_fragment="${pkgid##*#}"
+            expected_tag="v${pkg_fragment##*@}"
+            if [[ "${tag_name}" != "${expected_tag}" ]]; then
+              echo "FAIL: semver tag ${tag_name} does not match Cargo package version ${expected_tag}" >&2
+              exit 1
+            fi
+          elif [[ "${tag_name}" =~ ^[0-9a-f]{7}$ ]]; then
+            # Short-SHA tag — must match the first 7 characters of the checked-out commit.
+            short_sha="$(git rev-parse HEAD)"; short_sha="${short_sha:0:7}"
+            if [[ "${tag_name}" != "${short_sha}" ]]; then
+              echo "FAIL: short-SHA tag ${tag_name} does not match HEAD ${short_sha}" >&2
+              exit 1
+            fi
+          elif [[ "${tag_name}" == "nightly" ]]; then
+            echo "Verified channel tag: ${tag_name}"
+          else
+            echo "FAIL: unsupported tag format: ${tag_name}" >&2
             exit 1
           fi
 
@@ -117,6 +137,7 @@ jobs:
           TARGET: ${{ matrix.target }}
           OUT_DIR: dist
           BUILD_TOOL: ${{ matrix.build_tool }}
+          VERSION: ${{ github.ref_name }}
         run: bash scripts/release.sh
 
       - name: Package release archive (Windows)
@@ -126,7 +147,7 @@ jobs:
           TARGET: ${{ matrix.target }}
           OUT_DIR: dist
         run: |
-          .\scripts\release.ps1 -Target $env:TARGET -OutDir $env:OUT_DIR
+          .\scripts\release.ps1 -Version $env:GITHUB_REF_NAME -Target $env:TARGET -OutDir $env:OUT_DIR
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v6
@@ -363,6 +384,8 @@ jobs:
             "dist/CHANGELOG-${TAG}.md"
           if [[ "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-.+ ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${TAG}" =~ ^[0-9a-f]{7}$ ]] || [[ "${TAG}" == "nightly" ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
@@ -429,9 +452,13 @@ jobs:
               --notes-file dist/release-notes.md
             gh release upload "${TAG}" "${files[@]}" --clobber
           else
+            verify_flag=()
+            if [[ "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+              verify_flag+=(--verify-tag)
+            fi
             gh release create "${TAG}" \
               --title "${TAG}" \
-              --verify-tag \
+              "${verify_flag[@]}" \
               "${prerelease_flag[@]}" \
               --notes-file dist/release-notes.md \
               "${files[@]}"

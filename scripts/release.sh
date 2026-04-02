@@ -7,9 +7,10 @@ Usage:
   TARGET=x86_64-unknown-linux-gnu make release
   TARGET=x86_64-unknown-linux-gnu bash scripts/release.sh
   VERSION=v0.1.0-beta.6 TARGET=x86_64-unknown-linux-gnu bash scripts/release.sh
+  VERSION=nightly TARGET=x86_64-unknown-linux-gnu bash scripts/release.sh
 
 Inputs:
-  VERSION / arg1   optional semver version or tag; defaults to the Cargo package tag
+  VERSION / arg1   optional release tag; semver, short-SHA, or channel name
   TARGET  / arg2   Rust target triple to package
   OUT_DIR / arg3   output directory (default: dist)
   BUILD_TOOL       cargo or cross (default: cargo)
@@ -18,10 +19,23 @@ USAGE
 
 normalize_version() {
   local version="$1"
-  if [[ "${version}" != v* ]]; then
+  # Only prefix bare semver numbers with v; pass short-SHA and channel names through.
+  if [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
     version="v${version}"
   fi
   printf '%s\n' "${version}"
+}
+
+is_semver_tag() {
+  [[ "$1" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]
+}
+
+is_short_sha_tag() {
+  [[ "$1" =~ ^[0-9a-f]{7}$ ]]
+}
+
+is_channel_tag() {
+  [[ "$1" == "nightly" ]]
 }
 
 run_with_retry() {
@@ -78,13 +92,15 @@ else
   VERSION="${EXPECTED_VERSION}"
 fi
 
-if [[ ! "${VERSION}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
-  echo "FAIL: VERSION must look like v0.1.0 or v0.1.0-beta.6" >&2
-  exit 1
-fi
-
-if [[ "${VERSION}" != "${EXPECTED_VERSION}" ]]; then
-  echo "FAIL: VERSION ${VERSION} does not match Cargo package tag ${EXPECTED_VERSION}" >&2
+if is_semver_tag "${VERSION}"; then
+  if [[ "${VERSION}" != "${EXPECTED_VERSION}" ]]; then
+    echo "FAIL: semver VERSION ${VERSION} does not match Cargo package tag ${EXPECTED_VERSION}" >&2
+    exit 1
+  fi
+elif is_short_sha_tag "${VERSION}" || is_channel_tag "${VERSION}"; then
+  : # Non-semver tags do not require Cargo.toml alignment.
+else
+  echo "FAIL: VERSION must be a semver tag (v0.1.0), a 7-character short SHA, or a channel name (nightly/latest)" >&2
   exit 1
 fi
 

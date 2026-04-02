@@ -1,0 +1,43 @@
+name: auto-tag
+
+on:
+  schedule:
+    # Nightly at 11:59 PM Pacific (06:59 UTC during PDT / 07:59 UTC during PST).
+    - cron: "59 6 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  nightly:
+    name: update nightly channel tag
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Configure tagger identity
+        shell: bash
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Derive short SHA
+        id: sha
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA:0:7}"
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "Short SHA: ${short_sha}"
+
+      - name: Update nightly channel tag
+        shell: bash
+        env:
+          SHORT_SHA: ${{ steps.sha.outputs.short_sha }}
+        run: |
+          set -euo pipefail
+          git tag -fa nightly -m "Nightly ${SHORT_SHA}"
+          git push origin refs/tags/nightly --force
