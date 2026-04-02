@@ -15,8 +15,8 @@ Total tracked files: 330
 | `.github/workflows/doc-ref-check.yml` | 42 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/doc-ref-check.yml> |
 | `.github/workflows/docs-build-and-deploy.yml` | 69 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/docs-build-and-deploy.yml> |
 | `.github/workflows/docs-build.yml` | 47 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/docs-build.yml> |
-| `.github/workflows/nightly-channel-git-tag-refresh.yml` | 59 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/nightly-channel-git-tag-refresh.yml> |
-| `.github/workflows/release.yml` | 467 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/release.yml> |
+| `.github/workflows/nightly-channel-git-tag-refresh.yml` | 60 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/nightly-channel-git-tag-refresh.yml> |
+| `.github/workflows/release.yml` | 468 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/release.yml> |
 | `.github/workflows/version-bump.yml` | 99 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/version-bump.yml> |
 | `.gitignore` | 39 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitignore> |
 | `AGENTS.md` | 184 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/AGENTS.md> |
