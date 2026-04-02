@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-02 (Batches 1-2 merged in PR #315; Batches 3-4 overlay detail and timeline discoverability branch opened)
+Last updated: 2026-04-02 (Batches 1-4 merged in PR #315 and #316; Batch 5-6 overlay convergence and parser hardening branch opened)
 
 ---
 
@@ -244,6 +244,8 @@ Candidate implementation areas:
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | EL-extract | `work/vexcoder-edit-loop-tui-extract` | #311 | Draft PR, CI green | Extract oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |
+| Batch-3-4 | `work/vexcoder-batch3-overlay-detail` | #316 | **Merged** | Browse cues, follow-mode fix, nextest cleanup, timeline discoverability |
+| Batch-5-6 | `work/vexcoder-batch5-overlay-convergence` | TBD | Branch created | Undersized-terminal notice, inspector overflow indicator, parser/normaliser hardening fixtures |
 | ADR-038-EF | `work/vexcoder-adr-038-reads-and-policy-gate` | #281 | **Merged** | `context_assembler/{mod,reads}.rs` split plus strict disk-policy test/CI gate for ADR-038 Batches E/F |
 | ADR-038-G | `work/vexcoder-adr-038-operator-policy-wiring` | #282 | **Merged** | Operator policy module and disk-policy wiring into task-state I/O (ADR-038 Batch G) |
 | ADR-038-H | `work/vexcoder-adr-038-task-state-persist` | #283 | **Merged** | Task-state persist extraction + WAL evaluation (ADR-038 Batch H) |
