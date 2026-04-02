@@ -9,9 +9,9 @@
 
 ## Context
 
-A gap analysis against llama.cpp's structured-output parsing framework
-(documented in `llama.cpp/docs/development/parsing.md`) identified seven
-capabilities absent from vexcoder's parser:
+A gap analysis against an established open-source inference engine's
+structured-output parsing framework identified seven capabilities absent
+from vexcoder's parser:
 
 1. Grammar-based constrained parsing (BNF/regex)
 2. Incremental JSON streaming validation with recovery
@@ -75,8 +75,7 @@ provides a unified, mode-aware parser framework.
 
 ## Consequences
 
-- All seven llama.cpp parity gaps now have structural scaffolding in the
-  codebase.
+- All seven parity gaps now have structural scaffolding in the codebase.
 - Local-model integrations can opt into `VEX_PARSE_MODE=json` to get
   streaming JSON validation with best-effort recovery.
 - The `ParserCallback` trait enables future TUI features like real-time
