@@ -483,6 +483,48 @@ fn test_timeline_page_down_disables_follow_mode_until_end() {
 }
 
 #[test]
+fn test_follow_mode_auto_advances_selected_step_when_new_entries_arrive() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    // Create an initial timeline with one user input and one tool call.
+    mode.on_user_input("run lint".to_string(), &mut ctx);
+    mode.current_turn_tool_invocations = vec![ToolInvocationSummary {
+        step_id: 1,
+        name: "read_file".to_string(),
+        outcome: "ok".to_string(),
+    }];
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.total_steps, 2);
+    // follow_mode is true by default — selected_step must be at the tail.
+    assert!(state.follow_mode);
+    assert_eq!(state.selected_step, 1);
+
+    // Simulate a new tool arriving while follow_mode is still active.
+    mode.pending_turn_tool_calls.insert(
+        "tool-2".to_string(),
+        PendingTurnToolCall {
+            step_id: 2,
+            name: "run_command".to_string(),
+            input_preview: "{}".to_string(),
+            input: serde_json::json!({}),
+        },
+    );
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.total_steps, 3);
+    assert!(
+        state.follow_mode,
+        "follow mode must remain active across new entries"
+    );
+    assert_eq!(
+        state.selected_step, 2,
+        "selected_step must auto-advance to the latest entry in follow mode"
+    );
+}
+
+#[test]
 fn test_output_scroll_commands_use_bottom_anchored_prompt_surface() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
