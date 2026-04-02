@@ -35,6 +35,10 @@ fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState
         telemetry: TaskTelemetryState {
             mode: "streaming".to_string(),
             approval: "none".to_string(),
+            model_name: String::new(),
+            model_backend: None,
+            sandbox_kind: None,
+            context_summary: None,
             history_rows: 0,
             total_tokens: 0,
             tokens_sent: 0,

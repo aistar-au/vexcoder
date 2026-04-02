@@ -38,6 +38,7 @@ All ADR files are stored under `adr/`.
 | [ADR-039](ADR-039-neutral-cli-voice-and-spatial-status-language.md) | Neutral CLI voice and spatial status language | Proposed (Batch A merged on main) | Batch A merged in PR #292; search.exclude path-boundary fix in PR #293; remaining batches B-D cover vocabulary, active indicator, and paragraph progress stream |
 | [ADR-040](ADR-040-real-time-local-turn-telemetry.md) | Real-time local turn telemetry | Proposed | Telemetry labels updated to arrow notation in ADR-041 |
 | [ADR-041](ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md) | Transcript renderer wiring and compact tool paragraphs | Accepted | Normaliser flush, compact tool paragraphs, arrow telemetry labels |
+| [ADR-043](ADR-043-structured-output-parser-adoption-gates.md) | Structured output parser adoption gates | Proposed | 3 adoption gates: live runtime wiring, parity coverage, defect reduction |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 

@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-01 (ADR-039 Batch A status anchors merged on main in PR #292; search.exclude path-boundary normalization fix in PR #293)
+Last updated: 2026-04-02 (transcript-first parity Batch 1 state inputs, ADR-043 adoption-gate ADR, and fullscreen surface doc refresh prepared on a review branch)
 
 ---
 
@@ -28,6 +28,7 @@ Last updated: 2026-04-01 (ADR-039 Batch A status anchors merged on main in PR #2
 | ADR-035 | Accepted | 0 items remaining | Gap 14 `/undo` rollback strategy is now specified and implemented with binary-safe checkpoints |
 | ADR-038 | Accepted (Batches D-H merged) | 0 items remaining | Phase 1: bounded context cache + opt-in auto git; Phase 1a: search lane tightening; Phase 2: disk_policy.rs + config/cache.rs; Batch C: config/load.rs -> directory module (PR #279); Batch D: operator.rs -> directory module (PR #280); Batch E/F: context_assembler split + strict disk-policy gate (PR #281); Batch G: operator policy module + disk-policy wiring (PR #282); Batch H: task-state persist extraction + WAL evaluation (PR #283) |
 | ADR-039 | Proposed (Batch A merged on main) | 3 batches (B-D) | Batch A status anchors and semantic color feedback merged in PR #292; search.exclude path-boundary normalization fix in PR #293; remaining work is broader vocabulary, active indicator, and paragraph-oriented progress stream without renaming machine statuses |
+| ADR-043 | Proposed | 3 adoption gates | Future structured parser lane remains optional until live runtime wiring, parity coverage, and defect-reduction gates land |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
@@ -59,6 +60,14 @@ decompositions (config/load, operator, context_assembler, task_state), strict
 policy CI gate, and operator-level durable access assertions are all in-tree.
 The only deferred external follow-up remains ADR-024 PG-03 tap auto-dispatch,
 which stays blocked until the separate `homebrew-vex` tap repository exists.
+
+Fullscreen transcript-first parity hardening is active under ADR-031,
+ADR-040, and ADR-041. The current lane keeps the three-region surface intact
+while adding state-first footer inputs, richer multiline composer support,
+detail overlays or pagers, transient timeline discoverability, and active or
+fallback fullscreen convergence without introducing a permanent telemetry pane.
+Parser follow-up remains limited to normalisation hardening unless ADR-043's
+adoption gates are satisfied.
 
 ### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
 

@@ -489,3 +489,58 @@ fn test_task_layout_state_exposes_turn_timing_summary_in_structured_telemetry() 
         "the transcript should continue to carry the inline timing line"
     );
 }
+
+#[test]
+fn test_task_layout_state_merges_live_changed_files_before_turn_commit() {
+    let mut mode = TuiMode::new();
+
+    mode.current_task
+        .changed_files
+        .push(std::path::PathBuf::from("src/lib.rs"));
+    mode.current_turn_changed_files
+        .insert("src/main.rs".to_string());
+
+    let state = mode.task_layout_state().expect("task layout state");
+
+    assert_eq!(
+        state.changed_files,
+        vec!["src/lib.rs".to_string(), "src/main.rs".to_string()],
+        "task layout should expose persisted and in-flight changed files together"
+    );
+}
+
+#[test]
+fn test_task_layout_state_exposes_structured_footer_inputs() {
+    let mut mode = TuiMode::new();
+
+    mode.last_assembled_context = Some(crate::runtime::AssembledContext {
+        file_snapshots: vec![crate::runtime::FileSnapshot {
+            path: std::path::PathBuf::from("src/main.rs"),
+            content: Some("fn main() {}\n".to_string()),
+            truncated: false,
+        }],
+        git_status_summary: Some(" M src/main.rs".to_string()),
+        recent_diff: None,
+        related_paths: vec![std::path::PathBuf::from("src/lib.rs")],
+        cache_hits: 2,
+        cache_misses: 1,
+    });
+
+    let state = mode.task_layout_state().expect("task layout state");
+    let context = state.telemetry.context_summary.expect("context summary");
+
+    assert_eq!(state.telemetry.model_name, "local/default");
+    assert_eq!(
+        state.telemetry.model_backend,
+        Some(crate::runtime::ModelBackendKind::LocalRuntime)
+    );
+    assert_eq!(
+        state.telemetry.sandbox_kind,
+        Some(crate::runtime::SandboxKind::Passthrough)
+    );
+    assert_eq!(context.file_snapshots, 1);
+    assert_eq!(context.related_paths, 1);
+    assert_eq!(context.cache_hits, 2);
+    assert_eq!(context.cache_misses, 1);
+    assert!(context.git_context_included);
+}

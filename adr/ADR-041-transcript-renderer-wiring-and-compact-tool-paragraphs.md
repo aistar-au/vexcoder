@@ -61,6 +61,18 @@ The turn-timing summary replaces the `read:` label with `↑:` and
 and the rendering paths (`draw_telemetry_summary`,
 `draw_inline_telemetry_summary`, `format_waiting_status`) are updated.
 
+### D4: Overflow escalation to detail surfaces
+
+Compact tool paragraphs remain the default transcript representation. When
+diff output, tool evidence, approval detail, or inspector content exceeds the
+inline budget, the transcript keeps the compact summary and exposes a stable
+detail target through an overlay, pager, or inspector surface instead of
+appending unlimited inline rows.
+
+The transcript therefore remains readable under repeated tool retries, large
+diffs, and long command output while preserving access to full detail on
+demand.
+
 ## Consequences
 
 - Model response text after tool execution is now reliably displayed

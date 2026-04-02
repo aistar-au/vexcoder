@@ -943,6 +943,10 @@ fn fullscreen_surface_uses_three_regions_without_fixed_bottom_pane() {
     state.telemetry = crate::app::TaskTelemetryState {
         mode: "streaming".into(),
         approval: "pending".into(),
+        model_name: String::new(),
+        model_backend: None,
+        sandbox_kind: None,
+        context_summary: None,
         history_rows: 7,
         total_tokens: 1234,
         tokens_sent: 800,
@@ -1031,6 +1035,10 @@ fn status_bar_summary_truncates_to_available_width() {
     state.telemetry = crate::app::TaskTelemetryState {
         mode: "streaming".into(),
         approval: "pending".into(),
+        model_name: String::new(),
+        model_backend: None,
+        sandbox_kind: None,
+        context_summary: None,
         history_rows: 99,
         total_tokens: 9999,
         tokens_sent: 6000,
@@ -1060,6 +1068,10 @@ fn status_bar_shows_git_branch_and_token_counters() {
     state.telemetry = crate::app::TaskTelemetryState {
         mode: "ready".into(),
         approval: String::new(),
+        model_name: String::new(),
+        model_backend: None,
+        sandbox_kind: None,
+        context_summary: None,
         history_rows: 5,
         total_tokens: 150,
         tokens_sent: 100,
@@ -1080,6 +1092,53 @@ fn status_bar_shows_git_branch_and_token_counters() {
     assert!(
         summary.contains("\u{2191}100") && summary.contains("\u{2193}50"),
         "status bar should show token counters with up/down arrows: {summary}"
+    );
+}
+
+#[test]
+fn status_bar_includes_model_sandbox_and_context_summary() {
+    let mut state = make_state(vec![], vec!["response text"]);
+    state.telemetry = crate::app::TaskTelemetryState {
+        mode: "ready".into(),
+        approval: "none".into(),
+        model_name: "local-model-a".into(),
+        model_backend: Some(crate::runtime::ModelBackendKind::LocalRuntime),
+        sandbox_kind: Some(crate::runtime::SandboxKind::Container),
+        context_summary: Some(crate::app::TaskContextSummaryState {
+            file_snapshots: 3,
+            related_paths: 2,
+            cache_hits: 5,
+            cache_misses: 1,
+            git_context_included: true,
+        }),
+        history_rows: 5,
+        total_tokens: 150,
+        tokens_sent: 100,
+        tokens_received: 50,
+        active_tools: 0,
+        active_commands: 0,
+        waiting_summary: None,
+        timing_summary: None,
+        git_branch: "feat/my-branch".into(),
+    };
+
+    let summary = status_bar_summary(&state, 200);
+
+    assert!(
+        summary.contains("mdl:local-model-a"),
+        "status bar should expose the active model name: {summary}"
+    );
+    assert!(
+        summary.contains("be:local"),
+        "status bar should expose the active backend: {summary}"
+    );
+    assert!(
+        summary.contains("sb:container"),
+        "status bar should expose the active sandbox: {summary}"
+    );
+    assert!(
+        summary.contains("ctx:f3 r2 c5/1 git"),
+        "status bar should expose the context assembly summary: {summary}"
     );
 }
 
