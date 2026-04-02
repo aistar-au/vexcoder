@@ -1,16 +1,20 @@
-name: auto-tag
+name: Refresh Nightly Tag And Dispatch Release
 
 on:
   schedule:
-    # Nightly at 11:59 PM Pacific (06:59 UTC during PDT / 07:59 UTC during PST).
-    - cron: "59 6 * * *"
+    # GitHub evaluates this schedule on the default branch, then provisions a runner.
+    # This temporary verification slot is restored to the production nightly cadence
+    # after the scheduled run is observed on main.
+    - cron: "45 21 * * *"
+      timezone: "UTC"
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
   nightly:
-    name: update nightly channel tag
+    name: refresh nightly tag and dispatch release
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -41,3 +45,17 @@ jobs:
           set -euo pipefail
           git tag -fa nightly -m "Nightly ${SHORT_SHA}"
           git push origin refs/tags/nightly --force
+
+      - name: Dispatch nightly release workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          payload='{"ref":"nightly"}'
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/dispatches" \
+            -d "${payload}"
