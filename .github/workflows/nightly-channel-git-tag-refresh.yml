@@ -38,6 +38,18 @@ jobs:
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "Short SHA: ${short_sha}"
 
+      - name: Configure protected nightly channel git tag auth
+        shell: bash
+        env:
+          NIGHTLY_CHANNEL_GIT_TAG_TOKEN: ${{ secrets.NIGHTLY_CHANNEL_GIT_TAG_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${NIGHTLY_CHANNEL_GIT_TAG_TOKEN}" ]]; then
+            echo "NIGHTLY_CHANNEL_GIT_TAG_TOKEN is required to update protected refs/tags/nightly." >&2
+            exit 1
+          fi
+          git remote set-url origin "https://x-access-token:${NIGHTLY_CHANNEL_GIT_TAG_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
       - name: Update nightly channel git tag
         shell: bash
         env:
@@ -50,7 +62,7 @@ jobs:
       - name: Dispatch nightly release workflow
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.NIGHTLY_CHANNEL_GIT_TAG_TOKEN }}
         run: |
           set -euo pipefail
           payload='{"ref":"nightly"}'
