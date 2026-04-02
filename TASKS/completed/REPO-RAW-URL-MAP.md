@@ -45,7 +45,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 31 | `adr/ADR-040-real-time-local-turn-telemetry.md` | ~146 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-040-real-time-local-turn-telemetry.md> |
 | 32 | `adr/ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md` | ~66 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md> |
 | 33 | `adr/ADR-042-server-derived-batch-and-context-configuration.md` | ~87 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-042-server-derived-batch-and-context-configuration.md> |
-| 34 | `adr/ADR-043-structured-output-parser-framework.md` | ~66 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-043-structured-output-parser-framework.md> |
+| 34 | `adr/ADR-043-structured-output-parser-framework.md` | ~67 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-043-structured-output-parser-framework.md> |
 | 35 | `adr/ADR-README.md` | ~84 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 36 | `adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~67 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
 | 37 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~46 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |
@@ -77,7 +77,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 63 | `Cargo.toml` | ~71 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/Cargo.toml> |
 | 64 | `CHANGELOG.md` | ~14 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CHANGELOG.md> |
 | 65 | `CONTRIBUTING.md` | ~463 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/CONTRIBUTING.md> |
-| 66 | `docs/src/architecture.md` | ~75 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/architecture.md> |
+| 66 | `docs/src/architecture.md` | ~79 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/architecture.md> |
 | 67 | `docs/src/commands.md` | ~249 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/commands.md> |
 | 68 | `docs/src/configuration.md` | ~338 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/configuration.md> |
 | 69 | `docs/src/introduction.md` | ~12 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/introduction.md> |

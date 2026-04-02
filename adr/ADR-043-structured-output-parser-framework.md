@@ -61,9 +61,10 @@ provides a unified, mode-aware parser framework.
 
 ### Environment controls
 
-| Variable | Values | Default |
-|:---|:---|:---|
-| `VEX_PARSE_MODE` | `json`, `xml`, `grammar`, `regex`, `tag`, `passthrough` | `passthrough` |
+The module defines a `ParseMode` API and an internal `VEX_PARSE_MODE` lookup
+helper for future integration work. PR #314 does not yet route the primary
+`send_message` runtime through this path or expose it in the main configuration
+surface.
 
 ### What this ADR does *not* cover
 
@@ -76,8 +77,8 @@ provides a unified, mode-aware parser framework.
 ## Consequences
 
 - All seven parity gaps now have structural scaffolding in the codebase.
-- Local-model integrations can opt into `VEX_PARSE_MODE=json` to get
-  streaming JSON validation with best-effort recovery.
+- Local-model integrations still use the existing tagged or hybrid tool parser
+  path until a later change wires `StructuredParser` into the runtime.
 - The `ParserCallback` trait enables future TUI features like real-time
   structured-output progress indicators.
 - Test coverage: 40 new unit tests across all sub-modules.
