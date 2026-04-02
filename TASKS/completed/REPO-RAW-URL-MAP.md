@@ -45,7 +45,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 31 | `adr/ADR-040-real-time-local-turn-telemetry.md` | ~146 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-040-real-time-local-turn-telemetry.md> |
 | 32 | `adr/ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md` | ~66 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md> |
 | 33 | `adr/ADR-042-server-derived-batch-and-context-configuration.md` | ~87 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-042-server-derived-batch-and-context-configuration.md> |
-| 34 | `adr/ADR-043-structured-output-parser-framework.md` | ~67 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-043-structured-output-parser-framework.md> |
+| 34 | `adr/ADR-043-structured-output-parser-framework.md` | ~66 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-043-structured-output-parser-framework.md> |
 | 35 | `adr/ADR-README.md` | ~84 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 36 | `adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~67 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
 | 37 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~46 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |
@@ -272,10 +272,10 @@ Canonical raw URL index for every tracked file in this repository.
 | 258 | `src/state/conversation/tools/validation.rs` | ~174 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/validation.rs> |
 | 259 | `src/state/stream_block.rs` | ~46 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/stream_block.rs> |
 | 260 | `src/status_contract.rs` | ~92 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/status_contract.rs> |
-| 261 | `src/structured_parser/callbacks.rs` | ~128 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/callbacks.rs> |
-| 262 | `src/structured_parser/grammar.rs` | ~308 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/grammar.rs> |
-| 263 | `src/structured_parser/json_validator.rs` | ~334 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/json_validator.rs> |
-| 264 | `src/structured_parser/mod.rs` | ~34 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/mod.rs> |
+| 261 | `src/structured_parser.rs` | ~34 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser.rs> |
+| 262 | `src/structured_parser/callbacks.rs` | ~128 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/callbacks.rs> |
+| 263 | `src/structured_parser/grammar.rs` | ~308 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/grammar.rs> |
+| 264 | `src/structured_parser/json_validator.rs` | ~334 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/json_validator.rs> |
 | 265 | `src/structured_parser/modes.rs` | ~425 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/modes.rs> |
 | 266 | `src/structured_parser/recovery.rs` | ~165 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/recovery.rs> |
 | 267 | `src/structured_parser/tag_tree.rs` | ~435 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/structured_parser/tag_tree.rs> |
@@ -321,7 +321,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 307 | `src/workspace.rs` | ~38 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/workspace.rs> |
 | 308 | `TASKS/ACTIVE-ROADMAP.md` | ~227 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
 | 309 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | ~142 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/PL-01-pre-post-tool-hooks.md> |
-| 310 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~336 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
+| 310 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~345 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 311 | `TASKS/PE-01-batch-mode.md` | ~201 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PE-01-batch-mode.md> |
 | 312 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | ~153 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PI-10-PI-12-adr025-phase1-continuation.md> |
 | 313 | `TASKS/PJ-03-memory-notes-injection.md` | ~129 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes-injection.md> |
