@@ -24,8 +24,6 @@ SHELL := bash
 endif
 .SHELLFLAGS := -euo pipefail -c
 
-NPROC := $(shell nproc 2>/dev/null || sysctl -n hw.logicalcpu 2>/dev/null || echo 4)
-
 .PHONY: help \
   _require-taplo _require-rg _require-nextest \
   build check \
@@ -62,7 +60,7 @@ help:
 	  "  check-arch         all architecture boundary checks" \
 	  "  check-disk-policy  VEX_DISK_POLICY=strict cargo test --test disk_policy_tests" \
 	  "  test               cargo test --all with VEX_MODEL_TOKEN=\"\" (ci.yml variant)" \
-	  "  test-nextest       cargo nextest run -j $(NPROC)  (auto-detected core count)" \
+	  "  test-nextest       cargo nextest run  (uses nextest default concurrency)" \
 	  "  test-targets       cargo test --all-targets" \
 	  "  test-single        run one test by name: make test-single T=test_fn_name" \
 	  "  gate               full gate: fmt + lint + arch + nextest + tests" \
@@ -221,7 +219,7 @@ check-arch: \
 # test         cargo test --all    with VEX_MODEL_TOKEN=""
 #              Source: ci.yml — env guard prevents accidental real API calls
 #
-# test-nextest cargo nextest run -j $(NPROC)  (dynamic core count)
+# test-nextest cargo nextest run  (uses nextest default concurrency)
 #              Source: local pre-push hook + ci.yml consolidated gate
 #
 # test-targets cargo test --all-targets  (no token env override)
@@ -233,7 +231,7 @@ test:
 	VEX_MODEL_TOKEN="" cargo test --all
 
 test-nextest: _require-nextest
-	cargo nextest run -j $(NPROC)
+	cargo nextest run
 
 test-targets:
 	cargo test --all-targets

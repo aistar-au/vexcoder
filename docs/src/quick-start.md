@@ -86,8 +86,9 @@ Batch mode:
 make gate-fast
 ```
 
-The local pre-push hook also runs `cargo nextest run -j 2`. The CI workflow
-runs 8 parallel jobs with cargo registry and build-artifact caching.
+The local pre-push hook also runs `cargo nextest run`, which uses nextest's
+default cross-platform concurrency. The CI workflow runs 8 parallel jobs with
+cargo registry and build-artifact caching.
 
 Once inside an interactive session, the model can explore the codebase using
 `codebase_search` (for functions, types, and code patterns), `list_files`

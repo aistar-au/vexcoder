@@ -141,12 +141,12 @@ jobs:
           set -euo pipefail
           curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
-      - name: Run tests (nextest, nproc)
+      - name: Run tests (nextest)
         env:
           VEX_MODEL_TOKEN: ""
         run: |
           source "$HOME/.cargo/env" 2>/dev/null || true
-          cargo nextest run -j $(nproc)
+          cargo nextest run
 
   # ── 4. Doc tests (nextest cannot run these) ────────────────────────
   doctest:
@@ -262,7 +262,7 @@ jobs:
         shell: pwsh
         run: cargo clippy --all-targets -- -D warnings
 
-  # ── 7. Windows tests (nextest, j2) ─────────────────────────────────
+  # ── 7. Windows tests (nextest) ─────────────────────────────────────
   windows-test:
     runs-on: windows-latest
     steps:
@@ -291,11 +291,11 @@ jobs:
           Expand-Archive -Path $dest -DestinationPath "$env:USERPROFILE\.cargo\bin" -Force
           Remove-Item $dest
 
-      - name: Run tests (nextest, ncpu)
+      - name: Run tests (nextest)
         shell: pwsh
         run: |
           $env:VEX_MODEL_TOKEN = ""
-          cargo nextest run -j $env:NUMBER_OF_PROCESSORS
+          cargo nextest run
 
   # ── 8. Windows package (build + smoke test) ────────────────────────
   windows-package:
