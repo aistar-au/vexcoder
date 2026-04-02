@@ -56,11 +56,12 @@ pre-release label. This ensures correct semver precedence ordering:
   manually by the operator after a merge to `main`. They are immutable
   once pushed and trigger the release pipeline to produce a snapshot
   pre-release. See "Creating a short-SHA tag" below.
-- **Channel tags** (`nightly`) are force-updated on a nightly schedule
-  by `.github/workflows/auto-tag.yml`. GitHub evaluates that schedule on the
-  default branch, the workflow refreshes the `nightly` tag, and then it
-  dispatches `.github/workflows/release.yml` against the `nightly` ref.
-  Channel tags are the only tags that may be moved.
+- **Channel git tags** (`nightly`) are force-updated on a nightly schedule
+  by `.github/workflows/nightly-channel-git-tag-refresh.yml`. GitHub
+  evaluates that schedule on the default branch, the workflow refreshes the
+  `nightly` channel git tag, and then it dispatches
+  `.github/workflows/release.yml` against the `nightly` ref. Channel git tags
+  are the only tags that may be moved.
 - Non-semver tags do not require a `Cargo.toml` version match. The release
   pipeline skips the version alignment check for these tags.
 
@@ -142,10 +143,11 @@ git push origin v<current-version>
 To produce an immediate snapshot release from the merge commit, create a
 short-SHA tag manually (see "Creating a short-SHA tag" above).
 
-The nightly channel tag is updated automatically by the scheduled nightly tag
-workflow. GitHub evaluates the schedule on the default branch, the workflow
-refreshes the `nightly` tag, and then it dispatches the release workflow for
-the `nightly` ref. No manual action is needed for nightly builds.
+The nightly channel git tag is updated automatically by the scheduled nightly
+channel git tag workflow. GitHub evaluates the schedule on the default
+branch, the workflow refreshes the `nightly` channel git tag, and then it
+dispatches the release workflow for the `nightly` ref. No manual action is
+needed for nightly builds.
 
 ---
 
@@ -210,11 +212,11 @@ prefer a fully browser-based release flow.
 
 ## Automated nightly builds
 
-`.github/workflows/auto-tag.yml` runs on a daily GitHub-hosted schedule on the
-default branch. It force-updates the `nightly` channel tag to point at the
-current HEAD of `main`, then dispatches `.github/workflows/release.yml`
-against the `nightly` ref so the nightly pre-release build is produced from the
-ref that was just refreshed.
+`.github/workflows/nightly-channel-git-tag-refresh.yml` runs on a daily
+GitHub-hosted schedule on the default branch. It force-updates the `nightly`
+channel git tag to point at the current HEAD of `main`, then dispatches
+`.github/workflows/release.yml` against the `nightly` ref so the nightly
+pre-release build is produced from the ref that was just refreshed.
 
 Short-SHA snapshot tags are created manually by the operator via
 `git tag` and `git push` (see "Creating a short-SHA tag" above).
@@ -248,7 +250,7 @@ The workflow:
 5. Attaches all archives, macOS `.dmg` assets, checksums, signature bundles,
   and a generated `CHANGELOG-<tag>.md` asset.
 6. Semver pre-release tags (containing `alpha`, `beta`, or `rc`), short-SHA
-   tags, and channel tags are automatically marked as pre-releases.
+  tags, and channel git tags are automatically marked as pre-releases.
 
 ### Tag format summary
 

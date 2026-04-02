@@ -121,7 +121,7 @@ jobs:
               exit 1
             fi
           elif [[ "${tag_name}" == "nightly" ]]; then
-            echo "Verified channel tag: ${tag_name}"
+            echo "Verified channel git tag: ${tag_name}"
           else
             echo "FAIL: unsupported tag format: ${tag_name}" >&2
             exit 1
