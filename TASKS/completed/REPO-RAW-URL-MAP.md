@@ -16,7 +16,7 @@ Total tracked files: 330
 | `.github/workflows/doc-ref-check.yml` | 42 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/doc-ref-check.yml> |
 | `.github/workflows/docs-build-and-deploy.yml` | 69 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/docs-build-and-deploy.yml> |
 | `.github/workflows/docs-build.yml` | 47 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/docs-build.yml> |
-| `.github/workflows/release.yml` | 466 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/release.yml> |
+| `.github/workflows/release.yml` | 468 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/release.yml> |
 | `.github/workflows/version-bump.yml` | 99 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/version-bump.yml> |
 | `.gitignore` | 39 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.gitignore> |
 | `AGENTS.md` | 184 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/AGENTS.md> |
@@ -39,7 +39,7 @@ Total tracked files: 330
 | `TASKS/PM-04-auto-memory.md` | 114 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PM-04-auto-memory.md> |
 | `TASKS/TASKS-DISPATCH-MAP.md` | 108 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | 178 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/PL-01-pre-post-tool-hooks.md> |
-| `TASKS/completed/REPO-RAW-URL-MAP.md` | 345 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
+| `TASKS/completed/REPO-RAW-URL-MAP.md` | 337 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | 425 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md> |
 | `adr/ADR-022-amendment-2026-03-03.md` | 76 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-03.md> |
 | `adr/ADR-022-amendment-2026-03-13.md` | 72 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-022-amendment-2026-03-13.md> |
