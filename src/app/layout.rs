@@ -247,10 +247,11 @@ impl TuiMode {
                     }
                     return (
                         format!(
-                            "Inspector · {}/{} · {}",
+                            "Inspector \u{00b7} {}/{} \u{00b7} {} \u{00b7} {} rows",
                             idx + 1,
                             entries.len(),
-                            entry.label
+                            entry.label,
+                            rows.len(),
                         ),
                         rows,
                         OutputScrollAnchor::Top,

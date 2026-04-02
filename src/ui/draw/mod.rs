@@ -99,10 +99,16 @@ impl TaskDraw {
         term_rows: u16,
     ) {
         // Minimum viable surface: need at least a few rows and columns to
-        // render anything useful. Bail silently for degenerate sizes — this
-        // handles transient zero-sized states during resize on Windows
-        // Terminal, GNOME, and macOS Terminal alike.
+        // render anything useful. For degenerate sizes show a short notice
+        // so the operator knows the surface is waiting for a larger viewport
+        // rather than appearing unresponsive. Zero-sized states during
+        // transient resize on Windows Terminal, GNOME, and macOS Terminal
+        // are handled by the term_rows/term_cols == 0 early return.
+        if term_cols == 0 || term_rows == 0 {
+            return;
+        }
         if term_cols < 10 || term_rows < 4 {
+            self.draw_undersized_notice(w, term_cols, term_rows);
             return;
         }
 
@@ -164,6 +170,20 @@ impl TaskDraw {
         let (cursor_row, cursor_col) = composer_cursor_position(state, &regions);
         move_to(w, cursor_row, cursor_col);
         show_cursor(w);
+        let _ = w.flush();
+    }
+
+    // ── Undersized terminal notice ─────────────────────────────────
+
+    fn draw_undersized_notice<W: Write>(&self, w: &mut W, cols: u16, rows: u16) {
+        move_to(w, 0, 0);
+        clear_to_end(w);
+        set_dim(w);
+        set_fg(w, YELLOW);
+        let msg = format!("resize to \u{2265}10\u{00d7}4 ({cols}\u{00d7}{rows})");
+        let truncated = truncate_to_width(&msg, cols as usize);
+        let _ = write!(w, "{truncated}");
+        reset_style(w);
         let _ = w.flush();
     }
 

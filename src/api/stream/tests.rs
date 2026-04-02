@@ -374,3 +374,140 @@ fn test_normaliser_compact_param_value_long_unicode_is_boundary_safe() {
     assert!(result.ends_with('\u{2026}'));
     assert!(result.starts_with(&"你".repeat(77)));
 }
+
+// ── Normaliser malformed-markup hardening (ADR-043 gate 2 fixtures) ─
+
+#[test]
+fn test_normaliser_parameter_without_preceding_function_is_passthrough() {
+    let mut normaliser = StreamTextNormaliser::new();
+    let chunks = normaliser.normalise("parameter=path>\nsrc/main.rs\nparameter>");
+    let text = collect_text(&chunks);
+    // With no preceding function= tag the normaliser is not in a tool block,
+    // so parameter-like lines pass through as plain text.
+    assert!(
+        text.contains("parameter=path"),
+        "bare parameter should pass through: {text:?}"
+    );
+}
+
+#[test]
+fn test_normaliser_nested_function_tags_auto_close_first() {
+    let mut normaliser = StreamTextNormaliser::new();
+    let input = concat!(
+        "function=read_file>\n",
+        "parameter=path>\nfoo.rs\nparameter>\n",
+        "function=write_file>\n",
+        "parameter=path>\nbar.rs\nparameter>\n",
+        "function>"
+    );
+    let chunks = normaliser.normalise(input);
+    let lines = collect_transcript_lines(&chunks);
+    // The first tool block must be auto-closed when the second function= appears.
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("read_file") && l.contains("dispatched")),
+        "first tool should be auto-closed: {lines:?}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("write_file") && l.contains("dispatched")),
+        "second tool should complete normally: {lines:?}"
+    );
+}
+
+#[test]
+fn test_normaliser_empty_function_name_is_passthrough() {
+    let mut normaliser = StreamTextNormaliser::new();
+    let chunks = normaliser.normalise("function=>");
+    let text = collect_text(&chunks);
+    assert!(
+        text.contains("function="),
+        "empty function name should pass through: {text:?}"
+    );
+    assert!(
+        collect_transcript_lines(&chunks).is_empty(),
+        "no transcript lines for empty function name"
+    );
+}
+
+#[test]
+fn test_normaliser_malformed_close_without_open_is_passthrough() {
+    let mut normaliser = StreamTextNormaliser::new();
+    let chunks = normaliser.normalise("</function>\nsome text");
+    let text = collect_text(&chunks);
+    // A close tag with no preceding open should not disrupt normal text.
+    assert!(
+        text.contains("some text"),
+        "normal text after stale close should survive: {text:?}"
+    );
+}
+
+#[test]
+fn test_normaliser_mixed_angle_and_bare_formats() {
+    let mut normaliser = StreamTextNormaliser::new();
+    // First call: angle-bracket format
+    let chunks1 = normaliser
+        .normalise("<function=read_file>\n<parameter=path>\nsrc/lib.rs\n</parameter>\n</function>");
+    let lines1 = collect_transcript_lines(&chunks1);
+    assert!(
+        lines1.iter().any(|l| l.contains("read_file")),
+        "angle-bracket format detected: {lines1:?}"
+    );
+    // Second call: bare format (no angle brackets)
+    let chunks2 = normaliser
+        .normalise("function=write_file>\nparameter=path>\nout.rs\nparameter>\nfunction>");
+    let lines2 = collect_transcript_lines(&chunks2);
+    assert!(
+        lines2.iter().any(|l| l.contains("write_file")),
+        "bare format detected after angle-bracket: {lines2:?}"
+    );
+}
+
+#[test]
+fn test_normaliser_blank_lines_inside_tool_block_are_suppressed() {
+    let mut normaliser = StreamTextNormaliser::new();
+    let input = "function=read_file>\nparameter=path>\n\n\n\nsrc/main.rs\nparameter>\nfunction>";
+    let chunks = normaliser.normalise(input);
+    let lines = collect_transcript_lines(&chunks);
+    // Tool blocks produce structured transcript lines; blank lines inside
+    // the parameter value should be preserved in the param value itself,
+    // not leaked as separate NormalisedChunk::Text entries.
+    let text_chunks: Vec<_> = chunks
+        .iter()
+        .filter_map(|c| match c {
+            NormalisedChunk::Text(t) => Some(t.clone()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        text_chunks
+            .iter()
+            .all(|t| t.is_empty() || !t.trim().is_empty()),
+        "no non-empty text should leak from tool block: {text_chunks:?}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("[detail]") && l.contains("path")),
+        "parameter detail should be emitted: {lines:?}"
+    );
+}
+
+#[test]
+fn test_normaliser_consecutive_flushes_are_idempotent() {
+    let mut normaliser = StreamTextNormaliser::new();
+    normaliser.normalise("function=read_file>\nparameter=path>\nsrc/main.rs");
+    let first = normaliser.flush();
+    assert!(
+        !first.is_empty(),
+        "first flush should emit pending tool block"
+    );
+    let second = normaliser.flush();
+    assert!(
+        second.is_empty(),
+        "repeated flush with no new input should be empty"
+    );
+    assert!(!normaliser.in_tool_block);
+}
