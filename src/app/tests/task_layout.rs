@@ -225,7 +225,7 @@ fn test_manual_timeline_selection_opens_tool_inspector() {
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(
         state.output_title,
-        "Inspector · 2/2 · read_file · src/main.rs · Response complete."
+        "Inspector \u{00b7} 2/2 \u{00b7} read_file \u{00b7} src/main.rs \u{00b7} Response complete. \u{00b7} 2 rows"
     );
     assert_eq!(state.output_rows[0], "Tool: read_file");
     assert_eq!(
@@ -655,4 +655,33 @@ fn test_task_layout_state_exposes_structured_footer_inputs() {
     assert_eq!(context.cache_hits, 2);
     assert_eq!(context.cache_misses, 1);
     assert!(context.git_context_included);
+}
+
+#[test]
+fn test_inspector_title_includes_row_count() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("multilang check".to_string(), &mut ctx);
+    mode.current_turn_tool_invocations = vec![ToolInvocationSummary {
+        step_id: 1,
+        name: "run_command".to_string(),
+        outcome: "exit 0".to_string(),
+    }];
+    mode.timeline_follow_mode = false;
+    mode.selected_timeline_index = 1;
+
+    let state = mode.task_layout_state().expect("task layout state");
+    // The inspector title must include the total row count so the operator
+    // knows how much content exists beyond the visible viewport.
+    assert!(
+        state.output_title.ends_with("2 rows"),
+        "inspector title should end with row count: {:?}",
+        state.output_title
+    );
+    assert!(
+        state.output_title.starts_with("Inspector"),
+        "inspector title should start with Inspector: {:?}",
+        state.output_title
+    );
 }
