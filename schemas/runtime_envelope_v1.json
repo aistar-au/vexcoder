@@ -15,7 +15,7 @@
   "$defs": {
     "tool_name": {
       "type": "string",
-      "pattern": "^(read_file|write_file|apply_patch|run_command|search_files|list_dir|glob_files|mcp\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_]*)$"
+      "pattern": "^([a-z][a-z0-9_]*|mcp\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_-]*)$"
     },
     "scope": {
       "type": "string",
@@ -71,7 +71,7 @@
       "properties": {
         "type": { "const": "tool_call" },
         "id": { "type": "string", "minLength": 1 },
-        "name": { "type": "string", "minLength": 1 },
+        "name": { "$ref": "#/$defs/tool_name" },
         "input": { "type": "object" },
         "status": { "$ref": "#/$defs/tool_status" }
       }
