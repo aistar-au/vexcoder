@@ -810,7 +810,7 @@ pub(crate) fn is_horizontal_rule(line: &str) -> bool {
 /// Applies uniform prefix and width-safe truncation regardless of
 /// block kind. Used by the delta-native rendering path to bypass
 /// prefix-marker parsing.
-#[allow(dead_code)]
+#[allow(unused)]
 pub(crate) fn format_compact_paragraph(
     text: &str,
     block_kind: crate::state::TranscriptBlockKind,
