@@ -227,3 +227,43 @@ The remaining `#[allow(unused)]` annotations on
 target does not count `#[cfg(test)]` usage as live, and the full production renderer switchover (connecting
 `task_layout_state()` → `stream_deltas` → `consume_transcript_deltas`)
 is deferred to a follow-on PR.
+
+---
+
+## Amendment — 2026-04-03: Chunk-safe tagged-markup buffering and wrapper stripping
+
+### D13: Buffer chunk-split tool markup at the transcript boundary
+
+`StreamTextNormaliser` now treats the incoming SSE text stream as an
+incremental byte sequence rather than a newline-only parser surface.
+Partial `<tool_call>`, `<function=...>`, and `<parameter=...>` control
+fragments stay in the internal `pending` buffer until they become
+complete enough to classify as transcript control or plain assistant
+text.
+
+Complete wrapper markers (`<tool_call>`, `</tool_call>`) are
+suppressed, complete function and parameter tags can be consumed even
+when they arrive as standalone deltas without trailing newlines, and a
+new function opener encountered mid-parameter auto-closes the previous
+tool block before entering the new one.
+
+This keeps the transcript-first live path aligned with the backend's
+JSON delta stream instead of leaking raw line fragments into the
+operator surface when the model server splits tool markup across
+arbitrary chunk boundaries.
+
+### D14: Strip wrapper-only remnants from the assistant text fallback
+
+`sanitize_assistant_text()` now removes `<tool_call>` wrappers and
+their incomplete suffixes in addition to the existing
+`<function=...>`/`<parameter=...>` cleanup. The fallback assistant
+history therefore preserves the tagged tool-call protocol where
+required for the next round, while dropping wrapper-only transport
+noise from the visible transcript and persisted assistant text.
+
+Focused regression coverage now includes:
+- chunk-split `<tool_call>` + `<function=...>` streams at the
+  normaliser boundary
+- wrapper stripping in the assistant-text sanitiser
+- wrapper-tagged text-protocol tool rounds that still execute and
+  append `tool_result` context for the next turn
