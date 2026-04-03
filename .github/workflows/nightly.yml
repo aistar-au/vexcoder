@@ -8,7 +8,7 @@ on:
     #
     # Proof slot: every 12 hours — removing temporary high-frequency to verify the
     # scheduler fires.  Revert to daily cadence once a scheduled run is observed.
-    - cron: "* 3,15 * * *"
+    - cron: "0 3,15 * * *"
   workflow_dispatch: # Manual trigger for testing and one-off nightly snapshots.
 
 permissions:
