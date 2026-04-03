@@ -68,10 +68,18 @@ structured `TranscriptDelta` and `DeltaAccumulator` types that track streaming
 blocks with bounded suffix deduplication — O(new_text) rather than
 O(total_content) — and expose pending deltas for the draw layer. Delta
 accumulators are keyed by block index in TuiMode and run in parallel with the
-existing prefix-marker line path so both strategies coexist.
+existing prefix-marker line path so both strategies coexist. The foundation
+methods (`flush_pending`, `content`, `set_block_kind`,
+`bounded_incremental_suffix`) carry targeted `#[allow(unused)]` annotations
+until the live draw path switchover activates them.
 `TaskDraw::apply_transcript_delta()` and `format_compact_paragraph()` in the
 draw module provide the direct delta-to-display path that bypasses the
 `[tool]`/`[detail]`/`[evidence]` prefix-marker chain (ADR-041 D5–D7).
+
+The runtime envelope schema (`schemas/runtime_envelope_v1.json`) accepts tool
+names matching `[a-z][a-z0-9_-]*` and MCP-namespaced tools
+(`mcp.<provider>.<tool>`), covering all built-in and external tool
+registrations.
 
 ## Ongoing boundary work
 

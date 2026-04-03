@@ -50,7 +50,7 @@ fn test_pi_11_schema_assets_parse_as_json() {
     assert_eq!(envelope_schema["properties"]["version"]["const"], 1);
     assert_eq!(
         envelope_schema["$defs"]["tool_name"]["pattern"],
-        "^([a-z][a-z0-9_]*|mcp\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_-]*)$"
+        "^([a-z][a-z0-9_-]*|mcp\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_-]*)$"
     );
     assert_eq!(
         envelope_schema["$defs"]["transcript_line"]["properties"]["type"]["const"],

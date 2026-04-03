@@ -15,7 +15,7 @@
   "$defs": {
     "tool_name": {
       "type": "string",
-      "pattern": "^([a-z][a-z0-9_]*|mcp\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_-]*)$"
+      "pattern": "^([a-z][a-z0-9_-]*|mcp\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_-]*)$"
     },
     "scope": {
       "type": "string",

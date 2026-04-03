@@ -5,9 +5,9 @@
 //! are optimised for incremental display updates rather than
 //! conversation-level block tracking.
 //!
-//! This module is foundational infrastructure for ADR-041 D5–D7;
-//! some items are not yet called from the live draw path.
-#![allow(dead_code)]
+//! This module is foundational infrastructure for ADR-041 D5–D7.
+//! Delta accumulators are wired into TuiMode (model_update) and the
+//! draw-side methods are available for the render path switchover.
 
 use std::collections::VecDeque;
 
@@ -101,14 +101,17 @@ impl DeltaAccumulator {
     }
 
     /// Drain pending deltas for the renderer.
+    #[allow(unused)]
     pub fn flush_pending(&mut self) -> Vec<TranscriptDelta> {
         self.pending.drain(..).collect()
     }
 
+    #[allow(unused)]
     pub fn content(&self) -> &str {
         &self.content
     }
 
+    #[allow(unused)]
     pub fn set_block_kind(&mut self, kind: TranscriptBlockKind) {
         self.block_kind = kind;
     }
@@ -120,6 +123,7 @@ impl DeltaAccumulator {
 /// every chunk), this function extracts only the new suffix using a
 /// bounded comparison window of `O(incoming.len())` rather than
 /// `O(existing.len())`.
+#[allow(unused)]
 pub fn bounded_incremental_suffix(existing: &str, incoming: &str) -> String {
     if incoming.is_empty() {
         return String::new();
