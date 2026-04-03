@@ -2043,3 +2043,129 @@ fn edit_loop_max_turns_renders_with_warning_icon() {
         "edit loop max turns must render; got: {output}"
     );
 }
+
+// ── Delta-native rendering tests ────────────────────────────────────
+
+#[test]
+fn format_compact_paragraph_applies_tool_call_prefix() {
+    use crate::state::TranscriptBlockKind;
+    let result = super::transcript_helpers::format_compact_paragraph(
+        "search_files .github/workflows/",
+        TranscriptBlockKind::ToolCall,
+        80,
+    );
+    assert!(
+        result.contains("\u{25b6}"),
+        "tool call paragraph must use the arrow prefix: {result:?}"
+    );
+    assert!(
+        result.contains("search_files"),
+        "tool call text must be preserved in output: {result:?}"
+    );
+}
+
+#[test]
+fn format_compact_paragraph_applies_tool_result_prefix() {
+    use crate::state::TranscriptBlockKind;
+    let result = super::transcript_helpers::format_compact_paragraph(
+        "No matches found.",
+        TranscriptBlockKind::ToolResult,
+        80,
+    );
+    assert!(
+        result.contains("\u{21b3}"),
+        "tool result paragraph must use the continuation prefix: {result:?}"
+    );
+}
+
+#[test]
+fn format_compact_paragraph_no_prefix_for_text_blocks() {
+    use crate::state::TranscriptBlockKind;
+    for kind in [
+        TranscriptBlockKind::FinalText,
+        TranscriptBlockKind::Thinking,
+    ] {
+        let result =
+            super::transcript_helpers::format_compact_paragraph("Analyzing the code.", kind, 80);
+        assert!(
+            !result.contains("\u{25b6}") && !result.contains("\u{21b3}"),
+            "text block kind {kind:?} must have no directional prefix: {result:?}"
+        );
+        assert!(
+            result.contains("Analyzing"),
+            "text content must be preserved for {kind:?}: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn apply_transcript_delta_empty_incomplete_produces_no_rows() {
+    use crate::state::{TranscriptBlockKind, TranscriptDelta};
+    let mut draw = TaskDraw::new();
+    let delta = TranscriptDelta {
+        text: String::new(),
+        is_complete: false,
+        block_kind: TranscriptBlockKind::FinalText,
+    };
+    let mut rows: Vec<String> = Vec::new();
+    draw.apply_transcript_delta(&delta, &mut rows, 80);
+    assert!(
+        rows.is_empty(),
+        "empty incomplete delta must produce no output rows"
+    );
+}
+
+#[test]
+fn apply_transcript_delta_tool_call_adds_prefixed_row() {
+    use crate::state::{TranscriptBlockKind, TranscriptDelta};
+    let mut draw = TaskDraw::new();
+    let delta = TranscriptDelta {
+        text: "search_files path/.github/workflows/".to_string(),
+        is_complete: false,
+        block_kind: TranscriptBlockKind::ToolCall,
+    };
+    let mut rows: Vec<String> = Vec::new();
+    draw.apply_transcript_delta(&delta, &mut rows, 80);
+    assert!(
+        !rows.is_empty(),
+        "non-empty tool call delta must produce at least one row"
+    );
+    assert!(
+        rows.iter().any(|r| r.contains("\u{25b6}")),
+        "tool call row must contain the arrow prefix: {rows:?}"
+    );
+}
+
+#[test]
+fn consume_transcript_deltas_returns_true_when_rows_added() {
+    use crate::state::{DeltaAccumulator, TranscriptBlockKind};
+    let mut draw = TaskDraw::new();
+    let mut acc = DeltaAccumulator::new(TranscriptBlockKind::ToolCall);
+    acc.append_delta(r#"{"path":".github/workflows/","pattern":"^.*$"}"#);
+    acc.complete();
+    let deltas = acc.flush_pending();
+
+    let mut rows: Vec<String> = Vec::new();
+    let changed = draw.consume_transcript_deltas(&deltas, &mut rows, 80);
+    assert!(
+        changed,
+        "consuming non-empty deltas must signal that rows were added"
+    );
+    assert!(
+        !rows.is_empty(),
+        "delta content must produce at least one output row"
+    );
+    assert!(
+        rows.iter().any(|r| r.contains("\u{25b6}")),
+        "tool call output rows must include the arrow prefix: {rows:?}"
+    );
+}
+
+#[test]
+fn consume_transcript_deltas_returns_false_for_empty_input() {
+    let mut draw = TaskDraw::new();
+    let mut rows: Vec<String> = Vec::new();
+    let changed = draw.consume_transcript_deltas(&[], &mut rows, 80);
+    assert!(!changed, "consuming an empty delta slice must return false");
+    assert!(rows.is_empty(), "empty delta slice must not add any rows");
+}

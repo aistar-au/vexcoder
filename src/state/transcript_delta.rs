@@ -123,7 +123,6 @@ impl DeltaAccumulator {
 /// every chunk), this function extracts only the new suffix using a
 /// bounded comparison window of `O(incoming.len())` rather than
 /// `O(existing.len())`.
-#[allow(unused)]
 pub fn bounded_incremental_suffix(existing: &str, incoming: &str) -> String {
     if incoming.is_empty() {
         return String::new();
@@ -199,5 +198,28 @@ mod tests {
         acc.complete();
         let deltas = acc.flush_pending();
         assert!(deltas.iter().any(|d| d.is_complete));
+    }
+
+    #[test]
+    fn set_block_kind_changes_delta_block_kind() {
+        let mut acc = DeltaAccumulator::new(TranscriptBlockKind::Thinking);
+        acc.set_block_kind(TranscriptBlockKind::FinalText);
+        acc.append_delta("text");
+        acc.complete();
+        let deltas = acc.flush_pending();
+        assert!(
+            deltas
+                .iter()
+                .all(|d| d.block_kind == TranscriptBlockKind::FinalText),
+            "block kind must reflect the set_block_kind update"
+        );
+    }
+
+    #[test]
+    fn accumulator_content_tracks_full_text() {
+        let mut acc = DeltaAccumulator::new(TranscriptBlockKind::FinalText);
+        acc.append_delta("hello ");
+        acc.append_delta("world");
+        assert_eq!(acc.content(), "hello world");
     }
 }

@@ -261,7 +261,7 @@ Candidate implementation areas:
 | PM-02 | `work/vexcoder-undo-checkpoints` | #272 | Implementation complete, draft PR | `/undo` slash command and per-change checkpoint stack |
 | PM-03 | `work/vexcoder-code-search` | #273 | Implementation complete, draft PR | Code search hardening and `/reindex` command |
 | PM-04 | `work/vexcoder-auto-memory` | #274 | Implementation complete, draft PR | Automatic extraction of memory-worthy facts from conversation turns |
-| ADR-041-D8D11 | `work/vexcoder-delta-consume-switchover` | #332 | Open PR | Pending-row replacement, live input preview, ordered streamed-text segmentation, and bounded-suffix streaming reuse for the transcript-first path post PR #331 |
+| ADR-041-D8D12 | `work/vexcoder-delta-consume-switchover` | #332 | Open PR | Pending-row replacement, live input preview, ordered streamed-text segmentation, bounded-suffix streaming reuse, and delta accumulator drain activation (D12) for the transcript-first path post PR #331 |
 
 These branches are pushed to remote with draft PRs. Each contains a task
 manifest in `TASKS/` defining scope, constraints, and anchor tests.

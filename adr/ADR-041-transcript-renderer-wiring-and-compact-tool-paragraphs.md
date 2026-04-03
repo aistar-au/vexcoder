@@ -191,3 +191,39 @@ This keeps cumulative backend text updates on the same bounded
 O(new_text) suffix path used by the structured transcript delta
 accumulators, avoiding repeated scans across the full accumulated
 buffer on every chunk.
+
+---
+
+## Amendment — 2026-05-02: Delta-native path activation and accumulator drain
+
+### D12: Accumulator drain at block completion, tests, and bounded-suffix cleanup
+
+`StreamBlockComplete` now calls `flush_pending()` on the associated
+`DeltaAccumulator` before removing it. This drains any pending deltas
+that were not yet consumed by the renderer, ensuring the accumulator
+is cleanly emptied rather than silently dropped. The drained content
+is discarded since the parallel rendering paths (D9 live input preview
+for ToolCall, D10 streamed text segments for FinalText/Thinking) have
+already materialised the same content into `history_state`.
+
+`format_compact_paragraph()`, `apply_transcript_delta()`, and
+`consume_transcript_deltas()` are covered by unit tests in
+`src/ui/draw/tests.rs`, confirming that:
+- ToolCall deltas produce `▶`-prefixed rows when consumed via the delta path.
+- ToolResult deltas produce `↳`-prefixed rows.
+- Empty incomplete deltas produce no output rows.
+- FinalText/Thinking deltas forward content without directional prefixes.
+
+`set_block_kind()`, `content()`, `flush_pending()`, and
+`bounded_incremental_suffix()` are covered by inline tests in
+`src/state/transcript_delta.rs`. `bounded_incremental_suffix` has its
+`#[allow(unused)]` annotation removed because it already routes through
+production code in `src/state/conversation/streaming.rs`.
+
+The remaining `#[allow(unused)]` annotations on
+`TranscriptDelta`, `flush_pending`, `content`, `set_block_kind`,
+`format_compact_paragraph`, `apply_transcript_delta`, and
+`consume_transcript_deltas` are retained because Rust's reachability analysis for the library
+target does not count `#[cfg(test)]` usage as live, and the full production renderer switchover (connecting
+`task_layout_state()` → `stream_deltas` → `consume_transcript_deltas`)
+is deferred to a follow-on PR.

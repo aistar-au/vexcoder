@@ -394,9 +394,11 @@ impl TuiMode {
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
                 }
-                // Complete and flush the delta accumulator.
+                // Complete and flush the delta accumulator, draining any
+                // pending deltas that were not yet consumed by the renderer.
                 if let Some(acc) = self.delta_accumulators.get_mut(&index) {
                     acc.complete();
+                    let _ = acc.flush_pending();
                 }
                 self.delta_accumulators.remove(&index);
                 self.tool_input_raw_buffers.remove(&index);
