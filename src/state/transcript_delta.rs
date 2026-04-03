@@ -4,6 +4,10 @@
 //! reactive renderers. They parallel the `StreamBlock` variants but
 //! are optimised for incremental display updates rather than
 //! conversation-level block tracking.
+//!
+//! This module is foundational infrastructure for ADR-041 D5–D7;
+//! some items are not yet called from the live draw path.
+#![allow(dead_code)]
 
 use std::collections::VecDeque;
 

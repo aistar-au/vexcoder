@@ -584,6 +584,7 @@ impl TaskDraw {
 
 // ── Delta-native transcript rendering ──────────────────────────────
 
+#[allow(dead_code)]
 impl TaskDraw {
     /// Apply a structured transcript delta directly to the draw
     /// engine's line buffer, bypassing prefix-marker parsing.

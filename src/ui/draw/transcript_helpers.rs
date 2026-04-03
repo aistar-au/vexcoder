@@ -810,6 +810,7 @@ pub(crate) fn is_horizontal_rule(line: &str) -> bool {
 /// Applies uniform prefix and width-safe truncation regardless of
 /// block kind. Used by the delta-native rendering path to bypass
 /// prefix-marker parsing.
+#[allow(dead_code)]
 pub(crate) fn format_compact_paragraph(
     text: &str,
     block_kind: crate::state::TranscriptBlockKind,
@@ -818,7 +819,7 @@ pub(crate) fn format_compact_paragraph(
     use crate::state::TranscriptBlockKind;
 
     let prefix = match block_kind {
-        TranscriptBlockKind::ToolCall => "\u{25b6} ",   // ▶
+        TranscriptBlockKind::ToolCall => "\u{25b6} ",     // ▶
         TranscriptBlockKind::ToolResult => "  \u{21b3} ", // ↳
         TranscriptBlockKind::Thinking => "",
         TranscriptBlockKind::FinalText => "",

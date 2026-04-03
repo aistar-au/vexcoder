@@ -10,6 +10,4 @@ pub use conversation::{
     UndoCheckpoint,
 };
 pub use stream_block::{StreamBlock, ToolStatus};
-pub(crate) use transcript_delta::{
-    bounded_incremental_suffix, DeltaAccumulator, TranscriptBlockKind, TranscriptDelta,
-};
+pub(crate) use transcript_delta::{DeltaAccumulator, TranscriptBlockKind, TranscriptDelta};

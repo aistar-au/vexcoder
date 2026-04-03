@@ -1,6 +1,6 @@
 # REPO-RAW-URL-MAP
 
-Total tracked files: 330
+Total tracked files: 331
 
 | File | Lines | Raw |
 | :--- | ---: | :--- |
@@ -276,6 +276,7 @@ Total tracked files: 330
 | `src/state/conversation/tools/tests.rs` | 83 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/tests.rs> |
 | `src/state/conversation/tools/validation.rs` | 190 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/validation.rs> |
 | `src/state/stream_block.rs` | 51 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/stream_block.rs> |
+| `src/state/transcript_delta.rs` | 199 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/transcript_delta.rs> |
 | `src/status_contract.rs` | 107 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/status_contract.rs> |
 | `src/terminal.rs` | 82 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/terminal.rs> |
 | `src/test_support.rs` | 6 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/test_support.rs> |
