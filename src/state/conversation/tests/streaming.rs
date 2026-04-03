@@ -48,7 +48,8 @@ data: {"type": "message_stop"}"#.to_string(),
         ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
             first_response_sse,
             second_response_sse,
-        ])));
+        ])))
+        .with_structured_tool_protocol(false);
 
     let mut mock_tool_responses = HashMap::new();
     mock_tool_responses.insert("file.txt".to_string(), "Hello from file.txt".to_string());
@@ -407,6 +408,78 @@ data: {"type":"message_stop"}"#.to_string(),
     }
 
     assert!(saw_tool_call_block);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_text_tagged_tool_call_with_wrapper_round_trip_sanitizes_history() -> Result<()> {
+    let first_response_sse = vec![
+        r#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_mock_wrapper_30","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
+        r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#.to_string(),
+        r#"event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I will read it.\n<tool_call>\n<function=read_file>\n<parameter=path>\nfile.txt\n</parameter>\n</function>"}}"#.to_string(),
+        r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":9}}"#.to_string(),
+        r#"event: message_stop
+data: {"type":"message_stop"}"#.to_string(),
+    ];
+    let second_response_sse = vec![
+        r#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_mock_wrapper_31","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
+        r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#.to_string(),
+        r#"event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"done"}}"#.to_string(),
+        r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":9}}"#.to_string(),
+        r#"event: message_stop
+data: {"type":"message_stop"}"#.to_string(),
+    ];
+
+    let mock_api_client =
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+            first_response_sse,
+            second_response_sse,
+        ])));
+    let mut mock_tool_responses = HashMap::new();
+    mock_tool_responses.insert(
+        "file.txt".to_string(),
+        "Hello from wrapper fallback.".to_string(),
+    );
+    let mut manager = ConversationManager::new_mock(mock_api_client, mock_tool_responses);
+
+    let final_text = manager.send_message("Read file".into(), None).await?;
+    assert!(final_text.contains("done"));
+
+    assert!(
+        manager.api_messages.iter().any(|message| {
+            if message.role != "assistant" {
+                return false;
+            }
+            match &message.content {
+                Content::Text(text) => {
+                    text.contains("I will read it.")
+                        && text.contains("<function=read_file>")
+                        && !text.contains("<tool_call>")
+                }
+                _ => false,
+            }
+        }),
+        "wrapper markers must be stripped from persisted assistant history"
+    );
+    assert!(
+        manager.api_messages.iter().any(|message| {
+            message.role == "user"
+                && matches!(
+                    &message.content,
+                    Content::Text(text) if text.contains("tool_result read_file")
+                )
+        }),
+        "wrapper-tagged calls must still execute and append tool_result context"
+    );
+
     Ok(())
 }
 #[tokio::test]

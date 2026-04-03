@@ -68,6 +68,14 @@ discoverability, and active or fallback fullscreen convergence without
 introducing a permanent telemetry pane. Parser work remains limited to
 normalisation hardening unless ADR-043 adoption gates are satisfied.
 
+ADR-041 D5/D6/D7 (delta types, delta-native draw methods, bounded suffix
+deduplication) landed in PR #331 (commit e1dd681) on 2026-04-03.
+ADR-041 D8/D9/D10/D11/D12/D13 (pending-row replacement, live input preview,
+ordered streamed-text segmentation, bounded-suffix reuse in
+conversation streaming, accumulator drain cleanup, and chunk-safe
+normalisation hardening for wrapper-tagged deltas) are in progress under
+`work/vexcoder-delta-consume-switchover`.
+
 ### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
 
 PRs 231, 232, 233, 234 all merged to main.
@@ -254,6 +262,7 @@ Candidate implementation areas:
 | PM-02 | `work/vexcoder-undo-checkpoints` | #272 | Implementation complete, draft PR | `/undo` slash command and per-change checkpoint stack |
 | PM-03 | `work/vexcoder-code-search` | #273 | Implementation complete, draft PR | Code search hardening and `/reindex` command |
 | PM-04 | `work/vexcoder-auto-memory` | #274 | Implementation complete, draft PR | Automatic extraction of memory-worthy facts from conversation turns |
+| ADR-041-D8D13 | `work/vexcoder-delta-consume-switchover` | #332 | Open PR | Pending-row replacement, live input preview, ordered streamed-text segmentation, bounded-suffix streaming reuse, delta accumulator drain activation, and chunk-safe wrapper-tag normalisation for the transcript-first path post PR #331 |
 
 These branches are pushed to remote with draft PRs. Each contains a task
 manifest in `TASKS/` defining scope, constraints, and anchor tests.

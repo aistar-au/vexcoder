@@ -46,6 +46,21 @@ impl TuiMode {
                     }
                 }
                 self.current_turn_response.push_str(&text);
+                if self.structured_streaming_active {
+                    if let Some(index) = self.active_stream_segment_index {
+                        self.current_turn_stream_segments[index]
+                            .text
+                            .push_str(&text);
+                    } else {
+                        self.current_turn_stream_segments
+                            .push(StreamedResponseSegment { text: text.clone() });
+                        self.active_stream_segment_index =
+                            Some(self.current_turn_stream_segments.len() - 1);
+                    }
+                    self.apply_auto_follow_or_clamp();
+                    self.preserve_transcript_scroll_on_growth(previous_output_len);
+                    return;
+                }
                 let idx = match self.history_state.active_assistant_index {
                     Some(idx) => idx,
                     None => {
@@ -93,6 +108,8 @@ impl TuiMode {
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
                 }
+                self.structured_streaming_active = true;
+                self.active_stream_segment_index = None;
                 // Clear the waiting placeholder when a tool block arrives.
                 if let Some(idx) = self.history_state.active_assistant_index {
                     if let Some(line) = self.history_state.lines.get_mut(idx) {
@@ -129,6 +146,8 @@ impl TuiMode {
                                 crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
                             ),
                             input: input.clone(),
+                            transcript_row_start: 0,
+                            transcript_row_count: 0,
                         };
                         let previous_output_len = self.task_output_view().1.len();
                         let transcript_rows = super::layout::pending_tool_paragraph_rows(
@@ -136,26 +155,36 @@ impl TuiMode {
                             StepLifecycle::Running,
                         );
                         // Fold pending tool calls with the same name into
-                        // the existing paragraph — only show detail rows
-                        // (skip the [tool] header) to avoid per-file spam.
+                        // the existing paragraph — only suppress the header,
+                        // keep detail rows so the live input preview is visible
+                        // per-call. Row indices are tracked so stale rows can
+                        // be replaced when the block completes.
                         let is_pending_same_name = self
                             .last_pending_tool_name
                             .as_ref()
                             .map(|prev| prev == name)
                             .unwrap_or(false);
+                        let row_start = self.history_state.lines.len();
                         self.pending_turn_tool_calls.insert(id.clone(), pending);
                         self.tool_input_raw_buffers.insert(index, String::new());
                         if is_pending_same_name {
-                            // Suppress the [tool] header, only emit detail lines.
+                            // Suppress the [tool] header, emit detail rows only.
                             for row in transcript_rows.iter().skip(1) {
                                 self.push_history_line(row.clone());
                             }
                         } else {
-                            for row in transcript_rows {
-                                self.push_history_line(row);
+                            for row in &transcript_rows {
+                                self.push_history_line(row.clone());
                             }
                             // Track the name for subsequent pending calls.
                             self.last_pending_tool_name = Some(name.clone());
+                        }
+                        // Record how many rows were written for this pending call so
+                        // they can be replaced in-place when the block completes.
+                        let row_count = self.history_state.lines.len() - row_start;
+                        if let Some(p) = self.pending_turn_tool_calls.get_mut(id) {
+                            p.transcript_row_start = row_start;
+                            p.transcript_row_count = row_count;
                         }
                         self.preserve_transcript_scroll_on_growth(previous_output_len);
                         // Auto-advance timeline selection when follow mode is on.
@@ -186,6 +215,27 @@ impl TuiMode {
                                 command_evidence_from_tool_result(&pending.name, *is_error)
                             {
                                 self.current_turn_command_history.push(evidence);
+                            }
+                            // Replace stale pending transcript rows with the
+                            // completed paragraph.  Pending rows are written
+                            // at BlockStart with initial (possibly empty) input
+                            // and must not remain alongside the completed rows.
+                            if pending.transcript_row_count > 0 {
+                                let start = pending.transcript_row_start;
+                                let end = start + pending.transcript_row_count;
+                                if end <= self.history_state.lines.len() {
+                                    self.history_state.lines.drain(start..end);
+                                    self.apply_auto_follow_or_clamp();
+                                    // Shift stored row indices for all remaining
+                                    // pending calls whose rows follow the removed
+                                    // block so their indices stay accurate.
+                                    for other in self.pending_turn_tool_calls.values_mut() {
+                                        if other.transcript_row_start >= end {
+                                            other.transcript_row_start -=
+                                                pending.transcript_row_count;
+                                        }
+                                    }
+                                }
                             }
                             let previous_output_len = self.task_output_view().1.len();
                             let transcript_rows = super::layout::completed_tool_paragraph_rows(
@@ -265,6 +315,7 @@ impl TuiMode {
                                     self.push_history_line(row);
                                 }
                             }
+                            self.apply_auto_follow_or_clamp();
                             self.preserve_transcript_scroll_on_growth(previous_output_len);
 
                             self.current_turn_tool_invocations
@@ -316,6 +367,22 @@ impl TuiMode {
                                                 buf,
                                             );
                                     }
+                                    // Live-update the Input detail row in the transcript
+                                    // so streaming JSON input is visible as it arrives.
+                                    // The row is always the last of the pending rows.
+                                    let preview = pending.input_preview.clone();
+                                    if pending.transcript_row_count > 0 {
+                                        let row_idx = pending.transcript_row_start
+                                            + pending.transcript_row_count
+                                            - 1;
+                                        if let Some(line) =
+                                            self.history_state.lines.get_mut(row_idx)
+                                        {
+                                            if line.starts_with("[detail] Input:") {
+                                                *line = format!("[detail] Input: {preview}");
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -327,9 +394,11 @@ impl TuiMode {
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
                 }
-                // Complete and flush the delta accumulator.
+                // Complete and flush the delta accumulator, draining any
+                // pending deltas that were not yet consumed by the renderer.
                 if let Some(acc) = self.delta_accumulators.get_mut(&index) {
                     acc.complete();
+                    let _ = acc.flush_pending();
                 }
                 self.delta_accumulators.remove(&index);
                 self.tool_input_raw_buffers.remove(&index);
@@ -407,6 +476,7 @@ impl TuiMode {
                 outcome,
                 last_validation_result,
             } => {
+                self.materialize_current_turn_stream_segments();
                 self.command_sessions.clear();
                 self.last_error_message = None;
                 if let Some(result) = last_validation_result {
@@ -520,6 +590,7 @@ impl TuiMode {
                 self.last_turn_duration = self.turn_started_at.map(|started| started.elapsed());
                 self.last_turn_timings = self.current_turn_timings.clone();
                 self.last_error_message = Some(msg.clone());
+                self.materialize_current_turn_stream_segments();
                 self.reset_turn_capture();
                 self.history_state.cancel_pending = false;
                 self.push_history_line(format!("[error] {msg}"));

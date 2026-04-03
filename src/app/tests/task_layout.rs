@@ -71,6 +71,8 @@ fn test_task_layout_state_transcript_streaming_with_pending_approval() {
             name: "read_file".to_string(),
             input_preview: "{\"path\":\"src/main.rs\"}".to_string(),
             input: serde_json::json!({"path":"src/main.rs"}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
     let (response_tx, _response_rx) = tokio::sync::oneshot::channel::<bool>();
@@ -107,6 +109,8 @@ fn test_task_layout_state_shows_approved_pending_tool_after_acceptance() {
             name: "read_file".to_string(),
             input_preview: "{\"path\":\"src/main.rs\"}".to_string(),
             input: serde_json::json!({"path":"src/main.rs"}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
 
@@ -183,6 +187,168 @@ fn test_task_layout_state_preserves_multiline_streamed_response_in_transcript() 
             "first line".to_string(),
             "second line▌".to_string(),
         ]
+    );
+}
+
+#[test]
+fn test_task_layout_state_preserves_structured_text_order_around_tool_rows() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("read file".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::Thinking {
+                content: String::new(),
+                collapsed: false,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamDelta("I will read the file.".to_string()),
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 1,
+            block: StreamBlock::ToolCall {
+                id: "tool-1".to_string(),
+                name: "read_file".to_string(),
+                input: serde_json::json!({"path":"file.txt"}),
+                status: crate::state::ToolStatus::Pending,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 2,
+            block: StreamBlock::ToolResult {
+                tool_call_id: "tool-1".to_string(),
+                output: "hello".to_string(),
+                is_error: false,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::FinalText {
+                content: String::new(),
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamDelta("The file says hello.".to_string()),
+        &mut ctx,
+    );
+
+    let state = mode.task_layout_state().expect("task layout state");
+    let intro_idx = state
+        .output_rows
+        .iter()
+        .position(|row| row == "I will read the file.")
+        .expect("intro row");
+    let tool_idx = state
+        .output_rows
+        .iter()
+        .position(|row| {
+            row.starts_with("[tool] read_file · ") && row.ends_with("Response complete.")
+        })
+        .expect("tool result row");
+    let final_idx = state
+        .output_rows
+        .iter()
+        .position(|row| row == "The file says hello.▌")
+        .expect("final response row");
+
+    assert!(
+        intro_idx < tool_idx,
+        "intro text must stay above the tool paragraph; got:\n{:#?}",
+        state.output_rows
+    );
+    assert!(
+        tool_idx < final_idx,
+        "final text must stay below the tool paragraph; got:\n{:#?}",
+        state.output_rows
+    );
+}
+
+#[test]
+fn test_commit_completed_turn_materializes_structured_stream_segments() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("read file".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::Thinking {
+                content: String::new(),
+                collapsed: false,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamDelta("I will read the file.".to_string()),
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 1,
+            block: StreamBlock::ToolCall {
+                id: "tool-1".to_string(),
+                name: "read_file".to_string(),
+                input: serde_json::json!({"path":"file.txt"}),
+                status: crate::state::ToolStatus::Pending,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 2,
+            block: StreamBlock::ToolResult {
+                tool_call_id: "tool-1".to_string(),
+                output: "hello".to_string(),
+                is_error: false,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::FinalText {
+                content: String::new(),
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamDelta("The file says hello.".to_string()),
+        &mut ctx,
+    );
+
+    mode.commit_completed_turn(&ctx);
+    mode.history_state.turn_in_progress = false;
+    mode.history_state.active_assistant_index = None;
+
+    let state = mode.task_layout_state().expect("task layout state");
+    assert_eq!(state.output_rows[0], "> read file".to_string());
+    assert_eq!(state.output_rows[1], "I will read the file.".to_string());
+    assert!(
+        state.output_rows[2].starts_with("[tool] read_file · ")
+            && state.output_rows[2].ends_with("Response complete.")
+    );
+    assert_eq!(
+        state.output_rows.last(),
+        Some(&"The file says hello.".to_string())
     );
 }
 
@@ -341,6 +507,8 @@ fn test_task_layout_state_shows_pending_tool_call_in_timeline() {
             name: "validate".to_string(),
             input_preview: "{}".to_string(),
             input: serde_json::json!({}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
 
@@ -365,6 +533,8 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
             name: "validate".to_string(),
             input_preview: "{}".to_string(),
             input: serde_json::json!({}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
     mode.pending_turn_tool_calls.insert(
@@ -374,6 +544,8 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
             name: "edit_file".to_string(),
             input_preview: "{}".to_string(),
             input: serde_json::json!({}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
 
@@ -412,6 +584,8 @@ fn test_task_layout_state_keeps_command_sessions_alongside_other_steps() {
             name: "run_command".to_string(),
             input_preview: "{}".to_string(),
             input: serde_json::json!({}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
     mode.command_sessions.push(CommandSessionState {
@@ -509,6 +683,8 @@ fn test_follow_mode_auto_advances_selected_step_when_new_entries_arrive() {
             name: "run_command".to_string(),
             input_preview: "{}".to_string(),
             input: serde_json::json!({}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
 

@@ -256,6 +256,70 @@ fn test_normaliser_detects_angle_bracket_tool_call() {
 }
 
 #[test]
+fn test_normaliser_ignores_tool_call_wrapper_lines() {
+    let mut normaliser = StreamTextNormaliser::new();
+    let input = "<tool_call>\n<function=read_file>\n<parameter=path>\nsrc/main.rs\n</parameter>\n</function>\n</tool_call>";
+    let chunks = normaliser.normalise(input);
+    let lines = collect_transcript_lines(&chunks);
+    let text = collect_text(&chunks);
+
+    assert!(
+        lines.iter().any(|line| line.contains("read_file")),
+        "wrapper should not block function detection: {lines:?}"
+    );
+    assert!(
+        !text.contains("<tool_call>") && !text.contains("</tool_call>"),
+        "wrapper markers must not leak into text output: {text:?}"
+    );
+}
+
+#[test]
+fn test_normaliser_buffers_chunk_split_tool_call_wrapper_and_function_open() {
+    let mut normaliser = StreamTextNormaliser::new();
+
+    let first = normaliser.normalise("Let me inspect it.\n<tool");
+    assert_eq!(collect_text(&first), "Let me inspect it.");
+    assert!(collect_transcript_lines(&first).is_empty());
+
+    let second = normaliser.normalise("_call>\n<function=search");
+    assert_eq!(collect_text(&second), "");
+    assert!(collect_transcript_lines(&second).is_empty());
+
+    let third = normaliser
+        .normalise("_files>\n<parameter=path>\n.github/workflows/\n</parameter>\n</function>");
+    let lines = collect_transcript_lines(&third);
+    let text = collect_text(&third);
+
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("[tool] search_files · processing")),
+        "chunked function open must produce a tool transcript line: {lines:?}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("[detail] path: .github/workflows/")),
+        "chunked parameter body must be preserved: {lines:?}"
+    );
+    assert!(
+        !text.contains("<tool_call>") && !text.contains("<function="),
+        "chunked control fragments must stay hidden from plain text: {text:?}"
+    );
+
+    let flushed = normaliser.flush();
+    let flushed_lines = collect_transcript_lines(&flushed);
+    let saw_dispatched = lines
+        .iter()
+        .chain(flushed_lines.iter())
+        .any(|line| line.contains("[tool] search_files · dispatched"));
+    assert!(
+        saw_dispatched,
+        "chunked closing tags must dispatch by the end of the stream; third={lines:?} flush={flushed_lines:?}"
+    );
+}
+
+#[test]
 fn test_normaliser_collapses_consecutive_blank_lines() {
     let mut normaliser = StreamTextNormaliser::new();
     let input = "line1\n\n\n\n\n\nline2";

@@ -97,7 +97,8 @@ fn strip_tagged_tool_markup(text: &str) -> String {
     }
 
     out.push_str(&text[cursor..]);
-    strip_incomplete_tool_tag_suffix(&out)
+    let out = out.replace("<tool_call>", "").replace("</tool_call>", "");
+    collapse_blank_runs(&strip_incomplete_tool_tag_suffix(&out))
 }
 
 fn strip_incomplete_tool_tag_suffix(text: &str) -> String {
@@ -115,13 +116,25 @@ fn strip_incomplete_tool_tag_suffix(text: &str) -> String {
         || "<parameter=".starts_with(&suffix_lower)
         || "<parameter".starts_with(&suffix_lower)
         || "</parameter>".starts_with(&suffix_lower)
-        || "</parameter".starts_with(&suffix_lower);
+        || "</parameter".starts_with(&suffix_lower)
+        || "<tool_call>".starts_with(&suffix_lower)
+        || "<tool_call".starts_with(&suffix_lower)
+        || "</tool_call>".starts_with(&suffix_lower)
+        || "</tool_call".starts_with(&suffix_lower);
 
     if looks_like_incomplete_tool_tag {
         out.truncate(last_open);
     }
 
     out
+}
+
+fn collapse_blank_runs(text: &str) -> String {
+    let mut collapsed = text.to_string();
+    while collapsed.contains("\n\n\n") {
+        collapsed = collapsed.replace("\n\n\n", "\n\n");
+    }
+    collapsed
 }
 
 #[cfg(test)]
@@ -135,8 +148,20 @@ mod tests {
     }
 
     #[test]
+    fn test_sanitize_assistant_text_removes_tool_call_wrapper() {
+        let text = "Checking.\n<tool_call>\n<function=git_status>\n</function>\nDone.";
+        assert_eq!(sanitize_assistant_text(text), "Checking.\n\nDone.");
+    }
+
+    #[test]
     fn test_sanitize_assistant_text_drops_incomplete_tag_suffix() {
         let text = "Checking.\n<function=git_status";
+        assert_eq!(sanitize_assistant_text(text), "Checking.\n");
+    }
+
+    #[test]
+    fn test_sanitize_assistant_text_drops_incomplete_tool_call_wrapper_suffix() {
+        let text = "Checking.\n<tool_call";
         assert_eq!(sanitize_assistant_text(text), "Checking.\n");
     }
 

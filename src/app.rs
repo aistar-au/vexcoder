@@ -128,6 +128,16 @@ struct PendingTurnToolCall {
     name: String,
     input_preview: String,
     input: serde_json::Value,
+    /// First index in `history_state.lines` for this call's pending rows.
+    transcript_row_start: usize,
+    /// Number of pending rows emitted at block start (may be 0 if suppressed).
+    transcript_row_count: usize,
+}
+
+#[derive(Clone, Default)]
+struct StreamedResponseSegment {
+    /// Sanitized response text streamed after the latest non-text boundary.
+    text: String,
 }
 
 struct PendingPatchApproval {
@@ -390,6 +400,9 @@ pub struct TuiMode {
     active_edit_loop: Option<EditLoop>,
     current_turn_input: String,
     current_turn_response: String,
+    current_turn_stream_segments: Vec<StreamedResponseSegment>,
+    active_stream_segment_index: Option<usize>,
+    structured_streaming_active: bool,
     current_turn_changed_files: std::collections::BTreeSet<String>,
     current_turn_command_history: Vec<crate::runtime::CommandEvidence>,
     current_turn_tool_invocations: Vec<ToolInvocationSummary>,

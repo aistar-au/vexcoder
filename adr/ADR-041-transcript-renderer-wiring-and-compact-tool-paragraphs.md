@@ -128,3 +128,142 @@ uniform prefix and width-safe truncation for all block kinds.
 to the existing `append_incremental_suffix()`. It compares only the
 prefix window up to `existing.len()` bytes rather than scanning the
 full accumulated content on every chunk.
+
+---
+
+## Amendment — 2026-05-01: Pending-row replacement, live input preview, and ordered streamed text
+
+### D8: Pending transcript row replacement on block completion
+
+`PendingTurnToolCall` gains two fields — `transcript_row_start: usize`
+and `transcript_row_count: usize` — that record the half-open range
+`[start, start + count)` of rows the pending handler wrote into
+`history_state.lines` at `StreamBlockStart(ToolCall)`.
+
+When `StreamBlockStart(ToolResult)` arrives for that call, the handler
+drains those exact rows from the lines buffer before writing the
+completed-paragraph rows. A follow-up loop adjusts `transcript_row_start`
+for any other in-flight pending calls whose rows sit after the drained
+range, keeping multi-call concurrent state consistent.
+
+This eliminates the stale "triple Input" display regression where
+pending rows and completed rows both appeared for the same tool call,
+multiplied across concurrent same-name invocations.
+
+**Contract invariant:** the drain happens strictly before
+`completed_tool_paragraph_rows()` is called, so completed rows always
+land cleanly at the end of the buffer with no interleaved stale rows.
+
+### D9: Live input preview via bounded-suffix JSON parsing
+
+`StreamBlockDelta(ToolCall)` now updates the `[detail] Input:` row in
+`history_state.lines` in-place on every chunk using the
+`input_preview` string already maintained on `PendingTurnToolCall`.
+
+The row to update is identified as `history_state.lines[transcript_row_start
++ transcript_row_count - 1]`, guarded by a `starts_with("[detail] Input:")`
+check before overwriting.  This gives operators live feedback on
+partial JSON argument construction during long tool-call generations
+without emitting extra rows.
+
+### D10: Flush completed streamed text segments at non-text boundaries
+
+When structured block streaming is active, sanitized `StreamDelta`
+chunks remain the only visible assistant-text source, but they are no
+longer rendered as one monolithic trailing `current_turn_response`
+blob. `push_history_line()` materializes the current streamed text
+segment into `history_state.lines` before any non-text transcript row
+is appended, and `commit_completed_turn()` drains any final in-flight
+segment before turn persistence.
+
+`transcript_display_rows()` therefore appends only the currently active
+segment as the live cursor row. This preserves transcript order around
+tool-call paragraphs and other structured boundaries without
+introducing a second renderer for assistant text.
+
+### D11: Reuse bounded suffix extraction in conversation streaming
+
+`src/state/conversation/streaming.rs` now routes
+`append_incremental_suffix()` through
+`crate::state::transcript_delta::bounded_incremental_suffix()`.
+
+This keeps cumulative backend text updates on the same bounded
+O(new_text) suffix path used by the structured transcript delta
+accumulators, avoiding repeated scans across the full accumulated
+buffer on every chunk.
+
+---
+
+## Amendment — 2026-05-02: Delta-native path activation and accumulator drain
+
+### D12: Accumulator drain at block completion, tests, and bounded-suffix cleanup
+
+`StreamBlockComplete` now calls `flush_pending()` on the associated
+`DeltaAccumulator` before removing it. This drains any pending deltas
+that were not yet consumed by the renderer, ensuring the accumulator
+is cleanly emptied rather than silently dropped. The drained content
+is discarded since the parallel rendering paths (D9 live input preview
+for ToolCall, D10 streamed text segments for FinalText/Thinking) have
+already materialised the same content into `history_state`.
+
+`format_compact_paragraph()`, `apply_transcript_delta()`, and
+`consume_transcript_deltas()` are covered by unit tests in
+`src/ui/draw/tests.rs`, confirming that:
+- ToolCall deltas produce `▶`-prefixed rows when consumed via the delta path.
+- ToolResult deltas produce `↳`-prefixed rows.
+- Empty incomplete deltas produce no output rows.
+- FinalText/Thinking deltas forward content without directional prefixes.
+
+`set_block_kind()`, `content()`, `flush_pending()`, and
+`bounded_incremental_suffix()` are covered by inline tests in
+`src/state/transcript_delta.rs`. `bounded_incremental_suffix` has its
+`#[allow(unused)]` annotation removed because it already routes through
+production code in `src/state/conversation/streaming.rs`.
+
+The remaining `#[allow(unused)]` annotations on
+`TranscriptDelta`, `flush_pending`, `content`, `set_block_kind`,
+`format_compact_paragraph`, `apply_transcript_delta`, and
+`consume_transcript_deltas` are retained because Rust's reachability analysis for the library
+target does not count `#[cfg(test)]` usage as live, and the full production renderer switchover (connecting
+`task_layout_state()` → `stream_deltas` → `consume_transcript_deltas`)
+is deferred to a follow-on PR.
+
+---
+
+## Amendment — 2026-04-03: Chunk-safe tagged-markup buffering and wrapper stripping
+
+### D13: Buffer chunk-split tool markup at the transcript boundary
+
+`StreamTextNormaliser` now treats the incoming SSE text stream as an
+incremental byte sequence rather than a newline-only parser surface.
+Partial `<tool_call>`, `<function=...>`, and `<parameter=...>` control
+fragments stay in the internal `pending` buffer until they become
+complete enough to classify as transcript control or plain assistant
+text.
+
+Complete wrapper markers (`<tool_call>`, `</tool_call>`) are
+suppressed, complete function and parameter tags can be consumed even
+when they arrive as standalone deltas without trailing newlines, and a
+new function opener encountered mid-parameter auto-closes the previous
+tool block before entering the new one.
+
+This keeps the transcript-first live path aligned with the backend's
+JSON delta stream instead of leaking raw line fragments into the
+operator surface when the model server splits tool markup across
+arbitrary chunk boundaries.
+
+### D14: Strip wrapper-only remnants from the assistant text fallback
+
+`sanitize_assistant_text()` now removes `<tool_call>` wrappers and
+their incomplete suffixes in addition to the existing
+`<function=...>`/`<parameter=...>` cleanup. The fallback assistant
+history therefore preserves the tagged tool-call protocol where
+required for the next round, while dropping wrapper-only transport
+noise from the visible transcript and persisted assistant text.
+
+Focused regression coverage now includes:
+- chunk-split `<tool_call>` + `<function=...>` streams at the
+  normaliser boundary
+- wrapper stripping in the assistant-text sanitiser
+- wrapper-tagged text-protocol tool rounds that still execute and
+  append `tool_result` context for the next turn

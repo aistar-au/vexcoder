@@ -54,7 +54,12 @@ the scrolling transcript pane. The local API handoff in
 `src/runtime/json_handoff.rs` and `src/local_api.rs` preserves those transcript
 rows plus transcript block start/delta/complete updates as canonical
 `RuntimeEnvelope` JSON events, so downstream clients can stay transcript-first
-over SSE without reparsing a flattened assistant text stream.
+over SSE without reparsing a flattened assistant text stream. The
+normaliser buffers chunk-split `<tool_call>`, `<function=...>`, and
+`<parameter=...>` fragments until they are complete enough to classify,
+so transcript-first consumers follow the backend's JSON delta stream
+without showing raw wrapper or partial tag text when the server breaks
+markup across arbitrary chunk boundaries.
 
 The live parser path for interactive turns remains the shared stream parser,
 the tool-call parser selected by the conversation loop, and the

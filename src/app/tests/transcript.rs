@@ -35,6 +35,19 @@ fn test_stream_delta_hides_incomplete_tool_tag_suffix() {
 
     assert_eq!(mode.history_state.lines[1], "Checking\n");
 }
+
+#[test]
+fn test_stream_delta_hides_tool_call_wrapper_and_incomplete_suffix() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("status".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamDelta("Checking\n<tool_call".to_string()),
+        &mut ctx,
+    );
+
+    assert_eq!(mode.history_state.lines[1], "Checking\n");
+}
 #[test]
 fn test_transcript_does_not_exceed_cap_after_n_turns() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();

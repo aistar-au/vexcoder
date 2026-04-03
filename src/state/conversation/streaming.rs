@@ -219,33 +219,9 @@ pub(super) fn structured_blocks_enabled() -> bool {
 }
 
 pub(super) fn append_incremental_suffix(existing: &mut String, incoming: &str) -> String {
-    if incoming.is_empty() {
-        return String::new();
-    }
-
-    // If the incoming string starts with the existing content, it's a cumulative update.
-    // We extract the new part and append it.
-    if incoming.starts_with(existing.as_str()) {
-        let suffix = &incoming[existing.len()..];
-        if suffix.is_empty() {
-            return String::new();
-        }
-        let suffix_owned = suffix.to_string();
-        existing.push_str(&suffix_owned);
-        return suffix_owned;
-    }
-
-    // If the existing content already starts with the incoming string, it's a redundant
-    // prefix or a re-transmission of an earlier part of the stream.
-    if existing.starts_with(incoming) {
-        return String::new();
-    }
-
-    // In all other cases, we treat the incoming string as a new delta.
-    // We specifically avoid searching for partial overlaps between the end of 'existing'
-    // and the start of 'incoming' to prevent data loss when the assistant repeats text.
-    existing.push_str(incoming);
-    incoming.to_string()
+    let suffix = crate::state::transcript_delta::bounded_incremental_suffix(existing, incoming);
+    existing.push_str(&suffix);
+    suffix
 }
 
 pub(super) fn stream_local_tool_events_enabled() -> bool {

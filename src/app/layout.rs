@@ -279,9 +279,19 @@ impl TuiMode {
     }
 
     fn transcript_display_rows(&self) -> Vec<String> {
+        let use_stream_segments =
+            self.history_state.turn_in_progress && self.structured_streaming_active;
         let assistant_index = self.history_state.active_assistant_index;
         let skip_assistant_line =
-            if self.history_state.turn_in_progress && !self.history_state.cancel_pending {
+            if use_stream_segments && !self.current_turn_stream_segments.is_empty() {
+                assistant_index.filter(|idx| {
+                    self.history_state
+                        .lines
+                        .get(*idx)
+                        .map(|line| line.is_empty() || is_waiting_placeholder(line))
+                        .unwrap_or(false)
+                })
+            } else if self.history_state.turn_in_progress && !self.history_state.cancel_pending {
                 if self.current_turn_response.is_empty() {
                     assistant_index.filter(|idx| {
                         let current_line = self
@@ -305,11 +315,21 @@ impl TuiMode {
                 None
             };
 
-        let mut rows = Vec::new();
+        let mut rows: Vec<String> = Vec::new();
         extend_visual_rows(&mut rows, &self.history_state.lines, skip_assistant_line);
 
         if self.history_state.turn_in_progress && !self.history_state.cancel_pending {
-            if self.current_turn_response.is_empty() {
+            if use_stream_segments && !self.current_turn_stream_segments.is_empty() {
+                let active_text = &self.current_turn_stream_segments[0].text;
+                let active_rows: Vec<String> = active_text
+                    .lines()
+                    .map(ToOwned::to_owned)
+                    .collect::<Vec<_>>();
+                rows.extend(active_rows);
+                if let Some(last) = rows.last_mut() {
+                    last.push('▌');
+                }
+            } else if self.current_turn_response.is_empty() {
                 // No content yet — show the waiting status with elapsed time
                 // and prompt-eval progress counters.
                 let elapsed = self

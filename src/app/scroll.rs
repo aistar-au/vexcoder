@@ -33,6 +33,9 @@ impl TuiMode {
     }
 
     pub(super) fn push_history_line(&mut self, line: String) {
+        if self.structured_streaming_active && self.history_state.turn_in_progress {
+            self.materialize_current_turn_stream_segments();
+        }
         self.history_state.lines.push(line);
         self.enforce_history_cap();
         if self.history_state.auto_follow {
