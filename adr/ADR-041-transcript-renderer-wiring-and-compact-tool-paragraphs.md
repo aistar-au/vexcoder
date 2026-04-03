@@ -95,3 +95,36 @@ demand.
 - The arrow symbols (`↑`/`↓`) may be unfamiliar to new users.
   Mitigated: the colon-separated `label:value` format is preserved,
   and the symbols are self-documenting as directional indicators.
+
+---
+
+## Amendment — 2026-04-03: Delta-native rendering foundation
+
+### D5: Structured transcript delta types
+
+`TranscriptDelta` and `TranscriptBlockKind` types are added in
+`src/state/transcript_delta.rs` alongside a `DeltaAccumulator` that
+uses bounded suffix comparison — O(new_text) instead of
+O(total_content) — to deduplicate cumulative streaming updates.
+
+Accumulators are keyed by block index in TuiMode and are created on
+`StreamBlockStart`, fed on `StreamBlockDelta`, and completed/removed
+on `StreamBlockComplete`. This runs in parallel with the existing
+prefix-marker line path so that both rendering strategies coexist.
+
+### D6: Delta-native draw methods
+
+`TaskDraw::apply_transcript_delta()` and
+`TaskDraw::consume_transcript_deltas()` provide a direct path from
+structured deltas to the output row buffer, bypassing the
+`[tool]`/`[detail]`/`[evidence]` prefix-marker chain.
+
+`format_compact_paragraph()` in `transcript_helpers.rs` applies
+uniform prefix and width-safe truncation for all block kinds.
+
+### D7: Bounded suffix deduplication
+
+`bounded_incremental_suffix()` is a performance-optimised alternative
+to the existing `append_incremental_suffix()`. It compares only the
+prefix window up to `existing.len()` bytes rather than scanning the
+full accumulated content on every chunk.

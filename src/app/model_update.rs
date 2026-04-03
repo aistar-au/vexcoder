@@ -101,6 +101,18 @@ impl TuiMode {
                         }
                     }
                 }
+                // Create a delta accumulator for the new block.
+                {
+                    use crate::state::{DeltaAccumulator, TranscriptBlockKind};
+                    let kind = match &block {
+                        StreamBlock::Thinking { .. } => TranscriptBlockKind::Thinking,
+                        StreamBlock::ToolCall { .. } => TranscriptBlockKind::ToolCall,
+                        StreamBlock::ToolResult { .. } => TranscriptBlockKind::ToolResult,
+                        StreamBlock::FinalText { .. } => TranscriptBlockKind::FinalText,
+                    };
+                    self.delta_accumulators
+                        .insert(index, DeltaAccumulator::new(kind));
+                }
                 match &block {
                     StreamBlock::ToolCall {
                         id, name, input, ..
@@ -271,6 +283,10 @@ impl TuiMode {
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
                 }
+                // Feed the delta accumulator for bounded-suffix extraction.
+                if let Some(acc) = self.delta_accumulators.get_mut(&index) {
+                    acc.append_delta(&delta);
+                }
                 if let Some(block) = self.active_stream_blocks.get_mut(&index) {
                     match block {
                         StreamBlock::Thinking { content, .. } => content.push_str(&delta),
@@ -311,6 +327,11 @@ impl TuiMode {
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
                 }
+                // Complete and flush the delta accumulator.
+                if let Some(acc) = self.delta_accumulators.get_mut(&index) {
+                    acc.complete();
+                }
+                self.delta_accumulators.remove(&index);
                 self.tool_input_raw_buffers.remove(&index);
                 self.active_stream_blocks.remove(&index);
             }

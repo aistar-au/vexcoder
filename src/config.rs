@@ -349,6 +349,11 @@ impl Config {
         load::load()
     }
 
+    /// Load config using an explicit workspace cwd instead of the process cwd.
+    pub(crate) fn load_from_cwd(cwd: &Path) -> Result<Self> {
+        load::load_from_cwd(cwd)
+    }
+
     /// Load config with process-level caching (ADR-038).
     ///
     /// First call runs the full five-layer resolution chain.

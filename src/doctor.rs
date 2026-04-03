@@ -57,7 +57,7 @@ impl DoctorReport {
 
 pub async fn run_doctor(cwd: &Path) -> DoctorReport {
     let mut checks = Vec::new();
-    let config_result = Config::load();
+    let config_result = Config::load_from_cwd(cwd);
     let snapshot_result = doctor_snapshot(cwd);
 
     let snapshot = snapshot_result
@@ -308,10 +308,41 @@ mod tests {
     use crate::test_support::ENV_LOCK;
     use std::fs;
 
+    struct EnvRestore {
+        key: &'static str,
+        value: Option<String>,
+    }
+
+    impl EnvRestore {
+        fn capture(key: &'static str) -> Self {
+            Self {
+                key,
+                value: std::env::var(key).ok(),
+            }
+        }
+    }
+
+    impl Drop for EnvRestore {
+        fn drop(&mut self) {
+            match &self.value {
+                Some(value) => std::env::set_var(self.key, value),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
+
     #[tokio::test]
     async fn test_vex_doctor_fails_on_missing_model_url() {
         let _env_lock = ENV_LOCK.lock().await;
         let workspace = tempfile::tempdir().expect("tempdir");
+        let _home = EnvRestore::capture("HOME");
+        let _xdg = EnvRestore::capture("XDG_CONFIG_HOME");
+        let home = workspace.path().join("home");
+        let xdg = workspace.path().join("xdg");
+        fs::create_dir_all(&home).expect("home dir");
+        fs::create_dir_all(&xdg).expect("xdg dir");
+        std::env::set_var("HOME", &home);
+        std::env::set_var("XDG_CONFIG_HOME", &xdg);
         std::env::remove_var("VEX_MODEL_URL");
         std::env::remove_var("VEX_MODEL_TOKEN");
         std::env::remove_var("VEX_WORKDIR");
@@ -329,6 +360,14 @@ mod tests {
     async fn test_vex_doctor_json_output_structure() {
         let _env_lock = ENV_LOCK.lock().await;
         let workspace = tempfile::tempdir().expect("tempdir");
+        let _home = EnvRestore::capture("HOME");
+        let _xdg = EnvRestore::capture("XDG_CONFIG_HOME");
+        let home = workspace.path().join("home");
+        let xdg = workspace.path().join("xdg");
+        fs::create_dir_all(&home).expect("home dir");
+        fs::create_dir_all(&xdg).expect("xdg dir");
+        std::env::set_var("HOME", &home);
+        std::env::set_var("XDG_CONFIG_HOME", &xdg);
         std::env::set_var("VEX_MODEL_URL", "http://127.0.0.1:9/v1");
 
         let report = run_doctor(workspace.path()).await;
@@ -346,6 +385,14 @@ mod tests {
     async fn test_vex_doctor_sandbox_probe_warns_on_fallback() {
         let _env_lock = ENV_LOCK.lock().await;
         let workspace = tempfile::tempdir().expect("tempdir");
+        let _home = EnvRestore::capture("HOME");
+        let _xdg = EnvRestore::capture("XDG_CONFIG_HOME");
+        let home = workspace.path().join("home");
+        let xdg = workspace.path().join("xdg");
+        fs::create_dir_all(&home).expect("home dir");
+        fs::create_dir_all(&xdg).expect("xdg dir");
+        std::env::set_var("HOME", &home);
+        std::env::set_var("XDG_CONFIG_HOME", &xdg);
         fs::create_dir_all(workspace.path().join(".vex")).expect("config dir");
         fs::write(
             workspace.path().join(".vex/config.toml"),
