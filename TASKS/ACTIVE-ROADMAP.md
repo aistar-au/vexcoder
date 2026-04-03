@@ -248,7 +248,13 @@ Candidate implementation areas:
 
 ---
 
-## Active Feature Branches (not yet merged)
+## Active Feature Branches
+
+### Open / In-Progress
+
+_No open feature branches at this time._
+
+### Recently Merged / Closed
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
@@ -267,8 +273,7 @@ Candidate implementation areas:
 | ADR-041-D8D13 | `work/vexcoder-delta-consume-switchover` | #332 | **Merged** | Pending-row replacement, live input preview, ordered streamed-text segmentation, bounded-suffix streaming reuse, delta accumulator drain activation, and chunk-safe wrapper-tag normalisation for the transcript-first path post PR #331 |
 | ADR-041-D15 | `work/vexcoder-tui-transcript-render-fixes` | #333 | **Merged** | Word-wrap plain-text transcript rows to terminal width; `expand_rows_for_display`, `transcript_window_rows` viewport primitive (ADR-041 D15) |
 
-These branches are pushed to remote with draft PRs. Each contains a task
-manifest in `TASKS/` defining scope, constraints, and anchor tests.
+Each branch had a task manifest in `TASKS/` defining scope, constraints, and anchor tests.
 
 ---
 
