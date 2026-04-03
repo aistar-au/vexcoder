@@ -128,6 +128,10 @@ struct PendingTurnToolCall {
     name: String,
     input_preview: String,
     input: serde_json::Value,
+    /// First index in `history_state.lines` for this call's pending rows.
+    transcript_row_start: usize,
+    /// Number of pending rows emitted at block start (may be 0 if suppressed).
+    transcript_row_count: usize,
 }
 
 struct PendingPatchApproval {

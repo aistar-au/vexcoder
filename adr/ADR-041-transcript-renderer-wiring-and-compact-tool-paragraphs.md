@@ -128,3 +128,40 @@ uniform prefix and width-safe truncation for all block kinds.
 to the existing `append_incremental_suffix()`. It compares only the
 prefix window up to `existing.len()` bytes rather than scanning the
 full accumulated content on every chunk.
+
+---
+
+## Amendment — 2026-05-01: Pending-row replacement and live input preview
+
+### D8: Pending transcript row replacement on block completion
+
+`PendingTurnToolCall` gains two fields — `transcript_row_start: usize`
+and `transcript_row_count: usize` — that record the half-open range
+`[start, start + count)` of rows the pending handler wrote into
+`history_state.lines` at `StreamBlockStart(ToolCall)`.
+
+When `StreamBlockStart(ToolResult)` arrives for that call, the handler
+drains those exact rows from the lines buffer before writing the
+completed-paragraph rows. A follow-up loop adjusts `transcript_row_start`
+for any other in-flight pending calls whose rows sit after the drained
+range, keeping multi-call concurrent state consistent.
+
+This eliminates the stale "triple Input" display regression where
+pending rows and completed rows both appeared for the same tool call,
+multiplied across concurrent same-name invocations.
+
+**Contract invariant:** the drain happens strictly before
+`completed_tool_paragraph_rows()` is called, so completed rows always
+land cleanly at the end of the buffer with no interleaved stale rows.
+
+### D9: Live input preview via bounded-suffix JSON parsing
+
+`StreamBlockDelta(ToolCall)` now updates the `[detail] Input:` row in
+`history_state.lines` in-place on every chunk using the
+`input_preview` string already maintained on `PendingTurnToolCall`.
+
+The row to update is identified as `history_state.lines[transcript_row_start
++ transcript_row_count - 1]`, guarded by a `starts_with("[detail] Input:")`
+check before overwriting.  This gives operators live feedback on
+partial JSON argument construction during long tool-call generations
+without emitting extra rows.

@@ -71,6 +71,8 @@ fn test_task_layout_state_transcript_streaming_with_pending_approval() {
             name: "read_file".to_string(),
             input_preview: "{\"path\":\"src/main.rs\"}".to_string(),
             input: serde_json::json!({"path":"src/main.rs"}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
     let (response_tx, _response_rx) = tokio::sync::oneshot::channel::<bool>();
@@ -107,6 +109,8 @@ fn test_task_layout_state_shows_approved_pending_tool_after_acceptance() {
             name: "read_file".to_string(),
             input_preview: "{\"path\":\"src/main.rs\"}".to_string(),
             input: serde_json::json!({"path":"src/main.rs"}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
 
@@ -341,6 +345,8 @@ fn test_task_layout_state_shows_pending_tool_call_in_timeline() {
             name: "validate".to_string(),
             input_preview: "{}".to_string(),
             input: serde_json::json!({}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
 
@@ -365,6 +371,8 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
             name: "validate".to_string(),
             input_preview: "{}".to_string(),
             input: serde_json::json!({}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
     mode.pending_turn_tool_calls.insert(
@@ -374,6 +382,8 @@ fn test_task_layout_state_sorts_pending_tool_calls_by_step_id() {
             name: "edit_file".to_string(),
             input_preview: "{}".to_string(),
             input: serde_json::json!({}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
 
@@ -412,6 +422,8 @@ fn test_task_layout_state_keeps_command_sessions_alongside_other_steps() {
             name: "run_command".to_string(),
             input_preview: "{}".to_string(),
             input: serde_json::json!({}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
     mode.command_sessions.push(CommandSessionState {
@@ -509,6 +521,8 @@ fn test_follow_mode_auto_advances_selected_step_when_new_entries_arrive() {
             name: "run_command".to_string(),
             input_preview: "{}".to_string(),
             input: serde_json::json!({}),
+            transcript_row_start: 0,
+            transcript_row_count: 0,
         },
     );
 

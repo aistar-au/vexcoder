@@ -129,6 +129,8 @@ impl TuiMode {
                                 crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
                             ),
                             input: input.clone(),
+                            transcript_row_start: 0,
+                            transcript_row_count: 0,
                         };
                         let previous_output_len = self.task_output_view().1.len();
                         let transcript_rows = super::layout::pending_tool_paragraph_rows(
@@ -136,26 +138,36 @@ impl TuiMode {
                             StepLifecycle::Running,
                         );
                         // Fold pending tool calls with the same name into
-                        // the existing paragraph — only show detail rows
-                        // (skip the [tool] header) to avoid per-file spam.
+                        // the existing paragraph — only suppress the header,
+                        // keep detail rows so the live input preview is visible
+                        // per-call. Row indices are tracked so stale rows can
+                        // be replaced when the block completes.
                         let is_pending_same_name = self
                             .last_pending_tool_name
                             .as_ref()
                             .map(|prev| prev == name)
                             .unwrap_or(false);
+                        let row_start = self.history_state.lines.len();
                         self.pending_turn_tool_calls.insert(id.clone(), pending);
                         self.tool_input_raw_buffers.insert(index, String::new());
                         if is_pending_same_name {
-                            // Suppress the [tool] header, only emit detail lines.
+                            // Suppress the [tool] header, emit detail rows only.
                             for row in transcript_rows.iter().skip(1) {
                                 self.push_history_line(row.clone());
                             }
                         } else {
-                            for row in transcript_rows {
-                                self.push_history_line(row);
+                            for row in &transcript_rows {
+                                self.push_history_line(row.clone());
                             }
                             // Track the name for subsequent pending calls.
                             self.last_pending_tool_name = Some(name.clone());
+                        }
+                        // Record how many rows were written for this pending call so
+                        // they can be replaced in-place when the block completes.
+                        let row_count = self.history_state.lines.len() - row_start;
+                        if let Some(p) = self.pending_turn_tool_calls.get_mut(id) {
+                            p.transcript_row_start = row_start;
+                            p.transcript_row_count = row_count;
                         }
                         self.preserve_transcript_scroll_on_growth(previous_output_len);
                         // Auto-advance timeline selection when follow mode is on.
@@ -186,6 +198,26 @@ impl TuiMode {
                                 command_evidence_from_tool_result(&pending.name, *is_error)
                             {
                                 self.current_turn_command_history.push(evidence);
+                            }
+                            // Replace stale pending transcript rows with the
+                            // completed paragraph.  Pending rows are written
+                            // at BlockStart with initial (possibly empty) input
+                            // and must not remain alongside the completed rows.
+                            if pending.transcript_row_count > 0 {
+                                let start = pending.transcript_row_start;
+                                let end = start + pending.transcript_row_count;
+                                if end <= self.history_state.lines.len() {
+                                    self.history_state.lines.drain(start..end);
+                                    // Shift stored row indices for all remaining
+                                    // pending calls whose rows follow the removed
+                                    // block so their indices stay accurate.
+                                    for other in self.pending_turn_tool_calls.values_mut() {
+                                        if other.transcript_row_start >= end {
+                                            other.transcript_row_start -=
+                                                pending.transcript_row_count;
+                                        }
+                                    }
+                                }
                             }
                             let previous_output_len = self.task_output_view().1.len();
                             let transcript_rows = super::layout::completed_tool_paragraph_rows(
@@ -315,6 +347,22 @@ impl TuiMode {
                                                 &pending.name,
                                                 buf,
                                             );
+                                    }
+                                    // Live-update the Input detail row in the transcript
+                                    // so streaming JSON input is visible as it arrives.
+                                    // The row is always the last of the pending rows.
+                                    let preview = pending.input_preview.clone();
+                                    if pending.transcript_row_count > 0 {
+                                        let row_idx = pending.transcript_row_start
+                                            + pending.transcript_row_count
+                                            - 1;
+                                        if let Some(line) =
+                                            self.history_state.lines.get_mut(row_idx)
+                                        {
+                                            if line.starts_with("[detail] Input:") {
+                                                *line = format!("[detail] Input: {preview}");
+                                            }
+                                        }
                                     }
                                 }
                             }
