@@ -2169,3 +2169,128 @@ fn consume_transcript_deltas_returns_false_for_empty_input() {
     assert!(!changed, "consuming an empty delta slice must return false");
     assert!(rows.is_empty(), "empty delta slice must not add any rows");
 }
+
+// ── Word-wrap helpers ───────────────────────────────────────────────
+
+#[test]
+fn word_wrap_plain_row_passthrough_for_short_line() {
+    let short = "Hello, world!";
+    let result = transcript_helpers::word_wrap_plain_row(short, 80);
+    assert_eq!(result, vec![short.to_string()]);
+}
+
+#[test]
+fn word_wrap_plain_row_passthrough_for_empty() {
+    let result = transcript_helpers::word_wrap_plain_row("", 80);
+    assert_eq!(result, vec![String::new()]);
+}
+
+#[test]
+fn word_wrap_plain_row_skips_bracket_marker() {
+    let marker =
+        "[tool:run_shell_command] some long argument text that exceeds eighty columns here";
+    let result = transcript_helpers::word_wrap_plain_row(marker, 20);
+    // Structural markers pass through unchanged.
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0], marker);
+}
+
+#[test]
+fn word_wrap_plain_row_skips_disclosure_indent() {
+    let line = "    this is an indented disclosure line with extra text padding it out";
+    let result = transcript_helpers::word_wrap_plain_row(line, 20);
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0], line);
+}
+
+#[test]
+fn word_wrap_plain_row_wraps_long_prose() {
+    // 5 words of 6 chars each = 5*6 + 4 spaces = 34 chars; wrap at 20 cols.
+    let line = "alphaa betaaa gammaa deltaa epsiln";
+    let result = transcript_helpers::word_wrap_plain_row(line, 20);
+    // Must produce more than one row.
+    assert!(
+        result.len() > 1,
+        "long prose must be word-wrapped: {result:?}"
+    );
+    // Every row must fit within 20 display columns (ASCII so .len() == width).
+    for row in &result {
+        assert!(row.len() <= 20, "wrapped row exceeds cols: {row:?}");
+    }
+    // Rejoined text must equal original words in order.
+    let rejoined = result.join(" ");
+    assert_eq!(rejoined, line);
+}
+
+#[test]
+fn word_wrap_to_cols_splits_at_boundary() {
+    let text = "one two three four five";
+    let rows = transcript_helpers::word_wrap_to_cols(text, 10);
+    for row in &rows {
+        assert!(row.len() <= 10, "row exceeds width: {row:?}");
+    }
+    let reconstructed = rows.join(" ");
+    assert_eq!(reconstructed, text);
+}
+
+#[test]
+fn word_wrap_to_cols_handles_single_long_word() {
+    // A single word wider than cols should be hard-truncated to exactly cols.
+    let long_word = "abcdefghijklmnopqrstuvwxyz";
+    let rows = transcript_helpers::word_wrap_to_cols(long_word, 8);
+    assert_eq!(rows.len(), 1);
+    assert!(rows[0].len() <= 8, "long word must be truncated to cols");
+}
+
+#[test]
+fn expand_rows_for_display_wraps_long_plain_rows() {
+    // Create a row that is 5 words of 10 chars each ~ 54 cols, wrapped at 20.
+    let long_plain = "wordone123 wordtwo456 wrdthree7 wrd4four56 wordFive0";
+    let rows = vec![long_plain.to_string()];
+    let expanded = expand_rows_for_display(&rows, 20);
+    assert!(
+        expanded.len() > 1,
+        "a long plain row must expand to multiple display rows: {expanded:?}"
+    );
+    for row in &expanded {
+        assert!(row.len() <= 20, "expanded row exceeds cols: {row:?}");
+    }
+}
+
+#[test]
+fn expand_rows_for_display_leaves_structural_rows_intact() {
+    let rows = vec![
+        "[tool:thinking]".to_string(),
+        "    disclosure detail".to_string(),
+        "normal short line".to_string(),
+    ];
+    // Use 80 cols so the plain "normal short line" row fits and is not wrapped.
+    let expanded = expand_rows_for_display(&rows, 80);
+    assert_eq!(&expanded[0], "[tool:thinking]");
+    assert_eq!(&expanded[1], "    disclosure detail");
+    assert!(expanded.contains(&"normal short line".to_string()));
+}
+
+#[test]
+fn transcript_window_rows_bottom_anchor_scrolled() {
+    // 30 display rows, viewport 10, scroll up by 5 → show rows 15..25.
+    let (start, end) = transcript_window_rows(30, OutputScrollAnchor::Bottom, 5, 10);
+    assert_eq!(start, 15);
+    assert_eq!(end, 25);
+}
+
+#[test]
+fn transcript_window_rows_bottom_anchor_at_tail() {
+    // 15 rows, viewport 10, no scroll → show rows 5..15.
+    let (start, end) = transcript_window_rows(15, OutputScrollAnchor::Bottom, 0, 10);
+    assert_eq!(start, 5);
+    assert_eq!(end, 15);
+}
+
+#[test]
+fn transcript_window_rows_top_anchor_clamps_to_six() {
+    // Inspector mode: total 20, viewport 12, Top anchor → clamp to 6 rows.
+    let (start, end) = transcript_window_rows(20, OutputScrollAnchor::Top, 0, 12);
+    assert_eq!(start, 0);
+    assert_eq!(end, 6);
+}
