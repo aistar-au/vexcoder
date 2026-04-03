@@ -48,6 +48,14 @@ fn test_pi_11_schema_assets_parse_as_json() {
         "https://vexcoder.io/schemas/runtime_request_v1.json"
     );
     assert_eq!(envelope_schema["properties"]["version"]["const"], 1);
+    assert_eq!(
+        envelope_schema["$defs"]["transcript_line"]["properties"]["type"]["const"],
+        "transcript_line"
+    );
+    assert_eq!(
+        envelope_schema["$defs"]["transcript_block_start"]["properties"]["type"]["const"],
+        "transcript_block_start"
+    );
     assert_eq!(request_schema["$defs"]["scope"]["enum"][0], "once");
     assert_eq!(request_schema["$defs"]["scope"]["enum"][1], "session");
 }
@@ -140,6 +148,80 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
     assert!(matches!(
         delta.event,
         RuntimeEvent::AssistantDelta { ref text } if text == "hello"
+    ));
+
+    let transcript_line = normalizer
+        .normalize_ui_update(
+            &UiUpdate::TranscriptLine("[edit loop: running validation]".to_string()),
+            None,
+        )
+        .pop()
+        .expect("transcript line envelope");
+    assert!(matches!(
+        transcript_line.event,
+        RuntimeEvent::TranscriptLine { ref line }
+            if line == "[edit loop: running validation]"
+    ));
+
+    let transcript_block_start = normalizer.normalize_ui_update(
+        &UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "provider-call-1".to_string(),
+                name: "read_file".to_string(),
+                input: json!({"path":"src/lib.rs"}),
+                status: crate::state::ToolStatus::Pending,
+            },
+        },
+        None,
+    );
+    assert_eq!(transcript_block_start.len(), 2);
+    assert!(matches!(
+        transcript_block_start[0].event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                ref name,
+                ref input,
+                status: crate::state::ToolStatus::Pending,
+                ..
+            }
+        } if name == "read_file" && input["path"] == "src/lib.rs"
+    ));
+    assert!(matches!(
+        transcript_block_start[1].event,
+        RuntimeEvent::ToolCall {
+            ref name,
+            ref arguments,
+            ..
+        } if name == "read_file" && arguments["path"] == "src/lib.rs"
+    ));
+
+    let transcript_block_delta = normalizer
+        .normalize_ui_update(
+            &UiUpdate::StreamBlockDelta {
+                index: 0,
+                delta: "{\"path\":\"src/lib.rs\"}".to_string(),
+            },
+            None,
+        )
+        .pop()
+        .expect("transcript block delta envelope");
+    assert!(matches!(
+        transcript_block_delta.event,
+        RuntimeEvent::TranscriptBlockDelta {
+            index: 0,
+            ref delta,
+        } if delta == "{\"path\":\"src/lib.rs\"}"
+    ));
+
+    let transcript_block_complete = normalizer
+        .normalize_ui_update(&UiUpdate::StreamBlockComplete { index: 0 }, None)
+        .pop()
+        .expect("transcript block complete envelope");
+    assert!(matches!(
+        transcript_block_complete.event,
+        RuntimeEvent::TranscriptBlockComplete { index: 0 }
     ));
 
     let (response_tx, _response_rx) = oneshot::channel();

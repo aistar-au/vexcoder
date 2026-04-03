@@ -48,9 +48,13 @@ dropping them during protocol conversion.
 A `StreamTextNormaliser` layer at the `forward_conversation_update` boundary
 intercepts embedded tool call markup (XML-like tags from local inference
 servers) and converts them into structured `[tool]`/`[detail]` transcript
-lines before they reach the TUI.  This prevents raw SSE event data from
-leaking to the display and ensures all tool invocations render as paragraph
-blocks in the scrolling transcript pane.
+lines before they reach the TUI. This prevents raw SSE event data from leaking
+to the display and ensures all tool invocations render as paragraph blocks in
+the scrolling transcript pane. The local API handoff in
+`src/runtime/json_handoff.rs` and `src/local_api.rs` preserves those transcript
+rows plus transcript block start/delta/complete updates as canonical
+`RuntimeEnvelope` JSON events, so downstream clients can stay transcript-first
+over SSE without reparsing a flattened assistant text stream.
 
 The live parser path for interactive turns remains the shared stream parser,
 the tool-call parser selected by the conversation loop, and the

@@ -249,6 +249,9 @@ Normative SSE rules:
 - one `RuntimeEnvelope` object is emitted per SSE `data:` payload;
 - no custom SSE event-name taxonomy such as `chunk`, `done`, or `error` is introduced;
 - turn completion is indicated by ADR-025 `turn_end`, not by a transport-specific event name.
+- transcript-first clients consume `transcript_line`, `transcript_block_start`,
+  `transcript_block_delta`, and `transcript_block_complete` envelopes directly
+  instead of reconstructing transcript state from `assistant_delta` text alone.
 
 **Keepalive rule:** the server must emit an SSE comment line (`: keepalive`) at least once every 15 seconds during an active turn with no outbound envelopes, to prevent proxy and browser timeout disconnects. SSE comment lines are valid per the SSE spec and are ignored by compliant clients.
 

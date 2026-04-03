@@ -6,18 +6,40 @@ fn test_conversation_module_structure() {
     let _ = std::any::TypeId::of::<ConversationStreamUpdate>();
     let _ = std::any::TypeId::of::<ToolApprovalRequest>();
 
-    assert!(Path::new("src/state/conversation/state.rs").exists());
-    assert!(Path::new("src/state/conversation/core.rs").exists());
-    assert!(Path::new("src/state/conversation/send_message.rs").exists());
-    assert!(Path::new("src/state/conversation/tools").is_dir());
-    assert!(Path::new("src/state/conversation/tools/mod.rs").exists());
-    assert!(Path::new("src/state/conversation/tools/config.rs").exists());
-    assert!(Path::new("src/state/conversation/tools/dispatch.rs").exists());
-    assert!(Path::new("src/state/conversation/tools/formatting.rs").exists());
-    assert!(Path::new("src/state/conversation/tools/index.rs").exists());
-    assert!(Path::new("src/state/conversation/tools/validation.rs").exists());
-    assert!(Path::new("src/state/conversation/streaming.rs").exists());
-    assert!(Path::new("src/state/conversation/history.rs").exists());
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+
+    assert!(manifest_dir
+        .join("src/state/conversation/state.rs")
+        .exists());
+    assert!(manifest_dir.join("src/state/conversation/core.rs").exists());
+    assert!(manifest_dir
+        .join("src/state/conversation/send_message.rs")
+        .exists());
+    assert!(manifest_dir.join("src/state/conversation/tools").is_dir());
+    assert!(manifest_dir
+        .join("src/state/conversation/tools/mod.rs")
+        .exists());
+    assert!(manifest_dir
+        .join("src/state/conversation/tools/config.rs")
+        .exists());
+    assert!(manifest_dir
+        .join("src/state/conversation/tools/dispatch.rs")
+        .exists());
+    assert!(manifest_dir
+        .join("src/state/conversation/tools/formatting.rs")
+        .exists());
+    assert!(manifest_dir
+        .join("src/state/conversation/tools/index.rs")
+        .exists());
+    assert!(manifest_dir
+        .join("src/state/conversation/tools/validation.rs")
+        .exists());
+    assert!(manifest_dir
+        .join("src/state/conversation/streaming.rs")
+        .exists());
+    assert!(manifest_dir
+        .join("src/state/conversation/history.rs")
+        .exists());
 }
 
 pub(super) fn tagged_read_file_round(message_id: &str) -> Vec<String> {

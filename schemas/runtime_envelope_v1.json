@@ -21,6 +21,10 @@
       "type": "string",
       "enum": ["once", "session"]
     },
+    "tool_status": {
+      "type": "string",
+      "enum": ["pending", "waiting_approval", "executing", "complete", "error", "cancelled"]
+    },
     "token_usage": {
       "type": "object",
       "additionalProperties": false,
@@ -42,11 +46,65 @@
         "stderr_tail": { "type": "string" }
       }
     },
+    "stream_block": {
+      "oneOf": [
+        { "$ref": "#/$defs/stream_block_thinking" },
+        { "$ref": "#/$defs/stream_block_tool_call" },
+        { "$ref": "#/$defs/stream_block_tool_result" },
+        { "$ref": "#/$defs/stream_block_final_text" }
+      ]
+    },
+    "stream_block_thinking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "content", "collapsed"],
+      "properties": {
+        "type": { "const": "thinking" },
+        "content": { "type": "string" },
+        "collapsed": { "type": "boolean" }
+      }
+    },
+    "stream_block_tool_call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "name", "input", "status"],
+      "properties": {
+        "type": { "const": "tool_call" },
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "input": { "type": "object" },
+        "status": { "$ref": "#/$defs/tool_status" }
+      }
+    },
+    "stream_block_tool_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "tool_call_id", "output", "is_error"],
+      "properties": {
+        "type": { "const": "tool_result" },
+        "tool_call_id": { "type": "string", "minLength": 1 },
+        "output": { "type": "string" },
+        "is_error": { "type": "boolean" }
+      }
+    },
+    "stream_block_final_text": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "content"],
+      "properties": {
+        "type": { "const": "final_text" },
+        "content": { "type": "string" }
+      }
+    },
     "runtime_event": {
       "oneOf": [
         { "$ref": "#/$defs/turn_start" },
         { "$ref": "#/$defs/assistant_delta" },
         { "$ref": "#/$defs/assistant_message" },
+        { "$ref": "#/$defs/transcript_line" },
+        { "$ref": "#/$defs/transcript_block_start" },
+        { "$ref": "#/$defs/transcript_block_delta" },
+        { "$ref": "#/$defs/transcript_block_complete" },
         { "$ref": "#/$defs/tool_call" },
         { "$ref": "#/$defs/tool_result" },
         { "$ref": "#/$defs/approval_request" },
@@ -82,6 +140,44 @@
       "properties": {
         "type": { "const": "assistant_message" },
         "content": { "type": "string" }
+      }
+    },
+    "transcript_line": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "line"],
+      "properties": {
+        "type": { "const": "transcript_line" },
+        "line": { "type": "string" }
+      }
+    },
+    "transcript_block_start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "index", "block"],
+      "properties": {
+        "type": { "const": "transcript_block_start" },
+        "index": { "type": "integer", "minimum": 0 },
+        "block": { "$ref": "#/$defs/stream_block" }
+      }
+    },
+    "transcript_block_delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "index", "delta"],
+      "properties": {
+        "type": { "const": "transcript_block_delta" },
+        "index": { "type": "integer", "minimum": 0 },
+        "delta": { "type": "string" }
+      }
+    },
+    "transcript_block_complete": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "index"],
+      "properties": {
+        "type": { "const": "transcript_block_complete" },
+        "index": { "type": "integer", "minimum": 0 }
       }
     },
     "tool_call": {

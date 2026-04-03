@@ -26,12 +26,16 @@ pub(super) use paths::user_config_path;
 
 pub(super) fn load() -> Result<Config> {
     let cwd = std::env::current_dir().context("Failed to determine current working directory")?;
-    let repo_cfg = find_repo_local_config(&cwd);
+    load_from_cwd(&cwd)
+}
+
+pub(super) fn load_from_cwd(cwd: &Path) -> Result<Config> {
+    let repo_cfg = find_repo_local_config(cwd);
     let user_cfg = user_config_path();
     let system_cfg = system_config_path();
-    let profile_base_dir = resolve_profile_base_dir(&cwd, repo_cfg.as_deref());
+    let profile_base_dir = resolve_profile_base_dir(cwd, repo_cfg.as_deref());
     load_layers(
-        &cwd,
+        cwd,
         repo_cfg.as_deref(),
         user_cfg.as_deref(),
         system_cfg.as_deref(),

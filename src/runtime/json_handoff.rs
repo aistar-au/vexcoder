@@ -37,6 +37,20 @@ pub enum RuntimeEvent {
     AssistantMessage {
         content: String,
     },
+    TranscriptLine {
+        line: String,
+    },
+    TranscriptBlockStart {
+        index: usize,
+        block: StreamBlock,
+    },
+    TranscriptBlockDelta {
+        index: usize,
+        delta: String,
+    },
+    TranscriptBlockComplete {
+        index: usize,
+    },
     ToolCall {
         id: String,
         name: String,
@@ -228,10 +242,29 @@ impl RuntimeEnvelopeNormalizer {
         terminal: Option<TurnEndContext>,
     ) -> Vec<RuntimeEnvelope> {
         match update {
-            UiUpdate::TranscriptLine(_) => Vec::new(),
+            UiUpdate::TranscriptLine(line) => {
+                vec![self.next_envelope(RuntimeEvent::TranscriptLine { line: line.clone() })]
+            }
             UiUpdate::StreamDelta(text) => {
                 self.assistant_text.push_str(text);
                 vec![self.next_envelope(RuntimeEvent::AssistantDelta { text: text.clone() })]
+            }
+            UiUpdate::StreamBlockStart { index, block } => {
+                let mut envelopes = vec![self.next_envelope(RuntimeEvent::TranscriptBlockStart {
+                    index: *index,
+                    block: block.clone(),
+                })];
+                envelopes.extend(self.normalize_stream_block(block));
+                envelopes
+            }
+            UiUpdate::StreamBlockDelta { index, delta } => {
+                vec![self.next_envelope(RuntimeEvent::TranscriptBlockDelta {
+                    index: *index,
+                    delta: delta.clone(),
+                })]
+            }
+            UiUpdate::StreamBlockComplete { index } => {
+                vec![self.next_envelope(RuntimeEvent::TranscriptBlockComplete { index: *index })]
             }
             UiUpdate::TurnComplete => self.complete_turn(terminal.unwrap_or_default()),
             UiUpdate::Error(message) => self.emit_error(
@@ -244,10 +277,7 @@ impl RuntimeEnvelopeNormalizer {
                 vec![self.next_envelope(runtime_approval_request_event(request))]
             }
             UiUpdate::ServerMetadata(_) => Vec::new(),
-            UiUpdate::StreamBlockStart { .. }
-            | UiUpdate::StreamBlockDelta { .. }
-            | UiUpdate::StreamBlockComplete { .. }
-            | UiUpdate::CommandSessionStarted { .. }
+            UiUpdate::CommandSessionStarted { .. }
             | UiUpdate::CommandSessionAttached { .. }
             | UiUpdate::CommandSessionFinished { .. }
             | UiUpdate::EditLoopComplete { .. }
@@ -525,7 +555,11 @@ pub fn derive_batch_records(
             RuntimeEvent::MaxTurnsReached { .. } => {
                 max_turns_reached = true;
             }
-            RuntimeEvent::ToolCall { .. }
+            RuntimeEvent::TranscriptLine { .. }
+            | RuntimeEvent::TranscriptBlockStart { .. }
+            | RuntimeEvent::TranscriptBlockDelta { .. }
+            | RuntimeEvent::TranscriptBlockComplete { .. }
+            | RuntimeEvent::ToolCall { .. }
             | RuntimeEvent::ApprovalRequest { .. }
             | RuntimeEvent::ApprovalResolved { .. }
             | RuntimeEvent::ValidationResult { .. }

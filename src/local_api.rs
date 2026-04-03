@@ -152,18 +152,36 @@ impl RuntimeMode for LocalApiMode {
     fn on_model_update(&mut self, update: UiUpdate, _ctx: &mut RuntimeContext) {
         let mut shared = self.shared.lock().unwrap_or_else(|e| e.into_inner());
         match update {
-            UiUpdate::TranscriptLine(_) => {}
+            UiUpdate::TranscriptLine(line) => {
+                let envelopes = shared
+                    .normalizer
+                    .normalize_ui_update(&UiUpdate::TranscriptLine(line), None);
+                Self::emit_envelopes(&mut shared, envelopes);
+            }
             UiUpdate::StreamDelta(text) => {
                 let envelopes = shared
                     .normalizer
                     .normalize_ui_update(&UiUpdate::StreamDelta(text), None);
                 Self::emit_envelopes(&mut shared, envelopes);
             }
-            UiUpdate::StreamBlockStart { block, .. } => {
-                let envelopes = shared.normalizer.normalize_stream_block(&block);
+            UiUpdate::StreamBlockStart { index, block } => {
+                let envelopes = shared
+                    .normalizer
+                    .normalize_ui_update(&UiUpdate::StreamBlockStart { index, block }, None);
                 Self::emit_envelopes(&mut shared, envelopes);
             }
-            UiUpdate::StreamBlockDelta { .. } | UiUpdate::StreamBlockComplete { .. } => {}
+            UiUpdate::StreamBlockDelta { index, delta } => {
+                let envelopes = shared
+                    .normalizer
+                    .normalize_ui_update(&UiUpdate::StreamBlockDelta { index, delta }, None);
+                Self::emit_envelopes(&mut shared, envelopes);
+            }
+            UiUpdate::StreamBlockComplete { index } => {
+                let envelopes = shared
+                    .normalizer
+                    .normalize_ui_update(&UiUpdate::StreamBlockComplete { index }, None);
+                Self::emit_envelopes(&mut shared, envelopes);
+            }
             UiUpdate::ToolApprovalRequest(request) => {
                 let event = runtime_approval_request_event(&request);
                 let (capability, scope) = match &event {
@@ -245,6 +263,8 @@ mod tests {
     use super::*;
     use crate::api::mock_client::MockApiClient;
     use crate::runtime::json_handoff::{RuntimeEnvelope, RuntimeRequest};
+    use crate::state::StreamBlock;
+    use serde_json::json;
     use tokio_util::sync::CancellationToken;
 
     #[tokio::test]
@@ -390,6 +410,102 @@ mod tests {
         assert!(matches!(
             envelopes[3].event,
             RuntimeEvent::TurnEnd { ref status, .. } if status == "completed"
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_local_api_mode_emits_transcript_block_events() {
+        let (envelope_tx, mut envelope_rx) = mpsc::unbounded_channel();
+        let quit = Arc::new(AtomicBool::new(false));
+        let shared = Arc::new(Mutex::new(LocalApiTaskShared {
+            normalizer: RuntimeEnvelopeNormalizer::new("task-transcript"),
+            envelope_tx,
+            pending_approval: None,
+            quit,
+            turn_in_progress: false,
+            interrupted: false,
+        }));
+        let mut mode = LocalApiMode::new(Arc::clone(&shared));
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+        let conversation =
+            ConversationManager::new(client, ToolOperator::new(std::env::temp_dir()));
+        let (update_tx, _update_rx) = mpsc::unbounded_channel();
+        let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
+
+        mode.on_user_input("review src/local_api.rs".to_string(), &mut ctx);
+        let _: RuntimeEnvelope = serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+
+        mode.on_model_update(
+            UiUpdate::TranscriptLine("[edit loop: running validation]".to_string()),
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::StreamBlockStart {
+                index: 0,
+                block: StreamBlock::ToolCall {
+                    id: "provider-call-1".to_string(),
+                    name: "read_file".to_string(),
+                    input: json!({"path":"src/local_api.rs"}),
+                    status: crate::state::ToolStatus::Pending,
+                },
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(
+            UiUpdate::StreamBlockDelta {
+                index: 0,
+                delta: "{\"path\":\"src/local_api.rs\"}".to_string(),
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(UiUpdate::StreamBlockComplete { index: 0 }, &mut ctx);
+
+        let transcript_line: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        let transcript_block_start: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        let tool_call: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        let transcript_block_delta: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        let transcript_block_complete: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+
+        assert!(matches!(
+            transcript_line.event,
+            RuntimeEvent::TranscriptLine { ref line }
+                if line == "[edit loop: running validation]"
+        ));
+        assert!(matches!(
+            transcript_block_start.event,
+            RuntimeEvent::TranscriptBlockStart {
+                index: 0,
+                block: StreamBlock::ToolCall {
+                    ref name,
+                    ref input,
+                    status: crate::state::ToolStatus::Pending,
+                    ..
+                }
+            } if name == "read_file" && input["path"] == "src/local_api.rs"
+        ));
+        assert!(matches!(
+            tool_call.event,
+            RuntimeEvent::ToolCall {
+                ref name,
+                ref arguments,
+                ..
+            } if name == "read_file" && arguments["path"] == "src/local_api.rs"
+        ));
+        assert!(matches!(
+            transcript_block_delta.event,
+            RuntimeEvent::TranscriptBlockDelta {
+                index: 0,
+                ref delta,
+            } if delta == "{\"path\":\"src/local_api.rs\"}"
+        ));
+        assert!(matches!(
+            transcript_block_complete.event,
+            RuntimeEvent::TranscriptBlockComplete { index: 0 }
         ));
     }
 
