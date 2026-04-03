@@ -225,6 +225,7 @@ impl TuiMode {
                                 let end = start + pending.transcript_row_count;
                                 if end <= self.history_state.lines.len() {
                                     self.history_state.lines.drain(start..end);
+                                    self.apply_auto_follow_or_clamp();
                                     // Shift stored row indices for all remaining
                                     // pending calls whose rows follow the removed
                                     // block so their indices stay accurate.
@@ -314,6 +315,7 @@ impl TuiMode {
                                     self.push_history_line(row);
                                 }
                             }
+                            self.apply_auto_follow_or_clamp();
                             self.preserve_transcript_scroll_on_growth(previous_output_len);
 
                             self.current_turn_tool_invocations
