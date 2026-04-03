@@ -73,11 +73,10 @@ deduplication) landed in PR #331 (commit e1dd681) on 2026-04-03.
 ADR-041 D8/D9/D10/D11/D12/D13 (pending-row replacement, live input preview,
 ordered streamed-text segmentation, bounded-suffix reuse in
 conversation streaming, accumulator drain cleanup, and chunk-safe
-normalisation hardening for wrapper-tagged deltas) are in progress under
-`work/vexcoder-delta-consume-switchover`.
+normalisation hardening for wrapper-tagged deltas) landed in PR #332
+(commit 7638619) on 2026-04-03.
 ADR-041 D15 (word-wrap plain-text rows to terminal width, `expand_rows_for_display`,
-`transcript_window_rows`) is in progress under
-`work/vexcoder-tui-transcript-render-fixes`.
+`transcript_window_rows`) landed in PR #333 on 2026-04-04.
 
 ### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
 
@@ -253,19 +252,20 @@ Candidate implementation areas:
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| EL-extract | `work/vexcoder-edit-loop-tui-extract` | #311 | Draft PR, CI green | Extract oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |
+| EL-extract | `work/vexcoder-edit-loop-tui-extract` | #311 | ~~Closed~~ | Extract oversized edit-loop/TUI modules into path-based submodules; Windows command-cancellation fix |
 | Batch-3-4 | `work/vexcoder-batch3-overlay-detail` | #316 | **Merged** | Browse cues, follow-mode fix, nextest cleanup, timeline discoverability |
 | Batch-5-6 | `work/vexcoder-batch5-overlay-convergence` | #317 | **Merged** | CLI resize notice, inspector row-count title, parser/normaliser hardening fixtures |
-| ADR-amendments | `work/vexcoder-adr-amendments` | #318 | Merged | ADR-043 consequences, ACTIVE-ROADMAP parity lane summary |
+| ADR-amendments | `work/vexcoder-adr-amendments` | #318 | ~~Closed~~ | ADR-043 consequences, ACTIVE-ROADMAP parity lane summary |
 | ADR-038-EF | `work/vexcoder-adr-038-reads-and-policy-gate` | #281 | **Merged** | `context_assembler/{mod,reads}.rs` split plus strict disk-policy test/CI gate for ADR-038 Batches E/F |
 | ADR-038-G | `work/vexcoder-adr-038-operator-policy-wiring` | #282 | **Merged** | Operator policy module and disk-policy wiring into task-state I/O (ADR-038 Batch G) |
 | ADR-038-H | `work/vexcoder-adr-038-task-state-persist` | #283 | **Merged** | Task-state persist extraction + WAL evaluation (ADR-038 Batch H) |
 | PL-01-ext | `work/vexcoder-http-hooks` | #270 | **Merged** | HTTP webhook support for tool events (`[[http_hooks]]` config section) |
-| PM-01 | `work/vexcoder-conversation-compaction` | #271 | Implementation complete, draft PR | In-memory summarization of older turns when token count exceeds threshold |
-| PM-02 | `work/vexcoder-undo-checkpoints` | #272 | Implementation complete, draft PR | `/undo` slash command and per-change checkpoint stack |
-| PM-03 | `work/vexcoder-code-search` | #273 | Implementation complete, draft PR | Code search hardening and `/reindex` command |
-| PM-04 | `work/vexcoder-auto-memory` | #274 | Implementation complete, draft PR | Automatic extraction of memory-worthy facts from conversation turns |
-| ADR-041-D8D13 | `work/vexcoder-delta-consume-switchover` | #332 | Open PR | Pending-row replacement, live input preview, ordered streamed-text segmentation, bounded-suffix streaming reuse, delta accumulator drain activation, and chunk-safe wrapper-tag normalisation for the transcript-first path post PR #331 |
+| PM-01 | `work/vexcoder-conversation-compaction` | #271 | **Merged** | In-memory summarization of older turns when token count exceeds threshold |
+| PM-02 | `work/vexcoder-undo-checkpoints` | #272 | **Merged** | `/undo` slash command and per-change checkpoint stack |
+| PM-03 | `work/vexcoder-code-search` | #273 | **Merged** | Code search hardening and `/reindex` command |
+| PM-04 | `work/vexcoder-auto-memory` | #274 | **Merged** | Automatic extraction of memory-worthy facts from conversation turns |
+| ADR-041-D8D13 | `work/vexcoder-delta-consume-switchover` | #332 | **Merged** | Pending-row replacement, live input preview, ordered streamed-text segmentation, bounded-suffix streaming reuse, delta accumulator drain activation, and chunk-safe wrapper-tag normalisation for the transcript-first path post PR #331 |
+| ADR-041-D15 | `work/vexcoder-tui-transcript-render-fixes` | #333 | **Merged** | Word-wrap plain-text transcript rows to terminal width; `expand_rows_for_display`, `transcript_window_rows` viewport primitive (ADR-041 D15) |
 
 These branches are pushed to remote with draft PRs. Each contains a task
 manifest in `TASKS/` defining scope, constraints, and anchor tests.
