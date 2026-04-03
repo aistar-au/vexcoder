@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-02 (Batches 1-6 merged in PR #315, #316, and #317; ADR amendment pack applied via PR #318)
+Last updated: 2026-04-04 (ADR-041 D8-D13 landed PR #332; ADR-041 D15 landed PR #333; v0.1.0-rc.9 released)
 
 ---
 
