@@ -267,3 +267,47 @@ Focused regression coverage now includes:
 - wrapper stripping in the assistant-text sanitiser
 - wrapper-tagged text-protocol tool rounds that still execute and
   append `tool_result` context for the next turn
+
+## Amendment — 2026-05-04: Word-wrap and display-row expansion
+
+### D15: Pre-expand logical rows into display-bounded rows before viewport calculation
+
+`expand_rows_for_display(rows, cols)` converts the logical `output_rows`
+slice into a display-bounded `Vec<String>` before the viewport window is
+computed.  Each plain-prose row whose display width exceeds `cols` is
+broken at word boundaries by `word_wrap_plain_row`.  Structural transcript
+markers — bracket-delimited control lines (`[tool:...]`, `[thinking]`,
+etc.), four-space and six-space disclosure indents, icon-prefixed lines
+(two-space prefix), code fences, horizontal rules, blockquotes, telemetry
+summaries, and markdown headers — pass through unchanged because
+`draw_transcript_line` handles their own per-category truncation.
+
+`transcript_window_rows(total, anchor, scroll_offset, viewport_height)`
+replaces the direct access to `state.output_rows.len()` in the viewport
+calculation so both `draw_transcript_full` and `draw_transcript_incremental`
+use the post-expansion row count.  The scroll indicator and
+`output_lines_flushed` are likewise updated to reflect display row counts.
+
+A backward-compatible `transcript_window(state, viewport_height)` wrapper
+delegates to `transcript_window_rows` so existing scroll-window tests
+continue to exercise the same logic.
+
+The root cause this resolves: long model responses emitted without embedded
+newlines produced a single logical row that was silently truncated to the
+terminal width by `truncate_to_width` inside `draw_inline_markdown`, making
+the remainder of the response invisible and preventing upward scrolling past
+the truncated row.
+
+Test coverage:
+- `word_wrap_plain_row_passthrough_for_short_line` — short lines unchanged
+- `word_wrap_plain_row_passthrough_for_empty` — empty line unchanged
+- `word_wrap_plain_row_skips_bracket_marker` — structural marker passes through
+- `word_wrap_plain_row_skips_disclosure_indent` — indented lines pass through
+- `word_wrap_plain_row_wraps_long_prose` — long prose splits to ≤ cols width
+- `word_wrap_to_cols_splits_at_boundary` — word-boundary split and reconstruction
+- `word_wrap_to_cols_handles_single_long_word` — oversized words are truncated
+- `expand_rows_for_display_wraps_long_plain_rows` — long rows produce multiple display rows
+- `expand_rows_for_display_leaves_structural_rows_intact` — structural rows unaffected
+- `transcript_window_rows_bottom_anchor_scrolled` — correct viewport window at offset
+- `transcript_window_rows_bottom_anchor_at_tail` — last-page clamping
+- `transcript_window_rows_top_anchor_clamps_to_six` — inspector anchor uses six-row window

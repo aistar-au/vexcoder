@@ -216,8 +216,21 @@ impl TaskDraw {
         state: &TaskLayoutState,
         regions: &Regions,
     ) {
+        // Pre-expand logical rows into display rows by word-wrapping plain
+        // prose to the current terminal width.  Structural markers (tool
+        // paragraphs, telemetry lines, disclosure indents, etc.) keep their
+        // own truncation logic inside `draw_transcript_line` and are passed
+        // through unchanged.
+        let display_rows = expand_rows_for_display(&state.output_rows, regions.cols);
+        let total_display = display_rows.len();
+
         let viewport_height = regions.transcript_rows as usize;
-        let (visible_start, visible_end) = transcript_window(state, viewport_height);
+        let (visible_start, visible_end) = transcript_window_rows(
+            total_display,
+            state.output_scroll_anchor,
+            state.output_scroll_offset,
+            viewport_height,
+        );
         let render_start_row =
             transcript_render_start_row(state, regions, visible_start, visible_end);
 
@@ -230,11 +243,11 @@ impl TaskDraw {
 
         // Reset code block state for full redraws.
         self.in_code_block = false;
-        // Walk all lines from the start to track code block state correctly,
-        // but only render lines in the visible window.
-        for (i, line) in state.output_rows.iter().enumerate() {
+        // Walk all display rows from the start to track code block state,
+        // but only render rows inside the visible window.
+        for (i, line) in display_rows.iter().enumerate() {
             if i < visible_start {
-                // Track code block state for lines above the viewport.
+                // Track code block state for rows above the viewport.
                 if line.starts_with("```") {
                     self.in_code_block = !self.in_code_block;
                 }
@@ -250,19 +263,18 @@ impl TaskDraw {
         }
 
         // Scroll position indicator — show when content exceeds viewport.
-        let total = state.output_rows.len();
-        if total > viewport_height && viewport_height > 0 {
+        if total_display > viewport_height && viewport_height > 0 {
             draw_scroll_indicator(
                 w,
                 regions.transcript_start,
                 viewport_height,
                 visible_start,
-                total,
+                total_display,
                 regions.cols,
             );
         }
 
-        self.output_lines_flushed = state.output_rows.len();
+        self.output_lines_flushed = total_display;
     }
 
     fn draw_transcript_incremental<W: Write>(
@@ -271,19 +283,25 @@ impl TaskDraw {
         state: &TaskLayoutState,
         regions: &Regions,
     ) {
-        let total_output = state.output_rows.len();
-        if total_output <= self.output_lines_flushed {
+        let display_rows = expand_rows_for_display(&state.output_rows, regions.cols);
+        let total_display = display_rows.len();
+        if total_display <= self.output_lines_flushed {
             return;
         }
 
         let viewport_height = regions.transcript_rows as usize;
-        let (visible_start, visible_end) = transcript_window(state, viewport_height);
+        let (visible_start, visible_end) = transcript_window_rows(
+            total_display,
+            state.output_scroll_anchor,
+            state.output_scroll_offset,
+            viewport_height,
+        );
         let render_start_row =
             transcript_render_start_row(state, regions, visible_start, visible_end);
 
-        // Rebuild code-block state by scanning all lines before the viewport.
+        // Rebuild code-block state by scanning all display rows before the viewport.
         self.in_code_block = false;
-        for line in state.output_rows.iter().take(visible_start) {
+        for line in display_rows.iter().take(visible_start) {
             if line.starts_with("```") {
                 self.in_code_block = !self.in_code_block;
             }
@@ -292,16 +310,16 @@ impl TaskDraw {
         // Redraw the entire visible window so code-block state is consistent.
         for vp_offset in 0..viewport_height {
             let src_index = visible_start + vp_offset;
-            if src_index >= visible_end || src_index >= total_output {
+            if src_index >= visible_end || src_index >= total_display {
                 break;
             }
             let row = render_start_row + vp_offset as u16;
             move_to(w, row, 0);
             clear_line(w);
-            self.draw_transcript_line(w, &state.output_rows[src_index], regions.cols);
+            self.draw_transcript_line(w, &display_rows[src_index], regions.cols);
         }
 
-        self.output_lines_flushed = total_output;
+        self.output_lines_flushed = total_display;
     }
 
     fn transcript_is_append_only(&self, state: &TaskLayoutState) -> bool {
@@ -638,29 +656,69 @@ fn parse_status_parts(status: &str) -> StatusParts {
 
 // ── Utilities ───────────────────────────────────────────────────────
 
-fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize, usize) {
+/// Compute the visible window into a pre-sized slice of display rows.
+///
+/// Returns `(visible_start, visible_end)` as indices into `rows`.
+/// The caller passes `total` (the number of display rows available) so
+/// the function can work on either logical rows or pre-expanded display rows.
+fn transcript_window_rows(
+    total: usize,
+    anchor: OutputScrollAnchor,
+    scroll_offset: usize,
+    viewport_height: usize,
+) -> (usize, usize) {
     const INSPECTOR_VIEWPORT_ROWS: usize = 6;
 
-    let total = state.output_rows.len();
     if viewport_height == 0 || total == 0 {
         return (0, 0);
     }
 
-    match state.output_scroll_anchor {
+    match anchor {
         OutputScrollAnchor::Bottom => {
             let max_offset = total.saturating_sub(viewport_height);
-            let offset = state.output_scroll_offset.min(max_offset);
+            let offset = scroll_offset.min(max_offset);
             let start = total.saturating_sub(viewport_height.saturating_add(offset));
             let end = (start + viewport_height).min(total);
             (start, end)
         }
         OutputScrollAnchor::Top => {
             let inspector_height = viewport_height.clamp(1, INSPECTOR_VIEWPORT_ROWS);
-            let start = state.output_scroll_offset.min(total.saturating_sub(1));
+            let start = scroll_offset.min(total.saturating_sub(1));
             let end = (start + inspector_height).min(total);
             (start, end)
         }
     }
+}
+
+/// Backward-compatible wrapper used by existing tests.
+#[allow(dead_code)]
+fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize, usize) {
+    transcript_window_rows(
+        state.output_rows.len(),
+        state.output_scroll_anchor,
+        state.output_scroll_offset,
+        viewport_height,
+    )
+}
+
+/// Pre-expand logical output rows into display-bounded rows by word-wrapping
+/// plain-text content to fit within `cols` terminal columns.
+///
+/// Structural transcript markers (tool paragraphs, disclosure indents,
+/// telemetry lines, code fences, etc.) pass through unchanged because
+/// `draw_transcript_line` handles their own truncation. Plain prose lines
+/// whose display width exceeds `cols` are broken at word boundaries so that
+/// every returned entry fits within one terminal row.
+fn expand_rows_for_display(rows: &[String], cols: u16) -> Vec<String> {
+    if cols < 4 {
+        return rows.to_vec();
+    }
+    let mut expanded = Vec::with_capacity((rows.len() * 3) / 2);
+    for row in rows {
+        let wrapped = transcript_helpers::word_wrap_plain_row(row, cols as usize);
+        expanded.extend(wrapped);
+    }
+    expanded
 }
 
 fn transcript_render_start_row(

@@ -3,6 +3,109 @@ use crate::status_contract::{status_tone, StatusTone};
 use std::borrow::Cow;
 use std::io::Write;
 
+// ── Word-wrap helpers ───────────────────────────────────────────────
+
+/// Word-wrap a plain-text transcript row into display-width-bounded segments.
+///
+/// Structural transcript markers (disclosure-indented lines, ANSI icon
+/// lines, telemetry summaries, code fences, etc.) are returned as a
+/// single unchanged element because `draw_transcript_line` handles their
+/// own truncation. Empty lines pass through as a single empty element.
+/// All other prose is split at word boundaries to fit within `cols`.
+pub(crate) fn word_wrap_plain_row(line: &str, cols: usize) -> Vec<String> {
+    if cols < 4 || line.is_empty() {
+        return vec![line.to_string()];
+    }
+    if display_width(line) <= cols {
+        return vec![line.to_string()];
+    }
+    // Structural markers handle their own truncation in the draw path.
+    if is_structural_transcript_row(line) {
+        return vec![line.to_string()];
+    }
+    word_wrap_to_cols(line, cols)
+}
+
+/// Return `true` for rows that must NOT be word-wrapped because they
+/// contain structured draw markers, use indentation semantically, or
+/// are single-line control sequences.
+fn is_structural_transcript_row(line: &str) -> bool {
+    // Bracket-delimited transcript control markers.
+    if line.starts_with('[') {
+        return true;
+    }
+    // Disclosure-indented lines (4-space or 6-space indent).
+    if line.starts_with("    ") {
+        return true;
+    }
+    // Icon-prefixed lines all start with two spaces followed by a Unicode
+    // symbol (✦ ⋯ ✖ ★ ☆ ⚠ ⚙ ✔ ⟳ • ☐ ☑ etc.).
+    if line.starts_with("  ") {
+        return true;
+    }
+    // Code fence lines.
+    if line.starts_with("```") {
+        return true;
+    }
+    // Markdown section separator: "--- label ---".
+    if line.starts_with("--- ") && line.ends_with(" ---") {
+        return true;
+    }
+    // Plain horizontal rules (---, ***, ___).
+    if is_horizontal_rule(line) {
+        return true;
+    }
+    // Blockquote lines.
+    if line.starts_with("> ") {
+        return true;
+    }
+    // Telemetry summaries and inline timing lines.
+    if is_telemetry_summary(line) || is_inline_telemetry_summary(line) {
+        return true;
+    }
+    // Markdown headers — rendered as single truncated lines.
+    if line.starts_with("# ") || line.starts_with("## ") || line.starts_with("### ") {
+        return true;
+    }
+    false
+}
+
+/// Split `text` at word boundaries so each segment fits within `cols`
+/// display columns. Single words wider than `cols` are hard-truncated.
+pub(crate) fn word_wrap_to_cols(text: &str, cols: usize) -> Vec<String> {
+    let mut result: Vec<String> = Vec::new();
+    let mut current_line = String::new();
+    let mut current_width: usize = 0;
+
+    for word in text.split_whitespace() {
+        let word_width = display_width(word);
+        if current_width == 0 {
+            // First word on this visual line.
+            let fitted = truncate_to_width(word, cols);
+            current_width = display_width(&fitted);
+            current_line.push_str(&fitted);
+        } else if current_width + 1 + word_width <= cols {
+            // Word fits with one leading space.
+            current_line.push(' ');
+            current_line.push_str(word);
+            current_width += 1 + word_width;
+        } else {
+            // Flush the current line and begin a new one.
+            result.push(std::mem::take(&mut current_line));
+            let fitted = truncate_to_width(word, cols);
+            current_width = display_width(&fitted);
+            current_line.push_str(&fitted);
+        }
+    }
+    if !current_line.is_empty() {
+        result.push(current_line);
+    }
+    if result.is_empty() {
+        result.push(String::new());
+    }
+    result
+}
+
 // ── Shared transcript rendering helpers ────────────────────────────
 
 /// Write a styled prefix icon followed by truncated content text.

@@ -75,6 +75,9 @@ ordered streamed-text segmentation, bounded-suffix reuse in
 conversation streaming, accumulator drain cleanup, and chunk-safe
 normalisation hardening for wrapper-tagged deltas) are in progress under
 `work/vexcoder-delta-consume-switchover`.
+ADR-041 D15 (word-wrap plain-text rows to terminal width, `expand_rows_for_display`,
+`transcript_window_rows`) is in progress under
+`work/vexcoder-tui-transcript-render-fixes`.
 
 ### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
 
