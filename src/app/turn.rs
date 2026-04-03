@@ -38,6 +38,9 @@ impl TuiMode {
     pub(super) fn reset_turn_capture(&mut self) {
         self.current_turn_input.clear();
         self.current_turn_response.clear();
+        self.current_turn_stream_segments.clear();
+        self.active_stream_segment_index = None;
+        self.structured_streaming_active = false;
         self.current_turn_changed_files.clear();
         self.current_turn_command_history.clear();
         self.current_turn_tool_invocations.clear();
@@ -192,6 +195,8 @@ impl TuiMode {
     }
 
     pub(super) fn commit_completed_turn(&mut self, ctx: &RuntimeContext) {
+        self.materialize_current_turn_stream_segments();
+
         if self.current_turn_input.trim().is_empty()
             && self.current_turn_response.trim().is_empty()
             && self.current_turn_changed_files.is_empty()
@@ -266,6 +271,41 @@ impl TuiMode {
         self.transcript_scroll_offset = 0;
         self.inspector_scroll_offset = 0;
         self.reset_turn_capture();
+    }
+
+    pub(super) fn materialize_current_turn_stream_segments(&mut self) {
+        if self.current_turn_stream_segments.is_empty() {
+            return;
+        }
+
+        if self
+            .history_state
+            .active_assistant_index
+            .and_then(|idx| self.history_state.lines.get(idx).map(|line| (idx, line)))
+            .is_some_and(|(_, line)| {
+                line.is_empty() || crate::status_contract::is_waiting_placeholder(line)
+            })
+        {
+            if let Some(idx) = self.history_state.active_assistant_index {
+                self.history_state.lines.remove(idx);
+                self.history_state.active_assistant_index = None;
+            }
+        }
+
+        let mut pushed = 0usize;
+        for segment in self.current_turn_stream_segments.drain(..) {
+            for line in segment.text.lines() {
+                self.history_state.lines.push(line.to_string());
+                pushed += 1;
+            }
+        }
+
+        if pushed > 0 {
+            self.enforce_history_cap();
+            self.apply_auto_follow_or_clamp();
+        }
+        self.current_turn_stream_segments.clear();
+        self.active_stream_segment_index = None;
     }
 
     pub(super) fn summarize_usage_line_suffix(estimated: bool) -> &'static str {

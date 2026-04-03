@@ -46,6 +46,21 @@ impl TuiMode {
                     }
                 }
                 self.current_turn_response.push_str(&text);
+                if self.structured_streaming_active {
+                    if let Some(index) = self.active_stream_segment_index {
+                        self.current_turn_stream_segments[index]
+                            .text
+                            .push_str(&text);
+                    } else {
+                        self.current_turn_stream_segments
+                            .push(StreamedResponseSegment { text: text.clone() });
+                        self.active_stream_segment_index =
+                            Some(self.current_turn_stream_segments.len() - 1);
+                    }
+                    self.apply_auto_follow_or_clamp();
+                    self.preserve_transcript_scroll_on_growth(previous_output_len);
+                    return;
+                }
                 let idx = match self.history_state.active_assistant_index {
                     Some(idx) => idx,
                     None => {
@@ -93,6 +108,8 @@ impl TuiMode {
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
                 }
+                self.structured_streaming_active = true;
+                self.active_stream_segment_index = None;
                 // Clear the waiting placeholder when a tool block arrives.
                 if let Some(idx) = self.history_state.active_assistant_index {
                     if let Some(line) = self.history_state.lines.get_mut(idx) {
@@ -455,6 +472,7 @@ impl TuiMode {
                 outcome,
                 last_validation_result,
             } => {
+                self.materialize_current_turn_stream_segments();
                 self.command_sessions.clear();
                 self.last_error_message = None;
                 if let Some(result) = last_validation_result {
@@ -568,6 +586,7 @@ impl TuiMode {
                 self.last_turn_duration = self.turn_started_at.map(|started| started.elapsed());
                 self.last_turn_timings = self.current_turn_timings.clone();
                 self.last_error_message = Some(msg.clone());
+                self.materialize_current_turn_stream_segments();
                 self.reset_turn_capture();
                 self.history_state.cancel_pending = false;
                 self.push_history_line(format!("[error] {msg}"));

@@ -131,7 +131,7 @@ full accumulated content on every chunk.
 
 ---
 
-## Amendment — 2026-05-01: Pending-row replacement and live input preview
+## Amendment — 2026-05-01: Pending-row replacement, live input preview, and ordered streamed text
 
 ### D8: Pending transcript row replacement on block completion
 
@@ -165,3 +165,29 @@ The row to update is identified as `history_state.lines[transcript_row_start
 check before overwriting.  This gives operators live feedback on
 partial JSON argument construction during long tool-call generations
 without emitting extra rows.
+
+### D10: Flush completed streamed text segments at non-text boundaries
+
+When structured block streaming is active, sanitized `StreamDelta`
+chunks remain the only visible assistant-text source, but they are no
+longer rendered as one monolithic trailing `current_turn_response`
+blob. `push_history_line()` materializes the current streamed text
+segment into `history_state.lines` before any non-text transcript row
+is appended, and `commit_completed_turn()` drains any final in-flight
+segment before turn persistence.
+
+`transcript_display_rows()` therefore appends only the currently active
+segment as the live cursor row. This preserves transcript order around
+tool-call paragraphs and other structured boundaries without
+introducing a second renderer for assistant text.
+
+### D11: Reuse bounded suffix extraction in conversation streaming
+
+`src/state/conversation/streaming.rs` now routes
+`append_incremental_suffix()` through
+`crate::state::transcript_delta::bounded_incremental_suffix()`.
+
+This keeps cumulative backend text updates on the same bounded
+O(new_text) suffix path used by the structured transcript delta
+accumulators, avoiding repeated scans across the full accumulated
+buffer on every chunk.
