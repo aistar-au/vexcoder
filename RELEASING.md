@@ -56,12 +56,11 @@ pre-release label. This ensures correct semver precedence ordering:
   manually by the operator after a merge to `main`. They are immutable
   once pushed and trigger the release pipeline to produce a snapshot
   pre-release. See "Creating a short-SHA tag" below.
-- **Channel git tags** (`nightly`) are force-updated on a nightly schedule
-  by `.github/workflows/nightly-channel-git-tag-refresh.yml`. GitHub
-  evaluates that schedule on the default branch, the workflow refreshes the
-  `nightly` channel git tag, and then it dispatches
-  `.github/workflows/release.yml` against the `nightly` ref. Channel git tags
-  are the only tags that may be moved.
+- **Nightly snapshot tags** are created automatically by the scheduled
+  `.github/workflows/nightly.yml` workflow. Each nightly run creates a
+  short-SHA tag from the current HEAD of `main` if one does not already
+  exist. The tag push triggers the release pipeline to produce a snapshot
+  pre-release. See "Automated nightly builds" below.
 - Non-semver tags do not require a `Cargo.toml` version match. The release
   pipeline skips the version alignment check for these tags.
 
@@ -143,11 +142,12 @@ git push origin v<current-version>
 To produce an immediate snapshot release from the merge commit, create a
 short-SHA tag manually (see "Creating a short-SHA tag" above).
 
-The nightly channel git tag is updated automatically by the scheduled nightly
-channel git tag workflow. GitHub evaluates the schedule on the default
-branch, the workflow refreshes the `nightly` channel git tag, and then it
-dispatches the release workflow for the `nightly` ref. No manual action is
-needed for nightly builds.
+A nightly snapshot tag is created automatically by the scheduled
+`.github/workflows/nightly.yml` workflow. GitHub's server-side scheduler
+evaluates the cron expression on the default branch and provisions a runner
+when it fires. The workflow creates a short-SHA tag if one does not already
+exist for the current HEAD, and the tag push triggers the release pipeline.
+No manual action is needed for nightly builds.
 
 ---
 
@@ -212,13 +212,24 @@ prefer a fully browser-based release flow.
 
 ## Automated nightly builds
 
-`.github/workflows/nightly-channel-git-tag-refresh.yml` runs on a daily
-GitHub-hosted schedule on the default branch. It force-updates the `nightly`
-channel git tag to point at the current HEAD of `main`, then dispatches
-`.github/workflows/release.yml` against the `nightly` ref so the nightly
-pre-release build is produced from the ref that was just refreshed.
+`.github/workflows/nightly.yml` runs on a daily GitHub-hosted schedule on
+the default branch. GitHub's server-side scheduler evaluates the cron
+expression and provisions a runner when it fires — no external trigger or
+always-on process is required.
 
-Short-SHA snapshot tags are created manually by the operator via
+Each run derives the 7-character short SHA of the default branch HEAD and
+checks whether that tag already exists. If the tag is new, the workflow
+creates an annotated short-SHA tag and pushes it. The tag push triggers
+`.github/workflows/release.yml` to produce a snapshot pre-release. If the
+tag already exists (i.e. no new commits since the last nightly), the run
+skips gracefully.
+
+The workflow uses the `NIGHTLY_CHANNEL_GIT_TAG_TOKEN` repository secret
+(a PAT with `repo` scope) so that the tag push event triggers the
+downstream release workflow. The default `GITHUB_TOKEN` would suppress
+downstream workflow triggers.
+
+Short-SHA snapshot tags can also be created manually by the operator via
 `git tag` and `git push` (see "Creating a short-SHA tag" above).
 Each pushed short-SHA tag triggers the release workflow automatically.
 
@@ -229,8 +240,7 @@ Each pushed short-SHA tag triggers the release workflow automatically.
 `.github/workflows/release.yml` triggers on tag pushes matching semver
 (`v*`), short-SHA (7 hex characters), and channel names (`nightly`).
 It also supports `workflow_dispatch` for re-running a release from the
-Actions UI without creating a new tag and for the nightly scheduler to
-dispatch a release after it refreshes the `nightly` tag.
+Actions UI without creating a new tag.
 The workflow:
 
 1. Builds release archives for 6 targets (Linux musl x86\_64 + aarch64,
@@ -249,8 +259,8 @@ The workflow:
   re-run as complete.
 5. Attaches all archives, macOS `.dmg` assets, checksums, signature bundles,
   and a generated `CHANGELOG-<tag>.md` asset.
-6. Semver pre-release tags (containing `alpha`, `beta`, or `rc`), short-SHA
-  tags, and channel git tags are automatically marked as pre-releases.
+6. Semver pre-release tags (containing `alpha`, `beta`, or `rc`) and short-SHA
+  tags are automatically marked as pre-releases.
 
 ### Tag format summary
 
@@ -258,7 +268,6 @@ The workflow:
 | :--- | :--- | :--- | :--- |
 | `v<semver>` | `v0.1.0-rc.8` | Stable or pre-release | Must match |
 | 7-char hex SHA | `bfb531d` | Pre-release (snapshot) | Skipped |
-| Channel name | `nightly` | Pre-release (channel) | Skipped |
 
 Manual dispatch is available for re-running a failed release without
 re-tagging when the tagged commit already contains the required fix and the

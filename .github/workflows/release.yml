@@ -121,7 +121,7 @@ jobs:
               exit 1
             fi
           elif [[ "${tag_name}" == "nightly" ]]; then
-            echo "Verified channel git tag: ${tag_name}"
+            echo "Verified channel tag: ${tag_name}"
           else
             echo "FAIL: unsupported tag format: ${tag_name}" >&2
             exit 1
@@ -440,7 +440,7 @@ jobs:
             existing_release_is_immutable="$(gh release view "${TAG}" --json isImmutable --jq '.isImmutable')"
             if [[ "${existing_release_is_immutable}" == "true" ]]; then
               if [[ "${TAG}" == "nightly" ]]; then
-                echo "Nightly release ${TAG} is immutable; deleting release so it can be recreated for the refreshed channel git tag."
+                echo "Nightly release ${TAG} is immutable; deleting release so it can be recreated."
                 gh release delete "${TAG}" --yes
                 recreate_release="true"
               else
