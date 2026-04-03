@@ -63,6 +63,16 @@ transcript-safe rows. The `structured_parser` module is present in tree as an
 optional framework and does not replace the live runtime parser path unless the
 ADR-043 adoption gates are satisfied.
 
+A delta-native rendering foundation (`src/state/transcript_delta.rs`) provides
+structured `TranscriptDelta` and `DeltaAccumulator` types that track streaming
+blocks with bounded suffix deduplication — O(new_text) rather than
+O(total_content) — and expose pending deltas for the draw layer. Delta
+accumulators are keyed by block index in TuiMode and run in parallel with the
+existing prefix-marker line path so both strategies coexist.
+`TaskDraw::apply_transcript_delta()` and `format_compact_paragraph()` in the
+draw module provide the direct delta-to-display path that bypasses the
+`[tool]`/`[detail]`/`[evidence]` prefix-marker chain (ADR-041 D5–D7).
+
 ## Ongoing boundary work
 
 The long-term architecture work is tracked in the ADR set under `adr/`.

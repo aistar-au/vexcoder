@@ -581,3 +581,59 @@ impl TaskDraw {
         }
     }
 }
+
+// ── Delta-native transcript rendering ──────────────────────────────
+
+impl TaskDraw {
+    /// Apply a structured transcript delta directly to the draw
+    /// engine's line buffer, bypassing prefix-marker parsing.
+    ///
+    /// Lines touched by the delta are marked dirty for the next
+    /// incremental redraw pass. This is the entry point for the
+    /// delta-native rendering path described in ADR-041.
+    pub(super) fn apply_transcript_delta(
+        &mut self,
+        delta: &crate::state::TranscriptDelta,
+        output_rows: &mut Vec<String>,
+        cols: u16,
+    ) {
+        use crate::state::TranscriptBlockKind;
+
+        let formatted = format_compact_paragraph(&delta.text, delta.block_kind, cols as usize);
+        if formatted.is_empty() && !delta.is_complete {
+            return;
+        }
+
+        for line in formatted.lines() {
+            output_rows.push(line.to_string());
+        }
+
+        // Apply block-kind-specific styling hint for the last line.
+        if delta.is_complete {
+            match delta.block_kind {
+                TranscriptBlockKind::ToolCall | TranscriptBlockKind::ToolResult => {
+                    // Completed tool blocks get a thin separator.
+                    // (The actual rendering happens in draw_transcript_line
+                    // via the standard text path.)
+                }
+                TranscriptBlockKind::Thinking | TranscriptBlockKind::FinalText => {}
+            }
+        }
+    }
+
+    /// Consume a batch of transcript deltas and apply them to the
+    /// output rows buffer. Returns true if any rows were added
+    /// (signalling the caller to trigger a redraw).
+    pub(super) fn consume_transcript_deltas(
+        &mut self,
+        deltas: &[crate::state::TranscriptDelta],
+        output_rows: &mut Vec<String>,
+        cols: u16,
+    ) -> bool {
+        let before = output_rows.len();
+        for delta in deltas {
+            self.apply_transcript_delta(delta, output_rows, cols);
+        }
+        output_rows.len() > before
+    }
+}

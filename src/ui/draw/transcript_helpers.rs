@@ -802,3 +802,38 @@ pub(crate) fn is_horizontal_rule(line: &str) -> bool {
     let space_count = trimmed.chars().filter(|c| *c == ' ').count();
     count >= 3 && count + space_count == trimmed.len()
 }
+
+// ── Delta-native compact paragraph formatting ──────────────────────
+
+/// Format a structured transcript delta into compact paragraph lines.
+///
+/// Applies uniform prefix and width-safe truncation regardless of
+/// block kind. Used by the delta-native rendering path to bypass
+/// prefix-marker parsing.
+pub(crate) fn format_compact_paragraph(
+    text: &str,
+    block_kind: crate::state::TranscriptBlockKind,
+    width: usize,
+) -> String {
+    use crate::state::TranscriptBlockKind;
+
+    let prefix = match block_kind {
+        TranscriptBlockKind::ToolCall => "\u{25b6} ",   // ▶
+        TranscriptBlockKind::ToolResult => "  \u{21b3} ", // ↳
+        TranscriptBlockKind::Thinking => "",
+        TranscriptBlockKind::FinalText => "",
+    };
+
+    let prefix_width = display_width(prefix);
+    let mut formatted = String::with_capacity(text.len() + prefix.len() * 4);
+    for line in text.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        let trimmed = truncate_to_width(line, width.saturating_sub(prefix_width));
+        formatted.push_str(prefix);
+        formatted.push_str(&trimmed);
+        formatted.push('\n');
+    }
+    formatted
+}
