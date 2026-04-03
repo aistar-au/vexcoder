@@ -6,9 +6,9 @@ on:
     # branch and provisions a runner when the time fires.  Runs may be delayed
     # up to ~30 minutes during high-load windows.
     #
-    # Proof slot: 00:10 UTC daily — move to production cadence after the first
-    # successful scheduled run is observed.
-    - cron: "10 0 * * *"
+    # Proof slot: every 5 minutes — temporary high-frequency to verify the
+    # scheduler fires.  Revert to daily cadence once a scheduled run is observed.
+    - cron: "*/5 * * * *"
   workflow_dispatch: # Manual trigger for testing and one-off nightly snapshots.
 
 permissions:
