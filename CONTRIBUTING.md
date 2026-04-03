@@ -170,11 +170,10 @@ flow automatically: archive packaging, checksums, signature bundles, the
 release entry, and a generated `CHANGELOG-<tag>.md` asset all publish from the
 same tag event.
 
-A daily GitHub-hosted schedule automatically force-updates the `nightly`
-channel git tag to the current HEAD of `main` via
-`.github/workflows/nightly-channel-git-tag-refresh.yml`, then dispatches the
-release workflow against the `nightly` ref so the nightly pre-release build
-runs from the refreshed channel git tag.
+A daily GitHub-hosted schedule (`.github/workflows/nightly.yml`) creates
+a short-SHA snapshot tag from the current HEAD of `main` if one does
+not already exist. The tag push triggers the release workflow to produce
+a nightly pre-release build.
 For immediate snapshot releases, the operator can manually create a
 short-SHA tag after merge. See `RELEASING.md` for the full tag format
 table and manual tagging instructions.
