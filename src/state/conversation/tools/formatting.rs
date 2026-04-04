@@ -92,43 +92,104 @@ pub(crate) fn parse_tagged_parameters(body: &str) -> serde_json::Map<String, ser
     let mut input = serde_json::Map::new();
     let mut parameter_cursor = 0usize;
 
-    while let Some(parameter_rel) = body[parameter_cursor..].find("<parameter=") {
-        let parameter_start = parameter_cursor + parameter_rel;
-        let key_start = parameter_start + "<parameter=".len();
-        let Some(key_end_rel) = body[key_start..].find('>') else {
+    while let Some(tag_rel) = body[parameter_cursor..].find("<parameter") {
+        let tag_start = parameter_cursor + tag_rel;
+        let after_tag = tag_start + "<parameter".len();
+
+        // Determine tag variant: `<parameter=key>` vs `<parameter>key>`.
+        let (key_start, uses_equals) = match body.as_bytes().get(after_tag) {
+            Some(b'=') => (after_tag + 1, true),
+            Some(b'>') => (after_tag + 1, false),
+            _ => {
+                parameter_cursor = after_tag;
+                continue;
+            }
+        };
+
+        let Some(close_angle_rel) = body[key_start..].find('>') else {
             break;
         };
-        let key_end = key_start + key_end_rel;
-        let key = body[key_start..key_end]
-            .trim()
-            .trim_matches('"')
-            .trim_matches('\'')
-            .to_string();
+        let close_angle = key_start + close_angle_rel;
+        let raw_key = &body[key_start..close_angle];
 
-        let value_start = key_end + 1;
-        let parameter_close = body[value_start..]
-            .find("</parameter>")
-            .map(|rel| value_start + rel);
-        let next_parameter = body[value_start..]
-            .find("<parameter=")
-            .map(|rel| value_start + rel);
+        if uses_equals {
+            // Well-formed: `<parameter=key>value</parameter>`
+            // or malformed: `<parameter=key</parameter>` (missing `>`)
+            let (key, value_start, value_end, next_cursor) =
+                if let Some(slash_pos) = raw_key.find("</") {
+                    // Malformed: the first `>` is inside `</parameter>`.
+                    let key = raw_key[..slash_pos]
+                        .trim()
+                        .trim_matches('"')
+                        .trim_matches('\'')
+                        .to_string();
+                    let close_end = close_angle + 1;
+                    (key, close_end, close_end, close_end)
+                } else {
+                    let key = raw_key
+                        .trim()
+                        .trim_matches('"')
+                        .trim_matches('\'')
+                        .to_string();
+                    resolve_value_bounds(body, close_angle + 1, &key)
+                };
 
-        let (value_end, next_cursor) = match (parameter_close, next_parameter) {
-            (Some(close), Some(next)) if next < close => (next, next),
-            (Some(close), _) => (close, close + "</parameter>".len()),
-            (None, Some(next)) => (next, next),
-            (None, None) => (body.len(), body.len()),
-        };
-
-        let value = normalize_tagged_parameter_value(&body[value_start..value_end]);
-        if !key.is_empty() {
-            input.insert(key, serde_json::Value::String(value));
+            let value = normalize_tagged_parameter_value(&body[value_start..value_end]);
+            if !key.is_empty() {
+                input.insert(key, serde_json::Value::String(value));
+            }
+            parameter_cursor = next_cursor.max(tag_start + 1);
+        } else {
+            // Missing `=`: `<parameter>key</parameter>` or `<parameter>key>value</parameter>`.
+            let close_tag = body[key_start..]
+                .find("</parameter>")
+                .map(|rel| key_start + rel);
+            if let Some(close_pos) = close_tag {
+                let inner = &body[key_start..close_pos];
+                let (key, value) = if let Some(sep) = inner.find('>') {
+                    // `<parameter>key>value</parameter>`
+                    (inner[..sep].trim(), inner[sep + 1..].to_string())
+                } else {
+                    // `<parameter>key</parameter>` — key only, empty value
+                    (inner.trim(), String::new())
+                };
+                let key = key.trim_matches('"').trim_matches('\'').to_string();
+                let value = normalize_tagged_parameter_value(&value);
+                if !key.is_empty() {
+                    input.insert(key, serde_json::Value::String(value));
+                }
+                parameter_cursor = close_pos + "</parameter>".len();
+            } else {
+                parameter_cursor = close_angle + 1;
+            }
         }
-
-        parameter_cursor = next_cursor.max(parameter_start + 1);
     }
 
     input
+}
+
+/// Locate value boundaries and next-parameter cursor for well-formed tags.
+fn resolve_value_bounds(
+    body: &str,
+    value_start: usize,
+    _key: &str,
+) -> (String, usize, usize, usize) {
+    // Unused key param kept for future diagnostics; suppressed with _.
+    let key = _key.to_string();
+    let parameter_close = body[value_start..]
+        .find("</parameter>")
+        .map(|rel| value_start + rel);
+    let next_parameter = body[value_start..]
+        .find("<parameter")
+        .map(|rel| value_start + rel);
+
+    let (value_end, next_cursor) = match (parameter_close, next_parameter) {
+        (Some(close), Some(next)) if next < close => (next, next),
+        (Some(close), _) => (close, close + "</parameter>".len()),
+        (None, Some(next)) => (next, next),
+        (None, None) => (body.len(), body.len()),
+    };
+    (key, value_start, value_end, next_cursor)
 }
 
 pub(crate) fn render_tool_calls_for_text_protocol(blocks: &[ContentBlock]) -> String {

@@ -39,6 +39,59 @@ cal.js
     assert_eq!(calls[0].input["path"], "cal.js");
 }
 #[test]
+fn test_parse_tagged_tool_calls_malformed_missing_key_close() {
+    // Model emits `<parameter=filepath</parameter>` (missing `>` after key).
+    // The parser should extract the key and treat the value as empty.
+    let text = r#"<function=write_file>
+<parameter=filepath</parameter>
+<parameter=content</parameter>
+</function>"#;
+    let calls = parse_tagged_tool_calls(text);
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].name, "write_file");
+    assert_eq!(calls[0].input["filepath"], "");
+    assert_eq!(calls[0].input["content"], "");
+}
+#[test]
+fn test_parse_tagged_tool_calls_mixed_malformed_and_good() {
+    // First parameter is malformed, second is well-formed.
+    let text = r#"<function=write_file>
+<parameter=path</parameter>
+<parameter=content>fn main() {}</parameter>
+</function>"#;
+    let calls = parse_tagged_tool_calls(text);
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].name, "write_file");
+    assert_eq!(calls[0].input["path"], "");
+    assert_eq!(calls[0].input["content"], "fn main() {}");
+}
+#[test]
+fn test_parse_tagged_tool_calls_missing_equals_key_only() {
+    // Model emits `<parameter>content</parameter>` (missing `=`).
+    let text = r#"<function=write_file>
+<parameter=file_path</parameter>
+<parameter>content</parameter>
+</function>"#;
+    let calls = parse_tagged_tool_calls(text);
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].name, "write_file");
+    assert_eq!(calls[0].input["file_path"], "");
+    assert_eq!(calls[0].input["content"], "");
+}
+#[test]
+fn test_parse_tagged_tool_calls_missing_equals_with_value() {
+    // Model emits `<parameter>key>value</parameter>` (missing `=`).
+    let text = r#"<function=write_file>
+<parameter>path>cal.rs</parameter>
+<parameter>content>fn main() {}</parameter>
+</function>"#;
+    let calls = parse_tagged_tool_calls(text);
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].name, "write_file");
+    assert_eq!(calls[0].input["path"], "cal.rs");
+    assert_eq!(calls[0].input["content"], "fn main() {}");
+}
+#[test]
 fn test_truncate_for_history() {
     let text = "abcdefghij";
     let truncated = truncate_for_history(text, 40);
