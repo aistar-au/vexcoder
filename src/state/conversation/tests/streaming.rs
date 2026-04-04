@@ -745,6 +745,53 @@ data: {"type":"message_stop"}"#.to_string(),
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_generic_snippet_request_does_not_force_tool_retry() -> Result<()> {
+    let response_sse = vec![
+        r#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_direct_answer_01","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":8,"output_tokens":12}}}"#.to_string(),
+        r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#.to_string(),
+        r#"event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"use tokio::time::{sleep, Duration};\n\n#[tokio::main]\nasync fn main() {\n    sleep(Duration::from_millis(10)).await;\n    println!(\"2 + 2 = {}\", 2 + 2);\n}"}}"#.to_string(),
+        r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":12}}"#.to_string(),
+        r#"event: message_stop
+data: {"type":"message_stop"}"#.to_string(),
+    ];
+
+    let mock_api_client =
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+            response_sse,
+        ])));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+
+    let final_text = manager
+        .send_message("print a tiny async tokio calculator".to_string(), None)
+        .await?;
+    assert!(final_text.contains("#[tokio::main]"));
+    assert!(final_text.contains("println!"));
+
+    let correction_count = manager
+        .api_messages
+        .iter()
+        .filter(|message| {
+            message.role == "user"
+                && matches!(
+                    &message.content,
+                    Content::Text(text) if text.contains("did not execute any tool call")
+                )
+        })
+        .count();
+    assert_eq!(
+        correction_count, 0,
+        "generic snippet requests should not trigger tool-evidence retries"
+    );
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn test_repeated_read_only_round_injects_nudge_then_recovers() -> Result<()> {
     let mock_api_client =

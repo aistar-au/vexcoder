@@ -442,6 +442,13 @@ fn test_system_prompt_restricts_git_tool_capability_claims() {
 }
 
 #[test]
+fn test_system_prompt_allows_direct_answers_when_workspace_evidence_is_unneeded() {
+    assert!(BASE_SYSTEM_PROMPT.contains("answer directly and do not call any tool"));
+    assert!(BASE_SYSTEM_PROMPT
+        .contains("Words like show, print, display, or list do not require a tool"));
+}
+
+#[test]
 fn test_system_prompt_includes_large_file_edit_guidance() {
     assert!(BASE_SYSTEM_PROMPT.contains(
             "use write_file only for smaller full-file rewrites that stay under the write-file guard thresholds"
