@@ -81,6 +81,7 @@ impl TuiMode {
                 SlashCommandId::Watch => self.handle_watch_command(args),
                 SlashCommandId::Undo => self.handle_undo_command(ctx),
                 SlashCommandId::Reindex => self.handle_reindex_command(ctx),
+                SlashCommandId::Copy => self.handle_copy_command(),
                 SlashCommandId::Commands | SlashCommandId::Help => self.handle_commands_command(),
             }
 

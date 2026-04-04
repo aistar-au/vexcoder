@@ -1,4 +1,5 @@
-use unicode_width::UnicodeWidthChar;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VisualLayout {
@@ -174,13 +175,13 @@ pub fn visual_window_start(cursor_row: usize, visible_rows: usize) -> usize {
 pub fn truncate_to_display_width(text: &str, max_width: usize) -> String {
     let mut out = String::new();
     let mut used = 0usize;
-    for ch in text.chars() {
-        let ch_width = char_display_width(ch);
-        if used + ch_width > max_width && used > 0 {
+    for grapheme in text.graphemes(true) {
+        let g_width = UnicodeWidthStr::width(grapheme);
+        if used + g_width > max_width && used > 0 {
             break;
         }
-        out.push(ch);
-        used += ch_width;
+        out.push_str(grapheme);
+        used += g_width;
     }
     out
 }
@@ -190,7 +191,7 @@ pub fn char_display_width(ch: char) -> usize {
 }
 
 pub fn display_width(text: &str) -> usize {
-    text.chars().map(char_display_width).sum()
+    text.graphemes(true).map(UnicodeWidthStr::width).sum()
 }
 
 pub fn clamp_to_char_boundary_left(input: &str, cursor: usize) -> usize {

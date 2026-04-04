@@ -38,6 +38,7 @@ pub(super) enum SlashCommandId {
     Commands,
     Help,
     Reindex,
+    Copy,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -374,6 +375,12 @@ pub(super) const SLASH_COMMANDS: &[SlashCommandSpec] = &[
         "show version and build info",
     ),
     SlashCommandSpec::new(
+        SlashCommandId::Copy,
+        SlashCommandPattern::Exact("/copy"),
+        "/copy",
+        "copy last assistant output to clipboard",
+    ),
+    SlashCommandSpec::new(
         SlashCommandId::Diff,
         SlashCommandPattern::ExactOrPrefix {
             exact: "/diff",
@@ -420,7 +427,8 @@ pub(super) fn slash_command_menu_group(id: SlashCommandId) -> &'static str {
         | SlashCommandId::Fork
         | SlashCommandId::Quit
         | SlashCommandId::Exit
-        | SlashCommandId::About => "session + control",
+        | SlashCommandId::About
+        | SlashCommandId::Copy => "session + control",
         SlashCommandId::Undo => "edit + inspect",
     }
 }
@@ -460,6 +468,7 @@ pub(super) fn slash_command_mode_summary(id: SlashCommandId) -> &'static str {
         | SlashCommandId::Fork => "manage saved session state",
         SlashCommandId::Quit | SlashCommandId::Exit => "save state and exit",
         SlashCommandId::About => "show build and environment info",
+        SlashCommandId::Copy => "copy last assistant output to the system clipboard",
         SlashCommandId::Undo => "revert last file-modifying tool call from checkpoint stack",
     }
 }

@@ -374,4 +374,33 @@ impl TuiMode {
             self.instructions_path.as_deref().unwrap_or("none")
         ));
     }
+
+    pub(crate) fn handle_copy_command(&mut self) {
+        let text = self
+            .history_state
+            .lines
+            .iter()
+            .rev()
+            .take(50)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .cloned()
+            .collect::<Vec<String>>()
+            .join("\n");
+
+        if text.is_empty() {
+            self.push_history_line("[copy] nothing to copy".to_string());
+            return;
+        }
+
+        match arboard::Clipboard::new().and_then(|mut cb| cb.set_text(&text)) {
+            Ok(()) => {
+                self.push_history_line("[copy] last output copied to clipboard".to_string());
+            }
+            Err(err) => {
+                self.push_history_line(format!("[copy] clipboard unavailable: {err}"));
+            }
+        }
+    }
 }

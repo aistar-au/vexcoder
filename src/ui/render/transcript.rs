@@ -3,6 +3,7 @@ use crate::status_contract::{
     is_waiting_placeholder, pending_status_label, status_tone, StatusTone,
 };
 use crate::ui::input_metrics::{char_display_width, truncate_to_display_width};
+use ansi_to_tui::IntoText;
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -240,6 +241,19 @@ pub(crate) fn transcript_output_line(row: &str) -> Line<'static> {
         || row.starts_with("> ")
     {
         pipeline_activity_line(row)
+    } else if row.contains('\x1b') {
+        // Parse ANSI escape sequences into styled ratatui spans.
+        match row.into_text() {
+            Ok(text) => text
+                .lines
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| Line::from("")),
+            Err(_) => Line::from(Span::styled(
+                row.to_string(),
+                Style::default().fg(Color::White),
+            )),
+        }
     } else {
         Line::from(Span::styled(
             row.to_string(),
