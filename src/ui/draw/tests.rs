@@ -23,6 +23,7 @@ fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState
         follow_mode: true,
         picker_overlay: vec![],
         working_dir: "/tmp/test-project".into(),
+        model_url: String::new(),
     }
 }
 
@@ -286,6 +287,7 @@ fn changing_selected_inspector_entry_redraws_output() {
         follow_mode: true,
         picker_overlay: vec![],
         working_dir: String::new(),
+    model_url: String::new(),
     };
     draw.draw(&mut buf, &first, 80, 24);
 
@@ -328,6 +330,7 @@ fn empty_timeline_renders_separator_and_transcript() {
         follow_mode: true,
         picker_overlay: vec![],
         working_dir: String::new(),
+    model_url: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -656,6 +659,7 @@ fn persistent_layout_starts_with_blank_transcript_before_first_turn() {
         follow_mode: true,
         picker_overlay: vec![],
         working_dir: String::new(),
+        model_url: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -749,6 +753,7 @@ fn fullscreen_surface_hides_top_header_chrome() {
         follow_mode: true,
         picker_overlay: vec![],
         working_dir: String::new(),
+        model_url: String::new(),
     };
 
     draw.draw(&mut buf, &state, 100, 24);
@@ -788,6 +793,7 @@ fn inline_approval_renders_in_composer() {
         follow_mode: true,
         picker_overlay: vec![],
         working_dir: String::new(),
+        model_url: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -849,6 +855,7 @@ fn fullscreen_surface_hides_token_indicator_when_tokens_recorded() {
         follow_mode: true,
         picker_overlay: vec![],
         working_dir: String::new(),
+        model_url: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -890,6 +897,7 @@ fn header_hides_token_indicator_when_no_turns_completed() {
         follow_mode: true,
         picker_overlay: vec![],
         working_dir: String::new(),
+    model_url: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -925,6 +933,7 @@ fn composer_renders_live_input_text() {
         follow_mode: true,
         picker_overlay: vec![],
         working_dir: String::new(),
+    model_url: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -960,6 +969,7 @@ fn composer_header_renders_focus_and_char_count() {
         follow_mode: false,
         picker_overlay: vec![],
         working_dir: "/workspace/demo".into(),
+        model_url: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -1397,6 +1407,7 @@ fn composer_hash_tracks_live_input_changes() {
         follow_mode: true,
         picker_overlay: vec![],
         working_dir: String::new(),
+    model_url: String::new(),
     };
     let second = TaskLayoutState {
         composer_text: "second".into(),
@@ -1434,6 +1445,7 @@ fn composer_hash_tracks_cursor_only_changes() {
         follow_mode: true,
         picker_overlay: vec![],
         working_dir: String::new(),
+    model_url: String::new(),
     };
     let second = TaskLayoutState {
         composer_cursor: 7,
@@ -1814,6 +1826,7 @@ fn picker_overlay_renders_above_composer() {
             },
         ],
         working_dir: String::new(),
+        model_url: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -1876,6 +1889,7 @@ fn picker_overlay_clears_when_dismissed() {
             },
         ],
         working_dir: String::new(),
+        model_url: String::new(),
     };
     draw.draw(&mut buf, &state_with_overlay, 80, 24);
     assert_eq!(draw.last_overlay_rows, 2, "overlay should track 2 rows");
@@ -1887,6 +1901,7 @@ fn picker_overlay_clears_when_dismissed() {
         composer_cursor: 5,
         picker_overlay: vec![],
         working_dir: String::new(),
+        model_url: String::new(),
         ..state_with_overlay
     };
     buf.clear();
@@ -1928,6 +1943,7 @@ fn picker_overlay_hash_changes_on_selection_move() {
             },
         ],
         working_dir: String::new(),
+        model_url: String::new(),
     };
 
     let moved = TaskLayoutState {

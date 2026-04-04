@@ -478,6 +478,7 @@ impl TuiMode {
             follow_mode: self.timeline_follow_mode,
             picker_overlay: vec![],
             working_dir: self.working_dir.display().to_string(),
+            model_url: self.model_url.clone(),
         })
     }
 

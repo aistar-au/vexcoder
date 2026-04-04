@@ -66,6 +66,7 @@ fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState
         follow_mode: true,
         picker_overlay: vec![],
         working_dir: "/tmp/snap-project".into(),
+        model_url: String::new(),
     }
 }
 

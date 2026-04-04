@@ -152,11 +152,11 @@ pub(crate) fn draw_bar_line(w: &mut dyn Write, text: &str, cols: u16, dim: bool)
     set_fg(w, DIM_GRAY);
     let _ = write!(w, " \u{2502} "); // │
 
-    // Diff-aware coloring: deletion lines in red, insertion lines in green.
+    // Diff-aware coloring: bright red for deletions, bright green for insertions.
     let content_color = if text.starts_with('+') && !text.starts_with("+++") {
-        GREEN
+        BRIGHT_GREEN
     } else if text.starts_with('-') && !text.starts_with("---") {
-        RED
+        BRIGHT_RED
     } else {
         WHITE
     };

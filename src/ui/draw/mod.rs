@@ -401,6 +401,7 @@ impl TaskDraw {
                 regions.composer_start,
                 regions.cols,
                 &state.working_dir,
+                &state.model_url,
                 state.composer_focused,
             );
 
@@ -957,14 +958,22 @@ fn draw_rule_row<W: Write>(
     }
 }
 
-/// Draw a dim separator bar showing the workspace path.
+/// Draw a dim separator bar showing the workspace path and API endpoint.
 ///
 /// Replaces the former `Prompt ─────` box-drawing rule with a subdued
 /// background that keeps the prompt area visually distinct from the
 /// scrolling transcript above it.  The working directory is rendered in
-/// DIM_GRAY when unfocused and GRAY when focused, giving the operator a
-/// persistent location reference without competing with response text.
-fn draw_path_separator(w: &mut dyn Write, row: u16, cols: u16, path: &str, focused: bool) {
+/// DIM_GRAY when unfocused and GRAY when focused; the API path renders
+/// right-aligned in DIM_GRAY so the operator always knows which endpoint
+/// is active without competing with response text.
+fn draw_path_separator(
+    w: &mut dyn Write,
+    row: u16,
+    cols: u16,
+    path: &str,
+    model_url: &str,
+    focused: bool,
+) {
     move_to(w, row, 0);
     clear_line(w);
     set_dim(w);
@@ -982,6 +991,21 @@ fn draw_path_separator(w: &mut dyn Write, row: u16, cols: u16, path: &str, focus
         let truncated = truncate_to_width(&label, cols as usize);
         let _ = write!(w, "{truncated}");
         reset_style(w);
+
+        // Right-align the API endpoint URL if there is room.
+        if !model_url.is_empty() {
+            let api_label = format!(" {model_url} ");
+            let api_width = display_width(&api_label);
+            let path_width = display_width(&label).min(cols as usize);
+            if path_width + api_width < cols as usize {
+                let col = cols.saturating_sub(api_width as u16);
+                move_to(w, row, col);
+                set_dim(w);
+                set_fg(w, DIM_GRAY);
+                let _ = write!(w, "{api_label}");
+                reset_style(w);
+            }
+        }
     }
 }
 

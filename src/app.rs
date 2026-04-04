@@ -301,6 +301,8 @@ pub struct TaskLayoutState {
     pub picker_overlay: Vec<PickerOverlayLine>,
     /// Workspace working directory displayed at the prompt separator.
     pub working_dir: String,
+    /// Model API endpoint URL shown at the prompt separator.
+    pub model_url: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -392,6 +394,8 @@ pub struct TuiMode {
     model_profile: ModelProfile,
     /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
+    /// Model API endpoint URL for display at the prompt separator.
+    model_url: String,
     /// Search configuration from `[search]` TOML section.
     search_config: crate::config::SearchConfig,
     sandbox: ConfiguredSandbox,

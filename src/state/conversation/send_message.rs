@@ -279,15 +279,28 @@ impl ConversationManager {
                             ) = (maybe_json, maybe_tool)
                             {
                                 if !json_str.is_empty() {
-                                    if let Ok(parsed_input) = serde_json::from_str(json_str) {
-                                        *input = parsed_input;
+                                    let parse_result: Result<serde_json::Value, _> =
+                                        serde_json::from_str(json_str)
+                                            .or_else(|_| serde_json::from_str(json_str.trim()));
+                                    match parse_result {
+                                        Ok(parsed_input) => {
+                                            *input = parsed_input;
 
-                                        if let Some(StreamBlock::ToolCall {
-                                            input: block_input,
-                                            ..
-                                        }) = self.current_turn_blocks.get_mut(index)
-                                        {
-                                            *block_input = input.clone();
+                                            if let Some(StreamBlock::ToolCall {
+                                                input: block_input,
+                                                ..
+                                            }) = self.current_turn_blocks.get_mut(index)
+                                            {
+                                                *block_input = input.clone();
+                                            }
+                                        }
+                                        Err(err) => {
+                                            tracing::warn!(
+                                                index,
+                                                json_len = json_str.len(),
+                                                err = %err,
+                                                "tool input JSON parse failed; tool will run with empty input"
+                                            );
                                         }
                                     }
                                 }

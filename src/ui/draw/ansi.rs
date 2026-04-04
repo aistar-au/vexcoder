@@ -61,7 +61,9 @@ pub(super) const SPINNER_FRAMES: &[&str] = &[
 // ── Color palette ───────────────────────────────────────────────────
 
 pub(super) const GREEN: u8 = 2;
+pub(super) const BRIGHT_GREEN: u8 = 10;
 pub(super) const RED: u8 = 1;
+pub(super) const BRIGHT_RED: u8 = 9;
 pub(super) const CYAN: u8 = 6;
 pub(super) const YELLOW: u8 = 3;
 pub(super) const MAGENTA: u8 = 5;

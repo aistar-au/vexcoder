@@ -16,7 +16,7 @@ use vexcoder::init::run_init;
 use vexcoder::pr_summary::{run_branch, run_pr_summary};
 use vexcoder::runtime::{TaskState, TaskStatus};
 use vexcoder::serve_local_api;
-use vexcoder::startup::{emit_model_endpoint_warnings, prompt_tui_startup_config};
+use vexcoder::startup::emit_model_endpoint_warnings;
 use vexcoder::tui_frontend::ManagedTuiFrontend;
 
 #[path = "vex/cli.rs"]
@@ -340,7 +340,7 @@ async fn main() -> Result<ExitCode> {
         None => {}
     }
 
-    let mut config = Config::load()?;
+    let config = Config::load()?;
 
     let resume_state = match cli.resume.as_deref() {
         Some(task_id) => match resolve_resume_state(task_id)? {
@@ -360,7 +360,6 @@ async fn main() -> Result<ExitCode> {
         return run_print(prompt, config, resume_state).await;
     }
 
-    config = prompt_tui_startup_config(config)?;
     config.validate()?;
     emit_model_endpoint_warnings(&config);
 
