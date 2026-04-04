@@ -81,37 +81,27 @@ fn is_structural_transcript_row(line: &str) -> bool {
 /// Split `text` at word boundaries so each segment fits within `cols`
 /// display columns. Single words wider than `cols` are hard-truncated.
 pub(crate) fn word_wrap_to_cols(text: &str, cols: usize) -> Vec<String> {
-    let mut result: Vec<String> = Vec::new();
-    let mut current_line = String::new();
-    let mut current_width: usize = 0;
-
-    for word in text.split_whitespace() {
-        let word_width = display_width(word);
-        if current_width == 0 {
-            // First word on this visual line.
-            let fitted = truncate_to_width(word, cols);
-            current_width = display_width(&fitted);
-            current_line.push_str(&fitted);
-        } else if current_width + 1 + word_width <= cols {
-            // Word fits with one leading space.
-            current_line.push(' ');
-            current_line.push_str(word);
-            current_width += 1 + word_width;
-        } else {
-            // Flush the current line and begin a new one.
-            result.push(std::mem::take(&mut current_line));
-            let fitted = truncate_to_width(word, cols);
-            current_width = display_width(&fitted);
-            current_line.push_str(&fitted);
-        }
+    if cols == 0 {
+        return vec![text.to_string()];
     }
-    if !current_line.is_empty() {
-        result.push(current_line);
+    let options = textwrap::Options::new(cols)
+        .word_splitter(textwrap::WordSplitter::NoHyphenation)
+        .break_words(false);
+    let wrapped = textwrap::wrap(text, &options);
+    if wrapped.is_empty() {
+        return vec![String::new()];
     }
-    if result.is_empty() {
-        result.push(String::new());
-    }
-    result
+    wrapped
+        .into_iter()
+        .map(|cow| {
+            let s = cow.into_owned();
+            if display_width(&s) > cols {
+                truncate_to_width(&s, cols)
+            } else {
+                s
+            }
+        })
+        .collect()
 }
 
 // ── Shared transcript rendering helpers ────────────────────────────

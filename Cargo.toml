@@ -16,7 +16,7 @@ axum = { version = "0.8", features = ["http1", "json", "tokio"] }
 clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4" }
 bytes = "1"
-crossterm = "0.28"
+crossterm = { version = "0.28", features = ["bracketed-paste", "event-stream"] }
 fs2 = "0.4"
 futures = "0.3"
 hyper = { version = "1", features = ["http1", "server"] }
@@ -27,7 +27,10 @@ hyper-util = { version = "0.1", features = [
   "service",
   "tokio",
 ] }
-ratatui = "0.29"
+ratatui = { version = "0.29", features = [
+  "unstable-rendered-line-info",
+  "unstable-widget-ref",
+] }
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
   "stream",
@@ -58,14 +61,18 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
   "env-filter",
   "fmt",
 ] }
+unicode-segmentation = "1"
 unicode-width = "0.2"
 uuid = { version = "1", features = ["v4"] }
 portable-pty = "0.9"
 tempfile = "3"
 quick-xml = "0.37"
+textwrap = "0.16"
 tree-sitter = "0.24"
 tree-sitter-rust = "0.23"
 x509-parser = "0.17"
+ansi-to-tui = "7"
+arboard = { version = "3", default-features = false }
 
 [dev-dependencies]
 filetime = "0.2"
