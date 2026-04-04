@@ -394,35 +394,15 @@ impl TaskDraw {
             let body_rows = regions.composer_rows.saturating_sub(1).max(1) as usize;
             let window_start = visual_window_start(cursor_row, body_rows);
             let hint_lines: Vec<&str> = state.input_hint.lines().collect();
-            let composer_char_count = state.composer_text.chars().count();
 
-            let status = format!(
-                "{} · {} chars",
-                if state.composer_focused {
-                    "focused"
-                } else {
-                    "unfocused"
-                },
-                composer_char_count
-            );
-            draw_rule_row(
+            // Separator: dim path bar instead of box-drawing rule.
+            draw_path_separator(
                 w,
                 regions.composer_start,
                 regions.cols,
-                "Prompt",
-                if state.composer_focused {
-                    WHITE
-                } else {
-                    DIM_GRAY
-                },
-                Some((
-                    &status,
-                    if state.composer_focused {
-                        CYAN
-                    } else {
-                        DIM_GRAY
-                    },
-                )),
+                &state.working_dir,
+                &state.model_url,
+                state.composer_focused,
             );
 
             for offset in 0..body_rows {
@@ -440,7 +420,7 @@ impl TaskDraw {
                         DIM_GRAY
                     },
                 );
-                let _ = write!(w, "{}", if offset == 0 { "› " } else { "  " });
+                let _ = write!(w, "{}", if offset == 0 { "\u{203a} " } else { "  " });
                 reset_style(w);
 
                 let line_index = window_start + offset;
@@ -603,6 +583,9 @@ impl TaskDraw {
             h = h.wrapping_mul(31).wrapping_add(simple_hash(&line.text));
             h = h.wrapping_mul(31).wrapping_add(line.selected as u64);
         }
+        h = h
+            .wrapping_mul(31)
+            .wrapping_add(simple_hash(&state.working_dir));
         h
     }
 }
@@ -971,6 +954,57 @@ fn draw_rule_row<W: Write>(
             set_fg(w, color);
             let _ = write!(w, "{right_text}");
             reset_style(w);
+        }
+    }
+}
+
+/// Draw a dim separator bar showing the workspace path and API endpoint.
+///
+/// Replaces the former `Prompt ─────` box-drawing rule with a subdued
+/// background that keeps the prompt area visually distinct from the
+/// scrolling transcript above it.  The working directory is rendered in
+/// DIM_GRAY when unfocused and GRAY when focused; the API path renders
+/// right-aligned in DIM_GRAY so the operator always knows which endpoint
+/// is active without competing with response text.
+fn draw_path_separator(
+    w: &mut dyn Write,
+    row: u16,
+    cols: u16,
+    path: &str,
+    model_url: &str,
+    focused: bool,
+) {
+    move_to(w, row, 0);
+    clear_line(w);
+    set_dim(w);
+    set_fg(w, DIM_GRAY);
+    for _ in 0..cols {
+        let _ = write!(w, "\u{2500}");
+    }
+    reset_style(w);
+
+    if !path.is_empty() {
+        let label = format!(" {path} ");
+        move_to(w, row, 0);
+        set_dim(w);
+        set_fg(w, if focused { GRAY } else { DIM_GRAY });
+        let truncated = truncate_to_width(&label, cols as usize);
+        let _ = write!(w, "{truncated}");
+        reset_style(w);
+
+        // Right-align the API endpoint URL if there is room.
+        if !model_url.is_empty() {
+            let api_label = format!(" {model_url} ");
+            let api_width = display_width(&api_label);
+            let path_width = display_width(&label).min(cols as usize);
+            if path_width + api_width < cols as usize {
+                let col = cols.saturating_sub(api_width as u16);
+                move_to(w, row, col);
+                set_dim(w);
+                set_fg(w, DIM_GRAY);
+                let _ = write!(w, "{api_label}");
+                reset_style(w);
+            }
         }
     }
 }

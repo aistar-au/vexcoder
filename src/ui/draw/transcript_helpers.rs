@@ -151,7 +151,16 @@ pub(crate) fn draw_bar_line(w: &mut dyn Write, text: &str, cols: u16, dim: bool)
     }
     set_fg(w, DIM_GRAY);
     let _ = write!(w, " \u{2502} "); // │
-    set_fg(w, WHITE);
+
+    // Diff-aware coloring: bright red for deletions, bright green for insertions.
+    let content_color = if text.starts_with('+') && !text.starts_with("+++") {
+        BRIGHT_GREEN
+    } else if text.starts_with('-') && !text.starts_with("---") {
+        BRIGHT_RED
+    } else {
+        WHITE
+    };
+    set_fg(w, content_color);
     let truncated = truncate_to_width(text, (cols as usize).saturating_sub(3));
     let _ = write!(w, "{truncated}");
     reset_style(w);

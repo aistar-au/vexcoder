@@ -77,7 +77,17 @@ impl StreamTextNormaliser {
                 .strip_suffix('\r')
                 .unwrap_or(&self.pending[consumed..line_end])
                 .to_string();
+            let before_len = output.len();
             self.process_line(&line, output);
+            // Preserve the newline that terminated this line so that
+            // downstream consumers (transcript_display_rows, word-wrap)
+            // see original line boundaries.  Only patch Text chunks;
+            // TranscriptLine entries are already self-contained.
+            for chunk in output[before_len..].iter_mut() {
+                if let NormalisedChunk::Text(t) = chunk {
+                    t.push('\n');
+                }
+            }
             consumed = line_end + 1;
         }
 

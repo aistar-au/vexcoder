@@ -245,6 +245,8 @@ fn test_changed_files_and_live_approval_prompt_render() {
         composer_focused: true,
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
+        model_url: String::new(),
     };
 
     terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -308,6 +310,8 @@ fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
         composer_focused: true,
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
+        model_url: String::new(),
     };
 
     terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -361,6 +365,8 @@ fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
         composer_focused: true,
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
+        model_url: String::new(),
     };
 
     terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -407,6 +413,8 @@ fn task_layout_without_changed_files_bottom_anchors_short_transcript() {
         composer_focused: true,
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
+        model_url: String::new(),
     };
 
     terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -453,6 +461,8 @@ fn task_output_window_uses_expanded_display_rows() {
         composer_focused: true,
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
+        model_url: String::new(),
     };
 
     let expanded = crate::ui::draw::expand_rows_for_display(&state.output_rows, 10);
