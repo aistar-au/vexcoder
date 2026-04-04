@@ -550,7 +550,7 @@ Reference agents expose a user-level notes surface that persists across sessions
 
 **Session-local markdown artifacts:** When the runtime persists a human-readable
 per-session plan, checklist, or handoff note for operator inspection, the
-artifact lives under `~/.config/vex/session-state/<session-id>/` (XDG path) or
+artifact is stored under `~/.config/vex/session-state/<session-id>/` (XDG path) or
 `~/.vex/session-state/<session-id>/` as fallback. Plain UTF-8 Markdown is the
 required format. `plan.md` is the canonical filename for turn-local planning
 state. These files are operator-local scratch artifacts: they may be read back
@@ -730,7 +730,7 @@ template    = "Summarise the changes in {{context}} as a concise standup update.
 - The `name` field must match `[a-z0-9-]+`. Names beginning with `vex-` are reserved for future built-ins.
 - The `template` field supports `{{context}}` and `{{input}}` substitution sites. `{{context}}` is populated by `ContextAssembler`; `{{input}}` is the remainder of the operator's command invocation (`/standup last week` → `{{input}}` = `"last week"`).
 - User-defined commands are loaded at session start and appear in `/commands` output in a separate `[custom commands]` section.
-- Project-scoped command files in `.vex/commands/` must not be considered user-config-only; they are intentionally project-committed. This is an exception to the general principle that operator-personal config lives in the user layer. The rationale: shared team workflows are a legitimate use case for project-committed commands.
+- Project-scoped command files in `.vex/commands/` must not be considered user-config-only; they are intentionally project-committed. This is an exception to the general principle that operator-personal config is kept in the user layer. The rationale: shared team workflows are a legitimate use case for project-committed commands.
 
 **Anchor tests:** `test_custom_command_invokes_single_turn`; `test_custom_command_cannot_shadow_builtin`; `test_custom_command_input_substitution`; `test_custom_command_context_substitution`; `test_custom_command_appears_in_commands_list`; `test_custom_command_project_scoped_takes_precedence`.
 

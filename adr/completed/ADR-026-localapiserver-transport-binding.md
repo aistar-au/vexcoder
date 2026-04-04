@@ -533,7 +533,7 @@ For same-machine, same-user private IPC, Unix sockets or loopback HTTP are suffi
 
 This ADR therefore treats LAN, VPN, container-bridge, reverse-proxied, browser-accessible, and other non-local TCP paths as TLS-required in Phase I whenever they carry prompts, session state, repo contents, tool results, or tokens.
 
-The loopback plus tunnel-proxy pattern above is not an exception to this rule. It is a different topology: `LocalApiServer` itself remains loopback-bound, and the external TLS surface lives in the tunnel or proxy layer.
+The loopback plus tunnel-proxy pattern above is not an exception to this rule. It is a different topology: `LocalApiServer` itself remains loopback-bound, and the external TLS surface is handled in the tunnel or proxy layer.
 
 ### Why keep Unix socket and HTTP both?
 

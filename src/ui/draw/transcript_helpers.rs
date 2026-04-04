@@ -67,6 +67,14 @@ fn is_structural_transcript_row(line: &str) -> bool {
     if line.starts_with("# ") || line.starts_with("## ") || line.starts_with("### ") {
         return true;
     }
+    // Markdown bullet and numbered list items — rendered with icon markers
+    // by draw_transcript_line, so they handle their own truncation.
+    if line.starts_with("- ") || line.starts_with("* ") {
+        return true;
+    }
+    if parse_numbered_list_item(line).is_some() {
+        return true;
+    }
     false
 }
 
@@ -706,6 +714,12 @@ pub(crate) fn diff_style(line: &str) -> Option<(u8, bool)> {
         Some((GREEN, false))
     } else if line.starts_with('-') && !line.starts_with("---") {
         Some((RED, false))
+    } else if let Some(marker) = numbered_diff_marker(line) {
+        match marker {
+            '+' => Some((GREEN, false)),
+            '-' => Some((RED, false)),
+            _ => None,
+        }
     } else if line.starts_with("@@")
         || line.starts_with("diff --git")
         || line.starts_with("index ")
@@ -716,6 +730,33 @@ pub(crate) fn diff_style(line: &str) -> Option<(u8, bool)> {
     } else {
         None
     }
+}
+
+fn numbered_diff_marker(line: &str) -> Option<char> {
+    let bytes = line.as_bytes();
+    let mut index = 0usize;
+
+    while index < bytes.len() && bytes[index].is_ascii_digit() {
+        index += 1;
+    }
+    if index == 0 || index >= bytes.len() {
+        return None;
+    }
+    if bytes[index] != b' ' {
+        return None;
+    }
+
+    while index < bytes.len() && bytes[index] == b' ' {
+        index += 1;
+    }
+    let marker = *bytes.get(index)?;
+    if marker != b'+' && marker != b'-' {
+        return None;
+    }
+    if bytes.get(index + 1).copied() != Some(b' ') {
+        return None;
+    }
+    Some(marker as char)
 }
 
 pub(crate) fn parse_command_session_started(line: &str) -> Option<(String, Option<String>)> {
@@ -881,8 +922,8 @@ pub(crate) fn parse_numbered_list_item(line: &str) -> Option<(&str, &str, usize)
     if i == 0 || i >= bytes.len().saturating_sub(1) {
         return None;
     }
-    if bytes[i] == b'.' && i + 1 < bytes.len() && bytes[i + 1] == b' ' {
-        let prefix = &line[..i + 2]; // e.g. "1. "
+    if (bytes[i] == b'.' || bytes[i] == b')') && i + 1 < bytes.len() && bytes[i + 1] == b' ' {
+        let prefix = &line[..i + 2]; // e.g. "1. " or "2) "
         let rest = &line[i + 2..];
         Some((prefix, rest, display_width(prefix)))
     } else {
@@ -932,6 +973,10 @@ pub(crate) fn format_compact_paragraph(
     let mut formatted = String::with_capacity(text.len() + prefix.len() * 4);
     for line in text.lines() {
         if line.is_empty() {
+            // Preserve empty lines as paragraph separators so markdown
+            // structure (bullet lists, headings, paragraphs) renders
+            // correctly instead of collapsing into a wall of text.
+            formatted.push('\n');
             continue;
         }
         let trimmed = truncate_to_width(line, width.saturating_sub(prefix_width));

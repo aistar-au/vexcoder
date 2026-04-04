@@ -584,7 +584,6 @@ impl TaskDraw {
 
 // ── Delta-native transcript rendering ──────────────────────────────
 
-#[allow(unused)]
 impl TaskDraw {
     /// Apply a structured transcript delta directly to the draw
     /// engine's line buffer, bypassing prefix-marker parsing.
@@ -592,6 +591,7 @@ impl TaskDraw {
     /// Lines touched by the delta are marked dirty for the next
     /// incremental redraw pass. This is the entry point for the
     /// delta-native rendering path described in ADR-041.
+    #[allow(unused)]
     pub(super) fn apply_transcript_delta(
         &mut self,
         delta: &crate::state::TranscriptDelta,
@@ -625,6 +625,7 @@ impl TaskDraw {
     /// Consume a batch of transcript deltas and apply them to the
     /// output rows buffer. Returns true if any rows were added
     /// (signalling the caller to trigger a redraw).
+    #[allow(unused)]
     pub(super) fn consume_transcript_deltas(
         &mut self,
         deltas: &[crate::state::TranscriptDelta],

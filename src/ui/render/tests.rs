@@ -49,6 +49,15 @@ fn diff_line_semantics_are_styled_by_prefix() {
 }
 
 #[test]
+fn numbered_edit_diff_lines_keep_added_and_removed_colors() {
+    let add = styled_diff_line("7 + let new_value = 2;");
+    let del = styled_diff_line("7 - let old_value = 1;");
+
+    assert_eq!(add.style.fg, Some(Color::Green));
+    assert_eq!(del.style.fg, Some(Color::Red));
+}
+
+#[test]
 fn history_visual_line_count_tracks_embedded_newlines() {
     let messages = vec![
         "first".to_string(),
@@ -77,6 +86,14 @@ fn classify_diff_line_keeps_header_markers_consistent() {
     assert_eq!(classify_diff_line("diff --git a b"), DiffLineKind::Header);
     assert_eq!(classify_diff_line("index 123..456"), DiffLineKind::Header);
     assert_eq!(classify_diff_line("@@ -1 +1 @@"), DiffLineKind::Header);
+    assert_eq!(
+        classify_diff_line("12 + inserted line"),
+        DiffLineKind::Added
+    );
+    assert_eq!(
+        classify_diff_line("12 - removed line"),
+        DiffLineKind::Removed
+    );
 }
 
 #[test]
@@ -413,6 +430,36 @@ fn task_layout_without_changed_files_bottom_anchors_short_transcript() {
         first_non_empty > 0,
         "short transcript should hug the prompt edge instead of starting at the top row"
     );
+}
+
+#[test]
+fn task_output_window_uses_expanded_display_rows() {
+    let state = crate::app::TaskLayoutState {
+        task_id: "task-wrap".into(),
+        status_line: "Running".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
+        timeline_entries: vec![],
+        selected_step: 0,
+        total_steps: 0,
+        output_title: "Transcript".into(),
+        output_rows: vec!["alpha beta gamma delta epsilon".into()],
+        output_scroll_offset: 0,
+        output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
+        changed_files: vec![],
+        pending_approval: None,
+        input_hint: "> ".into(),
+        composer_text: String::new(),
+        composer_cursor: 0,
+        composer_focused: true,
+        follow_mode: true,
+        picker_overlay: vec![],
+    };
+
+    let expanded = crate::ui::draw::expand_rows_for_display(&state.output_rows, 10);
+    assert!(expanded.len() > 2, "fixture must wrap into multiple rows");
+
+    let (start, end) = task_output_window(&state, 10, 2);
+    assert_eq!((start, end), (expanded.len() - 2, expanded.len()));
 }
 
 #[test]

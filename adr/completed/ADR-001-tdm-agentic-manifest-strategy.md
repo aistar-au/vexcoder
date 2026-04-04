@@ -28,7 +28,7 @@ The conventional ADR + issue tracker workflow assumes a stateful human contribut
 
 Adopt the **Test-Driven Manifest (TDM)** as the canonical workflow for all bug fixes, features, and refactors:
 
-1. **Every task lives in a single file** in `TASKS/` no larger than ~2 KB (approximately 500 tokens). This is the *maximum effective context payload* for a single agentic dispatch.
+1. **Every task is kept in a single file** in `TASKS/` no larger than ~2 KB (approximately 500 tokens). This is the *maximum effective context payload* for a single agentic dispatch.
 
 2. **Every task defines exactly one anchor test** — a failing Rust test that encodes the binary success criterion. The task is complete when and only when `cargo test <anchor_name>` passes.
 

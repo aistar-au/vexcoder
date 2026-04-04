@@ -131,7 +131,7 @@ full accumulated content on every chunk.
 
 ---
 
-## Amendment — 2026-05-01: Pending-row replacement, live input preview, and ordered streamed text
+## Amendment — 2026-05-01: Pending-row replacement, live input preview, and sequenced streamed text
 
 ### D8: Pending transcript row replacement on block completion
 
@@ -156,15 +156,24 @@ land cleanly at the end of the buffer with no interleaved stale rows.
 
 ### D9: Live input preview via bounded-suffix JSON parsing
 
-`StreamBlockDelta(ToolCall)` now updates the `[detail] Input:` row in
-`history_state.lines` in-place on every chunk using the
-`input_preview` string already maintained on `PendingTurnToolCall`.
+`StreamBlockDelta(ToolCall)` now reparses the pending input preview on
+every chunk and replaces the full pending paragraph row range in
+`history_state.lines` rather than updating only the trailing detail row.
 
-The row to update is identified as `history_state.lines[transcript_row_start
-+ transcript_row_count - 1]`, guarded by a `starts_with("[detail] Input:")`
-check before overwriting.  This gives operators live feedback on
-partial JSON argument construction during long tool-call generations
-without emitting extra rows.
+While the accumulated JSON is incomplete, `preview_partial_tool_input`
+surfaces the streamed fragment in the pending tool preview.
+Once the buffered JSON parses, `preview_tool_input` is used with the
+structured style and both `input` and `input_preview` are replaced with
+the parsed structure.
+
+Because the pending paragraph can grow or shrink as the preview format
+changes, the handler also updates `transcript_row_count` for the active
+call and shifts `transcript_row_start` for any later in-flight pending
+calls whose row ranges sit after the replaced block.
+
+This keeps the operator-facing transcript aligned with the tool call's
+true streamed input state without waiting for `ToolResult`, even when
+the preview spans multiple lines.
 
 ### D10: Flush completed streamed text segments at non-text boundaries
 

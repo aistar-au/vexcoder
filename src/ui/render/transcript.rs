@@ -441,11 +441,12 @@ pub(crate) fn truncate_line(input: &str, width: usize) -> String {
 
 pub(crate) fn task_output_window(
     state: &TaskLayoutState,
+    viewport_width: u16,
     viewport_height: usize,
 ) -> (usize, usize) {
     const INSPECTOR_VIEWPORT_ROWS: usize = 6;
 
-    let total = state.output_rows.len();
+    let total = crate::ui::draw::expand_rows_for_display(&state.output_rows, viewport_width).len();
     if viewport_height == 0 || total == 0 {
         return (0, 0);
     }

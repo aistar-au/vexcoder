@@ -209,7 +209,7 @@ instructions file under `.github/`.
   self-contained. It must not clone `vexdraft`, copy private skills into the
   background-session home directory, or depend on platform secrets just to make
   the agent start.
-- Repository-wide background-session guidance lives under
+- Repository-wide background-session guidance is found under
   `.github/instructions/`, the repository-hosted agent instructions file under
   `.github/`, and the custom agent profiles.
 - The setup workflow only affects background sessions after it lands on the

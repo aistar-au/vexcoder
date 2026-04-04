@@ -27,7 +27,7 @@ exclude = ["src/vendor/"]
 "#,
     );
 
-    // Repo config lives at <cwd>/.vex/config.toml; it enables search.
+    // Repo config is found at <cwd>/.vex/config.toml; it enables search.
     let vex_dir = dir.path().join(".vex");
     std::fs::create_dir_all(&vex_dir).expect("mkdir .vex");
     let repo_cfg = vex_dir.join("config.toml");

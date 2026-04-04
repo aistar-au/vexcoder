@@ -231,12 +231,45 @@ fn classify_diff_line(line: &str) -> DiffLineKind {
         DiffLineKind::Added
     } else if line.starts_with('-') && !line.starts_with("---") {
         DiffLineKind::Removed
+    } else if let Some(marker) = numbered_diff_marker(line) {
+        match marker {
+            '+' => DiffLineKind::Added,
+            '-' => DiffLineKind::Removed,
+            _ => DiffLineKind::Other,
+        }
     } else if line.starts_with("@@") || line.starts_with("diff --git") || line.starts_with("index ")
     {
         DiffLineKind::Header
     } else {
         DiffLineKind::Other
     }
+}
+
+fn numbered_diff_marker(line: &str) -> Option<char> {
+    let bytes = line.as_bytes();
+    let mut index = 0usize;
+
+    while index < bytes.len() && bytes[index].is_ascii_digit() {
+        index += 1;
+    }
+    if index == 0 || index >= bytes.len() {
+        return None;
+    }
+    if bytes[index] != b' ' {
+        return None;
+    }
+
+    while index < bytes.len() && bytes[index] == b' ' {
+        index += 1;
+    }
+    let marker = *bytes.get(index)?;
+    if marker != b'+' && marker != b'-' {
+        return None;
+    }
+    if bytes.get(index + 1).copied() != Some(b' ') {
+        return None;
+    }
+    Some(marker as char)
 }
 
 /// Map a `DiffLineKind` to a display color, using `other_color` as the
@@ -285,17 +318,17 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     frame.render_widget(Clear, frame.area());
 
     // --- Output / Inspector pane ---
-    let (output_start, output_end) = task_output_window(state, layout.output.height as usize);
-    let output_lines: Vec<Line> = state.output_rows[output_start..output_end]
+    let expanded_output_rows =
+        crate::ui::draw::expand_rows_for_display(&state.output_rows, layout.output.width);
+    let (output_start, output_end) =
+        task_output_window(state, layout.output.width, layout.output.height as usize);
+    let output_lines: Vec<Line> = expanded_output_rows[output_start..output_end]
         .iter()
         .map(|row| transcript_output_line(row))
         .collect();
     let output_area = task_output_render_area(state, layout.output, output_lines.len());
     if output_area.height > 0 {
-        frame.render_widget(
-            Paragraph::new(Text::from(output_lines)).wrap(Wrap { trim: false }),
-            output_area,
-        );
+        frame.render_widget(Paragraph::new(Text::from(output_lines)), output_area);
     }
 
     // --- Input pane ---

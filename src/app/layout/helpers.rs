@@ -1,5 +1,7 @@
 use super::{PendingTurnToolCall, StepLifecycle, ToolInvocationSummary};
+use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::status_contract::{completed_status_label, pending_status_label};
+use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
 
 #[cfg(test)]
 use crate::api::client::builtin_tool_summaries;
@@ -160,6 +162,27 @@ fn compact_preview_text(text: &str) -> String {
     }
 }
 
+fn preview_rows(preview: &str) -> Vec<String> {
+    preview
+        .lines()
+        .map(str::trim_end)
+        .filter(|line| !line.trim().is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+fn append_preview_rows(rows: &mut Vec<String>, preview_rows: Vec<String>) {
+    let mut preview_rows = preview_rows.into_iter();
+    let Some(first) = preview_rows.next() else {
+        return;
+    };
+
+    rows.push(format!("[detail] Input: {first}"));
+    for line in preview_rows {
+        rows.push(format!("[evidence] {line}"));
+    }
+}
+
 fn tool_header_summary(name: &str, target: Option<String>, status: &str) -> String {
     match target {
         Some(target) if !target.is_empty() => format!("{name} · {target} · {status}"),
@@ -181,10 +204,7 @@ pub(crate) fn pending_tool_paragraph_rows(
         "[tool] {}",
         tool_header_summary(&pending.name, target, status)
     )];
-    let input_preview = compact_preview_text(&pending.input_preview);
-    if !input_preview.is_empty() {
-        rows.push(format!("[detail] Input: {input_preview}"));
-    }
+    append_preview_rows(&mut rows, preview_rows(&pending.input_preview));
     rows
 }
 
@@ -199,15 +219,25 @@ pub(crate) fn completed_tool_paragraph_rows(
     } else {
         completed_status_label()
     };
-    let input_preview = serde_json::to_string(input).unwrap_or_else(|_| input.to_string());
+    let input_preview = preview_tool_input(
+        name,
+        input,
+        ToolPreviewStyle::Structured,
+        DEFAULT_EDIT_DIFF_CONTEXT_LINES,
+    );
     let first_line = first_nonempty_line(output).unwrap_or(status);
     let target = tool_target_summary(first_line).or_else(|| tool_target_summary(&input_preview));
     let mut rows = vec![format!(
         "[tool] {}",
         tool_header_summary(name, target, status)
     )];
-    if !input_preview.trim().is_empty() && input_preview != "{}" {
-        rows.push(format!("[detail] Input: {input_preview}"));
+    let input_rows = preview_rows(&input_preview);
+    if !input_rows.is_empty()
+        && input_rows
+            .first()
+            .is_some_and(|line| line != "(no arguments)")
+    {
+        append_preview_rows(&mut rows, input_rows);
     }
     rows.push(format!(
         "[detail] Result: {}",
