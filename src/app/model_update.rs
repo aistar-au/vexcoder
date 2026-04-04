@@ -30,6 +30,48 @@ fn is_read_only_tool(name: &str) -> bool {
 }
 
 impl TuiMode {
+    fn replace_pending_tool_paragraph_rows(&mut self, tool_id: &str) {
+        let Some(snapshot) = self.pending_turn_tool_calls.get(tool_id).cloned() else {
+            return;
+        };
+        if snapshot.transcript_row_count == 0 {
+            return;
+        }
+
+        let start = snapshot.transcript_row_start;
+        let old_count = snapshot.transcript_row_count;
+        let end = start.saturating_add(old_count);
+        if end > self.history_state.lines.len() {
+            return;
+        }
+
+        let previous_output_len = self.expanded_output_row_count();
+        let new_rows =
+            super::layout::pending_tool_paragraph_rows(&snapshot, StepLifecycle::Running);
+        let new_count = new_rows.len();
+        self.history_state.lines.splice(start..end, new_rows);
+
+        if let Some(pending) = self.pending_turn_tool_calls.get_mut(tool_id) {
+            pending.transcript_row_count = new_count;
+        }
+
+        if new_count != old_count {
+            for (other_id, other) in self.pending_turn_tool_calls.iter_mut() {
+                if other_id == tool_id || other.transcript_row_start < end {
+                    continue;
+                }
+                if new_count > old_count {
+                    other.transcript_row_start += new_count - old_count;
+                } else {
+                    other.transcript_row_start -= old_count - new_count;
+                }
+            }
+        }
+
+        self.apply_auto_follow_or_clamp();
+        self.preserve_transcript_scroll_on_growth(previous_output_len);
+    }
+
     pub(super) fn on_model_update(&mut self, update: UiUpdate, ctx: &mut RuntimeContext) {
         match update {
             UiUpdate::TranscriptLine(line) => {
@@ -170,7 +212,7 @@ impl TuiMode {
                             input_preview: preview_tool_input(
                                 name,
                                 input,
-                                ToolPreviewStyle::Compact,
+                                ToolPreviewStyle::Structured,
                                 crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
                             ),
                             input: input.clone(),
@@ -397,7 +439,7 @@ impl TuiMode {
                                             crate::tool_preview::preview_tool_input(
                                                 &pending.name.clone(),
                                                 &parsed,
-                                                crate::tool_preview::ToolPreviewStyle::Compact,
+                                                crate::tool_preview::ToolPreviewStyle::Structured,
                                                 crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
                                             );
                                     } else {
@@ -407,24 +449,9 @@ impl TuiMode {
                                                 buf,
                                             );
                                     }
-                                    // Live-update the Input detail row in the transcript
-                                    // so streaming JSON input is visible as it arrives.
-                                    // The row is always the last of the pending rows.
-                                    let preview = pending.input_preview.clone();
-                                    if pending.transcript_row_count > 0 {
-                                        let row_idx = pending.transcript_row_start
-                                            + pending.transcript_row_count
-                                            - 1;
-                                        if let Some(line) =
-                                            self.history_state.lines.get_mut(row_idx)
-                                        {
-                                            if line.starts_with("[detail] Input:") {
-                                                *line = format!("[detail] Input: {preview}");
-                                            }
-                                        }
-                                    }
                                 }
                             }
+                            self.replace_pending_tool_paragraph_rows(&tool_id);
                         }
                         StreamBlock::ToolResult { .. } => {}
                     }

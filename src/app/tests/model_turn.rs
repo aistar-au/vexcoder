@@ -1705,11 +1705,9 @@ fn test_tool_blocks_emit_paragraph_rows_into_history() {
         "pending tool calls must render into the scrolling transcript"
     );
     assert!(
-        mode.history_lines().iter().any(|line| {
-            line.starts_with("[detail] Input: ")
-                && line.contains("\"path\"")
-                && line.contains("src/main.rs")
-        }),
+        mode.history_lines()
+            .iter()
+            .any(|line| { line == "[detail] Input: path: src/main.rs" }),
         "pending tool calls must preserve the compact input preview"
     );
 
@@ -1785,6 +1783,12 @@ fn test_stream_block_delta_updates_pending_tool_call_input() {
             .contains(r#"{"path":"#),
         "partial delta must update the pending tool call preview"
     );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("partial streamed input")),
+        "partial delta must replace the pending transcript rows with the streamed preview"
+    );
 
     // Second delta completes the JSON.
     mode.on_model_update(
@@ -1804,6 +1808,12 @@ fn test_stream_block_delta_updates_pending_tool_call_input() {
             .input_preview
             .contains("foo.rs"),
         "complete delta must replace the partial preview with the parsed preview"
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[detail] Input: path: foo.rs"),
+        "complete delta must replace the pending transcript rows with the parsed preview"
     );
 }
 

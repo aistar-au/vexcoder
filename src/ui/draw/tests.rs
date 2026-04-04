@@ -516,6 +516,31 @@ fn labeled_diff_evidence_keeps_field_prefix_and_styles_diff() {
 }
 
 #[test]
+fn numbered_edit_diff_evidence_uses_diff_colors() {
+    let mut buf = Vec::new();
+    let mut draw = TaskDraw::new();
+    let state = make_state(
+        vec![],
+        vec![
+            "[evidence] 3 - let old_value = 1;",
+            "[evidence] 3 + let new_value = 2;",
+        ],
+    );
+
+    draw.draw(&mut buf, &state, 100, 24);
+    let output = String::from_utf8_lossy(&buf);
+
+    assert!(
+        output.contains("\x1b[38;5;1m3 - let old_value = 1;"),
+        "numbered edit diff deletions must keep red styling: {output}"
+    );
+    assert!(
+        output.contains("\x1b[38;5;2m3 + let new_value = 2;"),
+        "numbered edit diff insertions must keep green styling: {output}"
+    );
+}
+
+#[test]
 fn labeled_json_evidence_preserves_json_number_styling() {
     let mut buf = Vec::new();
     let mut draw = TaskDraw::new();

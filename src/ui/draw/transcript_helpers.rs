@@ -714,6 +714,12 @@ pub(crate) fn diff_style(line: &str) -> Option<(u8, bool)> {
         Some((GREEN, false))
     } else if line.starts_with('-') && !line.starts_with("---") {
         Some((RED, false))
+    } else if let Some(marker) = numbered_diff_marker(line) {
+        match marker {
+            '+' => Some((GREEN, false)),
+            '-' => Some((RED, false)),
+            _ => None,
+        }
     } else if line.starts_with("@@")
         || line.starts_with("diff --git")
         || line.starts_with("index ")
@@ -724,6 +730,33 @@ pub(crate) fn diff_style(line: &str) -> Option<(u8, bool)> {
     } else {
         None
     }
+}
+
+fn numbered_diff_marker(line: &str) -> Option<char> {
+    let bytes = line.as_bytes();
+    let mut index = 0usize;
+
+    while index < bytes.len() && bytes[index].is_ascii_digit() {
+        index += 1;
+    }
+    if index == 0 || index >= bytes.len() {
+        return None;
+    }
+    if bytes[index] != b' ' {
+        return None;
+    }
+
+    while index < bytes.len() && bytes[index] == b' ' {
+        index += 1;
+    }
+    let marker = *bytes.get(index)?;
+    if marker != b'+' && marker != b'-' {
+        return None;
+    }
+    if bytes.get(index + 1).copied() != Some(b' ') {
+        return None;
+    }
+    Some(marker as char)
 }
 
 pub(crate) fn parse_command_session_started(line: &str) -> Option<(String, Option<String>)> {

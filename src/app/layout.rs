@@ -694,8 +694,16 @@ mod tests {
 
         assert_eq!(
             evidence_rows.len(),
-            4,
-            "should have 3 evidence lines + 1 overflow indicator: {evidence_rows:?}"
+            6,
+            "should preserve 2 structured input rows, then 3 output rows + 1 overflow indicator: {evidence_rows:?}"
+        );
+        assert!(
+            evidence_rows[0].contains("\"command\": \"ls -la\""),
+            "first evidence row should keep the structured input preview: {evidence_rows:?}"
+        );
+        assert!(
+            evidence_rows[1].contains("}"),
+            "second evidence row should keep the structured input preview terminator: {evidence_rows:?}"
         );
         assert!(
             evidence_rows.last().unwrap().contains("+17 more lines"),

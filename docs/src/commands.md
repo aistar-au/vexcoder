@@ -273,7 +273,7 @@ session/capability auto-approval grant).
 | Tool | Purpose |
 | :--- | :--- |
 | `write_file` | Write full file content. Files above `VEX_DIFF_PREFERRED_ABOVE_LINES` (default 200) trigger a warning suggesting `apply_patch` or `edit_file`. Files above `VEX_WRITE_FILE_MAX_LINES` (default 500) are rejected. |
-| `edit_file` | Replace one exact unique snippet (`old_str` → `new_str`). Preferred for targeted edits. |
+| `edit_file` | Replace one exact unique snippet (`old_str` → `new_str`). Preferred for targeted edits. Transcript previews keep multiline diff hunks so added and removed rows stay visible during review. |
 | `apply_patch` | Apply full-file content as a patch. Preferred for large-scale changes where `edit_file` is impractical. |
 | `rename_file` | Rename or move a file within the workspace. |
 | `run_command` | Execute a shell command in the workspace. |
@@ -325,6 +325,7 @@ streaming.
 - `PageUp`, `PageDown`, `Ctrl+Up`, and `Ctrl+Down` scroll the transcript/output pane upward from the prompt edge instead of moving the cursor.
 - `Ctrl+Home` jumps to the oldest visible transcript content, and `Ctrl+End` returns to the current bottom edge.
 - The transcript pane keeps the full session scrollback visible while follow mode is on; new model responses append at the bottom instead of replacing the prior response view.
+- Transcript scrolling follows wrapped display rows, so long paragraphs, embedded newlines, and multiline diff previews remain reachable in both fullscreen and fallback transcript views.
 - Selecting older timeline entries manually switches the output pane into inspector detail for that step until follow mode resumes.
 - `Shift+Enter` inserts a newline without submitting the turn.
 - Pasted text is inserted into the larger multiline prompt surface during normal editing.
