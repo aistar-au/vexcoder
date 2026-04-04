@@ -299,6 +299,8 @@ pub struct TaskLayoutState {
     pub follow_mode: bool,
     /// Floating picker overlay rendered above the composer when a picker is active.
     pub picker_overlay: Vec<PickerOverlayLine>,
+    /// Workspace working directory displayed at the prompt separator.
+    pub working_dir: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

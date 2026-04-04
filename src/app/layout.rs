@@ -320,12 +320,9 @@ impl TuiMode {
 
         if self.history_state.turn_in_progress && !self.history_state.cancel_pending {
             if use_stream_segments && !self.current_turn_stream_segments.is_empty() {
-                let active_text = &self.current_turn_stream_segments[0].text;
-                let active_rows: Vec<String> = active_text
-                    .lines()
-                    .map(ToOwned::to_owned)
-                    .collect::<Vec<_>>();
-                rows.extend(active_rows);
+                for segment in &self.current_turn_stream_segments {
+                    rows.extend(segment.text.lines().map(ToOwned::to_owned));
+                }
                 if let Some(last) = rows.last_mut() {
                     last.push('▌');
                 }
@@ -480,6 +477,7 @@ impl TuiMode {
             changed_files,
             follow_mode: self.timeline_follow_mode,
             picker_overlay: vec![],
+            working_dir: self.working_dir.display().to_string(),
         })
     }
 

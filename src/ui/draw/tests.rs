@@ -22,6 +22,7 @@ fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState
         changed_files: vec![],
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: "/tmp/test-project".into(),
     }
 }
 
@@ -47,7 +48,10 @@ fn first_draw_writes_full_screen() {
     // Must contain output rows.
     assert!(output.contains("line 1"), "output row 1 must be drawn");
     assert!(output.contains("line 2"), "output row 2 must be drawn");
-    assert!(output.contains("Prompt"), "composer label must be drawn");
+    assert!(
+        output.contains("/tmp/test-project"),
+        "composer separator must render working directory"
+    );
     assert!(
         !output.contains("vexcoder") && !output.contains("AGENTS.md"),
         "fullscreen transcript should not reintroduce top header chrome"
@@ -281,6 +285,7 @@ fn changing_selected_inspector_entry_redraws_output() {
         changed_files: vec![],
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
     };
     draw.draw(&mut buf, &first, 80, 24);
 
@@ -322,6 +327,7 @@ fn empty_timeline_renders_separator_and_transcript() {
         changed_files: vec![],
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -649,14 +655,15 @@ fn persistent_layout_starts_with_blank_transcript_before_first_turn() {
         changed_files: vec![],
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
     let output = String::from_utf8_lossy(&buf);
 
     assert!(
-        output.contains("Prompt"),
-        "composer label must be drawn on first frame"
+        output.contains("─"),
+        "composer separator must be drawn on first frame"
     );
     assert!(
         !output.contains("Type a prompt"),
@@ -741,6 +748,7 @@ fn fullscreen_surface_hides_top_header_chrome() {
         changed_files: vec!["src/main.rs".into()],
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
     };
 
     draw.draw(&mut buf, &state, 100, 24);
@@ -750,7 +758,10 @@ fn fullscreen_surface_hides_top_header_chrome() {
         !output.contains("myrepo") && !output.contains("AGENTS.md"),
         "repo and instruction labels must not appear above the transcript"
     );
-    assert!(output.contains("Prompt"), "composer should remain visible");
+    assert!(
+        output.contains("─"),
+        "composer separator should remain visible"
+    );
 }
 
 #[test]
@@ -776,6 +787,7 @@ fn inline_approval_renders_in_composer() {
         changed_files: vec![],
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -836,6 +848,7 @@ fn fullscreen_surface_hides_token_indicator_when_tokens_recorded() {
         changed_files: vec![],
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -876,6 +889,7 @@ fn header_hides_token_indicator_when_no_turns_completed() {
         changed_files: vec![],
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -910,6 +924,7 @@ fn composer_renders_live_input_text() {
         changed_files: vec![],
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -944,11 +959,16 @@ fn composer_header_renders_focus_and_char_count() {
         changed_files: vec![],
         follow_mode: false,
         picker_overlay: vec![],
+        working_dir: "/workspace/demo".into(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
     let output = String::from_utf8_lossy(&buf);
-    assert!(output.contains("unfocused · 5 chars"));
+    assert!(
+        output.contains("/workspace/demo"),
+        "separator must render working directory path"
+    );
+    assert!(output.contains("›"), "prompt marker must render");
 }
 
 #[test]
@@ -1007,8 +1027,8 @@ fn fullscreen_surface_uses_three_regions_without_fixed_bottom_pane() {
         "telemetry should stay inline in the scrolling transcript"
     );
     assert!(
-        output.contains("Prompt"),
-        "the prompt region must remain visible"
+        output.contains("─"),
+        "the prompt separator must remain visible"
     );
     assert!(
         output.contains("task:test-001")
@@ -1376,6 +1396,7 @@ fn composer_hash_tracks_live_input_changes() {
         changed_files: vec![],
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
     };
     let second = TaskLayoutState {
         composer_text: "second".into(),
@@ -1412,6 +1433,7 @@ fn composer_hash_tracks_cursor_only_changes() {
         changed_files: vec![],
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: String::new(),
     };
     let second = TaskLayoutState {
         composer_cursor: 7,
@@ -1791,6 +1813,7 @@ fn picker_overlay_renders_above_composer() {
                 selected: false,
             },
         ],
+        working_dir: String::new(),
     };
 
     draw.draw(&mut buf, &state, 80, 24);
@@ -1852,6 +1875,7 @@ fn picker_overlay_clears_when_dismissed() {
                 selected: true,
             },
         ],
+        working_dir: String::new(),
     };
     draw.draw(&mut buf, &state_with_overlay, 80, 24);
     assert_eq!(draw.last_overlay_rows, 2, "overlay should track 2 rows");
@@ -1862,6 +1886,7 @@ fn picker_overlay_clears_when_dismissed() {
         composer_text: "hello".into(),
         composer_cursor: 5,
         picker_overlay: vec![],
+        working_dir: String::new(),
         ..state_with_overlay
     };
     buf.clear();
@@ -1902,6 +1927,7 @@ fn picker_overlay_hash_changes_on_selection_move() {
                 selected: false,
             },
         ],
+        working_dir: String::new(),
     };
 
     let moved = TaskLayoutState {

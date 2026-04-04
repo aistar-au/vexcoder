@@ -195,8 +195,7 @@ fn collect_text(chunks: &[NormalisedChunk]) -> String {
             NormalisedChunk::Text(text) => Some(text.as_str()),
             _ => None,
         })
-        .collect::<Vec<_>>()
-        .join("\n")
+        .collect()
 }
 
 fn collect_transcript_lines(chunks: &[NormalisedChunk]) -> Vec<String> {
@@ -278,7 +277,7 @@ fn test_normaliser_buffers_chunk_split_tool_call_wrapper_and_function_open() {
     let mut normaliser = StreamTextNormaliser::new();
 
     let first = normaliser.normalise("Let me inspect it.\n<tool");
-    assert_eq!(collect_text(&first), "Let me inspect it.");
+    assert_eq!(collect_text(&first), "Let me inspect it.\n");
     assert!(collect_transcript_lines(&first).is_empty());
 
     let second = normaliser.normalise("_call>\n<function=search");

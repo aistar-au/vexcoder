@@ -65,6 +65,7 @@ fn make_state(entries: Vec<TimelineEntry>, output: Vec<&str>) -> TaskLayoutState
         changed_files: vec![],
         follow_mode: true,
         picker_overlay: vec![],
+        working_dir: "/tmp/snap-project".into(),
     }
 }
 
