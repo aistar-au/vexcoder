@@ -254,6 +254,13 @@ pub(crate) fn transcript_output_line(row: &str) -> Line<'static> {
                 Style::default().fg(Color::White),
             )),
         }
+    } else if row.contains("```") || row.contains("##") || row.contains("**") {
+        // Attempt markdown rendering for lines with clear markdown markers.
+        let lines = super::markdown_to_lines(row);
+        lines
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| Line::from(Span::raw(row.to_string())))
     } else {
         Line::from(Span::styled(
             row.to_string(),

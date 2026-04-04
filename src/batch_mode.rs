@@ -581,12 +581,34 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
         });
     }
 
+    // Progress spinner for headless/batch runs.
+    let spinner = if console::Term::stderr().is_term() {
+        let pb = indicatif::ProgressBar::new_spinner();
+        pb.set_style(
+            indicatif::ProgressStyle::default_spinner()
+                .template("{spinner:.magenta} {msg}")
+                .expect("valid template"),
+        );
+        pb.set_message("working…");
+        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+        Some(pb)
+    } else {
+        None
+    };
+
     // Drain updates until the mode reports done.
     while let Some(update) = update_rx.recv().await {
         mode.on_model_update(update, &mut ctx);
+        if let Some(ref pb) = spinner {
+            pb.set_message(format!("turn {} · working…", mode.current_turn));
+        }
         if mode.is_done() {
             break;
         }
+    }
+
+    if let Some(pb) = spinner {
+        pb.finish_and_clear();
     }
 
     ctx.shutdown_resources().await;

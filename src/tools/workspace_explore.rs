@@ -9,6 +9,7 @@ use std::fs;
 
 use super::operator::ToolOperator;
 use super::workspace_ignore::WorkspaceIgnore;
+use crate::workspace::make_relative;
 
 /// Maximum number of entries returned by [`list_dir`].
 const LIST_DIR_MAX: usize = 500;
@@ -121,9 +122,7 @@ pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) ->
     let mut matched: Vec<String> = all_files
         .into_iter()
         .filter_map(|p| {
-            let rel = p
-                .strip_prefix(operator.working_dir())
-                .ok()?
+            let rel = make_relative(operator.working_dir(), &p)
                 .to_string_lossy()
                 .replace('\\', "/");
             if glob_path_match(pattern, &rel) {
@@ -152,64 +151,20 @@ pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) ->
     Ok(out)
 }
 
-/// Match `pattern` against a workspace-relative path.
-/// `*` matches any run of non-`/` characters; `**` matches across `/`; `?`
-/// matches one non-`/` character.  Case-sensitive.
+/// Match `pattern` against a workspace-relative path using `globset`.
+/// Falls back to matching against just the filename component if the full
+/// path doesn't match, for bare-name patterns like `*.rs`.
 fn glob_path_match(pattern: &str, path: &str) -> bool {
-    gitignore_glob(pattern.as_bytes(), path.as_bytes())
-        || gitignore_glob(
-            pattern.as_bytes(),
-            path.rsplit('/').next().unwrap_or(path).as_bytes(),
-        )
-}
-
-fn gitignore_glob(mut pat: &[u8], mut txt: &[u8]) -> bool {
-    loop {
-        match (pat.first(), txt.first()) {
-            (None, None) => return true,
-            (None, _) => return false,
-            (Some(b'*'), _) if pat.get(1) == Some(&b'*') => {
-                let rest_pat = if pat.get(2) == Some(&b'/') {
-                    &pat[3..]
-                } else {
-                    &pat[2..]
-                };
-                let mut cursor = txt;
-                loop {
-                    if gitignore_glob(rest_pat, cursor) {
-                        return true;
-                    }
-                    match cursor.first() {
-                        None => return false,
-                        Some(_) => cursor = &cursor[1..],
-                    }
-                }
-            }
-            (Some(b'*'), _) => {
-                let rest_pat = &pat[1..];
-                let mut cursor = txt;
-                loop {
-                    if gitignore_glob(rest_pat, cursor) {
-                        return true;
-                    }
-                    match cursor.first() {
-                        None | Some(b'/') => return false,
-                        Some(_) => cursor = &cursor[1..],
-                    }
-                }
-            }
-            (Some(b'?'), Some(b'/')) | (Some(b'?'), None) => return false,
-            (Some(b'?'), Some(_)) => {
-                pat = &pat[1..];
-                txt = &txt[1..];
-            }
-            (Some(p), Some(t)) if p == t => {
-                pat = &pat[1..];
-                txt = &txt[1..];
-            }
-            _ => return false,
-        }
-    }
+    let Ok(glob) = globset::GlobBuilder::new(pattern)
+        .literal_separator(false)
+        .build()
+    else {
+        return false;
+    };
+    let Ok(matcher) = globset::GlobSetBuilder::new().add(glob).build() else {
+        return false;
+    };
+    matcher.is_match(path) || matcher.is_match(path.rsplit('/').next().unwrap_or(path))
 }
 
 #[cfg(test)]

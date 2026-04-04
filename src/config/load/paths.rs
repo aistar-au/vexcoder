@@ -43,29 +43,11 @@ pub(crate) fn user_config_path() -> Option<PathBuf> {
 }
 
 fn user_config_xdg_path() -> Option<PathBuf> {
-    if let Some(root) = std::env::var("XDG_CONFIG_HOME")
-        .ok()
-        .filter(|v| !v.trim().is_empty())
-    {
-        return Some(PathBuf::from(root).join("vex").join("config.toml"));
-    }
-
-    std::env::var("HOME")
-        .ok()
-        .filter(|v| !v.is_empty())
-        .map(|home| {
-            PathBuf::from(home)
-                .join(".config")
-                .join("vex")
-                .join("config.toml")
-        })
+    dirs::config_dir().map(|d| d.join("vex").join("config.toml"))
 }
 
 fn user_config_legacy_path() -> Option<PathBuf> {
-    std::env::var("HOME")
-        .ok()
-        .filter(|v| !v.is_empty())
-        .map(|home| PathBuf::from(home).join(".vex").join("config.toml"))
+    dirs::home_dir().map(|home| home.join(".vex").join("config.toml"))
 }
 
 pub(crate) fn system_config_path() -> Option<PathBuf> {
@@ -75,8 +57,8 @@ pub(crate) fn system_config_path() -> Option<PathBuf> {
 pub(crate) fn expand_home(path: PathBuf) -> PathBuf {
     let s = path.to_string_lossy();
     if let Some(rest) = s.strip_prefix("~/") {
-        if let Some(home) = std::env::var("HOME").ok().filter(|v| !v.is_empty()) {
-            return PathBuf::from(home).join(rest);
+        if let Some(home) = dirs::home_dir() {
+            return home.join(rest);
         }
     }
     path

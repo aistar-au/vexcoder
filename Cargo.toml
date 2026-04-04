@@ -77,6 +77,27 @@ ansi-to-tui = "7"
 # image feature and its heavy transitive deps.
 arboard = { version = "3", default-features = false }
 
+# --- Tier 1: Drop-in diagnostics, paths, diff rendering ---
+color-eyre = "0.6"
+dirs = "6"
+tracing-appender = "0.2"
+diffy = "0.4"
+
+# --- Tier 2: Rich rendering, macros, progress ---
+ratatui-macros = "0.6"
+pulldown-cmark = { version = "0.12", default-features = false }
+syntect = { version = "5", default-features = false, features = ["default-fancy"] }
+indicatif = "0.17"
+console = "0.15"
+
+# --- Tier 3: Workspace ignore, path normalization, explicit transitive ---
+ignore = "0.4"
+globset = "0.4"
+pathdiff = "0.2"
+dunce = "1"
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
 [dev-dependencies]
 filetime = "0.2"
 insta = "1.38"

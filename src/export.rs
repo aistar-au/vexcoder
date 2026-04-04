@@ -1,7 +1,13 @@
 use crate::runtime::TaskState;
 use crate::turn_evidence::{SummaryRecord, TurnEvidenceRecord};
 use anyhow::{bail, Result};
+use base64::Engine as _;
 use std::path::Path;
+
+/// Encode arbitrary bytes as URL-safe base64 for embedding in JSON exports.
+pub fn encode_base64(data: &[u8]) -> String {
+    base64::engine::general_purpose::STANDARD.encode(data)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportFormat {

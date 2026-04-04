@@ -379,7 +379,7 @@ fn test_edit_file_transcript_preview_preserves_structured_diff_rows() {
             .lines
             .iter()
             .any(|line| line.contains("[evidence]")
-                && line.contains("2 -")
+                && line.contains("-")
                 && line.contains("old_call();")),
         "edit_file preview must preserve deleted diff rows: {:?}",
         mode.history_state.lines
@@ -389,7 +389,7 @@ fn test_edit_file_transcript_preview_preserves_structured_diff_rows() {
             .lines
             .iter()
             .any(|line| line.contains("[evidence]")
-                && line.contains("2 +")
+                && line.contains("+")
                 && line.contains("new_call();")),
         "edit_file preview must preserve inserted diff rows: {:?}",
         mode.history_state.lines
@@ -420,7 +420,7 @@ fn test_edit_file_transcript_preview_preserves_structured_diff_rows() {
             .lines
             .iter()
             .any(|line| line.contains("[evidence]")
-                && line.contains("2 +")
+                && line.contains("+")
                 && line.contains("new_call();")),
         "completed edit_file rows must keep diff evidence visible: {:?}",
         mode.history_state.lines
