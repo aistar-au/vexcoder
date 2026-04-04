@@ -198,14 +198,13 @@ pub(super) async fn run_validation_suite_capture(
 
 pub(super) fn new_task_id() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     static LAST_TASK_MS: AtomicU64 = AtomicU64::new(0);
 
-    let now_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0);
+    let now_ms = chrono::Utc::now()
+        .timestamp_millis()
+        .try_into()
+        .unwrap_or(0u64);
 
     let ms = LAST_TASK_MS.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |previous| {
         Some(now_ms.max(previous.saturating_add(1)))

@@ -1,7 +1,7 @@
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 pub type SessionTaskId = String;
@@ -112,12 +112,7 @@ impl SessionTask {
 }
 
 pub fn now_millis() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
-        .try_into()
-        .unwrap_or(u64::MAX)
+    Utc::now().timestamp_millis().try_into().unwrap_or(u64::MAX)
 }
 
 #[cfg(test)]
