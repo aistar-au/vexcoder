@@ -2294,3 +2294,61 @@ fn transcript_window_rows_top_anchor_clamps_to_six() {
     assert_eq!(start, 0);
     assert_eq!(end, 6);
 }
+
+#[test]
+fn expand_rows_for_display_splits_embedded_newlines() {
+    let rows = vec!["line one\nline two\nline three".to_string()];
+    let expanded = expand_rows_for_display(&rows, 80);
+    assert_eq!(
+        expanded,
+        vec!["line one", "line two", "line three"],
+        "embedded newlines must be split into separate display rows"
+    );
+}
+
+#[test]
+fn expand_rows_for_display_splits_and_wraps_combined() {
+    // Row contains embedded newlines AND a long sub-line that needs wrapping.
+    let rows = vec![
+        "short\nthis is a much longer line that should be word wrapped at twenty cols".to_string(),
+    ];
+    let expanded = expand_rows_for_display(&rows, 20);
+    assert!(
+        expanded.len() >= 3,
+        "must split on newline then word-wrap the long sub-line: {expanded:?}"
+    );
+    assert_eq!(&expanded[0], "short");
+}
+
+#[test]
+fn structural_row_detects_bullet_lists() {
+    use transcript_helpers::word_wrap_plain_row;
+    // Bullet and numbered list items should pass through as structural.
+    let bullet = "- item text that is considerably longer than the terminal width limit";
+    let result = word_wrap_plain_row(bullet, 20);
+    assert_eq!(
+        result.len(),
+        1,
+        "bullet list items are structural: {result:?}"
+    );
+
+    let numbered = "1. first item that is also rather long and should not be wrapped here";
+    let result = word_wrap_plain_row(numbered, 20);
+    assert_eq!(
+        result.len(),
+        1,
+        "numbered list items are structural: {result:?}"
+    );
+}
+
+#[test]
+fn format_compact_paragraph_preserves_empty_lines() {
+    use crate::state::TranscriptBlockKind;
+    let text = "paragraph one\n\nparagraph two\n";
+    let formatted =
+        transcript_helpers::format_compact_paragraph(text, TranscriptBlockKind::FinalText, 80);
+    assert!(
+        formatted.contains("\n\n"),
+        "empty lines must be preserved as paragraph separators: {formatted:?}"
+    );
+}

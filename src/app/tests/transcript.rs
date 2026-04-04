@@ -270,3 +270,75 @@ fn test_cancel_pending_blocks_stream_delta_appends() {
         "[thinking] Mapping adjacent sectors..."
     );
 }
+
+#[test]
+fn test_consecutive_read_only_tools_fold_into_single_paragraph() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("analyze src/main.rs".to_string(), &mut ctx);
+
+    // First tool: codebase_search
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "tc-1".to_string(),
+                name: "codebase_search".to_string(),
+                input: serde_json::json!({"query": "main function"}),
+                status: crate::state::ToolStatus::Executing,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 1,
+            block: StreamBlock::ToolResult {
+                tool_call_id: "tc-1".to_string(),
+                output: "found 1 match in src/main.rs".to_string(),
+                is_error: false,
+            },
+        },
+        &mut ctx,
+    );
+
+    // Second tool: read_file (different name, also read-only)
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 2,
+            block: StreamBlock::ToolCall {
+                id: "tc-2".to_string(),
+                name: "read_file".to_string(),
+                input: serde_json::json!({"path": "src/main.rs"}),
+                status: crate::state::ToolStatus::Executing,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 3,
+            block: StreamBlock::ToolResult {
+                tool_call_id: "tc-2".to_string(),
+                output: "fn main() { ... }".to_string(),
+                is_error: false,
+            },
+        },
+        &mut ctx,
+    );
+
+    // The second completed tool should be folded: only ONE [tool] header
+    // should exist in the transcript lines.
+    let tool_headers: Vec<_> = mode
+        .history_state
+        .lines
+        .iter()
+        .filter(|line| line.starts_with("[tool] "))
+        .collect();
+    assert_eq!(
+        tool_headers.len(),
+        1,
+        "consecutive read-only tools must fold into a single paragraph, but found {} headers: {tool_headers:?}",
+        tool_headers.len()
+    );
+}

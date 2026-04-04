@@ -67,6 +67,14 @@ fn is_structural_transcript_row(line: &str) -> bool {
     if line.starts_with("# ") || line.starts_with("## ") || line.starts_with("### ") {
         return true;
     }
+    // Markdown bullet and numbered list items — rendered with icon markers
+    // by draw_transcript_line, so they handle their own truncation.
+    if line.starts_with("- ") || line.starts_with("* ") {
+        return true;
+    }
+    if parse_numbered_list_item(line).is_some() {
+        return true;
+    }
     false
 }
 
@@ -932,6 +940,10 @@ pub(crate) fn format_compact_paragraph(
     let mut formatted = String::with_capacity(text.len() + prefix.len() * 4);
     for line in text.lines() {
         if line.is_empty() {
+            // Preserve empty lines as paragraph separators so markdown
+            // structure (bullet lists, headings, paragraphs) renders
+            // correctly instead of collapsing into a wall of text.
+            formatted.push('\n');
             continue;
         }
         let trimmed = truncate_to_width(line, width.saturating_sub(prefix_width));

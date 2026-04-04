@@ -29,7 +29,9 @@ impl TuiMode {
                 .transcript_scroll_offset
                 .saturating_add(rows.len() - previous_rows);
         }
-        self.clamp_transcript_scroll_offset(rows.len());
+        let cols = self.history_content_width.get() as u16;
+        let expanded = crate::ui::draw::expand_rows_for_display(&rows, cols).len();
+        self.clamp_transcript_scroll_offset(expanded);
     }
 
     pub(super) fn push_history_line(&mut self, line: String) {
@@ -185,7 +187,12 @@ impl TuiMode {
 
     pub(super) fn apply_output_scroll_action(&mut self, action: ScrollAction) {
         let (_, rows, anchor) = self.task_output_view();
-        let total_rows = rows.len();
+        // Use the expanded (word-wrapped) row count so the scroll range
+        // matches the display row count used by the draw path.  Without
+        // this, the clamp is too tight and prevents scrolling past long
+        // word-wrapped content.
+        let cols = self.history_content_width.get() as u16;
+        let total_rows = crate::ui::draw::expand_rows_for_display(&rows, cols).len();
 
         match anchor {
             // Bottom-anchored view uses inverted semantics: LineUp scrolls

@@ -1,6 +1,29 @@
 use super::*;
 use crate::status_contract::is_waiting_placeholder;
 
+/// Returns `true` for tool names that only read or search, never mutate.
+/// Used to fold consecutive information-gathering calls into a single
+/// transcript paragraph.
+fn is_read_only_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "read_file"
+            | "search"
+            | "search_files"
+            | "search_content"
+            | "find_files"
+            | "codebase_search"
+            | "list_files"
+            | "list_directory"
+            | "list_dir"
+            | "glob_files"
+            | "git_status"
+            | "git_diff"
+            | "git_log"
+            | "git_show"
+    )
+}
+
 impl TuiMode {
     pub(super) fn on_model_update(&mut self, update: UiUpdate, ctx: &mut RuntimeContext) {
         match update {
@@ -261,6 +284,17 @@ impl TuiMode {
                                 .as_ref()
                                 .map(|prev| *prev == pending.name)
                                 .unwrap_or(false);
+                            // Fold consecutive read-only (information-gathering)
+                            // tool calls into a single paragraph so that
+                            // codebase_search + read_file + glob_files for
+                            // the same investigation render as one block.
+                            let is_read_only_group = !is_same_name
+                                && is_read_only_tool(&pending.name)
+                                && self
+                                    .last_completed_tool_name
+                                    .as_ref()
+                                    .map(|prev| is_read_only_tool(prev))
+                                    .unwrap_or(false);
 
                             if is_exact_duplicate {
                                 self.duplicate_tool_count += 1;
@@ -278,13 +312,14 @@ impl TuiMode {
                                         ));
                                     }
                                 }
-                            } else if is_same_name {
-                                // Same tool name but different target/args —
-                                // fold into a paragraph: suppress the header
-                                // and only append the detail/evidence rows.
+                            } else if is_same_name || is_read_only_group {
+                                // Same tool name or consecutive read-only tools —
+                                // fold into the existing paragraph: suppress the
+                                // header and only append the detail/evidence rows.
                                 self.duplicate_tool_count = 1;
                                 self.same_name_tool_count += 1;
                                 self.last_completed_tool_header = Some(header);
+                                self.last_completed_tool_name = Some(pending.name.clone());
                                 // Pop the existing batch count line (if any),
                                 // append the new detail rows, then re-add the
                                 // updated count so every folded call keeps its

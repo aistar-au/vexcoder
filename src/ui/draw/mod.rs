@@ -709,14 +709,24 @@ fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize,
 /// `draw_transcript_line` handles their own truncation. Plain prose lines
 /// whose display width exceeds `cols` are broken at word boundaries so that
 /// every returned entry fits within one terminal row.
-fn expand_rows_for_display(rows: &[String], cols: u16) -> Vec<String> {
+pub(crate) fn expand_rows_for_display(rows: &[String], cols: u16) -> Vec<String> {
     if cols < 4 {
         return rows.to_vec();
     }
     let mut expanded = Vec::with_capacity((rows.len() * 3) / 2);
     for row in rows {
-        let wrapped = transcript_helpers::word_wrap_plain_row(row, cols as usize);
-        expanded.extend(wrapped);
+        // Safety: split on embedded newlines before word-wrapping so that
+        // rows containing literal '\n' from streaming deltas are expanded
+        // into separate display rows (ADR-041 D15+).
+        if row.contains('\n') {
+            for sub in row.split('\n') {
+                let wrapped = transcript_helpers::word_wrap_plain_row(sub, cols as usize);
+                expanded.extend(wrapped);
+            }
+        } else {
+            let wrapped = transcript_helpers::word_wrap_plain_row(row, cols as usize);
+            expanded.extend(wrapped);
+        }
     }
     expanded
 }

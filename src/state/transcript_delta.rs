@@ -101,7 +101,6 @@ impl DeltaAccumulator {
     }
 
     /// Drain pending deltas for the renderer.
-    #[allow(unused)]
     pub fn flush_pending(&mut self) -> Vec<TranscriptDelta> {
         self.pending.drain(..).collect()
     }
