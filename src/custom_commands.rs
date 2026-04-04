@@ -151,22 +151,7 @@ fn is_valid_command_name(name: &str) -> bool {
 }
 
 fn user_commands_dir() -> Option<PathBuf> {
-    if let Some(root) = std::env::var("XDG_CONFIG_HOME")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-    {
-        return Some(PathBuf::from(root).join("vex").join("commands"));
-    }
-
-    std::env::var("HOME")
-        .ok()
-        .filter(|value| !value.is_empty())
-        .map(|home| {
-            PathBuf::from(home)
-                .join(".config")
-                .join("vex")
-                .join("commands")
-        })
+    dirs::config_dir().map(|d| d.join("vex").join("commands"))
 }
 
 #[cfg(test)]

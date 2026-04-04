@@ -83,10 +83,7 @@ fn strip_bullet_prefix(line: &str) -> Option<&str> {
 }
 
 pub fn current_timestamp_seconds() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
+    chrono::Utc::now().timestamp().try_into().unwrap_or(0)
 }
 
 pub fn format_auto_notes(notes: &[String], timestamp_seconds: u64) -> Vec<String> {

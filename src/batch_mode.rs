@@ -518,11 +518,7 @@ pub fn build_batch_runtime(
 }
 
 fn uuid_task_id() -> TaskId {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let ts = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
+    let ts = chrono::Utc::now().timestamp_millis();
     format!("batch-{}", ts)
 }
 

@@ -6,9 +6,9 @@ use crate::turn_evidence::{
 };
 use crate::types::ContentBlock;
 use crate::usage::TurnTokens;
+use chrono::{Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 mod derived;
 
@@ -449,11 +449,9 @@ impl RuntimeEnvelopeNormalizer {
 
     fn generate_tool_call_id(&mut self) -> String {
         self.tool_id_counter = self.tool_id_counter.saturating_add(1);
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
-        let millis = now.as_millis();
-        let entropy = ((now.as_nanos() ^ self.tool_id_counter as u128) & 0xffff) as u16;
+        let now = Utc::now();
+        let millis = now.timestamp_millis() as u128;
+        let entropy = ((now.nanosecond() as u128 ^ self.tool_id_counter as u128) & 0xffff) as u16;
         format!("call_{millis}_{entropy:04x}")
     }
 
