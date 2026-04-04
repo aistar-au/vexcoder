@@ -311,7 +311,7 @@ Total tracked files: 332
 | `src/ui/editor/tests.rs` | 266 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/editor/tests.rs> |
 | `src/ui/input_metrics.rs` | 225 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/input_metrics.rs> |
 | `src/ui/layout.rs` | 145 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/layout.rs> |
-| `src/ui/render/markdown.rs` | 209 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render/markdown.rs> |
+| `src/ui/render/markdown.rs` | 215 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render/markdown.rs> |
 | `src/ui/render/mod.rs` | 560 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render/mod.rs> |
 | `src/ui/render/tests.rs` | 577 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render/tests.rs> |
 | `src/ui/render/transcript.rs` | 525 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/render/transcript.rs> |
