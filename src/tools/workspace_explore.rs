@@ -49,6 +49,10 @@ pub fn list_dir(operator: &ToolOperator, path: Option<&str>, max_entries: usize)
         let p = de.path();
         let name = de.file_name();
         let name_str = name.to_string_lossy();
+        let file_type = de
+            .file_type()
+            .with_context(|| format!("list_dir: failed to inspect '{}'", p.display()))?;
+        let is_dir = file_type.is_dir();
 
         // Skip hidden entries at workspace root (matches list_files behaviour).
         let is_workspace_root = root == operator.working_dir();
@@ -66,14 +70,10 @@ pub fn list_dir(operator: &ToolOperator, path: Option<&str>, max_entries: usize)
             .strip_prefix(operator.working_dir())
             .map(|r| r.to_string_lossy().replace('\\', "/"))
             .unwrap_or_default();
-        if !rel.is_empty() && ignore.is_ignored(&rel) {
+        if !rel.is_empty() && ignore.is_ignored(&rel, is_dir) {
             continue;
         }
 
-        let is_dir = de
-            .file_type()
-            .with_context(|| format!("list_dir: failed to inspect '{}'", p.display()))?
-            .is_dir();
         let mut display = operator.to_workspace_relative_display(&p);
         if is_dir {
             display.push('/');
@@ -114,6 +114,9 @@ pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) ->
 
     let ignore = WorkspaceIgnore::load(operator.working_dir());
     let limit = max_results.clamp(1, GLOB_FILES_MAX);
+    let Some(matcher) = build_glob_matcher(pattern) else {
+        return Ok("(no files found)".to_string());
+    };
 
     let all_files = operator
         .walk_workspace_files_ignoring(operator.working_dir(), &ignore)
@@ -125,7 +128,7 @@ pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) ->
             let rel = make_relative(operator.working_dir(), &p)
                 .to_string_lossy()
                 .replace('\\', "/");
-            if glob_path_match(pattern, &rel) {
+            if glob_path_match(&matcher, &rel) {
                 Some(rel)
             } else {
                 None
@@ -154,16 +157,17 @@ pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) ->
 /// Match `pattern` against a workspace-relative path using `globset`.
 /// Falls back to matching against just the filename component if the full
 /// path doesn't match, for bare-name patterns like `*.rs`.
-fn glob_path_match(pattern: &str, path: &str) -> bool {
+fn build_glob_matcher(pattern: &str) -> Option<globset::GlobSet> {
     let Ok(glob) = globset::GlobBuilder::new(pattern)
         .literal_separator(false)
         .build()
     else {
-        return false;
+        return None;
     };
-    let Ok(matcher) = globset::GlobSetBuilder::new().add(glob).build() else {
-        return false;
-    };
+    globset::GlobSetBuilder::new().add(glob).build().ok()
+}
+
+fn glob_path_match(matcher: &globset::GlobSet, path: &str) -> bool {
     matcher.is_match(path) || matcher.is_match(path.rsplit('/').next().unwrap_or(path))
 }
 

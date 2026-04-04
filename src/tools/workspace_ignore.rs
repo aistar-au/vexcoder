@@ -32,17 +32,10 @@ impl WorkspaceIgnore {
 
     /// Returns `true` when `relative_path` (forward-slash separated, no
     /// leading slash) should be excluded from a workspace walk.
-    pub fn is_ignored(&self, relative_path: &str) -> bool {
-        // Try as-is, then try with a trailing slash (for directory patterns).
-        // The `ignore` crate requires `is_dir = true` for directory-only rules
-        // to match, but callers don't always know the entry type.
+    pub fn is_ignored(&self, relative_path: &str, is_dir: bool) -> bool {
         self.matcher
-            .matched_path_or_any_parents(relative_path, false)
+            .matched_path_or_any_parents(relative_path, is_dir)
             .is_ignore()
-            || self
-                .matcher
-                .matched_path_or_any_parents(relative_path, true)
-                .is_ignore()
     }
 }
 
@@ -57,103 +50,112 @@ mod tests {
         dir
     }
 
+    fn file_ignored(ignore: &WorkspaceIgnore, relative_path: &str) -> bool {
+        ignore.is_ignored(relative_path, false)
+    }
+
+    fn dir_ignored(ignore: &WorkspaceIgnore, relative_path: &str) -> bool {
+        ignore.is_ignored(relative_path, true)
+    }
+
     #[test]
     fn test_wildcard_star_extension_via_workspace() {
         let dir = workspace_with("*.log\n");
         let ign = WorkspaceIgnore::load(dir.path());
-        assert!(ign.is_ignored("error.log"));
-        assert!(ign.is_ignored("dir/error.log")); // gitignore *.log matches in subdirs
-        assert!(!ign.is_ignored("error.rs"));
+        assert!(file_ignored(&ign, "error.log"));
+        assert!(file_ignored(&ign, "dir/error.log")); // gitignore *.log matches in subdirs
+        assert!(!file_ignored(&ign, "error.rs"));
     }
 
     #[test]
     fn test_wildcard_double_star_via_workspace() {
         let dir = workspace_with("**/*.log\n");
         let ign = WorkspaceIgnore::load(dir.path());
-        assert!(ign.is_ignored("dir/sub/error.log"));
-        assert!(ign.is_ignored("error.log"));
-        assert!(!ign.is_ignored("error.rs"));
+        assert!(file_ignored(&ign, "dir/sub/error.log"));
+        assert!(file_ignored(&ign, "error.log"));
+        assert!(!file_ignored(&ign, "error.rs"));
     }
 
     #[test]
     fn test_wildcard_question_mark_via_workspace() {
         let dir = workspace_with("file?.txt\n");
         let ign = WorkspaceIgnore::load(dir.path());
-        assert!(ign.is_ignored("file1.txt"));
-        assert!(!ign.is_ignored("file12.txt"));
+        assert!(file_ignored(&ign, "file1.txt"));
+        assert!(!file_ignored(&ign, "file12.txt"));
     }
 
     #[test]
     fn test_character_class_literal_via_workspace() {
         let dir = workspace_with(".session[a]rea\n");
         let ign = WorkspaceIgnore::load(dir.path());
-        assert!(ign.is_ignored(".sessionarea"));
-        assert!(!ign.is_ignored(".sessionbrea"));
+        assert!(file_ignored(&ign, ".sessionarea"));
+        assert!(!file_ignored(&ign, ".sessionbrea"));
     }
 
     #[test]
     fn test_character_class_range_via_workspace() {
         let dir = workspace_with("file[0-9].txt\n");
         let ign = WorkspaceIgnore::load(dir.path());
-        assert!(ign.is_ignored("file7.txt"));
-        assert!(!ign.is_ignored("filex.txt"));
+        assert!(file_ignored(&ign, "file7.txt"));
+        assert!(!file_ignored(&ign, "filex.txt"));
     }
 
     #[test]
     fn test_workspace_ignore_loads_extension_pattern() {
         let dir = workspace_with("*.log\n");
         let ign = WorkspaceIgnore::load(dir.path());
-        assert!(ign.is_ignored("error.log"));
-        assert!(ign.is_ignored("logs/error.log"));
-        assert!(!ign.is_ignored("main.rs"));
+        assert!(file_ignored(&ign, "error.log"));
+        assert!(file_ignored(&ign, "logs/error.log"));
+        assert!(!file_ignored(&ign, "main.rs"));
     }
 
     #[test]
     fn test_workspace_ignore_directory_pattern() {
         let dir = workspace_with("target/\n");
         let ign = WorkspaceIgnore::load(dir.path());
-        assert!(ign.is_ignored("target"));
-        assert!(ign.is_ignored("target/debug/vex"));
+        assert!(dir_ignored(&ign, "target"));
+        assert!(file_ignored(&ign, "target/debug/vex"));
+        assert!(!file_ignored(&ign, "target"));
     }
 
     #[test]
     fn test_workspace_ignore_negation() {
         let dir = workspace_with("*.log\n!keep.log\n");
         let ign = WorkspaceIgnore::load(dir.path());
-        assert!(ign.is_ignored("discard.log"));
-        assert!(!ign.is_ignored("keep.log"));
+        assert!(file_ignored(&ign, "discard.log"));
+        assert!(!file_ignored(&ign, "keep.log"));
     }
 
     #[test]
     fn test_workspace_ignore_comment_and_blank() {
         let dir = workspace_with("# comment\n\n*.tmp\n");
         let ign = WorkspaceIgnore::load(dir.path());
-        assert!(ign.is_ignored("scratch.tmp"));
-        assert!(!ign.is_ignored("Cargo.toml"));
+        assert!(file_ignored(&ign, "scratch.tmp"));
+        assert!(!file_ignored(&ign, "Cargo.toml"));
     }
 
     #[test]
     fn test_workspace_ignore_no_gitignore_never_ignores() {
         let dir = tempfile::tempdir().unwrap();
         let ign = WorkspaceIgnore::load(dir.path());
-        assert!(!ign.is_ignored("src/main.rs"));
-        assert!(!ign.is_ignored("anything"));
+        assert!(!file_ignored(&ign, "src/main.rs"));
+        assert!(!file_ignored(&ign, "anything"));
     }
 
     #[test]
     fn test_workspace_ignore_rooted_pattern() {
         let dir = workspace_with("/CHANGELOG.md\n");
         let ign = WorkspaceIgnore::load(dir.path());
-        assert!(ign.is_ignored("CHANGELOG.md"));
-        assert!(!ign.is_ignored("docs/CHANGELOG.md"));
+        assert!(file_ignored(&ign, "CHANGELOG.md"));
+        assert!(!file_ignored(&ign, "docs/CHANGELOG.md"));
     }
 
     #[test]
     fn test_workspace_ignore_character_class_pattern() {
         let dir = workspace_with(".session[a]rea/\n");
         let ign = WorkspaceIgnore::load(dir.path());
-        assert!(ign.is_ignored(".sessionarea"));
-        assert!(ign.is_ignored(".sessionarea/settings.json"));
-        assert!(!ign.is_ignored(".sessionbrea/settings.json"));
+        assert!(dir_ignored(&ign, ".sessionarea"));
+        assert!(file_ignored(&ign, ".sessionarea/settings.json"));
+        assert!(!file_ignored(&ign, ".sessionbrea/settings.json"));
     }
 }

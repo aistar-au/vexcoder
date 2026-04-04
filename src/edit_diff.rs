@@ -6,7 +6,9 @@ pub fn format_edit_hunks(
     indent: &str,
     context_lines: usize,
 ) -> String {
-    let patch = diffy::create_patch(old_str, new_str);
+    let mut options = diffy::DiffOptions::new();
+    options.set_context_len(context_lines);
+    let patch = options.create_patch(old_str, new_str);
     let hunks = patch.hunks();
 
     if hunks.is_empty() {
@@ -26,14 +28,14 @@ pub fn format_edit_hunks(
         let old_range = hunk.old_range();
         out.push_str(&format!(
             "{indent}@@ -{},{} +{},{} @@\n",
-            old_range.start() + 1,
+            old_range.start(),
             old_range.len(),
-            range.start() + 1,
+            range.start(),
             range.len(),
         ));
 
-        let mut old_line = old_range.start() + 1;
-        let mut new_line = range.start() + 1;
+        let mut old_line = old_range.start();
+        let mut new_line = range.start();
 
         for line in hunk.lines() {
             match line {
@@ -58,10 +60,6 @@ pub fn format_edit_hunks(
         }
     }
 
-    // Apply context window filtering: diffy uses 3-line context by default.
-    // The `context_lines` param is honoured by passing it to diffy's patch.
-    let _ = context_lines; // diffy uses its own default context; match is close enough
-
     out
 }
 
@@ -70,16 +68,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_format_edit_hunks_uses_compact_context() {
+    fn test_format_edit_hunks_respects_requested_context_window() {
         let old_str = "a\nb\nc\nd\ne\nf";
         let new_str = "a\nb\nc changed\nd\ne\nf";
 
-        let rendered = format_edit_hunks(old_str, new_str, "  ", 1);
+        let no_context = format_edit_hunks(old_str, new_str, "  ", 0);
+        let wider_context = format_edit_hunks(old_str, new_str, "  ", 2);
 
-        // diffy includes context lines around the change.
-        assert!(rendered.contains("@@"));
-        assert!(rendered.contains("- c"));
-        assert!(rendered.contains("+ c changed"));
+        assert!(no_context.contains("- c"));
+        assert!(no_context.contains("+ c changed"));
+        assert!(!no_context.contains("1   a"));
+        assert!(!no_context.contains("2   b"));
+
+        assert!(wider_context.contains("1   a"));
+        assert!(wider_context.contains("2   b"));
+        assert!(wider_context.contains("4   d"));
+        assert!(wider_context.contains("5   e"));
     }
 
     #[test]

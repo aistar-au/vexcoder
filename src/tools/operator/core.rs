@@ -121,15 +121,16 @@ impl ToolOperator {
                 continue;
             }
 
+            let is_dir = path.is_dir();
             let rel = path
                 .strip_prefix(&self.working_dir)
                 .map(path_to_repo_relative_string)
                 .unwrap_or_default();
-            if !rel.is_empty() && ignore.is_ignored(&rel) {
+            if !rel.is_empty() && ignore.is_ignored(&rel, is_dir) {
                 continue;
             }
 
-            if path.is_dir() {
+            if is_dir {
                 let mut entries_in_dir: Vec<_> = fs::read_dir(&path)
                     .with_context(|| format!("Failed to read directory {}", path.display()))?
                     .collect::<std::result::Result<Vec<_>, _>>()

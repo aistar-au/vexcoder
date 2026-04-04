@@ -28,6 +28,7 @@ hyper-util = { version = "0.1", features = [
   "tokio",
 ] }
 ratatui = { version = "0.29", features = [
+  "unstable-backend-writer",
   "unstable-rendered-line-info",
   "unstable-widget-ref",
 ] }
@@ -86,7 +87,9 @@ diffy = "0.4"
 # --- Tier 2: Rich rendering, macros, progress ---
 ratatui-macros = "0.6"
 pulldown-cmark = { version = "0.12", default-features = false }
-syntect = { version = "5", default-features = false, features = ["default-fancy"] }
+syntect = { version = "5", default-features = false, features = [
+  "default-fancy",
+] }
 indicatif = "0.17"
 console = "0.15"
 

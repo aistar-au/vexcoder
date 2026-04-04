@@ -254,12 +254,10 @@ pub(crate) fn transcript_output_line(row: &str) -> Line<'static> {
                 Style::default().fg(Color::White),
             )),
         }
-    } else if row.contains("```") || row.contains("##") || row.contains("**") {
-        // Attempt markdown rendering for lines with clear markdown markers.
-        let lines = super::markdown_to_lines(row);
-        lines
-            .into_iter()
-            .next()
+    } else if looks_like_inline_markdown(row) {
+        // The fallback renderer can safely style single logical markdown rows
+        // here, but fenced blocks need to be parsed before row expansion.
+        super::markdown_to_inline_line(row)
             .unwrap_or_else(|| Line::from(Span::raw(row.to_string())))
     } else {
         Line::from(Span::styled(
@@ -267,6 +265,10 @@ pub(crate) fn transcript_output_line(row: &str) -> Line<'static> {
             Style::default().fg(Color::White),
         ))
     }
+}
+
+fn looks_like_inline_markdown(row: &str) -> bool {
+    !row.contains("```") && (row.starts_with('#') || row.contains("**") || row.contains('`'))
 }
 
 pub(crate) fn structured_transcript_line(

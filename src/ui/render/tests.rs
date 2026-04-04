@@ -524,6 +524,28 @@ fn transcript_output_line_defaults_plain_text_to_white() {
 }
 
 #[test]
+fn transcript_output_line_styles_single_line_markdown_without_dropping_rows() {
+    let heading = transcript_output_line("## Heading");
+    let text: String = heading
+        .spans
+        .iter()
+        .map(|span| span.content.as_ref())
+        .collect();
+
+    assert_eq!(text, "Heading");
+    assert_eq!(heading.spans[0].style.fg, Some(Color::Cyan));
+}
+
+#[test]
+fn transcript_output_line_keeps_fenced_code_markers_literal_until_pre_expansion_rendering() {
+    let fence = transcript_output_line("```rust");
+
+    assert_eq!(fence.spans.len(), 1);
+    assert_eq!(fence.spans[0].content.as_ref(), "```rust");
+    assert_eq!(fence.spans[0].style.fg, Some(Color::White));
+}
+
+#[test]
 fn transcript_output_line_keeps_command_session_progress_status_with_pid() {
     let command = transcript_output_line("[command session started pid=42] cargo test");
 

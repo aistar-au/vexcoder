@@ -214,7 +214,7 @@ async fn main() -> Result<ExitCode> {
     // Errors are ignored here because the handler is optional diagnostic sugar.
     let _ = color_eyre::install();
 
-    if std::env::var_os("RUST_LOG").is_some() {
+    let _log_guard = if std::env::var_os("RUST_LOG").is_some() {
         let file_appender = tracing_appender::rolling::daily(
             dirs::state_dir()
                 .or_else(dirs::data_local_dir)
@@ -223,12 +223,15 @@ async fn main() -> Result<ExitCode> {
                 .join("logs"),
             "vex.log",
         );
-        let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+        let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
         tracing_subscriber::fmt()
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
             .with_writer(non_blocking)
             .init();
-    }
+        Some(guard)
+    } else {
+        None
+    };
 
     let cli = Cli::parse();
 
