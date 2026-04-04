@@ -889,8 +889,8 @@ pub(crate) fn parse_numbered_list_item(line: &str) -> Option<(&str, &str, usize)
     if i == 0 || i >= bytes.len().saturating_sub(1) {
         return None;
     }
-    if bytes[i] == b'.' && i + 1 < bytes.len() && bytes[i + 1] == b' ' {
-        let prefix = &line[..i + 2]; // e.g. "1. "
+    if (bytes[i] == b'.' || bytes[i] == b')') && i + 1 < bytes.len() && bytes[i + 1] == b' ' {
+        let prefix = &line[..i + 2]; // e.g. "1. " or "2) "
         let rest = &line[i + 2..];
         Some((prefix, rest, display_width(prefix)))
     } else {

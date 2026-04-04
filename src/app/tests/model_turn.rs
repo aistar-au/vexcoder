@@ -1991,7 +1991,7 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
 
     // Must show a batch count annotation.
     assert!(
-        lines.iter().any(|l| l.contains("2 files")),
+        lines.iter().any(|l| l.contains("2 calls")),
         "folded same-name tool calls must show a batch count; got:\n{:#?}",
         lines
     );

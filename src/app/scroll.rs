@@ -18,20 +18,29 @@ impl TuiMode {
             .min(total_rows.saturating_sub(1));
     }
 
-    pub(super) fn preserve_transcript_scroll_on_growth(&mut self, previous_rows: usize) {
+    pub(super) fn preserve_transcript_scroll_on_growth(&mut self, previous_expanded_rows: usize) {
         if self.transcript_scroll_offset == 0 {
             return;
         }
 
         let (_, rows, anchor) = self.task_output_view();
-        if anchor == OutputScrollAnchor::Bottom && rows.len() > previous_rows {
-            self.transcript_scroll_offset = self
-                .transcript_scroll_offset
-                .saturating_add(rows.len() - previous_rows);
-        }
         let cols = self.history_content_width.get() as u16;
         let expanded = crate::ui::draw::expand_rows_for_display(&rows, cols).len();
+        if anchor == OutputScrollAnchor::Bottom && expanded > previous_expanded_rows {
+            self.transcript_scroll_offset = self
+                .transcript_scroll_offset
+                .saturating_add(expanded - previous_expanded_rows);
+        }
         self.clamp_transcript_scroll_offset(expanded);
+    }
+
+    /// Compute the total number of word-wrapped display rows for the current
+    /// task output. Used to capture a pre-mutation snapshot that
+    /// `preserve_transcript_scroll_on_growth` can compare against.
+    pub(super) fn expanded_output_row_count(&self) -> usize {
+        let (_, rows, _) = self.task_output_view();
+        let cols = self.history_content_width.get() as u16;
+        crate::ui::draw::expand_rows_for_display(&rows, cols).len()
     }
 
     pub(super) fn push_history_line(&mut self, line: String) {

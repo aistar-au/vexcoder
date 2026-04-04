@@ -4,6 +4,11 @@ use crate::status_contract::is_waiting_placeholder;
 /// Returns `true` for tool names that only read or search, never mutate.
 /// Used to fold consecutive information-gathering calls into a single
 /// transcript paragraph.
+///
+/// NOTE: mirrors `is_read_only_tool_name` in
+/// `state::conversation::tools::formatting` which is unreachable from
+/// this module because `state::conversation` is a private submodule.
+/// If the canonical list changes, update both copies.
 fn is_read_only_tool(name: &str) -> bool {
     matches!(
         name,
@@ -28,7 +33,7 @@ impl TuiMode {
     pub(super) fn on_model_update(&mut self, update: UiUpdate, ctx: &mut RuntimeContext) {
         match update {
             UiUpdate::TranscriptLine(line) => {
-                let previous_output_len = self.task_output_view().1.len();
+                let previous_output_len = self.expanded_output_row_count();
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
                 }
@@ -55,7 +60,7 @@ impl TuiMode {
                 self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
             UiUpdate::StreamDelta(text) => {
-                let previous_output_len = self.task_output_view().1.len();
+                let previous_output_len = self.expanded_output_row_count();
                 if self.history_state.cancel_pending {
                     return;
                 }
@@ -172,7 +177,7 @@ impl TuiMode {
                             transcript_row_start: 0,
                             transcript_row_count: 0,
                         };
-                        let previous_output_len = self.task_output_view().1.len();
+                        let previous_output_len = self.expanded_output_row_count();
                         let transcript_rows = super::layout::pending_tool_paragraph_rows(
                             &pending,
                             StepLifecycle::Running,
@@ -260,7 +265,7 @@ impl TuiMode {
                                     }
                                 }
                             }
-                            let previous_output_len = self.task_output_view().1.len();
+                            let previous_output_len = self.expanded_output_row_count();
                             let transcript_rows = super::layout::completed_tool_paragraph_rows(
                                 &pending.name,
                                 &pending.input,
@@ -328,7 +333,7 @@ impl TuiMode {
                                     .history_state
                                     .lines
                                     .last()
-                                    .map(|l| l.starts_with("[detail] (") && l.contains("files)"))
+                                    .map(|l| l.starts_with("[detail] (") && l.contains("calls)"))
                                     .unwrap_or(false);
                                 if had_count_line {
                                     self.history_state.lines.pop();
@@ -338,7 +343,7 @@ impl TuiMode {
                                     self.push_history_line(row.clone());
                                 }
                                 self.push_history_line(format!(
-                                    "[detail] ({} files)",
+                                    "[detail] ({} calls)",
                                     self.same_name_tool_count
                                 ));
                             } else {
@@ -491,7 +496,7 @@ impl TuiMode {
 
                 let summary = summarize_tool_approval_context(&tool_name, &input_preview);
                 let step_id = self.pending_tool_step_id(&tool_name, &input_preview);
-                let previous_output_len = self.task_output_view().1.len();
+                let previous_output_len = self.expanded_output_row_count();
                 for row in super::layout::tool_approval_paragraph_rows(
                     &format!("{summary} · awaiting approval"),
                     &input_preview,
