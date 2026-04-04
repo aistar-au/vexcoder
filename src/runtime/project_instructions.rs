@@ -9,7 +9,7 @@
 
 use std::path::{Path, PathBuf};
 
-/// Priority-ordered candidate paths relative to the workspace root.
+/// Priority-ranked candidate paths relative to the workspace root.
 const SEARCH_PATHS: &[&str] = &[".vex/AGENTS.md", "AGENTS.md", ".vex/PROJECT.md"];
 
 fn estimate_tokens(content: &str) -> usize {

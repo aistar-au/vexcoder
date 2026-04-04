@@ -119,7 +119,7 @@ pub enum UiUpdate {
 ```
 
 Design constraints:
-- This type lives in `runtime`, not `app`, so `RuntimeMode`, `RuntimeContext`, and `Runtime<M>` can all reference it without a circular dependency.
+- This type is placed in `runtime`, not `app`, so `RuntimeMode`, `RuntimeContext`, and `Runtime<M>` can all reference it without a circular dependency.
 - `src/app/mod.rs` imports it as `use crate::runtime::UiUpdate`.
 
 ### 4. `RuntimeEvent` enum
@@ -190,7 +190,7 @@ The previous placement in `app` created a cycle: `runtime::mode` needed `UiUpdat
 
 ### Why keep `TuiMode` in `src/app/mod.rs` rather than a new file?
 
-CORE-09 Decision Record (2026-02-18): *"Do not add a new global `src/state.rs`; keep UI state local to `App` in `src/app/mod.rs` to avoid collision with the existing `src/state/` runtime namespace."* By extension, `TuiMode` stays in `app/mod.rs` because it is UI state. `RuntimeMode` is the interface; `TuiMode` is the implementation that lives where UI state lives.
+CORE-09 Decision Record (2026-02-18): *"Do not add a new global `src/state.rs`; keep UI state local to `App` in `src/app/mod.rs` to avoid collision with the existing `src/state/` runtime namespace."* By extension, `TuiMode` stays in `app/mod.rs` because it is UI state. `RuntimeMode` is the interface; `TuiMode` is the implementation placed where UI state is kept.
 
 ### Why not a trait object (`Box<dyn RuntimeMode>`) in `Runtime`?
 

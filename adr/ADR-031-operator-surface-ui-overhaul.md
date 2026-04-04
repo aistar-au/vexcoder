@@ -228,7 +228,7 @@ merge.
 
 Every merged batch must leave main in a coherent state in which:
 
-- task truth still lives in runtime/task state, not in UI-local heuristics;
+- task truth still remains in runtime/task state, not in UI-local heuristics;
 - canonical runtime events still drive downstream behavior;
 - the orchestrator remains the owner of continuation and completion;
 - the UI can render the current truth without depending on unmerged branches.

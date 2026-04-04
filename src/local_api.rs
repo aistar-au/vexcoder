@@ -5,7 +5,7 @@
 //! the ADR-026 local API surface to the runtime engine.
 //!
 //! Transport plumbing (HTTP routing, TLS, SSE framing, Unix sockets)
-//! lives in `crate::server` per ADR-028.
+//! is found in `crate::server` per ADR-028.
 
 #[cfg(test)]
 use crate::api::ApiClient;

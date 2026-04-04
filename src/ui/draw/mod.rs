@@ -691,7 +691,7 @@ fn transcript_window_rows(
 }
 
 /// Backward-compatible wrapper used by existing tests.
-#[allow(dead_code)]
+#[cfg(test)]
 fn transcript_window(state: &TaskLayoutState, viewport_height: usize) -> (usize, usize) {
     transcript_window_rows(
         state.output_rows.len(),
