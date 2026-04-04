@@ -551,7 +551,9 @@ fn centered_modal_area(size: Rect, preferred_height: u16) -> Rect {
 ///   `[->]`  → violet  (in-progress orchestration step)
 ///   `[?]`   → yellow  (approval request)
 ///   `> …`   → dim gray (user prompt echo)
+mod markdown;
 mod transcript;
+pub(crate) use markdown::markdown_to_inline_line;
 pub(crate) use transcript::*;
 
 #[cfg(test)]
