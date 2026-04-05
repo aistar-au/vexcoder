@@ -82,7 +82,7 @@ arboard = { version = "3", default-features = false }
 color-eyre = "0.6"
 dirs = "6"
 tracing-appender = "0.2"
-diffy = "0.4"
+similar = "2"
 
 # --- Tier 2: Rich rendering, macros, progress ---
 ratatui-macros = "0.6"

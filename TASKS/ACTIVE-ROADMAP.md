@@ -248,10 +248,9 @@ Candidate implementation areas:
 
 ### Tier 12 -- Crate Expansion (next batch planned) -- 4 items
 
-Grounded in comparable Rust CLI patterns, including the public codex-rs crate
-mix, without reusing external wording or implementation material. Each crate
-either fills a gap in vexcoder's current dependency tree or is rejected with
-design rationale.
+Grounded in comparable open-source Rust CLI patterns without reusing external
+wording or implementation material. Each crate either fills a gap in vexcoder's
+current dependency tree or is rejected with design rationale.
 Full decisions documented in `docs/src/architecture.md` under "Crate expansion
 decisions".
 
@@ -262,7 +261,7 @@ dependencies.
 | Crate | Target module | Status | Notes |
 | :--- | :--- | :--- | :--- |
 | `bm25` | `codebase_search` ranking layer | Next batch planned | Ranked retrieval for ADR-033 Phase 5; sits behind `aho-corasick` literal match |
-| `similar` | Transcript diff renderer | Next batch planned | Generic diff algorithm for inline structured diffs |
+| `similar` | Transcript diff renderer | Active (replaces `diffy` in `edit_diff.rs`) | Generic diff algorithm, no branding dependency |
 | `which` | `git_rollup.rs` | Next batch planned | Clear error when `git` binary is not on `$PATH` |
 | `notify` | `git_rollup.rs` watch mode | Next batch planned | Filesystem event watching replaces polling for working-tree changes |
 

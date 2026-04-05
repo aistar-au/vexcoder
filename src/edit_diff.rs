@@ -6,55 +6,53 @@ pub fn format_edit_hunks(
     indent: &str,
     context_lines: usize,
 ) -> String {
-    let mut options = diffy::DiffOptions::new();
-    options.set_context_len(context_lines);
-    let patch = options.create_patch(old_str, new_str);
-    let hunks = patch.hunks();
+    use similar::{ChangeTag, TextDiff};
 
-    if hunks.is_empty() {
-        if old_str.is_empty() && new_str.is_empty() {
-            return format!("{indent}1   <empty>\n");
-        }
+    if old_str.is_empty() && new_str.is_empty() {
+        return format!("{indent}1   <empty>\n");
+    }
+
+    let diff = TextDiff::from_lines(old_str, new_str);
+    let groups = diff.grouped_ops(context_lines);
+
+    if groups.is_empty() {
         return format!("{indent}... no modified lines ...\n");
     }
 
     let mut out = String::new();
-    for (index, hunk) in hunks.iter().enumerate() {
-        if index > 0 {
+    for (group_idx, group) in groups.iter().enumerate() {
+        if group_idx > 0 {
             out.push_str(&format!("{indent}...\n"));
         }
 
-        let range = hunk.new_range();
-        let old_range = hunk.old_range();
+        let old_start = group[0].old_range().start + 1;
+        let new_start = group[0].new_range().start + 1;
+        let old_len = group.last().unwrap().old_range().end - group[0].old_range().start;
+        let new_len = group.last().unwrap().new_range().end - group[0].new_range().start;
+
         out.push_str(&format!(
-            "{indent}@@ -{},{} +{},{} @@\n",
-            old_range.start(),
-            old_range.len(),
-            range.start(),
-            range.len(),
+            "{indent}@@ -{old_start},{old_len} +{new_start},{new_len} @@\n"
         ));
 
-        let mut old_line = old_range.start();
-        let mut new_line = range.start();
+        for op in group {
+            for change in diff.iter_changes(op) {
+                let raw = change.value();
+                let text = raw.trim_end_matches(['\n', '\r']);
+                let text = if text.is_empty() { "<empty>" } else { text };
 
-        for line in hunk.lines() {
-            match line {
-                diffy::Line::Context(text) => {
-                    // Only show context within the requested window
-                    let text = if text.is_empty() { "<empty>" } else { text };
-                    out.push_str(&format!("{indent}{old_line}   {text}\n"));
-                    old_line += 1;
-                    new_line += 1;
-                }
-                diffy::Line::Delete(text) => {
-                    let text = if text.is_empty() { "<empty>" } else { text };
-                    out.push_str(&format!("{indent}{old_line} - {text}\n"));
-                    old_line += 1;
-                }
-                diffy::Line::Insert(text) => {
-                    let text = if text.is_empty() { "<empty>" } else { text };
-                    out.push_str(&format!("{indent}{new_line} + {text}\n"));
-                    new_line += 1;
+                match change.tag() {
+                    ChangeTag::Equal => {
+                        let line_no = change.old_index().unwrap_or(0) + 1;
+                        out.push_str(&format!("{indent}{line_no}   {text}\n"));
+                    }
+                    ChangeTag::Delete => {
+                        let line_no = change.old_index().unwrap_or(0) + 1;
+                        out.push_str(&format!("{indent}{line_no} - {text}\n"));
+                    }
+                    ChangeTag::Insert => {
+                        let line_no = change.new_index().unwrap_or(0) + 1;
+                        out.push_str(&format!("{indent}{line_no} + {text}\n"));
+                    }
                 }
             }
         }
@@ -93,8 +91,8 @@ mod tests {
 
         let rendered = format_edit_hunks(old_str, new_str, "  ", 1);
 
-        // diffy merges nearby hunks with 3-line default context, so this may
-        // be 1 or 2 hunks depending on proximity. Just verify the changes appear.
+        // similar groups nearby changes with context; 1-line context makes two distant
+        // changes separable. Just verify the changes appear.
         assert!(rendered.contains("@@"));
         assert!(rendered.contains("- b"));
         assert!(rendered.contains("+ b changed"));
