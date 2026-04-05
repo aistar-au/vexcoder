@@ -6,6 +6,14 @@ use crate::ui::render::{input_visual_rows, MAX_INPUT_PANE_ROWS};
 use std::time::{Duration, Instant};
 
 impl TuiMode {
+    /// Whether the transcript is pinned to the bottom (auto-following new
+    /// content).  This is the single source of truth for follow-mode across
+    /// the entire scroll subsystem — `transcript_scroll_offset == 0` means
+    /// the viewport is at the live edge.
+    pub fn auto_follow(&self) -> bool {
+        self.transcript_scroll_offset == 0
+    }
+
     fn clamp_transcript_scroll_offset(&mut self, total_rows: usize) {
         self.transcript_scroll_offset = self
             .transcript_scroll_offset
@@ -19,6 +27,8 @@ impl TuiMode {
     }
 
     pub(super) fn preserve_transcript_scroll_on_growth(&mut self, previous_expanded_rows: usize) {
+        // When the user is following the bottom (offset=0), no adjustment
+        // needed — new content automatically appears at the bottom.
         if self.transcript_scroll_offset == 0 {
             return;
         }
@@ -27,11 +37,14 @@ impl TuiMode {
         let cols = self.history_content_width.get() as u16;
         let expanded = crate::ui::draw::expand_rows_for_display(&rows, cols).len();
         if anchor == OutputScrollAnchor::Bottom && expanded > previous_expanded_rows {
-            self.transcript_scroll_offset = self
-                .transcript_scroll_offset
-                .saturating_add(expanded - previous_expanded_rows);
+            let growth = expanded - previous_expanded_rows;
+            self.transcript_scroll_offset = self.transcript_scroll_offset.saturating_add(growth);
         }
-        self.clamp_transcript_scroll_offset(expanded);
+        // Always clamp to prevent the offset from exceeding the scrollable
+        // range — this also handles the case where rows were removed (e.g.
+        // pending tool paragraph replacement).
+        let max_offset = expanded.saturating_sub(1);
+        self.transcript_scroll_offset = self.transcript_scroll_offset.min(max_offset);
     }
 
     /// Compute the total number of word-wrapped display rows for the current
@@ -49,11 +62,6 @@ impl TuiMode {
         }
         self.history_state.lines.push(line);
         self.enforce_history_cap();
-        if self.history_state.auto_follow {
-            self.set_scroll_to_bottom();
-        } else {
-            self.clamp_scroll_offset();
-        }
     }
 
     pub(super) fn enforce_history_cap(&mut self) {
@@ -68,70 +76,17 @@ impl TuiMode {
             .history_state
             .active_assistant_index
             .and_then(|idx| idx.checked_sub(excess));
-        self.history_state.scroll_offset = self.history_state.scroll_offset.saturating_sub(excess);
-        self.clamp_scroll_offset();
     }
 
-    pub(super) fn max_scroll_offset(&self) -> usize {
-        history_visual_line_count(&self.history_state.lines, self.history_content_width.get())
-            .saturating_sub(1)
-    }
-
-    pub(super) fn set_scroll_to_bottom(&mut self) {
-        self.history_state.scroll_offset = self.max_scroll_offset();
-    }
-
-    pub(super) fn clamp_scroll_offset(&mut self) {
-        let max = self.max_scroll_offset();
-        self.history_state.scroll_offset = self.history_state.scroll_offset.min(max);
-    }
-
-    /// Advance the transcript scroll to the bottom when auto-follow is on,
-    /// or clamp to a valid offset when it is off.
-    pub(super) fn apply_auto_follow_or_clamp(&mut self) {
-        if self.history_state.auto_follow {
-            self.set_scroll_to_bottom();
-        } else {
-            self.clamp_scroll_offset();
-        }
-    }
-
-    pub(super) fn apply_page_up(&mut self, page_step: usize) {
-        self.history_state.scroll_offset = self
-            .history_state
-            .scroll_offset
-            .saturating_sub(page_step.max(1));
-        self.history_state.auto_follow = false;
-    }
-
-    pub(super) fn apply_page_down(&mut self, page_step: usize) {
-        let max = self.max_scroll_offset();
-        self.history_state.scroll_offset = self
-            .history_state
-            .scroll_offset
-            .saturating_add(page_step.max(1))
-            .min(max);
-        self.history_state.auto_follow = self.history_state.scroll_offset >= max;
-    }
-
-    pub(super) fn apply_home(&mut self) {
-        self.history_state.scroll_offset = 0;
-        self.history_state.auto_follow = false;
-    }
-
-    pub(super) fn apply_end(&mut self) {
-        self.set_scroll_to_bottom();
-        self.history_state.auto_follow = true;
-    }
-
-    pub(super) fn apply_history_scroll_action(&mut self, action: ScrollAction) {
-        match action {
-            ScrollAction::LineUp => self.apply_page_up(1),
-            ScrollAction::LineDown => self.apply_page_down(1),
-            ScrollAction::PageUp(step) => self.apply_page_up(step),
-            ScrollAction::PageDown(step) => self.apply_page_down(step),
-            ScrollAction::Home => self.apply_home(),
-            ScrollAction::End => self.apply_end(),
+    /// Clamp the transcript scroll offset to a valid range after content
+    /// mutations (line removals, replacements, cap enforcement).
+    pub(super) fn clamp_transcript_after_mutation(&mut self) {
+        let (_, rows, anchor) = self.task_output_view();
+        let cols = self.history_content_width.get() as u16;
+        let total_rows = crate::ui::draw::expand_rows_for_display(&rows, cols).len();
+        match anchor {
+            OutputScrollAnchor::Bottom => self.clamp_transcript_scroll_offset(total_rows),
+            OutputScrollAnchor::Top => self.clamp_inspector_scroll_offset(total_rows),
         }
     }
 
@@ -197,17 +152,14 @@ impl TuiMode {
     pub(super) fn apply_output_scroll_action(&mut self, action: ScrollAction) {
         let (_, rows, anchor) = self.task_output_view();
         // Use the expanded (word-wrapped) row count so the scroll range
-        // matches the display row count used by the draw path.  Without
-        // this, the clamp is too tight and prevents scrolling past long
-        // word-wrapped content.
+        // matches the display row count used by the draw path.
         let cols = self.history_content_width.get() as u16;
         let total_rows = crate::ui::draw::expand_rows_for_display(&rows, cols).len();
 
         match anchor {
             // Bottom-anchored view uses inverted semantics: LineUp scrolls
             // the offset upward (increasing the distance from the bottom),
-            // while LineDown scrolls it back toward the bottom.  Do NOT use
-            // `apply_bounded_scroll` here — the direction mapping is reversed.
+            // while LineDown scrolls it back toward the bottom.
             OutputScrollAnchor::Bottom => match action {
                 ScrollAction::LineUp => {
                     self.transcript_scroll_offset = self.transcript_scroll_offset.saturating_add(1);
@@ -240,7 +192,9 @@ impl TuiMode {
         }
 
         match anchor {
-            OutputScrollAnchor::Bottom => self.clamp_transcript_scroll_offset(total_rows),
+            OutputScrollAnchor::Bottom => {
+                self.clamp_transcript_scroll_offset(total_rows);
+            }
             OutputScrollAnchor::Top => self.clamp_inspector_scroll_offset(total_rows),
         }
     }

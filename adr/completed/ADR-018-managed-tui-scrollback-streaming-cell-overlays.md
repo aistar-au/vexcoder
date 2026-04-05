@@ -124,6 +124,18 @@ command-session capture alignment).
 
 See ADR-027 for the corrected implementation details.
 
+## Scroll Architecture Note (2026-04-05)
+
+The `scroll_offset` and `auto_follow` fields described in this ADR have been
+removed from `HistoryState`. Follow-mode is now a computed property
+(`transcript_scroll_offset == 0`) with no stored boolean. The `ScrollTarget::History`
+variant and all legacy scroll methods (`max_scroll_offset`, `set_scroll_to_bottom`,
+`clamp_scroll_offset`, etc.) have been deleted. All interactive scrolling runs
+through the task-surface draw path via `transcript_scroll_offset` (bottom-anchored)
+and `inspector_scroll_offset` (top-anchored). The idle-mode render pins to the
+tail with no scroll parameter. All SSE events unconditionally route through the
+structured `StreamBlock` pipeline with no alternative rendering routes.
+
 ## Architecture Boundary Note (2026-03-15)
 
 ADR-028 defines the longer-term application and transport split that ADR-018 did not make explicit. This superseded ADR must not be read as permission for the long-term application layer to keep mixing TUI/session state, runtime coordination, shared command semantics, or startup wiring. Those concerns now belong behind an explicit application facade, with cli and transport concerns implemented in separate outer modules.

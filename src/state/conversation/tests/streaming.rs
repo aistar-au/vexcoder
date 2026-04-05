@@ -747,12 +747,14 @@ data: {"type":"message_stop"}"#.to_string(),
 }
 #[tokio::test]
 async fn test_repeated_read_only_round_injects_nudge_then_recovers() -> Result<()> {
+    // Local endpoints use a tighter repeat threshold (1 vs 2) so the nudge
+    // fires after just one repeated round. Sequence: initial round → repeated
+    // round triggers nudge → recovery round produces final text.
     let mock_api_client =
         ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
             tagged_read_file_round("msg_loop_nudge_01"),
             tagged_read_file_round("msg_loop_nudge_02"),
-            tagged_read_file_round("msg_loop_nudge_03"),
-            plain_text_round("msg_loop_nudge_04", "Done after loop correction."),
+            plain_text_round("msg_loop_nudge_03", "Done after loop correction."),
         ])));
     let mut mock_tool_responses = HashMap::new();
     mock_tool_responses.insert("file.txt".to_string(), "loop sample".to_string());
@@ -776,6 +778,55 @@ async fn test_repeated_read_only_round_injects_nudge_then_recovers() -> Result<(
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_duplicate_tagged_read_only_calls_in_single_round_are_deduplicated() -> Result<()> {
+    let mock_api_client =
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+            tagged_duplicate_read_file_round("msg_loop_dedupe_01"),
+            plain_text_round("msg_loop_dedupe_02", "Done after dedup."),
+        ])));
+    let mut mock_tool_responses = HashMap::new();
+    mock_tool_responses.insert("file.txt".to_string(), "loop sample".to_string());
+    let mut manager = ConversationManager::new_mock(mock_api_client, mock_tool_responses);
+
+    let final_text = manager.send_message("read file".to_string(), None).await?;
+    assert!(final_text.contains("Done after dedup."));
+
+    let assistant_history = manager
+        .api_messages
+        .iter()
+        .find_map(|message| match &message.content {
+            Content::Text(text)
+                if message.role == "assistant" && text.contains("<function=read_file>") =>
+            {
+                Some(text.as_str())
+            }
+            _ => None,
+        })
+        .expect("expected assistant history with tagged tool call");
+    assert_eq!(assistant_history.matches("<function=read_file>").count(), 1);
+
+    let tool_result_history = manager
+        .api_messages
+        .iter()
+        .find_map(|message| match &message.content {
+            Content::Text(text)
+                if message.role == "user" && text.contains("tool_result read_file") =>
+            {
+                Some(text.as_str())
+            }
+            _ => None,
+        })
+        .expect("expected tool_result history");
+    assert_eq!(
+        tool_result_history.matches("tool_result read_file").count(),
+        1
+    );
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn test_repeated_read_only_round_returns_guard_message_instead_of_error() -> Result<()> {
     let mock_api_client =

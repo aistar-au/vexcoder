@@ -126,7 +126,7 @@ pub fn render_task_input(
     );
 }
 
-pub fn render_messages(frame: &mut Frame<'_>, area: Rect, messages: &[String], scroll: usize) {
+pub fn render_messages(frame: &mut Frame<'_>, area: Rect, messages: &[String]) {
     if area.height == 0 || area.width == 0 {
         return;
     }
@@ -150,6 +150,11 @@ pub fn render_messages(frame: &mut Frame<'_>, area: Rect, messages: &[String], s
         }
     }
 
+    // Always pin to the tail — the idle-mode history pane shows the most
+    // recent lines at the bottom.  All interactive scrolling is handled by
+    // the task-surface draw path via transcript_scroll_offset.
+    let total_lines = body.len();
+    let scroll = total_lines.saturating_sub(inner.height as usize);
     let paragraph =
         Paragraph::new(Text::from(body)).scroll((scroll.min(u16::MAX as usize) as u16, 0));
     frame.render_widget(paragraph, inner);

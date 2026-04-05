@@ -72,6 +72,21 @@ pub(crate) fn parse_tagged_tool_calls(text: &str) -> Vec<TaggedToolCall> {
     calls
 }
 
+pub(crate) fn dedupe_tagged_tool_calls(calls: Vec<TaggedToolCall>) -> Vec<TaggedToolCall> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut deduped = Vec::new();
+
+    for call in calls {
+        let payload = serde_json::to_string(&call.input).unwrap_or_else(|_| call.input.to_string());
+        let signature = format!("{}:{payload}", call.name);
+        if seen.insert(signature) {
+            deduped.push(call);
+        }
+    }
+
+    deduped
+}
+
 pub(crate) fn find_function_body_bounds(text: &str, body_start: usize) -> (usize, usize) {
     let function_close = text[body_start..]
         .find("</function>")

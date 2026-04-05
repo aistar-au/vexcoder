@@ -8,8 +8,6 @@ impl TuiMode {
         self.history_state.cancel_pending = false;
         self.command_sessions.clear();
         self.history_state.active_assistant_index = None;
-        self.history_state.scroll_offset = 0;
-        self.history_state.auto_follow = true;
         self.transcript_scroll_offset = 0;
         self.inspector_scroll_offset = 0;
         self.active_stream_blocks.clear();
@@ -184,11 +182,7 @@ impl TuiMode {
         self.history_state.active_assistant_index = None;
         self.read_only_turn_active = false;
         self.turn_completion_pending = false;
-        if self.history_state.auto_follow {
-            self.set_scroll_to_bottom();
-        } else {
-            self.clamp_scroll_offset();
-        }
+        // Reset scroll to the live edge for the next turn.
         self.transcript_scroll_offset = 0;
         self.inspector_scroll_offset = 0;
         true
@@ -302,7 +296,7 @@ impl TuiMode {
 
         if pushed > 0 {
             self.enforce_history_cap();
-            self.apply_auto_follow_or_clamp();
+            self.clamp_transcript_after_mutation();
         }
         self.current_turn_stream_segments.clear();
         self.active_stream_segment_index = None;

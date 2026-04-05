@@ -98,71 +98,48 @@ fn test_scrollback_retains_position_during_streaming() {
 
     mode.history_state.lines = (0..20).map(|i| format!("line-{i}")).collect();
     mode.history_state.active_assistant_index = Some(10);
-    mode.history_state.scroll_offset = 5;
-    mode.history_state.auto_follow = false;
+    // Simulate user having scrolled up by setting a non-zero transcript offset.
+    mode.transcript_scroll_offset = 5;
 
     mode.on_model_update(UiUpdate::StreamDelta(" assistant".to_string()), &mut ctx);
 
-    assert_eq!(
-        mode.history_state.scroll_offset, 5,
-        "scrollback position must not be forced while auto-follow is disabled"
+    assert!(
+        mode.transcript_scroll_offset > 0,
+        "scrollback position must not be forced to bottom while user has scrolled up"
     );
 }
 #[test]
-fn test_scrollback_commands_update_scroll_state() {
+fn test_output_scroll_commands_update_scroll_state() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    mode.history_state.lines = (0..100).map(|i| format!("line-{i}")).collect();
-    mode.history_state.scroll_offset = 80;
-    mode.history_state.auto_follow = true;
+    // Populate history so the output pane has content to scroll.
+    mode.on_user_input("hello".to_string(), &mut ctx);
+    for i in 0..50 {
+        mode.push_history_line(format!("line-{i}"));
+    }
 
-    mode.on_frontend_event(
-        UserInputEvent::Scroll {
-            target: ScrollTarget::History,
-            action: ScrollAction::PageUp(10),
-        },
-        &mut ctx,
-    );
-    assert_eq!(mode.history_state.scroll_offset, 70);
-    assert!(!mode.history_state.auto_follow);
+    // Start at the live edge (auto-follow).
+    assert!(mode.auto_follow(), "initial state must be auto-following");
 
-    mode.on_frontend_event(
-        UserInputEvent::Scroll {
-            target: ScrollTarget::History,
-            action: ScrollAction::PageDown(200),
-        },
-        &mut ctx,
-    );
-    assert_eq!(mode.history_state.scroll_offset, 99);
-    assert!(mode.history_state.auto_follow);
+    // Scroll up — should break auto-follow.
+    mode.apply_output_scroll_action(ScrollAction::LineUp);
+    assert!(!mode.auto_follow(), "scrolling up must disable auto-follow");
 
-    mode.on_frontend_event(
-        UserInputEvent::Scroll {
-            target: ScrollTarget::History,
-            action: ScrollAction::Home,
-        },
-        &mut ctx,
-    );
-    assert_eq!(mode.history_state.scroll_offset, 0);
-    assert!(!mode.history_state.auto_follow);
+    // Scroll back to bottom — should restore auto-follow.
+    mode.apply_output_scroll_action(ScrollAction::End);
+    assert!(mode.auto_follow(), "End must restore auto-follow");
 
-    mode.on_frontend_event(
-        UserInputEvent::Scroll {
-            target: ScrollTarget::History,
-            action: ScrollAction::End,
-        },
-        &mut ctx,
-    );
-    assert_eq!(mode.history_state.scroll_offset, 99);
-    assert!(mode.history_state.auto_follow);
-    assert!(
-        !mode.history_state.turn_in_progress,
-        "scroll commands must not dispatch new turns"
-    );
+    // Home scrolls to the very top — breaks auto-follow.
+    mode.apply_output_scroll_action(ScrollAction::Home);
+    assert!(!mode.auto_follow(), "Home must disable auto-follow");
+
+    // End restores it.
+    mode.apply_output_scroll_action(ScrollAction::End);
+    assert!(mode.auto_follow(), "End must restore auto-follow again");
 }
 #[test]
-fn test_history_status_and_scroll_use_visual_rows() {
+fn test_history_status_uses_visual_rows() {
     let mode = TuiMode {
         history_state: HistoryState {
             lines: vec!["a\nb\nc".to_string()],
@@ -171,7 +148,6 @@ fn test_history_status_and_scroll_use_visual_rows() {
         ..TuiMode::new()
     };
 
-    assert_eq!(mode.max_scroll_offset(), 2);
     assert!(mode.status_line().contains("history:3"));
 }
 #[test]

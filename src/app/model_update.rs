@@ -68,7 +68,7 @@ impl TuiMode {
             }
         }
 
-        self.apply_auto_follow_or_clamp();
+        self.clamp_transcript_after_mutation();
         self.preserve_transcript_scroll_on_growth(previous_output_len);
     }
 
@@ -127,7 +127,7 @@ impl TuiMode {
                         self.active_stream_segment_index =
                             Some(self.current_turn_stream_segments.len() - 1);
                     }
-                    self.apply_auto_follow_or_clamp();
+                    self.clamp_transcript_after_mutation();
                     self.preserve_transcript_scroll_on_growth(previous_output_len);
                     return;
                 }
@@ -156,7 +156,7 @@ impl TuiMode {
                     line.push_str(&text);
                     *line = sanitize_assistant_text(line);
                 }
-                self.apply_auto_follow_or_clamp();
+                self.clamp_transcript_after_mutation();
                 self.preserve_transcript_scroll_on_growth(previous_output_len);
             }
             UiUpdate::ServerMetadata(metadata) => {
@@ -295,7 +295,7 @@ impl TuiMode {
                                 let end = start + pending.transcript_row_count;
                                 if end <= self.history_state.lines.len() {
                                     self.history_state.lines.drain(start..end);
-                                    self.apply_auto_follow_or_clamp();
+                                    self.clamp_transcript_after_mutation();
                                     // Shift stored row indices for all remaining
                                     // pending calls whose rows follow the removed
                                     // block so their indices stay accurate.
@@ -397,7 +397,7 @@ impl TuiMode {
                                     self.push_history_line(row);
                                 }
                             }
-                            self.apply_auto_follow_or_clamp();
+                            self.clamp_transcript_after_mutation();
                             self.preserve_transcript_scroll_on_growth(previous_output_len);
 
                             self.current_turn_tool_invocations
@@ -597,7 +597,7 @@ impl TuiMode {
                 self.last_turn_timings = self.current_turn_timings.clone();
                 self.last_turn_ttft = self.ttft;
                 self.append_turn_timing_line();
-                self.apply_auto_follow_or_clamp();
+                self.clamp_transcript_after_mutation();
                 self.transcript_scroll_offset = 0;
                 self.inspector_scroll_offset = 0;
             }
