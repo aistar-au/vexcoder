@@ -1,5 +1,5 @@
 use super::*;
-use crate::mcp::{McpRegistrySnapshot, McpServerSnapshot, McpToolSummary};
+use crate::mcp::{McpRegistryRollup, McpServerRollup, McpToolSummary};
 
 #[test]
 fn test_history_cap_env_invalid_uses_default() {
@@ -537,8 +537,8 @@ fn test_tui_tools_renders_builtin_tools() {
 fn test_tui_tools_lists_loaded_mcp_tools() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let mut mode = TuiMode::new();
-    mode.mcp_snapshot = Some(McpRegistrySnapshot {
-        servers: vec![McpServerSnapshot {
+    mode.mcp_rollup = Some(McpRegistryRollup {
+        servers: vec![McpServerRollup {
             name: "docs".to_string(),
             transport: "stdio".to_string(),
             tools: vec![McpToolSummary {
@@ -566,8 +566,8 @@ fn test_tui_tools_lists_loaded_mcp_tools() {
 fn test_tui_mcp_list_and_show_commands() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let mut mode = TuiMode::new();
-    mode.mcp_snapshot = Some(McpRegistrySnapshot {
-        servers: vec![McpServerSnapshot {
+    mode.mcp_rollup = Some(McpRegistryRollup {
+        servers: vec![McpServerRollup {
             name: "docs".to_string(),
             transport: "stdio".to_string(),
             tools: vec![McpToolSummary {

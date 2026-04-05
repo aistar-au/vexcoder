@@ -9,7 +9,7 @@ use crate::util::parse_bool_flag;
 
 use super::{
     ApiConfigLayer, AutoMemoryConfigLayer, CompactionConfigLayer, Config, ConfigLayer,
-    DoctorConfigSnapshot, SearchConfigLayer, UndoConfigLayer,
+    DoctorConfigRollup, SearchConfigLayer, UndoConfigLayer,
 };
 
 use merge::apply_over;
@@ -159,7 +159,7 @@ fn load_layers(
     resolve_config(merged, env_token, cwd, profile_base_dir)
 }
 
-pub(super) fn doctor_snapshot(cwd: &Path) -> Result<DoctorConfigSnapshot> {
+pub(super) fn doctor_rollup(cwd: &Path) -> Result<DoctorConfigRollup> {
     let repo_cfg = find_repo_local_config(cwd);
     let user_cfg = user_config_path();
     let system_cfg = system_config_path();
@@ -192,6 +192,17 @@ pub(super) fn doctor_snapshot(cwd: &Path) -> Result<DoctorConfigSnapshot> {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .map(PathBuf::from);
+    let env_sandbox_require = match std::env::var("VEX_SANDBOX_REQUIRE") {
+        Ok(value) if !value.trim().is_empty() => {
+            Some(parse_bool_flag(value.clone()).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Invalid VEX_SANDBOX_REQUIRE '{}': expected true/false/1/0",
+                    value
+                )
+            })?)
+        }
+        _ => None,
+    };
     let model_token_present = std::env::var("VEX_MODEL_TOKEN")
         .ok()
         .is_some_and(|value| !value.trim().is_empty());
@@ -207,8 +218,8 @@ pub(super) fn doctor_snapshot(cwd: &Path) -> Result<DoctorConfigSnapshot> {
             .or(system_layer.working_dir),
         cwd,
     );
-    let sandbox_require = repo_layer
-        .sandbox_require
+    let sandbox_require = env_sandbox_require
+        .or(repo_layer.sandbox_require)
         .or(user_layer.sandbox_require)
         .or(system_layer.sandbox_require)
         .unwrap_or(false);
@@ -218,7 +229,7 @@ pub(super) fn doctor_snapshot(cwd: &Path) -> Result<DoctorConfigSnapshot> {
         .or(system_layer.mcp_servers)
         .unwrap_or_default();
 
-    Ok(DoctorConfigSnapshot {
+    Ok(DoctorConfigRollup {
         model_url,
         working_dir,
         model_token_present,
@@ -424,7 +435,7 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
 ///
 /// Returns `Ok(None)` when the file does not exist (not an error).
 /// Returns `Err` for: `model_token` present, unknown keys, malformed TOML,
-/// or invalid enum string values — all with the file path in the message.
+/// or invalid enum string values ΓÇö all with the file path in the message.
 fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,

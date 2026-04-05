@@ -1,7 +1,7 @@
 use crate::api::client::builtin_tool_summaries;
 use crate::config::Config;
 use crate::custom_commands::{load_custom_commands, CustomCommand};
-use crate::mcp::McpRegistrySnapshot;
+use crate::mcp::McpRegistryRollup;
 use crate::prompts::{
     render_custom_command_instruction, render_edit_prompt, render_explain_prompt,
     render_generate_tests_prompt, render_plan_prompt, render_review_prompt, CODER_SYSTEM_PROMPT,
@@ -83,11 +83,11 @@ pub use self::task_facade::{
     facade_delegate_session_task, facade_get_session_task, facade_list_agents,
     facade_list_session_tasks, facade_list_tasks, facade_list_todos, facade_poll_join,
     facade_release_session_task, facade_schedule_team, facade_task_graph,
-    facade_update_session_task_status, facade_watch_snapshot, task_graph_snapshot_path,
-    todos_snapshot_path, write_projection_snapshot, DelegateError, FacadeAgentDescriptor,
+    facade_update_session_task_status, facade_watch_rollup, task_graph_rollup_path,
+    todos_rollup_path, write_projection_rollup, DelegateError, FacadeAgentDescriptor,
     FacadeAgentsListing, FacadeDelegateResult, FacadeJoinOutcome, FacadeScheduleTeamResult,
-    FacadeSessionTaskSnapshot, FacadeTaskGraph, FacadeTaskGraphNode, FacadeTaskSummary,
-    FacadeTeamDescriptor, FacadeTodoItem, FacadeWatchSnapshot, ScheduleTeamError,
+    FacadeSessionTaskRollup, FacadeTaskGraph, FacadeTaskGraphNode, FacadeTaskSummary,
+    FacadeTeamDescriptor, FacadeTodoItem, FacadeWatchRollup, ScheduleTeamError,
     SessionTaskStatusError,
 };
 
@@ -307,7 +307,7 @@ pub struct TaskLayoutState {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TaskContextSummaryState {
-    pub file_snapshots: usize,
+    pub file_rollups: usize,
     pub related_paths: usize,
     pub cache_hits: usize,
     pub cache_misses: usize,
@@ -373,7 +373,7 @@ pub struct TuiMode {
     repo_label: String,
     git_branch: String,
     instructions_path: Option<String>,
-    mcp_snapshot: Option<McpRegistrySnapshot>,
+    mcp_rollup: Option<McpRegistryRollup>,
     history_content_width: Cell<usize>,
     active_stream_blocks: std::collections::HashMap<usize, StreamBlock>,
     /// Raw partial-JSON accumulator for streaming tool-call input, keyed by block index.

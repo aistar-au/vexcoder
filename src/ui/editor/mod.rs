@@ -89,7 +89,7 @@ pub fn file_mention_range(buffer: &str, cursor: usize) -> Option<Range<usize>> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EditorSnapshot {
+pub struct EditorRollup {
     pub buffer: String,
     pub cursor: usize,
 }
@@ -100,9 +100,9 @@ pub struct InputState {
     pub cursor: usize,
     pub history: Vec<String>,
     pub history_index: Option<usize>,
-    pub history_stash: Option<EditorSnapshot>,
-    pub undo_stack: Vec<EditorSnapshot>,
-    pub redo_stack: Vec<EditorSnapshot>,
+    pub history_stash: Option<EditorRollup>,
+    pub undo_stack: Vec<EditorRollup>,
+    pub redo_stack: Vec<EditorRollup>,
 }
 
 pub struct InputEditor {
@@ -158,19 +158,19 @@ impl InputEditor {
         }
     }
 
-    pub fn snapshot(&self) -> EditorSnapshot {
-        EditorSnapshot {
+    pub fn rollup(&self) -> EditorRollup {
+        EditorRollup {
             buffer: self.input_state.buffer.clone(),
             cursor: self.input_state.cursor,
         }
     }
 
     pub fn push_undo(&mut self) {
-        self.input_state.undo_stack.push(self.snapshot());
+        self.input_state.undo_stack.push(self.rollup());
         self.input_state.redo_stack.clear();
     }
 
-    pub fn restore(&mut self, snap: EditorSnapshot) {
+    pub fn restore(&mut self, snap: EditorRollup) {
         self.input_state.buffer = snap.buffer;
         self.input_state.cursor = self.clamp_cursor_to_boundary_left(snap.cursor);
     }
@@ -248,7 +248,7 @@ impl InputEditor {
         }
 
         if self.input_state.history_index.is_none() {
-            self.input_state.history_stash = Some(self.snapshot());
+            self.input_state.history_stash = Some(self.rollup());
         }
         let next_index = match self.input_state.history_index {
             Some(idx) if idx > 0 => idx - 1,
@@ -283,14 +283,14 @@ impl InputEditor {
 
     pub fn undo(&mut self) {
         if let Some(previous) = self.input_state.undo_stack.pop() {
-            self.input_state.redo_stack.push(self.snapshot());
+            self.input_state.redo_stack.push(self.rollup());
             self.restore(previous);
         }
     }
 
     pub fn redo(&mut self) {
         if let Some(next) = self.input_state.redo_stack.pop() {
-            self.input_state.undo_stack.push(self.snapshot());
+            self.input_state.undo_stack.push(self.rollup());
             self.restore(next);
         }
     }

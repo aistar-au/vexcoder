@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::runtime::context_cache::CachedFileRead;
 use crate::runtime::text_util::truncate_head_bytes;
 
-use super::FileSnapshot;
+use super::FileRollup;
 
 const STANDALONE_PATH_EXTENSIONS: &[&str] = &["rs", "toml", "md", "txt", "json", "sh"];
 
@@ -61,16 +61,16 @@ pub(super) fn extract_candidate_paths(instruction: &str) -> Vec<String> {
     out
 }
 
-pub(super) fn snapshot_from_read(
+pub(super) fn rollup_from_read(
     path: PathBuf,
     result: Result<CachedFileRead>,
     max_file_bytes: usize,
-) -> (FileSnapshot, bool) {
+) -> (FileRollup, bool) {
     match result {
         Ok(read) => {
             let (content, truncated) = truncate_head_bytes(&read.content, max_file_bytes);
             (
-                FileSnapshot {
+                FileRollup {
                     path,
                     content: Some(content),
                     truncated,
@@ -79,7 +79,7 @@ pub(super) fn snapshot_from_read(
             )
         }
         Err(_) => (
-            FileSnapshot {
+            FileRollup {
                 path,
                 content: None,
                 truncated: false,

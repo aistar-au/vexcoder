@@ -82,7 +82,7 @@ arboard = { version = "3", default-features = false }
 color-eyre = "0.6"
 dirs = "6"
 tracing-appender = "0.2"
-diffy = "0.4"
+similar = "2"
 
 # --- Tier 2: Rich rendering, macros, progress ---
 ratatui-macros = "0.6"
@@ -101,8 +101,15 @@ dunce = "1"
 base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
+# --- Tier 4: Ordered collections, HTTP middleware, lightweight regex ---
+indexmap = { version = "2", features = ["serde"] }
+tower-http = { version = "0.6", default-features = false, features = ["trace"] }
+regex-lite = "0.1"
+
 [dev-dependencies]
 filetime = "0.2"
 insta = "1.38"
 strip-ansi-escapes = "0.2"
 tower = "0.5"
+pretty_assertions = "1"
+assert_cmd = "2"

@@ -551,6 +551,7 @@ fn test_map_api_status_error_context_overflow_local() {
         reqwest::StatusCode::BAD_REQUEST,
         "request (4291 tokens) exceeds the available context size (4096 tokens)",
         "http://localhost:8000/v1/messages",
+        None,
     );
     let msg = format!("{}", err);
     assert!(
@@ -567,6 +568,7 @@ fn test_map_api_status_error_generic_400_local() {
         reqwest::StatusCode::BAD_REQUEST,
         "invalid model name",
         "http://localhost:8000/v1/messages",
+        None,
     );
     let msg = format!("{}", err);
     assert!(msg.contains("protocol"), "got: {msg}");
@@ -579,6 +581,7 @@ fn test_map_api_status_error_remote_400() {
         reqwest::StatusCode::BAD_REQUEST,
         "bad request body",
         "https://api.example.com/v1/messages",
+        None,
     );
     let msg = format!("{}", err);
     assert!(msg.contains("bad request body"), "got: {msg}");
@@ -591,10 +594,52 @@ fn test_map_api_status_error_server_500() {
         reqwest::StatusCode::INTERNAL_SERVER_ERROR,
         "internal server error: out of memory",
         "http://localhost:8000/v1/messages",
+        None,
     );
     let msg = format!("{}", err);
     assert!(msg.contains("500"), "got: {msg}");
     assert!(msg.contains("out of memory"), "got: {msg}");
+}
+
+// ── Rate-limit / Retry-After header detection ───────────────────────
+
+#[test]
+fn test_map_api_status_error_429_with_retry_after_header() {
+    let err = map_api_status_error(
+        reqwest::StatusCode::TOO_MANY_REQUESTS,
+        "rate limit exceeded",
+        "https://api.example.com/v1/messages",
+        Some("5"),
+    );
+    let msg = format!("{}", err);
+    assert!(msg.contains("rate limited"), "got: {msg}");
+    assert!(msg.contains("5.0s"), "got: {msg}");
+}
+
+#[test]
+fn test_map_api_status_error_429_body_fallback() {
+    let err = map_api_status_error(
+        reqwest::StatusCode::TOO_MANY_REQUESTS,
+        "try again in 30 seconds",
+        "https://api.example.com/v1/messages",
+        None,
+    );
+    let msg = format!("{}", err);
+    assert!(msg.contains("rate limited"), "got: {msg}");
+    assert!(msg.contains("30.0s"), "got: {msg}");
+}
+
+#[test]
+fn test_map_api_status_error_429_no_hint() {
+    let err = map_api_status_error(
+        reqwest::StatusCode::TOO_MANY_REQUESTS,
+        "too many requests",
+        "https://api.example.com/v1/messages",
+        None,
+    );
+    let msg = format!("{}", err);
+    assert!(msg.contains("rate limited"), "got: {msg}");
+    assert!(!msg.contains("Retry suggested"), "got: {msg}");
 }
 
 // ── URL adaptation: transposed /messages/v1 variant ──────────────────

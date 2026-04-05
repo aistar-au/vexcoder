@@ -1,6 +1,6 @@
 use super::*;
 use crate::api::ApiClient;
-use crate::mcp::{McpRegistry, McpRegistrySnapshot};
+use crate::mcp::{McpRegistry, McpRegistryRollup};
 use crate::runtime::frontend::FrontendAdapter;
 use crate::runtime::{resolve_configured_sandbox, ConfiguredSandbox};
 
@@ -10,7 +10,7 @@ pub struct FacadeBootstrap {
     pub notes_warning: Option<String>,
     pub sandbox: ConfiguredSandbox,
     pub sandbox_warning: Option<String>,
-    pub mcp_snapshot: Option<McpRegistrySnapshot>,
+    pub mcp_rollup: Option<McpRegistryRollup>,
 }
 
 pub fn build_facade_client(config: &Config) -> AppResult<(ApiClient, FacadeBootstrap)> {
@@ -45,7 +45,7 @@ pub fn build_facade_client(config: &Config) -> AppResult<(ApiClient, FacadeBoots
             notes_warning,
             sandbox: ConfiguredSandbox::default(),
             sandbox_warning: None,
-            mcp_snapshot: None,
+            mcp_rollup: None,
         },
     ))
 }
@@ -57,7 +57,7 @@ pub fn build_facade_runtime<M: RuntimeMode>(
     let (sandbox, sandbox_warning) = resolve_configured_sandbox(&config.sandbox)?;
     crate::state::warm_codebase_index_with_config(&config.working_dir, &config.search);
     let mcp_registry = McpRegistry::connect_all_blocking(&config.mcp_servers)?;
-    let mcp_snapshot = mcp_registry.as_ref().map(|registry| registry.snapshot());
+    let mcp_rollup = mcp_registry.as_ref().map(|registry| registry.rollup());
     let (client, mut bootstrap) = build_facade_client(config)?;
     let client = client.with_extra_tool_definitions(
         mcp_registry
@@ -67,7 +67,7 @@ pub fn build_facade_runtime<M: RuntimeMode>(
     );
     bootstrap.sandbox = sandbox.clone();
     bootstrap.sandbox_warning = sandbox_warning;
-    bootstrap.mcp_snapshot = mcp_snapshot;
+    bootstrap.mcp_rollup = mcp_rollup;
     let operator = ToolOperator::new(config.working_dir.clone());
     let conversation = ConversationManager::new_with_hooks_full(
         client,

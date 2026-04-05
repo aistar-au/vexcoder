@@ -11,7 +11,7 @@ pub enum ToolPreviewStyle {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReadFileSnapshotSummary {
+pub enum ReadFileRollupSummary {
     FirstRead {
         chars: usize,
         lines: usize,
@@ -35,15 +35,15 @@ pub enum ReadFileSummaryMessageStyle {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct ReadFileSnapshotCache {
+pub struct ReadFileRollupCache {
     // (content_hash, chars, lines) — hash is u64 from DefaultHasher.
     // DefaultHasher is non-deterministic across process restarts, which is
     // acceptable since this cache is per-process in-memory only.
     entries: HashMap<String, (u64, usize, usize)>,
 }
 
-impl ReadFileSnapshotCache {
-    pub fn summarize(&mut self, path: &str, content: &str) -> ReadFileSnapshotSummary {
+impl ReadFileRollupCache {
+    pub fn summarize(&mut self, path: &str, content: &str) -> ReadFileRollupSummary {
         let (after_chars, after_lines) = content_stats(content);
         let after_hash = hash_content(content);
 
@@ -51,13 +51,13 @@ impl ReadFileSnapshotCache {
             None => {
                 self.entries
                     .insert(path.to_string(), (after_hash, after_chars, after_lines));
-                ReadFileSnapshotSummary::FirstRead {
+                ReadFileRollupSummary::FirstRead {
                     chars: after_chars,
                     lines: after_lines,
                 }
             }
             Some((prev_hash, prev_chars, prev_lines)) if prev_hash == after_hash => {
-                ReadFileSnapshotSummary::Unchanged {
+                ReadFileRollupSummary::Unchanged {
                     chars: prev_chars,
                     lines: prev_lines,
                 }
@@ -65,7 +65,7 @@ impl ReadFileSnapshotCache {
             Some((_, before_chars, before_lines)) => {
                 self.entries
                     .insert(path.to_string(), (after_hash, after_chars, after_lines));
-                ReadFileSnapshotSummary::Changed {
+                ReadFileRollupSummary::Changed {
                     before_chars,
                     before_lines,
                     after_chars,
@@ -102,21 +102,21 @@ pub fn read_file_path(input: &Value) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-pub fn format_read_file_snapshot_message(
+pub fn format_read_file_rollup_message(
     path: &str,
-    summary: ReadFileSnapshotSummary,
+    summary: ReadFileRollupSummary,
     style: ReadFileSummaryMessageStyle,
 ) -> String {
     match (style, summary) {
-        (ReadFileSummaryMessageStyle::History, ReadFileSnapshotSummary::FirstRead { chars, lines }) => format!(
+        (ReadFileSummaryMessageStyle::History, ReadFileRollupSummary::FirstRead { chars, lines }) => format!(
             "Read {path}: {chars} chars, {lines} lines. Full content omitted; use search_files for targeted string matches."
         ),
-        (ReadFileSummaryMessageStyle::History, ReadFileSnapshotSummary::Unchanged { chars, lines }) => {
+        (ReadFileSummaryMessageStyle::History, ReadFileRollupSummary::Unchanged { chars, lines }) => {
             format!("No changes since last read of {path} ({chars} chars, {lines} lines).")
         }
         (
             ReadFileSummaryMessageStyle::History,
-            ReadFileSnapshotSummary::Changed {
+            ReadFileRollupSummary::Changed {
                 before_chars,
                 before_lines,
                 after_chars,
@@ -127,15 +127,15 @@ pub fn format_read_file_snapshot_message(
         ),
         (
             ReadFileSummaryMessageStyle::StreamEvent,
-            ReadFileSnapshotSummary::FirstRead { chars, lines },
+            ReadFileRollupSummary::FirstRead { chars, lines },
         ) => format!("content: {chars} chars, {lines} lines (hidden)"),
         (
             ReadFileSummaryMessageStyle::StreamEvent,
-            ReadFileSnapshotSummary::Unchanged { chars, lines },
+            ReadFileRollupSummary::Unchanged { chars, lines },
         ) => format!("no changes since last read ({chars} chars, {lines} lines)"),
         (
             ReadFileSummaryMessageStyle::StreamEvent,
-            ReadFileSnapshotSummary::Changed {
+            ReadFileRollupSummary::Changed {
                 before_chars,
                 before_lines,
                 after_chars,
@@ -366,24 +366,24 @@ mod tests {
 
     #[test]
     fn test_snapshot_cache_states() {
-        let mut cache = ReadFileSnapshotCache::default();
+        let mut cache = ReadFileRollupCache::default();
 
         let first = cache.summarize("a.rs", "abc");
         assert_eq!(
             first,
-            ReadFileSnapshotSummary::FirstRead { chars: 3, lines: 1 }
+            ReadFileRollupSummary::FirstRead { chars: 3, lines: 1 }
         );
 
         let unchanged = cache.summarize("a.rs", "abc");
         assert_eq!(
             unchanged,
-            ReadFileSnapshotSummary::Unchanged { chars: 3, lines: 1 }
+            ReadFileRollupSummary::Unchanged { chars: 3, lines: 1 }
         );
 
         let changed = cache.summarize("a.rs", "abcd");
         assert_eq!(
             changed,
-            ReadFileSnapshotSummary::Changed {
+            ReadFileRollupSummary::Changed {
                 before_chars: 3,
                 before_lines: 1,
                 after_chars: 4,
@@ -396,7 +396,7 @@ mod tests {
         let after_change_repeat = cache.summarize("a.rs", "abcd");
         assert_eq!(
             after_change_repeat,
-            ReadFileSnapshotSummary::Unchanged { chars: 4, lines: 1 }
+            ReadFileRollupSummary::Unchanged { chars: 4, lines: 1 }
         );
     }
 
@@ -421,10 +421,10 @@ mod tests {
     }
 
     #[test]
-    fn test_format_read_file_snapshot_message_styles() {
-        let history = format_read_file_snapshot_message(
+    fn test_format_read_file_rollup_message_styles() {
+        let history = format_read_file_rollup_message(
             "src/app/mod.rs",
-            ReadFileSnapshotSummary::Unchanged {
+            ReadFileRollupSummary::Unchanged {
                 chars: 10,
                 lines: 2,
             },
@@ -435,9 +435,9 @@ mod tests {
             "No changes since last read of src/app/mod.rs (10 chars, 2 lines)."
         );
 
-        let stream = format_read_file_snapshot_message(
+        let stream = format_read_file_rollup_message(
             "src/app/mod.rs",
-            ReadFileSnapshotSummary::Changed {
+            ReadFileRollupSummary::Changed {
                 before_chars: 9,
                 before_lines: 2,
                 after_chars: 10,

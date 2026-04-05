@@ -1,4 +1,4 @@
-use crate::config::{doctor_snapshot, Config, DoctorConfigSnapshot, DoctorMcpServer};
+use crate::config::{doctor_rollup, Config, DoctorConfigRollup, DoctorMcpServer};
 use crate::runtime::{
     ApprovalPolicy, FileApprovalPolicy, PassthroughSandbox, SandboxDriver, TaskState,
 };
@@ -58,11 +58,11 @@ impl DoctorReport {
 pub async fn run_doctor(cwd: &Path) -> DoctorReport {
     let mut checks = Vec::new();
     let config_result = Config::load_from_cwd(cwd);
-    let snapshot_result = doctor_snapshot(cwd);
+    let snapshot_result = doctor_rollup(cwd);
 
     let snapshot = snapshot_result
         .ok()
-        .unwrap_or_else(|| fallback_snapshot(cwd.to_path_buf()));
+        .unwrap_or_else(|| fallback_rollup(cwd.to_path_buf()));
 
     match &config_result {
         Ok(_) => checks.push(pass_check(
@@ -158,8 +158,8 @@ pub async fn run_doctor(cwd: &Path) -> DoctorReport {
     DoctorReport { checks }
 }
 
-fn fallback_snapshot(cwd: PathBuf) -> DoctorConfigSnapshot {
-    DoctorConfigSnapshot {
+fn fallback_rollup(cwd: PathBuf) -> DoctorConfigRollup {
+    DoctorConfigRollup {
         model_url: None,
         working_dir: cwd,
         model_token_present: false,

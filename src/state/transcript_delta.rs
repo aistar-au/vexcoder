@@ -5,13 +5,13 @@
 //! are optimised for incremental display updates rather than
 //! conversation-level block tracking.
 //!
-//! This module is foundational infrastructure for ADR-041 D5–D7.
+//! This module is foundational infrastructure for ADR-041 D5ΓÇôD7.
 //! Delta accumulators are wired into TuiMode (model_update) and the
 //! draw-side methods are available for the render path switchover.
 
 use std::collections::VecDeque;
 
-/// Category of streaming block — matches `StreamBlock` variants but
+/// Category of streaming block ΓÇö matches `StreamBlock` variants but
 /// is a lightweight copy-friendly discriminator for the draw layer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TranscriptBlockKind {
@@ -36,8 +36,8 @@ pub struct TranscriptDelta {
 /// Accumulates streaming text for a single block and extracts bounded
 /// deltas for the renderer.
 ///
-/// Uses bounded suffix comparison — `O(new_text)` instead of
-/// `O(total_content)` — to deduplicate cumulative updates without
+/// Uses bounded suffix comparison ΓÇö `O(new_text)` instead of
+/// `O(total_content)` ΓÇö to deduplicate cumulative updates without
 /// scanning the entire buffer.
 pub struct DeltaAccumulator {
     content: String,
@@ -135,14 +135,14 @@ pub fn bounded_incremental_suffix(existing: &str, incoming: &str) -> String {
         return incoming[existing_len..].to_string();
     }
 
-    // Existing already contains incoming — redundant retransmission.
+    // Existing already contains incoming ΓÇö redundant retransmission.
     if existing_len >= incoming.len()
         && existing.as_bytes()[..incoming.len()] == *incoming.as_bytes()
     {
         return String::new();
     }
 
-    // No recognisable overlap — treat as pure delta.
+    // No recognisable overlap ΓÇö treat as pure delta.
     incoming.to_string()
 }
 

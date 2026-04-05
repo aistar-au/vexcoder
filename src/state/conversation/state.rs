@@ -3,7 +3,7 @@ use crate::api::ApiClient;
 use crate::config::{HookConfig, HttpHookConfig, SearchConfig};
 use crate::mcp::McpRegistry;
 use crate::runtime::ConfiguredSandbox;
-use crate::tool_preview::ReadFileSnapshotCache;
+use crate::tool_preview::ReadFileRollupCache;
 use crate::tools::ToolOperator;
 use crate::types::{ApiMessage, Content, StreamChunkMetadata};
 use crate::usage::TurnTokens;
@@ -89,7 +89,7 @@ pub struct ConversationManager {
     pub(super) current_turn_blocks: Vec<StreamBlock>,
     pub(super) current_turn_applied_mutation: bool,
     pub(super) last_turn_tokens: TurnTokens,
-    pub(super) read_file_history_cache: ReadFileSnapshotCache,
+    pub(super) read_file_history_cache: ReadFileRollupCache,
     pub(super) undo_stack: Vec<UndoCheckpoint>,
     pub(super) max_undo_checkpoints: usize,
     pub(super) undo_enabled: bool,
@@ -128,7 +128,7 @@ impl ConversationManager {
             current_turn_blocks: Vec::new(),
             current_turn_applied_mutation: false,
             last_turn_tokens: TurnTokens::default(),
-            read_file_history_cache: ReadFileSnapshotCache::default(),
+            read_file_history_cache: ReadFileRollupCache::default(),
             undo_stack: Vec::new(),
             max_undo_checkpoints: 20,
             undo_enabled: true,
@@ -204,7 +204,7 @@ impl ConversationManager {
             current_turn_blocks: Vec::new(),
             current_turn_applied_mutation: false,
             last_turn_tokens: TurnTokens::default(),
-            read_file_history_cache: ReadFileSnapshotCache::default(),
+            read_file_history_cache: ReadFileRollupCache::default(),
             undo_stack: Vec::new(),
             max_undo_checkpoints: 20,
             undo_enabled: true,
@@ -228,7 +228,7 @@ impl ConversationManager {
         self.current_turn_blocks.clear();
         self.current_turn_applied_mutation = false;
         self.last_turn_tokens = TurnTokens::default();
-        self.read_file_history_cache = ReadFileSnapshotCache::default();
+        self.read_file_history_cache = ReadFileRollupCache::default();
     }
 
     pub fn model_name(&self) -> String {

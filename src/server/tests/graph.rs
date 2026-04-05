@@ -1,4 +1,4 @@
-use crate::app::{task_graph_snapshot_path, todos_snapshot_path};
+use crate::app::{task_graph_rollup_path, todos_rollup_path};
 
 use super::phase_e::{delegate_one, setup_phase_e_router};
 use super::*;
@@ -337,14 +337,14 @@ async fn test_list_todos_endpoint_scans_large_state_dirs_and_ignores_older_dupli
 }
 
 // ---------------------------------------------------------------------------
-// Persistent projection snapshot tests
+// Persistent projection rollup tests
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn test_delegate_writes_task_graph_snapshot_file() {
+async fn test_delegate_writes_task_graph_rollup_file() {
     let temp = tempfile::tempdir().unwrap();
 
-    // Delegating via the HTTP endpoint triggers write_projection_snapshot.
+    // Delegating via the HTTP endpoint triggers write_projection_rollup.
     let _ = delegate_one(
         setup_phase_e_router(temp.path()),
         "snap-parent",
@@ -352,7 +352,7 @@ async fn test_delegate_writes_task_graph_snapshot_file() {
     )
     .await;
 
-    let snap_path = task_graph_snapshot_path(temp.path());
+    let snap_path = task_graph_rollup_path(temp.path());
     assert!(
         snap_path.exists(),
         "expected task-graph.json to be written after delegate"
@@ -374,7 +374,7 @@ async fn test_delegate_writes_task_graph_snapshot_file() {
 }
 
 #[tokio::test]
-async fn test_delegate_writes_todos_snapshot_file() {
+async fn test_delegate_writes_todos_rollup_file() {
     let temp = tempfile::tempdir().unwrap();
 
     let st_id = delegate_one(
@@ -384,7 +384,7 @@ async fn test_delegate_writes_todos_snapshot_file() {
     )
     .await;
 
-    let snap_path = todos_snapshot_path(temp.path());
+    let snap_path = todos_rollup_path(temp.path());
     assert!(
         snap_path.exists(),
         "expected todos.json to be written after delegate"
@@ -402,7 +402,7 @@ async fn test_delegate_writes_todos_snapshot_file() {
 }
 
 #[tokio::test]
-async fn test_status_update_refreshes_todos_snapshot() {
+async fn test_status_update_refreshes_todos_rollup() {
     let temp = tempfile::tempdir().unwrap();
 
     let st_id = delegate_one(
@@ -427,7 +427,7 @@ async fn test_status_update_refreshes_todos_snapshot() {
         .unwrap();
     assert_eq!(patch.status(), StatusCode::OK);
 
-    let snap_path = todos_snapshot_path(temp.path());
+    let snap_path = todos_rollup_path(temp.path());
     let raw = std::fs::read_to_string(&snap_path).unwrap();
     let val: Value = serde_json::from_str(&raw).unwrap();
     let items = val.get("items").and_then(Value::as_array).unwrap();

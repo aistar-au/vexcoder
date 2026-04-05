@@ -1,3 +1,4 @@
+use pretty_assertions::assert_eq;
 use vexcoder::api::stream::StreamParser;
 use vexcoder::types::{ContentBlock, StreamEvent};
 

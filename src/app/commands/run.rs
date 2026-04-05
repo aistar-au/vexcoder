@@ -134,7 +134,7 @@ impl TuiMode {
         let files = self
             .last_assembled_context
             .as_ref()
-            .map(|context| context.file_snapshots.len())
+            .map(|context| context.file_rollups.len())
             .unwrap_or(0);
         let git_summary = self.resolve_context_git_summary();
 

@@ -40,10 +40,10 @@ pub fn list_dir(operator: &ToolOperator, path: Option<&str>, max_entries: usize)
         .with_context(|| format!("list_dir: failed to read '{}'", root.display()))?
         .collect::<std::result::Result<Vec<_>, _>>()
         .with_context(|| format!("list_dir: error iterating '{}'", root.display()))?;
+    let total = raw.len();
     raw.sort_by_key(|e| e.path());
 
     let mut entries = Vec::new();
-    let total = raw.len();
 
     for de in raw {
         let p = de.path();

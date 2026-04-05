@@ -138,7 +138,7 @@ impl Default for CompactionConfig {
 /// `~/.config/vex/config.toml`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoMemoryConfig {
-    /// Whether auto-extraction is active.  Defaults to `false` — users must
+    /// Whether auto-extraction is active.  Defaults to `false` ΓÇö users must
     /// opt in explicitly.
     pub enabled: bool,
     /// Maximum number of notes extracted per turn.  Clamped to `1..=10`.
@@ -251,7 +251,7 @@ pub struct Config {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DoctorConfigSnapshot {
+pub struct DoctorConfigRollup {
     pub model_url: Option<String>,
     pub working_dir: PathBuf,
     pub model_token_present: bool,
@@ -338,7 +338,7 @@ struct DoctorConfigLayer {
 impl Config {
     /// Load config from the five-layer resolution chain.
     ///
-    /// Precedence (highest → lowest):
+    /// Precedence (highest ΓåÆ lowest):
     ///   environment > repo-local `.vex/config.toml` > user > system > compiled defaults
     ///
     /// Repo-local discovery walks ancestors of `std::env::current_dir()`.
@@ -370,7 +370,7 @@ impl Config {
         load::load_for_tests(cwd, user, system)
     }
 
-    /// Sensible defaults for interactive TUI startup — used when no config
+    /// Sensible defaults for interactive TUI startup ΓÇö used when no config
     /// file or environment variables are present.  Avoids the full five-layer
     /// resolution chain so callers that already hold a `Config` (e.g. tests)
     /// can build a `TuiMode` without side-effects.
@@ -487,8 +487,8 @@ impl Config {
     }
 }
 
-pub fn doctor_snapshot(cwd: &Path) -> Result<DoctorConfigSnapshot> {
-    load::doctor_snapshot(cwd)
+pub fn doctor_rollup(cwd: &Path) -> Result<DoctorConfigRollup> {
+    load::doctor_rollup(cwd)
 }
 
 pub fn migrate_config_from_env(envs: &[(&str, &str)]) -> String {

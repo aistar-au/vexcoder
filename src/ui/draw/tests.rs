@@ -1171,7 +1171,7 @@ fn status_bar_includes_model_sandbox_and_context_summary() {
         model_backend: Some(crate::runtime::ModelBackendKind::LocalRuntime),
         sandbox_kind: Some(crate::runtime::SandboxKind::Container),
         context_summary: Some(crate::app::TaskContextSummaryState {
-            file_snapshots: 3,
+            file_rollups: 3,
             related_paths: 2,
             cache_hits: 5,
             cache_misses: 1,
@@ -1218,7 +1218,7 @@ fn status_bar_priority_truncation_drops_low_priority_fields_first() {
         model_backend: Some(crate::runtime::ModelBackendKind::LocalRuntime),
         sandbox_kind: Some(crate::runtime::SandboxKind::Container),
         context_summary: Some(crate::app::TaskContextSummaryState {
-            file_snapshots: 3,
+            file_rollups: 3,
             related_paths: 2,
             cache_hits: 5,
             cache_misses: 1,

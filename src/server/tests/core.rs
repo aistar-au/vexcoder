@@ -53,7 +53,7 @@ async fn test_agents_endpoint_returns_available_false_without_config() {
 }
 
 #[tokio::test]
-async fn test_delegate_and_watch_routes_create_session_task_snapshot() {
+async fn test_delegate_and_watch_routes_create_session_task_rollup() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(temp.path().join(".vex")).unwrap();
     std::fs::write(

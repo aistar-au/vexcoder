@@ -12,6 +12,7 @@ use hyper_util::service::TowerToHyperService;
 use std::sync::Arc;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
+use tower_http::trace::TraceLayer;
 
 use super::handlers::{
     agents_handler, approve_handler, delegate_handler, get_session_task_handler, health_handler,
@@ -69,10 +70,14 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
 pub fn build_http_router(state: LocalApiState, auth: HttpSurfaceSettings) -> Router {
     let expected_header = Arc::<str>::from(format!("Bearer {}", auth.bearer_token));
     let hsts_enabled = auth.hsts_enabled;
-    build_router_with_state(state).layer(middleware::from_fn(move |request, next| {
-        let expected_header = Arc::clone(&expected_header);
-        async move { authorize_http_request(request, next, expected_header, hsts_enabled).await }
-    }))
+    build_router_with_state(state)
+        .layer(middleware::from_fn(move |request, next| {
+            let expected_header = Arc::clone(&expected_header);
+            async move {
+                authorize_http_request(request, next, expected_header, hsts_enabled).await
+            }
+        }))
+        .layer(TraceLayer::new_for_http())
 }
 
 async fn authorize_http_request(

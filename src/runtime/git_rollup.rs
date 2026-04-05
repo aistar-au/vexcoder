@@ -9,10 +9,16 @@ use tokio::runtime::Handle;
 use tokio::task;
 use tokio::time;
 
+use super::git_parse::{parse_git_status, ParsedGitStatus};
+
 #[derive(Debug, Clone, Default)]
-pub(crate) struct GitSnapshot {
+pub(crate) struct GitRollup {
     pub(crate) git_status_summary: Option<String>,
     pub(crate) recent_diff: Option<String>,
+    /// Structured parse of the raw `git status --porcelain` output.
+    /// Available for downstream consumers (context assembler, tool operators).
+    #[allow(dead_code)]
+    pub(crate) parsed_status: Option<ParsedGitStatus>,
 }
 
 #[derive(Default)]
@@ -22,11 +28,11 @@ pub(crate) struct GitCommandResult {
     pub(crate) timed_out: bool,
 }
 
-pub(crate) fn collect_git_snapshot(
+pub(crate) fn collect_git_rollup(
     working_dir: PathBuf,
     timeout_ms: u64,
     max_diff_lines: usize,
-) -> Result<GitSnapshot> {
+) -> Result<GitRollup> {
     let git_status = block_on_context_task(run_git_command_with_timeout(
         working_dir.clone(),
         vec!["status".to_string(), "--short".to_string()],
@@ -34,7 +40,7 @@ pub(crate) fn collect_git_snapshot(
     ))?;
 
     if git_status.non_git_repo {
-        return Ok(GitSnapshot::default());
+        return Ok(GitRollup::default());
     }
 
     let git_diff = block_on_context_task(run_git_command_with_timeout(
@@ -47,6 +53,8 @@ pub(crate) fn collect_git_snapshot(
     let recent_diff = git_diff
         .output
         .map(|value| limit_lines(&value, max_diff_lines));
+
+    let parsed_status = git_status_summary.as_deref().map(parse_git_status);
 
     if git_status.timed_out {
         append_annotation(
@@ -62,9 +70,10 @@ pub(crate) fn collect_git_snapshot(
         );
     }
 
-    Ok(GitSnapshot {
+    Ok(GitRollup {
         git_status_summary,
         recent_diff,
+        parsed_status,
     })
 }
 

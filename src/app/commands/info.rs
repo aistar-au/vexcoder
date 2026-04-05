@@ -50,7 +50,7 @@ impl TuiMode {
     pub(crate) fn handle_mcp_command(&mut self, args: &str) {
         let trimmed = args.trim();
         let Some(snapshot) = self
-            .mcp_snapshot
+            .mcp_rollup
             .clone()
             .filter(|snapshot| !snapshot.is_empty())
         else {
@@ -114,7 +114,7 @@ impl TuiMode {
 
         self.push_history_line("[tools]".to_string());
         if let Some(snapshot) = self
-            .mcp_snapshot
+            .mcp_rollup
             .clone()
             .filter(|snapshot| !snapshot.is_empty())
         {
@@ -139,7 +139,7 @@ impl TuiMode {
         let groups = ["retrieve", "mutate", "git", "other"];
         let tools = builtin_tool_summaries();
         if let Some(snapshot) = self
-            .mcp_snapshot
+            .mcp_rollup
             .clone()
             .filter(|snapshot| !snapshot.is_empty())
         {
@@ -184,7 +184,7 @@ impl TuiMode {
         }
     }
     pub(crate) fn handle_usage_command(&mut self, ctx: &RuntimeContext) {
-        let usage = ctx.session_tokens_snapshot();
+        let usage = ctx.session_tokens_rollup();
         if !usage.has_completed_turns() {
             self.push_history_line("[usage] no turns completed this session".to_string());
             return;
@@ -375,7 +375,7 @@ impl TuiMode {
             return;
         }
 
-        match crate::app::facade_watch_snapshot(&self.working_dir, selector) {
+        match crate::app::facade_watch_rollup(&self.working_dir, selector) {
             Ok(Some(snap)) => {
                 let worktree = snap.worktree_path.unwrap_or_else(|| "shared".to_string());
                 match (snap.parent_task_id, snap.agent_id) {
@@ -405,7 +405,7 @@ impl TuiMode {
                 }
             }
             Ok(None) => {
-                // facade_watch_snapshot matches by task-id and session-task UUID.
+                // facade_watch_rollup matches by task-id and session-task UUID.
                 // Fall back to searching by agent_id for human-readable selectors.
                 let by_agent = TaskState::state_files_from(&self.working_dir)
                     .into_iter()

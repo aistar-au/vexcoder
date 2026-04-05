@@ -4,7 +4,7 @@ use std::path::Path;
 /// Categorizes filesystem access per ADR-038 Memory-First Architecture.
 ///
 /// Persistent disk I/O is permitted only for search index and task state.
-/// Everything else (config, file snapshots, git summaries, conversation
+/// Everything else (config, file rollups, git summaries, conversation
 /// history) must be RAM-resident after first load.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiskPermission {

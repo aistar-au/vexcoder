@@ -246,7 +246,7 @@ impl TuiMode {
             .extend(command_history.iter().cloned());
         self.current_task.instructions_path = self.instructions_path.clone();
         self.current_task.status = TaskStatus::Completed;
-        let turn_tokens = ctx.session_tokens_snapshot().last_turn();
+        let turn_tokens = ctx.session_tokens_rollup().last_turn();
         // Accumulate cache usage from the turn into task-level totals (ADR-029).
         self.current_task.cache_usage.total_cache_creation_tokens = self
             .current_task

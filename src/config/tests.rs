@@ -296,18 +296,37 @@ fn test_user_config_path_falls_back_to_legacy_home_config() {
 }
 
 #[test]
-fn test_doctor_snapshot_matches_runtime_working_dir_resolution() {
+fn test_doctor_rollup_matches_runtime_working_dir_resolution() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _workdir = EnvRestore::capture("VEX_WORKDIR");
     let temp = tempfile::tempdir().unwrap();
     std::env::set_var("VEX_WORKDIR", "~/doctor-workdir");
 
     let config = Config::load_for_tests(temp.path(), None, None).unwrap();
-    let snapshot = super::doctor_snapshot(temp.path()).unwrap();
+    let snapshot = super::doctor_rollup(temp.path()).unwrap();
 
     assert_eq!(config.working_dir, PathBuf::from("~/doctor-workdir"));
     assert_eq!(snapshot.working_dir, config.working_dir);
     std::env::remove_var("VEX_WORKDIR");
+}
+
+#[test]
+fn test_doctor_rollup_respects_env_sandbox_require_override() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _sandbox_require = EnvRestore::capture("VEX_SANDBOX_REQUIRE");
+    let temp = tempfile::tempdir().unwrap();
+    let user_cfg = temp.path().join("user.toml");
+    let cwd = temp.path().join("repo");
+
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::create_dir_all(&cwd).unwrap();
+    std::fs::write(&user_cfg, "sandbox_require = false\n").unwrap();
+    std::env::set_var("VEX_SANDBOX_REQUIRE", "true");
+
+    let snapshot = super::doctor_rollup(&cwd).unwrap();
+    assert!(snapshot.sandbox_require);
+
+    std::env::remove_var("VEX_SANDBOX_REQUIRE");
 }
 
 #[test]

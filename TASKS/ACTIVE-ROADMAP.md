@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-04 (ADR-041 D8-D13 landed PR #332; ADR-041 D15 landed PR #333; v0.1.0-rc.9 released)
+Last updated: 2026-04-05 (PR #342 Tier 4 debug: full git parsing stack, expanded secret redaction, Retry-After header wiring, crate boundary docs)
 
 ---
 
@@ -17,14 +17,14 @@ Last updated: 2026-04-04 (ADR-041 D8-D13 landed PR #332; ADR-041 D15 landed PR #
 | ADR-021 | Accepted | 0 (all items complete) | All P1/P2/P3 items complete; see Tier 6 section |
 | ADR-022 amendment | Amended | Amendment only | Tightens milestone-1 command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
-| ADR-024 | Proposed (pre-milestone complete) | 1 item (PG-03 tap auto-dispatch deferred) | PA–PM and PP done; PG-01/PG-02/PG-03 template complete; PH-01/PH-02/PH-03 complete; PL-01 (pre/post-tool hooks, Gap 26) complete |
+| ADR-024 | Proposed (pre-milestone complete) | 1 item (PG-03 tap auto-dispatch -- next batch planned) | PA–PM and PP done; PG-01/PG-02/PG-03 template complete; PH-01/PH-02/PH-03 complete; PL-01 (pre/post-tool hooks, Gap 26) complete |
 | ADR-028 | Active | Ongoing boundary alignment | Phase 1, 2, and transport extraction committed 2026-03-25; boundary tests now cover direct, grouped, multiline, and `super::`-relative `server`/`bin` imports for all inner layers |
 | ADR-029 | Accepted (amended 2026-04-01) | 0 items remaining | All 8 decision items verified in Tier 5 (PR #249); Amendment adds StreamTextNormaliser boundary for embedded tool call markup (PR #305) |
 | ADR-030 | Accepted | 0 items remaining | All 6 coverage requirements verified in Tier 5 (PR #249) |
 | ADR-031 | Accepted (all batches A-E merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-032 | Accepted | 0 items remaining | Items 1-8 complete; item 4-5 verified Tier 5; item 9 transferred to ADR-033 |
 | ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
-| ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate snapshot + broadcast fan-out; PR #261 closes Phase E watch-stream |
+| ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate rollup + broadcast fan-out; PR #261 closes Phase E watch-stream |
 | ADR-035 | Accepted | 0 items remaining | Gap 14 `/undo` rollback strategy is now specified and implemented with binary-safe checkpoints |
 | ADR-038 | Accepted (Batches D-H merged) | 0 items remaining | Phase 1: bounded context cache + opt-in auto git; Phase 1a: search lane tightening; Phase 2: disk_policy.rs + config/cache.rs; Batch C: config/load.rs -> directory module (PR #279); Batch D: operator.rs -> directory module (PR #280); Batch E/F: context_assembler split + strict disk-policy gate (PR #281); Batch G: operator policy module + disk-policy wiring (PR #282); Batch H: task-state persist extraction + WAL evaluation (PR #283) |
 | ADR-039 | Proposed (Batch A merged on main) | 3 batches (B-D) | Batch A status anchors and semantic color feedback merged in PR #292; search.exclude path-boundary normalization fix in PR #293; remaining work is broader vocabulary, active indicator, and paragraph-oriented progress stream without renaming machine statuses |
@@ -43,14 +43,14 @@ Last updated: 2026-04-04 (ADR-041 D8-D13 landed PR #332; ADR-041 D15 landed PR #
 
 ---
 
-## Remaining Work: 1 Proposed In-Tree ADR + 1 Deferred External Dependency
+## Remaining Work: 1 Proposed In-Tree ADR + 1 External Dependency (next batch planned)
 
 ADR-039 now tracks the next operator-surface lane: a neutral spatial CLI voice
 for human-facing transcript text, status copy, ANSI semantic roles, and the
 paragraph-oriented progress stream used during long-running tasks. Batch A is
 merged on main (PR #292): `Mapping adjacent sectors...`,
 `State synchronized.`, and the semantic status-color lane now land on existing
-surfaces. A follow-up fix in PR #293 normalizes `search.exclude` entries with
+surfaces. A subsequent fix in PR #293 normalizes `search.exclude` entries with
 a trailing slash so path-prefix matching enforces directory boundaries.
 Remaining work extends into the wider spatial vocabulary, then adds
 the active indicator, and only later consolidates the long-running paragraph
@@ -58,7 +58,7 @@ stream. ADR-038 is Accepted and
 complete: context cache, disk-policy classifier, config cache, module
 decompositions (config/load, operator, context_assembler, task_state), strict
 policy CI gate, and operator-level durable access assertions are all in-tree.
-The only deferred external follow-up remains ADR-024 PG-03 tap auto-dispatch,
+The only external item in the next batch is ADR-024 PG-03 tap auto-dispatch,
 which stays blocked until the separate `homebrew-vex` tap repository exists.
 
 Fullscreen transcript-first parity hardening is active under ADR-031,
@@ -69,14 +69,14 @@ introducing a permanent telemetry pane. Parser work remains limited to
 normalisation hardening unless ADR-043 adoption gates are satisfied.
 
 ADR-041 D5/D6/D7 (delta types, delta-native draw methods, bounded suffix
-deduplication) landed in PR #331 (commit e1dd681) on 2026-04-03.
+deduplication) merged in PR #331 (commit e1dd681) on 2026-04-03.
 ADR-041 D8/D9/D10/D11/D12/D13 (pending-row replacement, live input preview,
 ordered streamed-text segmentation, bounded-suffix reuse in
 conversation streaming, accumulator drain cleanup, and chunk-safe
-normalisation hardening for wrapper-tagged deltas) landed in PR #332
+normalisation hardening for wrapper-tagged deltas) merged in PR #332
 (commit 7638619) on 2026-04-03.
 ADR-041 D15 (word-wrap plain-text rows to terminal width, `expand_rows_for_display`,
-`transcript_window_rows`) landed in PR #333 on 2026-04-04.
+`transcript_window_rows`) merged in PR #333 on 2026-04-04.
 
 ### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
 
@@ -137,12 +137,12 @@ All 13 tracked items complete.
 PG-01 and PG-02 are complete (2026-03-28). PG-03, PH-01, PH-02, PH-03 complete 2026-03-28.
 ADR-022 Decision 11 maps to PH-01/PH-02/PH-03 and is satisfied by the Phase H implementation.
 The tap auto-dispatch update (sending a repository-dispatch to homebrew-vex on tag push) is
-explicitly deferred per ADR-024 §PG-03 — it requires the homebrew-vex tap repo to be created
+next batch planned per ADR-024 §PG-03 — it requires the homebrew-vex tap repo to be created
 first and is not a blocker for the Phase H distribution milestone.
 
 - ~~PG-01: Release workflow -- Linux/macOS targets~~ (done 2026-03-28; existing release.yml targets verified; ADR-024 PG-01 checked)
 - ~~PG-02: Release workflow -- Windows (gnu) target~~ (done 2026-03-28; x86_64-pc-windows-gnu added to release matrix via cross on ubuntu-24.04)
-- ~~PG-03: Package-manager tap formula~~ (done 2026-03-28; packaging/homebrew/vex.rb template + scripts/update_homebrew_formula.py added; tap auto-dispatch deferred)
+- ~~PG-03: Package-manager tap formula~~ (done 2026-03-28; packaging/homebrew/vex.rb template + scripts/update_homebrew_formula.py added; tap auto-dispatch next batch planned)
 - ~~PH-01: macOS app layer -- process management~~ (done 2026-03-28; packaging/macos/src/main.rs + bundle.rs added; vex-launcher opens Terminal.app with bundled vex binary)
 - ~~PH-02: macOS app layer -- keychain credential storage~~ (done 2026-03-28; packaging/macos/src/keychain.rs added; Security.framework FFI reads VEX_MODEL_TOKEN from system keychain)
 - ~~PH-03: macOS code signing + notarisation + .dmg~~ (done 2026-03-28; packaging/macos/build-app.sh + release.yml macos-pkg job added; codesign + xcrun notarytool + hdiutil .dmg; signing conditional on APPLE_DEVELOPER_ID_CERT secret)
@@ -157,7 +157,7 @@ ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-
 
 ### Tier 10 -- Memory-First TTFC Hardening (ADR-038) -- 0 items
 
-- Phase 1 complete: bounded in-memory context snapshot cache and opt-in automatic git context merged.
+- Phase 1 complete: bounded in-memory context rollup cache and opt-in automatic git context merged.
 - Phase 2 complete: `src/disk_policy.rs` (DiskPermission classifier) and `src/config/cache.rs` (OnceLock config cache) merged in PR #278.
 - Batch C complete: `src/config/load.rs` extracted into directory module (`load/paths.rs`, `load/merge.rs`, `load/parse.rs`) in PR #279.
 - Batch D complete: `src/tools/operator.rs` extracted into `src/tools/operator/{mod,core,file_ops,git_ops,search}.rs` in PR #280.
@@ -209,7 +209,7 @@ Concrete targets (9 display-facing strings across 5 files):
 | `src/app/input.rs` | 2 | `busy` -> `occupied` in turn-in-progress status lines |
 
 Lower-priority internal-only targets (5 strings): `spawn` -> `start` in error
-contexts (`src/mcp.rs`, `src/runtime/command.rs`, `src/runtime/git_snapshot.rs`);
+contexts (`src/mcp.rs`, `src/runtime/command.rs`, `src/runtime/git_rollup.rs`);
 `parent directory` -> `containing directory` (`src/server/socket.rs`, `src/util.rs`).
 
 **Batch C -- active indicator affordance**
@@ -246,13 +246,39 @@ Candidate implementation areas:
 - Reserve deep nebula violet for tool-call, orchestrator, and agent-enrichment
   status text, with reduced-color fallbacks.
 
+### Tier 12 -- Crate Expansion (next batch planned) -- 4 items
+
+Grounded in comparable open-source Rust CLI patterns without reusing external
+wording or implementation material. Each crate either fills a gap in vexcoder's
+current dependency tree or is rejected with design rationale.
+Full decisions documented in `docs/src/architecture.md` under "Crate expansion
+decisions".
+
+These design decisions are active now. Crates are added only when the runtime
+path and tests exist, so accepted next-batch candidates do not become unused
+dependencies.
+
+| Crate | Target module | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| `bm25` | `codebase_search` ranking layer | Next batch planned | Ranked retrieval for ADR-033 Phase 5; sits behind `aho-corasick` literal match |
+| `similar` | Transcript diff renderer | Active (replaces `diffy` in `edit_diff.rs`) | Generic diff algorithm, no branding dependency |
+| `which` | `git_rollup.rs` | Next batch planned | Clear error when `git` binary is not on `$PATH` |
+| `notify` | `git_rollup.rs` watch mode | Next batch planned | Filesystem event watching replaces polling for working-tree changes |
+
+**Rejected:** `walkdir` -- vexcoder uses `ignore` (ripgrep ecosystem) which
+already provides recursive git-aware directory traversal.  Adding `walkdir`
+would duplicate traversal logic.
+
 ---
 
 ## Active Feature Branches
 
 ### Open / In-Progress
 
-_No open feature branches at this time._
+| Task | Branch | PR | Status | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| Ratatui-T1T3 | `work/vexcoder-ratatui-debug-fixups` | #341 | **Merged** | Post-merge chrono/dirs hard-cutover: remove all `SystemTime`/`UNIX_EPOCH` and manual XDG walk |
+| Ratatui-T4 | `work/vexcoder-tier4-ratatui-stack` | #342 | **In Review** | Tier 4 crate wiring: `indexmap`, `tower-http`, `regex-lite`, `pretty_assertions`, `assert_cmd`; full git parsing stack (status, diff stat, diff name-status, log oneline, apply); secret redaction (vendor-API/AWS/GitHub/PEM/bearer/connection-string/generic); rate-limit extraction with Retry-After header + body; snapshot-to-rollup rename |
 
 ### Recently Merged / Closed
 
@@ -282,7 +308,7 @@ Each branch had a task manifest in `TASKS/` defining scope, constraints, and anc
 ```
 ADR-022 (Roadmap, milestone-1 passed)
   +-- ADR-023 (Edit Loop) -- COMPLETE (EL-01 through EL-13)
-  +-- ADR-024 (Parity Gaps) -- 1/56 item remaining (tap auto-dispatch deferred pending tap repo creation)
+  +-- ADR-024 (Parity Gaps) -- 1/56 item remaining (tap auto-dispatch next batch planned, pending tap repo creation)
   |     +-- ADR-025 (Handoff Contract) -- COMPLETE
   |     +-- ADR-026 (Transport Binding) -- COMPLETE
   +-- ADR-027 (Command Sessions) -- COMPLETE
@@ -312,7 +338,7 @@ ADR-039 (CLI voice) --> ADR-023, ADR-030, ADR-031, ADR-034
 
 ## How this file is updated
 
-After each ADR-scoped PR merges to main, the follow-up PR updates:
+After each ADR-scoped PR merges to main, the subsequent PR updates:
 
 1. This file -- current phase / remaining items for the relevant ADR
 2. Nothing else -- do not touch onboarding or dispatch map in the same edit

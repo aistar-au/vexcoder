@@ -5,7 +5,7 @@ use std::io::IsTerminal;
 use std::path::Path;
 use std::process::ExitCode;
 use vexcoder::app::{
-    run_tui_session, task_graph_snapshot_path, todos_snapshot_path, write_projection_snapshot,
+    run_tui_session, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
 };
 use vexcoder::batch_mode::{run_batch, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
@@ -195,14 +195,14 @@ fn run_tasks_watch(working_dir: &Path, id: &str, json: bool) -> Result<ExitCode>
 }
 
 fn run_tasks_export_graph(working_dir: &Path) -> Result<ExitCode> {
-    write_projection_snapshot(working_dir)?;
-    println!("{}", task_graph_snapshot_path(working_dir).display());
+    write_projection_rollup(working_dir)?;
+    println!("{}", task_graph_rollup_path(working_dir).display());
     Ok(ExitCode::SUCCESS)
 }
 
 fn run_tasks_export_todos(working_dir: &Path) -> Result<ExitCode> {
-    write_projection_snapshot(working_dir)?;
-    println!("{}", todos_snapshot_path(working_dir).display());
+    write_projection_rollup(working_dir)?;
+    println!("{}", todos_rollup_path(working_dir).display());
     Ok(ExitCode::SUCCESS)
 }
 
