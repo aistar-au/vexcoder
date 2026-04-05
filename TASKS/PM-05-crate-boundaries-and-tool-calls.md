@@ -68,7 +68,7 @@ For vexcoder, accepted means the design choice is settled. It does not mean a
 crate is added immediately and left unused.
 
 Dependency additions stay coupled to a live runtime seam and test coverage so
-the tree does not accumulate dead crates:
+the tree does not accumulate unused crates:
 
 - `similar` lands when the transcript diff renderer is rewired to consume it.
 - `bm25` lands when ADR-033 adds a ranking layer above structural retrieval.

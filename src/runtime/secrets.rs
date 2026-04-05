@@ -24,7 +24,7 @@ struct SecretPattern {
 // Pattern registry — compile once via OnceLock
 // ---------------------------------------------------------------------------
 
-/// OpenAI-style API key: `sk-` followed by 20+ alphanumeric characters.
+/// Vendor API key (sk-prefix style): `sk-` followed by 20+ alphanumeric characters.
 fn re_openai_key() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| regex_lite::Regex::new(r"sk-[A-Za-z0-9]{20,}").unwrap())
