@@ -36,6 +36,8 @@ document its own rationale in neutral, repo-specific language.
   patterns: `bm25`, `which`, `notify`.
 - [x] Record overlap rejected now: `walkdir` duplicates `ignore`'s git-aware
   traversal and should not be added.
+- [x] Document `rmcp` version pin (`1.2.x`) in the vexcoder-specific crates table
+  with a note that the version boundary matters for MCP wire protocol compatibility.
 
 ## Active Decisions Now
 
