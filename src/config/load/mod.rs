@@ -8,11 +8,11 @@ use std::path::{Path, PathBuf};
 use crate::util::parse_bool_flag;
 
 use super::{
-    ApiConfigLayer, AutoMemoryConfigLayer, CompactionConfigLayer, Config, ConfigLayer,
-    DoctorConfigSnapshot, SearchConfigLayer, UndoConfigLayer,
+    ApiConfigLayer, AutoMemoryConfigLayer, Config, ConfigLayer, DoctorConfigLayer,
+    DoctorConfigSnapshot,
 };
 
-use merge::apply_over;
+use merge::{merge_doctor_layers, merge_layers};
 use parse::*;
 use paths::*;
 
@@ -144,17 +144,11 @@ fn load_layers(
 
     let (env_layer, env_token) = read_env_layer()?;
 
-    let mut merged = ConfigLayer::default();
-    if let Some(l) = system_layer {
-        merged = apply_over(merged, l);
-    }
-    if let Some(l) = user_layer {
-        merged = apply_over(merged, l);
-    }
-    if let Some(l) = repo_layer {
-        merged = apply_over(merged, l);
-    }
-    merged = apply_over(merged, env_layer);
+    let merged = merge_layers(
+        [system_layer, user_layer, repo_layer, Some(env_layer)]
+            .into_iter()
+            .flatten(),
+    )?;
 
     resolve_config(merged, env_token, cwd, profile_base_dir)
 }
@@ -192,38 +186,42 @@ pub(super) fn doctor_snapshot(cwd: &Path) -> Result<DoctorConfigSnapshot> {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .map(PathBuf::from);
+    let env_sandbox_require = match std::env::var("VEX_SANDBOX_REQUIRE") {
+        Ok(value) if !value.trim().is_empty() => {
+            Some(parse_bool_flag(value.clone()).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Invalid VEX_SANDBOX_REQUIRE '{}': expected true/false/1/0",
+                    value
+                )
+            })?)
+        }
+        _ => None,
+    };
     let model_token_present = std::env::var("VEX_MODEL_TOKEN")
         .ok()
         .is_some_and(|value| !value.trim().is_empty());
-
-    let model_url = env_model_url
-        .or(repo_layer.model_url)
-        .or(user_layer.model_url)
-        .or(system_layer.model_url);
-    let working_dir = resolve_working_dir(
-        env_working_dir
-            .or(repo_layer.working_dir)
-            .or(user_layer.working_dir)
-            .or(system_layer.working_dir),
-        cwd,
-    );
-    let sandbox_require = repo_layer
-        .sandbox_require
-        .or(user_layer.sandbox_require)
-        .or(system_layer.sandbox_require)
-        .unwrap_or(false);
-    let mcp_servers = repo_layer
-        .mcp_servers
-        .or(user_layer.mcp_servers)
-        .or(system_layer.mcp_servers)
-        .unwrap_or_default();
+    let merged = merge_doctor_layers(
+        [
+            Some(system_layer),
+            Some(user_layer),
+            Some(repo_layer),
+            Some(DoctorConfigLayer {
+                model_url: env_model_url,
+                working_dir: env_working_dir,
+                sandbox_require: env_sandbox_require,
+                mcp_servers: None,
+            }),
+        ]
+        .into_iter()
+        .flatten(),
+    )?;
 
     Ok(DoctorConfigSnapshot {
-        model_url,
-        working_dir,
+        model_url: merged.model_url,
+        working_dir: resolve_working_dir(merged.working_dir, cwd),
         model_token_present,
-        sandbox_require,
-        mcp_servers,
+        sandbox_require: merged.sandbox_require.unwrap_or(false),
+        mcp_servers: merged.mcp_servers.unwrap_or_default(),
     })
 }
 

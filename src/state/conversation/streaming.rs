@@ -221,7 +221,7 @@ pub(super) fn structured_blocks_enabled() -> bool {
 pub(super) fn append_incremental_suffix(existing: &mut String, incoming: &str) -> String {
     let suffix = crate::state::transcript_delta::bounded_incremental_suffix(existing, incoming);
     existing.push_str(&suffix);
-    suffix
+    suffix.to_string()
 }
 
 pub(super) fn stream_local_tool_events_enabled() -> bool {

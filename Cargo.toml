@@ -90,6 +90,7 @@ pulldown-cmark = { version = "0.12", default-features = false }
 syntect = { version = "5", default-features = false, features = [
   "default-fancy",
 ] }
+figment = "0.10.19"
 indicatif = "0.17"
 console = "0.15"
 
@@ -107,6 +108,7 @@ itertools = "0.14"
 regex-lite = "0.1"
 bstr = "1"
 tower-http = { version = "0.6", default-features = false, features = ["trace"] }
+compact_str = { version = "0.9.0", features = ["serde"] }
 
 [dev-dependencies]
 filetime = "0.2"

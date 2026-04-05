@@ -2170,7 +2170,7 @@ fn apply_transcript_delta_empty_incomplete_produces_no_rows() {
     use crate::state::{TranscriptBlockKind, TranscriptDelta};
     let mut draw = TaskDraw::new();
     let delta = TranscriptDelta {
-        text: String::new(),
+        text: String::new().into(),
         is_complete: false,
         block_kind: TranscriptBlockKind::FinalText,
     };
@@ -2187,7 +2187,7 @@ fn apply_transcript_delta_tool_call_adds_prefixed_row() {
     use crate::state::{TranscriptBlockKind, TranscriptDelta};
     let mut draw = TaskDraw::new();
     let delta = TranscriptDelta {
-        text: "search_files path/.github/workflows/".to_string(),
+        text: "search_files path/.github/workflows/".to_string().into(),
         is_complete: false,
         block_kind: TranscriptBlockKind::ToolCall,
     };

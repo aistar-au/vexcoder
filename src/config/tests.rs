@@ -311,6 +311,25 @@ fn test_doctor_snapshot_matches_runtime_working_dir_resolution() {
 }
 
 #[test]
+fn test_doctor_snapshot_respects_env_sandbox_require_override() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _sandbox_require = EnvRestore::capture("VEX_SANDBOX_REQUIRE");
+    let temp = tempfile::tempdir().unwrap();
+    let user_cfg = temp.path().join("user.toml");
+    let cwd = temp.path().join("repo");
+
+    std::fs::create_dir_all(cwd.join(".git")).unwrap();
+    std::fs::create_dir_all(&cwd).unwrap();
+    std::fs::write(&user_cfg, "sandbox_require = false\n").unwrap();
+    std::env::set_var("VEX_SANDBOX_REQUIRE", "true");
+
+    let snapshot = super::doctor_snapshot(&cwd).unwrap();
+    assert!(snapshot.sandbox_require);
+
+    std::env::remove_var("VEX_SANDBOX_REQUIRE");
+}
+
+#[test]
 fn test_parse_model_headers_json_valid() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     std::env::set_var(

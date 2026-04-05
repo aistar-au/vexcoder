@@ -199,7 +199,7 @@ impl Default for SearchConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct SearchConfigLayer {
     pub(crate) enabled: Option<bool>,
@@ -259,7 +259,7 @@ pub struct DoctorConfigSnapshot {
     pub mcp_servers: Vec<DoctorMcpServer>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DoctorMcpServer {
     pub name: String,
     pub transport: String,
@@ -269,7 +269,7 @@ pub struct DoctorMcpServer {
 
 /// Intermediate per-layer config built from a TOML file.
 /// `deny_unknown_fields` ensures any unrecognized key is a hard failure.
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct ConfigLayer {
     model_name: Option<String>,
@@ -296,7 +296,7 @@ struct ConfigLayer {
     auto_memory: Option<AutoMemoryConfigLayer>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct CompactionConfigLayer {
     enabled: Option<bool>,
@@ -305,14 +305,14 @@ struct CompactionConfigLayer {
     summary_max_tokens: Option<usize>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct UndoConfigLayer {
     enabled: Option<bool>,
     max_checkpoints: Option<usize>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct ApiConfigLayer {
     transport: Option<String>,
@@ -327,7 +327,7 @@ struct ApiConfigLayer {
     vpn_trust: Option<bool>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 struct DoctorConfigLayer {
     model_url: Option<String>,
     working_dir: Option<PathBuf>,
