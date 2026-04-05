@@ -4,10 +4,10 @@ use anyhow::Result;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use self::reads::{extract_candidate_paths, infer_related_path_candidates, snapshot_from_read};
+use self::reads::{extract_candidate_paths, infer_related_path_candidates, rollup_from_read};
 
 use crate::runtime::context_cache::read_cached_file;
-use crate::runtime::git_snapshot::{collect_git_snapshot, resolve_git_timeout_ms};
+use crate::runtime::git_rollup::{collect_git_rollup, resolve_git_timeout_ms};
 use crate::tools::ToolOperator;
 use crate::util::parse_bool_flag;
 
@@ -19,7 +19,7 @@ const DEFAULT_INCLUDE_GIT_CONTEXT: bool = false;
 
 #[derive(Debug, Clone)]
 pub struct AssembledContext {
-    pub file_snapshots: Vec<FileSnapshot>,
+    pub file_rollups: Vec<FileRollup>,
     pub git_status_summary: Option<String>,
     pub recent_diff: Option<String>,
     pub related_paths: Vec<PathBuf>,
@@ -28,7 +28,7 @@ pub struct AssembledContext {
 }
 
 #[derive(Debug, Clone)]
-pub struct FileSnapshot {
+pub struct FileRollup {
     pub path: PathBuf,
     pub content: Option<String>,
     pub truncated: bool,
@@ -64,7 +64,7 @@ impl ContextAssembler {
     /// Assemble context for the given instruction.
     pub fn assemble(&self, instruction: &str, operator: &ToolOperator) -> Result<AssembledContext> {
         let timeout_ms = resolve_git_timeout_ms(self.git_timeout_ms);
-        let mut file_snapshots = Vec::new();
+        let mut file_rollups = Vec::new();
         let mut related_paths = Vec::new();
         let mut seen_paths = HashSet::new();
         let mut cache_hits = 0;
@@ -77,7 +77,7 @@ impl ContextAssembler {
             if !seen_paths.insert(path.clone()) {
                 continue;
             }
-            let (snapshot, cache_hit) = snapshot_from_read(
+            let (snapshot, cache_hit) = rollup_from_read(
                 path,
                 read_cached_file(operator, &candidate),
                 self.max_file_bytes,
@@ -87,15 +87,15 @@ impl ContextAssembler {
             } else if snapshot.content.is_some() {
                 cache_misses += 1;
             }
-            file_snapshots.push(snapshot);
+            file_rollups.push(snapshot);
         }
 
-        let named_snapshot_count = file_snapshots.len();
-        for index in 0..named_snapshot_count {
+        let named_rollup_count = file_rollups.len();
+        for index in 0..named_rollup_count {
             if related_paths.len() >= self.max_related {
                 break;
             }
-            let Some(content) = file_snapshots
+            let Some(content) = file_rollups
                 .get(index)
                 .and_then(|snapshot| snapshot.content.as_deref())
             else {
@@ -113,20 +113,20 @@ impl ContextAssembler {
                     continue;
                 };
                 let (snapshot, cache_hit) =
-                    snapshot_from_read(inferred.clone(), Ok(read), self.max_file_bytes);
+                    rollup_from_read(inferred.clone(), Ok(read), self.max_file_bytes);
                 if cache_hit {
                     cache_hits += 1;
                 } else if snapshot.content.is_some() {
                     cache_misses += 1;
                 }
-                file_snapshots.push(snapshot);
+                file_rollups.push(snapshot);
                 related_paths.push(inferred);
             }
         }
 
         if !self.include_git_context {
             return Ok(AssembledContext {
-                file_snapshots,
+                file_rollups,
                 git_status_summary: None,
                 recent_diff: None,
                 related_paths,
@@ -135,16 +135,16 @@ impl ContextAssembler {
             });
         }
 
-        let git_snapshot = collect_git_snapshot(
+        let git_rollup = collect_git_rollup(
             operator.working_dir().to_path_buf(),
             timeout_ms,
             self.max_diff_lines,
         )?;
 
         Ok(AssembledContext {
-            file_snapshots,
-            git_status_summary: git_snapshot.git_status_summary,
-            recent_diff: git_snapshot.recent_diff,
+            file_rollups,
+            git_status_summary: git_rollup.git_status_summary,
+            recent_diff: git_rollup.recent_diff,
             related_paths,
             cache_hits,
             cache_misses,
@@ -156,11 +156,11 @@ impl ContextAssembler {
         let mut out = String::new();
         out.push_str("## Context\n");
 
-        if ctx.file_snapshots.is_empty() {
-            out.push_str("[context: no file snapshots]\n");
+        if ctx.file_rollups.is_empty() {
+            out.push_str("[context: no file rollups]\n");
         } else {
-            out.push_str("### File snapshots\n");
-            for snapshot in &ctx.file_snapshots {
+            out.push_str("### File rollups\n");
+            for snapshot in &ctx.file_rollups {
                 out.push_str(&format!("- {}\n", snapshot.path.display()));
                 if snapshot.truncated {
                     out.push_str(&format!(
@@ -247,7 +247,7 @@ mod tests {
     use std::process::Command;
 
     #[tokio::test]
-    async fn test_context_assembler_includes_named_file_snapshot() {
+    async fn test_context_assembler_includes_named_file_rollup() {
         let workspace = tempfile::tempdir().expect("tempdir");
         let file_path = workspace.path().join("known-file.txt");
         fs::write(&file_path, "hello from snapshot").expect("write");
@@ -259,7 +259,7 @@ mod tests {
             .expect("assemble failed");
 
         assert!(
-            ctx.file_snapshots
+            ctx.file_rollups
                 .iter()
                 .any(|snapshot| snapshot.path.as_path() == Path::new("known-file.txt")),
             "expected named file to be included in snapshots"
@@ -267,7 +267,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_context_assembler_keeps_unreadable_named_file_snapshot() {
+    async fn test_context_assembler_keeps_unreadable_named_file_rollup() {
         let workspace = tempfile::tempdir().expect("tempdir");
         let operator = ToolOperator::new(workspace.path().to_path_buf());
         let assembler = ContextAssembler::default();
@@ -277,10 +277,10 @@ mod tests {
         let rendered = assembler.render(&ctx);
 
         let snapshot = ctx
-            .file_snapshots
+            .file_rollups
             .iter()
             .find(|snapshot| snapshot.path.as_path() == Path::new("missing-file.txt"))
-            .expect("missing named file snapshot");
+            .expect("missing named file rollup");
         assert!(snapshot.content.is_none());
         assert!(rendered.contains("[context: file unreadable — missing-file.txt]"));
     }
@@ -307,14 +307,14 @@ mod tests {
             .expect("assemble failed");
 
         assert_eq!(
-            ctx.file_snapshots.len(),
+            ctx.file_rollups.len(),
             5,
-            "all five named files must be snapshotted regardless of max_related"
+            "all five named files must be rolled-up regardless of max_related"
         );
     }
 
     #[tokio::test]
-    async fn test_context_assembler_reuses_cached_snapshots_between_calls() {
+    async fn test_context_assembler_reuses_cached_rollups_between_calls() {
         crate::runtime::context_cache::reset_context_cache_for_tests();
         let workspace = tempfile::tempdir().expect("tempdir");
         fs::write(workspace.path().join("note.txt"), "cache me\n").expect("write note");
@@ -338,7 +338,7 @@ mod tests {
         );
         assert!(
             second.cache_hits >= 1,
-            "second assemble should reuse the in-memory snapshot cache"
+            "second assemble should reuse the in-memory rollup cache"
         );
         assert_eq!(
             second.cache_misses, 0,
@@ -392,10 +392,10 @@ mod tests {
             "expected inferred related path in context"
         );
         assert!(
-            ctx.file_snapshots
+            ctx.file_rollups
                 .iter()
                 .any(|snapshot| snapshot.path.as_path() == Path::new("src/runtime/helper.rs")),
-            "expected inferred related file snapshot"
+            "expected inferred related file rollup"
         );
     }
 

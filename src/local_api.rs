@@ -9,7 +9,7 @@
 
 #[cfg(test)]
 use crate::api::ApiClient;
-use crate::app::FacadeSessionTaskSnapshot;
+use crate::app::FacadeSessionTaskRollup;
 use crate::config::Config;
 use crate::runtime::context::RuntimeContext;
 use crate::runtime::frontend::{FrontendAdapter, UserInputEvent};
@@ -36,7 +36,7 @@ const SESSION_TASK_EVENT_BUFFER: usize = 64;
 pub(crate) struct LocalApiState {
     pub config: Config,
     pub tasks: Arc<AsyncMutex<HashMap<String, ActiveTask>>>,
-    session_task_events: broadcast::Sender<FacadeSessionTaskSnapshot>,
+    session_task_events: broadcast::Sender<FacadeSessionTaskRollup>,
 }
 
 pub(crate) struct ActiveTask {
@@ -249,11 +249,11 @@ impl LocalApiState {
         }
     }
 
-    pub fn publish_session_task_snapshot(&self, snapshot: FacadeSessionTaskSnapshot) {
+    pub fn publish_session_task_rollup(&self, snapshot: FacadeSessionTaskRollup) {
         let _ = self.session_task_events.send(snapshot);
     }
 
-    pub fn subscribe_session_task_events(&self) -> broadcast::Receiver<FacadeSessionTaskSnapshot> {
+    pub fn subscribe_session_task_events(&self) -> broadcast::Receiver<FacadeSessionTaskRollup> {
         self.session_task_events.subscribe()
     }
 }

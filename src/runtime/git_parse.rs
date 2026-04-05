@@ -1,6 +1,6 @@
 //! Structured parsing of git command output using `regex-lite`.
 //!
-//! Design boundary: `regex-lite` handles ASCII-only internal string surgery
+//! Design boundary: `regex-lite` handles ASCII-only internal text processing
 //! on git's machine-readable output formats.  This is distinct from
 //! `aho-corasick` (multi-pattern literal matching in file content),
 //! `tree-sitter` (structural AST indexing), and `globset`/`ignore`

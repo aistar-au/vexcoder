@@ -777,7 +777,7 @@ fn model_backend_label(kind: crate::runtime::ModelBackendKind) -> &'static str {
 fn context_summary_segment(summary: &crate::app::TaskContextSummaryState) -> String {
     let mut segment = format!(
         "ctx:f{} r{} c{}/{}",
-        summary.file_snapshots, summary.related_paths, summary.cache_hits, summary.cache_misses
+        summary.file_rollups, summary.related_paths, summary.cache_hits, summary.cache_misses
     );
     if summary.git_context_included {
         segment.push_str(" git");

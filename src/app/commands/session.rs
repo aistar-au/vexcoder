@@ -55,7 +55,7 @@ impl TuiMode {
     pub(crate) fn default_generate_tests_path(&self) -> Option<String> {
         self.last_assembled_context
             .as_ref()
-            .and_then(|context| context.file_snapshots.first())
+            .and_then(|context| context.file_rollups.first())
             .map(|snapshot| snapshot.path.to_string_lossy().into_owned())
             .or_else(|| {
                 self.current_task

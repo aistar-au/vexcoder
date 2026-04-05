@@ -5,7 +5,6 @@
 //! None of them start a model turn or modify any file.  No subprocess calls.
 
 use anyhow::{Context, Result};
-use itertools::Itertools as _;
 use std::fs;
 
 use super::operator::ToolOperator;
@@ -170,70 +169,6 @@ fn build_glob_matcher(pattern: &str) -> Option<globset::GlobSet> {
 
 fn glob_path_match(matcher: &globset::GlobSet, path: &str) -> bool {
     matcher.is_match(path) || matcher.is_match(path.rsplit('/').next().unwrap_or(path))
-}
-
-/// Return workspace-relative paths whose **basename** matches a Rust regex `pattern`.
-///
-/// - `pattern`: case-insensitive regex tested against the file's name component only.
-/// - `max_results`: capped at [`GLOB_FILES_MAX`].
-///
-/// Gitignore rules from the workspace root are applied.  Results are sorted
-/// alphabetically by workspace-relative path.
-pub fn regex_files(operator: &ToolOperator, pattern: &str, max_results: usize) -> Result<String> {
-    let pattern = pattern.trim();
-    if pattern.is_empty() {
-        return Ok("(regex_files requires a non-empty pattern)".to_string());
-    }
-
-    let Some(re) = build_regex_matcher(pattern) else {
-        return Ok("(invalid regex pattern — use a valid Rust regex)".to_string());
-    };
-
-    let ignore = WorkspaceIgnore::load(operator.working_dir());
-    let limit = max_results.clamp(1, GLOB_FILES_MAX);
-
-    let all_files = operator
-        .walk_workspace_files_ignoring(operator.working_dir(), &ignore)
-        .context("regex_files: failed to walk workspace")?;
-
-    let matched: Vec<String> = all_files
-        .into_iter()
-        .filter_map(|p| {
-            let rel = make_relative(operator.working_dir(), &p)
-                .to_string_lossy()
-                .replace('\\', "/");
-            let basename = rel.rsplit('/').next().unwrap_or(&rel);
-            if re.is_match(basename) {
-                Some(rel)
-            } else {
-                None
-            }
-        })
-        .sorted()
-        .collect();
-
-    if matched.is_empty() {
-        return Ok("(no files found)".to_string());
-    }
-
-    let total = matched.len();
-    let view = &matched[..limit.min(total)];
-    let mut out = view.join("\n");
-    if total > limit {
-        out.push_str(&format!(
-            "\n[results truncated — showing first {} of {} matches]",
-            limit, total
-        ));
-    }
-    Ok(out)
-}
-
-/// Build a case-insensitive regex from `pattern` using `regex-lite`.
-fn build_regex_matcher(pattern: &str) -> Option<regex_lite::Regex> {
-    regex_lite::RegexBuilder::new(pattern)
-        .case_insensitive(true)
-        .build()
-        .ok()
 }
 
 #[cfg(test)]
@@ -461,63 +396,5 @@ mod tests {
         // turn would panic or block without the full runtime.
         assert!(list_dir(&op, None, 10).is_ok());
         assert!(glob_files(&op, "**/*.rs", 10).is_ok());
-    }
-
-    // ── regex_files ──────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_regex_files_matches_by_basename() {
-        let ws = make_workspace(&["src/main.rs", "src/lib.rs", "Cargo.toml"]);
-        let out = regex_files(&op(&ws), r"\.rs$", 50).unwrap();
-        assert!(out.contains("src/main.rs"), "expected main.rs: {out}");
-        assert!(out.contains("src/lib.rs"), "expected lib.rs: {out}");
-        assert!(
-            !out.contains("Cargo.toml"),
-            "toml must not match .rs: {out}"
-        );
-    }
-
-    #[test]
-    fn test_regex_files_case_insensitive() {
-        let ws = make_workspace(&["src/Main.RS", "src/lib.rs"]);
-        let out = regex_files(&op(&ws), r"main\.rs$", 50).unwrap();
-        assert!(
-            out.contains("Main.RS"),
-            "expected case-insensitive match: {out}"
-        );
-        assert!(!out.contains("lib.rs"), "lib.rs must not match: {out}");
-    }
-
-    #[test]
-    fn test_regex_files_invalid_pattern_returns_message() {
-        let ws = make_workspace(&["a.rs"]);
-        let out = regex_files(&op(&ws), r"[invalid", 50).unwrap();
-        assert!(
-            out.contains("invalid regex"),
-            "expected invalid-pattern message: {out}"
-        );
-    }
-
-    #[test]
-    fn test_regex_files_respects_gitignore() {
-        let ws = make_workspace_with_gitignore(&["src/main.rs", "target/debug.rs"], "target/\n");
-        let out = regex_files(&op(&ws), r"\.rs$", 50).unwrap();
-        assert!(out.contains("src/main.rs"), "expected main.rs: {out}");
-        assert!(
-            !out.contains("target/debug.rs"),
-            "target/ must be gitignore-filtered: {out}"
-        );
-    }
-
-    #[test]
-    fn test_regex_files_truncation_annotation() {
-        let files: Vec<String> = (0..10).map(|i| format!("test_{i}.rs")).collect();
-        let files_ref: Vec<&str> = files.iter().map(String::as_str).collect();
-        let ws = make_workspace(&files_ref);
-        let out = regex_files(&op(&ws), r"\.rs$", 3).unwrap();
-        assert!(
-            out.contains("[results truncated"),
-            "expected truncation annotation: {out}"
-        );
     }
 }

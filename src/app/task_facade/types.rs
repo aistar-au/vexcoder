@@ -15,7 +15,7 @@ pub struct FacadeTaskSummary {
 /// Full projection of one session task returned by the listing and detail
 /// endpoints.
 #[derive(Debug, Clone, Serialize)]
-pub struct FacadeSessionTaskSnapshot {
+pub struct FacadeSessionTaskRollup {
     pub id: String,
     pub parent_task_id: String,
     pub agent_id: String,
@@ -70,7 +70,7 @@ pub struct FacadeDelegateResult {
 }
 
 #[derive(Debug, Clone)]
-pub struct FacadeWatchSnapshot {
+pub struct FacadeWatchRollup {
     pub kind: &'static str,
     pub id: String,
     pub parent_task_id: Option<String>,
@@ -125,7 +125,7 @@ pub struct FacadeTaskGraphNode {
     pub id: String,
     pub status: String,
     pub agent_id: Option<String>,
-    pub session_tasks: Vec<FacadeSessionTaskSnapshot>,
+    pub session_tasks: Vec<FacadeSessionTaskRollup>,
 }
 
 /// Top-level task graph returned by `facade_task_graph`.

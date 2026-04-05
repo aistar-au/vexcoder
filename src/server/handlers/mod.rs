@@ -15,7 +15,7 @@ use super::SSE_KEEPALIVE_INTERVAL;
 use crate::app::{
     execute_facade_runtime, facade_delegate_session_task, facade_get_session_task,
     facade_list_agents, facade_poll_join, facade_release_session_task, facade_schedule_team,
-    facade_watch_snapshot, DelegateError, ScheduleTeamError,
+    facade_watch_rollup, DelegateError, ScheduleTeamError,
 };
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
@@ -76,7 +76,7 @@ pub struct DelegateResponse {
 }
 
 #[derive(Debug, Serialize)]
-pub struct WatchSnapshot {
+pub struct WatchRollup {
     kind: &'static str,
     id: String,
     parent_task_id: Option<String>,
@@ -183,12 +183,12 @@ pub async fn delegate_handler(
 pub async fn watch_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
-) -> Result<Json<WatchSnapshot>, (StatusCode, Json<ControlResponse>)> {
-    let snapshot = facade_watch_snapshot(&state.config.working_dir, &id)
+) -> Result<Json<WatchRollup>, (StatusCode, Json<ControlResponse>)> {
+    let snapshot = facade_watch_rollup(&state.config.working_dir, &id)
         .map_err(internal_anyhow)?
         .ok_or_else(|| not_found("task_not_found"))?;
 
-    Ok(Json(WatchSnapshot {
+    Ok(Json(WatchRollup {
         kind: snapshot.kind,
         id: snapshot.id,
         parent_task_id: snapshot.parent_task_id,
@@ -215,7 +215,7 @@ pub async fn release_session_task_handler(
         if let Some(snapshot) =
             facade_get_session_task(&state.config.working_dir, &id).map_err(internal_anyhow)?
         {
-            state.publish_session_task_snapshot(snapshot);
+            state.publish_session_task_rollup(snapshot);
         }
         Ok(Json(ControlResponse {
             ok: true,

@@ -8,11 +8,11 @@ use std::path::{Path, PathBuf};
 use crate::util::parse_bool_flag;
 
 use super::{
-    ApiConfigLayer, AutoMemoryConfigLayer, Config, ConfigLayer, DoctorConfigLayer,
-    DoctorConfigSnapshot,
+    ApiConfigLayer, AutoMemoryConfigLayer, CompactionConfigLayer, Config, ConfigLayer,
+    DoctorConfigRollup, SearchConfigLayer, UndoConfigLayer,
 };
 
-use merge::{merge_doctor_layers, merge_layers};
+use merge::apply_over;
 use parse::*;
 use paths::*;
 
@@ -144,16 +144,22 @@ fn load_layers(
 
     let (env_layer, env_token) = read_env_layer()?;
 
-    let merged = merge_layers(
-        [system_layer, user_layer, repo_layer, Some(env_layer)]
-            .into_iter()
-            .flatten(),
-    )?;
+    let mut merged = ConfigLayer::default();
+    if let Some(l) = system_layer {
+        merged = apply_over(merged, l);
+    }
+    if let Some(l) = user_layer {
+        merged = apply_over(merged, l);
+    }
+    if let Some(l) = repo_layer {
+        merged = apply_over(merged, l);
+    }
+    merged = apply_over(merged, env_layer);
 
     resolve_config(merged, env_token, cwd, profile_base_dir)
 }
 
-pub(super) fn doctor_snapshot(cwd: &Path) -> Result<DoctorConfigSnapshot> {
+pub(super) fn doctor_rollup(cwd: &Path) -> Result<DoctorConfigRollup> {
     let repo_cfg = find_repo_local_config(cwd);
     let user_cfg = user_config_path();
     let system_cfg = system_config_path();
@@ -200,28 +206,35 @@ pub(super) fn doctor_snapshot(cwd: &Path) -> Result<DoctorConfigSnapshot> {
     let model_token_present = std::env::var("VEX_MODEL_TOKEN")
         .ok()
         .is_some_and(|value| !value.trim().is_empty());
-    let merged = merge_doctor_layers(
-        [
-            Some(system_layer),
-            Some(user_layer),
-            Some(repo_layer),
-            Some(DoctorConfigLayer {
-                model_url: env_model_url,
-                working_dir: env_working_dir,
-                sandbox_require: env_sandbox_require,
-                mcp_servers: None,
-            }),
-        ]
-        .into_iter()
-        .flatten(),
-    )?;
 
-    Ok(DoctorConfigSnapshot {
-        model_url: merged.model_url,
-        working_dir: resolve_working_dir(merged.working_dir, cwd),
+    let model_url = env_model_url
+        .or(repo_layer.model_url)
+        .or(user_layer.model_url)
+        .or(system_layer.model_url);
+    let working_dir = resolve_working_dir(
+        env_working_dir
+            .or(repo_layer.working_dir)
+            .or(user_layer.working_dir)
+            .or(system_layer.working_dir),
+        cwd,
+    );
+    let sandbox_require = env_sandbox_require
+        .or(repo_layer.sandbox_require)
+        .or(user_layer.sandbox_require)
+        .or(system_layer.sandbox_require)
+        .unwrap_or(false);
+    let mcp_servers = repo_layer
+        .mcp_servers
+        .or(user_layer.mcp_servers)
+        .or(system_layer.mcp_servers)
+        .unwrap_or_default();
+
+    Ok(DoctorConfigRollup {
+        model_url,
+        working_dir,
         model_token_present,
-        sandbox_require: merged.sandbox_require.unwrap_or(false),
-        mcp_servers: merged.mcp_servers.unwrap_or_default(),
+        sandbox_require,
+        mcp_servers,
     })
 }
 
@@ -422,7 +435,7 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
 ///
 /// Returns `Ok(None)` when the file does not exist (not an error).
 /// Returns `Err` for: `model_token` present, unknown keys, malformed TOML,
-/// or invalid enum string values — all with the file path in the message.
+/// or invalid enum string values ΓÇö all with the file path in the message.
 fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,

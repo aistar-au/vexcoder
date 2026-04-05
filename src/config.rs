@@ -138,7 +138,7 @@ impl Default for CompactionConfig {
 /// `~/.config/vex/config.toml`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoMemoryConfig {
-    /// Whether auto-extraction is active.  Defaults to `false` — users must
+    /// Whether auto-extraction is active.  Defaults to `false` ΓÇö users must
     /// opt in explicitly.
     pub enabled: bool,
     /// Maximum number of notes extracted per turn.  Clamped to `1..=10`.
@@ -199,25 +199,19 @@ impl Default for SearchConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct SearchConfigLayer {
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) enabled: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) auto_index: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) exclude: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) max_file_size: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct AutoMemoryConfigLayer {
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) enabled: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) max_notes_per_turn: Option<usize>,
 }
 
@@ -257,7 +251,7 @@ pub struct Config {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DoctorConfigSnapshot {
+pub struct DoctorConfigRollup {
     pub model_url: Option<String>,
     pub working_dir: PathBuf,
     pub model_token_present: bool,
@@ -265,7 +259,7 @@ pub struct DoctorConfigSnapshot {
     pub mcp_servers: Vec<DoctorMcpServer>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DoctorMcpServer {
     pub name: String,
     pub transport: String,
@@ -275,118 +269,76 @@ pub struct DoctorMcpServer {
 
 /// Intermediate per-layer config built from a TOML file.
 /// `deny_unknown_fields` ensures any unrecognized key is a hard failure.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct ConfigLayer {
-    #[serde(skip_serializing_if = "Option::is_none")]
     model_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     model_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     model_url_skip_tls_check: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     working_dir: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     sandbox: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     sandbox_profile: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     sandbox_require: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     model_backend: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     model_protocol: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     tool_call_mode: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     model_profile: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     max_project_instructions_tokens: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     max_memory_tokens: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     notes_path: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     api: Option<ApiConfigLayer>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     hooks: Option<Vec<HookConfig>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     http_hooks: Option<Vec<HttpHookConfig>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     mcp_servers: Option<Vec<McpServerConfig>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     compaction: Option<CompactionConfigLayer>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     undo: Option<UndoConfigLayer>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     search: Option<SearchConfigLayer>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     auto_memory: Option<AutoMemoryConfigLayer>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct CompactionConfigLayer {
-    #[serde(skip_serializing_if = "Option::is_none")]
     enabled: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     threshold_percent: Option<u8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     keep_recent_turns: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     summary_max_tokens: Option<usize>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct UndoConfigLayer {
-    #[serde(skip_serializing_if = "Option::is_none")]
     enabled: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     max_checkpoints: Option<usize>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct ApiConfigLayer {
-    #[serde(skip_serializing_if = "Option::is_none")]
     transport: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     host: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     port: Option<u16>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     socket: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     key: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     tls_cert: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     tls_key: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     tls_ca_cert: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     tls_skip_verify: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     vpn_trust: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 struct DoctorConfigLayer {
-    #[serde(skip_serializing_if = "Option::is_none")]
     model_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     working_dir: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     sandbox_require: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     mcp_servers: Option<Vec<DoctorMcpServer>>,
 }
 
 impl Config {
     /// Load config from the five-layer resolution chain.
     ///
-    /// Precedence (highest → lowest):
+    /// Precedence (highest ΓåÆ lowest):
     ///   environment > repo-local `.vex/config.toml` > user > system > compiled defaults
     ///
     /// Repo-local discovery walks ancestors of `std::env::current_dir()`.
@@ -418,7 +370,7 @@ impl Config {
         load::load_for_tests(cwd, user, system)
     }
 
-    /// Sensible defaults for interactive TUI startup — used when no config
+    /// Sensible defaults for interactive TUI startup ΓÇö used when no config
     /// file or environment variables are present.  Avoids the full five-layer
     /// resolution chain so callers that already hold a `Config` (e.g. tests)
     /// can build a `TuiMode` without side-effects.
@@ -535,8 +487,8 @@ impl Config {
     }
 }
 
-pub fn doctor_snapshot(cwd: &Path) -> Result<DoctorConfigSnapshot> {
-    load::doctor_snapshot(cwd)
+pub fn doctor_rollup(cwd: &Path) -> Result<DoctorConfigRollup> {
+    load::doctor_rollup(cwd)
 }
 
 pub fn migrate_config_from_env(envs: &[(&str, &str)]) -> String {

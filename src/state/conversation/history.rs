@@ -1,7 +1,7 @@
 use super::ConversationManager;
 use crate::config::CompactionConfig;
 use crate::tool_preview::{
-    format_read_file_snapshot_message, read_file_path, ReadFileSnapshotSummary,
+    format_read_file_rollup_message, read_file_path, ReadFileRollupSummary,
     ReadFileSummaryMessageStyle,
 };
 use crate::types::{ApiMessage, Content, ContentBlock};
@@ -300,20 +300,20 @@ impl ConversationManager {
         &self,
         path: &str,
         output: &str,
-        summary: ReadFileSnapshotSummary,
+        summary: ReadFileRollupSummary,
     ) -> String {
         match summary {
-            ReadFileSnapshotSummary::Unchanged { .. } => format_read_file_snapshot_message(
+            ReadFileRollupSummary::Unchanged { .. } => format_read_file_rollup_message(
                 path,
                 summary,
                 ReadFileSummaryMessageStyle::History,
             ),
-            ReadFileSnapshotSummary::FirstRead { .. } | ReadFileSnapshotSummary::Changed { .. } => {
+            ReadFileRollupSummary::FirstRead { .. } | ReadFileRollupSummary::Changed { .. } => {
                 let summary_message = match summary {
-                    ReadFileSnapshotSummary::FirstRead { chars, lines } => format!(
+                    ReadFileRollupSummary::FirstRead { chars, lines } => format!(
                         "Read {path}: {chars} chars, {lines} lines. Snapshot included below for model context."
                     ),
-                    ReadFileSnapshotSummary::Changed {
+                    ReadFileRollupSummary::Changed {
                         before_chars,
                         before_lines,
                         after_chars,
@@ -321,7 +321,7 @@ impl ConversationManager {
                     } => format!(
                         "Read {path}: content changed ({before_chars} chars/{before_lines} lines -> {after_chars} chars/{after_lines} lines). Snapshot included below for model context."
                     ),
-                    ReadFileSnapshotSummary::Unchanged { .. } => unreachable!(),
+                    ReadFileRollupSummary::Unchanged { .. } => unreachable!(),
                 };
                 format!(
                     "{summary_message}\nContent for model context:\n--- {path} ---\n{output}\n--- end {path} ---"

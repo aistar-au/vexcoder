@@ -1171,7 +1171,7 @@ fn status_bar_includes_model_sandbox_and_context_summary() {
         model_backend: Some(crate::runtime::ModelBackendKind::LocalRuntime),
         sandbox_kind: Some(crate::runtime::SandboxKind::Container),
         context_summary: Some(crate::app::TaskContextSummaryState {
-            file_snapshots: 3,
+            file_rollups: 3,
             related_paths: 2,
             cache_hits: 5,
             cache_misses: 1,
@@ -1218,7 +1218,7 @@ fn status_bar_priority_truncation_drops_low_priority_fields_first() {
         model_backend: Some(crate::runtime::ModelBackendKind::LocalRuntime),
         sandbox_kind: Some(crate::runtime::SandboxKind::Container),
         context_summary: Some(crate::app::TaskContextSummaryState {
-            file_snapshots: 3,
+            file_rollups: 3,
             related_paths: 2,
             cache_hits: 5,
             cache_misses: 1,
@@ -2170,7 +2170,7 @@ fn apply_transcript_delta_empty_incomplete_produces_no_rows() {
     use crate::state::{TranscriptBlockKind, TranscriptDelta};
     let mut draw = TaskDraw::new();
     let delta = TranscriptDelta {
-        text: String::new().into(),
+        text: String::new(),
         is_complete: false,
         block_kind: TranscriptBlockKind::FinalText,
     };
@@ -2187,7 +2187,7 @@ fn apply_transcript_delta_tool_call_adds_prefixed_row() {
     use crate::state::{TranscriptBlockKind, TranscriptDelta};
     let mut draw = TaskDraw::new();
     let delta = TranscriptDelta {
-        text: "search_files path/.github/workflows/".to_string().into(),
+        text: "search_files path/.github/workflows/".to_string(),
         is_complete: false,
         block_kind: TranscriptBlockKind::ToolCall,
     };

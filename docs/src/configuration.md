@@ -19,7 +19,7 @@ Highest priority wins:
 
 `VEX_MODEL_TOKEN` is environment-only. It is never read from config files.
 
-Automatic context assembly now keeps small file snapshots in a process-local
+Automatic context assembly now keeps small file rollups in a process-local
 memory cache. Search indexes under `.vex/index/` and task-state JSON under
 `.vex/state/` remain the intended disk-backed layers.
 

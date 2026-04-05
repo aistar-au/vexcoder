@@ -343,7 +343,7 @@ impl RuntimeContext {
         let _ = self.update_tx.send(UiUpdate::TranscriptLine(line));
     }
 
-    pub fn session_tokens_snapshot(&self) -> SessionTokens {
+    pub fn session_tokens_rollup(&self) -> SessionTokens {
         self.session_tokens
             .lock()
             .map(|tokens| *tokens)

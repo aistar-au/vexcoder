@@ -116,7 +116,7 @@ fn test_format_tool_result_for_history_read_file_diff_and_repeat() {
     );
 }
 #[test]
-fn test_append_incremental_suffix_snapshot_streaming() {
+fn test_append_incremental_suffix_rollup_streaming() {
     let mut content = String::new();
     let a = append_incremental_suffix(&mut content, "Hello");
     let b = append_incremental_suffix(&mut content, "Hello world");
@@ -492,13 +492,13 @@ fn test_clear_messages_resets_cached_conversation_state() {
         manager
             .read_file_history_cache
             .summarize("src/app.rs", "v1"),
-        crate::tool_preview::ReadFileSnapshotSummary::FirstRead { .. }
+        crate::tool_preview::ReadFileRollupSummary::FirstRead { .. }
     ));
     assert!(matches!(
         manager
             .read_file_history_cache
             .summarize("src/app.rs", "v2"),
-        crate::tool_preview::ReadFileSnapshotSummary::Changed { .. }
+        crate::tool_preview::ReadFileRollupSummary::Changed { .. }
     ));
 
     manager.clear_messages();
@@ -509,7 +509,7 @@ fn test_clear_messages_resets_cached_conversation_state() {
         manager
             .read_file_history_cache
             .summarize("src/app.rs", "v2"),
-        crate::tool_preview::ReadFileSnapshotSummary::FirstRead { .. }
+        crate::tool_preview::ReadFileRollupSummary::FirstRead { .. }
     ));
 }
 // ---------------------------------------------------------------------------

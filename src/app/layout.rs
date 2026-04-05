@@ -50,7 +50,7 @@ fn telemetry_context_summary(
     context: Option<&AssembledContext>,
 ) -> Option<TaskContextSummaryState> {
     context.map(|context| TaskContextSummaryState {
-        file_snapshots: context.file_snapshots.len(),
+        file_rollups: context.file_rollups.len(),
         related_paths: context.related_paths.len(),
         cache_hits: context.cache_hits,
         cache_misses: context.cache_misses,

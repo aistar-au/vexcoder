@@ -172,7 +172,7 @@ fn release_returns_false_for_unknown_session_task_id() {
 }
 
 #[test]
-fn watch_snapshot_formats_parent_task_status_with_display_names() {
+fn watch_rollup_formats_parent_task_status_with_display_names() {
     let _env_lock = env_lock();
     let dir = tempfile::tempdir().unwrap();
     let state_dir = TaskState::state_dir_from(dir.path());
@@ -182,9 +182,9 @@ fn watch_snapshot_formats_parent_task_status_with_display_names() {
     parent.status = crate::runtime::TaskStatus::AwaitingApproval;
     parent.save(&state_dir).unwrap();
 
-    let snapshot = facade_watch_snapshot(dir.path(), "parent-watch")
+    let snapshot = facade_watch_rollup(dir.path(), "parent-watch")
         .unwrap()
-        .expect("expected parent-task snapshot");
+        .expect("expected parent-task rollup");
 
     assert_eq!(snapshot.kind, "task");
     assert_eq!(snapshot.status, "awaiting_approval");

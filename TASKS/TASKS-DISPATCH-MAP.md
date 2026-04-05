@@ -35,7 +35,7 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-033-hybrid-retrieval-context-architecture.md` | Accepted (all phases 1-4 merged) | 0 items remaining; status updated in Tier 9 (PR #252) |
 | `adr/ADR-034-multi-agent-parallel-task-execution.md` | Active (Phase A + B-E merged) | Hardening: serialized delegate concurrency enforcement, prompt-length guard, explicit session-task release, handler/stress coverage, and normalized watch status |
 | `adr/ADR-035-undo-checkpoints-and-binary-safe-rollback.md` | Accepted | 0 items remaining; Gap 14 rollback strategy formalized for `/undo` |
-| `adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md` | Accepted (Batches D-H merged) | 0 items remaining; ADR-038 post-merge bug fix landed in PR #284 |
+| `adr/ADR-038-memory-first-architecture-with-minimal-disk-io.md` | Accepted (Batches D-H merged) | 0 items remaining; ADR-038 post-merge bug fix merged in PR #284 |
 | `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | Proposed (Batch A merged on main) | Batch A merged in PR #292; search.exclude path-boundary fix in PR #293; 3 remaining batches (B-D): vocabulary, active indicator, paragraph progress stream |
 
 ### Moved to completed/ (2026-03-27)

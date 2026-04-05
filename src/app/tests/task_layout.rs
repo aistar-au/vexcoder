@@ -802,7 +802,7 @@ fn test_task_layout_state_exposes_structured_footer_inputs() {
     let mut mode = TuiMode::new();
 
     mode.last_assembled_context = Some(crate::runtime::AssembledContext {
-        file_snapshots: vec![crate::runtime::FileSnapshot {
+        file_rollups: vec![crate::runtime::FileRollup {
             path: std::path::PathBuf::from("src/main.rs"),
             content: Some("fn main() {}\n".to_string()),
             truncated: false,
@@ -826,7 +826,7 @@ fn test_task_layout_state_exposes_structured_footer_inputs() {
         state.telemetry.sandbox_kind,
         Some(crate::runtime::SandboxKind::Passthrough)
     );
-    assert_eq!(context.file_snapshots, 1);
+    assert_eq!(context.file_rollups, 1);
     assert_eq!(context.related_paths, 1);
     assert_eq!(context.cache_hits, 2);
     assert_eq!(context.cache_misses, 1);

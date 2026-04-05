@@ -23,7 +23,7 @@ impl TuiMode {
             repo_label: resolve_repo_label(),
             git_branch: util::resolve_git_branch(),
             instructions_path: None,
-            mcp_snapshot: None,
+            mcp_rollup: None,
             history_content_width: Cell::new(HISTORY_CONTENT_WIDTH_FALLBACK),
             active_stream_blocks: std::collections::HashMap::new(),
             tool_input_raw_buffers: std::collections::HashMap::new(),

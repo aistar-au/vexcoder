@@ -21,7 +21,7 @@ async fn test_watch_session_task_stream_returns_not_found_for_unknown_id() {
 /// stream to emit exactly one snapshot event and then close, allowing the test
 /// to read the full body without an unbounded wait.
 #[tokio::test]
-async fn test_watch_session_task_stream_emits_snapshot_and_terminates_on_terminal() {
+async fn test_watch_session_task_stream_emits_rollup_and_terminates_on_terminal() {
     let temp = tempfile::tempdir().unwrap();
 
     // Create a session task and immediately transition it to a final state.

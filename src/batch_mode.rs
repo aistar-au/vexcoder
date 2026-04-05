@@ -336,7 +336,7 @@ impl RuntimeMode for BatchMode {
                 self.current_response.push_str(&text);
             }
             UiUpdate::TurnComplete => {
-                self.finish_turn(ctx.session_tokens_snapshot().last_turn());
+                self.finish_turn(ctx.session_tokens_rollup().last_turn());
                 if !self.done {
                     self.status = TaskStatus::Completed;
                     self.append_summary();

@@ -15,12 +15,12 @@ mod tests;
 mod types;
 
 pub use self::projection::{
-    task_graph_snapshot_path, todos_snapshot_path, write_projection_snapshot,
+    task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
 };
 pub use self::types::{
     FacadeAgentDescriptor, FacadeAgentsListing, FacadeDelegateResult, FacadeJoinOutcome,
-    FacadeScheduleTeamResult, FacadeSessionTaskSnapshot, FacadeTaskGraph, FacadeTaskGraphNode,
-    FacadeTaskSummary, FacadeTeamDescriptor, FacadeTodoItem, FacadeWatchSnapshot,
+    FacadeScheduleTeamResult, FacadeSessionTaskRollup, FacadeTaskGraph, FacadeTaskGraphNode,
+    FacadeTaskSummary, FacadeTeamDescriptor, FacadeTodoItem, FacadeWatchRollup,
     ScheduleTeamError, SessionTaskStatusError,
 };
 
@@ -266,17 +266,17 @@ pub fn facade_delegate_session_task(
             parent_task_id: parent_task_id.clone(),
             session_task_id,
         });
-        if let Err(e) = write_projection_snapshot(working_dir) {
-            tracing::warn!(error = ?e, "failed to write projection snapshot after delegate");
+        if let Err(e) = write_projection_rollup(working_dir) {
+            tracing::warn!(error = ?e, "failed to write projection rollup after delegate");
         }
         result
     })
 }
 
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
-pub fn facade_watch_snapshot(working_dir: &Path, id: &str) -> Result<Option<FacadeWatchSnapshot>> {
+pub fn facade_watch_rollup(working_dir: &Path, id: &str) -> Result<Option<FacadeWatchRollup>> {
     if let Ok(task_state) = TaskState::load_from_search_dirs_from(working_dir, id) {
-        return Ok(Some(FacadeWatchSnapshot {
+        return Ok(Some(FacadeWatchRollup {
             kind: "task",
             id: task_state.id,
             parent_task_id: task_state.parent_task_id,
@@ -292,7 +292,7 @@ pub fn facade_watch_snapshot(working_dir: &Path, id: &str) -> Result<Option<Faca
     if let Some((parent_state, session_task)) =
         TaskState::find_session_task_in_saved_states(working_dir, id)?
     {
-        return Ok(Some(FacadeWatchSnapshot {
+        return Ok(Some(FacadeWatchRollup {
             kind: "session-task",
             id: session_task.id,
             parent_task_id: Some(parent_state.id),
@@ -347,8 +347,8 @@ pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) ->
         lease_manager.release(session_task_id)?;
     }
 
-    if let Err(e) = write_projection_snapshot(working_dir) {
-        tracing::warn!(error = ?e, "failed to write projection snapshot after release");
+    if let Err(e) = write_projection_rollup(working_dir) {
+        tracing::warn!(error = ?e, "failed to write projection rollup after release");
     }
 
     Ok(true)
@@ -426,8 +426,8 @@ pub fn facade_schedule_team(
             session_task_ids: decomp.session_task_ids,
             scheduler: team_scheduler_name(decomp.scheduler).to_string(),
         });
-        if let Err(e) = write_projection_snapshot(working_dir) {
-            tracing::warn!(error = ?e, "failed to write projection snapshot after schedule_team");
+        if let Err(e) = write_projection_rollup(working_dir) {
+            tracing::warn!(error = ?e, "failed to write projection rollup after schedule_team");
         }
         result
     })
@@ -485,12 +485,12 @@ pub fn facade_list_tasks(working_dir: &Path) -> Result<Vec<FacadeTaskSummary>> {
 
 /// Return a snapshot for every session task across all persisted parent states.
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
-pub fn facade_list_session_tasks(working_dir: &Path) -> Result<Vec<FacadeSessionTaskSnapshot>> {
+pub fn facade_list_session_tasks(working_dir: &Path) -> Result<Vec<FacadeSessionTaskRollup>> {
     let mut out = Vec::new();
     for file in TaskState::state_files_from(working_dir) {
         let state = TaskState::load(&file.dir, &file.id)?;
         for task in state.session_tasks {
-            out.push(session_task_to_snapshot(task));
+            out.push(session_task_to_rollup(task));
         }
     }
     Ok(out)
@@ -501,13 +501,13 @@ pub fn facade_list_session_tasks(working_dir: &Path) -> Result<Vec<FacadeSession
 pub fn facade_get_session_task(
     working_dir: &Path,
     session_task_id: &str,
-) -> Result<Option<FacadeSessionTaskSnapshot>> {
+) -> Result<Option<FacadeSessionTaskRollup>> {
     let Some((_, task)) =
         TaskState::find_session_task_in_saved_states(working_dir, session_task_id)?
     else {
         return Ok(None);
     };
-    Ok(Some(session_task_to_snapshot(task)))
+    Ok(Some(session_task_to_rollup(task)))
 }
 
 /// Transition a session task to a new lifecycle state reported by an external
@@ -524,7 +524,7 @@ pub fn facade_update_session_task_status(
     working_dir: &Path,
     session_task_id: &str,
     status_str: &str,
-) -> std::result::Result<FacadeSessionTaskSnapshot, SessionTaskStatusError> {
+) -> std::result::Result<FacadeSessionTaskRollup, SessionTaskStatusError> {
     let new_status =
         parse_session_task_status(status_str).ok_or(SessionTaskStatusError::InvalidStatus)?;
 
@@ -548,9 +548,9 @@ pub fn facade_update_session_task_status(
         .cloned()
         .ok_or_else(|| anyhow::anyhow!("session task missing after save"))?;
 
-    let snapshot = session_task_to_snapshot(updated);
-    if let Err(e) = write_projection_snapshot(working_dir) {
-        tracing::warn!(error = ?e, "failed to write projection snapshot after status update");
+    let snapshot = session_task_to_rollup(updated);
+    if let Err(e) = write_projection_rollup(working_dir) {
+        tracing::warn!(error = ?e, "failed to write projection rollup after status update");
     }
     Ok(snapshot)
 }
@@ -564,7 +564,7 @@ pub fn facade_task_graph(working_dir: &Path) -> Result<FacadeTaskGraph> {
         let session_tasks = state
             .session_tasks
             .into_iter()
-            .map(session_task_to_snapshot)
+            .map(session_task_to_rollup)
             .collect();
         nodes.push(FacadeTaskGraphNode {
             id: state.id,
@@ -596,8 +596,8 @@ pub fn facade_list_todos(working_dir: &Path) -> Result<Vec<FacadeTodoItem>> {
     Ok(out)
 }
 
-fn session_task_to_snapshot(task: SessionTask) -> FacadeSessionTaskSnapshot {
-    FacadeSessionTaskSnapshot {
+fn session_task_to_rollup(task: SessionTask) -> FacadeSessionTaskRollup {
+    FacadeSessionTaskRollup {
         lifecycle_state: task.lifecycle_state.to_string(),
         worktree_path: task.worktree_path.as_ref().map(|p| p.display().to_string()),
         started_at_ms: task.started_at,

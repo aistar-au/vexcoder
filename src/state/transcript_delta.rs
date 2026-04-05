@@ -5,14 +5,13 @@
 //! are optimised for incremental display updates rather than
 //! conversation-level block tracking.
 //!
-//! This module is foundational infrastructure for ADR-041 D5–D7.
+//! This module is foundational infrastructure for ADR-041 D5ΓÇôD7.
 //! Delta accumulators are wired into TuiMode (model_update) and the
 //! draw-side methods are available for the render path switchover.
 
-use compact_str::CompactString;
 use std::collections::VecDeque;
 
-/// Category of streaming block — matches `StreamBlock` variants but
+/// Category of streaming block ΓÇö matches `StreamBlock` variants but
 /// is a lightweight copy-friendly discriminator for the draw layer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TranscriptBlockKind {
@@ -29,7 +28,7 @@ pub enum TranscriptBlockKind {
 /// transcript state from prefix markers.
 #[derive(Debug, Clone)]
 pub struct TranscriptDelta {
-    pub text: CompactString,
+    pub text: String,
     pub is_complete: bool,
     pub block_kind: TranscriptBlockKind,
 }
@@ -37,11 +36,11 @@ pub struct TranscriptDelta {
 /// Accumulates streaming text for a single block and extracts bounded
 /// deltas for the renderer.
 ///
-/// Uses bounded suffix comparison — `O(new_text)` instead of
-/// `O(total_content)` — to deduplicate cumulative updates without
+/// Uses bounded suffix comparison ΓÇö `O(new_text)` instead of
+/// `O(total_content)` ΓÇö to deduplicate cumulative updates without
 /// scanning the entire buffer.
 pub struct DeltaAccumulator {
-    content: CompactString,
+    content: String,
     last_emitted_len: usize,
     pending: VecDeque<TranscriptDelta>,
     block_kind: TranscriptBlockKind,
@@ -50,7 +49,7 @@ pub struct DeltaAccumulator {
 impl DeltaAccumulator {
     pub fn new(block_kind: TranscriptBlockKind) -> Self {
         Self {
-            content: CompactString::default(),
+            content: String::new(),
             last_emitted_len: 0,
             pending: VecDeque::new(),
             block_kind,
@@ -74,7 +73,7 @@ impl DeltaAccumulator {
             let complete = &new_region[..=last_nl];
             if !complete.is_empty() {
                 self.pending.push_back(TranscriptDelta {
-                    text: complete.into(),
+                    text: complete.to_string(),
                     is_complete: false,
                     block_kind: self.block_kind,
                 });
@@ -83,7 +82,7 @@ impl DeltaAccumulator {
         } else {
             // No newline yet: emit as partial chunk.
             self.pending.push_back(TranscriptDelta {
-                text: new_region.into(),
+                text: new_region.to_string(),
                 is_complete: false,
                 block_kind: self.block_kind,
             });
@@ -94,7 +93,7 @@ impl DeltaAccumulator {
     pub fn complete(&mut self) {
         let remaining = &self.content[self.last_emitted_len..];
         self.pending.push_back(TranscriptDelta {
-            text: remaining.into(),
+            text: remaining.to_string(),
             is_complete: true,
             block_kind: self.block_kind,
         });
@@ -108,7 +107,7 @@ impl DeltaAccumulator {
 
     #[allow(unused)]
     pub fn content(&self) -> &str {
-        self.content.as_str()
+        &self.content
     }
 
     #[allow(unused)]
@@ -123,9 +122,9 @@ impl DeltaAccumulator {
 /// every chunk), this function extracts only the new suffix using a
 /// bounded comparison window of `O(incoming.len())` rather than
 /// `O(existing.len())`.
-pub fn bounded_incremental_suffix(existing: &str, incoming: &str) -> CompactString {
+pub fn bounded_incremental_suffix(existing: &str, incoming: &str) -> String {
     if incoming.is_empty() {
-        return CompactString::default();
+        return String::new();
     }
 
     // Fast path: incoming is strictly longer and starts with existing.
@@ -133,18 +132,18 @@ pub fn bounded_incremental_suffix(existing: &str, incoming: &str) -> CompactStri
     let existing_len = existing.len();
     if incoming.len() > existing_len && incoming.as_bytes()[..existing_len] == *existing.as_bytes()
     {
-        return incoming[existing_len..].into();
+        return incoming[existing_len..].to_string();
     }
 
-    // Existing already contains incoming — redundant retransmission.
+    // Existing already contains incoming ΓÇö redundant retransmission.
     if existing_len >= incoming.len()
         && existing.as_bytes()[..incoming.len()] == *incoming.as_bytes()
     {
-        return CompactString::default();
+        return String::new();
     }
 
-    // No recognisable overlap — treat as pure delta.
-    incoming.into()
+    // No recognisable overlap ΓÇö treat as pure delta.
+    incoming.to_string()
 }
 
 #[cfg(test)]
@@ -153,28 +152,22 @@ mod tests {
 
     #[test]
     fn bounded_suffix_extracts_new_text() {
-        assert_eq!(
-            bounded_incremental_suffix("hello", "hello world").as_str(),
-            " world"
-        );
+        assert_eq!(bounded_incremental_suffix("hello", "hello world"), " world");
     }
 
     #[test]
     fn bounded_suffix_empty_incoming() {
-        assert_eq!(bounded_incremental_suffix("hello", "").as_str(), "");
+        assert_eq!(bounded_incremental_suffix("hello", ""), "");
     }
 
     #[test]
     fn bounded_suffix_redundant_retransmission() {
-        assert_eq!(
-            bounded_incremental_suffix("hello world", "hello").as_str(),
-            ""
-        );
+        assert_eq!(bounded_incremental_suffix("hello world", "hello"), "");
     }
 
     #[test]
     fn bounded_suffix_no_overlap() {
-        assert_eq!(bounded_incremental_suffix("aaa", "bbb").as_str(), "bbb");
+        assert_eq!(bounded_incremental_suffix("aaa", "bbb"), "bbb");
     }
 
     #[test]
@@ -183,7 +176,7 @@ mod tests {
         acc.append_delta("line one\nline two\n");
         let deltas = acc.flush_pending();
         assert_eq!(deltas.len(), 1);
-        assert_eq!(deltas[0].text.as_str(), "line one\nline two\n");
+        assert_eq!(deltas[0].text, "line one\nline two\n");
         assert!(!deltas[0].is_complete);
     }
 
@@ -193,7 +186,7 @@ mod tests {
         acc.append_delta("partial");
         let deltas = acc.flush_pending();
         assert_eq!(deltas.len(), 1);
-        assert_eq!(deltas[0].text.as_str(), "partial");
+        assert_eq!(deltas[0].text, "partial");
     }
 
     #[test]

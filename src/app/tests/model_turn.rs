@@ -978,7 +978,7 @@ async fn test_tui_review_files_flag_uses_context_assembler() {
         .as_ref()
         .expect("/review --files must capture assembled context");
     assert!(assembled
-        .file_snapshots
+        .file_rollups
         .iter()
         .any(|snapshot| snapshot.path == std::path::Path::new("src/lib.rs")));
     assert!(

@@ -90,22 +90,22 @@ registrations.
 
 VexCoder uses several crates that touch text at different abstraction layers.
 Each crate occupies a distinct role with no overlap.  The boundary rule is:
-**never use a search/indexing crate for internal string surgery, and never use
-a string-surgery crate for file-content search or structural parsing.**
+**never use a search/indexing crate for internal text processing, and never use
+a text-processing crate for file-content search or structural parsing.**
 
 ### Non-overlapping crate roles
 
 | Crate | Role | Scope | NOT used for |
 |-------|------|-------|-------------|
 | `aho-corasick` | Multi-pattern **literal** matching | File content search, keyword extraction from source text | Git output parsing, secret redaction |
-| `regex-lite` | Lightweight **internal string surgery** | Git output parsing, secret redaction, rate-limit extraction, format validation | Code search, RAG, semantic indexing, codebase search |
-| `tree-sitter` | **Structural AST** indexing | Language-aware parsing of source files into syntax trees | String surgery, log parsing, redaction |
+| `regex-lite` | Lightweight **internal text processing** | Git output parsing, secret redaction, rate-limit extraction, format validation | Code search, RAG, semantic indexing, codebase search |
+| `tree-sitter` | **Structural AST** indexing | Language-aware parsing of source files into syntax trees | Text processing, log parsing, redaction |
 | `globset` / `ignore` | **Filesystem traversal** | `.gitignore`-aware path matching and directory walking | File content search, string processing |
 | `quick-xml` | **XML tool-call** parsing | Structured extraction of `<function=...>` / `<parameter=...>` tags from model output | Git parsing, log analysis |
 | `indexmap` | **Ordered** insertion-preserving maps | Streaming tool-call accumulation preserving insertion order | Search indexing, text processing |
 | `tower-http` | **HTTP middleware** | Request/response tracing for the local API server | Application logic, text processing |
 
-### regex-lite -- ASCII-only internal string surgery
+### regex-lite -- ASCII-only internal text processing
 
 `regex-lite` is the **only** regex crate in the dependency tree.  All patterns
 are ASCII-only (`\d` = `[0-9]`, `\w` = `[0-9A-Za-z_]`).  Non-ASCII characters
@@ -173,6 +173,53 @@ patterns are detected and replaced with `[REDACTED]`:
 - Bearer tokens (preserving the `Bearer ` prefix)
 - Connection strings with embedded passwords (`protocol://user:password@host`)
 - Generic secret assignments (`API_KEY=...`, `token: "..."`, etc.)
+
+### Structured tool call design
+
+The stream parser handles three tool-call markup formats from model output:
+
+1. **XML tags** (`<function=name>`, `<parameter=key>value</parameter>`) -- extracted
+   by `quick-xml` in the text normaliser.  The normaliser uses zero-regex string
+   scanning (`starts_with`, `contains`, manual index arithmetic) to detect tag
+   boundaries, then delegates structured extraction to `quick-xml`.
+
+2. **JSON tool calls** -- parsed via `serde_json` from `tool_calls` arrays in
+   chat-completion deltas.  Streamed deltas accumulate into `indexmap::IndexMap`
+   entries preserving insertion order.
+
+3. **Anthropic-style content blocks** -- `tool_use` blocks with `id`, `name`,
+   and `input` fields parsed from content-block deltas.
+
+No regex is used in the streaming tool-call path.  `regex-lite` is reserved
+for post-hoc processing of git output and secret redaction, never for
+real-time stream parsing.
+
+### Crate expansion decisions
+
+The following crates are used by comparable CLI tools (grounded in the
+73-crate codex-rs workspace) but are not yet in vexcoder's dependency tree.
+Each is either accepted for the next batch or rejected with rationale.
+
+| Crate | Codex usage | vexcoder decision | Rationale |
+|-------|------------|-------------------|-----------|
+| `bm25` | Text ranking for code search results | **Next batch planned** (ADR-033 Phase 5) | Ranked retrieval improves `codebase_search` relevance.  Will sit behind the `aho-corasick` literal-match layer, not in the regex-lite text-processing layer. |
+| `similar` | Diff algorithm for computing inline text diffs | **Next batch planned** | Enables structured diff display in the transcript renderer.  Generic diff algorithm -- no branding dependency. |
+| `which` | Locating executables on `$PATH` | **Next batch planned** | `git_rollup.rs` currently assumes `git` is on PATH.  `which::which("git")` provides a clear error when git is missing. |
+| `walkdir` | Recursive directory traversal | **Design rejects** | vexcoder uses `ignore` (from the ripgrep ecosystem) which already provides recursive traversal with `.gitignore` support.  Adding `walkdir` would duplicate traversal logic.  `ignore` is the conventional choice for git-aware CLI tools. |
+| `notify` | Filesystem event watching | **Next batch planned** | Enables watch-mode for `git_rollup` to detect working-tree changes without polling.  Will integrate with the existing `git_rollup.rs` orchestration layer. |
+
+### Vexcoder-specific crates
+
+The following crates are in vexcoder's tree but not in codex-rs.  Each serves
+a design need specific to vexcoder's architecture.
+
+| Crate | vexcoder usage | Why codex-rs does not use it | Design rationale |
+|-------|---------------|------------------------------|-----------------|
+| `tower-http` | `TraceLayer` HTTP middleware for the local API server (`src/server/http.rs`) | Codex uses axum directly without tower middleware.  vexcoder's `LocalApiServer` (ADR-026) requires request/response tracing for debugging multi-agent sessions. | Conventional for axum-based servers needing observability. |
+| `fs2` | File-locking for `.vex/state/` durable writes | Codex uses a different persistence model. | Prevents concurrent vexcoder sessions from corrupting task-state files.  `write_json_safe` uses temp+fsync+rename; `fs2` adds advisory locking as a second safety layer. |
+| `portable-pty` | Pseudo-terminal allocation for sandboxed command execution | Codex uses its own sandbox crate with platform-specific PTY code. | vexcoder's command runner needs PTY for interactive tool output (e.g., `git commit` with editor).  `portable-pty` provides cross-platform PTY without platform-specific FFI. |
+| `rmcp` | MCP (Model Context Protocol) client for external tool providers | Codex has its own MCP implementation. | vexcoder supports `[[mcp_servers]]` config for connecting to external tool providers (ADR-024 PM-01).  `rmcp` is the standard Rust MCP client crate. |
+| `quick-xml` | XML tool-call tag parsing from model output | Codex uses string-based parsing for tool calls. | vexcoder's stream parser delegates structured XML extraction to `quick-xml` rather than hand-rolling an XML parser.  Conventional for XML processing in Rust. |
 
 ## Ongoing boundary work
 

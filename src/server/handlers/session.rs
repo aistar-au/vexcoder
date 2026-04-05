@@ -1,8 +1,8 @@
 use super::internal_anyhow;
 use crate::app::{
     facade_get_session_task, facade_list_session_tasks, facade_list_tasks, facade_list_todos,
-    facade_task_graph, facade_update_session_task_status, task_graph_snapshot_path,
-    todos_snapshot_path, write_projection_snapshot, SessionTaskStatusError,
+    facade_task_graph, facade_update_session_task_status, task_graph_rollup_path,
+    todos_rollup_path, write_projection_rollup, SessionTaskStatusError,
 };
 use crate::local_api::LocalApiState;
 use crate::server::util::{bad_request, conflict, not_found};
@@ -31,7 +31,7 @@ pub struct TaskSummaryResponse {
 }
 
 #[derive(Debug, Serialize)]
-pub struct SessionTaskSnapshotResponse {
+pub struct SessionTaskRollupResponse {
     pub id: String,
     pub parent_task_id: String,
     pub agent_id: String,
@@ -75,9 +75,9 @@ pub async fn list_tasks_handler(
 #[tracing::instrument(skip_all)]
 pub async fn list_session_tasks_handler(
     State(state): State<LocalApiState>,
-) -> Result<Json<Vec<SessionTaskSnapshotResponse>>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<Vec<SessionTaskRollupResponse>>, (StatusCode, Json<ControlResponse>)> {
     let tasks = facade_list_session_tasks(&state.config.working_dir).map_err(internal_anyhow)?;
-    Ok(Json(tasks.into_iter().map(snapshot_to_response).collect()))
+    Ok(Json(tasks.into_iter().map(rollup_to_response).collect()))
 }
 
 /// `GET /v1/session-tasks/{id}`
@@ -85,10 +85,10 @@ pub async fn list_session_tasks_handler(
 pub async fn get_session_task_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
-) -> Result<Json<SessionTaskSnapshotResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<SessionTaskRollupResponse>, (StatusCode, Json<ControlResponse>)> {
     let snap = facade_get_session_task(&state.config.working_dir, &id).map_err(internal_anyhow)?;
     match snap {
-        Some(s) => Ok(Json(snapshot_to_response(s))),
+        Some(s) => Ok(Json(rollup_to_response(s))),
         None => Err(not_found("session_task_not_found")),
     }
 }
@@ -99,11 +99,11 @@ pub async fn update_session_task_status_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
     Json(body): Json<UpdateSessionTaskStatusRequest>,
-) -> Result<Json<SessionTaskSnapshotResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<SessionTaskRollupResponse>, (StatusCode, Json<ControlResponse>)> {
     match facade_update_session_task_status(&state.config.working_dir, &id, &body.status) {
         Ok(snap) => {
-            state.publish_session_task_snapshot(snap.clone());
-            Ok(Json(snapshot_to_response(snap)))
+            state.publish_session_task_rollup(snap.clone());
+            Ok(Json(rollup_to_response(snap)))
         }
         Err(SessionTaskStatusError::NotFound) => Err(not_found("session_task_not_found")),
         Err(SessionTaskStatusError::InvalidStatus) => Err(bad_request("invalid_status")),
@@ -114,8 +114,8 @@ pub async fn update_session_task_status_handler(
     }
 }
 
-fn snapshot_to_response(s: crate::app::FacadeSessionTaskSnapshot) -> SessionTaskSnapshotResponse {
-    SessionTaskSnapshotResponse {
+fn rollup_to_response(s: crate::app::FacadeSessionTaskRollup) -> SessionTaskRollupResponse {
+    SessionTaskRollupResponse {
         id: s.id,
         parent_task_id: s.parent_task_id,
         agent_id: s.agent_id,
@@ -128,9 +128,9 @@ fn snapshot_to_response(s: crate::app::FacadeSessionTaskSnapshot) -> SessionTask
 }
 
 fn session_task_event(
-    snapshot: crate::app::FacadeSessionTaskSnapshot,
+    snapshot: crate::app::FacadeSessionTaskRollup,
 ) -> Result<Event, serde_json::Error> {
-    serde_json::to_string(&snapshot_to_response(snapshot))
+    serde_json::to_string(&rollup_to_response(snapshot))
         .map(|data| Event::default().event("session_task").data(data))
 }
 
@@ -161,17 +161,17 @@ pub async fn watch_session_task_handler(
 ) -> Result<impl IntoResponse, (StatusCode, Json<ControlResponse>)> {
     let mut updates = state.subscribe_session_task_events();
 
-    let initial_snapshot = facade_get_session_task(&state.config.working_dir, &id)
+    let initial_rollup = facade_get_session_task(&state.config.working_dir, &id)
         .map_err(internal_anyhow)?
         .ok_or_else(|| not_found("session_task_not_found"))?;
 
     let (tx, rx) = mpsc::unbounded_channel::<Result<Event, Infallible>>();
-    let initial_is_terminal = lifecycle_state_is_terminal(&initial_snapshot.lifecycle_state);
-    let mut last_updated_at = initial_snapshot.updated_at_ms;
+    let initial_is_terminal = lifecycle_state_is_terminal(&initial_rollup.lifecycle_state);
+    let mut last_updated_at = initial_rollup.updated_at_ms;
 
-    let initial_event = session_task_event(initial_snapshot).map_err(|err| {
+    let initial_event = session_task_event(initial_rollup).map_err(|err| {
         internal_anyhow(anyhow::anyhow!(
-            "failed to serialize session-task watch snapshot: {err}"
+            "failed to serialize session-task watch rollup: {err}"
         ))
     })?;
     tx.send(Ok(initial_event)).map_err(|_| {
@@ -233,7 +233,7 @@ pub struct TaskGraphNodeResponse {
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_id: Option<String>,
-    pub session_tasks: Vec<SessionTaskSnapshotResponse>,
+    pub session_tasks: Vec<SessionTaskRollupResponse>,
 }
 
 #[derive(Debug, Serialize)]
@@ -260,7 +260,7 @@ pub async fn task_graph_handler(
                 session_tasks: n
                     .session_tasks
                     .into_iter()
-                    .map(snapshot_to_response)
+                    .map(rollup_to_response)
                     .collect(),
             })
             .collect(),
@@ -332,8 +332,8 @@ pub async fn projection_handler(
     State(state): State<LocalApiState>,
 ) -> Result<Json<ProjectionStatusResponse>, (StatusCode, Json<ControlResponse>)> {
     let working_dir = &state.config.working_dir;
-    let graph_path = task_graph_snapshot_path(working_dir);
-    let todos_path = todos_snapshot_path(working_dir);
+    let graph_path = task_graph_rollup_path(working_dir);
+    let todos_path = todos_rollup_path(working_dir);
 
     // Capture timestamps before the refresh so the response reflects the
     // previous write (useful for callers that want to detect staleness).
@@ -341,7 +341,7 @@ pub async fn projection_handler(
     let todos_written = file_modified_ms(&todos_path);
 
     // Refresh the files; non-fatal on error.
-    if let Err(e) = write_projection_snapshot(working_dir) {
+    if let Err(e) = write_projection_rollup(working_dir) {
         tracing::warn!(error = ?e, "projection refresh failed during GET /v1/projection");
     }
 

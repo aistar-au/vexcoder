@@ -35,18 +35,18 @@ pub struct McpToolSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct McpServerSnapshot {
+pub struct McpServerRollup {
     pub name: String,
     pub transport: String,
     pub tools: Vec<McpToolSummary>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct McpRegistrySnapshot {
-    pub servers: Vec<McpServerSnapshot>,
+pub struct McpRegistryRollup {
+    pub servers: Vec<McpServerRollup>,
 }
 
-impl McpRegistrySnapshot {
+impl McpRegistryRollup {
     pub fn is_empty(&self) -> bool {
         self.servers.is_empty()
     }
@@ -64,7 +64,7 @@ impl McpRegistrySnapshot {
 
 #[derive(Clone)]
 pub struct McpRegistry {
-    snapshot: McpRegistrySnapshot,
+    rollup: McpRegistryRollup,
     tool_definitions: Vec<Value>,
     servers: Arc<Vec<McpConnectedServer>>,
     tool_lookup: Arc<HashMap<String, (usize, String)>>,
@@ -98,7 +98,7 @@ impl McpRegistry {
             return Ok(None);
         }
 
-        let mut snapshots = Vec::new();
+        let mut rollups = Vec::new();
         let mut servers: Vec<McpConnectedServer> = Vec::new();
         let mut tool_definitions = Vec::new();
         let mut tool_lookup = HashMap::new();
@@ -163,7 +163,7 @@ impl McpRegistry {
                 tool_lookup.insert(full_name, (server_index, short_name));
             }
             server_tools.sort_by(|left, right| left.full_name.cmp(&right.full_name));
-            snapshots.push(McpServerSnapshot {
+            rollups.push(McpServerRollup {
                 name: config.name.clone(),
                 transport: config.transport.as_str().to_string(),
                 tools: server_tools,
@@ -173,10 +173,10 @@ impl McpRegistry {
             });
         }
 
-        snapshots.sort_by(|left, right| left.name.cmp(&right.name));
+        rollups.sort_by(|left, right| left.name.cmp(&right.name));
 
         Ok(Some(Arc::new(Self {
-            snapshot: McpRegistrySnapshot { servers: snapshots },
+            rollup: McpRegistryRollup { servers: rollups },
             tool_definitions,
             servers: Arc::new(servers),
             tool_lookup: Arc::new(tool_lookup),
@@ -206,8 +206,8 @@ impl McpRegistry {
         runtime.block_on(Self::connect_all(configs))
     }
 
-    pub fn snapshot(&self) -> McpRegistrySnapshot {
-        self.snapshot.clone()
+    pub fn rollup(&self) -> McpRegistryRollup {
+        self.rollup.clone()
     }
 
     pub fn tool_definitions(&self) -> Vec<Value> {
