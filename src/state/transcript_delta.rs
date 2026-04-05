@@ -1,72 +1,55 @@
-//! Structured transcript deltas for the delta-native rendering path.
+//! Streaming block buffer for the structured transcript rendering path.
 //!
-//! These types carry only the changed region and metadata needed by
-//! reactive renderers. They parallel the `StreamBlock` variants but
-//! are optimised for incremental display updates rather than
-//! conversation-level block tracking.
+//! `StreamingBlockBuffer` accumulates the live text of a single streaming
+//! block and exposes it for the render path.  `bounded_incremental_suffix`
+//! deduplicates cumulative backend updates so callers only process net-new
+//! content.
 //!
-//! This module is foundational infrastructure for ADR-041 D5–D7.
-//! Delta accumulators are wired into TuiMode (model_update) and the
-//! render-side methods are available for the render path switchover.
+//! This module is foundational infrastructure for ADR-041.
+//! Buffers are wired into TuiMode (model_update) and consumed by the
+//! transcript display path to drive the streaming cursor.
 
-use std::collections::VecDeque;
-
-/// Accumulates streaming text for a single block and extracts bounded
-/// text deltas for the renderer.
-///
-/// Uses bounded suffix comparison — `O(new_text)` instead of
-/// `O(total_content)` — to deduplicate cumulative updates without
-/// scanning the entire buffer.
-pub struct DeltaAccumulator {
-    content: String,
-    last_emitted_len: usize,
-    pending: VecDeque<String>,
+/// Category of streaming block — matches `StreamBlock` variants but
+/// is a lightweight copy-friendly discriminator for the draw layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TranscriptBlockKind {
+    Thinking,
+    ToolCall,
+    ToolResult,
+    FinalText,
 }
 
-impl DeltaAccumulator {
-    pub fn new() -> Self {
+/// Accumulates the full text of a single streaming block.
+///
+/// The buffer is keyed by block index in `TuiMode::delta_accumulators`
+/// and queried by the render path to gate the streaming cursor and
+/// provide an authoritative live-content indicator.
+pub struct StreamingBlockBuffer {
+    content: String,
+    kind: TranscriptBlockKind,
+}
+
+impl StreamingBlockBuffer {
+    pub fn new(kind: TranscriptBlockKind) -> Self {
         Self {
             content: String::new(),
-            last_emitted_len: 0,
-            pending: VecDeque::new(),
+            kind,
         }
     }
 
-    /// Append text and extract only the newly added region.
-    ///
-    /// Splits on the last newline to preserve line boundaries for the
-    /// renderer while emitting partial chunks for character-level
-    /// streaming when no newline is present.
-    pub fn append_delta(&mut self, new_text: &str) {
-        if new_text.is_empty() {
-            return;
-        }
-
-        self.content.push_str(new_text);
-        let new_region = &self.content[self.last_emitted_len..];
-
-        if let Some(last_nl) = new_region.rfind('\n') {
-            let complete = &new_region[..=last_nl];
-            if !complete.is_empty() {
-                self.pending.push_back(complete.to_string());
-                self.last_emitted_len += complete.len();
-            }
-        } else {
-            // No newline yet: emit as partial chunk.
-            self.pending.push_back(new_region.to_string());
-        }
+    /// Append incoming text to the accumulated block content.
+    pub fn append_delta(&mut self, delta: &str) {
+        self.content.push_str(delta);
     }
 
-    /// Mark block as complete and flush remaining text.
-    pub fn complete(&mut self) {
-        let remaining = self.content[self.last_emitted_len..].to_string();
-        self.pending.push_back(remaining);
-        self.last_emitted_len = self.content.len();
+    /// Return the full accumulated content for this block.
+    pub fn content(&self) -> &str {
+        &self.content
     }
 
-    /// Drain pending text deltas for the renderer.
-    pub fn flush_pending(&mut self) -> Vec<String> {
-        self.pending.drain(..).collect()
+    /// Return the block kind for routing decisions in the render path.
+    pub fn kind(&self) -> TranscriptBlockKind {
+        self.kind
     }
 }
 
@@ -89,14 +72,14 @@ pub fn bounded_incremental_suffix(existing: &str, incoming: &str) -> String {
         return incoming[existing_len..].to_string();
     }
 
-    // Existing already contains incoming — redundant retransmission.
+    // Existing already contains incoming ΓÇö redundant retransmission.
     if existing_len >= incoming.len()
         && existing.as_bytes()[..incoming.len()] == *incoming.as_bytes()
     {
         return String::new();
     }
 
-    // No recognisable overlap — treat as pure delta.
+    // No recognisable overlap ΓÇö treat as pure delta.
     incoming.to_string()
 }
 
@@ -125,50 +108,34 @@ mod tests {
     }
 
     #[test]
-    fn accumulator_emits_line_deltas() {
-        let mut acc = DeltaAccumulator::new();
-        acc.append_delta("line one\nline two\n");
-        let deltas = acc.flush_pending();
-        assert_eq!(deltas.len(), 1);
-        assert_eq!(deltas[0], "line one\nline two\n");
+    fn buffer_accumulates_content() {
+        let mut buf = StreamingBlockBuffer::new(TranscriptBlockKind::FinalText);
+        buf.append_delta("line one\nline two\n");
+        assert_eq!(buf.content(), "line one\nline two\n");
+        assert_eq!(buf.kind(), TranscriptBlockKind::FinalText);
     }
 
     #[test]
-    fn accumulator_emits_partial_chunk() {
-        let mut acc = DeltaAccumulator::new();
-        acc.append_delta("partial");
-        let deltas = acc.flush_pending();
-        assert_eq!(deltas.len(), 1);
-        assert_eq!(deltas[0], "partial");
+    fn buffer_accumulates_partial_content() {
+        let mut buf = StreamingBlockBuffer::new(TranscriptBlockKind::Thinking);
+        buf.append_delta("partial");
+        assert_eq!(buf.content(), "partial");
     }
 
     #[test]
-    fn accumulator_complete_flushes_remainder() {
-        let mut acc = DeltaAccumulator::new();
-        acc.append_delta("hello\nworld");
-        let _ = acc.flush_pending();
-        acc.complete();
-        let deltas = acc.flush_pending();
-        assert!(!deltas.is_empty(), "complete must flush remaining text");
+    fn buffer_content_tracks_full_text() {
+        let mut buf = StreamingBlockBuffer::new(TranscriptBlockKind::FinalText);
+        buf.append_delta("hello ");
+        buf.append_delta("world");
+        assert_eq!(buf.content(), "hello world");
     }
 
     #[test]
-    fn accumulator_complete_includes_remaining_text() {
-        let mut acc = DeltaAccumulator::new();
-        acc.append_delta("hello ");
-        acc.append_delta("world");
-        let _ = acc.flush_pending();
-        acc.complete();
-        let deltas = acc.flush_pending();
-        assert!(deltas.iter().any(|d| d.contains("world")));
-    }
+    fn buffer_kind_reflects_block_type() {
+        let tool_buf = StreamingBlockBuffer::new(TranscriptBlockKind::ToolCall);
+        assert_eq!(tool_buf.kind(), TranscriptBlockKind::ToolCall);
 
-    #[test]
-    fn accumulator_multiple_newlines_emit_single_chunk() {
-        let mut acc = DeltaAccumulator::new();
-        acc.append_delta("first\nsecond\n");
-        let deltas = acc.flush_pending();
-        assert_eq!(deltas.len(), 1);
-        assert_eq!(deltas[0], "first\nsecond\n");
+        let result_buf = StreamingBlockBuffer::new(TranscriptBlockKind::ToolResult);
+        assert_eq!(result_buf.kind(), TranscriptBlockKind::ToolResult);
     }
 }

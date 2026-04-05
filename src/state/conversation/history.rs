@@ -1,4 +1,5 @@
 use super::ConversationManager;
+#[cfg(test)]
 use crate::config::CompactionConfig;
 use crate::tool_preview::{
     format_read_file_rollup_message, read_file_path, ReadFileRollupSummary,
@@ -128,7 +129,7 @@ impl ConversationManager {
 
     /// Estimate the total token count of the current message history using
     /// a byte-based heuristic (4 bytes per token).
-    #[allow(unused)]
+    #[cfg(test)]
     pub(super) fn estimate_history_tokens(&self) -> usize {
         self.api_messages
             .iter()
@@ -150,7 +151,7 @@ impl ConversationManager {
 
     /// Check whether proactive compaction should trigger based on the
     /// configured threshold and an estimated context window size.
-    #[allow(unused)]
+    #[cfg(test)]
     pub(super) fn should_compact_proactively(
         &self,
         config: &CompactionConfig,
@@ -172,7 +173,7 @@ impl ConversationManager {
     ///
     /// Preserves the MessagesV1 invariant that history starts with a
     /// plain user message.
-    #[allow(unused)]
+    #[cfg(test)]
     pub(super) fn compact_with_summary(
         &mut self,
         keep_recent_turns: usize,

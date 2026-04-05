@@ -262,11 +262,24 @@ impl TuiMode {
 
         let transcript_rows = self.transcript_display_rows();
         if !transcript_rows.is_empty() {
-            return (
-                "Transcript".to_string(),
-                transcript_rows,
-                OutputScrollAnchor::Bottom,
-            );
+            // While structured streaming is active, show accumulated live bytes
+            // in the pane title as a throughput indicator.  Uses the block
+            // buffers' content() method as the authoritative byte count.
+            let title = if self.structured_streaming_active {
+                let live_bytes: usize = self
+                    .delta_accumulators
+                    .values()
+                    .map(|buf| buf.content().len())
+                    .sum();
+                if live_bytes > 0 {
+                    format!("Transcript \u{00b7} {live_bytes}b")
+                } else {
+                    "Transcript".to_string()
+                }
+            } else {
+                "Transcript".to_string()
+            };
+            return (title, transcript_rows, OutputScrollAnchor::Bottom);
         }
 
         // No turn data yet — leave the transcript blank so the surface starts
@@ -323,8 +336,21 @@ impl TuiMode {
                 for segment in &self.current_turn_stream_segments {
                     rows.extend(segment.text.lines().map(ToOwned::to_owned));
                 }
-                if let Some(last) = rows.last_mut() {
-                    last.push('▌');
+                // Show the streaming cursor while a textual block is in-flight.
+                // Checking the delta buffers' kinds lets the cursor disappear the
+                // moment the last FinalText/Thinking block completes and leaves
+                // the map, even if stream_segments still has content.
+                let has_active_textual_block = self.delta_accumulators.values().any(|buf| {
+                    matches!(
+                        buf.kind(),
+                        crate::state::TranscriptBlockKind::FinalText
+                            | crate::state::TranscriptBlockKind::Thinking
+                    )
+                });
+                if has_active_textual_block {
+                    if let Some(last) = rows.last_mut() {
+                        last.push('▌');
+                    }
                 }
             } else if self.current_turn_response.is_empty() {
                 // No content yet — show the waiting status with elapsed time

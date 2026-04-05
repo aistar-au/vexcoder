@@ -364,9 +364,9 @@ pub struct TuiMode {
     /// Raw partial-JSON accumulator for streaming tool-call input, keyed by block index.
     /// Cleared when the block completes or the turn ends. ADR-021 Item 22.
     tool_input_raw_buffers: std::collections::HashMap<usize, String>,
-    /// Structured delta accumulators keyed by block index for the
-    /// delta-native transcript rendering path (ADR-041).
-    delta_accumulators: std::collections::HashMap<usize, crate::state::DeltaAccumulator>,
+    /// Streaming block buffers keyed by block index for live-content
+    /// tracking and the streaming cursor in the transcript render path (ADR-041).
+    delta_accumulators: std::collections::HashMap<usize, crate::state::StreamingBlockBuffer>,
     pending_quit: bool,
     quit_requested: bool,
     notes_path: Option<PathBuf>,

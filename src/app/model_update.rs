@@ -188,9 +188,18 @@ impl TuiMode {
                         }
                     }
                 }
-                // Create a delta accumulator for the new block.
-                self.delta_accumulators
-                    .insert(index, crate::state::DeltaAccumulator::new());
+                // Create a streaming block buffer for live-content tracking.
+                {
+                    use crate::state::{StreamingBlockBuffer, TranscriptBlockKind};
+                    let kind = match &block {
+                        StreamBlock::Thinking { .. } => TranscriptBlockKind::Thinking,
+                        StreamBlock::ToolCall { .. } => TranscriptBlockKind::ToolCall,
+                        StreamBlock::ToolResult { .. } => TranscriptBlockKind::ToolResult,
+                        StreamBlock::FinalText { .. } => TranscriptBlockKind::FinalText,
+                    };
+                    self.delta_accumulators
+                        .insert(index, StreamingBlockBuffer::new(kind));
+                }
                 match &block {
                     StreamBlock::ToolCall {
                         id, name, input, ..
@@ -407,9 +416,10 @@ impl TuiMode {
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
                 }
-                // Feed the delta accumulator for bounded-suffix extraction.
-                if let Some(acc) = self.delta_accumulators.get_mut(&index) {
-                    acc.append_delta(&delta);
+                // Feed the streaming block buffer so the render path can
+                // gate the live cursor on actual in-progress content.
+                if let Some(buf) = self.delta_accumulators.get_mut(&index) {
+                    buf.append_delta(&delta);
                 }
                 if let Some(block) = self.active_stream_blocks.get_mut(&index) {
                     match block {
@@ -452,12 +462,8 @@ impl TuiMode {
                 if self.history_state.turn_in_progress {
                     self.current_task.status = TaskStatus::Running;
                 }
-                // Complete and flush the delta accumulator, draining any
-                // pending deltas that were not yet consumed by the renderer.
-                if let Some(acc) = self.delta_accumulators.get_mut(&index) {
-                    acc.complete();
-                    let _ = acc.flush_pending();
-                }
+                // Clear the buffer; the render path will no longer show a
+                // cursor for this block once it is absent from the map.
                 self.delta_accumulators.remove(&index);
                 self.tool_input_raw_buffers.remove(&index);
                 self.active_stream_blocks.remove(&index);

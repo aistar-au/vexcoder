@@ -48,7 +48,7 @@ pub(crate) fn execute_tool_blocking_with_operator(
     execute_tool_dispatch_with_search_config(tool_operator, name, input, search_config)
 }
 
-#[cfg_attr(not(test), allow(unused))]
+#[cfg(test)]
 pub(crate) fn execute_tool_dispatch(
     tool_operator: &ToolOperator,
     name: &str,
