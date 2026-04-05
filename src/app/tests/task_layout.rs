@@ -810,6 +810,7 @@ fn test_task_layout_state_exposes_structured_footer_inputs() {
         git_status_summary: Some(" M src/main.rs".to_string()),
         recent_diff: None,
         has_staged_changes: false,
+        has_working_tree_changes: false,
         git_dir: None,
         committer_name: None,
         staged_paths: vec![],

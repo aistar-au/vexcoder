@@ -36,14 +36,20 @@ pub(crate) struct GitRollup {
 }
 
 impl GitRollup {
-    /// Return `true` when `parsed_status` contains one or more file entries
-    /// (staged or unstaged changes).  Provides a boolean summary path so
-    /// callers need not inspect `parsed_status` directly.
+    /// Return `true` when the git index contains one or more staged paths.
+    /// Uses `staged_paths` so the result matches the method name and excludes
+    /// purely unstaged working tree changes.
     pub(crate) fn has_staged_changes(&self) -> bool {
+        !self.staged_paths.is_empty()
+    }
+
+    /// Return `true` when the porcelain status contains at least one entry
+    /// with a non-space worktree column, indicating uncommitted working-tree
+    /// modifications (modified, deleted, or untracked files).
+    pub(crate) fn has_working_tree_changes(&self) -> bool {
         self.parsed_status
             .as_ref()
-            .map(|s| !s.entries.is_empty())
-            .unwrap_or(false)
+            .is_some_and(|ps| ps.entries.iter().any(|e| e.worktree != ' '))
     }
 }
 
@@ -433,27 +439,34 @@ mod tests {
         assert!(rollup.parsed_status.is_some());
     }
 
-    /// `discover_git_root` returns `Some` when called from a path that is
-    /// inside a git repository (this test file is inside one).
+    /// `discover_git_root` returns a usable repository root when the current
+    /// working directory is inside a git repository.
     #[test]
     fn test_discover_git_root_finds_repo() {
         let here = std::env::current_dir().expect("cwd must be available in tests");
-        let root = discover_git_root(&here);
+        let Some(root) = discover_git_root(&here) else {
+            // Not inside a git checkout (e.g. source tarball); skip.
+            return;
+        };
         assert!(
-            root.is_some(),
-            "expected a .git directory above the test working directory"
+            root.exists(),
+            "discovered git root should exist: {}",
+            root.display()
         );
     }
 
-    /// `gix_git_dir` returns the same `.git` path as `discover_git_root` when
-    /// both are called from the same working directory.
+    /// `gix_git_dir` returns a usable `.git` directory when the current
+    /// working directory is inside a git repository.
     #[test]
     fn test_gix_git_dir_returns_git_directory() {
         let here = std::env::current_dir().expect("cwd must be available in tests");
-        let dir = gix_git_dir(&here);
+        let Some(dir) = gix_git_dir(&here) else {
+            return;
+        };
         assert!(
-            dir.is_some(),
-            "expected gix to find a .git directory above the test working directory"
+            dir.exists(),
+            "discovered git directory should exist: {}",
+            dir.display()
         );
     }
 
@@ -463,6 +476,28 @@ mod tests {
     fn test_configured_git_user_name_does_not_panic() {
         // The result is either Some(name) or None; neither is an error here.
         let _ = configured_git_user_name();
+    }
+
+    /// `has_working_tree_changes` returns `true` when `parsed_status` contains
+    /// an entry with a non-space worktree column.
+    #[test]
+    fn test_has_working_tree_changes_detects_modified() {
+        let rollup = GitRollup {
+            parsed_status: Some(parse_git_status(" M src/lib.rs")),
+            ..GitRollup::default()
+        };
+        assert!(rollup.has_working_tree_changes());
+    }
+
+    /// `has_working_tree_changes` returns `false` when all entries are staged
+    /// (worktree column is a space).
+    #[test]
+    fn test_has_working_tree_changes_false_for_staged_only() {
+        let rollup = GitRollup {
+            parsed_status: Some(parse_git_status("M  src/lib.rs")),
+            ..GitRollup::default()
+        };
+        assert!(!rollup.has_working_tree_changes());
     }
 
     /// `watch_working_dir` constructs a watcher without panicking.

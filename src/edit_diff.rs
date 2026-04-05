@@ -129,4 +129,29 @@ mod tests {
         assert!(rendered.contains("@@"));
         assert!(rendered.contains("+ new line"));
     }
+
+    #[test]
+    fn test_format_unified_patch_produces_diff_when_inputs_differ() {
+        let old = "line one\nline two\nline three\n";
+        let new = "line one\nline changed\nline three\n";
+        let patch = format_unified_patch(old, new);
+        assert!(
+            !patch.is_empty(),
+            "diff of differing inputs must be non-empty"
+        );
+        assert!(
+            patch.contains("@@"),
+            "unified diff must contain hunk headers"
+        );
+    }
+
+    #[test]
+    fn test_format_unified_patch_returns_empty_for_identical_inputs() {
+        let same = "hello\nworld\n";
+        let patch = format_unified_patch(same, same);
+        assert!(
+            patch.is_empty(),
+            "identical inputs must produce empty patch"
+        );
+    }
 }

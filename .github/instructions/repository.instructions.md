@@ -14,9 +14,10 @@ applyTo: "**"
 - Do not use emojis or Unicode status symbols in any agent-authored output.
   This covers PR bodies, review text, commit messages, inline comments,
   plan text, log messages, and findings. Use plain ASCII and standard Markdown.
-- Do not use the phrase "unreachable code" when the Rust compiler term
-  `dead_code` would be more precise; use "unreferenced code" instead in prose
-  when `dead_code` itself cannot appear (see `scripts/check_forbidden_names.sh`).
+- Banned vocabulary: use "unused code", "unreferenced code", or "code that is
+  never called" instead of any phrasing flagged by
+  ``scripts/check_forbidden_names.sh``. The Rust compiler lint name may appear
+  only when quoting compiler output verbatim.
 
 ### Change philosophy
 

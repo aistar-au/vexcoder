@@ -26,6 +26,11 @@ pub struct AssembledContext {
     /// the most recent git rollup.  `false` when git context is disabled or
     /// the directory is not a git repository.
     pub has_staged_changes: bool,
+    /// Whether the porcelain status contains at least one entry with
+    /// working-tree modifications (modified, deleted, or untracked files).
+    /// `false` when git context is disabled or the directory is not a git
+    /// repository.
+    pub has_working_tree_changes: bool,
     /// Path to the `.git` directory as resolved by the pure-Rust gitoxide
     /// implementation.  `None` when git context is disabled or the directory
     /// is not inside a git repository.
@@ -162,6 +167,7 @@ impl ContextAssembler {
                 git_status_summary: None,
                 recent_diff: None,
                 has_staged_changes: false,
+                has_working_tree_changes: false,
                 git_dir: None,
                 committer_name: None,
                 staged_paths: Vec::new(),
@@ -177,12 +183,14 @@ impl ContextAssembler {
             self.max_diff_lines,
         )?;
         let has_staged_changes = git_rollup.has_staged_changes();
+        let has_working_tree_changes = git_rollup.has_working_tree_changes();
 
         Ok(AssembledContext {
             file_rollups,
             git_status_summary: git_rollup.git_status_summary,
             recent_diff: git_rollup.recent_diff,
             has_staged_changes,
+            has_working_tree_changes,
             git_dir: git_rollup.git_dir,
             committer_name: git_rollup.committer_name,
             staged_paths: git_rollup.staged_paths,

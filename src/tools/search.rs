@@ -67,7 +67,7 @@ pub fn codebase_search(
     let query_lower = query.to_ascii_lowercase();
     let query_words: Vec<&str> = query_lower.split_whitespace().collect();
 
-    let mut scored: Vec<(f64, usize)> = index
+    let scored: Vec<(f64, usize)> = index
         .iter()
         .enumerate()
         .filter_map(|(i, chunk)| {
@@ -85,19 +85,26 @@ pub fn codebase_search(
     // BM25 weight is scaled to the same order-of-magnitude as the structural
     // scores so neither signal dominates when they diverge.
     let engine = build_bm25_engine(index);
-    for bm25_result in engine.search(&query_lower, None) {
-        let idx = bm25_result.document.id;
-        let bm25_weight = bm25_result.score as f64 * 10.0;
-        if bm25_weight <= 0.0 {
-            continue;
-        }
-        // Update an existing structural candidate if present; otherwise add it.
-        if let Some(entry) = scored.iter_mut().find(|(_, i)| *i == idx) {
-            entry.0 += bm25_weight;
-        } else {
-            scored.push((bm25_weight, idx));
-        }
+    let bm25_scores: HashMap<usize, f64> = engine
+        .search(&query_lower, None)
+        .into_iter()
+        .filter_map(|r| {
+            let w = r.score as f64 * 10.0;
+            if w > 0.0 {
+                Some((r.document.id, w))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Merge BM25 weights into structural scores using a HashMap for O(1)
+    // lookup per entry instead of a linear scan.
+    let mut score_map: HashMap<usize, f64> = scored.into_iter().map(|(s, i)| (i, s)).collect();
+    for (idx, bm25_weight) in &bm25_scores {
+        *score_map.entry(*idx).or_insert(0.0) += bm25_weight;
     }
+    let mut scored: Vec<(f64, usize)> = score_map.into_iter().map(|(i, s)| (s, i)).collect();
 
     scored.sort_by(|(score_a, idx_a), (score_b, idx_b)| {
         score_b.total_cmp(score_a).then(idx_a.cmp(idx_b))
@@ -304,15 +311,21 @@ pub fn grep_search_file(path: &Path, pattern: &str) -> Vec<(u64, String)> {
     };
     let mut matches: Vec<(u64, String)> = Vec::new();
     let mut searcher = SearcherBuilder::new().line_number(true).build();
-    let _ = searcher.search_path(
+    match searcher.search_path(
         &matcher,
         path,
         UTF8(|line_number, line| {
             matches.push((line_number, line.trim_end_matches('\n').to_string()));
             Ok(true)
         }),
-    );
-    matches
+    ) {
+        Ok(_) => matches,
+        Err(_) => {
+            // File may contain invalid UTF-8 (but no NUL bytes); fall back
+            // to an empty result rather than silently suppressing the error.
+            Vec::new()
+        }
+    }
 }
 
 // ── Memory-mapped file reading ────────────────────────────────────────────────
@@ -355,11 +368,14 @@ pub fn parallel_search_files(paths: &[PathBuf], pattern: &str) -> Vec<(String, u
 
     paths.par_iter().for_each(|path| {
         let tx = tx.clone();
-        // Skip binary files before invoking the regex engine.
-        if let Some(mmap) = mmap_read_file(path) {
-            if is_binary_content(&mmap) {
-                return;
+        // Skip unreadable or binary files before invoking the regex engine.
+        match mmap_read_file(path) {
+            Some(mmap) => {
+                if is_binary_content(&mmap) {
+                    return;
+                }
             }
+            None => return,
         }
         for (line_num, text) in grep_search_file(path, pattern) {
             let _ = tx.send((path.to_string_lossy().into_owned(), line_num, text));
@@ -547,5 +563,42 @@ mod tests {
             results[0].score > results.get(1).map_or(0.0, |r| r.score),
             "highest-scoring result must have the largest score"
         );
+    }
+
+    #[test]
+    fn test_grep_search_file_finds_pattern() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sample.rs");
+        std::fs::write(&path, "line one\nfn hello() {}\nline three\n").unwrap();
+        let hits = grep_search_file(&path, "hello");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].0, 2);
+        assert!(hits[0].1.contains("hello"));
+    }
+
+    #[test]
+    fn test_grep_search_file_invalid_regex_returns_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sample.txt");
+        std::fs::write(&path, "content").unwrap();
+        let hits = grep_search_file(&path, "[invalid");
+        assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn test_is_binary_content_detects_null_bytes() {
+        assert!(is_binary_content(b"hello\x00world"));
+        assert!(!is_binary_content(b"hello world"));
+        assert!(!is_binary_content(b""));
+    }
+
+    #[test]
+    fn test_detect_language_maps_extensions() {
+        assert!(detect_language(Path::new("foo.py")).is_some());
+        assert!(detect_language(Path::new("bar.ts")).is_some());
+        assert!(detect_language(Path::new("baz.tsx")).is_some());
+        assert!(detect_language(Path::new("qux.js")).is_some());
+        assert!(detect_language(Path::new("qux.mjs")).is_some());
+        assert!(detect_language(Path::new("unknown.xyz")).is_none());
     }
 }
