@@ -26,7 +26,10 @@ pub enum TranscriptBlockKind {
 /// Carries the text delta, completion flag, and block kind so that
 /// the draw layer can apply minimal redraws without rebuilding
 /// transcript state from prefix markers.
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "delta-native transcript payload remains staged until the ratatui surface consumes incremental block deltas directly"
+)]
 #[derive(Debug, Clone)]
 pub struct TranscriptDelta {
     pub text: String,
