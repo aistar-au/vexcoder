@@ -189,17 +189,8 @@ impl TuiMode {
                     }
                 }
                 // Create a delta accumulator for the new block.
-                {
-                    use crate::state::{DeltaAccumulator, TranscriptBlockKind};
-                    let kind = match &block {
-                        StreamBlock::Thinking { .. } => TranscriptBlockKind::Thinking,
-                        StreamBlock::ToolCall { .. } => TranscriptBlockKind::ToolCall,
-                        StreamBlock::ToolResult { .. } => TranscriptBlockKind::ToolResult,
-                        StreamBlock::FinalText { .. } => TranscriptBlockKind::FinalText,
-                    };
-                    self.delta_accumulators
-                        .insert(index, DeltaAccumulator::new(kind));
-                }
+                self.delta_accumulators
+                    .insert(index, crate::state::DeltaAccumulator::new());
                 match &block {
                     StreamBlock::ToolCall {
                         id, name, input, ..
