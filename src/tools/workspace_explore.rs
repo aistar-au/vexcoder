@@ -5,6 +5,7 @@
 //! None of them start a model turn or modify any file.  No subprocess calls.
 
 use anyhow::{Context, Result};
+use itertools::Itertools as _;
 use std::fs;
 
 use super::operator::ToolOperator;
@@ -40,10 +41,10 @@ pub fn list_dir(operator: &ToolOperator, path: Option<&str>, max_entries: usize)
         .with_context(|| format!("list_dir: failed to read '{}'", root.display()))?
         .collect::<std::result::Result<Vec<_>, _>>()
         .with_context(|| format!("list_dir: error iterating '{}'", root.display()))?;
+    let total = raw.len();
     raw.sort_by_key(|e| e.path());
 
     let mut entries = Vec::new();
-    let total = raw.len();
 
     for de in raw {
         let p = de.path();
@@ -169,6 +170,70 @@ fn build_glob_matcher(pattern: &str) -> Option<globset::GlobSet> {
 
 fn glob_path_match(matcher: &globset::GlobSet, path: &str) -> bool {
     matcher.is_match(path) || matcher.is_match(path.rsplit('/').next().unwrap_or(path))
+}
+
+/// Return workspace-relative paths whose **basename** matches a Rust regex `pattern`.
+///
+/// - `pattern`: case-insensitive regex tested against the file's name component only.
+/// - `max_results`: capped at [`GLOB_FILES_MAX`].
+///
+/// Gitignore rules from the workspace root are applied.  Results are sorted
+/// alphabetically by workspace-relative path.
+pub fn regex_files(operator: &ToolOperator, pattern: &str, max_results: usize) -> Result<String> {
+    let pattern = pattern.trim();
+    if pattern.is_empty() {
+        return Ok("(regex_files requires a non-empty pattern)".to_string());
+    }
+
+    let Some(re) = build_regex_matcher(pattern) else {
+        return Ok("(invalid regex pattern — use a valid Rust regex)".to_string());
+    };
+
+    let ignore = WorkspaceIgnore::load(operator.working_dir());
+    let limit = max_results.clamp(1, GLOB_FILES_MAX);
+
+    let all_files = operator
+        .walk_workspace_files_ignoring(operator.working_dir(), &ignore)
+        .context("regex_files: failed to walk workspace")?;
+
+    let matched: Vec<String> = all_files
+        .into_iter()
+        .filter_map(|p| {
+            let rel = make_relative(operator.working_dir(), &p)
+                .to_string_lossy()
+                .replace('\\', "/");
+            let basename = rel.rsplit('/').next().unwrap_or(&rel);
+            if re.is_match(basename) {
+                Some(rel)
+            } else {
+                None
+            }
+        })
+        .sorted()
+        .collect();
+
+    if matched.is_empty() {
+        return Ok("(no files found)".to_string());
+    }
+
+    let total = matched.len();
+    let view = &matched[..limit.min(total)];
+    let mut out = view.join("\n");
+    if total > limit {
+        out.push_str(&format!(
+            "\n[results truncated — showing first {} of {} matches]",
+            limit, total
+        ));
+    }
+    Ok(out)
+}
+
+/// Build a case-insensitive regex from `pattern` using `regex-lite`.
+fn build_regex_matcher(pattern: &str) -> Option<regex_lite::Regex> {
+    regex_lite::RegexBuilder::new(pattern)
+        .case_insensitive(true)
+        .build()
+        .ok()
 }
 
 #[cfg(test)]

@@ -7,8 +7,9 @@ use crate::turn_evidence::{
 use crate::types::ContentBlock;
 use crate::usage::TurnTokens;
 use chrono::{Timelike, Utc};
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 
 mod derived;
 
@@ -157,7 +158,7 @@ pub struct RuntimeEnvelopeNormalizer {
     turn: u32,
     next_seq: u64,
     assistant_text: String,
-    pending_tool_calls: HashMap<String, PendingToolCall>,
+    pending_tool_calls: IndexMap<String, PendingToolCall>,
     turn_changed_files: BTreeSet<String>,
     tool_id_counter: u64,
 }
@@ -169,7 +170,7 @@ impl RuntimeEnvelopeNormalizer {
             turn: 0,
             next_seq: 1,
             assistant_text: String::new(),
-            pending_tool_calls: HashMap::new(),
+            pending_tool_calls: IndexMap::new(),
             turn_changed_files: BTreeSet::new(),
             tool_id_counter: 0,
         }
@@ -415,7 +416,7 @@ impl RuntimeEnvelopeNormalizer {
         output: String,
         is_error: bool,
     ) -> RuntimeEnvelope {
-        if let Some(pending) = self.pending_tool_calls.remove(source_id) {
+        if let Some(pending) = self.pending_tool_calls.shift_remove(source_id) {
             if !is_error {
                 note_changed_files_from_tool_call(
                     &mut self.turn_changed_files,

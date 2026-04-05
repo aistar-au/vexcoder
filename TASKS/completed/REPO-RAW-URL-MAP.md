@@ -216,8 +216,8 @@ Total tracked files: 332
 | `src/runtime/edit_loop.rs` | 238 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/edit_loop.rs> |
 | `src/runtime/edit_loop/tests.rs` | 412 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/edit_loop/tests.rs> |
 | `src/runtime/frontend.rs` | 36 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/frontend.rs> |
-| `src/runtime/git_snapshot.rs` | 237 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/git_snapshot.rs> |
-| `src/runtime/json_handoff.rs` | 595 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/json_handoff.rs> |
+| `src/runtime/git_snapshot.rs` | 243 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/git_snapshot.rs> |
+| `src/runtime/json_handoff.rs` | 596 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/json_handoff.rs> |
 | `src/runtime/json_handoff/derived.rs` | 77 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/json_handoff/derived.rs> |
 | `src/runtime/json_handoff/tests.rs` | 381 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/json_handoff/tests.rs> |
 | `src/runtime/loop.rs` | 269 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/loop.rs> |
@@ -236,7 +236,7 @@ Total tracked files: 332
 | `src/server.rs` | 142 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server.rs> |
 | `src/server/handlers/mod.rs` | 515 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/handlers/mod.rs> |
 | `src/server/handlers/session.rs` | 355 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/handlers/session.rs> |
-| `src/server/http.rs` | 179 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/http.rs> |
+| `src/server/http.rs` | 180 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/http.rs> |
 | `src/server/socket.rs` | 78 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/socket.rs> |
 | `src/server/sse.rs` | 22 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/sse.rs> |
 | `src/server/tests.rs` | 32 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests.rs> |
@@ -281,7 +281,7 @@ Total tracked files: 332
 | `src/terminal.rs` | 82 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/terminal.rs> |
 | `src/test_support.rs` | 6 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/test_support.rs> |
 | `src/tool_preview.rs` | 487 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tool_preview.rs> |
-| `src/tools.rs` | 11 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools.rs> |
+| `src/tools.rs` | 10 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools.rs> |
 | `src/tools/embed.rs` | 223 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/embed.rs> |
 | `src/tools/index.rs` | 536 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/index.rs> |
 | `src/tools/operator/core.rs` | 153 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/operator/core.rs> |
@@ -292,7 +292,7 @@ Total tracked files: 332
 | `src/tools/operator/search.rs` | 184 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/operator/search.rs> |
 | `src/tools/search.rs` | 415 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/search.rs> |
 | `src/tools/semantic.rs` | 461 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/semantic.rs> |
-| `src/tools/workspace_explore.rs` | 400 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/workspace_explore.rs> |
+| `src/tools/workspace_explore.rs` | 465 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/workspace_explore.rs> |
 | `src/tools/workspace_ignore.rs` | 161 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/workspace_ignore.rs> |
 | `src/tui_frontend.rs` | 651 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_frontend.rs> |
 | `src/tui_frontend/picker.rs` | 233 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_frontend/picker.rs> |

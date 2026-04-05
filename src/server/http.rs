@@ -12,6 +12,7 @@ use hyper_util::service::TowerToHyperService;
 use std::sync::Arc;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
+use tower_http::trace::TraceLayer;
 
 use super::handlers::{
     agents_handler, approve_handler, delegate_handler, get_session_task_handler, health_handler,
@@ -64,6 +65,7 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
         .route("/v1/todos", get(list_todos_handler))
         .route("/v1/projection", get(projection_handler))
         .with_state(state)
+        .layer(TraceLayer::new_for_http())
 }
 
 pub fn build_http_router(state: LocalApiState, auth: HttpSurfaceSettings) -> Router {

@@ -252,7 +252,10 @@ Candidate implementation areas:
 
 ### Open / In-Progress
 
-_No open feature branches at this time._
+| Task | Branch | PR | Status | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| Ratatui-T1T3 | `work/vexcoder-ratatui-debug-fixups` | #341 | **Merged** | Post-merge chrono/dirs hard-cutover: remove all `SystemTime`/`UNIX_EPOCH` and manual XDG walk |
+| Ratatui-T4 | `work/vexcoder-tier4-ratatui-stack` | Open | **In Review** | Tier 4 crate wiring: `indexmap`, `itertools`, `regex-lite`, `bstr`, `tower-http`, `pretty_assertions`, `assert_cmd` |
 
 ### Recently Merged / Closed
 

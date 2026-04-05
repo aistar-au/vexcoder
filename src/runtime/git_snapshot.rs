@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use bstr::ByteSlice as _;
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -148,19 +149,25 @@ fn run_git_command_blocking(
         if let Some(status) = child.try_wait().context("failed waiting for git command")? {
             let stdout_bytes = stdout_thread.join().unwrap_or_default();
             let stderr_bytes = stderr_thread.join().unwrap_or_default();
-            let stdout_buf = String::from_utf8_lossy(&stdout_bytes);
-            let stderr_buf = String::from_utf8_lossy(&stderr_bytes);
 
             if status.success() {
                 return Ok(GitCommandResult {
-                    output: Some(stdout_buf.trim().to_string()),
+                    output: Some(
+                        stdout_bytes
+                            .as_bstr()
+                            .trim()
+                            .as_bstr()
+                            .to_str_lossy()
+                            .into_owned(),
+                    ),
                     ..GitCommandResult::default()
                 });
             }
 
-            if stderr_buf
+            if stderr_bytes
+                .as_bstr()
                 .to_ascii_lowercase()
-                .contains("not a git repository")
+                .contains_str("not a git repository")
             {
                 return Ok(GitCommandResult {
                     non_git_repo: true,
