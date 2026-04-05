@@ -65,16 +65,19 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
         .route("/v1/todos", get(list_todos_handler))
         .route("/v1/projection", get(projection_handler))
         .with_state(state)
-        .layer(TraceLayer::new_for_http())
 }
 
 pub fn build_http_router(state: LocalApiState, auth: HttpSurfaceSettings) -> Router {
     let expected_header = Arc::<str>::from(format!("Bearer {}", auth.bearer_token));
     let hsts_enabled = auth.hsts_enabled;
-    build_router_with_state(state).layer(middleware::from_fn(move |request, next| {
-        let expected_header = Arc::clone(&expected_header);
-        async move { authorize_http_request(request, next, expected_header, hsts_enabled).await }
-    }))
+    build_router_with_state(state)
+        .layer(middleware::from_fn(move |request, next| {
+            let expected_header = Arc::clone(&expected_header);
+            async move {
+                authorize_http_request(request, next, expected_header, hsts_enabled).await
+            }
+        }))
+        .layer(TraceLayer::new_for_http())
 }
 
 async fn authorize_http_request(

@@ -236,7 +236,7 @@ Total tracked files: 333
 | `src/server.rs` | 142 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server.rs> |
 | `src/server/handlers/mod.rs` | 515 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/handlers/mod.rs> |
 | `src/server/handlers/session.rs` | 355 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/handlers/session.rs> |
-| `src/server/http.rs` | 180 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/http.rs> |
+| `src/server/http.rs` | 183 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/http.rs> |
 | `src/server/socket.rs` | 78 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/socket.rs> |
 | `src/server/sse.rs` | 22 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/sse.rs> |
 | `src/server/tests.rs` | 32 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/server/tests.rs> |
@@ -292,7 +292,7 @@ Total tracked files: 333
 | `src/tools/operator/search.rs` | 184 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/operator/search.rs> |
 | `src/tools/search.rs` | 415 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/search.rs> |
 | `src/tools/semantic.rs` | 461 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/semantic.rs> |
-| `src/tools/workspace_explore.rs` | 465 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/workspace_explore.rs> |
+| `src/tools/workspace_explore.rs` | 523 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/workspace_explore.rs> |
 | `src/tools/workspace_ignore.rs` | 161 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/workspace_ignore.rs> |
 | `src/tui_frontend.rs` | 651 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_frontend.rs> |
 | `src/tui_frontend/picker.rs` | 233 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_frontend/picker.rs> |

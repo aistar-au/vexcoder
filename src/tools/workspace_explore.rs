@@ -462,4 +462,62 @@ mod tests {
         assert!(list_dir(&op, None, 10).is_ok());
         assert!(glob_files(&op, "**/*.rs", 10).is_ok());
     }
+
+    // ── regex_files ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_regex_files_matches_by_basename() {
+        let ws = make_workspace(&["src/main.rs", "src/lib.rs", "Cargo.toml"]);
+        let out = regex_files(&op(&ws), r"\.rs$", 50).unwrap();
+        assert!(out.contains("src/main.rs"), "expected main.rs: {out}");
+        assert!(out.contains("src/lib.rs"), "expected lib.rs: {out}");
+        assert!(
+            !out.contains("Cargo.toml"),
+            "toml must not match .rs: {out}"
+        );
+    }
+
+    #[test]
+    fn test_regex_files_case_insensitive() {
+        let ws = make_workspace(&["src/Main.RS", "src/lib.rs"]);
+        let out = regex_files(&op(&ws), r"main\.rs$", 50).unwrap();
+        assert!(
+            out.contains("Main.RS"),
+            "expected case-insensitive match: {out}"
+        );
+        assert!(!out.contains("lib.rs"), "lib.rs must not match: {out}");
+    }
+
+    #[test]
+    fn test_regex_files_invalid_pattern_returns_message() {
+        let ws = make_workspace(&["a.rs"]);
+        let out = regex_files(&op(&ws), r"[invalid", 50).unwrap();
+        assert!(
+            out.contains("invalid regex"),
+            "expected invalid-pattern message: {out}"
+        );
+    }
+
+    #[test]
+    fn test_regex_files_respects_gitignore() {
+        let ws = make_workspace_with_gitignore(&["src/main.rs", "target/debug.rs"], "target/\n");
+        let out = regex_files(&op(&ws), r"\.rs$", 50).unwrap();
+        assert!(out.contains("src/main.rs"), "expected main.rs: {out}");
+        assert!(
+            !out.contains("target/debug.rs"),
+            "target/ must be gitignore-filtered: {out}"
+        );
+    }
+
+    #[test]
+    fn test_regex_files_truncation_annotation() {
+        let files: Vec<String> = (0..10).map(|i| format!("test_{i}.rs")).collect();
+        let files_ref: Vec<&str> = files.iter().map(String::as_str).collect();
+        let ws = make_workspace(&files_ref);
+        let out = regex_files(&op(&ws), r"\.rs$", 3).unwrap();
+        assert!(
+            out.contains("[results truncated"),
+            "expected truncation annotation: {out}"
+        );
+    }
 }
