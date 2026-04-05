@@ -103,7 +103,7 @@ demand.
 ### D5: Structured transcript delta types
 
 `TranscriptDelta` and `TranscriptBlockKind` types are added in
-`src/state/transcript_delta.rs` alongside a `DeltaAccumulator` that
+`src/state/transcript_delta.rs` alongside a streaming block buffer that
 uses bounded suffix comparison — O(new_text) instead of
 O(total_content) — to deduplicate cumulative streaming updates.
 
@@ -122,10 +122,9 @@ It reads from `TaskLayoutState.output_rows` (populated by
 `expand_rows_for_display()` in `src/ui/render/transcript.rs` applies
 word-wrap and structural detection for all row kinds before rendering.
 
-The earlier D6 design for `apply_transcript_delta()`,
-`consume_transcript_deltas()`, and `format_compact_paragraph()` was
-superseded by the ratatui-native cutover (PR 347); those symbols were
-not carried forward into `src/ui/render/`.
+The earlier D6 delta-consumer helper design was superseded by the
+ratatui-native cutover (PR 347); that staged helper set was not carried
+forward into `src/ui/render/`.
 
 ### D7: Bounded suffix deduplication
 
@@ -230,7 +229,7 @@ The buffer's `content()` and `kind()` methods are used in production:
   populate the "Transcript · Nb" live-throughput indicator in the pane title
   during structured streaming.
 
-See Amendment D15 for the rename from `DeltaAccumulator` to `StreamingBlockBuffer`.
+See Amendment D16 for the streaming block buffer rename.
 
 ---
 
@@ -320,9 +319,9 @@ Test coverage:
 
 ## Amendment — 2026-05-04: StreamingBlockBuffer rename and unused-code elimination
 
-### D15: Rename DeltaAccumulator → StreamingBlockBuffer, remove staged infrastructure
+### D16: Rename the accumulator type to StreamingBlockBuffer, remove staged infrastructure
 
-`DeltaAccumulator` is renamed to `StreamingBlockBuffer` — a name that
+The older accumulator type is renamed to `StreamingBlockBuffer` — a name that
 communicates its role: accumulating the live text of a single streaming
 block for the transcript render path.
 
@@ -338,10 +337,9 @@ eliminate unused-code suppressions:
   `kind: TranscriptBlockKind` with `new()`, `append_delta()`,
   `content()`, and `kind()` as its public surface.
 
-- The `#[cfg_attr(not(test), expect(dead_code))]` annotation on
-  `TranscriptDelta` and the `#[allow(unused)]` annotations on
-  `content()` and `set_block_kind()` are removed together with the
-  unused-code warnings they were suppressing.
+- The temporary lint-suppression annotation on `TranscriptDelta` and the
+  `#[allow(unused)]` annotations on `content()` and `set_block_kind()` are
+  removed together with the unused-code warnings they were suppressing.
 
 Production wiring of `content()` and `kind()`:
 - `transcript_display_rows()` reads `kind()` from all active buffers to

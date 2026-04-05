@@ -334,6 +334,48 @@ fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
 }
 
 #[test]
+fn task_layout_renders_status_row_on_primary_surface() {
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let state = crate::app::TaskLayoutState {
+        task_id: "task-status".into(),
+        status_line: "mode: task | approval: auto | branch: work/pr347".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
+        timeline_entries: vec![],
+        selected_step: 0,
+        total_steps: 0,
+        output_title: "Transcript".into(),
+        output_rows: vec!["status row stays visible".into()],
+        output_scroll_offset: 0,
+        output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
+        changed_files: vec![],
+        pending_approval: None,
+        input_hint: "> ".into(),
+        composer_text: String::new(),
+        composer_cursor: 0,
+        composer_focused: true,
+        follow_mode: true,
+        picker_overlay: vec![],
+        working_dir: String::new(),
+        model_url: String::new(),
+    };
+
+    terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+
+    let rendered = terminal.backend().buffer().clone();
+    let flat = rendered
+        .content()
+        .iter()
+        .map(|c| c.symbol())
+        .collect::<Vec<_>>()
+        .join("");
+    assert!(
+        flat.contains("mode: task | approval: auto | branch: work/pr347"),
+        "task surface must keep the status row visible"
+    );
+}
+
+#[test]
 fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
     let backend = TestBackend::new(80, 40);
     let mut terminal = Terminal::new(backend).unwrap();

@@ -314,13 +314,14 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     let input_width = frame.area().width.saturating_sub(2).max(1) as usize;
     let layout = split_four_region_layout(
         frame.area(),
-        0,
+        1,
         preferred_four_region_input_rows_for_content(
             frame.area().height,
             input_visual_rows(&state.composer_text, input_width) as u16,
         ),
     );
     frame.render_widget(Clear, frame.area());
+    render_status_line(frame, layout.header, &state.status_line);
 
     // --- Output / Inspector pane ---
     let expanded_output_rows = expand_rows_for_display(&state.output_rows, layout.output.width);
