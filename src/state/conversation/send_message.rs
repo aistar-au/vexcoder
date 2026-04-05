@@ -283,7 +283,7 @@ impl ConversationManager {
             let mut tool_use_blocks: Vec<ContentBlock> =
                 tool_use_blocks.into_iter().flatten().collect();
             if tool_use_blocks.is_empty() && self.client.is_local_endpoint() {
-                let tagged_calls = tool_parser.parse(&assistant_text);
+                let tagged_calls = dedupe_tagged_tool_calls(tool_parser.parse(&assistant_text));
                 if !tagged_calls.is_empty() {
                     used_tagged_fallback = true;
                     assistant_text_for_history =
