@@ -186,22 +186,12 @@ struct ReviewArgs {
     instruction: Option<String>,
 }
 
+#[derive(Default)]
 struct HistoryState {
     lines: Vec<String>,
     turn_in_progress: bool,
     cancel_pending: bool,
     active_assistant_index: Option<usize>,
-}
-
-impl Default for HistoryState {
-    fn default() -> Self {
-        Self {
-            lines: Vec::new(),
-            turn_in_progress: false,
-            cancel_pending: false,
-            active_assistant_index: None,
-        }
-    }
 }
 
 #[derive(Default)]

@@ -377,13 +377,12 @@ impl ConversationManager {
                 // Local models often loop on the same read-only call because
                 // they fail to incorporate the prior tool result into their
                 // context. Use a tighter threshold for local endpoints.
-                let repeat_threshold = if has_empty_path_call {
-                    1
-                } else if self.client.is_local_endpoint() {
-                    1
-                } else {
-                    2
-                };
+                let repeat_threshold =
+                    if has_empty_path_call || self.client.is_local_endpoint() {
+                        1
+                    } else {
+                        2
+                    };
 
                 if repeated_read_only_rounds >= repeat_threshold {
                     if !repeated_round_nudge_used
