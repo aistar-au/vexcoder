@@ -134,8 +134,7 @@ fn re_apply_conflict() -> &'static regex_lite::Regex {
 fn re_apply_rejected() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        regex_lite::Regex::new(r"(?i)(?:rejected|error:.*rejected).*?(?:for|to)\s+(.+)$")
-            .unwrap()
+        regex_lite::Regex::new(r"(?i)(?:rejected|error:.*rejected).*?(?:for|to)\s+(.+)$").unwrap()
     })
 }
 
@@ -168,9 +167,7 @@ fn re_log_oneline() -> &'static regex_lite::Regex {
 /// Matches `git diff --name-status` lines: `<status>\t<path>[\t<new_path>]`.
 fn re_name_status_line() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        regex_lite::Regex::new(r"^([AMDRTCUX])\d*\t(.+?)(?:\t(.+))?$").unwrap()
-    })
+    RE.get_or_init(|| regex_lite::Regex::new(r"^([AMDRTCUX])\d*\t(.+?)(?:\t(.+))?$").unwrap())
 }
 
 // ---------------------------------------------------------------------------
@@ -501,10 +498,7 @@ mod tests {
         assert_eq!(parsed.entries[0].hash, "f9d84db");
         assert_eq!(parsed.entries[0].subject, "Merge pull request #341");
         assert_eq!(parsed.entries[1].hash, "48f5d98");
-        assert_eq!(
-            parsed.entries[1].subject,
-            "fix: replace legacy SystemTime"
-        );
+        assert_eq!(parsed.entries[1].subject, "fix: replace legacy SystemTime");
     }
 
     #[test]
@@ -545,10 +539,7 @@ mod tests {
         assert_eq!(parsed.entries.len(), 1);
         assert_eq!(parsed.entries[0].status, 'R');
         assert_eq!(parsed.entries[0].path, "src/old.rs");
-        assert_eq!(
-            parsed.entries[0].new_path.as_deref(),
-            Some("src/new.rs")
-        );
+        assert_eq!(parsed.entries[0].new_path.as_deref(), Some("src/new.rs"));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -26,6 +26,21 @@ pub(crate) struct GitCommandResult {
     pub(crate) output: Option<String>,
     pub(crate) non_git_repo: bool,
     pub(crate) timed_out: bool,
+}
+
+/// Resolve the path to the `git` executable, returning an error with a
+/// concrete message when `git` is not found on `$PATH`.
+///
+/// Uses `which::which("git")` so the caller gets a diagnosis ("git not found
+/// on PATH") rather than a cryptic spawn failure.
+pub(crate) fn resolve_git_path() -> Result<PathBuf> {
+    which::which("git").map_err(|err| {
+        anyhow!(
+            "git executable not found on PATH: {}. \
+             Install git or add it to PATH before running vexcoder.",
+            err
+        )
+    })
 }
 
 pub(crate) fn collect_git_rollup(
@@ -54,9 +69,7 @@ pub(crate) fn collect_git_rollup(
         .output
         .map(|value| limit_lines(&value, max_diff_lines));
 
-    let parsed_status = git_status_summary
-        .as_deref()
-        .map(parse_git_status);
+    let parsed_status = git_status_summary.as_deref().map(parse_git_status);
 
     if git_status.timed_out {
         append_annotation(
@@ -123,7 +136,8 @@ fn run_git_command_blocking(
     args: Vec<String>,
     cancel: Arc<AtomicBool>,
 ) -> Result<GitCommandResult> {
-    let mut child = Command::new("git")
+    let git_path = resolve_git_path()?;
+    let mut child = Command::new(git_path)
         .current_dir(working_dir)
         .args(args)
         .stdout(Stdio::piped())
@@ -237,6 +251,47 @@ pub(crate) fn resolve_git_timeout_ms(default_ms: u64) -> u64 {
         },
         Err(_) => default_ms,
     }
+}
+
+/// Start a filesystem watcher on `working_dir` and invoke `on_change` each
+/// time any file in the directory tree is created, modified, or removed.
+///
+/// The watcher runs until the returned `notify::RecommendedWatcher` is
+/// dropped.  Callers retain ownership of the watcher so the watch lifetime
+/// is tied to the owning context (e.g., a long-lived task or session).
+///
+/// This is the integration seam for `notify`-based watch mode in the git
+/// rollup layer.  It is intentionally kept narrow: the callback receives only
+/// a `Vec<PathBuf>` of changed paths so the caller decides how to respond
+/// (e.g., schedule a fresh `collect_git_rollup` call).
+#[allow(dead_code)]
+pub(crate) fn watch_working_dir<F>(
+    working_dir: &Path,
+    on_change: F,
+) -> Result<notify::RecommendedWatcher>
+where
+    F: Fn(Vec<PathBuf>) + Send + 'static,
+{
+    use notify::{Config, Event, RecursiveMode, Watcher};
+
+    let mut watcher = notify::RecommendedWatcher::new(
+        move |res: notify::Result<Event>| {
+            if let Ok(event) = res {
+                let paths = event.paths;
+                if !paths.is_empty() {
+                    on_change(paths);
+                }
+            }
+        },
+        Config::default(),
+    )
+    .context("failed to initialize filesystem watcher")?;
+
+    watcher
+        .watch(working_dir, RecursiveMode::Recursive)
+        .with_context(|| format!("failed to watch directory: {}", working_dir.display()))?;
+
+    Ok(watcher)
 }
 
 fn limit_lines(text: &str, max_lines: usize) -> String {

@@ -712,8 +712,7 @@ fn map_api_status_error(
 
     // Detect 429 rate-limit responses.
     if status.as_u16() == 429
-        || (status.is_client_error()
-            && crate::runtime::rate_limit::looks_like_rate_limit(body))
+        || (status.is_client_error() && crate::runtime::rate_limit::looks_like_rate_limit(body))
     {
         // Prefer the Retry-After header; fall back to body text hints.
         let retry_hint = retry_after_header

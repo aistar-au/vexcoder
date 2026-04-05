@@ -39,9 +39,7 @@ fn re_aws_access_key() -> &'static regex_lite::Regex {
 /// Bearer token: preserves the `Bearer ` prefix, redacts the token value.
 fn re_bearer_token() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        regex_lite::Regex::new(r"(?i)(bearer\s+)[A-Za-z0-9_.~+/=-]{20,}").unwrap()
-    })
+    RE.get_or_init(|| regex_lite::Regex::new(r"(?i)(bearer\s+)[A-Za-z0-9_.~+/=-]{20,}").unwrap())
 }
 
 /// GitHub personal access token: `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`
@@ -55,9 +53,7 @@ fn re_github_token() -> &'static regex_lite::Regex {
 /// downstream consumers never see even the algorithm identifier.
 fn re_private_key_header() -> &'static regex_lite::Regex {
     static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        regex_lite::Regex::new(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----").unwrap()
-    })
+    RE.get_or_init(|| regex_lite::Regex::new(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----").unwrap())
 }
 
 /// Connection string with embedded credentials:
@@ -196,7 +192,9 @@ mod tests {
 
     #[test]
     fn test_contains_secret_positive() {
-        assert!(contains_secret("key sk-abc123def456ghi789jkl012mno345pqr678"));
+        assert!(contains_secret(
+            "key sk-abc123def456ghi789jkl012mno345pqr678"
+        ));
         assert!(contains_secret("AKIAIOSFODNN7EXAMPLE"));
         assert!(contains_secret("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6"));
     }
@@ -253,7 +251,9 @@ mod tests {
 
     #[test]
     fn test_contains_secret_github_token() {
-        assert!(contains_secret("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij1234"));
+        assert!(contains_secret(
+            "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij1234"
+        ));
     }
 
     #[test]
