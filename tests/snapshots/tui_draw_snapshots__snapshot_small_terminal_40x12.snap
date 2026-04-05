@@ -1,5 +1,0 @@
----
-source: tests/tui_draw_snapshots.rs
-expression: rendered
----
- │ helloDone.──────────────────────────────────────── /tmp/snap-project › submit: / commands  @ files  ! shell  task Tab step  Pg scroll  Enter  S-Enter

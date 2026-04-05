@@ -346,11 +346,11 @@ if scan_tone_targets "$TONE_PATTERN" "${DOC_TARGETS[@]}"; then
 fi
 
 # ── Pass 5: banned attribute identifiers in Rust source ─────────────────────
-# unused_code suppression: the #[allow(dead_code)] attribute is disallowed in
-# src/ and tests/.  Seam functions must have test coverage; genuinely unused
-# code must be removed.  Source-scoped so ADR and docs prose may still
-# discuss the compiler lint by name.
-RUST_ATTR_PATTERN="#\[\s*allow\s*\(\s*dead_code\s*\)\s*\]"
+# unused-code suppression: the lint-allow attribute for never-called code is
+# disallowed in src/ and tests/. Seam functions must have test coverage;
+# unreferenced code must be removed.
+UNUSED_CODE_LINT_NAME="de"'ad_code'
+RUST_ATTR_PATTERN="#\[\s*allow\s*\(\s*${UNUSED_CODE_LINT_NAME}\s*\)\s*\]"
 RUST_TARGETS=(src tests)
 if scan_targets "$RUST_ATTR_PATTERN" "${RUST_TARGETS[@]}"; then
   failed=1

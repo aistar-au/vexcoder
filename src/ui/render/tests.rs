@@ -334,6 +334,48 @@ fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
 }
 
 #[test]
+fn task_layout_renders_status_row_on_primary_surface() {
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let state = crate::app::TaskLayoutState {
+        task_id: "task-status".into(),
+        status_line: "mode: task | approval: auto | branch: work/pr347".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
+        timeline_entries: vec![],
+        selected_step: 0,
+        total_steps: 0,
+        output_title: "Transcript".into(),
+        output_rows: vec!["status row stays visible".into()],
+        output_scroll_offset: 0,
+        output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
+        changed_files: vec![],
+        pending_approval: None,
+        input_hint: "> ".into(),
+        composer_text: String::new(),
+        composer_cursor: 0,
+        composer_focused: true,
+        follow_mode: true,
+        picker_overlay: vec![],
+        working_dir: String::new(),
+        model_url: String::new(),
+    };
+
+    terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+
+    let rendered = terminal.backend().buffer().clone();
+    let flat = rendered
+        .content()
+        .iter()
+        .map(|c| c.symbol())
+        .collect::<Vec<_>>()
+        .join("");
+    assert!(
+        flat.contains("mode: task | approval: auto | branch: work/pr347"),
+        "task surface must keep the status row visible"
+    );
+}
+
+#[test]
 fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
     let backend = TestBackend::new(80, 40);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -465,11 +507,130 @@ fn task_output_window_uses_expanded_display_rows() {
         model_url: String::new(),
     };
 
-    let expanded = crate::ui::draw::expand_rows_for_display(&state.output_rows, 10);
+    let expanded = expand_rows_for_display(&state.output_rows, 10);
     assert!(expanded.len() > 2, "fixture must wrap into multiple rows");
 
     let (start, end) = task_output_window(&state, 10, 2);
     assert_eq!((start, end), (expanded.len() - 2, expanded.len()));
+}
+
+#[test]
+fn numbered_list_items_are_parsed() {
+    let result = parse_numbered_list_item("1. First item").expect("must parse numbered list");
+    assert_eq!(result.0, "1. ");
+    assert_eq!(result.1, "First item");
+
+    let result = parse_numbered_list_item("42. Large number").expect("must parse long prefix");
+    assert_eq!(result.0, "42. ");
+    assert_eq!(result.1, "Large number");
+
+    assert!(parse_numbered_list_item("not a list").is_none());
+    assert!(parse_numbered_list_item("1.no space").is_none());
+}
+
+#[test]
+fn horizontal_rules_are_detected() {
+    assert!(is_horizontal_rule("---"));
+    assert!(is_horizontal_rule("***"));
+    assert!(is_horizontal_rule("___"));
+    assert!(is_horizontal_rule("- - -"));
+    assert!(is_horizontal_rule("-----"));
+    assert!(!is_horizontal_rule("--"));
+    assert!(!is_horizontal_rule("abc"));
+    assert!(!is_horizontal_rule("---a"));
+}
+
+#[test]
+fn expand_rows_for_display_wraps_long_plain_rows() {
+    let rows = vec!["wordone123 wordtwo456 wrdthree7 wrd4four56 wordFive0".to_string()];
+    let expanded = expand_rows_for_display(&rows, 20);
+
+    assert!(expanded.len() > 1, "plain prose should wrap: {expanded:?}");
+    for row in &expanded {
+        assert!(
+            display_width(row) <= 20,
+            "expanded row exceeds width: {row:?}"
+        );
+    }
+}
+
+#[test]
+fn expand_rows_for_display_leaves_structural_rows_intact() {
+    let rows = vec![
+        "[tool:thinking]".to_string(),
+        "    disclosure detail".to_string(),
+        "normal short line".to_string(),
+    ];
+
+    let expanded = expand_rows_for_display(&rows, 80);
+    assert_eq!(&expanded[0], "[tool:thinking]");
+    assert_eq!(&expanded[1], "    disclosure detail");
+    assert!(expanded.contains(&"normal short line".to_string()));
+}
+
+#[test]
+fn expand_rows_for_display_splits_embedded_newlines() {
+    let rows = vec!["line one\nline two\nline three".to_string()];
+
+    assert_eq!(
+        expand_rows_for_display(&rows, 80),
+        vec!["line one", "line two", "line three"]
+    );
+}
+
+#[test]
+fn task_layout_renders_picker_overlay() {
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let state = crate::app::TaskLayoutState {
+        task_id: "task-picker".into(),
+        status_line: "Running".into(),
+        telemetry: crate::app::TaskTelemetryState::default(),
+        timeline_entries: vec![],
+        selected_step: 0,
+        total_steps: 0,
+        output_title: "Transcript".into(),
+        output_rows: vec!["line 1".into()],
+        output_scroll_offset: 0,
+        output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
+        changed_files: vec![],
+        pending_approval: None,
+        input_hint: "Prompt\nmode: file mention".into(),
+        composer_text: "@".into(),
+        composer_cursor: 1,
+        composer_focused: true,
+        follow_mode: true,
+        picker_overlay: vec![
+            crate::app::PickerOverlayLine {
+                text: "[file] 3 match(es) — Up/Down to navigate, Enter to select".into(),
+                selected: false,
+            },
+            crate::app::PickerOverlayLine {
+                text: "> src/a.rs".into(),
+                selected: true,
+            },
+            crate::app::PickerOverlayLine {
+                text: "  src/b.rs".into(),
+                selected: false,
+            },
+        ],
+        working_dir: String::new(),
+        model_url: String::new(),
+    };
+
+    terminal
+        .draw(|frame| render_task_layout(frame, &state))
+        .unwrap();
+
+    let rendered = terminal.backend().buffer().clone();
+    let flat = rendered
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<Vec<_>>()
+        .join("");
+    assert!(flat.contains("src/a.rs"));
+    assert!(flat.contains("src/b.rs"));
 }
 
 #[test]

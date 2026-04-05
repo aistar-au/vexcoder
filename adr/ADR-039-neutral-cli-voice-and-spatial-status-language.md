@@ -176,7 +176,7 @@ affordance, and Batch D paragraph-progress consolidation.
 
 Candidate implementation areas:
 
-- `src/ui/draw/`
+- `src/ui/render/`
 - `src/app/`
 - `src/state/conversation/`
 - `src/runtime/task_state/`

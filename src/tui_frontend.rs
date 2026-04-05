@@ -12,12 +12,11 @@ use crate::runtime::mode::RuntimeMode;
 use crate::startup::{
     looks_like_terminal_transcript, should_ignore_startup_paste_text, STARTUP_NOISE_GUARD,
 };
-use crate::ui::draw::TaskDraw;
 use crate::ui::editor::{file_mention_range, InputAction, InputEditor};
 use crate::ui::layout::split_three_pane_layout;
 use crate::ui::render::{
     history_content_width_for_area, input_visual_rows, render_input, render_messages,
-    render_overlay_modal_in_area, render_status_line, OverlayModal,
+    render_overlay_modal_in_area, render_status_line, render_task_layout, OverlayModal,
 };
 
 pub struct ManagedTuiFrontend {
@@ -25,8 +24,6 @@ pub struct ManagedTuiFrontend {
     quit: bool,
     editor: InputEditor,
     started_at: Instant,
-    /// Direct ANSI draw engine for the task-state control surface.
-    task_draw: TaskDraw,
     last_hint_input: String,
     last_hint_cursor: usize,
     last_hint_text: String,
@@ -49,7 +46,6 @@ impl ManagedTuiFrontend {
             quit: false,
             editor: InputEditor::new(),
             started_at: Instant::now(),
-            task_draw: TaskDraw::new(),
             last_hint_input: String::new(),
             last_hint_cursor: 0,
             last_hint_text: String::new(),
@@ -569,22 +565,17 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
         let cursor = self.editor.cursor();
 
         if let Some(mut task_state) = mode.task_layout_state() {
-            // Direct ANSI draw path — no ratatui buffer allocation.
-            // Get terminal size from the ratatui terminal (already tracks it).
             task_state.input_hint = self.prompt_hint(mode, &input, cursor);
             task_state.picker_overlay = self.build_picker_overlay(mode);
             task_state.composer_text = input;
             task_state.composer_cursor = cursor;
             task_state.composer_focused = mode.composer_is_focused();
             let size = self.terminal.size().unwrap_or_default();
-            let mut stdout = std::io::stdout();
-            self.task_draw
-                .draw(&mut stdout, &task_state, size.width, size.height);
+            mode.set_history_content_width(size.width.max(1) as usize);
+            let _ = self
+                .terminal
+                .draw(|frame| render_task_layout(frame, &task_state));
         } else {
-            // Reset the direct-draw state when leaving task mode so the
-            // next turn starts with a clean slate.
-            self.task_draw.reset();
-
             let _ = self.terminal.draw(|frame| {
                 let area = frame.area();
                 let input_width = area.width.saturating_sub(2).max(1) as usize;

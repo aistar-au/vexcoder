@@ -1,8 +1,11 @@
 use super::ConversationManager;
+#[cfg(test)]
 use crate::config::CompactionConfig;
+use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
+use crate::state::conversation::tools::dispatch::missing_read_only_location_prompt;
 use crate::tool_preview::{
-    format_read_file_rollup_message, read_file_path, ReadFileRollupSummary,
-    ReadFileSummaryMessageStyle,
+    format_read_file_rollup_message, preview_tool_input, read_file_path, ReadFileRollupSummary,
+    ReadFileSummaryMessageStyle, ToolPreviewStyle,
 };
 use crate::types::{ApiMessage, Content, ContentBlock};
 use anyhow::Result;
@@ -128,7 +131,7 @@ impl ConversationManager {
 
     /// Estimate the total token count of the current message history using
     /// a byte-based heuristic (4 bytes per token).
-    #[allow(unused)]
+    #[cfg(test)]
     pub(super) fn estimate_history_tokens(&self) -> usize {
         self.api_messages
             .iter()
@@ -150,7 +153,7 @@ impl ConversationManager {
 
     /// Check whether proactive compaction should trigger based on the
     /// configured threshold and an estimated context window size.
-    #[allow(unused)]
+    #[cfg(test)]
     pub(super) fn should_compact_proactively(
         &self,
         config: &CompactionConfig,
@@ -172,7 +175,7 @@ impl ConversationManager {
     ///
     /// Preserves the MessagesV1 invariant that history starts with a
     /// plain user message.
-    #[allow(unused)]
+    #[cfg(test)]
     pub(super) fn compact_with_summary(
         &mut self,
         keep_recent_turns: usize,
@@ -279,10 +282,11 @@ impl ConversationManager {
         result: &Result<String>,
     ) -> String {
         let Ok(output) = result else {
-            return result
+            let error = result
                 .as_ref()
                 .err()
                 .map_or_else(|| "Unknown tool error".to_string(), ToString::to_string);
+            return format_tool_error_for_model_context(name, input, &error);
         };
 
         if name == "read_file" {
@@ -291,6 +295,10 @@ impl ConversationManager {
             let path = read_file_path(input).unwrap_or_else(|| "<missing>".to_string());
             let summary = self.read_file_history_cache.summarize(&path, output);
             return self.format_read_file_result_for_model_context(&path, output, summary);
+        }
+
+        if should_enrich_tool_result(name, output) {
+            return format_generic_tool_result_for_model_context(name, input, output);
         }
 
         output.clone()
@@ -412,6 +420,9 @@ pub(super) fn env_override_usize(key: &str, default: usize, min: usize, max: usi
 /// lines.  Configurable via `VEX_HISTORY_KEEP_TURNS`.
 const DEFAULT_HISTORY_KEEP_TURNS: usize = 10;
 const CONDENSED_TOOL_RESULT_LINES: usize = 5;
+const ENRICHED_TOOL_RESULT_PREVIEW_LINES: usize = 5;
+const ENRICHED_TOOL_RESULT_INLINE_CHARS: usize = 240;
+const ENRICHED_TOOL_RESULT_PREVIEW_LINE_CHARS: usize = 160;
 
 pub(super) fn resolve_history_keep_turns() -> usize {
     env_override_usize("VEX_HISTORY_KEEP_TURNS", DEFAULT_HISTORY_KEEP_TURNS, 2, 64)
@@ -527,4 +538,155 @@ fn condense_text_protocol_tool_results(text: &str) -> String {
         out.remove(0);
     }
     out
+}
+
+fn should_enrich_tool_result(name: &str, output: &str) -> bool {
+    if output.chars().count() > ENRICHED_TOOL_RESULT_INLINE_CHARS || output.contains('\n') {
+        return true;
+    }
+
+    matches!(
+        name,
+        "list_files"
+            | "list_directory"
+            | "list_dir"
+            | "glob_files"
+            | "find_files"
+            | "search_files"
+            | "search"
+            | "search_content"
+            | "codebase_search"
+            | "git_status"
+            | "git_diff"
+            | "git_log"
+            | "git_show"
+    )
+}
+
+fn format_generic_tool_result_for_model_context(
+    name: &str,
+    input: &serde_json::Value,
+    output: &str,
+) -> String {
+    let request = preview_tool_input(
+        name,
+        input,
+        ToolPreviewStyle::Structured,
+        DEFAULT_EDIT_DIFF_CONTEXT_LINES,
+    );
+    let (chars, lines) = crate::state::conversation::tools::text_stats(output);
+
+    let mut rendered = format!("Tool {name} completed.");
+    if !request.trim().is_empty() {
+        rendered.push_str("\nRequest:\n");
+        rendered.push_str(&indent_block(&request, "  "));
+    }
+    rendered.push_str(&format!("\nResult: {chars} chars, {lines} lines."));
+
+    if !output.trim().is_empty() {
+        rendered.push_str("\nOutput preview:\n");
+        rendered.push_str(&indent_block(&preview_tool_output(output), "  "));
+    }
+
+    rendered
+}
+
+fn format_tool_error_for_model_context(
+    name: &str,
+    input: &serde_json::Value,
+    error: &str,
+) -> String {
+    let preserve_full_error = missing_read_only_location_prompt(name, input).is_some();
+    let normalized_error = preferred_tool_error_message(name, input, error);
+    let error_body = if preserve_full_error {
+        normalized_error.clone()
+    } else {
+        preview_tool_output(&normalized_error)
+    };
+    let request = preview_tool_input(
+        name,
+        input,
+        ToolPreviewStyle::Structured,
+        DEFAULT_EDIT_DIFF_CONTEXT_LINES,
+    );
+    let mut rendered = format!("Tool {name} failed.");
+    if !request.trim().is_empty() {
+        rendered.push_str("\nRequest:\n");
+        rendered.push_str(&indent_block(&request, "  "));
+    }
+    rendered.push_str("\nError:\n");
+    rendered.push_str(&indent_block(&error_body, "  "));
+
+    if let Some(hint) = tool_error_hint(name) {
+        rendered.push_str("\nSuggested next step:\n  ");
+        rendered.push_str(hint);
+    }
+
+    rendered
+}
+
+fn preferred_tool_error_message(name: &str, input: &serde_json::Value, error: &str) -> String {
+    if let Some(prompt) = missing_read_only_location_prompt(name, input) {
+        return prompt;
+    }
+
+    error.to_string()
+}
+
+fn tool_error_hint(name: &str) -> Option<&'static str> {
+    match name {
+        "read_file" | "list_files" | "list_directory" | "list_dir" | "glob_files" => Some(
+            "Locate the workspace-relative target first, then retry with an explicit path or pattern.",
+        ),
+        "search_files" | "search" | "search_content" | "codebase_search" => Some(
+            "Retry with a narrower query or a concrete path scope so the next search result is easier to use.",
+        ),
+        "write_file" | "apply_patch" | "edit_file" | "rename_file" => Some(
+            "Re-read the target path and retry with a narrower file edit or patch.",
+        ),
+        "git_status" | "git_diff" | "git_log" | "git_show" => Some(
+            "Retry with a narrower git target if the repository state is larger than expected.",
+        ),
+        _ => None,
+    }
+}
+
+fn preview_tool_output(output: &str) -> String {
+    let lines: Vec<&str> = output.lines().collect();
+    if lines.is_empty() {
+        return "<empty>".to_string();
+    }
+
+    let mut rendered = lines
+        .iter()
+        .take(ENRICHED_TOOL_RESULT_PREVIEW_LINES)
+        .map(|line| truncate_preview_line(line, ENRICHED_TOOL_RESULT_PREVIEW_LINE_CHARS))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if lines.len() > ENRICHED_TOOL_RESULT_PREVIEW_LINES {
+        rendered.push_str(&format!(
+            "\n... ({} more lines)",
+            lines.len() - ENRICHED_TOOL_RESULT_PREVIEW_LINES
+        ));
+    }
+
+    rendered
+}
+
+fn truncate_preview_line(line: &str, max_chars: usize) -> String {
+    let chars = line.chars().collect::<Vec<_>>();
+    if chars.len() <= max_chars {
+        return line.to_string();
+    }
+
+    let truncated = chars.into_iter().take(max_chars).collect::<String>();
+    format!("{truncated}...")
+}
+
+fn indent_block(text: &str, indent: &str) -> String {
+    text.lines()
+        .map(|line| format!("{indent}{line}"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }

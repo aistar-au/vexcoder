@@ -82,4 +82,4 @@ the current parser path.
 - `src/runtime/context/tests.rs`
 - `src/api/stream/tests.rs`
 - `src/app/tests/task_layout.rs`
-- `src/ui/draw/tests.rs`
+- `src/ui/render/tests.rs`

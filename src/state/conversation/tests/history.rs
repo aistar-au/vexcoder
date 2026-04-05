@@ -115,6 +115,46 @@ fn test_format_tool_result_for_history_read_file_diff_and_repeat() {
         "expected Unchanged after re-reading the post-change content, got: {fourth}"
     );
 }
+
+#[test]
+fn test_format_tool_result_for_history_enriches_listing_output() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+    let input = serde_json::json!({ "path": "src", "max_entries": 100 });
+
+    let rendered = manager.format_tool_result_for_history(
+        "list_files",
+        &input,
+        &Ok("src/app.rs\nsrc/lib.rs\nsrc/main.rs".to_string()),
+    );
+
+    assert!(rendered.contains("Tool list_files completed."));
+    assert!(rendered.contains("path: src"));
+    assert!(rendered.contains("src/app.rs"));
+    assert!(rendered.contains("Result:"));
+}
+
+#[test]
+fn test_format_tool_result_for_history_enriches_errors_with_request_context() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+    let input = serde_json::json!({ "path": "src/missing.rs" });
+
+    let rendered = manager.format_tool_result_for_history(
+        "read_file",
+        &input,
+        &Err(anyhow::anyhow!("path not found")),
+    );
+
+    assert!(rendered.contains("Tool read_file failed."));
+    assert!(rendered.contains("path: src/missing.rs"));
+    assert!(rendered.contains("path not found"));
+    assert!(rendered.contains("Suggested next step"));
+}
 #[test]
 fn test_append_incremental_suffix_rollup_streaming() {
     let mut content = String::new();

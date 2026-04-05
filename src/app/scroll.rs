@@ -35,7 +35,7 @@ impl TuiMode {
 
         let (_, rows, anchor) = self.task_output_view();
         let cols = self.history_content_width.get() as u16;
-        let expanded = crate::ui::draw::expand_rows_for_display(&rows, cols).len();
+        let expanded = crate::ui::render::expand_rows_for_display(&rows, cols).len();
         if anchor == OutputScrollAnchor::Bottom && expanded > previous_expanded_rows {
             let growth = expanded - previous_expanded_rows;
             self.transcript_scroll_offset = self.transcript_scroll_offset.saturating_add(growth);
@@ -53,7 +53,7 @@ impl TuiMode {
     pub(super) fn expanded_output_row_count(&self) -> usize {
         let (_, rows, _) = self.task_output_view();
         let cols = self.history_content_width.get() as u16;
-        crate::ui::draw::expand_rows_for_display(&rows, cols).len()
+        crate::ui::render::expand_rows_for_display(&rows, cols).len()
     }
 
     pub(super) fn push_history_line(&mut self, line: String) {
@@ -83,7 +83,7 @@ impl TuiMode {
     pub(super) fn clamp_transcript_after_mutation(&mut self) {
         let (_, rows, anchor) = self.task_output_view();
         let cols = self.history_content_width.get() as u16;
-        let total_rows = crate::ui::draw::expand_rows_for_display(&rows, cols).len();
+        let total_rows = crate::ui::render::expand_rows_for_display(&rows, cols).len();
         match anchor {
             OutputScrollAnchor::Bottom => self.clamp_transcript_scroll_offset(total_rows),
             OutputScrollAnchor::Top => self.clamp_inspector_scroll_offset(total_rows),
@@ -154,7 +154,7 @@ impl TuiMode {
         // Use the expanded (word-wrapped) row count so the scroll range
         // matches the display row count used by the draw path.
         let cols = self.history_content_width.get() as u16;
-        let total_rows = crate::ui::draw::expand_rows_for_display(&rows, cols).len();
+        let total_rows = crate::ui::render::expand_rows_for_display(&rows, cols).len();
 
         match anchor {
             // Bottom-anchored view uses inverted semantics: LineUp scrolls

@@ -1,6 +1,6 @@
 use crate::app::TaskLayoutState;
 use crate::ui::input_metrics::{
-    cursor_row_col, visual_row_count, visual_window_start, wrap_input_lines,
+    cursor_row_col, display_width, visual_row_count, visual_window_start, wrap_input_lines,
 };
 use crate::ui::layout::{preferred_four_region_input_rows_for_content, split_four_region_layout};
 use ratatui::{
@@ -305,7 +305,7 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
     );
 }
 
-/// Render the legacy four-region task-first layout.
+/// Render the four-region task control surface.
 ///
 /// The activity pane uses structured `timeline_entries` to render
 /// the selected timeline entry highlighted with its detail shown
@@ -314,17 +314,17 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     let input_width = frame.area().width.saturating_sub(2).max(1) as usize;
     let layout = split_four_region_layout(
         frame.area(),
-        0,
+        1,
         preferred_four_region_input_rows_for_content(
             frame.area().height,
             input_visual_rows(&state.composer_text, input_width) as u16,
         ),
     );
     frame.render_widget(Clear, frame.area());
+    render_status_line(frame, layout.header, &state.status_line);
 
     // --- Output / Inspector pane ---
-    let expanded_output_rows =
-        crate::ui::draw::expand_rows_for_display(&state.output_rows, layout.output.width);
+    let expanded_output_rows = expand_rows_for_display(&state.output_rows, layout.output.width);
     let (output_start, output_end) =
         task_output_window(state, layout.output.width, layout.output.height as usize);
     let output_lines: Vec<Line> = expanded_output_rows[output_start..output_end]
@@ -351,6 +351,77 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
             layout.input,
         );
     }
+
+    render_picker_overlay(frame, layout.input, &state.picker_overlay);
+}
+
+fn render_picker_overlay(
+    frame: &mut Frame<'_>,
+    composer_area: Rect,
+    lines: &[crate::app::PickerOverlayLine],
+) {
+    if lines.is_empty() || composer_area.width < 4 {
+        return;
+    }
+
+    let available_height = composer_area.y.saturating_sub(frame.area().y);
+    if available_height < 3 {
+        return;
+    }
+
+    let max_visible_rows = available_height.saturating_sub(2).max(1) as usize;
+    let visible_rows = lines.len().min(max_visible_rows);
+    let content_width = lines
+        .iter()
+        .take(visible_rows)
+        .map(|line| display_width(&line.text))
+        .max()
+        .unwrap_or(0)
+        .max(1);
+    let width = (content_width as u16)
+        .saturating_add(2)
+        .min(composer_area.width.max(4));
+    let height = (visible_rows as u16)
+        .saturating_add(2)
+        .min(available_height);
+    let area = Rect::new(
+        composer_area.x,
+        composer_area.y.saturating_sub(height),
+        width,
+        height,
+    );
+
+    frame.render_widget(Clear, area);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .style(Style::default().fg(Color::DarkGray));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    if inner.height == 0 || inner.width == 0 {
+        return;
+    }
+
+    let rendered = lines
+        .iter()
+        .take(inner.height as usize)
+        .map(|line| {
+            let style = if line.selected {
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else if line.text.starts_with('[') || line.text.starts_with('/') {
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM)
+            } else {
+                Style::default().fg(Color::White)
+            };
+            Line::styled(truncate_line(&line.text, inner.width as usize), style)
+        })
+        .collect::<Vec<_>>();
+
+    frame.render_widget(Paragraph::new(rendered), inner);
 }
 
 #[cfg(test)]

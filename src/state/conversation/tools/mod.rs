@@ -68,7 +68,7 @@ impl ConversationManager {
 
     // The streamless shim keeps direct unit tests on the hook path small while
     // production call sites route through the update-aware variant below.
-    #[cfg_attr(not(test), allow(unused))]
+    #[cfg(test)]
     pub(super) async fn execute_tool_with_timeout(
         &self,
         name: &str,

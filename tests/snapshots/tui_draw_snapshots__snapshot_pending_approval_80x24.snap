@@ -1,5 +1,0 @@
----
-source: tests/tui_draw_snapshots.rs
-expression: rendered
----
- │ create new modulePreparing write...──────────────────────────────────────────────────────────────────────────────── Approval  y approve  n deny  s approve all • write_file → src/agents.rs• task:snap-001 m:streaming ap:pending view:live hist:0   y approve  n deny  s all
