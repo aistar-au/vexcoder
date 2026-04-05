@@ -1,7 +1,14 @@
 use crate::tools::index::IndexChunk;
 use crate::tools::semantic::SemanticChunkScore;
 use bm25::{Document as Bm25Document, Language, SearchEngineBuilder};
+use bstr::ByteSlice;
+use grep_regex::RegexMatcher;
+use grep_searcher::{sinks::UTF8, SearcherBuilder};
+use memmap2::Mmap;
+use rayon::prelude::*;
 use std::collections::HashMap;
+use std::fs::File;
+use std::path::{Path, PathBuf};
 
 /// Result of a codebase search query.
 #[derive(Debug)]
@@ -282,6 +289,103 @@ pub fn format_search_results(query: &str, results: &[SearchResult]) -> String {
         }
     }
     out
+}
+
+// ── Grep-based file search ────────────────────────────────────────────────────
+
+/// Search a single file for lines matching `pattern` using the grep-regex
+/// engine backed by the `regex` crate.  Returns `(line_number, matched_line)`
+/// tuples for every matching line.  The Vec is empty when the file cannot be
+/// read, the pattern is invalid, or there are no matches.
+pub fn grep_search_file(path: &Path, pattern: &str) -> Vec<(u64, String)> {
+    let matcher = match RegexMatcher::new(pattern) {
+        Ok(m) => m,
+        Err(_) => return Vec::new(),
+    };
+    let mut matches: Vec<(u64, String)> = Vec::new();
+    let mut searcher = SearcherBuilder::new().line_number(true).build();
+    let _ = searcher.search_path(
+        &matcher,
+        path,
+        UTF8(|line_number, line| {
+            matches.push((line_number, line.trim_end_matches('\n').to_string()));
+            Ok(true)
+        }),
+    );
+    matches
+}
+
+// ── Memory-mapped file reading ────────────────────────────────────────────────
+
+/// Read the byte contents of `path` using a read-only memory mapping.
+///
+/// Faster than buffered I/O for large files because the OS page cache is
+/// reused without copying.  Returns `None` when the file cannot be opened or
+/// mapped.
+pub fn mmap_read_file(path: &Path) -> Option<Mmap> {
+    let file = File::open(path).ok()?;
+    // SAFETY: the file is opened read-only; no mutable alias to these pages
+    // exists through this mapping during the lifetime of the returned Mmap.
+    unsafe { Mmap::map(&file).ok() }
+}
+
+// ── Binary content detection ──────────────────────────────────────────────────
+
+/// Return `true` when `bytes` looks like binary (non-text) content.
+///
+/// Scans the first 8 KiB for null bytes — the same heuristic used by git and
+/// ripgrep.  Binary files are excluded from text-oriented search operations.
+pub fn is_binary_content(bytes: &[u8]) -> bool {
+    let probe = &bytes[..bytes.len().min(8192)];
+    probe.find_byte(b'\0').is_some()
+}
+
+// ── Parallel file search ──────────────────────────────────────────────────────
+
+/// Search `paths` in parallel for lines matching `pattern`.
+///
+/// Returns one `(path_string, line_number, line_text)` entry per match.
+/// Uses `rayon` for CPU-bound parallel iteration and `crossbeam_channel` to
+/// aggregate results from worker threads without contention.  Paths that
+/// cannot be memory-mapped or that look like binary content are silently
+/// skipped.
+pub fn parallel_search_files(paths: &[PathBuf], pattern: &str) -> Vec<(String, u64, String)> {
+    use crossbeam_channel::unbounded;
+    let (tx, rx) = unbounded::<(String, u64, String)>();
+
+    paths.par_iter().for_each(|path| {
+        let tx = tx.clone();
+        // Skip binary files before invoking the regex engine.
+        if let Some(mmap) = mmap_read_file(path) {
+            if is_binary_content(&mmap) {
+                return;
+            }
+        }
+        for (line_num, text) in grep_search_file(path, pattern) {
+            let _ = tx.send((path.to_string_lossy().into_owned(), line_num, text));
+        }
+    });
+    // Drop the last sender so `rx.into_iter()` terminates.
+    drop(tx);
+    rx.into_iter().collect()
+}
+
+// ── Syntax-aware language detection ──────────────────────────────────────────
+
+/// Map a source file path to a tree-sitter `Language` by file extension.
+///
+/// Supported extensions: `.py` (Python), `.ts` (TypeScript), `.tsx` (TSX),
+/// `.js` / `.mjs` / `.cjs` / `.jsx` (JavaScript).  Returns `None` for
+/// unrecognised extensions.
+pub fn detect_language(path: &Path) -> Option<tree_sitter::Language> {
+    let ext = path.extension()?.to_str()?;
+    match ext {
+        "py" => Some(tree_sitter_python::LANGUAGE.into()),
+        "ts" => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+        "tsx" => Some(tree_sitter_typescript::LANGUAGE_TSX.into()),
+        "js" | "mjs" | "cjs" | "jsx" => Some(tree_sitter_javascript::LANGUAGE.into()),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

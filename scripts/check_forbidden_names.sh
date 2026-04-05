@@ -345,6 +345,17 @@ if scan_tone_targets "$TONE_PATTERN" "${DOC_TARGETS[@]}"; then
   failed=1
 fi
 
+# ── Pass 5: banned attribute identifiers in Rust source ─────────────────────
+# dead_code: the #[allow(dead_code)] suppression attribute is disallowed in
+# src/ and tests/.  Seam functions must have test coverage; genuinely unused
+# code must be removed.  Source-scoped so ADR and docs prose may still
+# discuss the concept by name.
+RUST_ATTR_PATTERN="\\bdead_code\\b"
+RUST_TARGETS=(src tests)
+if scan_targets "$RUST_ATTR_PATTERN" "${RUST_TARGETS[@]}"; then
+  failed=1
+fi
+
 if [[ $failed -ne 0 ]]; then
   echo "FAIL: forbidden names found in scanned targets"
   exit 1

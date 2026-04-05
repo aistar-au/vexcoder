@@ -11,6 +11,12 @@ applyTo: "**"
 - Prefer active voice and concrete nouns over vague abstractions.
 - In repository-hosted background sessions, use English only in agent-authored
   output.
+- Do not use emojis or Unicode status symbols in any agent-authored output.
+  This covers PR bodies, review text, commit messages, inline comments,
+  plan text, log messages, and findings. Use plain ASCII and standard Markdown.
+- Do not use the phrase "unreachable code" when the Rust compiler term
+  `dead_code` would be more precise; use "unreferenced code" instead in prose
+  when `dead_code` itself cannot appear (see `scripts/check_forbidden_names.sh`).
 
 ### Change philosophy
 
@@ -48,6 +54,10 @@ Use these five sections for every non-trivial pull request:
 3. Approach
 4. Validation
 5. Risks
+
+The `## Risks` section is mandatory. When no specific risk applies, write a
+brief statement that the change is isolated to the named modules and CI confirms
+correctness. A PR body that omits `## Risks` is incomplete.
 
 ### Validation
 
