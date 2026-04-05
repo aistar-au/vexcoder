@@ -114,13 +114,18 @@ prefix-marker line path so that both rendering strategies coexist.
 
 ### D6: Delta-native render methods
 
-The ratatui render module's `apply_transcript_delta()` and
-`consume_transcript_deltas()` provide a direct path from
-structured deltas to the output row buffer, bypassing the
-`[tool]`/`[detail]`/`[evidence]` prefix-marker chain.
+The ratatui render module's `render_task_layout()` in `src/ui/render/mod.rs`
+is the sole rendering path for the task surface after the cutover in PR 347.
+It reads from `TaskLayoutState.output_rows` (populated by
+`task_output_view_with()` in `src/app/layout.rs`).
 
-`format_compact_paragraph()` in `src/ui/render/transcript.rs` applies
-uniform prefix and width-safe truncation for all block kinds.
+`expand_rows_for_display()` in `src/ui/render/transcript.rs` applies
+word-wrap and structural detection for all row kinds before rendering.
+
+The earlier D6 design for `apply_transcript_delta()`,
+`consume_transcript_deltas()`, and `format_compact_paragraph()` was
+superseded by the ratatui-native cutover (PR 347); those symbols were
+not carried forward into `src/ui/render/`.
 
 ### D7: Bounded suffix deduplication
 
@@ -207,35 +212,25 @@ buffer on every chunk.
 
 ### D12: Accumulator drain at block completion, tests, and bounded-suffix cleanup
 
-`StreamBlockComplete` now calls `flush_pending()` on the associated
-`DeltaAccumulator` before removing it. This drains any pending deltas
-that were not yet consumed by the renderer, ensuring the accumulator
-is cleanly emptied rather than silently dropped. The drained content
-is discarded since the parallel rendering paths (D9 live input preview
-for ToolCall, D10 streamed text segments for FinalText/Thinking) have
-already materialised the same content into `history_state`.
+`StreamBlockComplete` removes the associated `StreamingBlockBuffer` from the
+map.  The buffer's content is not drained on completion because the parallel
+rendering paths (D9 live input preview for ToolCall, D10 streamed text
+segments for FinalText/Thinking) have already materialised the same content
+into `history_state`.
 
-`format_compact_paragraph()`, `apply_transcript_delta()`, and
-`consume_transcript_deltas()` are covered by unit tests in
-`src/ui/render/tests.rs`, confirming that:
-- ToolCall deltas produce `▶`-prefixed rows when consumed via the delta path.
-- ToolResult deltas produce `↳`-prefixed rows.
-- Empty incomplete deltas produce no output rows.
-- FinalText/Thinking deltas forward content without directional prefixes.
+`bounded_incremental_suffix()` is covered by inline tests in
+`src/state/transcript_delta.rs`. It routes through production code in
+`src/state/conversation/streaming.rs`, so no suppression annotation is needed.
 
-`set_block_kind()`, `content()`, `flush_pending()`, and
-`bounded_incremental_suffix()` are covered by inline tests in
-`src/state/transcript_delta.rs`. `bounded_incremental_suffix` has its
-`#[allow(unused)]` annotation removed because it already routes through
-production code in `src/state/conversation/streaming.rs`.
+The buffer's `content()` and `kind()` methods are used in production:
+- `transcript_display_rows()` calls `kind()` to gate the streaming cursor —
+  the `▌` character is shown only while a FinalText or Thinking buffer remains
+  in the map (i.e. while a textual block is in-flight).
+- `task_output_view_with()` calls `content().len()` on all active buffers to
+  populate the "Transcript · Nb" live-throughput indicator in the pane title
+  during structured streaming.
 
-The remaining `#[allow(unused)]` annotations on
-`TranscriptDelta`, `flush_pending`, `content`, `set_block_kind`,
-`format_compact_paragraph`, `apply_transcript_delta`, and
-`consume_transcript_deltas` are retained because Rust's reachability analysis for the library
-target does not count `#[cfg(test)]` usage as live, and the full production renderer switchover (connecting
-`task_layout_state()` → `stream_deltas` → `consume_transcript_deltas`)
-is deferred to a follow-on PR.
+See Amendment D15 for the rename from `DeltaAccumulator` to `StreamingBlockBuffer`.
 
 ---
 
@@ -320,3 +315,50 @@ Test coverage:
 - `transcript_window_rows_bottom_anchor_scrolled` — correct viewport window at offset
 - `transcript_window_rows_bottom_anchor_at_tail` — last-page clamping
 - `transcript_window_rows_top_anchor_clamps_to_six` — inspector anchor uses six-row window
+
+---
+
+## Amendment — 2026-05-04: StreamingBlockBuffer rename and unused-code elimination
+
+### D15: Rename DeltaAccumulator → StreamingBlockBuffer, remove staged infrastructure
+
+`DeltaAccumulator` is renamed to `StreamingBlockBuffer` — a name that
+communicates its role: accumulating the live text of a single streaming
+block for the transcript render path.
+
+Simultaneously, all staged-but-not-yet-wired infrastructure is removed to
+eliminate unused-code suppressions:
+
+- `TranscriptDelta`, `flush_pending()`, the `VecDeque<TranscriptDelta>`
+  pending queue, `last_emitted_len`, and `set_block_kind()` are deleted.
+  These existed to drive a delta-extraction pipeline that was never
+  connected to any consumer in production code.
+
+- `StreamingBlockBuffer` is simplified to `content: String` +
+  `kind: TranscriptBlockKind` with `new()`, `append_delta()`,
+  `content()`, and `kind()` as its public surface.
+
+- The `#[cfg_attr(not(test), expect(dead_code))]` annotation on
+  `TranscriptDelta` and the `#[allow(unused)]` annotations on
+  `content()` and `set_block_kind()` are removed together with the
+  unused-code warnings they were suppressing.
+
+Production wiring of `content()` and `kind()`:
+- `transcript_display_rows()` reads `kind()` from all active buffers to
+  gate the streaming cursor (▌) on the presence of a FinalText or
+  Thinking block in `delta_accumulators`.
+- `task_output_view_with()` reads `content().len()` from all active
+  buffers and shows "Transcript · Nb" in the output pane title when
+  bytes are being received during structured streaming.
+
+Additional unused-code cleanup in the same pass:
+- `#[allow(unused)]` removed from `ChatCompatChunk`, `ChatCompatChoice`,
+  `ChatCompatDelta`, `ChatCompatToolCallDelta` in `src/api/stream.rs` —
+  all fields are used by the chat-compat conversion logic.
+- `estimate_history_tokens`, `should_compact_proactively`, and
+  `compact_with_summary` in `src/state/conversation/history.rs` converted
+  to `#[cfg(test)]` — they are fully-tested compaction helpers not yet
+  wired into the production flow.
+- `execute_tool_with_timeout` in `tools/mod.rs` and
+  `execute_tool_dispatch` in `tools/dispatch.rs` converted to
+  `#[cfg(test)]` — simplifiedshims used only by unit tests.

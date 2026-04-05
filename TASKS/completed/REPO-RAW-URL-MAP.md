@@ -325,12 +325,5 @@ Total tracked files: 330
 | `tests/live_server_test.rs` | 260 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/live_server_test.rs> |
 | `tests/release_notes_script_test.py` | 85 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/release_notes_script_test.py> |
 | `tests/signal_handling_tests.rs` | 79 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/signal_handling_tests.rs> |
-| `tests/snapshots/tui_draw_snapshots__snapshot_empty_state_80x24.snap` | 5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_empty_state_80x24.snap> |
-| `tests/snapshots/tui_draw_snapshots__snapshot_multiple_steps_80x24.snap` | 5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_multiple_steps_80x24.snap> |
-| `tests/snapshots/tui_draw_snapshots__snapshot_pending_approval_80x24.snap` | 5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_pending_approval_80x24.snap> |
-| `tests/snapshots/tui_draw_snapshots__snapshot_single_running_tool_80x24.snap` | 5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_single_running_tool_80x24.snap> |
-| `tests/snapshots/tui_draw_snapshots__snapshot_small_terminal_40x12.snap` | 5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_small_terminal_40x12.snap> |
-| `tests/snapshots/tui_draw_snapshots__snapshot_very_small_terminal_20x5.snap` | 5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_very_small_terminal_20x5.snap> |
-| `tests/snapshots/tui_draw_snapshots__snapshot_with_changed_files_80x24.snap` | 5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/snapshots/tui_draw_snapshots__snapshot_with_changed_files_80x24.snap> |
 | `tests/stream_parser_tests.rs` | 392 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/stream_parser_tests.rs> |
 | `tests/tool_operator_tests.rs` | 376 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |

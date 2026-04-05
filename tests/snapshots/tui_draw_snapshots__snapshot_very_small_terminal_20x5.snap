@@ -1,5 +1,0 @@
----
-source: tests/tui_draw_snapshots.rs
-expression: rendered
----
- │ hi──────────────────── /tmp/snap-project › submit: / commandsTab step  Pg scroll
