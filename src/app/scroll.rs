@@ -38,9 +38,7 @@ impl TuiMode {
         let expanded = crate::ui::draw::expand_rows_for_display(&rows, cols).len();
         if anchor == OutputScrollAnchor::Bottom && expanded > previous_expanded_rows {
             let growth = expanded - previous_expanded_rows;
-            self.transcript_scroll_offset = self
-                .transcript_scroll_offset
-                .saturating_add(growth);
+            self.transcript_scroll_offset = self.transcript_scroll_offset.saturating_add(growth);
         }
         // Always clamp to prevent the offset from exceeding the scrollable
         // range — this also handles the case where rows were removed (e.g.

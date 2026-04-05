@@ -377,12 +377,11 @@ impl ConversationManager {
                 // Local models often loop on the same read-only call because
                 // they fail to incorporate the prior tool result into their
                 // context. Use a tighter threshold for local endpoints.
-                let repeat_threshold =
-                    if has_empty_path_call || self.client.is_local_endpoint() {
-                        1
-                    } else {
-                        2
-                    };
+                let repeat_threshold = if has_empty_path_call || self.client.is_local_endpoint() {
+                    1
+                } else {
+                    2
+                };
 
                 if repeated_read_only_rounds >= repeat_threshold {
                     if !repeated_round_nudge_used
@@ -548,11 +547,7 @@ impl ConversationManager {
                         if let Some(clarification) =
                             missing_read_only_location_prompt(&name, &input)
                         {
-                            self.set_tool_call_status(
-                                &id,
-                                ToolStatus::Cancelled,
-                                stream_delta_tx,
-                            );
+                            self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
                             self.push_tool_result_block(
                                 StreamBlock::ToolResult {
                                     tool_call_id: id.clone(),
@@ -576,11 +571,7 @@ impl ConversationManager {
 
                         if let Some(clarification) = missing_mutating_location_prompt(&name, &input)
                         {
-                            self.set_tool_call_status(
-                                &id,
-                                ToolStatus::Cancelled,
-                                stream_delta_tx,
-                            );
+                            self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
                             self.push_tool_result_block(
                                 StreamBlock::ToolResult {
                                     tool_call_id: id.clone(),
@@ -605,11 +596,7 @@ impl ConversationManager {
                         if let Some(read_only_guard) =
                             mutating_tool_read_only_conflict_prompt(&original_user_input, &name)
                         {
-                            self.set_tool_call_status(
-                                &id,
-                                ToolStatus::Cancelled,
-                                stream_delta_tx,
-                            );
+                            self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
                             self.push_tool_result_block(
                                 StreamBlock::ToolResult {
                                     tool_call_id: id.clone(),
@@ -634,11 +621,7 @@ impl ConversationManager {
                         if let Some(test_only_guard) =
                             tests_only_mutation_conflict_prompt(turn_tool_policy, &name, &input)
                         {
-                            self.set_tool_call_status(
-                                &id,
-                                ToolStatus::Cancelled,
-                                stream_delta_tx,
-                            );
+                            self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
                             self.push_tool_result_block(
                                 StreamBlock::ToolResult {
                                     tool_call_id: id.clone(),
@@ -678,17 +661,9 @@ impl ConversationManager {
                         };
 
                         if approved {
-                            self.set_tool_call_status(
-                                &id,
-                                ToolStatus::Executing,
-                                stream_delta_tx,
-                            );
+                            self.set_tool_call_status(&id, ToolStatus::Executing, stream_delta_tx);
                         } else {
-                            self.set_tool_call_status(
-                                &id,
-                                ToolStatus::Cancelled,
-                                stream_delta_tx,
-                            );
+                            self.set_tool_call_status(&id, ToolStatus::Cancelled, stream_delta_tx);
                         }
 
                         if !approved {

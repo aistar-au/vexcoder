@@ -124,31 +124,19 @@ fn test_output_scroll_commands_update_scroll_state() {
 
     // Scroll up — should break auto-follow.
     mode.apply_output_scroll_action(ScrollAction::LineUp);
-    assert!(
-        !mode.auto_follow(),
-        "scrolling up must disable auto-follow"
-    );
+    assert!(!mode.auto_follow(), "scrolling up must disable auto-follow");
 
     // Scroll back to bottom — should restore auto-follow.
     mode.apply_output_scroll_action(ScrollAction::End);
-    assert!(
-        mode.auto_follow(),
-        "End must restore auto-follow"
-    );
+    assert!(mode.auto_follow(), "End must restore auto-follow");
 
     // Home scrolls to the very top — breaks auto-follow.
     mode.apply_output_scroll_action(ScrollAction::Home);
-    assert!(
-        !mode.auto_follow(),
-        "Home must disable auto-follow"
-    );
+    assert!(!mode.auto_follow(), "Home must disable auto-follow");
 
     // End restores it.
     mode.apply_output_scroll_action(ScrollAction::End);
-    assert!(
-        mode.auto_follow(),
-        "End must restore auto-follow again"
-    );
+    assert!(mode.auto_follow(), "End must restore auto-follow again");
 }
 #[test]
 fn test_history_status_uses_visual_rows() {
