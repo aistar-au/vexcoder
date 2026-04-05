@@ -107,7 +107,6 @@ impl ConversationManager {
             let mut assistant_text = String::new();
             let mut tool_use_blocks = Vec::new();
             let mut tool_input_buffers: Vec<Option<String>> = Vec::new();
-            let mut tool_input_event_emitted: Vec<bool> = Vec::new();
             let mut deferred_text_block_indices = BTreeSet::new();
 
             while let Some(chunk_result) = stream.next().await {
@@ -174,7 +173,6 @@ impl ConversationManager {
                                 while tool_use_blocks.len() <= index {
                                     tool_use_blocks.push(None);
                                     tool_input_buffers.push(None);
-                                    tool_input_event_emitted.push(false);
                                 }
                                 tool_use_blocks[index] = Some(content_block);
                                 tool_input_buffers[index] = Some(String::new());
