@@ -1,9 +1,10 @@
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder};
 use anyhow::{Context, Result};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::{non_empty_trimmed, path_to_repo_relative_string, SearchMatch, ToolOperator};
+use crate::tools::search::parallel_search_files;
 
 impl ToolOperator {
     pub fn search_files(
@@ -62,34 +63,42 @@ impl ToolOperator {
             .context("search_content requires a non-empty 'query' field")?;
         let glob_pattern = path_glob.and_then(non_empty_trimmed);
 
-        let mut matches = Vec::new();
-        let (matcher, unicode_case_folded_query) = build_line_matcher(query)?;
-
+        // Collect candidate paths, applying the optional glob filter.
+        let mut candidates: Vec<PathBuf> = Vec::new();
         for path in self.walk_workspace_files(&self.working_dir)? {
-            let relative = path
-                .strip_prefix(&self.working_dir)
-                .unwrap_or_else(|_| Path::new(""));
             if let Some(pattern) = glob_pattern {
+                let relative = path
+                    .strip_prefix(&self.working_dir)
+                    .unwrap_or_else(|_| Path::new(""));
                 let candidate = path_to_repo_relative_string(relative);
                 if !glob_matches(pattern, &candidate) {
                     continue;
                 }
             }
-
-            let Ok(content) = fs::read_to_string(&path) else {
-                continue;
-            };
-
-            for (index, line) in content.lines().enumerate() {
-                if line_matches_literal_query(line, &matcher, &unicode_case_folded_query) {
-                    matches.push(SearchMatch {
-                        file: path.clone(),
-                        line_number: index + 1,
-                        line_text: line.to_string(),
-                    });
-                }
-            }
+            candidates.push(path);
         }
+
+        // Escape the literal query to a regex pattern so the grep-searcher /
+        // memmap2 backend handles the heavy I/O while preserving literal
+        // matching semantics.
+        let escaped = regex_lite::escape(query);
+        let case_sensitive = query.chars().any(char::is_uppercase);
+        let pattern = if case_sensitive {
+            escaped
+        } else {
+            format!("(?i){escaped}")
+        };
+
+        let raw = parallel_search_files(&candidates, &pattern);
+
+        let mut matches: Vec<SearchMatch> = raw
+            .into_iter()
+            .map(|(file_str, line_number, line_text)| SearchMatch {
+                file: PathBuf::from(file_str),
+                line_number: line_number as usize,
+                line_text,
+            })
+            .collect();
 
         matches.sort_by(|left, right| {
             left.file

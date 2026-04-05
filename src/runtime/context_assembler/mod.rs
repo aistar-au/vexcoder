@@ -2,12 +2,12 @@ mod reads;
 
 use anyhow::Result;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use self::reads::{extract_candidate_paths, infer_related_path_candidates, rollup_from_read};
 
 use crate::runtime::context_cache::read_cached_file;
-use crate::runtime::git_rollup::{collect_git_rollup, resolve_git_timeout_ms};
+use crate::runtime::git_rollup::{collect_git_rollup, resolve_git_timeout_ms, watch_working_dir};
 use crate::tools::ToolOperator;
 use crate::util::parse_bool_flag;
 
@@ -22,6 +22,26 @@ pub struct AssembledContext {
     pub file_rollups: Vec<FileRollup>,
     pub git_status_summary: Option<String>,
     pub recent_diff: Option<String>,
+    /// Whether the working tree has staged or unstaged changes according to
+    /// the most recent git rollup.  `false` when git context is disabled or
+    /// the directory is not a git repository.
+    pub has_staged_changes: bool,
+    /// Whether the porcelain status contains at least one entry with
+    /// working-tree modifications (modified, deleted, or untracked files).
+    /// `false` when git context is disabled or the directory is not a git
+    /// repository.
+    pub has_working_tree_changes: bool,
+    /// Path to the `.git` directory as resolved by the pure-Rust gitoxide
+    /// implementation.  `None` when git context is disabled or the directory
+    /// is not inside a git repository.
+    pub git_dir: Option<PathBuf>,
+    /// Git committer name from the global git config.  `None` when git
+    /// context is disabled or `user.name` is not configured.
+    pub committer_name: Option<String>,
+    /// Relative paths of files currently in the git staging area as read by
+    /// `gix-index`.  Empty when git context is disabled, no files are staged,
+    /// or the index cannot be read.
+    pub staged_paths: Vec<PathBuf>,
     pub related_paths: Vec<PathBuf>,
     pub cache_hits: usize,
     pub cache_misses: usize,
@@ -59,6 +79,23 @@ impl ContextAssembler {
     pub fn with_git_context(mut self, enabled: bool) -> Self {
         self.include_git_context = enabled;
         self
+    }
+
+    /// Create a filesystem watcher on `working_dir` that calls `on_change`
+    /// whenever a file in the directory tree is created, modified, or removed.
+    ///
+    /// The returned watcher handle must be held by the caller; dropping it
+    /// stops the watch.  Session-lifetime components use this to schedule
+    /// context refreshes when the working directory changes.
+    pub fn watch_working_dir<F>(
+        &self,
+        working_dir: &Path,
+        on_change: F,
+    ) -> anyhow::Result<notify::RecommendedWatcher>
+    where
+        F: Fn(Vec<PathBuf>) + Send + 'static,
+    {
+        watch_working_dir(working_dir, on_change)
     }
 
     /// Assemble context for the given instruction.
@@ -129,6 +166,11 @@ impl ContextAssembler {
                 file_rollups,
                 git_status_summary: None,
                 recent_diff: None,
+                has_staged_changes: false,
+                has_working_tree_changes: false,
+                git_dir: None,
+                committer_name: None,
+                staged_paths: Vec::new(),
                 related_paths,
                 cache_hits,
                 cache_misses,
@@ -140,11 +182,18 @@ impl ContextAssembler {
             timeout_ms,
             self.max_diff_lines,
         )?;
+        let has_staged_changes = git_rollup.has_staged_changes();
+        let has_working_tree_changes = git_rollup.has_working_tree_changes();
 
         Ok(AssembledContext {
             file_rollups,
             git_status_summary: git_rollup.git_status_summary,
             recent_diff: git_rollup.recent_diff,
+            has_staged_changes,
+            has_working_tree_changes,
+            git_dir: git_rollup.git_dir,
+            committer_name: git_rollup.committer_name,
+            staged_paths: git_rollup.staged_paths,
             related_paths,
             cache_hits,
             cache_misses,

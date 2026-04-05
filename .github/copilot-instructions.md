@@ -26,6 +26,13 @@ Repository-hosted background sessions in `vexcoder` are self-contained.
 - If local `HEAD` diverges from `origin/<branch>`, stop, push or resync, then
   continue from the verified remote SHA only.
 - Keep wording neutral and repository-focused.
+- Do not use emojis or Unicode status symbols in any agent-authored output,
+  including PR bodies, review text, commit messages, comments, plan text,
+  and inline findings. Use plain ASCII text and standard Markdown only.
+- Every pull request body must include a `## Risks` section that identifies
+  at least one risk (or explicitly states "No identified risks" when none
+  apply). A PR body without a `## Risks` section is incomplete and must not
+  be posted via the GitHub API.
 - Aim for original free-license parity through first-principles design. Do not
   reuse proprietary product wording, branded visual labels, or copyrighted UI
   material.

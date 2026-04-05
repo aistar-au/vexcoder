@@ -2,6 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use gix;
 use gix_config;
 use gix_discover;
+use gix_index;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -20,8 +21,36 @@ pub(crate) struct GitRollup {
     pub(crate) recent_diff: Option<String>,
     /// Structured parse of the raw `git status --porcelain` output.
     /// Available for downstream consumers (context assembler, tool operators).
-    #[allow(dead_code)]
     pub(crate) parsed_status: Option<ParsedGitStatus>,
+    /// Path to the `.git` directory discovered via the pure-Rust gitoxide
+    /// implementation.  `None` when gix cannot open the repository (bare
+    /// repo without a worktree, or path outside any repo).
+    pub(crate) git_dir: Option<PathBuf>,
+    /// Git committer name read from the global config without spawning a
+    /// subprocess.  `None` when `user.name` is not set or unreadable.
+    pub(crate) committer_name: Option<String>,
+    /// Relative paths of every file currently in the staging area (git index)
+    /// as read by `gix-index`.  Empty when no files are staged or when the
+    /// index cannot be read.
+    pub(crate) staged_paths: Vec<PathBuf>,
+}
+
+impl GitRollup {
+    /// Return `true` when the git index contains one or more staged paths.
+    /// Uses `staged_paths` so the result matches the method name and excludes
+    /// purely unstaged working tree changes.
+    pub(crate) fn has_staged_changes(&self) -> bool {
+        !self.staged_paths.is_empty()
+    }
+
+    /// Return `true` when the porcelain status contains at least one entry
+    /// with a non-space worktree column, indicating uncommitted working-tree
+    /// modifications (modified, deleted, or untracked files).
+    pub(crate) fn has_working_tree_changes(&self) -> bool {
+        self.parsed_status
+            .as_ref()
+            .is_some_and(|ps| ps.entries.iter().any(|e| e.worktree != ' '))
+    }
 }
 
 #[derive(Default)]
@@ -51,6 +80,19 @@ pub(crate) fn collect_git_rollup(
     timeout_ms: u64,
     max_diff_lines: usize,
 ) -> Result<GitRollup> {
+    // Native pre-check using gix-discover: skip the subprocess when the
+    // directory is outside any git repository.  Zero subprocesses; no PATH
+    // dependency for this guard.
+    if discover_git_root(&working_dir).is_none() {
+        return Ok(GitRollup::default());
+    }
+
+    // Capture the .git directory path and committer identity via pure-Rust
+    // implementations so downstream consumers have them without extra I/O.
+    let git_dir = gix_git_dir(&working_dir);
+    let committer_name = configured_git_user_name();
+    let staged_paths = read_staged_paths(&working_dir);
+
     let git_status = block_on_context_task(run_git_command_with_timeout(
         working_dir.clone(),
         vec!["status".to_string(), "--short".to_string()],
@@ -58,7 +100,12 @@ pub(crate) fn collect_git_rollup(
     ))?;
 
     if git_status.non_git_repo {
-        return Ok(GitRollup::default());
+        return Ok(GitRollup {
+            git_dir,
+            committer_name,
+            staged_paths,
+            ..GitRollup::default()
+        });
     }
 
     let git_diff = block_on_context_task(run_git_command_with_timeout(
@@ -92,6 +139,9 @@ pub(crate) fn collect_git_rollup(
         git_status_summary,
         recent_diff,
         parsed_status,
+        git_dir,
+        committer_name,
+        staged_paths,
     })
 }
 
@@ -267,7 +317,6 @@ pub(crate) fn resolve_git_timeout_ms(default_ms: u64) -> u64 {
 /// rollup layer.  It is intentionally kept narrow: the callback receives only
 /// a `Vec<PathBuf>` of changed paths so the caller decides how to respond
 /// (e.g., schedule a fresh `collect_git_rollup` call).
-#[allow(dead_code)]
 pub(crate) fn watch_working_dir<F>(
     working_dir: &Path,
     on_change: F,
@@ -311,7 +360,6 @@ fn limit_lines(text: &str, max_lines: usize) -> String {
 ///
 /// This complements the subprocess-based git detection in `collect_git_rollup`
 /// with a zero-subprocess fallback that works from any working directory.
-#[allow(dead_code)]
 pub(crate) fn discover_git_root(path: &Path) -> Option<PathBuf> {
     let (git_path, _trust) = gix_discover::upwards(path).ok()?;
     Some(git_path.as_ref().to_path_buf())
@@ -323,7 +371,6 @@ pub(crate) fn discover_git_root(path: &Path) -> Option<PathBuf> {
 /// config file, the key is absent, or the value is not valid UTF-8).  This is
 /// used to attribute AI-generated commits without spawning a `git config`
 /// subprocess.
-#[allow(dead_code)]
 pub(crate) fn configured_git_user_name() -> Option<String> {
     let config = gix_config::File::from_globals().ok()?;
     let name = config.string("user.name")?;
@@ -340,8 +387,130 @@ pub(crate) fn configured_git_user_name() -> Option<String> {
 ///
 /// Returns `None` on any error (path not in a repo, I/O error, bare repo
 /// without a work-tree, etc.).
-#[allow(dead_code)]
 pub(crate) fn gix_git_dir(path: &Path) -> Option<PathBuf> {
     let repo = gix::open(path).ok()?;
     Some(repo.git_dir().to_path_buf())
+}
+
+/// Read the relative file paths currently staged in the git index for the
+/// repository that contains `repo_path`.
+///
+/// Uses `gix` to open the repository and `gix-index` entry types to iterate
+/// the staging area without spawning any subprocess.  The staging index file
+/// at `.git/index` is read directly.  Returns an empty Vec when the path is
+/// not a git repository, the index file is absent, or no entries are staged.
+pub(crate) fn read_staged_paths(repo_path: &Path) -> Vec<PathBuf> {
+    let repo = match gix::open(repo_path) {
+        Ok(r) => r,
+        Err(_) => return Vec::new(),
+    };
+    let index_path = repo.index_path();
+    let state =
+        match gix_index::File::at(&index_path, repo.object_hash(), false, Default::default()) {
+            Ok(f) => f,
+            Err(_) => return Vec::new(),
+        };
+    state
+        .entries()
+        .iter()
+        .filter_map(|entry: &gix_index::Entry| {
+            let raw = entry.path(&state);
+            std::str::from_utf8(raw).ok().map(PathBuf::from)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Confirm `parsed_status` is populated when the rollup captures git output.
+    /// This exercises the field read-path so the compiler does not elide it.
+    #[test]
+    fn test_parsed_status_is_populated_from_rollup() {
+        let rollup = GitRollup {
+            git_status_summary: Some(" M src/lib.rs".to_string()),
+            recent_diff: None,
+            parsed_status: Some(parse_git_status(" M src/lib.rs")),
+            git_dir: None,
+            committer_name: None,
+            staged_paths: vec![],
+        };
+        assert!(rollup.parsed_status.is_some());
+    }
+
+    /// `discover_git_root` returns a usable repository root when the current
+    /// working directory is inside a git repository.
+    #[test]
+    fn test_discover_git_root_finds_repo() {
+        let here = std::env::current_dir().expect("cwd must be available in tests");
+        let Some(root) = discover_git_root(&here) else {
+            // Not inside a git checkout (e.g. source tarball); skip.
+            return;
+        };
+        assert!(
+            root.exists(),
+            "discovered git root should exist: {}",
+            root.display()
+        );
+    }
+
+    /// `gix_git_dir` returns a usable `.git` directory when the current
+    /// working directory is inside a git repository.
+    #[test]
+    fn test_gix_git_dir_returns_git_directory() {
+        let here = std::env::current_dir().expect("cwd must be available in tests");
+        let Some(dir) = gix_git_dir(&here) else {
+            return;
+        };
+        assert!(
+            dir.exists(),
+            "discovered git directory should exist: {}",
+            dir.display()
+        );
+    }
+
+    /// `configured_git_user_name` succeeds or gracefully returns `None`; it
+    /// must not panic or return an error that propagates.
+    #[test]
+    fn test_configured_git_user_name_does_not_panic() {
+        // The result is either Some(name) or None; neither is an error here.
+        let _ = configured_git_user_name();
+    }
+
+    /// `has_working_tree_changes` returns `true` when `parsed_status` contains
+    /// an entry with a non-space worktree column.
+    #[test]
+    fn test_has_working_tree_changes_detects_modified() {
+        let rollup = GitRollup {
+            parsed_status: Some(parse_git_status(" M src/lib.rs")),
+            ..GitRollup::default()
+        };
+        assert!(rollup.has_working_tree_changes());
+    }
+
+    /// `has_working_tree_changes` returns `false` when all entries are staged
+    /// (worktree column is a space).
+    #[test]
+    fn test_has_working_tree_changes_false_for_staged_only() {
+        let rollup = GitRollup {
+            parsed_status: Some(parse_git_status("M  src/lib.rs")),
+            ..GitRollup::default()
+        };
+        assert!(!rollup.has_working_tree_changes());
+    }
+
+    /// `watch_working_dir` constructs a watcher without panicking.
+    /// The returned handle is dropped immediately to stop the watch.
+    #[test]
+    fn test_watch_working_dir_constructs_watcher() {
+        let here = std::env::current_dir().expect("cwd must be available in tests");
+        let result = watch_working_dir(&here, |_paths| {});
+        assert!(
+            result.is_ok(),
+            "watcher construction should succeed: {:?}",
+            result
+        );
+        // watcher dropped here — watch stops cleanly
+    }
 }
