@@ -12,5 +12,5 @@
 - [x] Restore the ratatui task-surface status row on the primary render path.
 - [x] Tighten tool-result history enrichment so the next model round gets request context plus bounded output previews.
 - [x] Remove remaining banned naming hits and stale delta-path wording from tracked docs and ADRs.
-- [ ] Rewrite the PR body to match the actual branch contents and follow repository structure.
-- [ ] Run local validation, push the branch, watch checks to success, and close out any remaining automated review noise.
+- [x] Rewrite the PR body to match the actual branch contents and follow repository structure.
+- [x] Run local validation, push the branch, watch checks to success, and close out any remaining automated review noise.
