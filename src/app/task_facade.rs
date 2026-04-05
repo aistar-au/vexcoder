@@ -14,14 +14,12 @@ pub mod projection;
 mod tests;
 mod types;
 
-pub use self::projection::{
-    task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
-};
+pub use self::projection::{task_graph_rollup_path, todos_rollup_path, write_projection_rollup};
 pub use self::types::{
     FacadeAgentDescriptor, FacadeAgentsListing, FacadeDelegateResult, FacadeJoinOutcome,
     FacadeScheduleTeamResult, FacadeSessionTaskRollup, FacadeTaskGraph, FacadeTaskGraphNode,
-    FacadeTaskSummary, FacadeTeamDescriptor, FacadeTodoItem, FacadeWatchRollup,
-    ScheduleTeamError, SessionTaskStatusError,
+    FacadeTaskSummary, FacadeTeamDescriptor, FacadeTodoItem, FacadeWatchRollup, ScheduleTeamError,
+    SessionTaskStatusError,
 };
 
 // ---------------------------------------------------------------------------

@@ -303,11 +303,9 @@ impl ConversationManager {
         summary: ReadFileRollupSummary,
     ) -> String {
         match summary {
-            ReadFileRollupSummary::Unchanged { .. } => format_read_file_rollup_message(
-                path,
-                summary,
-                ReadFileSummaryMessageStyle::History,
-            ),
+            ReadFileRollupSummary::Unchanged { .. } => {
+                format_read_file_rollup_message(path, summary, ReadFileSummaryMessageStyle::History)
+            }
             ReadFileRollupSummary::FirstRead { .. } | ReadFileRollupSummary::Changed { .. } => {
                 let summary_message = match summary {
                     ReadFileRollupSummary::FirstRead { chars, lines } => format!(

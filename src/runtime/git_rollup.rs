@@ -54,9 +54,7 @@ pub(crate) fn collect_git_rollup(
         .output
         .map(|value| limit_lines(&value, max_diff_lines));
 
-    let parsed_status = git_status_summary
-        .as_deref()
-        .map(parse_git_status);
+    let parsed_status = git_status_summary.as_deref().map(parse_git_status);
 
     if git_status.timed_out {
         append_annotation(

@@ -125,7 +125,7 @@ None of these overlap with codebase search, RAG, or semantic indexing.
 The `regex-lite` modules live under `src/runtime/` as three focused files:
 
 - **`git_parse.rs`** -- Structured parsing of `git status --porcelain`, `git diff --stat`, `git diff --name-status`, `git log --oneline`, and `git apply` output into typed enums and structs.  Patterns compile once via `OnceLock<regex_lite::Regex>` and are reused across calls.
-- **`secrets.rs`** -- Output redaction for OpenAI keys (`sk-...`), AWS access keys (`AKIA...`), GitHub PATs (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`), PEM private key headers, bearer tokens, connection strings with embedded credentials, and generic secret assignments.  Wired into `sanitize_assistant_text` so secrets never leak into the transcript or logs.
+- **`secrets.rs`** -- Output redaction for vendor API keys (`sk-...`), AWS access keys (`AKIA...`), GitHub PATs (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`), PEM private key headers, bearer tokens, connection strings with embedded credentials, and generic secret assignments.  Wired into `sanitize_assistant_text` so secrets never leak into the transcript or logs.
 - **`rate_limit.rs`** -- Extracts retry delay hints from `Retry-After` header values and error response body text ("try again in N seconds").  The header path is wired into `map_api_status_error` in the API client with fallback to body text for 429 detection.
 
 Design rationale: `regex-lite` was chosen over the full `regex` crate because
@@ -166,7 +166,7 @@ Secret redaction runs on every assistant text output through
 `sanitize_assistant_text` in `src/runtime/policy.rs`.  The following
 patterns are detected and replaced with `[REDACTED]`:
 
-- OpenAI API keys (`sk-` prefix, 20+ chars)
+- Vendor API keys (`sk-` prefix, 20+ chars)
 - AWS access key IDs (`AKIA` prefix, 16 uppercase alphanumeric)
 - GitHub personal access tokens (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_` prefixes, 36+ chars)
 - PEM private key headers (`-----BEGIN ... PRIVATE KEY-----`)
@@ -187,7 +187,7 @@ The stream parser handles three tool-call markup formats from model output:
    chat-completion deltas.  Streamed deltas accumulate into `indexmap::IndexMap`
    entries preserving insertion order.
 
-3. **Anthropic-style content blocks** -- `tool_use` blocks with `id`, `name`,
+3. **Structured content blocks** -- `tool_use` blocks with `id`, `name`,
    and `input` fields parsed from content-block deltas.
 
 No regex is used in the streaming tool-call path.  `regex-lite` is reserved
@@ -203,7 +203,7 @@ for the next batch or rejected with rationale.
 Accepted now means the design choice is settled in the repo. It does **not**
 mean the crate is added immediately without a live integration seam. vexcoder
 keeps dependency additions coupled to real code paths and tests so the tree
-does not accumulate dead crates.
+does not accumulate unused crates.
 
 | Crate | Comparable CLI usage | vexcoder decision | Rationale |
 |-------|------------|-------------------|-----------|

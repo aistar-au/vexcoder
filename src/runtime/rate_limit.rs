@@ -136,8 +136,7 @@ mod tests {
 
     #[test]
     fn test_parse_retry_from_body_seconds() {
-        let hint =
-            parse_retry_from_body("Rate limited: try again in 5 seconds").unwrap();
+        let hint = parse_retry_from_body("Rate limited: try again in 5 seconds").unwrap();
         assert_eq!(hint.delay_ms, 5000);
         assert_eq!(hint.source, RetryHintSource::Body);
     }
