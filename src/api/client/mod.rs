@@ -688,6 +688,7 @@ fn map_api_request_error(error: reqwest::Error, request_url: &str) -> anyhow::Er
 /// Handle HTTP 4xx responses where the body has already been read.
 /// Detects context-overflow errors from local inference servers and provides
 /// actionable guidance including `--ctx-size` configuration hints.
+/// Also detects 429 rate-limit responses and extracts retry hints.
 fn map_api_status_error(
     status: reqwest::StatusCode,
     body: &str,
@@ -695,6 +696,28 @@ fn map_api_status_error(
 ) -> anyhow::Error {
     let local_http_hint = local_plain_http_hint(request_url);
     let is_local = is_local_endpoint_url(request_url);
+
+    // Detect 429 rate-limit responses.
+    if status.as_u16() == 429
+        || (status.is_client_error()
+            && crate::runtime::rate_limit::looks_like_rate_limit(body))
+    {
+        let retry_hint = crate::runtime::rate_limit::parse_retry_from_body(body);
+        let delay_msg = match retry_hint {
+            Some(hint) => format!(
+                " Retry suggested after {:.1}s.",
+                hint.delay_ms as f64 / 1000.0
+            ),
+            None => String::new(),
+        };
+        return anyhow!(
+            "API endpoint '{}' returned HTTP {} (rate limited).{}\n  Server message: {}",
+            request_url,
+            status.as_u16(),
+            delay_msg,
+            body.chars().take(300).collect::<String>()
+        );
+    }
 
     // Detect context-window overflow from local inference servers.
     if is_context_overflow(body) {

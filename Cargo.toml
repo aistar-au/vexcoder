@@ -90,7 +90,6 @@ pulldown-cmark = { version = "0.12", default-features = false }
 syntect = { version = "5", default-features = false, features = [
   "default-fancy",
 ] }
-figment = "0.10.19"
 indicatif = "0.17"
 console = "0.15"
 
@@ -102,13 +101,10 @@ dunce = "1"
 base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
-# --- Tier 4: Ordered collections, iterators, regex, byte strings, HTTP middleware ---
+# --- Tier 4: Ordered collections, HTTP middleware, lightweight regex ---
 indexmap = { version = "2", features = ["serde"] }
-itertools = "0.14"
-regex-lite = "0.1"
-bstr = "1"
 tower-http = { version = "0.6", default-features = false, features = ["trace"] }
-compact_str = { version = "0.9.0", features = ["serde"] }
+regex-lite = "0.1"
 
 [dev-dependencies]
 filetime = "0.2"

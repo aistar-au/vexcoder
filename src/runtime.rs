@@ -6,13 +6,16 @@ pub mod context_assembler;
 pub mod context_cache;
 pub mod edit_loop;
 pub mod frontend;
-pub mod git_snapshot;
+pub mod git_parse;
+pub mod git_rollup;
 pub mod json_handoff;
 pub mod r#loop;
 pub mod mode;
 pub mod policy;
 pub mod project_instructions;
+pub mod rate_limit;
 pub mod sandbox;
+pub mod secrets;
 pub mod session_task;
 pub mod task_state;
 pub mod text_util;
@@ -33,9 +36,13 @@ pub use command::{
     CommandHandle, CommandRequest, CommandResult, CommandRunner, DefaultCommandRunner, OutputChunk,
     StreamKind,
 };
-pub use context_assembler::{AssembledContext, ContextAssembler, FileSnapshot};
+pub use context_assembler::{AssembledContext, ContextAssembler, FileRollup};
 pub use edit_loop::{EditLoop, EditLoopOutcome};
-pub(crate) use git_snapshot::{
+pub use git_parse::{
+    parse_diff_stat, parse_git_apply, parse_git_status, ApplyOutcome, DiffStatEntry,
+    ParsedDiffStat, ParsedGitApply, ParsedGitStatus, StatusEntry,
+};
+pub(crate) use git_rollup::{
     block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout,
 };
 pub use json_handoff::{
@@ -51,6 +58,11 @@ pub use task_state::{
     InterruptedCommand, TaskId, TaskState, TaskStatus,
 };
 pub use text_util::{truncate_head_bytes, truncate_tail_bytes};
+pub use rate_limit::{
+    looks_like_rate_limit, parse_retry_after_header, parse_retry_from_body, RetryHint,
+    RetryHintSource,
+};
+pub use secrets::{contains_secret, redact_secrets};
 pub use update::UiUpdate;
 pub use validation::{ValidationCommand, ValidationOutput, ValidationResult, ValidationSuite};
 pub use worktree_lease::{WorktreeLease, WorktreeLeaseManager};
