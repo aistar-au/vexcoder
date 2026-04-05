@@ -1,4 +1,7 @@
 use anyhow::{anyhow, Context, Result};
+use gix;
+use gix_config;
+use gix_discover;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -299,4 +302,46 @@ fn limit_lines(text: &str, max_lines: usize) -> String {
         return String::new();
     }
     text.lines().take(max_lines).collect::<Vec<_>>().join("\n")
+}
+
+/// Locate the `.git` directory by walking up from `path` using the pure-Rust
+/// `gix-discover` implementation.  Returns the path to the `.git` directory
+/// (or the repository root for bare repos), or `None` if `path` is not inside
+/// a git repository.
+///
+/// This complements the subprocess-based git detection in `collect_git_rollup`
+/// with a zero-subprocess fallback that works from any working directory.
+#[allow(dead_code)]
+pub(crate) fn discover_git_root(path: &Path) -> Option<PathBuf> {
+    let (git_path, _trust) = gix_discover::upwards(path).ok()?;
+    Some(git_path.as_ref().to_path_buf())
+}
+
+/// Read `user.name` from the global git config using `gix-config`.
+///
+/// Returns the configured committer name, or `None` if it cannot be read (no
+/// config file, the key is absent, or the value is not valid UTF-8).  This is
+/// used to attribute AI-generated commits without spawning a `git config`
+/// subprocess.
+#[allow(dead_code)]
+pub(crate) fn configured_git_user_name() -> Option<String> {
+    let config = gix_config::File::from_globals().ok()?;
+    let name = config.string("user.name")?;
+    Some(String::from_utf8_lossy(name.as_ref()).into_owned())
+}
+
+/// Open the git repository at or above `path` using the pure-Rust gitoxide
+/// implementation and return the path to its `.git` directory.
+///
+/// `gix` provides fast, thread-safe repository access without spawning
+/// subprocesses.  This function is the integration seam; callers that need
+/// deeper object access (e.g., reading blobs or the commit graph) can open
+/// the repository themselves via `gix::open(path)`.
+///
+/// Returns `None` on any error (path not in a repo, I/O error, bare repo
+/// without a work-tree, etc.).
+#[allow(dead_code)]
+pub(crate) fn gix_git_dir(path: &Path) -> Option<PathBuf> {
+    let repo = gix::open(path).ok()?;
+    Some(repo.git_dir().to_path_buf())
 }

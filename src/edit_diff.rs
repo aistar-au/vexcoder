@@ -61,6 +61,29 @@ pub fn format_edit_hunks(
     out
 }
 
+/// Generate a unified diff patch compatible with `git diff` / `diff -u` output.
+///
+/// Uses the `imara-diff` high-speed backend with the Histogram algorithm and
+/// line-based interning.  Returns an empty string when both inputs are identical.
+/// This complements `format_edit_hunks`, which is optimised for displaying diffs
+/// inside the editor UI — `format_unified_patch` produces the raw patch format
+/// that external tools (e.g. `git apply`) can consume.
+pub fn format_unified_patch(old: &str, new: &str) -> String {
+    use imara_diff::{Algorithm, BasicLineDiffPrinter, Diff, InternedInput, UnifiedDiffConfig};
+    let input = InternedInput::new(old, new);
+    let mut d = Diff::compute(Algorithm::Histogram, &input);
+    d.postprocess_lines(&input);
+    if d.hunks().count() == 0 {
+        return String::new();
+    }
+    d.unified_diff(
+        &BasicLineDiffPrinter(&input.interner),
+        UnifiedDiffConfig::default(),
+        &input,
+    )
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

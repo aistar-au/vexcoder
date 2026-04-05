@@ -119,6 +119,31 @@ notify = { version = "8", default-features = false, features = [
   "macos_kqueue",
 ] }
 
+# --- Tier 6: Native git library stack ---
+# git2: libgit2 bindings; primary crate for low-level git tasks (repo
+#       discovery, commit-graph inspection) without spawning a subprocess.
+#       vendored-libgit2 bundles libgit2 so no system install is required.
+#       Wire point: src/tools/operator/git_ops.rs.
+git2 = { version = "0.20", default-features = false, features = [
+  "vendored-libgit2",
+] }
+# gix: pure-Rust gitoxide implementation; provides fast, thread-safe
+#      repository access as a complement to git2.
+#      Wire point: src/runtime/git_rollup.rs.
+gix = { version = "0.81", default-features = false, features = ["sha1"] }
+# gix-discover: locates the .git directory when the CLI is launched from a
+#               repository subfolder using pure-Rust walk-up discovery.
+#               Wire point: src/runtime/git_rollup.rs.
+gix-discover = "0.49"
+# gix-config: reads local/global git config (user.name, user.email) so
+#             AI-generated commits are correctly attributed.
+#             Wire point: src/runtime/git_rollup.rs.
+gix-config = "0.54"
+# imara-diff: high-speed backend for generating unified patches compatible
+#             with standard git diff formats.
+#             Wire point: src/edit_diff.rs.
+imara-diff = { version = "0.2", features = ["unified_diff"] }
+
 [dev-dependencies]
 filetime = "0.2"
 insta = "1.38"
