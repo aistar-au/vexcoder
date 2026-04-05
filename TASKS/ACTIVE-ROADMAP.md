@@ -107,7 +107,7 @@ PI-08 (`/plan`, `/context`) merged in ADR-023 batch.
 All 4 verification items confirmed in-tree:
 - ADR-029: All 8 decision items verified present (StreamEvent, ContentBlock, Delta, ApiUsage, MessageDelta, MessageStartData, chat-completions, TaskState)
 - ADR-030: All 6 coverage requirements have named tests in the tree
-- ADR-032: Items 4 (character count indicator) and 5 (focus indicator) verified implemented in src/ui/draw/mod.rs
+- ADR-032: Items 4 (character count indicator) and 5 (focus indicator) verified implemented in src/ui/render/mod.rs
 - ADR-031/ADR-032/docs: fullscreen composer auto-fit behavior documented consistently for current display row/column resize and snapped display layouts
 
 ### ~~Tier 6 -- Code Quality (ADR-021 P2)~~ (cleared 2026-03-28)
@@ -221,7 +221,7 @@ Candidate implementation areas:
 | File | Scope |
 | :--- | :--- |
 | `src/ui/render/mod.rs` | ratatui widget for pulsing-star glyph paired with mapping status text |
-| `src/ui/draw/transcript.rs` | ANSI plain-text fallback rendering the star as a static glyph |
+| `src/ui/render/transcript.rs` | Ratatui transcript rendering with static glyph support |
 | `src/status_contract.rs` | `ACTIVE_INDICATOR_GLYPH` constant and accessibility fallback string |
 
 **Batch D -- paragraph progress stream**
@@ -235,7 +235,7 @@ Candidate implementation areas:
 
 | File | Scope |
 | :--- | :--- |
-| `src/ui/draw/transcript.rs` | Paragraph-stream layout for tool/agent updates in the ANSI renderer |
+| `src/ui/render/transcript.rs` | Paragraph-stream layout for tool/agent updates in the ratatui renderer |
 | `src/ui/render/mod.rs` | ratatui paragraph widget for orchestrator progress lane |
 | `src/app/model_update.rs` | Coalesce sequential tool-status updates into a rolling paragraph |
 | `src/runtime/core.rs` | Expose active file-count and active-agent-count to the UI update channel |

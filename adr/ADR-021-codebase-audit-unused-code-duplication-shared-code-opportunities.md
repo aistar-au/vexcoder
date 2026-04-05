@@ -134,7 +134,7 @@ git diff --numstat -- src/ui/editor/mod.rs src/app.rs src/bin/vex.rs src/ui.rs s
 - **Evidence**:
   - `src/ui/layout.rs` exports `MAX_INPUT_PANE_ROWS` for shared production use.
   - `src/tui_frontend.rs` clamps the current composer against that shared cap.
-  - `src/ui/render/mod.rs` and `src/ui/draw/regions.rs` recompute composer height
+  - `src/ui/render/mod.rs` recomputes composer height
     from wrapped content and current display geometry, so the fullscreen surface
     auto-fits to row and column changes instead of reserving a fixed prompt
     block.

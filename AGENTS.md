@@ -38,7 +38,7 @@ Ignore this section in repository-hosted background sessions.
 
 - `src/` — Rust crate source.
 - `src/app/` — command routing, mode state, layout logic.
-- `src/ui/draw/` — ANSI transcript renderer, regions, tests.
+- `src/ui/render/` — ratatui task-surface renderer, transcript styling, tests.
 - `src/runtime/` — orchestration and task-state control.
 - `tests/` — integration tests.
 - `adr/` — architecture decision records for task-state, UI, and workflow
@@ -47,7 +47,7 @@ Ignore this section in repository-hosted background sessions.
 ## Rules
 
 - If the prompt touches `src/app/layout.rs`, `src/ui/render/`,
-  `src/ui/draw/**`, `src/app/tests/`,
+  `src/app/tests/`,
   `.github/instructions/**`, `CONTRIBUTING.md`, or workflow/docs files tied to
   the same feature lane, treat it as one comprehensive task. Do not split the
   same lane across multiple overlapping draft branches or PRs unless the lane

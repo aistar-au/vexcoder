@@ -112,14 +112,14 @@ Accumulators are keyed by block index in TuiMode and are created on
 on `StreamBlockComplete`. This runs in parallel with the existing
 prefix-marker line path so that both rendering strategies coexist.
 
-### D6: Delta-native draw methods
+### D6: Delta-native render methods
 
-`TaskDraw::apply_transcript_delta()` and
-`TaskDraw::consume_transcript_deltas()` provide a direct path from
+The ratatui render module's `apply_transcript_delta()` and
+`consume_transcript_deltas()` provide a direct path from
 structured deltas to the output row buffer, bypassing the
 `[tool]`/`[detail]`/`[evidence]` prefix-marker chain.
 
-`format_compact_paragraph()` in `transcript_helpers.rs` applies
+`format_compact_paragraph()` in `src/ui/render/transcript.rs` applies
 uniform prefix and width-safe truncation for all block kinds.
 
 ### D7: Bounded suffix deduplication
@@ -217,7 +217,7 @@ already materialised the same content into `history_state`.
 
 `format_compact_paragraph()`, `apply_transcript_delta()`, and
 `consume_transcript_deltas()` are covered by unit tests in
-`src/ui/draw/tests.rs`, confirming that:
+`src/ui/render/tests.rs`, confirming that:
 - ToolCall deltas produce `▶`-prefixed rows when consumed via the delta path.
 - ToolResult deltas produce `↳`-prefixed rows.
 - Empty incomplete deltas produce no output rows.

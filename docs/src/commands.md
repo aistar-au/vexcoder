@@ -7,7 +7,7 @@ This page documents the commands and flags implemented in the current binary.
 ### `vex`
 
 Starts the interactive full-screen CLI UI. While a task is running, the task
-surface uses a direct ANSI renderer for a human-readable header, optional
+surface uses the ratatui-native renderer for a human-readable header, optional
 changed-file row, a full-height transcript body above the composer, and a
 larger multiline composer. Tool calls, waiting-state telemetry, and assistant
 responses stream into transcript paragraphs on that shared body instead of a

@@ -311,11 +311,11 @@ Recommended shard ownership for UI-overhaul work:
   `src/app/turn.rs`, `src/bin/vex.rs`, `src/ui/editor/mod.rs`, and final
   workflow/doc cleanup only when explicitly assigned.
 - `vexcoder-ui-paragraph-renderer`
-  `src/ui/draw/mod.rs`, `src/ui/draw/transcript.rs`, `src/ui/draw/ansi.rs`,
-  `src/ui/draw/tests.rs`, and closely related transcript helpers.
+  `src/ui/render/mod.rs`, `src/ui/render/transcript.rs`,
+  `src/ui/render/tests.rs`, and closely related transcript helpers.
 - `vexcoder-transcript-renderer-overhaul`
   `src/app/layout.rs`, `src/app/tests/`, `src/ui/render/mod.rs`,
-  `src/ui/layout.rs`, `src/ui/draw/regions.rs`,
+  `src/ui/layout.rs`,
   `tests/layout_underflow_tests.rs`, and related layout/timeline helpers.
 
 Example launch sequence:
@@ -334,13 +334,13 @@ gh agent-task view <session-id-from-create-output> --log --follow
 gh agent-task create \
   --base work/vexcoder-ui-overhaul \
   --custom-agent vexcoder-ui-paragraph-renderer \
-  "Shard: ANSI fullscreen surface. Own only src/ui/draw/mod.rs, src/ui/draw/transcript.rs, src/ui/draw/ansi.rs, src/ui/draw/tests.rs, and transcript-local helpers. Focus on paragraph rendering, star/cosmic accents, prompt-dock drawing, and removal of stray top-surface chrome. Do not edit app layout or fallback-renderer files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Shard: ratatui fullscreen surface. Own only src/ui/render/mod.rs, src/ui/render/transcript.rs, src/ui/render/tests.rs, and transcript-local helpers. Focus on paragraph rendering, star/cosmic accents, prompt-dock drawing, and removal of stray top-surface chrome. Do not edit app layout files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 
 gh agent-task create \
   --base work/vexcoder-ui-overhaul \
   --custom-agent vexcoder-transcript-renderer-overhaul \
-  "Shard: task-state layout and fallback renderer. Own only src/app/layout.rs, src/app/tests/, src/ui/render/mod.rs, src/ui/layout.rs, src/ui/draw/regions.rs, tests/layout_underflow_tests.rs, and directly related helpers. Focus on single-stream transcript layout, fixed 3-line prompt geometry, blank initial transcript behavior, and fallback parity. Do not edit ANSI transcript files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Shard: task-state layout and ratatui renderer. Own only src/app/layout.rs, src/app/tests/, src/ui/render/mod.rs, src/ui/layout.rs, tests/layout_underflow_tests.rs, and directly related helpers. Focus on single-stream transcript layout, fixed 3-line prompt geometry, blank initial transcript behavior, and renderer parity. Do not edit ANSI transcript files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 ```
 
@@ -373,7 +373,7 @@ Start a paragraph-rendering session with:
 gh agent-task create \
   --base <review-branch> \
   --custom-agent vexcoder-ui-paragraph-renderer \
-  "Investigate the direct ANSI fullscreen surface, paragraph rendering, star/cosmic accent styling, prompt-dock drawing, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Investigate the ratatui fullscreen surface, paragraph rendering, star/cosmic accent styling, prompt-dock drawing, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 ```
 
@@ -383,7 +383,7 @@ Start a timeline/fallback-renderer session with:
 gh agent-task create \
   --base <review-branch> \
   --custom-agent vexcoder-transcript-renderer-overhaul \
-  "Investigate task-state layout logic, fallback renderer parity, fixed prompt geometry, blank-initial transcript behavior, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Investigate task-state layout logic, ratatui renderer parity, fixed prompt geometry, blank-initial transcript behavior, and stale docs. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 ```
 
@@ -539,11 +539,6 @@ vexcoder/ (standalone view)
 | `src/types/api_types.rs` | API request/response content and streaming event structs/enums. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/api_types.rs> |
 | `src/types/model_profile.rs` | ModelProfile configuration for LLM models with system prompt and parameters. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/types/model_profile.rs> |
 | `src/ui.rs` | UI module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui.rs> |
-| `src/ui/draw/mod.rs` | Adaptive ANSI draw engine for persistent full-screen operator workspace surface. Status bar folds git branch, token counters, and telemetry. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/mod.rs> |
-| `src/ui/draw/ansi.rs` | ANSI escape helpers, color palette, spinner and progress animation frames. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/ansi.rs> |
-| `src/ui/draw/regions.rs` | Adaptive layout region computation for the fullscreen three-region workspace surface. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/regions.rs> |
-| `src/ui/draw/transcript.rs` | Transcript line rendering with markdown, checklists, numbered lists, and inline formatting. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/transcript.rs> |
-| `src/ui/draw/tests.rs` | Draw engine unit tests covering layout, rendering, and hash computation. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/draw/tests.rs> |
 | `src/ui/editor/mod.rs` | Text input editor module root with history, undo/redo stacks, and cursor management; editor tests now live under `src/ui/editor/tests.rs`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/editor/mod.rs> |
 | `src/ui/input_metrics.rs` | Input editor row/width metrics for viewport-safe rendering. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/input_metrics.rs> |
 | `src/ui/layout.rs` | Ratatui pane layout splitting and geometry helpers. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/ui/layout.rs> |
