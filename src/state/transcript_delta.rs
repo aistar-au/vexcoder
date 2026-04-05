@@ -26,6 +26,7 @@ pub enum TranscriptBlockKind {
 /// Carries the text delta, completion flag, and block kind so that
 /// the draw layer can apply minimal redraws without rebuilding
 /// transcript state from prefix markers.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct TranscriptDelta {
     pub text: String,

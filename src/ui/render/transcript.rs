@@ -2,7 +2,7 @@ use crate::app::TaskLayoutState;
 use crate::status_contract::{
     is_waiting_placeholder, pending_status_label, status_tone, StatusTone,
 };
-use crate::ui::input_metrics::{char_display_width, truncate_to_display_width};
+use crate::ui::input_metrics::{char_display_width, display_width, truncate_to_display_width};
 use ansi_to_tui::IntoText;
 use ratatui::{
     layout::Rect,
@@ -312,7 +312,7 @@ pub(crate) fn structured_transcript_line(
             ),
         ]);
     }
-    if let Some((prefix, rest, _)) = crate::ui::draw::parse_numbered_list_item(trimmed) {
+    if let Some((prefix, rest, _)) = parse_numbered_list_item(trimmed) {
         return Line::from(vec![
             Span::styled(
                 format!("{indent}{}", marker.unwrap_or("")),
@@ -469,7 +469,7 @@ pub(crate) fn task_output_window(
 ) -> (usize, usize) {
     const INSPECTOR_VIEWPORT_ROWS: usize = 6;
 
-    let total = crate::ui::draw::expand_rows_for_display(&state.output_rows, viewport_width).len();
+    let total = expand_rows_for_display(&state.output_rows, viewport_width).len();
     if viewport_height == 0 || total == 0 {
         return (0, 0);
     }
@@ -522,4 +522,133 @@ pub(crate) fn task_output_render_area(
         width: area.width,
         height: visible_rows.min(area.height as usize) as u16,
     }
+}
+
+pub(crate) fn expand_rows_for_display(rows: &[String], cols: u16) -> Vec<String> {
+    if cols < 4 {
+        return rows.to_vec();
+    }
+
+    let mut expanded = Vec::with_capacity((rows.len() * 3) / 2);
+    for row in rows {
+        if row.contains('\n') {
+            for sub in row.split('\n') {
+                expanded.extend(word_wrap_plain_row(sub, cols as usize));
+            }
+        } else {
+            expanded.extend(word_wrap_plain_row(row, cols as usize));
+        }
+    }
+    expanded
+}
+
+fn word_wrap_plain_row(line: &str, cols: usize) -> Vec<String> {
+    if cols < 4 || line.is_empty() {
+        return vec![line.to_string()];
+    }
+    if display_width(line) <= cols || is_structural_transcript_row(line) {
+        return vec![line.to_string()];
+    }
+    word_wrap_to_cols(line, cols)
+}
+
+fn is_structural_transcript_row(line: &str) -> bool {
+    if line.starts_with('[')
+        || line.starts_with("    ")
+        || line.starts_with("  ")
+        || line.starts_with("```")
+        || (line.starts_with("--- ") && line.ends_with(" ---"))
+        || is_horizontal_rule(line)
+        || line.starts_with("> ")
+        || is_telemetry_summary(line)
+        || is_inline_telemetry_summary(line)
+        || line.starts_with("# ")
+        || line.starts_with("## ")
+        || line.starts_with("### ")
+        || line.starts_with("- ")
+        || line.starts_with("* ")
+    {
+        return true;
+    }
+
+    parse_numbered_list_item(line).is_some()
+}
+
+fn word_wrap_to_cols(text: &str, cols: usize) -> Vec<String> {
+    if cols == 0 {
+        return vec![text.to_string()];
+    }
+
+    let options = textwrap::Options::new(cols)
+        .word_splitter(textwrap::WordSplitter::NoHyphenation)
+        .break_words(false);
+    let wrapped = textwrap::wrap(text, &options);
+    if wrapped.is_empty() {
+        return vec![String::new()];
+    }
+
+    wrapped
+        .into_iter()
+        .map(|segment| {
+            let segment = segment.into_owned();
+            if display_width(&segment) > cols {
+                truncate_line(&segment, cols)
+            } else {
+                segment
+            }
+        })
+        .collect()
+}
+
+fn is_inline_telemetry_summary(line: &str) -> bool {
+    line.starts_with('[') && line.ends_with(']') && line.contains("total:")
+}
+
+fn is_telemetry_summary(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.starts_with('[')
+        && trimmed.ends_with(']')
+        && (trimmed.contains("total:") || trimmed.contains("ttft:"))
+}
+
+pub(crate) fn parse_numbered_list_item(line: &str) -> Option<(&str, &str, usize)> {
+    let bytes = line.as_bytes();
+    if bytes.is_empty() || !bytes[0].is_ascii_digit() {
+        return None;
+    }
+
+    let mut index = 0usize;
+    while index < bytes.len() && bytes[index].is_ascii_digit() {
+        index += 1;
+    }
+    if index == 0 || index >= bytes.len().saturating_sub(1) {
+        return None;
+    }
+
+    if (bytes[index] == b'.' || bytes[index] == b')')
+        && index + 1 < bytes.len()
+        && bytes[index + 1] == b' '
+    {
+        let prefix = &line[..index + 2];
+        let rest = &line[index + 2..];
+        Some((prefix, rest, display_width(prefix)))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn is_horizontal_rule(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.len() < 3 {
+        return false;
+    }
+
+    let first = trimmed.as_bytes()[0];
+    if first != b'-' && first != b'*' && first != b'_' {
+        return false;
+    }
+
+    let mark_count = trimmed.chars().filter(|ch| *ch as u8 == first).count();
+    let space_count = trimmed.chars().filter(|ch| *ch == ' ').count();
+    mark_count >= 3 && mark_count + space_count == trimmed.len()
 }

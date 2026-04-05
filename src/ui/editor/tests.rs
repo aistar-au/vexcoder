@@ -48,7 +48,7 @@ fn visual_up_down_moves_within_multiline_prompt() {
 #[test]
 fn visual_up_down_uses_wrapped_rows_for_long_prompt_lines() {
     let mut editor = InputEditor::new();
-    editor.input_state.buffer = "/plan @src/ui/draw/mod.rs with more context".to_string();
+    editor.input_state.buffer = "/plan @src/ui/render/mod.rs with more context".to_string();
     editor.input_state.cursor = editor.input_state.buffer.len();
 
     let (start_row, start_col) = cursor_row_col(&editor.input_state.buffer, editor.cursor(), 12);
@@ -94,7 +94,7 @@ fn visual_home_end_stay_within_multiline_prompt_row() {
 #[test]
 fn visual_home_end_use_wrapped_rows_for_long_prompt_lines() {
     let mut editor = InputEditor::new();
-    editor.input_state.buffer = "/plan @src/ui/draw/mod.rs with more context".to_string();
+    editor.input_state.buffer = "/plan @src/ui/render/mod.rs with more context".to_string();
     editor.input_state.cursor = editor.input_state.buffer.len();
 
     let (row, _) = cursor_row_col(&editor.input_state.buffer, editor.cursor(), 12);
