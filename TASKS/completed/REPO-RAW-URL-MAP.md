@@ -173,7 +173,7 @@ Total tracked files: 333
 | `src/bin/vex.rs` | 401 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/bin/vex.rs> |
 | `src/bin/vex/cli.rs` | 154 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/bin/vex/cli.rs> |
 | `src/bin/vex/tests.rs` | 1302 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/bin/vex/tests.rs> |
-| `src/config.rs` | 496 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
+| `src/config.rs` | 544 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config.rs> |
 | `src/config/cache.rs` | 46 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config/cache.rs> |
 | `src/config/hooks.rs` | 72 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config/hooks.rs> |
 | `src/config/load/merge.rs` | 40 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config/load/merge.rs> |

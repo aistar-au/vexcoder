@@ -202,16 +202,22 @@ impl Default for SearchConfig {
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct SearchConfigLayer {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) auto_index: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) exclude: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) max_file_size: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct AutoMemoryConfigLayer {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) max_notes_per_turn: Option<usize>,
 }
 
@@ -272,66 +278,108 @@ pub struct DoctorMcpServer {
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct ConfigLayer {
+    #[serde(skip_serializing_if = "Option::is_none")]
     model_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     model_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     model_url_skip_tls_check: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     working_dir: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     sandbox: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     sandbox_profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     sandbox_require: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     model_backend: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     model_protocol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tool_call_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     model_profile: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     max_project_instructions_tokens: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     max_memory_tokens: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     notes_path: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     api: Option<ApiConfigLayer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     hooks: Option<Vec<HookConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     http_hooks: Option<Vec<HttpHookConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     mcp_servers: Option<Vec<McpServerConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     compaction: Option<CompactionConfigLayer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     undo: Option<UndoConfigLayer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     search: Option<SearchConfigLayer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     auto_memory: Option<AutoMemoryConfigLayer>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct CompactionConfigLayer {
+    #[serde(skip_serializing_if = "Option::is_none")]
     enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     threshold_percent: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     keep_recent_turns: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     summary_max_tokens: Option<usize>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct UndoConfigLayer {
+    #[serde(skip_serializing_if = "Option::is_none")]
     enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     max_checkpoints: Option<usize>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct ApiConfigLayer {
+    #[serde(skip_serializing_if = "Option::is_none")]
     transport: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     host: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     socket: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tls_cert: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tls_key: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tls_ca_cert: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tls_skip_verify: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     vpn_trust: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct DoctorConfigLayer {
+    #[serde(skip_serializing_if = "Option::is_none")]
     model_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     working_dir: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     sandbox_require: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     mcp_servers: Option<Vec<DoctorMcpServer>>,
 }
 
