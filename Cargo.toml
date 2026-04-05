@@ -115,7 +115,9 @@ which = { version = "7", default-features = false }
 bm25 = "2"
 # notify: filesystem event watching; used by git_rollup.rs watch mode to
 #         detect working-tree changes without polling.
-notify = { version = "8", default-features = false, features = ["macos_kqueue"] }
+notify = { version = "8", default-features = false, features = [
+  "macos_kqueue",
+] }
 
 [dev-dependencies]
 filetime = "0.2"
