@@ -1,6 +1,5 @@
 use super::super::stream_block::{StreamBlock, ToolStatus};
 use super::{ConversationManager, ConversationStreamUpdate};
-use crate::util::parse_bool_flag;
 use std::collections::BTreeSet;
 use tokio::sync::mpsc;
 
@@ -211,29 +210,8 @@ pub(super) fn emit_text_update(
     emit_stream_update(stream_delta_tx, ConversationStreamUpdate::Delta(text));
 }
 
-pub(super) fn structured_blocks_enabled() -> bool {
-    std::env::var("VEX_USE_STRUCTURED_BLOCKS")
-        .ok()
-        .and_then(parse_bool_flag)
-        .unwrap_or(true)
-}
-
 pub(super) fn append_incremental_suffix(existing: &mut String, incoming: &str) -> String {
     let suffix = crate::state::transcript_delta::bounded_incremental_suffix(existing, incoming);
     existing.push_str(&suffix);
     suffix
-}
-
-pub(super) fn stream_local_tool_events_enabled() -> bool {
-    std::env::var("VEX_STREAM_LOCAL_TOOL_EVENTS")
-        .ok()
-        .and_then(parse_bool_flag)
-        .unwrap_or(false)
-}
-
-pub(super) fn stream_server_events_enabled() -> bool {
-    std::env::var("VEX_STREAM_SERVER_EVENTS")
-        .ok()
-        .and_then(parse_bool_flag)
-        .unwrap_or(true)
 }

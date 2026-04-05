@@ -39,7 +39,7 @@ Items are marked as:
   - `src/ui/render/mod.rs` now computes visual line count with wrapping:
     `history_visual_line_count(messages, content_width)`.
   - Added shared width helper: `history_content_width_for_area(messages, area)`.
-  - `src/app.rs` uses width-aware count for `status_line()` and `max_scroll_offset()`.
+  - `src/app.rs` uses width-aware count for `status_line()` and viewport calculations via `expand_rows_for_display()`.
   - `src/bin/vex.rs` updates `TuiMode` history content width each frame before render.
 
 ### 4) UTF-8 cursor logic duplicated across test/prod editors

@@ -633,8 +633,6 @@ mod tests {
             turn_in_progress: true,
             cancel_pending: false,
             active_assistant_index: Some(1),
-            scroll_offset: 0,
-            auto_follow: true,
         };
         mode.current_turn_response = "Hello!\nHow can I help you today?".to_string();
 
@@ -656,8 +654,6 @@ mod tests {
             turn_in_progress: true,
             cancel_pending: false,
             active_assistant_index: Some(1),
-            scroll_offset: 0,
-            auto_follow: true,
         };
         mode.current_turn_prompt_progress = Some(StreamPromptProgress {
             total: Some(2641),

@@ -40,7 +40,6 @@ use crate::turn_evidence::{
     TurnEvidenceState,
 };
 use crate::types::{ModelProfile, StreamPromptProgress, StreamTimings};
-use crate::ui::render::history_visual_line_count;
 use anyhow::Result;
 #[cfg(test)]
 use crossterm::event::{Event, KeyCode, KeyModifiers};
@@ -192,8 +191,6 @@ struct HistoryState {
     turn_in_progress: bool,
     cancel_pending: bool,
     active_assistant_index: Option<usize>,
-    scroll_offset: usize,
-    auto_follow: bool,
 }
 
 impl Default for HistoryState {
@@ -203,8 +200,6 @@ impl Default for HistoryState {
             turn_in_progress: false,
             cancel_pending: false,
             active_assistant_index: None,
-            scroll_offset: 0,
-            auto_follow: true,
         }
     }
 }
@@ -519,8 +514,6 @@ impl RuntimeMode for TuiMode {
                     self.apply_timeline_scroll_action(action, total);
                 } else if target == ScrollTarget::Output {
                     self.apply_output_scroll_action(action);
-                } else if target == ScrollTarget::History {
-                    self.apply_history_scroll_action(action);
                 }
             }
         }

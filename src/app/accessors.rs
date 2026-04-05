@@ -88,7 +88,10 @@ impl TuiMode {
     }
 
     pub(super) fn history_row_count(&self) -> usize {
-        history_visual_line_count(&self.history_state.lines, self.history_content_width.get())
+        crate::ui::render::history_visual_line_count(
+            &self.history_state.lines,
+            self.history_content_width.get(),
+        )
     }
 
     pub(super) fn total_session_tokens(&self) -> u64 {
@@ -144,10 +147,6 @@ impl TuiMode {
 
     pub fn active_assistant_index(&self) -> Option<usize> {
         self.history_state.active_assistant_index
-    }
-
-    pub fn history_scroll_offset(&self) -> usize {
-        self.history_state.scroll_offset
     }
 
     pub fn quit_requested(&self) -> bool {

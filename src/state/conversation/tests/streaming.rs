@@ -747,12 +747,14 @@ data: {"type":"message_stop"}"#.to_string(),
 }
 #[tokio::test]
 async fn test_repeated_read_only_round_injects_nudge_then_recovers() -> Result<()> {
+    // Local endpoints use a tighter repeat threshold (1 vs 2) so the nudge
+    // fires after just one repeated round. Sequence: initial round → repeated
+    // round triggers nudge → recovery round produces final text.
     let mock_api_client =
         ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
             tagged_read_file_round("msg_loop_nudge_01"),
             tagged_read_file_round("msg_loop_nudge_02"),
-            tagged_read_file_round("msg_loop_nudge_03"),
-            plain_text_round("msg_loop_nudge_04", "Done after loop correction."),
+            plain_text_round("msg_loop_nudge_03", "Done after loop correction."),
         ])));
     let mut mock_tool_responses = HashMap::new();
     mock_tool_responses.insert("file.txt".to_string(), "loop sample".to_string());

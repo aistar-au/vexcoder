@@ -2,7 +2,6 @@ use super::mode::RuntimeMode;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScrollTarget {
-    History,
     Overlay,
     Output,
     /// Timeline/activity pane — moves selected step up or down.

@@ -195,16 +195,10 @@ fn test_default_tool_approval_enabled_prefers_remote_only() {
 #[test]
 fn test_env_bool_off_is_false_across_state_paths() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_STREAM_LOCAL_TOOL_EVENTS", "off");
-    std::env::set_var("VEX_STREAM_SERVER_EVENTS", "off");
     std::env::set_var("VEX_TOOL_CONFIRM", "off");
 
-    assert!(!stream_local_tool_events_enabled());
-    assert!(!stream_server_events_enabled());
     assert!(!tool_approval_enabled(false));
 
-    std::env::remove_var("VEX_STREAM_LOCAL_TOOL_EVENTS");
-    std::env::remove_var("VEX_STREAM_SERVER_EVENTS");
     std::env::remove_var("VEX_TOOL_CONFIRM");
 }
 #[tokio::test]

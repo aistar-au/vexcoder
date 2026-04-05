@@ -598,10 +598,9 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                 mode.set_history_content_width(history_width);
 
                 let status = mode.status_line();
-                let history_scroll = mode.history_scroll_offset();
 
                 render_status_line(frame, panes.header, &status);
-                render_messages(frame, panes.history, mode.history_lines(), history_scroll);
+                render_messages(frame, panes.history, mode.history_lines());
                 render_input(frame, panes.input, &input, cursor);
 
                 if let Some((patch_preview, scroll_offset)) = mode.pending_patch_overlay() {
