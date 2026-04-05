@@ -39,8 +39,9 @@ pub use command::{
 pub use context_assembler::{AssembledContext, ContextAssembler, FileRollup};
 pub use edit_loop::{EditLoop, EditLoopOutcome};
 pub use git_parse::{
-    parse_diff_stat, parse_git_apply, parse_git_status, ApplyOutcome, DiffStatEntry,
-    ParsedDiffStat, ParsedGitApply, ParsedGitStatus, StatusEntry,
+    parse_diff_stat, parse_git_apply, parse_git_log_oneline, parse_git_status, parse_name_status,
+    ApplyOutcome, DiffStatEntry, LogEntry, NameStatusEntry, ParsedDiffStat, ParsedGitApply,
+    ParsedGitLog, ParsedGitStatus, ParsedNameStatus, StatusEntry,
 };
 pub(crate) use git_rollup::{
     block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout,

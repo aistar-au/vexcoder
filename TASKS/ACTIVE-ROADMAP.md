@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-04 (ADR-041 D8-D13 landed PR #332; ADR-041 D15 landed PR #333; v0.1.0-rc.9 released)
+Last updated: 2026-04-05 (PR #342 Tier 4 debug: full git parsing stack, expanded secret redaction, Retry-After header wiring, crate boundary docs)
 
 ---
 
@@ -24,7 +24,7 @@ Last updated: 2026-04-04 (ADR-041 D8-D13 landed PR #332; ADR-041 D15 landed PR #
 | ADR-031 | Accepted (all batches A-E merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
 | ADR-032 | Accepted | 0 items remaining | Items 1-8 complete; item 4-5 verified Tier 5; item 9 transferred to ADR-033 |
 | ADR-033 | Accepted (all phases 1-4 merged) | 0 items remaining | Status updated in Tier 9 (PR #252) |
-| ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate snapshot + broadcast fan-out; PR #261 closes Phase E watch-stream |
+| ADR-034 | Accepted (all phases A-E + watch-stream merged) | 0 items remaining | Phase E2 watch-stream added: GET /v1/session-tasks/{id}/watch SSE with immediate rollup + broadcast fan-out; PR #261 closes Phase E watch-stream |
 | ADR-035 | Accepted | 0 items remaining | Gap 14 `/undo` rollback strategy is now specified and implemented with binary-safe checkpoints |
 | ADR-038 | Accepted (Batches D-H merged) | 0 items remaining | Phase 1: bounded context cache + opt-in auto git; Phase 1a: search lane tightening; Phase 2: disk_policy.rs + config/cache.rs; Batch C: config/load.rs -> directory module (PR #279); Batch D: operator.rs -> directory module (PR #280); Batch E/F: context_assembler split + strict disk-policy gate (PR #281); Batch G: operator policy module + disk-policy wiring (PR #282); Batch H: task-state persist extraction + WAL evaluation (PR #283) |
 | ADR-039 | Proposed (Batch A merged on main) | 3 batches (B-D) | Batch A status anchors and semantic color feedback merged in PR #292; search.exclude path-boundary normalization fix in PR #293; remaining work is broader vocabulary, active indicator, and paragraph-oriented progress stream without renaming machine statuses |
@@ -157,7 +157,7 @@ ADR-028 status verified: Phase 1, 2, and transport extraction committed 2026-03-
 
 ### Tier 10 -- Memory-First TTFC Hardening (ADR-038) -- 0 items
 
-- Phase 1 complete: bounded in-memory context snapshot cache and opt-in automatic git context merged.
+- Phase 1 complete: bounded in-memory context rollup cache and opt-in automatic git context merged.
 - Phase 2 complete: `src/disk_policy.rs` (DiskPermission classifier) and `src/config/cache.rs` (OnceLock config cache) merged in PR #278.
 - Batch C complete: `src/config/load.rs` extracted into directory module (`load/paths.rs`, `load/merge.rs`, `load/parse.rs`) in PR #279.
 - Batch D complete: `src/tools/operator.rs` extracted into `src/tools/operator/{mod,core,file_ops,git_ops,search}.rs` in PR #280.
@@ -209,7 +209,7 @@ Concrete targets (9 display-facing strings across 5 files):
 | `src/app/input.rs` | 2 | `busy` -> `occupied` in turn-in-progress status lines |
 
 Lower-priority internal-only targets (5 strings): `spawn` -> `start` in error
-contexts (`src/mcp.rs`, `src/runtime/command.rs`, `src/runtime/git_snapshot.rs`);
+contexts (`src/mcp.rs`, `src/runtime/command.rs`, `src/runtime/git_rollup.rs`);
 `parent directory` -> `containing directory` (`src/server/socket.rs`, `src/util.rs`).
 
 **Batch C -- active indicator affordance**
@@ -255,7 +255,7 @@ Candidate implementation areas:
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | Ratatui-T1T3 | `work/vexcoder-ratatui-debug-fixups` | #341 | **Merged** | Post-merge chrono/dirs hard-cutover: remove all `SystemTime`/`UNIX_EPOCH` and manual XDG walk |
-| Ratatui-T4 | `work/vexcoder-tier4-ratatui-stack` | Open | **In Review** | Tier 4 crate wiring: `indexmap`, `itertools`, `regex-lite`, `bstr`, `tower-http`, `figment`, `compact_str`, `pretty_assertions`, `assert_cmd` |
+| Ratatui-T4 | `work/vexcoder-tier4-ratatui-stack` | #342 | **In Review** | Tier 4 crate wiring: `indexmap`, `tower-http`, `regex-lite`, `pretty_assertions`, `assert_cmd`; full git parsing stack (status, diff stat, diff name-status, log oneline, apply); secret redaction (OpenAI/AWS/GitHub/PEM/bearer/connection-string/generic); rate-limit extraction with Retry-After header + body; snapshot-to-rollup rename |
 
 ### Recently Merged / Closed
 

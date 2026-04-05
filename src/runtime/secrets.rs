@@ -1,8 +1,9 @@
 //! Secret redaction using `regex-lite`.
 //!
 //! Scans text for common secret patterns (API keys, bearer tokens, AWS
-//! credentials, generic secret assignments) and replaces matches with a
-//! fixed placeholder.  All patterns are ASCII-only — `regex-lite`'s `\d`
+//! credentials, GitHub PATs, PEM private key headers, connection strings,
+//! and generic secret assignments) and replaces matches with a fixed
+//! placeholder.  All patterns are ASCII-only -- `regex-lite`'s `\d`
 //! and `\w` metaclasses match `[0-9]` and `[0-9A-Za-z_]` respectively.
 //!
 //! Design boundary: this module handles *output* redaction (log lines,
@@ -43,6 +44,31 @@ fn re_bearer_token() -> &'static regex_lite::Regex {
     })
 }
 
+/// GitHub personal access token: `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`
+/// followed by 36+ alphanumeric characters.
+fn re_github_token() -> &'static regex_lite::Regex {
+    static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex_lite::Regex::new(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b").unwrap())
+}
+
+/// PEM private key header line.  Redacts the entire key block opener so
+/// downstream consumers never see even the algorithm identifier.
+fn re_private_key_header() -> &'static regex_lite::Regex {
+    static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        regex_lite::Regex::new(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----").unwrap()
+    })
+}
+
+/// Connection string with embedded credentials:
+/// `protocol://user:password@host` -- redacts the password portion.
+fn re_connection_string() -> &'static regex_lite::Regex {
+    static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        regex_lite::Regex::new(r"(://[A-Za-z0-9._-]+:)([A-Za-z0-9_.~%+/=-]{8,})(@)").unwrap()
+    })
+}
+
 /// Generic secret assignment: `API_KEY=value`, `token: "value"`, etc.
 /// Preserves the key name and punctuation, redacts only the secret value.
 fn re_generic_secret_assignment() -> &'static regex_lite::Regex {
@@ -55,9 +81,11 @@ fn re_generic_secret_assignment() -> &'static regex_lite::Regex {
     })
 }
 
-/// Ordered pattern list.  Bearer and generic-assignment patterns use
-/// capture-group backreferences in their replacement templates so the
-/// surrounding context (e.g. `Bearer `, `API_KEY=`) is preserved.
+/// Ordered pattern list.  Specific patterns come first to avoid the
+/// generic pattern partially matching a structured secret.  Bearer,
+/// generic-assignment, and connection-string patterns use capture-group
+/// backreferences in their replacement templates so the surrounding
+/// context is preserved.
 const PATTERNS: &[SecretPattern] = &[
     SecretPattern {
         regex: re_openai_key,
@@ -68,8 +96,20 @@ const PATTERNS: &[SecretPattern] = &[
         replacement: REDACTED,
     },
     SecretPattern {
+        regex: re_github_token,
+        replacement: REDACTED,
+    },
+    SecretPattern {
+        regex: re_private_key_header,
+        replacement: "[REDACTED PRIVATE KEY]",
+    },
+    SecretPattern {
         regex: re_bearer_token,
         replacement: "${1}[REDACTED]",
+    },
+    SecretPattern {
+        regex: re_connection_string,
+        replacement: "${1}[REDACTED]${3}",
     },
     SecretPattern {
         regex: re_generic_secret_assignment,
@@ -175,5 +215,49 @@ mod tests {
         assert!(!result.contains("sk-"));
         assert!(!result.contains("AKIA"));
         assert_eq!(result.matches("[REDACTED]").count(), 2);
+    }
+
+    #[test]
+    fn test_redact_github_pat() {
+        let input = "token ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij1234";
+        let result = redact_secrets(input);
+        assert_eq!(result, "token [REDACTED]");
+        assert!(!result.contains("ghp_"));
+    }
+
+    #[test]
+    fn test_redact_github_token_variants() {
+        for prefix in &["gho_", "ghu_", "ghs_", "ghr_"] {
+            let token = format!("{prefix}ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab");
+            let result = redact_secrets(&token);
+            assert_eq!(result, "[REDACTED]", "failed for prefix {prefix}");
+        }
+    }
+
+    #[test]
+    fn test_redact_private_key_header() {
+        let input = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...";
+        let result = redact_secrets(input);
+        assert!(result.contains("[REDACTED PRIVATE KEY]"));
+        assert!(!result.contains("BEGIN RSA PRIVATE KEY"));
+    }
+
+    #[test]
+    fn test_redact_connection_string() {
+        let input = "postgres://admin:supersecretpassword@db.example.com:5432/mydb";
+        let result = redact_secrets(input);
+        assert!(result.contains("[REDACTED]"));
+        assert!(!result.contains("supersecretpassword"));
+        assert!(result.contains("@db.example.com"));
+    }
+
+    #[test]
+    fn test_contains_secret_github_token() {
+        assert!(contains_secret("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij1234"));
+    }
+
+    #[test]
+    fn test_contains_secret_private_key() {
+        assert!(contains_secret("-----BEGIN EC PRIVATE KEY-----"));
     }
 }

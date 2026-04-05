@@ -64,8 +64,41 @@ pub struct ParsedDiffStat {
     pub total_deletions: u32,
 }
 
+/// A single entry from `git log --oneline` or `git log --format="%h %s"`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogEntry {
+    /// Abbreviated commit hash.
+    pub hash: String,
+    /// Subject line (first line of commit message).
+    pub subject: String,
+}
+
+/// Parsed result from `git log --oneline`.
+#[derive(Debug, Clone, Default)]
+pub struct ParsedGitLog {
+    pub entries: Vec<LogEntry>,
+}
+
+/// A single file entry from `git diff --name-status`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NameStatusEntry {
+    /// Status character: A (added), M (modified), D (deleted), R (renamed),
+    /// C (copied), T (type changed), U (unmerged), X (unknown).
+    pub status: char,
+    /// Primary file path.
+    pub path: String,
+    /// Rename/copy destination path (only present for R/C status).
+    pub new_path: Option<String>,
+}
+
+/// Parsed result from `git diff --name-status`.
+#[derive(Debug, Clone, Default)]
+pub struct ParsedNameStatus {
+    pub entries: Vec<NameStatusEntry>,
+}
+
 // ---------------------------------------------------------------------------
-// Regex compilation helpers — compile once via OnceLock
+// Regex compilation helpers -- compile once via OnceLock
 // ---------------------------------------------------------------------------
 
 fn re_status_line() -> &'static regex_lite::Regex {
@@ -123,6 +156,20 @@ fn re_apply_binary() -> &'static regex_lite::Regex {
     RE.get_or_init(|| {
         regex_lite::Regex::new(r"(?i)(?:cannot apply binary|binary patch).*?(?:to|:)\s+'?([^'\s]+)")
             .unwrap()
+    })
+}
+
+/// Matches `git log --oneline` lines: `<hash> <subject>`.
+fn re_log_oneline() -> &'static regex_lite::Regex {
+    static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex_lite::Regex::new(r"^([0-9a-f]{7,40})\s+(.+)$").unwrap())
+}
+
+/// Matches `git diff --name-status` lines: `<status>\t<path>[\t<new_path>]`.
+fn re_name_status_line() -> &'static regex_lite::Regex {
+    static RE: OnceLock<regex_lite::Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        regex_lite::Regex::new(r"^([AMDRTCUX])\d*\t(.+?)(?:\t(.+))?$").unwrap()
     })
 }
 
@@ -228,6 +275,39 @@ pub fn parse_git_apply(output: &str) -> ParsedGitApply {
         outcomes,
         has_errors,
     }
+}
+
+/// Parse `git log --oneline` output into structured entries.
+pub fn parse_git_log_oneline(output: &str) -> ParsedGitLog {
+    let re = re_log_oneline();
+    let entries = output
+        .lines()
+        .filter_map(|line| {
+            let caps = re.captures(line.trim())?;
+            Some(LogEntry {
+                hash: caps[1].to_string(),
+                subject: caps[2].to_string(),
+            })
+        })
+        .collect();
+    ParsedGitLog { entries }
+}
+
+/// Parse `git diff --name-status` output into structured entries.
+pub fn parse_name_status(output: &str) -> ParsedNameStatus {
+    let re = re_name_status_line();
+    let entries = output
+        .lines()
+        .filter_map(|line| {
+            let caps = re.captures(line)?;
+            Some(NameStatusEntry {
+                status: caps[1].chars().next().unwrap_or('?'),
+                path: caps[2].to_string(),
+                new_path: caps.get(3).map(|m| m.as_str().to_string()),
+            })
+        })
+        .collect();
+    ParsedNameStatus { entries }
 }
 
 // ---------------------------------------------------------------------------
@@ -409,5 +489,71 @@ mod tests {
         let parsed = parse_git_apply("");
         assert!(parsed.outcomes.is_empty());
         assert!(!parsed.has_errors);
+    }
+
+    // -- git log --oneline ---------------------------------------------------
+
+    #[test]
+    fn test_parse_git_log_oneline_basic() {
+        let output = "f9d84db Merge pull request #341\n48f5d98 fix: replace legacy SystemTime";
+        let parsed = parse_git_log_oneline(output);
+        assert_eq!(parsed.entries.len(), 2);
+        assert_eq!(parsed.entries[0].hash, "f9d84db");
+        assert_eq!(parsed.entries[0].subject, "Merge pull request #341");
+        assert_eq!(parsed.entries[1].hash, "48f5d98");
+        assert_eq!(
+            parsed.entries[1].subject,
+            "fix: replace legacy SystemTime"
+        );
+    }
+
+    #[test]
+    fn test_parse_git_log_oneline_full_hash() {
+        let output = "f9d84db1234567890abcdef1234567890abcdef1 full hash commit";
+        let parsed = parse_git_log_oneline(output);
+        assert_eq!(parsed.entries.len(), 1);
+        assert_eq!(
+            parsed.entries[0].hash,
+            "f9d84db1234567890abcdef1234567890abcdef1"
+        );
+    }
+
+    #[test]
+    fn test_parse_git_log_oneline_empty() {
+        let parsed = parse_git_log_oneline("");
+        assert!(parsed.entries.is_empty());
+    }
+
+    // -- git diff --name-status ----------------------------------------------
+
+    #[test]
+    fn test_parse_name_status_basic() {
+        let output = "M\tsrc/main.rs\nA\tsrc/new.rs\nD\tsrc/old.rs";
+        let parsed = parse_name_status(output);
+        assert_eq!(parsed.entries.len(), 3);
+        assert_eq!(parsed.entries[0].status, 'M');
+        assert_eq!(parsed.entries[0].path, "src/main.rs");
+        assert!(parsed.entries[0].new_path.is_none());
+        assert_eq!(parsed.entries[1].status, 'A');
+        assert_eq!(parsed.entries[2].status, 'D');
+    }
+
+    #[test]
+    fn test_parse_name_status_rename() {
+        let output = "R100\tsrc/old.rs\tsrc/new.rs";
+        let parsed = parse_name_status(output);
+        assert_eq!(parsed.entries.len(), 1);
+        assert_eq!(parsed.entries[0].status, 'R');
+        assert_eq!(parsed.entries[0].path, "src/old.rs");
+        assert_eq!(
+            parsed.entries[0].new_path.as_deref(),
+            Some("src/new.rs")
+        );
+    }
+
+    #[test]
+    fn test_parse_name_status_empty() {
+        let parsed = parse_name_status("");
+        assert!(parsed.entries.is_empty());
     }
 }

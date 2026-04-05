@@ -599,8 +599,19 @@ impl ApiClient {
 
         let status = response.status();
         if status.is_client_error() || status.is_server_error() {
+            // Extract Retry-After header before consuming the response body.
+            let retry_after_header = response
+                .headers()
+                .get("retry-after")
+                .and_then(|v| v.to_str().ok())
+                .map(String::from);
             let body = response.text().await.unwrap_or_default();
-            return Err(map_api_status_error(status, &body, &request_url));
+            return Err(map_api_status_error(
+                status,
+                &body,
+                &request_url,
+                retry_after_header.as_deref(),
+            ));
         }
 
         let request_url_for_stream = request_url.clone();
@@ -688,11 +699,13 @@ fn map_api_request_error(error: reqwest::Error, request_url: &str) -> anyhow::Er
 /// Handle HTTP 4xx responses where the body has already been read.
 /// Detects context-overflow errors from local inference servers and provides
 /// actionable guidance including `--ctx-size` configuration hints.
-/// Also detects 429 rate-limit responses and extracts retry hints.
+/// Also detects 429 rate-limit responses and extracts retry hints from
+/// both the `Retry-After` header and the response body text.
 fn map_api_status_error(
     status: reqwest::StatusCode,
     body: &str,
     request_url: &str,
+    retry_after_header: Option<&str>,
 ) -> anyhow::Error {
     let local_http_hint = local_plain_http_hint(request_url);
     let is_local = is_local_endpoint_url(request_url);
@@ -702,7 +715,10 @@ fn map_api_status_error(
         || (status.is_client_error()
             && crate::runtime::rate_limit::looks_like_rate_limit(body))
     {
-        let retry_hint = crate::runtime::rate_limit::parse_retry_from_body(body);
+        // Prefer the Retry-After header; fall back to body text hints.
+        let retry_hint = retry_after_header
+            .and_then(crate::runtime::rate_limit::parse_retry_after_header)
+            .or_else(|| crate::runtime::rate_limit::parse_retry_from_body(body));
         let delay_msg = match retry_hint {
             Some(hint) => format!(
                 " Retry suggested after {:.1}s.",

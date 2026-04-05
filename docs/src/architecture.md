@@ -86,31 +86,93 @@ names matching `[a-z][a-z0-9_-]*` and MCP-namespaced tools
 (`mcp.<provider>.<tool>`), covering all built-in and external tool
 registrations.
 
-## Crate design boundaries — text processing
+## Crate design boundaries -- text processing
 
 VexCoder uses several crates that touch text at different abstraction layers.
 Each crate occupies a distinct role with no overlap.  The boundary rule is:
 **never use a search/indexing crate for internal string surgery, and never use
 a string-surgery crate for file-content search or structural parsing.**
 
-| Crate | Role | Scope | Examples |
-|-------|------|-------|----------|
-| `aho-corasick` | Multi-pattern **literal** matching | File content search, keyword extraction from source text | `codebase_search` tool, structural index keyword matching |
-| `regex-lite` | Lightweight **internal string surgery** | Git output parsing, secret redaction, rate-limit extraction, format validation. ASCII-only (`\d` = `[0-9]`, `\w` = `[0-9A-Za-z_]`). ~94 KB, no Unicode tables. | `parse_git_status`, `redact_secrets`, `parse_retry_from_body` |
-| `tree-sitter` | **Structural AST** indexing | Language-aware parsing of source files into syntax trees | Rust function/struct/enum extraction for `codebase_search` |
-| `globset` / `ignore` | **Filesystem traversal** | `.gitignore`-aware path matching and directory walking | `WorkspaceIgnore`, `list_dir`, `glob_files`, `search_files` |
-| `quick-xml` | **XML tool-call** parsing | Structured extraction of `<function=…>` / `<parameter=…>` tags from model output | `tool_call_parser`, `formatting.rs` |
+### Non-overlapping crate roles
+
+| Crate | Role | Scope | NOT used for |
+|-------|------|-------|-------------|
+| `aho-corasick` | Multi-pattern **literal** matching | File content search, keyword extraction from source text | Git output parsing, secret redaction |
+| `regex-lite` | Lightweight **internal string surgery** | Git output parsing, secret redaction, rate-limit extraction, format validation | Code search, RAG, semantic indexing, codebase search |
+| `tree-sitter` | **Structural AST** indexing | Language-aware parsing of source files into syntax trees | String surgery, log parsing, redaction |
+| `globset` / `ignore` | **Filesystem traversal** | `.gitignore`-aware path matching and directory walking | File content search, string processing |
+| `quick-xml` | **XML tool-call** parsing | Structured extraction of `<function=...>` / `<parameter=...>` tags from model output | Git parsing, log analysis |
+| `indexmap` | **Ordered** insertion-preserving maps | Streaming tool-call accumulation preserving insertion order | Search indexing, text processing |
+| `tower-http` | **HTTP middleware** | Request/response tracing for the local API server | Application logic, text processing |
+
+### regex-lite -- ASCII-only internal string surgery
+
+`regex-lite` is the **only** regex crate in the dependency tree.  All patterns
+are ASCII-only (`\d` = `[0-9]`, `\w` = `[0-9A-Za-z_]`).  Non-ASCII characters
+are not supported in regex-lite patterns.  This is intentional -- vexcoder's
+regex-lite usage exclusively targets machine-readable ASCII output from git,
+HTTP headers, and API responses.
+
+Conventional use cases DISTINCT from RAG/semantic search/codebase_search:
+
+- **Parsing structured output** from external tools (git status, git diff, git apply, git log)
+- **Extracting known fields** from semi-structured strings (retry delays, durations)
+- **Sanitizing/redacting sensitive data** from logs, transcripts, and telemetry
+- **Format validation** (API key formats, token patterns, connection strings)
+
+None of these overlap with codebase search, RAG, or semantic indexing.
 
 The `regex-lite` modules live under `src/runtime/` as three focused files:
 
-- **`git_parse.rs`** — Structured parsing of `git status --porcelain`, `git diff --stat`, and `git apply` output into typed enums and structs.  Patterns compile once via `OnceLock<regex_lite::Regex>` and are reused across calls.
-- **`secrets.rs`** — Output redaction for API keys (`sk-…`), AWS access keys (`AKIA…`), bearer tokens, and generic secret assignments.  Wired into `sanitize_assistant_text` so secrets never leak into the transcript or logs.
-- **`rate_limit.rs`** — Extracts retry delay hints from `Retry-After` header values and error response body text ("try again in N seconds").  Wired into `map_api_status_error` in the API client for 429 detection.
+- **`git_parse.rs`** -- Structured parsing of `git status --porcelain`, `git diff --stat`, `git diff --name-status`, `git log --oneline`, and `git apply` output into typed enums and structs.  Patterns compile once via `OnceLock<regex_lite::Regex>` and are reused across calls.
+- **`secrets.rs`** -- Output redaction for OpenAI keys (`sk-...`), AWS access keys (`AKIA...`), GitHub PATs (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`), PEM private key headers, bearer tokens, connection strings with embedded credentials, and generic secret assignments.  Wired into `sanitize_assistant_text` so secrets never leak into the transcript or logs.
+- **`rate_limit.rs`** -- Extracts retry delay hints from `Retry-After` header values and error response body text ("try again in N seconds").  The header path is wired into `map_api_status_error` in the API client with fallback to body text for 429 detection.
 
 Design rationale: `regex-lite` was chosen over the full `regex` crate because
 (a) vexcoder does not allow non-ASCII characters in these internal patterns,
 (b) the ~94 KB binary size overhead vs ~373 KB for full `regex` is meaningful
 for a CLI binary, and (c) the `O(m*n)` execution guarantee is the same.
+
+### Stream parser -- no regex
+
+The stream parser (`src/api/stream.rs`) and text normaliser
+(`src/api/stream/text_normaliser.rs`) handle SSE framing, JSON delta
+parsing, and embedded XML-like tool call markup using zero-regex string
+scanning (`starts_with`, `contains`, manual index arithmetic).  `quick-xml`
+handles structured XML extraction.  regex-lite is not used in the streaming
+path.
+
+### Full git parsing stack
+
+The git parsing stack is the foundation of vexcoder's value as a CLI tool
+working with git repos.  The following git output formats are parsed:
+
+| Command | Parser | Output type |
+|---------|--------|-------------|
+| `git status --porcelain` | `parse_git_status` | `ParsedGitStatus` with per-file status entries |
+| `git diff --stat` | `parse_diff_stat` | `ParsedDiffStat` with per-file changes and summary |
+| `git diff --name-status` | `parse_name_status` | `ParsedNameStatus` with status chars and rename detection |
+| `git log --oneline` | `parse_git_log_oneline` | `ParsedGitLog` with hash + subject entries |
+| `git apply` (stdout+stderr) | `parse_git_apply` | `ParsedGitApply` with outcome classification per line |
+
+All parsers live in `src/runtime/git_parse.rs` and are re-exported from
+`src/runtime.rs`.  `git_rollup.rs` orchestrates git command execution with
+timeout and cancellation support, using `parse_git_status` to produce
+structured rollups for context assembly.
+
+### Secret redaction -- always on
+
+Secret redaction runs on every assistant text output through
+`sanitize_assistant_text` in `src/runtime/policy.rs`.  The following
+patterns are detected and replaced with `[REDACTED]`:
+
+- OpenAI API keys (`sk-` prefix, 20+ chars)
+- AWS access key IDs (`AKIA` prefix, 16 uppercase alphanumeric)
+- GitHub personal access tokens (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_` prefixes, 36+ chars)
+- PEM private key headers (`-----BEGIN ... PRIVATE KEY-----`)
+- Bearer tokens (preserving the `Bearer ` prefix)
+- Connection strings with embedded passwords (`protocol://user:password@host`)
+- Generic secret assignments (`API_KEY=...`, `token: "..."`, etc.)
 
 ## Ongoing boundary work
 
