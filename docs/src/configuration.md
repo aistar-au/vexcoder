@@ -52,6 +52,26 @@ reasoning budget, and structured-tool fallback). Relative paths are resolved
 from the workspace repo root when one is available, otherwise from the current
 working directory.
 
+## Tool-call formats
+
+`tool_call_mode` controls how the runtime expects tool invocations to arrive
+from the model layer.
+
+| Mode | Meaning | Current parser boundary |
+| :--- | :--- | :--- |
+| `structured` | Prefer native structured tool calls from the backend | JSON tool-call arrays and content-block tool-use payloads are parsed via `serde_json`; streamed fragments keep insertion order with `indexmap` |
+| `tagged-fallback` | Accept XML-like fallback tags from local runtimes that do not emit native structured deltas | Tag boundaries are detected with zero-regex string scanning and structured extraction is delegated to `quick-xml` |
+
+The runtime currently documents three structured tool-call shapes:
+
+1. JSON `tool_calls` arrays from chat-completion style APIs.
+2. Content-block `tool_use` records from block-oriented APIs.
+3. XML-like fallback tags such as `<function=name>` and `<parameter=key>`.
+
+These paths are distinct from `regex-lite` processing. `regex-lite` is used for
+git output parsing, secret redaction, and rate-limit extraction; it is not used
+for live tool-call parsing.
+
 ## Feature config sections
 
 ### `[compaction]`

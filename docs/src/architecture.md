@@ -200,6 +200,11 @@ The following crates are used by comparable CLI tools (grounded in the
 73-crate codex-rs workspace) but are not yet in vexcoder's dependency tree.
 Each is either accepted for the next batch or rejected with rationale.
 
+Accepted now means the design choice is settled in the repo. It does **not**
+mean the crate is added immediately without a live integration seam. vexcoder
+keeps dependency additions coupled to real code paths and tests so the tree
+does not accumulate dead crates.
+
 | Crate | Codex usage | vexcoder decision | Rationale |
 |-------|------------|-------------------|-----------|
 | `bm25` | Text ranking for code search results | **Next batch planned** (ADR-033 Phase 5) | Ranked retrieval improves `codebase_search` relevance.  Will sit behind the `aho-corasick` literal-match layer, not in the regex-lite text-processing layer. |
@@ -215,6 +220,7 @@ a design need specific to vexcoder's architecture.
 
 | Crate | vexcoder usage | Why codex-rs does not use it | Design rationale |
 |-------|---------------|------------------------------|-----------------|
+| `axum` | HTTP routing and handler composition for the local API server surface | Comparable CLIs may use a thinner direct HTTP surface or a different server seam. | `axum` is already the active server foundation in vexcoder; `tower-http` sits on top of it for request tracing, not in place of it. |
 | `tower-http` | `TraceLayer` HTTP middleware for the local API server (`src/server/http.rs`) | Codex uses axum directly without tower middleware.  vexcoder's `LocalApiServer` (ADR-026) requires request/response tracing for debugging multi-agent sessions. | Conventional for axum-based servers needing observability. |
 | `fs2` | File-locking for `.vex/state/` durable writes | Codex uses a different persistence model. | Prevents concurrent vexcoder sessions from corrupting task-state files.  `write_json_safe` uses temp+fsync+rename; `fs2` adds advisory locking as a second safety layer. |
 | `portable-pty` | Pseudo-terminal allocation for sandboxed command execution | Codex uses its own sandbox crate with platform-specific PTY code. | vexcoder's command runner needs PTY for interactive tool output (e.g., `git commit` with editor).  `portable-pty` provides cross-platform PTY without platform-specific FFI. |

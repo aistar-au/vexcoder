@@ -248,10 +248,16 @@ Candidate implementation areas:
 
 ### Tier 12 -- Crate Expansion (next batch planned) -- 4 items
 
-Grounded in the codex-rs 73-crate workspace.  Each crate either fills a
-gap in vexcoder's current dependency tree or is rejected with design rationale.
+Grounded in comparable Rust CLI patterns, including the public codex-rs crate
+mix, without reusing external wording or implementation material. Each crate
+either fills a gap in vexcoder's current dependency tree or is rejected with
+design rationale.
 Full decisions documented in `docs/src/architecture.md` under "Crate expansion
 decisions".
+
+These design decisions are active now. Crates are added only when the runtime
+path and tests exist, so accepted next-batch candidates do not become unused
+dependencies.
 
 | Crate | Target module | Status | Notes |
 | :--- | :--- | :--- | :--- |

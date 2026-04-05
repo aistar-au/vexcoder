@@ -11,7 +11,7 @@ All ADR files are stored under `adr/`.
 | :--- | :--- |
 | **Proposed** | Under discussion and dispatchable |
 | **Amended** | Existing ADR amended without superseding the base decision |
-| **Active** | In progress in the current tree; follow-up phases or verification may still remain |
+| **Active** | In progress in the current tree; subsequent phases or verification may still remain |
 | **Accepted** | In effect -- code must conform |
 | **Complete** | All scoped implementation items are complete; housekeeping move to `completed/` still remains |
 | **Superseded by ADR-XXX** | Replaced; retained for history |
@@ -25,7 +25,7 @@ All ADR files are stored under `adr/`.
 | [ADR-021](ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md) | Codebase audit (unused code) | Accepted | 0 items remaining; all P1/P2/P3 items complete |
 | [ADR-022 amendment](ADR-022-amendment-2026-03-13.md) | Command-execution amendment | Amended | Amendment only |
 | [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed (milestone-1 passed 2026-03-15) | Post-milestone phases G/H |
-| [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps | Proposed (pre-milestone complete) | 1 deferred external item: PG-03 tap auto-dispatch after the tap repo exists |
+| [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps | Proposed (pre-milestone complete) | 1 external item in the next batch: PG-03 tap auto-dispatch after the tap repo exists |
 | [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active | Phase 1+2 merged; boundary tests now cover grouped, multiline, and `super::`-relative imports |
 | [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness | Accepted | All 8 decision items verified (2026-03-28) |
 | [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Accepted | All 6 coverage requirements verified (2026-03-28) |
@@ -54,24 +54,24 @@ the top-level `adr/` directory pending a housekeeping move.
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding | Complete | PI-13 through PI-16 all merged |
 | [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI command-session capture | Accepted (complete) | Supersedes ADR-018/019 |
 
-## Remaining Work Summary (1 proposed in-tree ADR + 1 deferred external dependency)
+## Remaining Work Summary (1 proposed in-tree ADR + 1 external dependency in the next batch)
 
 ADR-039 now tracks the proposed operator-facing CLI voice lane: neutral spatial
 vocabulary, status-copy normalization, semantic ANSI roles, and the
 paragraph-oriented progress stream for long-running tasks. Batch A is
 merged on main (PR #292): `Mapping adjacent sectors...`,
 `State synchronized.`, and semantic color feedback now land on existing
-surfaces. A follow-up fix in PR #293 normalizes `search.exclude` entries with
+surfaces. A subsequent fix in PR #293 normalizes `search.exclude` entries with
 a trailing slash. Remaining work covers the broader vocabulary sweep, active
 indicator, and paragraph-stream restructuring. ADR-038 is accepted and
-complete. The only deferred external prerequisite remains ADR-024 PG-03 tap
+complete. The only external prerequisite in the next batch remains ADR-024 PG-03 tap
 auto-dispatch, which stays blocked until the separate tap repository exists.
 Full history and ADR status detail are located in `TASKS/ACTIVE-ROADMAP.md`.
 
 | Tier | Source | Items | Description |
 | :--- | :--- | :--- | :--- |
 | 11 | ADR-039 | 3 | Remaining batches: broader vocabulary pass, active indicator, paragraph progress stream |
-| 8 | ADR-024 G/H + ADR-022 | 1 | Deferred external prerequisite: tap repository auto-dispatch |
+| 8 | ADR-024 G/H + ADR-022 | 1 | Next batch planned external prerequisite: tap repository auto-dispatch |
 
 ## Completed ADR Records
 
@@ -93,5 +93,5 @@ Full history and ADR status detail are located in `TASKS/ACTIVE-ROADMAP.md`.
 | [ADR-015](completed/ADR-015-local-endpoint-text-protocol-default.md) | Local endpoint text-protocol default | Accepted |
 | [ADR-016](completed/ADR-016-local-tool-loop-guard-and-correction.md) | Local tool-loop guard and correction | Accepted |
 | [ADR-017](completed/ADR-017-append-terminal-single-session.md) | Append-terminal single session | Superseded by ADR-018 |
-| [ADR-019](completed/ADR-019-adr-018-follow-up-correctness-cutover-cleanup.md) | ADR-018 follow-up correctness cutover | Superseded by ADR-027 |
+| [ADR-019](completed/ADR-019-adr-018-follow-up-correctness-cutover-cleanup.md) | ADR-018 subsequent correctness cutover | Superseded by ADR-027 |
 | [ADR-020](completed/ADR-020-looping-architecture-enriched-response-correctness.md) | Looping architecture enriched response | Accepted |

@@ -15,6 +15,7 @@ Whole-repo tracked file map: `TASKS/completed/REPO-RAW-URL-MAP.md`.
 | `TASKS/PM-02-undo-checkpoints.md` | Pre-ADR | None | `/undo` slash command and per-change checkpoint stack. Branch only. |
 | `TASKS/PM-03-code-search.md` | Pre-ADR | None | Code search hardening and `/reindex` command. Branch only. |
 | `TASKS/PM-04-auto-memory.md` | Pre-ADR | None | Automatic memory extraction from conversation turns. Branch only. |
+| `TASKS/PM-05-crate-boundaries-and-tool-calls.md` | PR #342 docs alignment | `ACTIVE-ROADMAP`, `architecture.md` | Neutral wording, crate-boundary rationale, structured tool-call design, and next-batch dependency decisions. Active. |
 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | `ADR-024` Gap 26 | `PA-01` | Pre/post-tool-call hooks (`[[hooks]]` in user config layer only). All 7 anchor tests pass. Complete. |
 
 ## Open ADR Dispatch Sources
@@ -26,7 +27,7 @@ Source of truth: `adr/ADR-README.md`.
 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | Accepted | 0 items remaining; all P1/P2/P3 items complete (Tiers 4/6/7 all cleared) |
 | `adr/ADR-022-amendment-2026-03-13.md` | Amended | Amendment only |
 | `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed (milestone-1 passed) | Post-milestone G/H |
-| `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-milestone complete) | 1 deferred external item (PG-03 auto-dispatch after tap repo exists); all in-tree G/H work complete 2026-03-28 |
+| `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-milestone complete) | 1 external item in the next batch (PG-03 auto-dispatch after tap repo exists); all in-tree G/H work complete 2026-03-28 |
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active | Ongoing boundary alignment; Phase 1, 2, and transport extraction committed; boundary tests now cover grouped, multiline, and `super::`-relative `server`/`bin` imports |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Accepted | 0 items remaining; all 8 decision items verified in Tier 5 (PR #249) |
 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Accepted | 0 items remaining; all 6 coverage requirements verified in Tier 5 (PR #249) |
@@ -43,17 +44,17 @@ Source of truth: `adr/ADR-README.md`.
 ADR-013, ADR-018, ADR-025, ADR-026, ADR-027 moved to `adr/completed/`.
 ADR-023 is complete (EL-01 through EL-13) and remains in `adr/`.
 
-## Remaining Work Summary (1 proposed in-tree ADR + 1 deferred external dependency)
+## Remaining Work Summary (1 proposed in-tree ADR + 1 external dependency in the next batch)
 
 Tiers 1–10 are complete for existing in-tree work. ADR-039 now defines the
 next proposed operator-surface lane around neutral spatial CLI voice, status
 copy, ANSI semantic roles, and paragraph-oriented long-running progress text.
 Batch A is merged on main (PR #292): `Mapping adjacent sectors...`,
 `State synchronized.`, and semantic color feedback now land on existing
-surfaces. A follow-up fix in PR #293 normalizes `search.exclude` entries with
+surfaces. A subsequent fix in PR #293 normalizes `search.exclude` entries with
 a trailing slash. Remaining work covers the broader vocabulary set, active indicator,
-and denser paragraph stream. The only deferred external follow-up remains
-ADR-024 PG-03 tap auto-dispatch, which stays deferred until the separate tap
+and denser paragraph stream. The only external item in the next batch remains
+ADR-024 PG-03 tap auto-dispatch, which stays blocked until the separate tap
 repository exists.
 
 | Tier | Source | Items | Status | Description |
@@ -65,7 +66,8 @@ repository exists.
 | ~~5~~ | ADR-029/030/032 | ~~3~~ | Complete | Verification of already-implemented work (2026-03-28) |
 | ~~6~~ | ADR-021 P2 | ~~13~~ | Complete (2026-03-28) | All 13 items complete; Items 10/12/14 in this batch; Item 11 addressed |
 | ~~7~~ | ADR-021 P3 | ~~1~~ | Complete (2026-03-28) | Item 33 idle backoff tuning comment added |
-| 8 | ADR-024 G/H + ADR-022 | 1 | Deferred (external prerequisite) | Tap repository auto-dispatch after the separate tap repo is created |
+| 8 | ADR-024 G/H + ADR-022 | 1 | Next batch planned (external prerequisite) | Tap repository auto-dispatch after the separate tap repo is created |
+| 12 | PR #342 docs alignment | 1 | Active | Neutral crate-boundary wording, structured tool-call docs, and next-batch dependency decisions |
 | ~~9~~ | Multiple | ~~1~~ | Complete (2026-03-28) | ADR-028 status verified; grouped, multiline, and relative `super::` import checks close the remaining known `server`/`bin` test bypasses |
 | 11 | ADR-039 | 3 | Proposed | Broader vocabulary pass, active indicator, paragraph progress stream |
 
@@ -82,7 +84,7 @@ Milestone-1 gate (passed 2026-03-15):
   ADR-023 EL-01 through EL-13 (all complete)
   ADR-025 PI-09 through PI-12 (all complete)
   ADR-026 PI-13 through PI-16 (all complete)
-  ADR-028 active follow-up with grouped, multiline, and relative-super import coverage
+  ADR-028 active boundary-alignment work with grouped, multiline, and relative-super import coverage
   ADR-034 Phase A + B-E (merged via PRs 228/229/230) plus serialized delegation/release/watch hardening
 ```
 
@@ -95,7 +97,7 @@ operator-surface lane. ADR-025, ADR-026, and ADR-027 have been moved to
 
 Tiers 1–10 are complete for existing in-tree work. ADR-039 is the next
 proposed lane, starting with low-gain status anchors and semantic color
-feedback (Batch A, merged on main) before later vocabulary and transcript-model changes. The only deferred external follow-up is PG-03
+feedback (Batch A, merged on main) before later vocabulary and transcript-model changes. The only external item in the next batch is PG-03
 tap auto-dispatch, which depends on the separate tap repository existing first.
 See `TASKS/ACTIVE-ROADMAP.md` for the current breakdown.
 
