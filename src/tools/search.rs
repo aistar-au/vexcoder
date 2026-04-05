@@ -1,5 +1,6 @@
 use crate::tools::index::IndexChunk;
 use crate::tools::semantic::SemanticChunkScore;
+use bm25::{Document as Bm25Document, Language, SearchEngineBuilder};
 use std::collections::HashMap;
 
 /// Result of a codebase search query.
@@ -23,15 +24,28 @@ fn max_results_default() -> usize {
         .unwrap_or(10)
 }
 
+/// Build a BM25 `SearchEngine` over all chunks in `index`.
+///
+/// Each chunk is indexed as its `name` concatenated with its `source` so the
+/// BM25 ranking captures both symbol name and code content.  The document id
+/// is the chunk position (`usize`) so callers can map results back to the
+/// original `index` slice in O(1).
+fn build_bm25_engine(index: &[IndexChunk]) -> bm25::SearchEngine<usize> {
+    let docs = index
+        .iter()
+        .enumerate()
+        .map(|(i, chunk)| Bm25Document::new(i, format!("{} {}", chunk.name, chunk.source)));
+    SearchEngineBuilder::<usize>::with_documents(Language::English, docs).build()
+}
+
 /// Search the structural index for items matching `query`.
 ///
-/// Ranking:
-/// - Exact name match: +100
-/// - Case-insensitive name contains query: +50
-/// - Parent scope contains query: +20
-/// - Content keyword match (per word): +5
+/// Ranking pipeline (additive scores):
+/// 1. Structural scoring via `score_chunk` (exact/fuzzy name match, parent scope, keyword count).
+/// 2. BM25 term-frequency reranking layer — adds a weighted BM25 score to the
+///    structural score so frequently-matched terms boost results proportionally.
 ///
-/// Results are sorted by score descending, capped at `max_results`
+/// Results are sorted by combined score descending, capped at `max_results`
 /// (or `VEX_SEARCH_MAX_RESULTS` if `None`).
 pub fn codebase_search(
     query: &str,
@@ -58,6 +72,25 @@ pub fn codebase_search(
             }
         })
         .collect();
+
+    // BM25 reranking layer: build a Search engine over all index chunks and add
+    // BM25 term-frequency weight to the structural scores for each candidate.
+    // BM25 weight is scaled to the same order-of-magnitude as the structural
+    // scores so neither signal dominates when they diverge.
+    let engine = build_bm25_engine(index);
+    for bm25_result in engine.search(&query_lower, None) {
+        let idx = bm25_result.document.id;
+        let bm25_weight = bm25_result.score as f64 * 10.0;
+        if bm25_weight <= 0.0 {
+            continue;
+        }
+        // Update an existing structural candidate if present; otherwise add it.
+        if let Some(entry) = scored.iter_mut().find(|(_, i)| *i == idx) {
+            entry.0 += bm25_weight;
+        } else {
+            scored.push((bm25_weight, idx));
+        }
+    }
 
     scored.sort_by(|(score_a, idx_a), (score_b, idx_b)| {
         score_b.total_cmp(score_a).then(idx_a.cmp(idx_b))

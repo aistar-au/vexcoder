@@ -1,6 +1,9 @@
 use anyhow::{anyhow, Context, Result};
+use gix;
+use gix_config;
+use gix_discover;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -26,6 +29,21 @@ pub(crate) struct GitCommandResult {
     pub(crate) output: Option<String>,
     pub(crate) non_git_repo: bool,
     pub(crate) timed_out: bool,
+}
+
+/// Resolve the path to the `git` executable, returning an error with a
+/// concrete message when `git` is not found on `$PATH`.
+///
+/// Uses `which::which("git")` so the caller gets a diagnosis ("git not found
+/// on PATH") rather than a cryptic spawn failure.
+pub(crate) fn resolve_git_path() -> Result<PathBuf> {
+    which::which("git").map_err(|err| {
+        anyhow!(
+            "git executable not found on PATH: {}. \
+             Install git or add it to PATH before running vexcoder.",
+            err
+        )
+    })
 }
 
 pub(crate) fn collect_git_rollup(
@@ -121,7 +139,8 @@ fn run_git_command_blocking(
     args: Vec<String>,
     cancel: Arc<AtomicBool>,
 ) -> Result<GitCommandResult> {
-    let mut child = Command::new("git")
+    let git_path = resolve_git_path()?;
+    let mut child = Command::new(git_path)
         .current_dir(working_dir)
         .args(args)
         .stdout(Stdio::piped())
@@ -237,9 +256,92 @@ pub(crate) fn resolve_git_timeout_ms(default_ms: u64) -> u64 {
     }
 }
 
+/// Start a filesystem watcher on `working_dir` and invoke `on_change` each
+/// time any file in the directory tree is created, modified, or removed.
+///
+/// The watcher runs until the returned `notify::RecommendedWatcher` is
+/// dropped.  Callers retain ownership of the watcher so the watch lifetime
+/// is tied to the owning context (e.g., a long-lived task or session).
+///
+/// This is the integration seam for `notify`-based watch mode in the git
+/// rollup layer.  It is intentionally kept narrow: the callback receives only
+/// a `Vec<PathBuf>` of changed paths so the caller decides how to respond
+/// (e.g., schedule a fresh `collect_git_rollup` call).
+#[allow(dead_code)]
+pub(crate) fn watch_working_dir<F>(
+    working_dir: &Path,
+    on_change: F,
+) -> Result<notify::RecommendedWatcher>
+where
+    F: Fn(Vec<PathBuf>) + Send + 'static,
+{
+    use notify::{Config, Event, RecursiveMode, Watcher};
+
+    let mut watcher = notify::RecommendedWatcher::new(
+        move |res: notify::Result<Event>| {
+            if let Ok(event) = res {
+                let paths = event.paths;
+                if !paths.is_empty() {
+                    on_change(paths);
+                }
+            }
+        },
+        Config::default(),
+    )
+    .context("failed to initialize filesystem watcher")?;
+
+    watcher
+        .watch(working_dir, RecursiveMode::Recursive)
+        .with_context(|| format!("failed to watch directory: {}", working_dir.display()))?;
+
+    Ok(watcher)
+}
+
 fn limit_lines(text: &str, max_lines: usize) -> String {
     if max_lines == 0 {
         return String::new();
     }
     text.lines().take(max_lines).collect::<Vec<_>>().join("\n")
+}
+
+/// Locate the `.git` directory by walking up from `path` using the pure-Rust
+/// `gix-discover` implementation.  Returns the path to the `.git` directory
+/// (or the repository root for bare repos), or `None` if `path` is not inside
+/// a git repository.
+///
+/// This complements the subprocess-based git detection in `collect_git_rollup`
+/// with a zero-subprocess fallback that works from any working directory.
+#[allow(dead_code)]
+pub(crate) fn discover_git_root(path: &Path) -> Option<PathBuf> {
+    let (git_path, _trust) = gix_discover::upwards(path).ok()?;
+    Some(git_path.as_ref().to_path_buf())
+}
+
+/// Read `user.name` from the global git config using `gix-config`.
+///
+/// Returns the configured committer name, or `None` if it cannot be read (no
+/// config file, the key is absent, or the value is not valid UTF-8).  This is
+/// used to attribute AI-generated commits without spawning a `git config`
+/// subprocess.
+#[allow(dead_code)]
+pub(crate) fn configured_git_user_name() -> Option<String> {
+    let config = gix_config::File::from_globals().ok()?;
+    let name = config.string("user.name")?;
+    Some(String::from_utf8_lossy(name.as_ref()).into_owned())
+}
+
+/// Open the git repository at or above `path` using the pure-Rust gitoxide
+/// implementation and return the path to its `.git` directory.
+///
+/// `gix` provides fast, thread-safe repository access without spawning
+/// subprocesses.  This function is the integration seam; callers that need
+/// deeper object access (e.g., reading blobs or the commit graph) can open
+/// the repository themselves via `gix::open(path)`.
+///
+/// Returns `None` on any error (path not in a repo, I/O error, bare repo
+/// without a work-tree, etc.).
+#[allow(dead_code)]
+pub(crate) fn gix_git_dir(path: &Path) -> Option<PathBuf> {
+    let repo = gix::open(path).ok()?;
+    Some(repo.git_dir().to_path_buf())
 }
