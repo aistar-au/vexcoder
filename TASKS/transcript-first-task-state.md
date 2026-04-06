@@ -2,8 +2,13 @@
 
 ## Status
 
-Active — implementation not yet started. This document defines the scope
-of the next architectural step after PR 348.
+In progress — PR 1 (`work/vexcoder-task-document-pr1`) introduces the
+canonical `TaskDocument` module at `src/runtime/task_document.rs`.  All core
+types (`TaskDocument`, `TaskMeta`, `ActiveTurnDocument`, `TurnDocument`,
+`TurnEntry`, `TaskDocumentReducer`, `TaskMutationSummary`) and the
+snapshot round-trip adapter (`persistable_snapshot` / `restore_from_snapshot`)
+are now implemented and exported from `crate::runtime`.  The TUI switch and
+`project_tui` projection belong to a later PR in the series.
 
 ## Context
 

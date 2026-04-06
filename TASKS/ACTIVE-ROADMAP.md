@@ -277,6 +277,7 @@ would duplicate traversal logic.
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| TaskDoc-PR1 | `work/vexcoder-task-document-pr1` | — | **In Progress** | Introduce canonical `TaskDocument` module: all domain types, `TaskDocumentReducer`, snapshot round-trip adapter compatible with `TaskState` persistence; no TUI changes |
 | Ratatui-T4 | `work/vexcoder-tier4-ratatui-stack` | #342 | **In Review** | Tier 4 crate wiring: `indexmap`, `tower-http`, `regex-lite`, `pretty_assertions`, `assert_cmd`; full git parsing stack (status, diff stat, diff name-status, log oneline, apply); secret redaction (vendor-API/AWS/GitHub/PEM/bearer/connection-string/generic); rate-limit extraction with Retry-After header + body; snapshot-to-rollup rename |
 
 ### Recently Merged / Closed
