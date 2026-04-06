@@ -72,6 +72,10 @@ choices so the UI, parser, and API route all move in the same direction.
 - Completed tool-result replacement preserves scroll position by using the net
   transcript growth across the full replacement, not the height of the
   inserted paragraph alone.
+- Normalized `StreamDelta` text remains the single visible assistant-text path
+  for downstream consumers. Textual `StreamBlockDelta` updates keep block
+  identity and cursor metadata, but they do not form a second display-text
+  stream.
 
 ### 3. API-route contract
 

@@ -29,6 +29,15 @@ in `current_turn_stream_segments`.
 The renderer (`src/ui/render/transcript.rs`) reconstructs the display from all
 three buffers every frame.
 
+Immediate downstream guardrail for PR 348:
+
+- Normalized `UiUpdate::StreamDelta` is the authoritative visible-text path for
+  downstream consumers.
+- Textual `UiUpdate::StreamBlockDelta` remains block metadata and cursor state,
+  not a second display-text stream.
+- `BatchMode` already follows this rule; the ratatui path must keep matching it
+  until the task document replaces the split state entirely.
+
 ## Design win
 
 Normalizing the in-process state to the same block model the API emits

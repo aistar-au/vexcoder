@@ -353,6 +353,46 @@ fn test_commit_completed_turn_materializes_structured_stream_segments() {
 }
 
 #[test]
+fn test_commit_completed_turn_uses_normalized_stream_text_once() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("hello".to_string(), &mut ctx);
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::FinalText {
+                content: String::new(),
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: "Hello".to_string(),
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(UiUpdate::StreamDelta("Hello".to_string()), &mut ctx);
+
+    mode.commit_completed_turn(&ctx);
+    mode.history_state.turn_in_progress = false;
+    mode.history_state.active_assistant_index = None;
+
+    let last_turn = mode.current_task.turns.last().expect("recorded turn");
+    assert_eq!(last_turn.response, "Hello");
+
+    let state = mode.task_layout_state().expect("task layout state");
+    let joined = state.output_rows.join("\n");
+    assert_eq!(
+        joined.matches("Hello").count(),
+        1,
+        "committed transcript must keep normalized stream text once: {joined:?}"
+    );
+}
+
+#[test]
 fn test_task_layout_state_keeps_prior_responses_visible_after_turn_completion() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
@@ -868,13 +908,12 @@ fn test_inspector_title_includes_row_count() {
 }
 
 #[test]
-fn test_final_text_block_delta_materializes_into_output_rows() {
+fn test_final_text_block_delta_does_not_duplicate_normalized_stream_rows() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
     mode.on_user_input("hello".to_string(), &mut ctx);
 
-    // Simulate a FinalText block start (index 0).
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 0,
@@ -885,7 +924,6 @@ fn test_final_text_block_delta_materializes_into_output_rows() {
         &mut ctx,
     );
 
-    // Send deltas that should materialize into output_rows.
     mode.on_model_update(
         UiUpdate::StreamBlockDelta {
             index: 0,
@@ -893,6 +931,7 @@ fn test_final_text_block_delta_materializes_into_output_rows() {
         },
         &mut ctx,
     );
+    mode.on_model_update(UiUpdate::StreamDelta("Hello ".to_string()), &mut ctx);
     mode.on_model_update(
         UiUpdate::StreamBlockDelta {
             index: 0,
@@ -900,23 +939,28 @@ fn test_final_text_block_delta_materializes_into_output_rows() {
         },
         &mut ctx,
     );
+    mode.on_model_update(UiUpdate::StreamDelta("world!".to_string()), &mut ctx);
 
     let state = mode.task_layout_state().expect("task layout state");
     let joined = state.output_rows.join("\n");
     assert!(
         joined.contains("Hello world!"),
-        "FinalText block deltas must appear in output rows: {joined:?}"
+        "normalized stream text must appear in output rows: {joined:?}"
+    );
+    assert_eq!(
+        joined.matches("Hello world!").count(),
+        1,
+        "textual block metadata must not duplicate normalized stream text: {joined:?}"
     );
 }
 
 #[test]
-fn test_thinking_block_delta_materializes_into_output_rows() {
+fn test_thinking_block_delta_does_not_duplicate_normalized_stream_rows() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
     mode.on_user_input("think deeply".to_string(), &mut ctx);
 
-    // Simulate a Thinking block start (index 0).
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 0,
@@ -928,7 +972,6 @@ fn test_thinking_block_delta_materializes_into_output_rows() {
         &mut ctx,
     );
 
-    // Send thinking delta.
     mode.on_model_update(
         UiUpdate::StreamBlockDelta {
             index: 0,
@@ -936,11 +979,20 @@ fn test_thinking_block_delta_materializes_into_output_rows() {
         },
         &mut ctx,
     );
+    mode.on_model_update(
+        UiUpdate::StreamDelta("analyzing the problem".to_string()),
+        &mut ctx,
+    );
 
     let state = mode.task_layout_state().expect("task layout state");
     let joined = state.output_rows.join("\n");
     assert!(
         joined.contains("analyzing the problem"),
-        "Thinking block deltas must appear in output rows: {joined:?}"
+        "normalized thinking text must appear in output rows: {joined:?}"
+    );
+    assert_eq!(
+        joined.matches("analyzing the problem").count(),
+        1,
+        "textual thinking metadata must not duplicate normalized stream text: {joined:?}"
     );
 }

@@ -421,7 +421,6 @@ impl TuiMode {
                 if let Some(buf) = self.delta_accumulators.get_mut(&index) {
                     buf.append_delta(&delta);
                 }
-                let previous_output_len = self.expanded_output_row_count();
                 // Determine block kind and apply per-field mutations that only
                 // need the mutable borrow on active_stream_blocks.
                 #[derive(Clone, Copy)]
@@ -453,17 +452,11 @@ impl TuiMode {
                 // Now the mutable borrow on active_stream_blocks is released.
                 // Apply display-side effects that need &mut self.
                 match action {
-                    DeltaAction::Thinking => {
-                        self.append_stream_segment_delta(&delta);
-                        self.clamp_transcript_after_mutation();
-                        self.preserve_transcript_scroll_on_growth(previous_output_len);
-                    }
-                    DeltaAction::FinalText => {
-                        self.append_stream_segment_delta(&delta);
-                        self.current_turn_response.push_str(&delta);
-                        self.clamp_transcript_after_mutation();
-                        self.preserve_transcript_scroll_on_growth(previous_output_len);
-                    }
+                    // RuntimeContext already mirrors textual block content
+                    // through the normalized StreamDelta path. Keep the block
+                    // delta as metadata/cursor state only so the ratatui
+                    // transcript does not render the same text twice.
+                    DeltaAction::Thinking | DeltaAction::FinalText => {}
                     DeltaAction::ToolCall => {
                         if let Some(tool_id) = tool_id_buf {
                             if let Some(buf) = self.tool_input_raw_buffers.get_mut(&index) {
