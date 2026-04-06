@@ -6,9 +6,8 @@ use crate::state::{StreamBlock, ToolStatus, TurnToolPolicy};
 use crate::usage::TurnTokens;
 
 use super::{
-    ActiveTurnDocument, ApprovalDocument, AssistantBlockEntry, AssistantPhase,
-    NoticeSeverity, TaskDocument, TaskErrorState, TaskMeta, TurnDocument, TurnEntry,
-    TurnOutcome,
+    ActiveTurnDocument, ApprovalDocument, AssistantBlockEntry, AssistantPhase, NoticeSeverity,
+    TaskDocument, TaskErrorState, TaskMeta, TurnDocument, TurnEntry, TurnOutcome,
 };
 
 /// Stateless reducer that applies [`RuntimeEvent`] mutations to a
