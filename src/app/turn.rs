@@ -174,6 +174,7 @@ impl TuiMode {
         self.resolve_pending_approval(false, ctx);
         self.resolve_pending_patch_approval(false);
         self.active_stream_blocks.clear();
+        self.structured_streaming_active = false;
         self.commit_completed_turn(ctx);
         self.append_turn_timing_line();
         self.maybe_extract_auto_memory();
