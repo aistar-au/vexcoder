@@ -65,7 +65,7 @@ impl TuiMode {
             Ok(result) => {
                 if remember_for_fix {
                     let mut edit_loop = self.active_edit_loop.clone().unwrap_or_else(|| {
-                        EditLoop::new(self.current_task.id.clone())
+                        EditLoop::new(self.task_doc.meta.id.clone())
                             .with_working_dir(self.working_dir.clone())
                             .with_profile(self.model_profile.clone())
                     });
@@ -120,7 +120,7 @@ impl TuiMode {
         self.push_history_line(format!("[{label}] {summary}"));
     }
     pub(crate) fn handle_context_command(&mut self, ctx: &RuntimeContext) {
-        let turns = if self.active_edit_loop.is_some() && self.history_state.turn_in_progress {
+        let turns = if self.active_edit_loop.is_some() && self.task_doc.active_turn.is_some() {
             "1".to_string()
         } else {
             "\u{2014}".to_string()
@@ -142,14 +142,14 @@ impl TuiMode {
         self.push_history_line(format!("  model     : {}", self.model_name));
         self.push_history_line(format!("  backend   : {:?}", self.model_backend));
         self.push_history_line(format!("  profile   : {profile_name}"));
-        self.push_history_line(format!("  task      : {}", self.current_task.id));
-        self.push_history_line(format!("  status    : {:?}", self.current_task.status));
+        self.push_history_line(format!("  task      : {}", self.task_doc.meta.id));
+        self.push_history_line(format!("  status    : {:?}", self.task_doc.meta.status));
         self.push_history_line(format!("  turns     : {turns}"));
         self.push_history_line(format!("  files     : {files}"));
         self.push_history_line(format!("  git       : {git_summary}"));
         self.push_history_line(format!(
             "  approvals : {} active grant(s)",
-            self.current_task.active_grants.len()
+            self.task_doc.meta.active_grants.len()
         ));
         self.push_history_line(format!(
             "  tokens    : ~{}",

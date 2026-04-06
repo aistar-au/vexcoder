@@ -1,16 +1,55 @@
 use super::*;
 use crate::app::scroll::apply_bounded_scroll;
+use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
 
 #[cfg(test)]
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 
 impl TuiMode {
     pub(super) fn pending_tool_step_id(&self, tool_name: &str, input_preview: &str) -> Option<u64> {
-        self.pending_turn_tool_calls
-            .values()
-            .filter(|pending| pending.name == tool_name && pending.input_preview == input_preview)
-            .map(|pending| pending.step_id)
-            .min()
+        let entries = &self.task_doc.active_turn.as_ref()?.entries;
+
+        // Prefer an exact match on both tool name and input preview so that
+        // repeated calls to the same tool (e.g. multiple `read_file` with
+        // different paths) are attributed to the correct step.
+        let exact_match = entries.iter().find_map(|e| {
+            if let crate::runtime::TurnEntry::ToolCall {
+                step_id,
+                name,
+                input,
+                ..
+            } = e
+            {
+                if name == tool_name {
+                    let entry_preview = preview_tool_input(
+                        name,
+                        input,
+                        ToolPreviewStyle::Structured,
+                        crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
+                    );
+                    if entry_preview == input_preview {
+                        return Some(*step_id);
+                    }
+                }
+            }
+            None
+        });
+
+        exact_match.or_else(|| {
+            // Fall back to the first name-only match when no preview aligns
+            // (e.g. approval arrives before the entry's input is fully parsed).
+            entries
+                .iter()
+                .filter_map(|e| {
+                    if let crate::runtime::TurnEntry::ToolCall { step_id, name, .. } = e {
+                        if name == tool_name {
+                            return Some(*step_id);
+                        }
+                    }
+                    None
+                })
+                .min()
+        })
     }
 
     pub(super) fn mark_tool_step_approved(&mut self, step_id: Option<u64>) {
@@ -54,20 +93,32 @@ impl TuiMode {
             .unwrap_or_else(|| "unknown".to_string());
         match parse_approval_selection(input) {
             Some(ApprovalSelection::ApproveOnce) => {
-                self.push_history_line(format!("[tool approval accepted once: {context}]"));
+                self.push_document_notice(
+                    format!("[tool approval accepted once: {context}]"),
+                    crate::runtime::NoticeSeverity::Info,
+                );
                 self.resolve_pending_approval(true, ctx);
             }
             Some(ApprovalSelection::ApproveSession) => {
                 self.overlay_state.auto_approve_session = true;
-                self.push_history_line(format!("[tool approval enabled for session: {context}]"));
+                self.push_document_notice(
+                    format!("[tool approval enabled for session: {context}]"),
+                    crate::runtime::NoticeSeverity::Info,
+                );
                 self.resolve_pending_approval(true, ctx);
             }
             Some(ApprovalSelection::Deny) => {
-                self.push_history_line(format!("[tool approval denied: {context}]"));
+                self.push_document_notice(
+                    format!("[tool approval denied: {context}]"),
+                    crate::runtime::NoticeSeverity::Info,
+                );
                 self.resolve_pending_approval(false, ctx);
             }
             None => {
-                self.push_history_line("[invalid selection, expected 1/2/3]".to_string());
+                self.push_document_notice(
+                    "[invalid selection, expected 1/2/3]".to_string(),
+                    crate::runtime::NoticeSeverity::Info,
+                );
             }
         }
     }
@@ -78,7 +129,10 @@ impl TuiMode {
                 let _ = tx.send(approved);
             }
             let decision = if approved { "accepted" } else { "denied" };
-            self.push_history_line(format!("[patch approval {decision}]"));
+            self.push_document_notice(
+                format!("[patch approval {decision}]"),
+                crate::runtime::NoticeSeverity::Info,
+            );
         }
     }
 
@@ -102,11 +156,20 @@ impl TuiMode {
     }
 
     pub(super) fn prompt_resume_selection(&mut self, entries: Vec<ResumeTaskEntry>) {
-        self.push_history_line("[resume] choose a task to resume:".to_string());
+        self.push_document_notice(
+            "[resume] choose a task to resume:".to_string(),
+            crate::runtime::NoticeSeverity::Info,
+        );
         for (index, entry) in entries.iter().enumerate() {
-            self.push_history_line(format!("  {}. {} ({})", index + 1, entry.id, entry.status));
+            self.push_document_notice(
+                format!("  {}. {} ({})", index + 1, entry.id, entry.status),
+                crate::runtime::NoticeSeverity::Info,
+            );
         }
-        self.push_history_line("[resume] type 1-5 to select or n to cancel".to_string());
+        self.push_document_notice(
+            "[resume] type 1-5 to select or n to cancel".to_string(),
+            crate::runtime::NoticeSeverity::Info,
+        );
         self.overlay_state.pending_resume_selection = Some(PendingResumeSelection { entries });
     }
 
@@ -114,12 +177,18 @@ impl TuiMode {
         let trimmed = input.trim();
         if matches!(trimmed.to_ascii_lowercase().as_str(), "n" | "no" | "esc") {
             self.overlay_state.pending_resume_selection = None;
-            self.push_history_line("[resume] cancelled".to_string());
+            self.push_document_notice(
+                "[resume] cancelled".to_string(),
+                crate::runtime::NoticeSeverity::Info,
+            );
             return;
         }
 
         let Some(selection) = trimmed.parse::<usize>().ok() else {
-            self.push_history_line("[resume] invalid selection, expected 1-5 or n".to_string());
+            self.push_document_notice(
+                "[resume] invalid selection, expected 1-5 or n".to_string(),
+                crate::runtime::NoticeSeverity::Info,
+            );
             return;
         };
 
@@ -130,7 +199,10 @@ impl TuiMode {
             .and_then(|pending| pending.entries.get(selection.saturating_sub(1)))
             .cloned()
         else {
-            self.push_history_line("[resume] invalid selection, expected 1-5 or n".to_string());
+            self.push_document_notice(
+                "[resume] invalid selection, expected 1-5 or n".to_string(),
+                crate::runtime::NoticeSeverity::Info,
+            );
             return;
         };
 
@@ -138,7 +210,10 @@ impl TuiMode {
         match TaskState::load(&entry.dir, &entry.id) {
             Ok(state) => self.apply_resumed_task(state, ctx),
             Err(_) => {
-                self.push_history_line(format!("[resume: task '{}' not found]", entry.id));
+                self.push_document_notice(
+                    format!("[resume: task '{}' not found]", entry.id),
+                    crate::runtime::NoticeSeverity::Warning,
+                );
             }
         }
     }

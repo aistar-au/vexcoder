@@ -269,7 +269,7 @@ impl TuiMode {
             };
             match crate::app::facade_schedule_team(
                 &self.working_dir,
-                &self.current_task.id,
+                &self.task_doc.meta.id,
                 team_name,
                 prompt,
             ) {
@@ -307,7 +307,7 @@ impl TuiMode {
         let prompt = rest;
         match crate::app::facade_delegate_session_task(
             &self.working_dir,
-            Some(self.current_task.id.clone()),
+            Some(self.task_doc.meta.id.clone()),
             agent_id,
             prompt,
         ) {
@@ -345,13 +345,13 @@ impl TuiMode {
     pub(crate) fn handle_watch_command(&mut self, args: &str) {
         let selector = args.trim();
         if selector.is_empty() {
-            if self.current_task.session_tasks.is_empty() {
+            if self.task_doc.session_tasks.is_empty() {
                 self.push_history_line("[watch] no session tasks recorded".to_string());
                 return;
             }
             self.push_history_line("[watch] current task session tasks:".to_string());
             let lines: Vec<String> = self
-                .current_task
+                .task_doc
                 .session_tasks
                 .iter()
                 .map(|task| {
@@ -365,7 +365,7 @@ impl TuiMode {
                 self.push_history_line(line);
             }
             if let Ok(Some(outcome)) =
-                crate::app::facade_poll_join(&self.working_dir, &self.current_task.id)
+                crate::app::facade_poll_join(&self.working_dir, &self.task_doc.meta.id)
             {
                 self.push_history_line(format!(
                     "[watch] join: done={} completed={} failed={} cancelled={}",

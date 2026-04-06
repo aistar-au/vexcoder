@@ -1,57 +1,9 @@
-//! Streaming block buffer for the structured transcript rendering path.
+//! Suffix deduplication for cumulative streaming backend updates.
 //!
-//! `StreamingBlockBuffer` accumulates the live text of a single streaming
-//! block and exposes it for the render path.  `bounded_incremental_suffix`
-//! deduplicates cumulative backend updates so callers only process net-new
-//! content.
+//! `bounded_incremental_suffix` extracts only the net-new content from a
+//! cumulative backend chunk, avoiding `O(existing.len())` rescans.
 //!
 //! This module is foundational infrastructure for ADR-041.
-//! Buffers are wired into TuiMode (model_update) and consumed by the
-//! transcript display path to drive the streaming cursor.
-
-/// Category of streaming block — matches `StreamBlock` variants but
-/// is a lightweight copy-friendly discriminator for the draw layer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TranscriptBlockKind {
-    Thinking,
-    ToolCall,
-    ToolResult,
-    FinalText,
-}
-
-/// Accumulates the full text of a single streaming block.
-///
-/// The buffer is keyed by block index in `TuiMode::delta_accumulators`
-/// and queried by the render path to gate the streaming cursor and
-/// provide an authoritative live-content indicator.
-pub struct StreamingBlockBuffer {
-    content: String,
-    kind: TranscriptBlockKind,
-}
-
-impl StreamingBlockBuffer {
-    pub fn new(kind: TranscriptBlockKind) -> Self {
-        Self {
-            content: String::new(),
-            kind,
-        }
-    }
-
-    /// Append incoming text to the accumulated block content.
-    pub fn append_delta(&mut self, delta: &str) {
-        self.content.push_str(delta);
-    }
-
-    /// Return the full accumulated content for this block.
-    pub fn content(&self) -> &str {
-        &self.content
-    }
-
-    /// Return the block kind for routing decisions in the render path.
-    pub fn kind(&self) -> TranscriptBlockKind {
-        self.kind
-    }
-}
 
 /// Bounded suffix deduplication for cumulative streaming updates.
 ///
@@ -105,37 +57,5 @@ mod tests {
     #[test]
     fn bounded_suffix_no_overlap() {
         assert_eq!(bounded_incremental_suffix("aaa", "bbb"), "bbb");
-    }
-
-    #[test]
-    fn buffer_accumulates_content() {
-        let mut buf = StreamingBlockBuffer::new(TranscriptBlockKind::FinalText);
-        buf.append_delta("line one\nline two\n");
-        assert_eq!(buf.content(), "line one\nline two\n");
-        assert_eq!(buf.kind(), TranscriptBlockKind::FinalText);
-    }
-
-    #[test]
-    fn buffer_accumulates_partial_content() {
-        let mut buf = StreamingBlockBuffer::new(TranscriptBlockKind::Thinking);
-        buf.append_delta("partial");
-        assert_eq!(buf.content(), "partial");
-    }
-
-    #[test]
-    fn buffer_content_tracks_full_text() {
-        let mut buf = StreamingBlockBuffer::new(TranscriptBlockKind::FinalText);
-        buf.append_delta("hello ");
-        buf.append_delta("world");
-        assert_eq!(buf.content(), "hello world");
-    }
-
-    #[test]
-    fn buffer_kind_reflects_block_type() {
-        let tool_buf = StreamingBlockBuffer::new(TranscriptBlockKind::ToolCall);
-        assert_eq!(tool_buf.kind(), TranscriptBlockKind::ToolCall);
-
-        let result_buf = StreamingBlockBuffer::new(TranscriptBlockKind::ToolResult);
-        assert_eq!(result_buf.kind(), TranscriptBlockKind::ToolResult);
     }
 }

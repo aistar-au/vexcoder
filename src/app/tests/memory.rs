@@ -64,10 +64,10 @@ fn test_tui_memory_add_appends_to_file() {
     );
     let content = std::fs::read_to_string(&notes_path).unwrap();
     assert!(content.contains("hello world"));
-    assert_eq!(mode.current_task.session_notes.len(), 1);
-    assert_eq!(mode.current_task.session_notes[0].content, "hello world");
+    assert_eq!(mode.task_doc.session_notes.len(), 1);
+    assert_eq!(mode.task_doc.session_notes[0].content, "hello world");
     let saved = TaskState::load(&state_dir, &mode.current_task_id()).unwrap();
-    assert_eq!(saved.session_notes, mode.current_task.session_notes);
+    assert_eq!(saved.session_notes, mode.task_doc.session_notes);
     assert!(!mode.is_turn_in_progress());
     std::env::remove_var("VEX_STATE_DIR");
 }
@@ -134,7 +134,7 @@ fn test_tui_memory_clear_persists_empty_session_notes() {
 
     let saved = TaskState::load(&state_dir, &mode.current_task_id()).unwrap();
     assert!(saved.session_notes.is_empty());
-    assert!(mode.current_task.session_notes.is_empty());
+    assert!(mode.task_doc.session_notes.is_empty());
     let content = std::fs::read_to_string(&notes_path).unwrap();
     assert!(
         content.trim().is_empty(),

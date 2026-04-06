@@ -1,5 +1,4 @@
 use super::*;
-use crate::status_contract::waiting_for_response_line;
 
 impl TuiMode {
     pub(super) fn on_user_input(&mut self, input: String, ctx: &mut RuntimeContext) {
@@ -19,7 +18,7 @@ impl TuiMode {
             }
         }
 
-        if self.history_state.turn_in_progress {
+        if self.task_doc.active_turn.is_some() {
             let trimmed = input.trim();
             let reentrant_edit_command =
                 self.active_edit_loop.is_some() && Self::is_reentrant_edit_command(trimmed);
@@ -29,14 +28,16 @@ impl TuiMode {
                 let _ = self.try_handle_slash_command(&input, ctx);
                 return;
             }
-            if self.history_state.cancel_pending {
+            if self
+                .task_doc
+                .active_turn
+                .as_ref()
+                .is_some_and(|t| t.cancel_pending)
+            {
                 self.push_history_line(
                     "[busy - cancelling current turn, input ignored]".to_string(),
                 );
             } else {
-                // Allow additional shell commands only while an existing
-                // command-session batch is active. This avoids clobbering
-                // model-turn capture state with unrelated inline commands.
                 let trimmed = input.trim();
                 if let Some(command) = trimmed.strip_prefix('!') {
                     if self.command_session_active() && !command.trim().is_empty() {
@@ -53,29 +54,28 @@ impl TuiMode {
 
         self.pending_quit = false;
         self.quit_requested = false;
-        self.history_state.cancel_pending = false;
-        self.push_history_line(format!("> {input}"));
-        self.push_history_line(String::new());
 
         let turn_input = self.expand_inline_file_tokens(&input);
 
         let trimmed = turn_input.trim();
         if let Some(command) = trimmed.strip_prefix('!') {
+            self.push_history_line(format!("> {input}"));
+            self.push_history_line(String::new());
             self.handle_bang_command(command, ctx);
             return;
         }
 
-        if turn_input.starts_with('/') && self.try_handle_slash_command(&turn_input, ctx) {
-            return;
+        if turn_input.starts_with('/') {
+            self.push_history_line(format!("> {input}"));
+            self.push_history_line(String::new());
+            if self.try_handle_slash_command(&turn_input, ctx) {
+                return;
+            }
         }
 
-        // Show a waiting indicator until the first streaming token arrives.
-        let wait_idx = self.history_state.lines.len() - 1;
-        if let Some(line) = self.history_state.lines.get_mut(wait_idx) {
-            *line = waiting_for_response_line().to_string();
-        }
-        self.history_state.active_assistant_index = Some(wait_idx);
-        self.history_state.turn_in_progress = true;
+        // Begin the turn; transcript_projection will render the waiting
+        // placeholder via TurnEntry::UserInput — no separate
+        // push_history_line needed.
         self.begin_turn_capture(turn_input.clone());
 
         #[cfg(test)]
@@ -87,14 +87,21 @@ impl TuiMode {
     }
 
     pub(super) fn on_interrupt(&mut self, ctx: &mut RuntimeContext) {
-        if self.history_state.turn_in_progress {
-            if self.history_state.cancel_pending {
+        if self.task_doc.active_turn.is_some() {
+            if self
+                .task_doc
+                .active_turn
+                .as_ref()
+                .is_some_and(|t| t.cancel_pending)
+            {
                 return;
             }
             ctx.cancel_turn();
             self.resolve_pending_approval(false, ctx);
             self.resolve_pending_patch_approval(false);
-            self.history_state.cancel_pending = true;
+            if let Some(active) = self.task_doc.active_turn.as_mut() {
+                active.cancel_pending = true;
+            }
             if !self.command_sessions.is_empty() {
                 for session in &mut self.command_sessions {
                     session.status = "cancelling".to_string();

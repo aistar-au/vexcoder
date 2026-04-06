@@ -41,11 +41,11 @@ impl TuiMode {
                     self.push_history_line(format!("[memory] error writing: {e}"));
                     return;
                 }
-                self.current_task.session_notes.push(SessionNote {
+                self.task_doc.session_notes.push(SessionNote {
                     content: note,
-                    created_at_turn: self.current_task.turns.len(),
+                    created_at_turn: self.task_doc.completed_turns.len(),
                 });
-                self.persist_current_task_state();
+                self.persist_task_document();
                 self.push_history_line("[memory: note added]".to_string());
             }
             Err(e) => {
@@ -70,8 +70,8 @@ impl TuiMode {
                         return;
                     }
                 }
-                self.current_task.session_notes.clear();
-                self.persist_current_task_state();
+                self.task_doc.session_notes.clear();
+                self.persist_task_document();
                 self.push_history_line("[memory: cleared]".to_string());
             }
             _ => {
@@ -90,9 +90,6 @@ impl TuiMode {
         }
 
         let starting_batch = self.command_sessions.is_empty();
-        self.history_state.turn_in_progress = true;
-        self.history_state.cancel_pending = false;
-        self.history_state.active_assistant_index = None;
         if starting_batch {
             self.begin_turn_capture("/reindex".to_string());
         }
@@ -145,10 +142,10 @@ impl TuiMode {
         };
         match crate::auto_memory::remove_auto_notes(&path) {
             Ok(removed) if removed > 0 => {
-                self.current_task
+                self.task_doc
                     .session_notes
                     .retain(|n| !crate::auto_memory::is_auto_note_line(&n.content));
-                self.persist_current_task_state();
+                self.persist_task_document();
                 self.push_history_line(format!("[memory] removed {removed} auto note(s)"));
             }
             Ok(_) => {

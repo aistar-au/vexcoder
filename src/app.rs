@@ -10,13 +10,14 @@ use crate::runtime::context::RuntimeContext;
 use crate::runtime::edit_loop::EditLoop;
 use crate::runtime::frontend::{ScrollAction, ScrollTarget, UserInputEvent};
 use crate::runtime::mode::RuntimeMode;
-use crate::runtime::policy::sanitize_assistant_text;
 use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
 use crate::runtime::r#loop::Runtime;
 use crate::runtime::task_state::SessionNote;
 use crate::runtime::validation::ValidationSuite;
 #[cfg(test)]
 use crate::runtime::CommandResult;
+#[cfg(test)]
+use crate::runtime::TurnEntry;
 use crate::runtime::{
     block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout, AssembledContext,
     ContextAssembler,
@@ -25,21 +26,21 @@ use crate::runtime::{
     format_command_session_cancelled, format_command_session_exit, format_command_session_output,
     format_command_session_started, truncate_head_bytes, ApprovalScope, Capability, CommandRequest,
     CommandRunner, ConfiguredSandbox, DefaultCommandRunner, EditLoopOutcome, SandboxDriver,
-    TaskState, TaskStatus, UiUpdate,
+    TaskDocument, TaskDocumentReducer, TaskState, TaskStatus, TurnOutcome, UiUpdate,
 };
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
 use crate::session_notes::{
     build_api_client_with_notes, resolve_notes_path_for_read, resolve_notes_path_for_write,
 };
-use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest, TurnToolPolicy};
-use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
+#[cfg(test)]
+use crate::state::StreamBlock;
+use crate::state::{ConversationManager, ToolApprovalRequest, TurnToolPolicy};
 use crate::tools::ToolOperator;
-use crate::turn_evidence::{
-    command_evidence_from_tool_result, note_changed_files_from_tool_call, ToolInvocationSummary,
-    TurnEvidenceState,
-};
-use crate::types::{ModelProfile, StreamPromptProgress, StreamTimings};
+use crate::turn_evidence::note_changed_files_from_tool_call;
+#[cfg(test)]
+use crate::turn_evidence::ToolInvocationSummary;
+use crate::types::ModelProfile;
 use anyhow::Result;
 #[cfg(test)]
 use crossterm::event::{Event, KeyCode, KeyModifiers};
@@ -68,6 +69,7 @@ pub(crate) mod subtask_orchestrator;
 pub(crate) mod task_facade;
 #[cfg(test)]
 mod tests;
+mod transcript_projection;
 mod turn;
 mod turn_start;
 pub(crate) mod util;
@@ -100,8 +102,8 @@ use self::scroll::{input_rows_for_buffer, RenderGuard};
 use self::util::{
     builtin_slash_command_names, capability_for_tool_name, format_inline_block, kebab_to_scope,
     list_recent_task_entries, new_task_id, parse_generate_tests_args, parse_review_args,
-    resolve_history_line_cap, resolve_repo_label, run_validation_suite_capture,
-    sanitize_task_label, scope_to_label, shell_command_request, summarize_tool_outcome,
+    resolve_repo_label, run_validation_suite_capture, sanitize_task_label, scope_to_label,
+    shell_command_request,
 };
 pub use self::util::{capability_to_kebab, kebab_to_capability};
 
@@ -119,24 +121,6 @@ enum PendingApprovalAction {
 
 struct PendingInlineCommand {
     command: String,
-}
-
-#[derive(Clone)]
-struct PendingTurnToolCall {
-    step_id: u64,
-    name: String,
-    input_preview: String,
-    input: serde_json::Value,
-    /// First index in `history_state.lines` for this call's pending rows.
-    transcript_row_start: usize,
-    /// Number of pending rows emitted at block start (may be 0 if suppressed).
-    transcript_row_count: usize,
-}
-
-#[derive(Clone, Default)]
-struct StreamedResponseSegment {
-    /// Sanitized response text streamed after the latest non-text boundary.
-    text: String,
 }
 
 struct PendingPatchApproval {
@@ -163,12 +147,8 @@ enum ApprovalSelection {
     Deny,
 }
 
-// Interactive sessions keep scrollback by default. Bounding
-// memory is future work for a paged or file-backed transcript store rather than
-// default truncation of the current session history.
-const DEFAULT_MAX_HISTORY_LINES: usize = usize::MAX;
-const MAX_HISTORY_LINES_ENV: &str = "VEX_MAX_HISTORY_LINES";
-const HISTORY_CONTENT_WIDTH_FALLBACK: usize = usize::MAX;
+/// Fallback display column width when the terminal width is unknown.
+const DISPLAY_COLUMN_WIDTH_FALLBACK: usize = usize::MAX;
 
 mod slash_commands;
 use self::slash_commands::*;
@@ -184,14 +164,6 @@ struct ReviewArgs {
     base: Option<String>,
     files: Option<String>,
     instruction: Option<String>,
-}
-
-#[derive(Default)]
-struct HistoryState {
-    lines: Vec<String>,
-    turn_in_progress: bool,
-    cancel_pending: bool,
-    active_assistant_index: Option<usize>,
 }
 
 #[derive(Default)]
@@ -350,108 +322,79 @@ pub struct SlashPickerState {
 }
 
 pub struct TuiMode {
-    history_state: HistoryState,
+    // ── Overlay / approval state ──────────────────────────────────────────
     overlay_state: OverlayState,
+    // ── Live command sessions for the current turn ────────────────────────
     command_sessions: Vec<CommandSessionState>,
     next_command_session_id: u64,
-    history_line_cap: usize,
+    // ── Session metadata (set once at startup, rarely changed) ────────────
     repo_label: String,
     git_branch: String,
     instructions_path: Option<String>,
     mcp_rollup: Option<McpRegistryRollup>,
-    history_content_width: Cell<usize>,
-    active_stream_blocks: std::collections::HashMap<usize, StreamBlock>,
-    /// Raw partial-JSON accumulator for streaming tool-call input, keyed by block index.
-    /// Cleared when the block completes or the turn ends. ADR-021 Item 22.
-    tool_input_raw_buffers: std::collections::HashMap<usize, String>,
-    /// Streaming block buffers keyed by block index for live-content
-    /// tracking and the streaming cursor in the transcript render path (ADR-041).
-    delta_accumulators: std::collections::HashMap<usize, crate::state::StreamingBlockBuffer>,
+    /// Effective terminal column width used for word-wrap scroll math.
+    display_column_width: Cell<usize>,
+    // ── Persistence / quit flow ───────────────────────────────────────────
     pending_quit: bool,
     quit_requested: bool,
     notes_path: Option<PathBuf>,
-    current_task: crate::runtime::TaskState,
-    /// Active model name, updated by `/model <n>`.
+    // ── Model config ──────────────────────────────────────────────────────
     model_name: String,
-    /// Locked at session start; `/model` rejects changes that require a different backend.
     model_backend: crate::runtime::ModelBackendKind,
-    /// Selected coding profile for edit-loop and semantic-command prompts.
     model_profile: ModelProfile,
-    /// Working directory for workspace-relative commands like `/diff`.
     working_dir: PathBuf,
-    /// Model API endpoint URL for display at the prompt separator.
     model_url: String,
-    /// Search configuration from `[search]` TOML section.
     search_config: crate::config::SearchConfig,
     sandbox: ConfiguredSandbox,
     file_prompt_entries: RefCell<Option<Vec<String>>>,
     custom_commands: Vec<CustomCommand>,
     last_assembled_context: Option<AssembledContext>,
+    // ── Canonical task document ───────────────────────────────────────────
+    /// Single source of truth for all task state: turns, entries, session
+    /// grants, and metadata.  Replaces the legacy `TaskState` + per-turn
+    /// transcript buffers.
+    task_doc: TaskDocument,
+    task_doc_reducer: TaskDocumentReducer,
+    /// System notices that arrived before the first turn opened (e.g. notes
+    /// warnings, sandbox state).  Shown at the top of the transcript.
+    pre_session_notices: Vec<String>,
+    /// Raw partial-JSON accumulator for streaming tool-call input fragments,
+    /// keyed by block index.  Cleared when the block completes or turn ends.
+    streaming_tool_input_buffers: std::collections::HashMap<usize, String>,
+    /// Set to `true` once a `StreamBlockDelta` updates a Final-phase
+    /// assistant block, so that flat `StreamDelta` events are skipped to
+    /// avoid double-counting the same content.
+    stream_uses_block_deltas: bool,
+    // ── Turn lifecycle flags ───────────────────────────────────────────────
     read_only_turn_active: bool,
     active_edit_loop: Option<EditLoop>,
-    current_turn_input: String,
-    current_turn_response: String,
-    current_turn_stream_segments: Vec<StreamedResponseSegment>,
-    active_stream_segment_index: Option<usize>,
-    structured_streaming_active: bool,
-    current_turn_changed_files: std::collections::BTreeSet<String>,
-    current_turn_command_history: Vec<crate::runtime::CommandEvidence>,
-    current_turn_tool_invocations: Vec<ToolInvocationSummary>,
-    pending_turn_tool_calls: std::collections::HashMap<String, PendingTurnToolCall>,
-    /// Tracks the last completed tool header for consecutive-duplicate folding.
-    last_completed_tool_header: Option<String>,
-    /// Tracks the last completed tool name for same-name paragraph folding.
-    last_completed_tool_name: Option<String>,
-    /// Tracks the last pending tool name for same-name pending folding.
-    last_pending_tool_name: Option<String>,
-    /// Running count of consecutive identical completed tool calls.
-    duplicate_tool_count: usize,
-    /// Running count of consecutive same-name (but different target) tool calls.
-    same_name_tool_count: usize,
-    /// Index of the currently selected timeline entry in the activity pane.
+    // ── Timeline viewport ─────────────────────────────────────────────────
     selected_timeline_index: usize,
-    /// Monotonic counter for stable [`TimelineEntry::step_id`] values.
-    next_step_id: u64,
     /// When true, selection auto-advances to the latest timeline entry.
-    /// Set to false when the operator scrolls manually; reset on new turn.
     timeline_follow_mode: bool,
-    /// Transcript scrollback measured upward from the composer edge.
     transcript_scroll_offset: usize,
-    /// Inspector/detail scroll offset measured downward from the top.
     inspector_scroll_offset: usize,
-    /// Wall-clock start instant for the active turn.
+    // ── Turn telemetry (wall-clock; not persisted in task_doc) ────────────
     turn_started_at: Option<Instant>,
-    /// Client-side time-to-first-token (TTFT), measured from turn start
-    /// to the first `StreamDelta` received from the model.
+    /// Client-side time-to-first-token for the active turn.
     ttft: Option<Duration>,
-    /// TTFT from the most recently completed turn, kept for display.
+    /// TTFT from the most recently completed turn (kept for display).
     last_turn_ttft: Option<Duration>,
-    /// Latest server-side prompt-eval progress for the active turn.
-    current_turn_prompt_progress: Option<StreamPromptProgress>,
-    /// Latest server-side timings reported for the active turn.
-    current_turn_timings: Option<StreamTimings>,
-    /// Final server-side timings for the most recently completed turn.
-    last_turn_timings: Option<StreamTimings>,
-    /// Last completed turn's tool invocations (kept for persistent display).
-    last_turn_tool_invocations: Vec<ToolInvocationSummary>,
-    /// Last completed turn's response text (kept for persistent display).
-    last_turn_response: String,
-    /// Last completed turn's input text (kept for persistent display).
-    last_turn_input_display: String,
-    /// Last completed or failed turn duration.
+    /// Duration of the most recently completed or failed turn.
     last_turn_duration: Option<Duration>,
-    /// Last visible cli error for the task surface.
+    /// Last visible error message for the task surface.
     last_error_message: Option<String>,
-    /// Remembers a runtime turn completion event until the last command session exits.
+    // ── Turn flow control ─────────────────────────────────────────────────
+    /// Buffered turn-completion event waiting for command sessions to drain.
     turn_completion_pending: bool,
-    /// Tracks whether the current turn is a `/plan` command (ADR-029 plan persistence).
+    /// Tracks whether the current turn is a `/plan` command.
     plan_turn_active: bool,
-    /// Whether auto-memory extraction is active for this session.
+    // ── Auto-memory config ────────────────────────────────────────────────
     #[cfg(not(test))]
     auto_memory_enabled: bool,
     #[cfg(test)]
     pub auto_memory_enabled: bool,
-    /// Max notes to extract per turn (from config).
+    /// Maximum notes to extract per turn (from config).
     auto_memory_max_notes: usize,
     #[cfg(test)]
     pub last_turn_input: Option<String>,
@@ -522,6 +465,6 @@ impl RuntimeMode for TuiMode {
     }
 
     fn is_turn_in_progress(&self) -> bool {
-        self.history_state.turn_in_progress
+        self.task_doc.active_turn.is_some()
     }
 }

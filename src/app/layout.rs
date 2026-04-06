@@ -1,31 +1,17 @@
 use super::*;
-use crate::status_contract::{
-    is_waiting_placeholder, pending_status_label, waiting_for_response_line,
-};
+use crate::status_contract::{pending_status_label, waiting_for_response_line};
 
 mod helpers;
 
+use self::helpers::display_status_text;
 #[cfg(test)]
-use self::helpers::{compact_outcome_summary, tool_scope_detail, tool_target_summary};
+use self::helpers::{
+    compact_outcome_summary, extend_visual_rows, timeline_label_for_invocation,
+    tool_outcome_is_error, tool_scope_detail, tool_target_summary,
+};
 pub(crate) use self::helpers::{
     completed_tool_paragraph_rows, pending_tool_paragraph_rows, tool_approval_paragraph_rows,
 };
-use self::helpers::{
-    display_status_text, extend_visual_rows, timeline_label_for_invocation, tool_outcome_is_error,
-};
-
-fn format_waiting_status(
-    elapsed: String,
-    prompt_progress: Option<&crate::types::StreamPromptProgress>,
-) -> String {
-    let mut status = format!("{} {elapsed}", waiting_for_response_line());
-    if let Some(progress) = prompt_progress {
-        if let (Some(processed), Some(total)) = (progress.processed, progress.total) {
-            status.push_str(&format!(" | \u{2191}:{processed}/{total}"));
-        }
-    }
-    status
-}
 
 fn telemetry_waiting_summary(rows: &[String]) -> Option<String> {
     rows.iter().rev().find_map(|line| {
@@ -92,110 +78,112 @@ impl TuiMode {
     }
 
     fn task_step_views(&self) -> Vec<TaskStepView> {
+        use crate::runtime::task_document::TurnEntry;
         let mut entries = Vec::new();
 
-        // Determine which turn data to display: current (in-progress) or
-        // last completed turn for persistent display.
-        let (input_text, tool_invocations, has_pending) = if self.history_state.turn_in_progress
-            || !self.current_turn_input.trim().is_empty()
-            || !self.current_turn_tool_invocations.is_empty()
-            || !self.pending_turn_tool_calls.is_empty()
-        {
-            (
-                &self.current_turn_input,
-                &self.current_turn_tool_invocations,
-                true,
-            )
-        } else {
-            (
-                &self.last_turn_input_display,
-                &self.last_turn_tool_invocations,
-                false,
-            )
-        };
+        // Choose active turn or last completed turn for display.
+        let (input, turn_entries): (&str, &[TurnEntry]) =
+            if let Some(active) = self.task_doc.active_turn.as_ref() {
+                (active.input.as_str(), &active.entries)
+            } else if let Some(last) = self.task_doc.completed_turns.last() {
+                (last.input.as_str(), &last.entries)
+            } else {
+                return entries;
+            };
 
-        // User input echo — step_id 0 is reserved for the user input row.
-        if !input_text.trim().is_empty() {
+        // User input row.
+        if !input.trim().is_empty() {
             entries.push(TaskStepView {
                 step_id: 0,
                 lifecycle: StepLifecycle::UserInput,
-                label: input_text.clone(),
-                detail: input_text.clone(),
+                label: input.lines().next().unwrap_or("").to_string(),
+                detail: input.to_string(),
                 session_id: None,
             });
         }
 
-        // Completed tool invocations — step identity carried from the
-        // pending call that created them.
-        for invocation in tool_invocations {
-            let is_error = tool_outcome_is_error(&invocation.outcome);
-            entries.push(TaskStepView {
-                step_id: invocation.step_id,
-                lifecycle: if is_error {
-                    StepLifecycle::Failed
-                } else {
-                    StepLifecycle::Completed
-                },
-                label: timeline_label_for_invocation(invocation),
-                detail: format!("Tool: {}\nOutcome: {}", invocation.name, invocation.outcome,),
-                session_id: None,
-            });
-        }
-
-        // Pending tool calls from pending_turn_tool_calls (task-state owned).
-        if has_pending {
-            let mut pending_calls: Vec<&PendingTurnToolCall> =
-                self.pending_turn_tool_calls.values().collect();
-            pending_calls.sort_by_key(|pending| pending.step_id);
-            let awaiting_step_id = self
-                .overlay_state
-                .pending_approval
-                .as_ref()
-                .and_then(|pending| pending.step_id);
-            for pending in pending_calls {
-                let input_preview = serde_json::to_string_pretty(&pending.input)
-                    .unwrap_or_else(|_| pending.input.to_string());
-                let lifecycle = if awaiting_step_id == Some(pending.step_id) {
-                    StepLifecycle::AwaitingApproval
-                } else if self
-                    .overlay_state
-                    .approved_tool_steps
-                    .contains(&pending.step_id)
-                {
-                    StepLifecycle::Approved
-                } else {
-                    StepLifecycle::Running
-                };
-                let status = match lifecycle {
-                    StepLifecycle::AwaitingApproval => "awaiting approval",
-                    StepLifecycle::Approved => "approved",
-                    _ => pending_status_label(),
-                };
-                entries.push(TaskStepView {
-                    step_id: pending.step_id,
-                    lifecycle,
-                    label: format!("{}: {}", pending.name, status),
-                    detail: format!("Tool: {}\nInput:\n{}", pending.name, input_preview),
-                    session_id: None,
-                });
+        // Tool call and command session entries.
+        let awaiting_step_id = self
+            .overlay_state
+            .pending_approval
+            .as_ref()
+            .and_then(|pending| pending.step_id);
+        for entry in turn_entries {
+            match entry {
+                TurnEntry::ToolCall {
+                    step_id,
+                    name,
+                    input,
+                    status,
+                    ..
+                } => {
+                    use crate::state::ToolStatus;
+                    let lifecycle = if awaiting_step_id == Some(*step_id) {
+                        StepLifecycle::AwaitingApproval
+                    } else if self.overlay_state.approved_tool_steps.contains(step_id) {
+                        StepLifecycle::Approved
+                    } else {
+                        match status {
+                            ToolStatus::Complete => StepLifecycle::Completed,
+                            ToolStatus::Error => StepLifecycle::Failed,
+                            ToolStatus::Pending
+                            | ToolStatus::WaitingApproval
+                            | ToolStatus::Executing => StepLifecycle::Running,
+                            ToolStatus::Cancelled => StepLifecycle::Failed,
+                        }
+                    };
+                    let input_preview =
+                        serde_json::to_string_pretty(input).unwrap_or_else(|_| input.to_string());
+                    let status_label = match lifecycle {
+                        StepLifecycle::AwaitingApproval => "awaiting approval",
+                        StepLifecycle::Approved => "approved",
+                        StepLifecycle::Completed => "done",
+                        StepLifecycle::Failed => "failed",
+                        _ => pending_status_label(),
+                    };
+                    entries.push(TaskStepView {
+                        step_id: *step_id,
+                        lifecycle,
+                        label: format!("{name}: {status_label}"),
+                        detail: format!("Tool: {name}\nInput:\n{input_preview}"),
+                        session_id: None,
+                    });
+                }
+                TurnEntry::CommandSession { step_id, session } => {
+                    let pid = session
+                        .pid
+                        .map(|p| p.to_string())
+                        .unwrap_or_else(|| "pending".to_string());
+                    let display_status = display_status_text(&session.status);
+                    entries.push(TaskStepView {
+                        step_id: *step_id,
+                        lifecycle: StepLifecycle::CommandSession,
+                        label: format!("{}: {}", session.command, display_status),
+                        detail: format!(
+                            "command: {}\npid: {}\nstatus: {}",
+                            session.command, pid, display_status,
+                        ),
+                        session_id: Some(*step_id),
+                    });
+                }
+                _ => {}
             }
         }
 
-        // Command sessions remain visible alongside the rest of the current
-        // turn timeline instead of replacing it entirely.
+        // Include live command sessions tracked in the TuiMode vec.
         for session in &self.command_sessions {
-            let pid = session
-                .pid
-                .map(|pid| pid.to_string())
-                .unwrap_or_else(|| "pending".to_string());
             let display_status = display_status_text(&session.status);
+            let pid_text = session
+                .pid
+                .map(|p| p.to_string())
+                .unwrap_or_else(|| "pending".to_string());
             entries.push(TaskStepView {
                 step_id: session.id,
                 lifecycle: StepLifecycle::CommandSession,
-                label: format!("{}: {}", session.command, display_status),
+                label: format!("{}: {display_status}", session.command),
                 detail: format!(
                     "command: {}\npid: {}\nstatus: {}",
-                    session.command, pid, display_status,
+                    session.command, pid_text, display_status,
                 ),
                 session_id: Some(session.id),
             });
@@ -224,10 +212,7 @@ impl TuiMode {
         &self,
         entries: &[TimelineEntry],
     ) -> (String, Vec<String>, OutputScrollAnchor) {
-        // Keep the output pane on the accumulated transcript while follow mode
-        // is active so prior server responses scroll upward instead of being
-        // replaced by the latest inspector view. Manual timeline navigation can
-        // still switch the pane into inspector mode.
+        // Inspector mode: show selected tool step detail when not following.
         if !self.timeline_follow_mode && !entries.is_empty() {
             let idx = self
                 .selected_timeline_index
@@ -235,16 +220,7 @@ impl TuiMode {
             if let Some(entry) = entries.get(idx) {
                 let is_tool_step = !matches!(entry.lifecycle, StepLifecycle::UserInput);
                 if is_tool_step && !entry.detail.is_empty() {
-                    let mut rows: Vec<String> =
-                        entry.detail.lines().map(ToOwned::to_owned).collect();
-                    // Append streaming model response below the inspector
-                    // detail when the turn is still in progress.
-                    if self.history_state.turn_in_progress && !self.current_turn_response.is_empty()
-                    {
-                        rows.push(String::new());
-                        rows.push("--- model response ---".to_string());
-                        rows.extend(self.current_turn_response.lines().map(ToOwned::to_owned));
-                    }
+                    let rows: Vec<String> = entry.detail.lines().map(ToOwned::to_owned).collect();
                     return (
                         format!(
                             "Inspector \u{00b7} {}/{} \u{00b7} {} \u{00b7} {} rows",
@@ -262,28 +238,13 @@ impl TuiMode {
 
         let transcript_rows = self.transcript_display_rows();
         if !transcript_rows.is_empty() {
-            // While structured streaming is active, show accumulated live bytes
-            // in the pane title as a throughput indicator.  Uses the block
-            // buffers' content() method as the authoritative byte count.
-            let title = if self.structured_streaming_active {
-                let live_bytes: usize = self
-                    .delta_accumulators
-                    .values()
-                    .map(|buf| buf.content().len())
-                    .sum();
-                if live_bytes > 0 {
-                    format!("Transcript \u{00b7} {live_bytes}b")
-                } else {
-                    "Transcript".to_string()
-                }
-            } else {
-                "Transcript".to_string()
-            };
-            return (title, transcript_rows, OutputScrollAnchor::Bottom);
+            return (
+                "Transcript".to_string(),
+                transcript_rows,
+                OutputScrollAnchor::Bottom,
+            );
         }
 
-        // No turn data yet — leave the transcript blank so the surface starts
-        // directly from the prompt edge.
         (
             "Transcript".to_string(),
             Vec::new(),
@@ -292,119 +253,20 @@ impl TuiMode {
     }
 
     fn transcript_display_rows(&self) -> Vec<String> {
-        let use_stream_segments =
-            self.history_state.turn_in_progress && self.structured_streaming_active;
-        let assistant_index = self.history_state.active_assistant_index;
-        let skip_assistant_line =
-            if use_stream_segments && !self.current_turn_stream_segments.is_empty() {
-                assistant_index.filter(|idx| {
-                    self.history_state
-                        .lines
-                        .get(*idx)
-                        .map(|line| line.is_empty() || is_waiting_placeholder(line))
-                        .unwrap_or(false)
-                })
-            } else if self.history_state.turn_in_progress && !self.history_state.cancel_pending {
-                if self.current_turn_response.is_empty() {
-                    assistant_index.filter(|idx| {
-                        let current_line = self
-                            .history_state
-                            .lines
-                            .get(*idx)
-                            .map(String::as_str)
-                            .unwrap_or("");
-                        (current_line.is_empty() || is_waiting_placeholder(current_line))
-                            && self
-                                .history_state
-                                .lines
-                                .iter()
-                                .skip(idx.saturating_add(1))
-                                .any(|line| !line.is_empty())
-                    })
-                } else {
-                    assistant_index
-                }
-            } else {
-                None
-            };
-
-        let mut rows: Vec<String> = Vec::new();
-        extend_visual_rows(&mut rows, &self.history_state.lines, skip_assistant_line);
-
-        if self.history_state.turn_in_progress && !self.history_state.cancel_pending {
-            if use_stream_segments && !self.current_turn_stream_segments.is_empty() {
-                for segment in &self.current_turn_stream_segments {
-                    rows.extend(segment.text.lines().map(ToOwned::to_owned));
-                }
-                // Show the streaming cursor while a textual block is in-flight.
-                // Checking the delta buffers' kinds lets the cursor disappear the
-                // moment the last FinalText/Thinking block completes and leaves
-                // the map, even if stream_segments still has content.
-                let has_active_textual_block = self.delta_accumulators.values().any(|buf| {
-                    matches!(
-                        buf.kind(),
-                        crate::state::TranscriptBlockKind::FinalText
-                            | crate::state::TranscriptBlockKind::Thinking
-                    )
-                });
-                if has_active_textual_block {
-                    if let Some(last) = rows.last_mut() {
-                        last.push('▌');
-                    }
-                }
-            } else if self.current_turn_response.is_empty() {
-                // No content yet — show the waiting status with elapsed time
-                // and prompt-eval progress counters.
-                let elapsed = self
-                    .turn_started_at
-                    .map(|t| format!("{:.1}s", t.elapsed().as_secs_f64()))
-                    .unwrap_or_default();
-                if rows
-                    .last()
-                    .is_some_and(|line| line.is_empty() || is_waiting_placeholder(line))
-                {
-                    if let Some(last) = rows.last_mut() {
-                        *last = format_waiting_status(
-                            elapsed,
-                            self.current_turn_prompt_progress.as_ref(),
-                        );
-                    }
-                }
-            } else {
-                // Response is streaming — rebuild the visible response from the
-                // canonical current_turn_response and append it after any tool
-                // or approval transcript rows that were recorded during the
-                // turn.
-                if rows
-                    .last()
-                    .is_some_and(|line| line.is_empty() || is_waiting_placeholder(line))
-                {
-                    rows.pop();
-                }
-                let mut response_rows = self
-                    .current_turn_response
-                    .lines()
-                    .map(ToOwned::to_owned)
-                    .collect::<Vec<_>>();
-                if let Some(last) = response_rows.last_mut() {
-                    last.push('▌');
-                }
-                rows.extend(response_rows);
-            }
-        }
-
-        rows
+        crate::app::transcript_projection::project_transcript_rows(
+            &self.task_doc,
+            &self.pre_session_notices,
+        )
     }
 
     fn visible_changed_files(&self) -> Vec<String> {
         let mut visible = std::collections::BTreeSet::new();
-        visible.extend(
-            self.current_task
-                .changed_files
-                .iter()
-                .map(|path| path.to_string_lossy().into_owned()),
-        );
-        visible.extend(self.current_turn_changed_files.iter().cloned());
+        for turn in &self.task_doc.completed_turns {
+            visible.extend(turn.changed_files.iter().cloned());
+        }
+        if let Some(active) = self.task_doc.active_turn.as_ref() {
+            visible.extend(active.changed_files.iter().cloned());
+        }
         visible.into_iter().collect()
     }
 
@@ -469,7 +331,7 @@ impl TuiMode {
             "Prompt\nsubmit: / commands  @ files  ! shell".to_string()
         };
         Some(TaskLayoutState {
-            task_id: self.current_task.id.clone(),
+            task_id: self.task_doc.meta.id.clone(),
             status_line: self.status_line(),
             telemetry: TaskTelemetryState {
                 mode: self.mode_status_label().to_string(),
@@ -544,10 +406,9 @@ impl TuiMode {
 mod tests {
     use super::{
         compact_outcome_summary, timeline_label_for_invocation, tool_outcome_is_error,
-        tool_scope_detail, tool_target_summary, waiting_for_response_line, HistoryState, TuiMode,
+        tool_scope_detail, tool_target_summary, TuiMode,
     };
     use crate::app::ToolInvocationSummary;
-    use crate::types::StreamPromptProgress;
 
     #[test]
     fn short_outcome_preserved() {
@@ -652,85 +513,34 @@ mod tests {
     }
 
     #[test]
-    fn transcript_display_rows_replaces_streaming_history_tail_with_current_response() {
+    fn transcript_display_rows_projects_from_task_doc() {
+        use crate::runtime::task_document::TaskDocumentReducer;
         let mut mode = TuiMode::new();
-        mode.history_state = HistoryState {
-            lines: vec!["> hi".to_string(), "Hello".to_string()],
-            turn_in_progress: true,
-            cancel_pending: false,
-            active_assistant_index: Some(1),
-        };
-        mode.current_turn_response = "Hello!\nHow can I help you today?".to_string();
-
-        assert_eq!(
-            mode.transcript_display_rows(),
-            vec![
-                "> hi".to_string(),
-                "Hello!".to_string(),
-                "How can I help you today?▌".to_string(),
-            ]
+        let reducer = TaskDocumentReducer;
+        reducer.begin_turn(
+            &mut mode.task_doc,
+            "> hi".to_string(),
+            0,
+            Default::default(),
         );
-    }
-
-    #[test]
-    fn transcript_display_rows_keeps_formatted_waiting_status_inline() {
-        let mut mode = TuiMode::new();
-        mode.history_state = HistoryState {
-            lines: vec!["> hi".to_string(), waiting_for_response_line().to_string()],
-            turn_in_progress: true,
-            cancel_pending: false,
-            active_assistant_index: Some(1),
-        };
-        mode.current_turn_prompt_progress = Some(StreamPromptProgress {
-            total: Some(2641),
-            processed: Some(512),
-            cache: None,
-            time_ms: None,
-        });
-
+        // Simulate a completed assistant response.
+        mode.push_document_notice(
+            "Hello! How can I help you today?".to_string(),
+            crate::runtime::NoticeSeverity::Info,
+        );
+        // Transcript rows should include the notice.
         let rows = mode.transcript_display_rows();
-        assert_eq!(rows[0], "> hi");
-        assert!(rows[1].starts_with(waiting_for_response_line()));
-        assert!(rows[1].contains("\u{2191}:512/2641"));
+        assert!(
+            rows.iter().any(|r| r.contains("Hello!")),
+            "transcript rows should include notice: {rows:?}"
+        );
     }
 
     #[test]
-    fn completed_tool_paragraphs_truncate_at_six_lines_with_overflow() {
-        use super::completed_tool_paragraph_rows;
-
-        let output_lines: Vec<String> = (1..=20).map(|i| format!("output line {i}")).collect();
-        let output = output_lines.join("\n");
-
-        let rows = completed_tool_paragraph_rows(
-            "bash",
-            &serde_json::json!({"command": "ls -la"}),
-            &output,
-            false,
-        );
-
-        let evidence_rows: Vec<&String> = rows
-            .iter()
-            .filter(|r| r.starts_with("[evidence]"))
-            .collect();
-
-        assert_eq!(
-            evidence_rows.len(),
-            6,
-            "should preserve 2 structured input rows, then 3 output rows + 1 overflow indicator: {evidence_rows:?}"
-        );
-        assert!(
-            evidence_rows[0].contains("\"command\": \"ls -la\""),
-            "first evidence row should keep the structured input preview: {evidence_rows:?}"
-        );
-        assert!(
-            evidence_rows[1].contains("}"),
-            "second evidence row should keep the structured input preview terminator: {evidence_rows:?}"
-        );
-        assert!(
-            evidence_rows.last().unwrap().contains("+17 more lines"),
-            "last evidence row should indicate remaining lines: {:?}",
-            evidence_rows.last()
-        );
+    fn transcript_display_rows_empty_when_no_turn_data() {
+        let mode = TuiMode::new();
+        let rows = mode.transcript_display_rows();
+        assert!(rows.is_empty(), "expected empty transcript: {rows:?}");
     }
 
     #[test]

@@ -1,68 +1,55 @@
 use super::*;
+use crate::runtime::session_task::now_millis;
 
 impl TuiMode {
     pub(super) fn reset_conversation_window(&mut self, ctx: &RuntimeContext) {
         ctx.clear_conversation();
-        self.history_state.lines.clear();
-        self.history_state.turn_in_progress = false;
-        self.history_state.cancel_pending = false;
+        self.pre_session_notices.clear();
+        self.streaming_tool_input_buffers.clear();
         self.command_sessions.clear();
-        self.history_state.active_assistant_index = None;
         self.transcript_scroll_offset = 0;
         self.inspector_scroll_offset = 0;
-        self.active_stream_blocks.clear();
         self.last_assembled_context = None;
         self.read_only_turn_active = false;
         self.turn_completion_pending = false;
         self.reset_turn_capture();
-        self.reset_last_turn_display();
     }
 
     pub(super) fn apply_resumed_task(&mut self, state: TaskState, ctx: &RuntimeContext) {
         let restored_id = state.id.clone();
         let status = format!("{:?}", state.status);
-        self.current_task = state;
-        if let Some(path) = self.current_task.instructions_path.clone() {
-            self.instructions_path = Some(path);
+        let task_doc = self.task_doc_reducer.restore_from_snapshot(state);
+        self.task_doc = task_doc;
+        if let Some(path_str) = self.task_doc.meta.instructions_path.clone() {
+            self.instructions_path = Some(path_str);
         } else {
-            self.current_task.instructions_path = self.instructions_path.clone();
+            self.task_doc.meta.instructions_path = self.instructions_path.clone();
         }
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
         self.reset_conversation_window(ctx);
-        self.push_history_line(format!("[resumed: {restored_id} status={status}]"));
+        self.push_document_notice(
+            format!("[resumed: {restored_id} status={status}]"),
+            crate::runtime::NoticeSeverity::Info,
+        );
     }
 
     pub(super) fn reset_turn_capture(&mut self) {
-        self.current_turn_input.clear();
-        self.current_turn_response.clear();
-        self.current_turn_stream_segments.clear();
-        self.active_stream_segment_index = None;
-        self.structured_streaming_active = false;
-        self.current_turn_changed_files.clear();
-        self.current_turn_command_history.clear();
-        self.current_turn_tool_invocations.clear();
-        self.pending_turn_tool_calls.clear();
-        self.last_completed_tool_header = None;
-        self.last_completed_tool_name = None;
-        self.last_pending_tool_name = None;
-        self.duplicate_tool_count = 1;
-        self.same_name_tool_count = 0;
+        self.task_doc.active_turn = None;
+        self.streaming_tool_input_buffers.clear();
+        self.stream_uses_block_deltas = false;
         self.overlay_state.approved_tool_steps.clear();
         self.selected_timeline_index = 0;
         self.timeline_follow_mode = true;
         self.inspector_scroll_offset = 0;
         self.turn_started_at = None;
         self.ttft = None;
-        self.current_turn_prompt_progress = None;
-        self.current_turn_timings = None;
         self.turn_completion_pending = false;
         self.plan_turn_active = false;
     }
 
-    /// Append a `[ttft: …s | ↑:…s (N tok) | ↓:…s (N tok) | total: …s]`
-    /// timing and token-count summary to the transcript
-    /// after a turn finishes so the operator can see latency at a glance.
+    /// Append a timing summary line to the pre-session notices (or active
+    /// turn) after a turn finishes so latency is visible in the transcript.
     pub(super) fn append_turn_timing_line(&mut self) {
         let total = match self.last_turn_duration {
             Some(d) => d,
@@ -72,16 +59,21 @@ impl TuiMode {
         if let Some(ttft) = self.last_turn_ttft {
             parts.push(format!("ttft:{:.1}s", ttft.as_secs_f64()));
         }
-        if let Some(timings) = self.last_turn_timings.as_ref() {
-            if let Some(prompt_ms) = timings.prompt_ms {
-                let tok_suffix = timings
+        let timings = self
+            .task_doc
+            .completed_turns
+            .last()
+            .and_then(|t| t.timings.as_ref());
+        if let Some(t) = timings {
+            if let Some(prompt_ms) = t.prompt_ms {
+                let tok_suffix = t
                     .prompt_n
                     .map(|n| format!(" ({n} tok)"))
                     .unwrap_or_default();
                 parts.push(format!("\u{2191}:{:.1}s{tok_suffix}", prompt_ms / 1000.0));
             }
-            if let Some(predicted_ms) = timings.predicted_ms {
-                let tok_suffix = timings
+            if let Some(predicted_ms) = t.predicted_ms {
+                let tok_suffix = t
                     .predicted_n
                     .map(|n| format!(" ({n} tok)"))
                     .unwrap_or_default();
@@ -92,47 +84,49 @@ impl TuiMode {
             }
         }
         parts.push(format!("total:{:.1}s", total.as_secs_f64()));
-        self.push_history_line(format!("[{}]", parts.join(" | ")));
+        self.push_document_notice(
+            format!("[{}]", parts.join(" | ")),
+            crate::runtime::NoticeSeverity::Info,
+        );
     }
 
-    pub(super) fn reset_last_turn_display(&mut self) {
-        self.last_turn_tool_invocations.clear();
-        self.last_turn_response.clear();
-        self.last_turn_input_display.clear();
-        self.last_turn_duration = None;
-        self.last_turn_timings = None;
-        self.last_error_message = None;
-    }
-
-    pub(super) fn persist_current_task_state(&mut self) {
-        let dir = TaskState::state_dir();
-        if let Err(error) = self.current_task.save(&dir) {
-            // Persistence errors are non-fatal.  The in-memory task state
-            // remains authoritative and callers already update status before
-            // calling this method.  Log to stderr so operators and crash-resume
-            // diagnostics can observe lost transitions (ADR-030 Invariant 5).
+    /// Persist the current task document to disk via the legacy TaskState
+    /// bridge format.  Persistence errors are non-fatal.
+    pub(super) fn persist_task_document(&mut self) {
+        let snapshot = self.task_doc_reducer.persistable_snapshot(&self.task_doc);
+        let dir = TaskState::state_dir_from(&self.working_dir);
+        if let Err(error) = snapshot.save(&dir) {
             eprintln!("[state] save failed: {error}");
         }
     }
 
     pub(super) fn set_task_status(&mut self, status: TaskStatus) {
-        self.current_task.status = status;
-        self.persist_current_task_state();
+        self.task_doc.meta.status = status;
+        self.persist_task_document();
     }
 
     /// Reload the session-task list from the persisted state file so that
     /// in-memory state stays consistent after a facade call that writes
-    /// session tasks to disk without going through `current_task` directly.
+    /// session tasks to disk without going through `task_doc` directly.
     pub(super) fn sync_session_tasks_from_disk(&mut self) {
         let state_dir = TaskState::state_dir_from(&self.working_dir);
-        if let Ok(saved) = TaskState::load(&state_dir, &self.current_task.id) {
-            self.current_task.session_tasks = saved.session_tasks;
+        if let Ok(saved) = TaskState::load(&state_dir, &self.task_doc.meta.id) {
+            self.task_doc.session_tasks = saved.session_tasks;
         }
     }
 
     pub(super) fn begin_turn_capture(&mut self, input: String) {
+        self.begin_turn_capture_with_policy(input, crate::state::TurnToolPolicy::Default);
+    }
+
+    pub(super) fn begin_turn_capture_with_policy(
+        &mut self,
+        input: String,
+        tool_policy: crate::state::TurnToolPolicy,
+    ) {
         self.reset_turn_capture();
-        self.current_turn_input = input;
+        self.task_doc_reducer
+            .begin_turn(&mut self.task_doc, input, now_millis(), tool_policy);
         self.set_task_status(TaskStatus::Running);
         self.transcript_scroll_offset = 0;
         self.turn_started_at = Some(Instant::now());
@@ -149,11 +143,7 @@ impl TuiMode {
         self.next_command_session_id = self
             .next_command_session_id
             .max(session_id.saturating_add(1));
-        if self
-            .command_sessions
-            .iter()
-            .any(|session| session.id == session_id)
-        {
+        if self.command_sessions.iter().any(|s| s.id == session_id) {
             return;
         }
         self.command_sessions.push(CommandSessionState {
@@ -169,138 +159,80 @@ impl TuiMode {
         if !self.turn_completion_pending || !self.command_sessions.is_empty() {
             return false;
         }
-
         self.last_error_message = None;
         self.resolve_pending_approval(false, ctx);
         self.resolve_pending_patch_approval(false);
-        self.active_stream_blocks.clear();
-        self.structured_streaming_active = false;
+        self.streaming_tool_input_buffers.clear();
         self.commit_completed_turn(ctx);
         self.append_turn_timing_line();
         self.maybe_extract_auto_memory();
-        self.history_state.cancel_pending = false;
-        self.history_state.turn_in_progress = false;
-        self.history_state.active_assistant_index = None;
+        if let Some(active) = self.task_doc.active_turn.as_mut() {
+            active.cancel_pending = false;
+        }
         self.read_only_turn_active = false;
         self.turn_completion_pending = false;
-        // Reset scroll to the live edge for the next turn.
         self.transcript_scroll_offset = 0;
         self.inspector_scroll_offset = 0;
         true
     }
 
     pub(super) fn commit_completed_turn(&mut self, ctx: &RuntimeContext) {
-        self.materialize_current_turn_stream_segments();
+        let has_content = self.task_doc.active_turn.as_ref().is_some_and(|active| {
+            !active.input.trim().is_empty()
+                || active
+                    .entries
+                    .iter()
+                    .any(|e| !matches!(e, crate::runtime::TurnEntry::SystemNotice { .. }))
+        });
 
-        if self.current_turn_input.trim().is_empty()
-            && self.current_turn_response.trim().is_empty()
-            && self.current_turn_changed_files.is_empty()
-            && self.current_turn_command_history.is_empty()
-            && self.current_turn_tool_invocations.is_empty()
-        {
-            self.current_task.status = TaskStatus::Completed;
-            self.persist_current_task_state();
+        if self.plan_turn_active {
+            if let Some(active) = self.task_doc.active_turn.as_ref() {
+                let plan_text = active.entries.iter().rev().find_map(|e| {
+                    if let crate::runtime::TurnEntry::AssistantBlock { block, .. } = e {
+                        if block.phase == crate::runtime::AssistantPhase::Final
+                            && !block.content.trim().is_empty()
+                        {
+                            return Some(block.content.clone());
+                        }
+                    }
+                    None
+                });
+                if let Some(plan) = plan_text {
+                    // Store plan in session notes as a system entry.
+                    self.task_doc
+                        .session_notes
+                        .push(crate::runtime::task_state::SessionNote {
+                            content: format!("[plan] {plan}"),
+                            created_at_turn: self.task_doc.completed_turns.len(),
+                        });
+                }
+            }
+        }
+
+        let turn_tokens = ctx.session_tokens_rollup().last_turn();
+
+        if !has_content {
+            self.task_doc.meta.status = TaskStatus::Completed;
+            self.persist_task_document();
             self.reset_turn_capture();
             return;
         }
 
-        // Persist plan response to TaskState if this was a /plan turn (ADR-029).
-        if self.plan_turn_active && !self.current_turn_response.trim().is_empty() {
-            self.current_task.plan = Some(self.current_turn_response.clone());
-        }
-
-        // Preserve turn data for persistent display after the turn completes.
-        self.last_turn_tool_invocations = self.current_turn_tool_invocations.clone();
-        self.last_turn_response = self.current_turn_response.clone();
-        self.last_turn_input_display = self.current_turn_input.clone();
         self.last_turn_duration = self.turn_started_at.map(|started| started.elapsed());
         self.last_turn_ttft = self.ttft;
-        self.last_turn_timings = self.current_turn_timings.clone();
         self.last_error_message = None;
 
-        let changed_files = self
-            .current_turn_changed_files
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>();
-        for path in &changed_files {
-            let path_buf = PathBuf::from(path);
-            if !self
-                .current_task
-                .changed_files
-                .iter()
-                .any(|existing| existing == &path_buf)
-            {
-                self.current_task.changed_files.push(path_buf);
-            }
-        }
+        self.task_doc_reducer.finish_turn(
+            &mut self.task_doc,
+            TurnOutcome::Completed,
+            turn_tokens,
+            now_millis(),
+        );
 
-        let command_history = std::mem::take(&mut self.current_turn_command_history);
-        self.current_task
-            .command_history
-            .extend(command_history.iter().cloned());
-        self.current_task.instructions_path = self.instructions_path.clone();
-        self.current_task.status = TaskStatus::Completed;
-        let turn_tokens = ctx.session_tokens_rollup().last_turn();
-        // Accumulate cache usage from the turn into task-level totals (ADR-029).
-        self.current_task.cache_usage.total_cache_creation_tokens = self
-            .current_task
-            .cache_usage
-            .total_cache_creation_tokens
-            .saturating_add(turn_tokens.cache_creation_input_tokens);
-        self.current_task.cache_usage.total_cache_read_tokens = self
-            .current_task
-            .cache_usage
-            .total_cache_read_tokens
-            .saturating_add(turn_tokens.cache_read_input_tokens);
-        self.current_task.turns.push(TurnEvidenceState {
-            input: std::mem::take(&mut self.current_turn_input),
-            response: std::mem::take(&mut self.current_turn_response),
-            changed_files,
-            command_history,
-            tool_invocations: std::mem::take(&mut self.current_turn_tool_invocations),
-            tokens: turn_tokens,
-        });
-
-        self.persist_current_task_state();
+        self.persist_task_document();
         self.transcript_scroll_offset = 0;
         self.inspector_scroll_offset = 0;
         self.reset_turn_capture();
-    }
-
-    pub(super) fn materialize_current_turn_stream_segments(&mut self) {
-        if self.current_turn_stream_segments.is_empty() {
-            return;
-        }
-
-        if self
-            .history_state
-            .active_assistant_index
-            .and_then(|idx| self.history_state.lines.get(idx).map(|line| (idx, line)))
-            .is_some_and(|(_, line)| {
-                line.is_empty() || crate::status_contract::is_waiting_placeholder(line)
-            })
-        {
-            if let Some(idx) = self.history_state.active_assistant_index {
-                self.history_state.lines.remove(idx);
-                self.history_state.active_assistant_index = None;
-            }
-        }
-
-        let mut pushed = 0usize;
-        for segment in self.current_turn_stream_segments.drain(..) {
-            for line in segment.text.lines() {
-                self.history_state.lines.push(line.to_string());
-                pushed += 1;
-            }
-        }
-
-        if pushed > 0 {
-            self.enforce_history_cap();
-            self.clamp_transcript_after_mutation();
-        }
-        self.current_turn_stream_segments.clear();
-        self.active_stream_segment_index = None;
     }
 
     pub(super) fn summarize_usage_line_suffix(estimated: bool) -> &'static str {
@@ -315,8 +247,13 @@ impl TuiMode {
         if !self.auto_memory_enabled {
             return;
         }
-        let input = self.last_turn_input_display.clone();
-        let response = self.last_turn_response.clone();
+        let last_turn = match self.task_doc.completed_turns.last() {
+            Some(t) => t,
+            None => return,
+        };
+        let input = last_turn.input.clone();
+        let response =
+            crate::app::transcript_projection::extract_assistant_response(&last_turn.entries);
         if input.trim().is_empty() && response.trim().is_empty() {
             return;
         }
@@ -335,29 +272,32 @@ impl TuiMode {
         let path = self
             .resolved_existing_notes_path()
             .or_else(|| self.resolved_notes_path());
-        let Some(path) = path else {
-            return;
-        };
+        let Some(path) = path else { return };
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
         match crate::auto_memory::append_auto_notes(&formatted_notes, &path) {
             Ok(()) => {
-                let turn_index = self.current_task.turns.len();
+                let turn_index = self.task_doc.completed_turns.len();
                 for note in &formatted_notes {
-                    self.current_task.session_notes.push(SessionNote {
-                        content: note.clone(),
-                        created_at_turn: turn_index,
-                    });
+                    self.task_doc
+                        .session_notes
+                        .push(crate::runtime::task_state::SessionNote {
+                            content: note.clone(),
+                            created_at_turn: turn_index,
+                        });
                 }
-                self.persist_current_task_state();
-                self.push_history_line(format!(
-                    "[memory] auto: {} note(s) saved",
-                    formatted_notes.len()
-                ));
+                self.persist_task_document();
+                self.push_document_notice(
+                    format!("[memory] auto: {} note(s) saved", formatted_notes.len()),
+                    crate::runtime::NoticeSeverity::Info,
+                );
             }
             Err(e) => {
-                self.push_history_line(format!("[memory] auto extraction error: {e}"));
+                self.push_document_notice(
+                    format!("[memory] auto extraction error: {e}"),
+                    crate::runtime::NoticeSeverity::Warning,
+                );
             }
         }
     }

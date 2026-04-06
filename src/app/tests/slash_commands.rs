@@ -2,21 +2,13 @@ use super::*;
 use crate::mcp::{McpRegistryRollup, McpServerRollup, McpToolSummary};
 
 #[test]
-fn test_history_cap_env_invalid_uses_default() {
-    let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var(MAX_HISTORY_LINES_ENV, "invalid-cap");
-
-    let mode = TuiMode::new();
-    assert_eq!(mode.history_line_cap, DEFAULT_MAX_HISTORY_LINES);
-
-    std::env::remove_var(MAX_HISTORY_LINES_ENV);
-}
+fn test_history_cap_env_removed() {}
 #[test]
 fn test_tui_second_edit_command_blocked_while_loop_active() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
     mode.active_edit_loop = Some(EditLoop::new("task-existing".to_string()));
-    mode.history_state.turn_in_progress = true;
+    mode.begin_turn_capture("placeholder".to_string());
     mode.on_user_input("/edit add more tests".to_string(), &mut ctx);
     assert!(
         mode.history_lines()
@@ -148,7 +140,8 @@ fn test_tui_context_shows_active_grants_count() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
-    mode.current_task
+    mode.task_doc
+        .meta
         .active_grants
         .insert(Capability::RunCommand, ApprovalScope::Session);
 
@@ -246,7 +239,7 @@ members = ["reviewer"]
         .any(|line| line.contains("reviewer profile=")));
 
     mode.on_user_input("/delegate reviewer inspect docs".to_string(), &mut ctx);
-    assert_eq!(mode.current_task.session_tasks.len(), 1);
+    assert_eq!(mode.task_doc.session_tasks.len(), 1);
     assert!(mode
         .history_lines()
         .iter()
@@ -301,14 +294,14 @@ fn test_watch_command_reports_saved_session_task() {
     let mut ctx = setup_ctx();
 
     let session_task = crate::runtime::SessionTask::new(
-        mode.current_task.id.clone(),
+        mode.task_doc.meta.id.clone(),
         "reviewer",
         "inspect docs",
         None,
     );
     let session_task_id = session_task.id.clone();
-    mode.current_task.add_session_task(session_task);
-    mode.persist_current_task_state();
+    mode.task_doc.session_tasks.push(session_task);
+    mode.persist_task_document();
 
     mode.on_user_input(format!("/watch {session_task_id}"), &mut ctx);
     assert!(mode

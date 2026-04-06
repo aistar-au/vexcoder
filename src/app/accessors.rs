@@ -27,9 +27,14 @@ impl TuiMode {
             "command-session"
         } else if self.pending_quit {
             "quit-arm"
-        } else if self.history_state.cancel_pending {
+        } else if self
+            .task_doc
+            .active_turn
+            .as_ref()
+            .is_some_and(|t| t.cancel_pending)
+        {
             "cancelling"
-        } else if self.history_state.turn_in_progress {
+        } else if self.task_doc.active_turn.is_some() {
             "streaming"
         } else {
             "ready"
@@ -88,27 +93,32 @@ impl TuiMode {
     }
 
     pub(super) fn history_row_count(&self) -> usize {
-        crate::ui::render::history_visual_line_count(
-            &self.history_state.lines,
-            self.history_content_width.get(),
-        )
+        let rows = crate::app::transcript_projection::project_transcript_rows(
+            &self.task_doc,
+            &self.pre_session_notices,
+        );
+        crate::ui::render::history_visual_line_count(&rows, self.display_column_width.get())
     }
 
     pub(super) fn total_session_tokens(&self) -> u64 {
-        self.current_task
-            .turns
+        self.task_doc
+            .completed_turns
             .iter()
             .map(|t| t.tokens.input + t.tokens.output)
             .sum()
     }
 
     pub(super) fn tokens_sent_total(&self) -> u64 {
-        self.current_task.turns.iter().map(|t| t.tokens.input).sum()
+        self.task_doc
+            .completed_turns
+            .iter()
+            .map(|t| t.tokens.input)
+            .sum()
     }
 
     pub(super) fn tokens_received_total(&self) -> u64 {
-        self.current_task
-            .turns
+        self.task_doc
+            .completed_turns
             .iter()
             .map(|t| t.tokens.output)
             .sum()
@@ -127,7 +137,7 @@ impl TuiMode {
     }
 
     pub fn current_task_id(&self) -> String {
-        self.current_task.id.clone()
+        self.task_doc.meta.id.clone()
     }
 
     pub fn overlay_active(&self) -> bool {
@@ -141,12 +151,17 @@ impl TuiMode {
         self.overlay_state.pending_patch_approval.is_some()
     }
 
-    pub fn history_lines(&self) -> &[String] {
-        &self.history_state.lines
+    pub fn history_lines(&self) -> Vec<String> {
+        crate::app::transcript_projection::project_transcript_rows(
+            &self.task_doc,
+            &self.pre_session_notices,
+        )
     }
 
+    /// Returns `None`; the active-assistant-index concept has been removed.
+    /// Kept for compatibility with call sites being migrated.
     pub fn active_assistant_index(&self) -> Option<usize> {
-        self.history_state.active_assistant_index
+        None
     }
 
     pub fn quit_requested(&self) -> bool {
@@ -317,35 +332,35 @@ impl TuiMode {
     }
 
     pub fn set_history_content_width(&self, width: usize) {
-        self.history_content_width.set(width.max(1));
+        self.display_column_width.set(width.max(1));
     }
 
     /// Total number of timeline entries available for selection.
-    /// Mirrors the entry count produced by `task_timeline_entries()`.
     pub(super) fn timeline_entry_count(&self) -> usize {
         if !self.command_sessions.is_empty() {
             return self.command_sessions.len().max(1);
         }
 
-        // Use current turn data if available, otherwise fall back to last turn.
-        let (input_text, tool_count) = if self.history_state.turn_in_progress
-            || !self.current_turn_input.trim().is_empty()
-            || !self.current_turn_tool_invocations.is_empty()
-            || !self.pending_turn_tool_calls.is_empty()
-        {
-            (
-                &self.current_turn_input,
-                self.current_turn_tool_invocations.len() + self.pending_turn_tool_calls.len(),
-            )
+        let (has_input, tool_count) = if let Some(active) = self.task_doc.active_turn.as_ref() {
+            let tools = active
+                .entries
+                .iter()
+                .filter(|e| matches!(e, crate::runtime::TurnEntry::ToolCall { .. }))
+                .count();
+            (!active.input.trim().is_empty(), tools)
+        } else if let Some(last) = self.task_doc.completed_turns.last() {
+            let tools = last
+                .entries
+                .iter()
+                .filter(|e| matches!(e, crate::runtime::TurnEntry::ToolCall { .. }))
+                .count();
+            (!last.input.trim().is_empty(), tools)
         } else {
-            (
-                &self.last_turn_input_display,
-                self.last_turn_tool_invocations.len(),
-            )
+            (false, 0)
         };
 
         let mut count = 0;
-        if !input_text.trim().is_empty() {
+        if has_input {
             count += 1;
         }
         count += tool_count;
