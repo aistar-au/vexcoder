@@ -1,8 +1,12 @@
-use super::super::stream_block::StreamBlock;
 use crate::api::ApiClient;
 use crate::config::{HookConfig, HttpHookConfig, SearchConfig};
 use crate::mcp::McpRegistry;
+use crate::runtime::json_handoff::RuntimeEvent;
+use crate::runtime::session_task::now_millis;
+use crate::runtime::task_document::{TaskDocument, TaskDocumentReducer, TaskMeta, TurnOutcome};
+use crate::runtime::task_state::TaskStatus;
 use crate::runtime::ConfiguredSandbox;
+use crate::runtime::{ModelBackendKind, TaskMutationSummary};
 use crate::tool_preview::ReadFileRollupCache;
 use crate::tools::ToolOperator;
 use crate::types::{ApiMessage, Content, StreamChunkMetadata};
@@ -25,6 +29,8 @@ pub struct UndoCheckpoint {
     /// Previous file bytes (None if the file did not exist).
     pub previous_content: Option<Vec<u8>>,
 }
+
+use super::super::stream_block::StreamBlock;
 
 pub enum ConversationStreamUpdate {
     Delta(String),
@@ -86,8 +92,19 @@ pub struct ConversationManager {
     pub(super) http_hooks: Vec<HttpHookConfig>,
     pub(super) search_config: SearchConfig,
     pub(super) api_messages: Vec<ApiMessage>,
-    pub(super) current_turn_blocks: Vec<StreamBlock>,
-    pub(super) current_turn_applied_mutation: bool,
+    /// Canonical in-process task document. Owned by the reducer; replaces the
+    /// former `current_turn_blocks` parallel live-turn model.
+    pub(super) task_doc: Option<TaskDocument>,
+    pub(super) reducer: TaskDocumentReducer,
+    /// Entry index in `active_turn.entries` where the current API round began.
+    /// Reset at the start of every round so that per-round operations such as
+    /// `promote_thinking_blocks_to_final_text` only touch the current round's
+    /// entries rather than entries from earlier rounds of the same turn.
+    pub(super) current_round_entry_start: usize,
+    /// Number of stream `BlockStart` events emitted in the current API round,
+    /// used by `upsert_turn_block` to pad with empty Thinking placeholders when
+    /// the model sends a block at a non-zero index without prior blocks.
+    pub(super) current_round_stream_block_count: usize,
     pub(super) last_turn_tokens: TurnTokens,
     pub(super) read_file_history_cache: ReadFileRollupCache,
     pub(super) undo_stack: Vec<UndoCheckpoint>,
@@ -125,8 +142,10 @@ impl ConversationManager {
             http_hooks,
             search_config: SearchConfig::default(),
             api_messages: Vec::new(),
-            current_turn_blocks: Vec::new(),
-            current_turn_applied_mutation: false,
+            task_doc: None,
+            reducer: TaskDocumentReducer::new(),
+            current_round_entry_start: 0,
+            current_round_stream_block_count: 0,
             last_turn_tokens: TurnTokens::default(),
             read_file_history_cache: ReadFileRollupCache::default(),
             undo_stack: Vec::new(),
@@ -201,8 +220,10 @@ impl ConversationManager {
             http_hooks: Vec::new(),
             search_config: SearchConfig::default(),
             api_messages: Vec::new(),
-            current_turn_blocks: Vec::new(),
-            current_turn_applied_mutation: false,
+            task_doc: None,
+            reducer: TaskDocumentReducer::new(),
+            current_round_entry_start: 0,
+            current_round_stream_block_count: 0,
             last_turn_tokens: TurnTokens::default(),
             read_file_history_cache: ReadFileRollupCache::default(),
             undo_stack: Vec::new(),
@@ -225,8 +246,9 @@ impl ConversationManager {
 
     pub fn clear_messages(&mut self) {
         self.api_messages.clear();
-        self.current_turn_blocks.clear();
-        self.current_turn_applied_mutation = false;
+        self.task_doc = None;
+        self.current_round_entry_start = 0;
+        self.current_round_stream_block_count = 0;
         self.last_turn_tokens = TurnTokens::default();
         self.read_file_history_cache = ReadFileRollupCache::default();
     }
@@ -248,33 +270,132 @@ impl ConversationManager {
     }
 
     pub fn current_turn_has_successful_mutation(&self) -> bool {
-        if self.current_turn_applied_mutation {
-            return true;
-        }
-
-        let mut mutating_tool_call_ids = std::collections::BTreeSet::new();
-        for block in &self.current_turn_blocks {
-            if let StreamBlock::ToolCall { id, name, .. } = block {
+        let Some(doc) = &self.task_doc else {
+            return false;
+        };
+        // Prefer the active turn (mid-send guards); fall back to the most
+        // recently completed turn so callers that check AFTER send_message
+        // returns (e.g. edit-loop context) still see the correct value.
+        use crate::runtime::task_document::TurnEntry;
+        let entries: &[TurnEntry] = if let Some(active) = &doc.active_turn {
+            &active.entries
+        } else if let Some(last) = doc.completed_turns.last() {
+            &last.entries
+        } else {
+            return false;
+        };
+        let mut mutating_tool_ids = std::collections::BTreeSet::new();
+        for entry in entries {
+            if let TurnEntry::ToolCall { id, name, .. } = entry {
                 if is_turn_mutation_tool(name) {
-                    mutating_tool_call_ids.insert(id.as_str());
+                    mutating_tool_ids.insert(id.as_str());
                 }
             }
         }
-
-        if mutating_tool_call_ids.is_empty() {
+        if mutating_tool_ids.is_empty() {
             return false;
         }
-
-        self.current_turn_blocks.iter().any(|block| {
+        entries.iter().any(|entry| {
             matches!(
-                block,
-                StreamBlock::ToolResult {
-                    tool_call_id,
-                    is_error,
-                    ..
-                } if !*is_error && mutating_tool_call_ids.contains(tool_call_id.as_str())
+                entry,
+                TurnEntry::ToolResult { tool_call_id, is_error, .. }
+                    if !is_error && mutating_tool_ids.contains(tool_call_id.as_str())
             )
         })
+    }
+
+    /// Expose the canonical task document for read-only callers (local API,
+    /// batch mode, snapshot adapters).
+    pub fn task_doc(&self) -> Option<&TaskDocument> {
+        self.task_doc.as_ref()
+    }
+
+    /// Ensure a `TaskDocument` exists. Called once at the start of every
+    /// `send_message_with_policy` invocation. Creates a minimal document when
+    /// no meta has been supplied by the caller.
+    pub(super) fn ensure_task_doc(&mut self) {
+        if self.task_doc.is_some() {
+            return;
+        }
+        let model_backend = if self.client.is_local_endpoint() {
+            ModelBackendKind::LocalRuntime
+        } else {
+            ModelBackendKind::ApiServer
+        };
+        let now = now_millis();
+        let meta = TaskMeta {
+            id: uuid::Uuid::new_v4().to_string(),
+            status: TaskStatus::Ready,
+            parent_task_id: None,
+            agent_id: None,
+            worktree_path: None,
+            branch_name: None,
+            instructions_path: None,
+            model_name: self.client.model_name(),
+            model_backend,
+            model_url: String::new(),
+            started_at_ms: Some(now),
+            updated_at_ms: now,
+            last_heartbeat_ms: None,
+            active_grants: std::collections::HashMap::new(),
+            next_step_id: 0,
+        };
+        self.task_doc = Some(self.reducer.begin_task(meta));
+    }
+
+    /// Begin a new turn inside the document. The caller must have called
+    /// `ensure_task_doc` first.
+    pub(super) fn begin_turn_doc(
+        &mut self,
+        input: String,
+        tool_policy: crate::state::TurnToolPolicy,
+    ) {
+        if let Some(doc) = self.task_doc.as_mut() {
+            let now = now_millis();
+            self.reducer.begin_turn(doc, input, now, tool_policy);
+        }
+        self.current_round_stream_block_count = 0;
+    }
+
+    /// Commit the active turn and mark it completed.
+    pub(super) fn finish_turn_doc(&mut self, outcome: TurnOutcome, tokens: TurnTokens) {
+        if let Some(doc) = self.task_doc.as_mut() {
+            let now = now_millis();
+            self.reducer.finish_turn(doc, outcome, tokens, now);
+        }
+    }
+
+    /// Apply one `RuntimeEvent` to the document.
+    pub(super) fn apply_doc_event(&mut self, event: RuntimeEvent) -> TaskMutationSummary {
+        if let Some(doc) = self.task_doc.as_mut() {
+            self.reducer.apply_runtime_event(doc, event)
+        } else {
+            TaskMutationSummary::default()
+        }
+    }
+
+    /// Record the current number of active-turn entries as the start point for
+    /// the new API round. Called at the top of every round in the send loop so
+    /// that per-round helpers only see blocks from the current round.
+    pub(super) fn advance_round_start(&mut self) {
+        self.current_round_entry_start = self
+            .task_doc
+            .as_ref()
+            .and_then(|d| d.active_turn.as_ref())
+            .map(|t| t.entries.len())
+            .unwrap_or(0);
+        self.current_round_stream_block_count = 0;
+    }
+
+    /// Number of entries in the active turn at or after `current_round_entry_start`.
+    pub(super) fn current_round_entry_count(&self) -> usize {
+        let total = self
+            .task_doc
+            .as_ref()
+            .and_then(|d| d.active_turn.as_ref())
+            .map(|t| t.entries.len())
+            .unwrap_or(0);
+        total.saturating_sub(self.current_round_entry_start)
     }
 
     /// Push a checkpoint onto the undo stack, evicting the oldest if at capacity.

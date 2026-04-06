@@ -7,6 +7,7 @@ use super::{
 };
 use crate::api::stream::StreamParser;
 use crate::runtime::policy::{default_runtime_policy, RuntimeCorePolicy};
+use crate::runtime::task_document::TurnOutcome;
 use crate::types::{ApiMessage, ApiUsage, Content, ContentBlock, StreamEvent};
 use crate::usage::TurnTokens;
 use anyhow::Result;
@@ -21,10 +22,10 @@ impl ConversationManager {
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
         turn_tool_policy: TurnToolPolicy,
     ) -> Result<String> {
-        self.current_turn_blocks.clear();
-        self.current_turn_applied_mutation = false;
         self.last_turn_tokens = TurnTokens::default();
         let original_user_input = content.clone();
+        self.ensure_task_doc();
+        self.begin_turn_doc(content.clone(), turn_tool_policy);
         self.push_user_message(content);
         if let Some(response) = builtin_supported_git_tools_response(&original_user_input) {
             self.api_messages.push(ApiMessage {
@@ -32,6 +33,7 @@ impl ConversationManager {
                 content: Content::Text(response.clone()),
             });
             emit_text_update(stream_delta_tx, response.clone());
+            self.finish_turn_doc(TurnOutcome::Completed, TurnTokens::default());
             return Ok(response);
         }
         let mut turn_user_anchor_index = self.api_messages.len().saturating_sub(1);
@@ -65,15 +67,17 @@ impl ConversationManager {
         // Condense once per user turn, not per API round, to stay idempotent.
         self.condense_old_tool_results(history_keep_turns);
         loop {
-            self.current_turn_blocks.clear();
+            self.advance_round_start();
             turn_user_anchor_index = self
                 .prune_message_history_preserving(limits.max_api_messages, turn_user_anchor_index);
             rounds += 1;
             if rounds > max_tool_rounds {
-                return Ok(render_loop_limit_guard_message(
+                let msg = render_loop_limit_guard_message(
                     &last_assistant_text_for_history,
                     max_tool_rounds,
-                ));
+                );
+                self.finish_turn_doc(TurnOutcome::MaxTurnsReached, TurnTokens::default());
+                return Ok(msg);
             }
 
             let mut stream = match self.client.create_stream(&self.api_messages).await {
@@ -198,16 +202,6 @@ impl ConversationManager {
                                 let maybe_buffer = tool_input_buffers.get_mut(index);
                                 if let Some(Some(buffer)) = maybe_buffer {
                                     buffer.push_str(&partial_json);
-
-                                    if let Ok(parsed_input) =
-                                        serde_json::from_str::<serde_json::Value>(buffer)
-                                    {
-                                        if let Some(StreamBlock::ToolCall { input, .. }) =
-                                            self.current_turn_blocks.get_mut(index)
-                                        {
-                                            *input = parsed_input;
-                                        }
-                                    }
                                     emit_stream_update(
                                         stream_delta_tx,
                                         ConversationStreamUpdate::BlockDelta {
@@ -234,14 +228,6 @@ impl ConversationManager {
                                     match parse_result {
                                         Ok(parsed_input) => {
                                             *input = parsed_input;
-
-                                            if let Some(StreamBlock::ToolCall {
-                                                input: block_input,
-                                                ..
-                                            }) = self.current_turn_blocks.get_mut(index)
-                                            {
-                                                *block_input = input.clone();
-                                            }
                                         }
                                         Err(err) => {
                                             tracing::warn!(
@@ -304,7 +290,7 @@ impl ConversationManager {
                         })
                         .collect();
                     {
-                        let fallback_start_index = self.current_turn_blocks.len();
+                        let fallback_start_index = self.current_round_entry_count();
                         for (offset, block) in tool_use_blocks.iter().enumerate() {
                             if let ContentBlock::ToolUse {
                                 id, name, input, ..
@@ -362,9 +348,10 @@ impl ConversationManager {
                 previous_round_signature = Some(current_signature);
 
                 if repeated_mutating_rounds >= 1 {
-                    return Ok(render_repeated_mutating_tool_guard_message(
-                        &assistant_text_for_history,
-                    ));
+                    let msg =
+                        render_repeated_mutating_tool_guard_message(&assistant_text_for_history);
+                    self.finish_turn_doc(TurnOutcome::Completed, self.last_turn_tokens);
+                    return Ok(msg);
                 }
 
                 // Stop faster when the round contains empty-path tool calls
@@ -394,9 +381,9 @@ impl ConversationManager {
                         repeated_round_nudge_used = true;
                         inject_repeated_round_nudge = true;
                     } else {
-                        return Ok(render_repeated_tool_guard_message(
-                            &assistant_text_for_history,
-                        ));
+                        let msg = render_repeated_tool_guard_message(&assistant_text_for_history);
+                        self.finish_turn_doc(TurnOutcome::Completed, self.last_turn_tokens);
+                        return Ok(msg);
                     }
                 }
             } else {
@@ -460,15 +447,17 @@ impl ConversationManager {
                 }
                 if self.client.is_local_endpoint() && requires_tool_evidence && !saw_any_tool_round
                 {
-                    return Ok(render_missing_tool_evidence_guard_message(
-                        &assistant_text_for_history,
-                    ));
+                    let msg =
+                        render_missing_tool_evidence_guard_message(&assistant_text_for_history);
+                    self.finish_turn_doc(TurnOutcome::Completed, self.last_turn_tokens);
+                    return Ok(msg);
                 }
                 self.promote_thinking_blocks_to_final_text(
                     &deferred_text_block_indices,
                     stream_delta_tx,
                 );
                 self.last_turn_tokens = turn_tokens;
+                self.finish_turn_doc(TurnOutcome::Completed, turn_tokens);
                 return Ok(assistant_text_for_history);
             }
 
@@ -516,14 +505,6 @@ impl ConversationManager {
                         &self.format_tool_result_for_history(&name, &input, &result),
                         limits.max_tool_result_history_chars,
                     );
-                    if result.is_ok()
-                        && matches!(
-                            name.as_str(),
-                            "write_file" | "apply_patch" | "edit_file" | "rename_file"
-                        )
-                    {
-                        self.current_turn_applied_mutation = true;
-                    }
                     if use_structured_round {
                         tool_result_blocks.push(ContentBlock::ToolResult {
                             tool_use_id: id,
@@ -734,14 +715,6 @@ impl ConversationManager {
                             &self.format_tool_result_for_history(&name, &input, &result),
                             limits.max_tool_result_history_chars,
                         );
-                        if result.is_ok()
-                            && matches!(
-                                name.as_str(),
-                                "write_file" | "apply_patch" | "edit_file" | "rename_file"
-                            )
-                        {
-                            self.current_turn_applied_mutation = true;
-                        }
                         if use_structured_round {
                             tool_result_blocks.push(ContentBlock::ToolResult {
                                 tool_use_id: id,

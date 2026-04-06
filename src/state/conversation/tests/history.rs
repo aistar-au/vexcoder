@@ -521,12 +521,19 @@ fn test_prune_message_history_clears_if_only_tool_result_user_messages_remain() 
 }
 #[test]
 fn test_clear_messages_resets_cached_conversation_state() {
+    use crate::runtime::json_handoff::RuntimeEvent;
+
     let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
     let mut manager = ConversationManager::new_mock(client, HashMap::new());
 
     manager.push_user_message("hello".to_string());
-    manager.current_turn_blocks.push(StreamBlock::FinalText {
-        content: "assistant".to_string(),
+    manager.ensure_task_doc();
+    manager.begin_turn_doc("hello".to_string(), TurnToolPolicy::Default);
+    manager.apply_doc_event(RuntimeEvent::TranscriptBlockStart {
+        index: 0,
+        block: crate::state::stream_block::StreamBlock::FinalText {
+            content: "assistant".to_string(),
+        },
     });
     assert!(matches!(
         manager
@@ -544,7 +551,7 @@ fn test_clear_messages_resets_cached_conversation_state() {
     manager.clear_messages();
 
     assert!(manager.messages_for_api().is_empty());
-    assert!(manager.current_turn_blocks.is_empty());
+    assert!(manager.task_doc.is_none());
     assert!(matches!(
         manager
             .read_file_history_cache
