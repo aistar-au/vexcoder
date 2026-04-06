@@ -866,3 +866,81 @@ fn test_inspector_title_includes_row_count() {
         state.output_title
     );
 }
+
+#[test]
+fn test_final_text_block_delta_materializes_into_output_rows() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("hello".to_string(), &mut ctx);
+
+    // Simulate a FinalText block start (index 0).
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::FinalText {
+                content: String::new(),
+            },
+        },
+        &mut ctx,
+    );
+
+    // Send deltas that should materialize into output_rows.
+    mode.on_model_update(
+        UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: "Hello ".to_string(),
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: "world!".to_string(),
+        },
+        &mut ctx,
+    );
+
+    let state = mode.task_layout_state().expect("task layout state");
+    let joined = state.output_rows.join("\n");
+    assert!(
+        joined.contains("Hello world!"),
+        "FinalText block deltas must appear in output rows: {joined:?}"
+    );
+}
+
+#[test]
+fn test_thinking_block_delta_materializes_into_output_rows() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("think deeply".to_string(), &mut ctx);
+
+    // Simulate a Thinking block start (index 0).
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::Thinking {
+                content: String::new(),
+                collapsed: false,
+            },
+        },
+        &mut ctx,
+    );
+
+    // Send thinking delta.
+    mode.on_model_update(
+        UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: "analyzing the problem".to_string(),
+        },
+        &mut ctx,
+    );
+
+    let state = mode.task_layout_state().expect("task layout state");
+    let joined = state.output_rows.join("\n");
+    assert!(
+        joined.contains("analyzing the problem"),
+        "Thinking block deltas must appear in output rows: {joined:?}"
+    );
+}

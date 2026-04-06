@@ -117,16 +117,7 @@ impl TuiMode {
                 }
                 self.current_turn_response.push_str(&text);
                 if self.structured_streaming_active {
-                    if let Some(index) = self.active_stream_segment_index {
-                        self.current_turn_stream_segments[index]
-                            .text
-                            .push_str(&text);
-                    } else {
-                        self.current_turn_stream_segments
-                            .push(StreamedResponseSegment { text: text.clone() });
-                        self.active_stream_segment_index =
-                            Some(self.current_turn_stream_segments.len() - 1);
-                    }
+                    self.append_stream_segment_delta(&text);
                     self.clamp_transcript_after_mutation();
                     self.preserve_transcript_scroll_on_growth(previous_output_len);
                     return;
@@ -464,38 +455,12 @@ impl TuiMode {
                 // Apply display-side effects that need &mut self.
                 match action {
                     DeltaAction::Thinking => {
-                        if let Some(seg_idx) = self.active_stream_segment_index {
-                            if seg_idx < self.current_turn_stream_segments.len() {
-                                self.current_turn_stream_segments[seg_idx]
-                                    .text
-                                    .push_str(&delta);
-                            }
-                        } else {
-                            self.current_turn_stream_segments
-                                .push(StreamedResponseSegment {
-                                    text: delta.clone(),
-                                });
-                            self.active_stream_segment_index =
-                                Some(self.current_turn_stream_segments.len() - 1);
-                        }
+                        self.append_stream_segment_delta(&delta);
                         self.clamp_transcript_after_mutation();
                         self.preserve_transcript_scroll_on_growth(previous_output_len);
                     }
                     DeltaAction::FinalText => {
-                        if let Some(seg_idx) = self.active_stream_segment_index {
-                            if seg_idx < self.current_turn_stream_segments.len() {
-                                self.current_turn_stream_segments[seg_idx]
-                                    .text
-                                    .push_str(&delta);
-                            }
-                        } else {
-                            self.current_turn_stream_segments
-                                .push(StreamedResponseSegment {
-                                    text: delta.clone(),
-                                });
-                            self.active_stream_segment_index =
-                                Some(self.current_turn_stream_segments.len() - 1);
-                        }
+                        self.append_stream_segment_delta(&delta);
                         self.current_turn_response.push_str(&delta);
                         self.clamp_transcript_after_mutation();
                         self.preserve_transcript_scroll_on_growth(previous_output_len);

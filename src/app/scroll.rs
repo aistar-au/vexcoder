@@ -56,6 +56,27 @@ impl TuiMode {
         crate::ui::render::expand_rows_for_display(&rows, cols).len()
     }
 
+    /// Append `delta` text to the current stream segment, creating a new
+    /// segment if `active_stream_segment_index` is `None`.  Returns the
+    /// segment index that was written to.
+    pub(super) fn append_stream_segment_delta(&mut self, delta: &str) -> usize {
+        if let Some(seg_idx) = self.active_stream_segment_index {
+            if seg_idx < self.current_turn_stream_segments.len() {
+                self.current_turn_stream_segments[seg_idx]
+                    .text
+                    .push_str(delta);
+                return seg_idx;
+            }
+        }
+        self.current_turn_stream_segments
+            .push(StreamedResponseSegment {
+                text: delta.to_owned(),
+            });
+        let idx = self.current_turn_stream_segments.len() - 1;
+        self.active_stream_segment_index = Some(idx);
+        idx
+    }
+
     pub(super) fn push_history_line(&mut self, line: String) {
         if self.structured_streaming_active && self.history_state.turn_in_progress {
             self.materialize_current_turn_stream_segments();
