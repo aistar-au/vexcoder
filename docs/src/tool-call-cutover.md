@@ -80,9 +80,8 @@ choices so the UI, parser, and API route all move in the same direction.
   `final_text` transcript blocks (`transcript_block_start`,
   `transcript_block_delta`, `transcript_block_complete`) instead of emitting a
   separate live `assistant_delta` / terminal `assistant_message` pair.
-- Historical `assistant_delta` and `assistant_message` events remain parseable
-  for old recordings and batch derivation, but the live local API path no
-  longer depends on them.
+- The `assistant_delta` and `assistant_message` events are removed. All
+  downstream consumers must read transcript block events only.
 
 ### 4. Parser contract
 

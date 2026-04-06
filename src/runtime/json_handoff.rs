@@ -34,12 +34,6 @@ pub enum RuntimeEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         input: Option<String>,
     },
-    AssistantDelta {
-        text: String,
-    },
-    AssistantMessage {
-        content: String,
-    },
     TranscriptLine {
         line: String,
     },
@@ -552,16 +546,6 @@ pub fn derive_batch_records(
                     input: input.clone().unwrap_or_default(),
                     ..DerivedTurnState::default()
                 });
-            }
-            RuntimeEvent::AssistantDelta { text } => {
-                if let Some(state) = current_turn.as_mut() {
-                    state.delta_response.push_str(text);
-                }
-            }
-            RuntimeEvent::AssistantMessage { content } => {
-                if let Some(state) = current_turn.as_mut() {
-                    state.assistant_message = Some(content.clone());
-                }
             }
             RuntimeEvent::TranscriptBlockStart { index, block } => {
                 if let Some(state) = current_turn.as_mut() {

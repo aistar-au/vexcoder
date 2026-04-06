@@ -345,8 +345,11 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
         task_id: "batch-1741700000000".to_string(),
         turn: 2,
         seq: 2,
-        event: RuntimeEvent::AssistantDelta {
-            text: "fallback".to_string(),
+        event: RuntimeEvent::TranscriptBlockStart {
+            index: 0,
+            block: StreamBlock::FinalText {
+                content: String::new(),
+            },
         },
     });
     envelopes.push(RuntimeEnvelope {
@@ -354,6 +357,23 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
         task_id: "batch-1741700000000".to_string(),
         turn: 2,
         seq: 3,
+        event: RuntimeEvent::TranscriptBlockDelta {
+            index: 0,
+            delta: "fallback".to_string(),
+        },
+    });
+    envelopes.push(RuntimeEnvelope {
+        version: 1,
+        task_id: "batch-1741700000000".to_string(),
+        turn: 2,
+        seq: 4,
+        event: RuntimeEvent::TranscriptBlockComplete { index: 0 },
+    });
+    envelopes.push(RuntimeEnvelope {
+        version: 1,
+        task_id: "batch-1741700000000".to_string(),
+        turn: 2,
+        seq: 5,
         event: RuntimeEvent::TurnEnd {
             status: "completed".to_string(),
             usage: None,

@@ -55,8 +55,6 @@ pub(super) fn empty_json_object() -> serde_json::Value {
 pub(super) struct DerivedTurnState {
     pub(super) turn: usize,
     pub(super) input: String,
-    pub(super) delta_response: String,
-    pub(super) assistant_message: Option<String>,
     pub(super) transcript_response: String,
     pub(super) pending_final_text_blocks: IndexMap<usize, String>,
     pub(super) changed_files: Vec<String>,
@@ -90,13 +88,7 @@ impl DerivedTurnState {
 
     pub(super) fn into_record(mut self, instructions_path: Option<String>) -> TurnEvidenceRecord {
         self.flush_open_final_text_blocks();
-        let response = self.assistant_message.unwrap_or({
-            if self.transcript_response.is_empty() {
-                self.delta_response
-            } else {
-                self.transcript_response
-            }
-        });
+        let response = self.transcript_response;
 
         TurnEvidenceRecord {
             turn: self.turn,

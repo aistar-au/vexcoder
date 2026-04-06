@@ -99,8 +99,6 @@
     "runtime_event": {
       "oneOf": [
         { "$ref": "#/$defs/turn_start" },
-        { "$ref": "#/$defs/assistant_delta" },
-        { "$ref": "#/$defs/assistant_message" },
         { "$ref": "#/$defs/transcript_line" },
         { "$ref": "#/$defs/transcript_block_start" },
         { "$ref": "#/$defs/transcript_block_delta" },
@@ -122,24 +120,6 @@
       "properties": {
         "type": { "const": "turn_start" },
         "input": { "type": ["string", "null"] }
-      }
-    },
-    "assistant_delta": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "text"],
-      "properties": {
-        "type": { "const": "assistant_delta" },
-        "text": { "type": "string" }
-      }
-    },
-    "assistant_message": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "content"],
-      "properties": {
-        "type": { "const": "assistant_message" },
-        "content": { "type": "string" }
       }
     },
     "transcript_line": {
