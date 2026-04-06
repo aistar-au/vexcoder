@@ -261,6 +261,7 @@ impl TuiMode {
                         is_error,
                     } => {
                         if let Some(pending) = self.pending_turn_tool_calls.remove(tool_call_id) {
+                            let previous_output_len = self.expanded_output_row_count();
                             self.overlay_state
                                 .approved_tool_steps
                                 .remove(&pending.step_id);
@@ -286,7 +287,6 @@ impl TuiMode {
                                 let end = start + pending.transcript_row_count;
                                 if end <= self.history_state.lines.len() {
                                     self.history_state.lines.drain(start..end);
-                                    self.clamp_transcript_after_mutation();
                                     // Shift stored row indices for all remaining
                                     // pending calls whose rows follow the removed
                                     // block so their indices stay accurate.
@@ -298,7 +298,6 @@ impl TuiMode {
                                     }
                                 }
                             }
-                            let previous_output_len = self.expanded_output_row_count();
                             let transcript_rows = super::layout::completed_tool_paragraph_rows(
                                 &pending.name,
                                 &pending.input,

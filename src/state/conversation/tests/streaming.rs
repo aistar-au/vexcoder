@@ -482,6 +482,80 @@ data: {"type":"message_stop"}"#.to_string(),
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_text_xml_tool_call_executes_with_default_local_hybrid_fallback() -> Result<()> {
+    let first_response_sse = vec![
+        r#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_mock_xml_40","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
+        r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#.to_string(),
+        r#"event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I will read it.\n<tool_call>\n{\"name\":\"read_file\",\"arguments\":{\"path\":\"file.txt\"}}\n</tool_call>"}}"#.to_string(),
+        r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":9}}"#.to_string(),
+        r#"event: message_stop
+data: {"type":"message_stop"}"#.to_string(),
+    ];
+    let second_response_sse = vec![
+        r#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_mock_xml_41","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
+        r#"event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#.to_string(),
+        r#"event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Read complete: Hello from xml fallback."}}"#.to_string(),
+        r#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":9}}"#.to_string(),
+        r#"event: message_stop
+data: {"type":"message_stop"}"#.to_string(),
+    ];
+
+    let mock_api_client =
+        ApiClient::new_mock(Arc::new(crate::api::mock_client::MockApiClient::new(vec![
+            first_response_sse,
+            second_response_sse,
+        ])));
+
+    let mut mock_tool_responses = HashMap::new();
+    mock_tool_responses.insert(
+        "file.txt".to_string(),
+        "Hello from xml fallback.".to_string(),
+    );
+    let mut manager = ConversationManager::new_mock(mock_api_client, mock_tool_responses);
+
+    let final_text = manager.send_message("Read file".into(), None).await?;
+    assert!(final_text.contains("Read complete: Hello from xml fallback."));
+
+    assert!(
+        manager.api_messages.iter().any(|message| {
+            if message.role != "assistant" {
+                return false;
+            }
+            match &message.content {
+                Content::Text(text) => {
+                    text.contains("I will read it.")
+                        && text.contains("<function=read_file>")
+                        && !text.contains("<tool_call>")
+                }
+                _ => false,
+            }
+        }),
+        "generic XML fallback should normalize persisted history into the tagged text protocol"
+    );
+    assert!(
+        manager.api_messages.iter().any(|message| {
+            message.role == "user"
+                && matches!(
+                    &message.content,
+                    Content::Text(text) if text.contains("tool_result read_file")
+                )
+        }),
+        "generic XML fallback must still execute the parsed tool call"
+    );
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn test_chat_compat_stream_tool_call_round_trip() -> Result<()> {
     let first_response_sse = vec![

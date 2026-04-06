@@ -1817,6 +1817,64 @@ fn test_stream_block_delta_updates_pending_tool_call_input() {
     );
 }
 
+#[test]
+fn test_tool_result_replacement_preserves_scroll_by_net_growth() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.history_state.lines = (0..18)
+        .map(|index| format!("history row {index}"))
+        .collect();
+    mode.history_state.turn_in_progress = true;
+    mode.transcript_scroll_offset = 4;
+
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "tc-scroll".to_string(),
+                name: "read_file".to_string(),
+                input: serde_json::json!({"path":"src/main.rs"}),
+                status: crate::state::ToolStatus::Executing,
+            },
+        },
+        &mut ctx,
+    );
+
+    let previous_output_len = mode.expanded_output_row_count();
+    let previous_scroll_offset = mode.transcript_scroll_offset;
+
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 1,
+            block: StreamBlock::ToolResult {
+                tool_call_id: "tc-scroll".to_string(),
+                output: "read_file completed\nline one\nline two\nline three\nline four"
+                    .to_string(),
+                is_error: false,
+            },
+        },
+        &mut ctx,
+    );
+
+    let new_output_len = mode.expanded_output_row_count();
+    assert!(
+        new_output_len > previous_output_len,
+        "completed tool paragraph should grow compared with the pending preview"
+    );
+    assert_eq!(
+        mode.transcript_scroll_offset,
+        previous_scroll_offset + (new_output_len - previous_output_len),
+        "scroll preservation must use the net replacement growth rather than the full completed paragraph height"
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[tool] read_file · src/main.rs · Response complete."),
+        "completed tool paragraph must replace the pending transcript rows"
+    );
+}
+
 // -- duplicate tool-call folding -------------------------------------------------
 
 fn tool_call_start(index: usize, id: &str, name: &str, input: serde_json::Value) -> UiUpdate {

@@ -60,7 +60,7 @@ from the model layer.
 | Mode | Meaning | Current parser boundary |
 | :--- | :--- | :--- |
 | `structured` | Prefer native structured tool calls from the backend | JSON tool-call arrays and content-block tool-use payloads are parsed via `serde_json`; streamed fragments keep insertion order with `indexmap` |
-| `tagged-fallback` | Accept XML-like fallback tags from local runtimes that do not emit native structured deltas | Tag boundaries are detected with zero-regex string scanning and structured extraction is delegated to `quick-xml` |
+| `tagged-fallback` | Accept XML-like fallback tags from local runtimes that do not emit native structured deltas | Tagged `<function=...>` scanning remains the fast path, and the local-runtime fallback now defaults to a tagged-plus-XML parser chain that also accepts generic `<tool_call>` and `<invoke>` wrappers before normalizing them into the tagged text protocol |
 
 The runtime currently documents three structured tool-call shapes:
 
@@ -219,6 +219,26 @@ Overrides backend inference. Accepted values: `local-runtime`, `api-server`.
 
 Overrides tool-call encoding. Accepted values: `structured`,
 `tagged-fallback`.
+
+### `VEX_TOOL_PARSER`
+
+Overrides the local text-protocol parser chain. Accepted values:
+`tagged`, `hybrid`.
+
+- `tagged` keeps the zero-regex `<function=...>` and `<parameter=...>` fast
+  path only.
+- `hybrid` keeps that fast path and falls back to `quick-xml` extraction for
+  generic `<tool_call>`, `<invoke>`, and `<tool_use>` wrappers.
+
+Local endpoints default to `hybrid` so XML-style tool wrappers still execute
+when the backend does not emit native structured tool deltas.
+
+Example:
+
+```bash
+export VEX_TOOL_PARSER=tagged
+```
+
 
 ### `VEX_MODEL_PROFILE`
 

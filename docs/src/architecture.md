@@ -61,6 +61,17 @@ so transcript-first consumers follow the backend's JSON delta stream
 without showing raw wrapper or partial tag text when the server breaks
 markup across arbitrary chunk boundaries.
 
+The current ratatui surface keeps the composer pinned at the bottom edge and
+scrolls transcript paragraphs upward from that anchor, but the live turn state
+is still assembled from three sources: `history_state.lines`,
+`current_turn_stream_segments`, and `active_stream_blocks`. That split is the
+remaining complexity boundary for the tool-call cutover. The current repair
+work keeps scroll ownership on the ratatui transcript, fixes net-growth
+preservation when pending tool paragraphs are replaced by completed results,
+and defaults local text-protocol parsing to the hybrid tagged-plus-XML chain.
+The larger single-document cutover plan is recorded in
+`docs/src/tool-call-cutover.md`.
+
 The live parser path for interactive turns remains the shared stream parser,
 the tool-call parser selected by the conversation loop, and the
 `StreamTextNormaliser` boundary that converts malformed inline tool markup into

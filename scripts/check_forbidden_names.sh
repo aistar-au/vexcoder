@@ -38,7 +38,6 @@ scan_targets() {
       --glob '!.github/agents/vexcoder-ui-paragraph-renderer.agent.md' \
       --glob '!.github/agents/vexcoder-transcript-renderer-overhaul.agent.md' \
       --glob '!.github/agents/vexcoder-hybrid-retrieval.agent.md' \
-      --glob '!.github/skills/*/SKILL.md' \
       --glob '!.github/workflows/**' \
       --glob '!scripts/check_forbidden_names.sh' \
       --glob '!TASKS/completed/REPO-RAW-URL-MAP.md' \
@@ -72,8 +71,6 @@ for root in roots:
         if rel == ".github/agents/vexcoder-transcript-renderer-overhaul.agent.md":
             continue
         if rel == ".github/agents/vexcoder-hybrid-retrieval.agent.md":
-            continue
-        if rel.startswith(".github/skills/") and rel.endswith("/SKILL.md"):
             continue
         if rel.startswith(".git/") or rel.startswith(".github/workflows/"):
             continue
