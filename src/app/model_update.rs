@@ -471,11 +471,10 @@ impl TuiMode {
                                     .push_str(&delta);
                             }
                         } else {
-                            self.current_turn_stream_segments.push(
-                                StreamedResponseSegment {
+                            self.current_turn_stream_segments
+                                .push(StreamedResponseSegment {
                                     text: delta.clone(),
-                                },
-                            );
+                                });
                             self.active_stream_segment_index =
                                 Some(self.current_turn_stream_segments.len() - 1);
                         }
@@ -490,11 +489,10 @@ impl TuiMode {
                                     .push_str(&delta);
                             }
                         } else {
-                            self.current_turn_stream_segments.push(
-                                StreamedResponseSegment {
+                            self.current_turn_stream_segments
+                                .push(StreamedResponseSegment {
                                     text: delta.clone(),
-                                },
-                            );
+                                });
                             self.active_stream_segment_index =
                                 Some(self.current_turn_stream_segments.len() - 1);
                         }
