@@ -153,55 +153,62 @@ data: {"type":"message_stop"}"#.to_string(),
 }
 #[test]
 fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_result() {
+    use crate::runtime::json_handoff::RuntimeEvent;
+    use crate::runtime::task_document::TurnOutcome;
+    use crate::usage::TurnTokens;
+
     let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
     let mut manager = ConversationManager::new_mock(client, HashMap::new());
 
-    manager.current_turn_blocks = vec![
-        StreamBlock::ToolCall {
-            id: "tool_mut".to_string(),
-            name: "apply_patch".to_string(),
-            input: json!({"path":"src/lib.rs"}),
-            status: ToolStatus::Complete,
-        },
-        StreamBlock::ToolResult {
-            tool_call_id: "tool_mut".to_string(),
-            output: "patched".to_string(),
-            is_error: false,
-        },
-    ];
+    // Populate an active turn with a successful write_file call.
+    manager.ensure_task_doc();
+    manager.begin_turn_doc("prompt".to_string(), TurnToolPolicy::Default);
+    manager.apply_doc_event(RuntimeEvent::ToolCall {
+        id: "tool_mut".to_string(),
+        name: "apply_patch".to_string(),
+        arguments: json!({"path": "src/lib.rs"}),
+    });
+    manager.apply_doc_event(RuntimeEvent::ToolResult {
+        tool_call_id: "tool_mut".to_string(),
+        tool_name: Some("apply_patch".to_string()),
+        is_error: false,
+        output: "patched".to_string(),
+    });
     assert!(manager.current_turn_has_successful_mutation());
 
-    manager.current_turn_blocks = vec![
-        StreamBlock::ToolCall {
-            id: "tool_read".to_string(),
-            name: "read_file".to_string(),
-            input: json!({"path":"src/lib.rs"}),
-            status: ToolStatus::Complete,
-        },
-        StreamBlock::ToolResult {
-            tool_call_id: "tool_read".to_string(),
-            output: "contents".to_string(),
-            is_error: false,
-        },
-    ];
+    // Replace active turn with a read-only call.
+    manager.finish_turn_doc(TurnOutcome::Completed, TurnTokens::default());
+    manager.begin_turn_doc("prompt2".to_string(), TurnToolPolicy::Default);
+    manager.apply_doc_event(RuntimeEvent::ToolCall {
+        id: "tool_read".to_string(),
+        name: "read_file".to_string(),
+        arguments: json!({"path": "src/lib.rs"}),
+    });
+    manager.apply_doc_event(RuntimeEvent::ToolResult {
+        tool_call_id: "tool_read".to_string(),
+        tool_name: Some("read_file".to_string()),
+        is_error: false,
+        output: "contents".to_string(),
+    });
     assert!(
         !manager.current_turn_has_successful_mutation(),
         "read-only tools must not count as a patch-applied turn"
     );
 
-    manager.current_turn_blocks = vec![
-        StreamBlock::ToolCall {
-            id: "tool_fail".to_string(),
-            name: "apply_patch".to_string(),
-            input: json!({"path":"src/lib.rs"}),
-            status: ToolStatus::Error,
-        },
-        StreamBlock::ToolResult {
-            tool_call_id: "tool_fail".to_string(),
-            output: "error".to_string(),
-            is_error: true,
-        },
-    ];
+    // Replace active turn with a failed mutating call.
+    manager.finish_turn_doc(TurnOutcome::Completed, TurnTokens::default());
+    manager.begin_turn_doc("prompt3".to_string(), TurnToolPolicy::Default);
+    manager.apply_doc_event(RuntimeEvent::ToolCall {
+        id: "tool_fail".to_string(),
+        name: "apply_patch".to_string(),
+        arguments: json!({"path": "src/lib.rs"}),
+    });
+    manager.apply_doc_event(RuntimeEvent::ToolResult {
+        tool_call_id: "tool_fail".to_string(),
+        tool_name: Some("apply_patch".to_string()),
+        is_error: true,
+        output: "error".to_string(),
+    });
     assert!(
         !manager.current_turn_has_successful_mutation(),
         "failed mutating tools must not count as an applied patch"

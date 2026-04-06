@@ -1,6 +1,6 @@
 mod model;
 mod reducer;
-mod snapshot;
+mod task_state_bridge;
 
 pub use model::{
     ActiveTurnDocument, ApprovalDocument, AssistantBlockEntry, AssistantPhase,
