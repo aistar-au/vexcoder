@@ -17,6 +17,7 @@ pub mod rate_limit;
 pub mod sandbox;
 pub mod secrets;
 pub mod session_task;
+pub mod task_document;
 pub mod task_state;
 pub mod text_util;
 pub mod update;
@@ -59,9 +60,14 @@ pub use sandbox::{
 };
 pub use secrets::{contains_secret, redact_secrets};
 pub use session_task::{SessionTask, SessionTaskId, SessionTaskStatus};
+pub use task_document::{
+    ActiveTurnDocument, ApprovalDocument, AssistantBlockEntry, AssistantPhase,
+    CommandSessionDocument, NoticeSeverity, TaskDocument, TaskDocumentReducer, TaskErrorState,
+    TaskMeta, TaskMutationSummary, TurnDocument, TurnEntry, TurnOutcome,
+};
 pub use task_state::{
     CacheUsageStats, CommandEvidence, ContextCompactionRecord, ConversationCheckpoint,
-    InterruptedCommand, TaskId, TaskState, TaskStatus,
+    InterruptedCommand, SessionNote, TaskId, TaskState, TaskStatus,
 };
 pub use text_util::{truncate_head_bytes, truncate_tail_bytes};
 pub use update::UiUpdate;
