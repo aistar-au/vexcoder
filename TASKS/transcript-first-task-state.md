@@ -2,13 +2,17 @@
 
 ## Status
 
-In progress — PR 1 (`work/vexcoder-task-document-pr1`) introduces the
-canonical `TaskDocument` module at `src/runtime/task_document.rs`.  All core
-types (`TaskDocument`, `TaskMeta`, `ActiveTurnDocument`, `TurnDocument`,
-`TurnEntry`, `TaskDocumentReducer`, `TaskMutationSummary`) and the
-snapshot round-trip adapter (`persistable_snapshot` / `restore_from_snapshot`)
-are now implemented and exported from `crate::runtime`.  The TUI switch and
-`project_tui` projection belong to a later PR in the series.
+In progress — PR #349 (`work/vexcoder-task-document-pr1`) introduces the
+canonical `TaskDocument` runtime module rooted at `src/runtime/task_document.rs`
+with focused submodules in `src/runtime/task_document/{model,reducer,snapshot,tests}.rs`.
+All core types (`TaskDocument`, `TaskMeta`, `ActiveTurnDocument`,
+`TurnDocument`, `TurnEntry`, `TaskDocumentReducer`, `TaskMutationSummary`) and
+the snapshot round-trip adapter (`persistable_snapshot` /
+`restore_from_snapshot`) are now implemented and exported from
+`crate::runtime`. PR #349 stays within the PR-1 scope: no TUI ownership
+changes land here, approval events accept the runtime's hyphenated capability
+strings, and persisted tool outcomes now derive from `ToolResult` semantics
+rather than the intermediate `ToolStatus` display state.
 
 ## Context
 
@@ -91,12 +95,16 @@ math operates on the document paragraph list, not on `history_state.lines`.
 
 ## Items
 
-### TF-01 — Define `TaskDocument` and `TaskParagraph` types
+### TF-01 — Define `TaskDocument` and reducer-owned turn types
 
-**File:** New module `src/app/task_document.rs`
+**Files:** `src/runtime/task_document.rs`, `src/runtime/task_document/model.rs`,
+`src/runtime/task_document/reducer.rs`, `src/runtime/task_document/snapshot.rs`
 
-Define the struct and enum types. Implement `append`, `update_block`,
-`complete_block`, and `replace_tool_row` methods. Add unit tests.
+Define the canonical task and turn types at the runtime layer, keep the reducer
+adjacent to the model, and add the snapshot adapter that round-trips through
+`TaskState` and `TurnEvidenceState` without introducing a parallel event model.
+Add focused unit tests for approval parsing, grant persistence, and snapshot
+restore semantics.
 
 ### TF-02 — Replace `history_state` + `current_turn_stream_segments` initialization
 
@@ -160,6 +168,7 @@ After all items:
 
 ```sh
 cargo fmt --check
+cargo nextest run -j 2
 cargo test --all-targets
 bash scripts/check_forbidden_names.sh
 make gate-fast
