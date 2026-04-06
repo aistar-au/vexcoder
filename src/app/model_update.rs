@@ -90,12 +90,12 @@ impl TuiMode {
                 // responsive and avoid memory bloat.
                 const MAX_TRANSCRIPT_LINE_CHARS: usize = 512;
                 if line.len() > MAX_TRANSCRIPT_LINE_CHARS {
-                    let truncated = format!(
-                        "{}... (+{} chars truncated)",
+                    let clipped_line = format!(
+                        "{}... (+{} more chars omitted)",
                         &line[..MAX_TRANSCRIPT_LINE_CHARS],
                         line.len() - MAX_TRANSCRIPT_LINE_CHARS
                     );
-                    self.push_history_line(truncated);
+                    self.push_history_line(clipped_line);
                 } else {
                     self.push_history_line(line);
                 }
@@ -117,16 +117,7 @@ impl TuiMode {
                 }
                 self.current_turn_response.push_str(&text);
                 if self.structured_streaming_active {
-                    if let Some(index) = self.active_stream_segment_index {
-                        self.current_turn_stream_segments[index]
-                            .text
-                            .push_str(&text);
-                    } else {
-                        self.current_turn_stream_segments
-                            .push(StreamedResponseSegment { text: text.clone() });
-                        self.active_stream_segment_index =
-                            Some(self.current_turn_stream_segments.len() - 1);
-                    }
+                    self.append_stream_segment_delta(&text);
                     self.clamp_transcript_after_mutation();
                     self.preserve_transcript_scroll_on_growth(previous_output_len);
                     return;
@@ -270,6 +261,7 @@ impl TuiMode {
                         is_error,
                     } => {
                         if let Some(pending) = self.pending_turn_tool_calls.remove(tool_call_id) {
+                            let previous_output_len = self.expanded_output_row_count();
                             self.overlay_state
                                 .approved_tool_steps
                                 .remove(&pending.step_id);
@@ -295,7 +287,6 @@ impl TuiMode {
                                 let end = start + pending.transcript_row_count;
                                 if end <= self.history_state.lines.len() {
                                     self.history_state.lines.drain(start..end);
-                                    self.clamp_transcript_after_mutation();
                                     // Shift stored row indices for all remaining
                                     // pending calls whose rows follow the removed
                                     // block so their indices stay accurate.
@@ -307,7 +298,6 @@ impl TuiMode {
                                     }
                                 }
                             }
-                            let previous_output_len = self.expanded_output_row_count();
                             let transcript_rows = super::layout::completed_tool_paragraph_rows(
                                 &pending.name,
                                 &pending.input,
@@ -408,7 +398,17 @@ impl TuiMode {
                                 });
                         }
                     }
-                    StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. } => {}
+                    StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. } => {
+                        // Start a fresh stream segment for this block so
+                        // subsequent deltas materialize into display rows.
+                        self.active_stream_segment_index = None;
+                        // Capture client-side TTFT on the first textual block.
+                        if self.ttft.is_none() {
+                            if let Some(started) = self.turn_started_at {
+                                self.ttft = Some(started.elapsed());
+                            }
+                        }
+                    }
                 }
                 self.active_stream_blocks.insert(index, block);
             }
@@ -421,12 +421,44 @@ impl TuiMode {
                 if let Some(buf) = self.delta_accumulators.get_mut(&index) {
                     buf.append_delta(&delta);
                 }
+                // Determine block kind and apply per-field mutations that only
+                // need the mutable borrow on active_stream_blocks.
+                #[derive(Clone, Copy)]
+                enum DeltaAction {
+                    Thinking,
+                    FinalText,
+                    ToolCall,
+                    None,
+                }
+                let mut action = DeltaAction::None;
+                let mut tool_id_buf: Option<String> = Option::None;
                 if let Some(block) = self.active_stream_blocks.get_mut(&index) {
                     match block {
-                        StreamBlock::Thinking { content, .. } => content.push_str(&delta),
-                        StreamBlock::FinalText { content } => content.push_str(&delta),
+                        StreamBlock::Thinking { content, .. } => {
+                            content.push_str(&delta);
+                            action = DeltaAction::Thinking;
+                        }
+                        StreamBlock::FinalText { content } => {
+                            content.push_str(&delta);
+                            action = DeltaAction::FinalText;
+                        }
                         StreamBlock::ToolCall { id, .. } => {
-                            let tool_id = id.clone();
+                            tool_id_buf = Some(id.clone());
+                            action = DeltaAction::ToolCall;
+                        }
+                        StreamBlock::ToolResult { .. } => {}
+                    }
+                }
+                // Now the mutable borrow on active_stream_blocks is released.
+                // Apply display-side effects that need &mut self.
+                match action {
+                    // RuntimeContext already mirrors textual block content
+                    // through the normalized StreamDelta path. Keep the block
+                    // delta as metadata/cursor state only so the ratatui
+                    // transcript does not render the same text twice.
+                    DeltaAction::Thinking | DeltaAction::FinalText => {}
+                    DeltaAction::ToolCall => {
+                        if let Some(tool_id) = tool_id_buf {
                             if let Some(buf) = self.tool_input_raw_buffers.get_mut(&index) {
                                 buf.push_str(&delta);
                                 if let Some(pending) =
@@ -454,8 +486,8 @@ impl TuiMode {
                             }
                             self.replace_pending_tool_paragraph_rows(&tool_id);
                         }
-                        StreamBlock::ToolResult { .. } => {}
                     }
+                    DeltaAction::None => {}
                 }
             }
             UiUpdate::StreamBlockComplete { index } => {
@@ -466,6 +498,9 @@ impl TuiMode {
                 // cursor for this block once it is absent from the map.
                 self.delta_accumulators.remove(&index);
                 self.tool_input_raw_buffers.remove(&index);
+                // Reset the segment index so the next block starts a fresh
+                // segment in the stream-segments list.
+                self.active_stream_segment_index = None;
                 self.active_stream_blocks.remove(&index);
             }
             UiUpdate::ToolApprovalRequest(ToolApprovalRequest {
@@ -552,6 +587,7 @@ impl TuiMode {
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
                 self.tool_input_raw_buffers.clear();
+                self.structured_streaming_active = false;
                 self.history_state.cancel_pending = false;
                 self.history_state.turn_in_progress = false;
                 self.history_state.active_assistant_index = None;
@@ -651,6 +687,7 @@ impl TuiMode {
                 self.resolve_pending_patch_approval(false);
                 self.active_stream_blocks.clear();
                 self.tool_input_raw_buffers.clear();
+                self.structured_streaming_active = false;
                 self.last_turn_duration = self.turn_started_at.map(|started| started.elapsed());
                 self.last_turn_timings = self.current_turn_timings.clone();
                 self.last_error_message = Some(msg.clone());

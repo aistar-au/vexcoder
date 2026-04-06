@@ -556,20 +556,20 @@ mod tests {
     }
 
     #[test]
-    fn long_outcome_truncated_at_word_boundary() {
-        let long = "this is a long outcome line that exceeds sixty characters and should be truncated at a word boundary";
+    fn long_outcome_shortened_at_word_boundary() {
+        let long = "this is a long outcome line that exceeds sixty characters and should be shortened at a word boundary";
         let result = compact_outcome_summary(long);
         assert!(
             result.len() <= 65,
-            "truncated result must be compact: got {result:?}"
+            "shortened result must be compact: got {result:?}"
         );
         assert!(
             result.ends_with('\u{2026}'),
-            "truncated result must end with ellipsis: got {result:?}"
+            "shortened result must end with ellipsis: got {result:?}"
         );
         assert!(
             result.contains("this is a long"),
-            "truncated result must preserve the start: got {result:?}"
+            "shortened result must preserve the start: got {result:?}"
         );
     }
 

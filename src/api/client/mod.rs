@@ -222,7 +222,7 @@ Do not claim unsupported git tools like git_clone, git_init, git_remote, git_con
 Available tools are exactly: read_file, write_file, apply_patch, edit_file, rename_file, list_files, list_directory, list_dir, glob_files, search_files, search, git_status, git_diff, git_log, git_show, git_add, git_commit, search_content, find_files, codebase_search. Do not call tools not in this list. Shell utilities (run_shell_command, bash, wc, cat, grep, find) are not available; use the file and search tools above. For counting, aggregation, or analysis, use search_files/read_file results and compute in your response. Rely on workspace context and prior tool results (memory) rather than assuming shell access.\n\
 Always send non-empty string paths for file tools.\n\
 Avoid redundant loops: do not repeat identical read/search tool calls without new evidence.\n\
-Tool results from earlier turns may be condensed to their first few lines; if you need the full output, re-run the tool instead of assuming the truncated text is complete.";
+Tool results from earlier turns may be condensed to their first few lines; if you need the full output, re-run the tool instead of assuming the shortened excerpt is complete.";
 
 #[cfg(test)]
 pub trait MockStreamProducer: Send + Sync {

@@ -545,7 +545,7 @@ async fn test_tui_diff_clean_working_tree() {
         .any(|l| l == "[diff] working tree is clean"));
 }
 #[tokio::test]
-async fn test_tui_diff_truncates_at_max_lines() {
+async fn test_tui_diff_limits_output_at_max_lines() {
     let mut ctx = setup_ctx();
     let temp = tempfile::tempdir().unwrap();
     init_git_repo(temp.path());
@@ -568,7 +568,7 @@ async fn test_tui_diff_truncates_at_max_lines() {
     assert!(mode
         .history_lines()
         .iter()
-        .any(|line| line == "[diff truncated \u{2014} showing first 200 lines]"));
+        .any(|line| line == "[diff limited to first 200 lines]"));
 }
 #[tokio::test]
 async fn test_tui_diff_does_not_start_model_turn() {
@@ -1167,8 +1167,8 @@ fn test_fix_command_grants_task_permissions() {
             exit_code: 1,
             stdout_tail: String::new(),
             stderr_tail: String::new(),
-            stdout_truncated: false,
-            stderr_truncated: false,
+            stdout_tail_limited: false,
+            stderr_tail_limited: false,
         }],
     });
     mode.active_edit_loop = Some(edit_loop);
@@ -1209,8 +1209,8 @@ fn test_fix_command_preserves_session_permissions() {
             exit_code: 1,
             stdout_tail: String::new(),
             stderr_tail: String::new(),
-            stdout_truncated: false,
-            stderr_truncated: false,
+            stdout_tail_limited: false,
+            stderr_tail_limited: false,
         }],
     });
     mode.active_edit_loop = Some(edit_loop);
@@ -1817,6 +1817,64 @@ fn test_stream_block_delta_updates_pending_tool_call_input() {
     );
 }
 
+#[test]
+fn test_tool_result_replacement_preserves_scroll_by_net_growth() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.history_state.lines = (0..18)
+        .map(|index| format!("history row {index}"))
+        .collect();
+    mode.history_state.turn_in_progress = true;
+    mode.transcript_scroll_offset = 4;
+
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "tc-scroll".to_string(),
+                name: "read_file".to_string(),
+                input: serde_json::json!({"path":"src/main.rs"}),
+                status: crate::state::ToolStatus::Executing,
+            },
+        },
+        &mut ctx,
+    );
+
+    let previous_output_len = mode.expanded_output_row_count();
+    let previous_scroll_offset = mode.transcript_scroll_offset;
+
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 1,
+            block: StreamBlock::ToolResult {
+                tool_call_id: "tc-scroll".to_string(),
+                output: "read_file completed\nline one\nline two\nline three\nline four"
+                    .to_string(),
+                is_error: false,
+            },
+        },
+        &mut ctx,
+    );
+
+    let new_output_len = mode.expanded_output_row_count();
+    assert!(
+        new_output_len > previous_output_len,
+        "completed tool paragraph should grow compared with the pending preview"
+    );
+    assert_eq!(
+        mode.transcript_scroll_offset,
+        previous_scroll_offset + (new_output_len - previous_output_len),
+        "scroll preservation must use the net replacement growth rather than the full completed paragraph height"
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[tool] read_file · src/main.rs · Response complete."),
+        "completed tool paragraph must replace the pending transcript rows"
+    );
+}
+
 // -- duplicate tool-call folding -------------------------------------------------
 
 fn tool_call_start(index: usize, id: &str, name: &str, input: serde_json::Value) -> UiUpdate {
@@ -2025,7 +2083,7 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
 }
 
 #[test]
-fn test_long_transcript_line_truncated() {
+fn test_long_transcript_line_marks_omitted_characters() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
     mode.on_user_input("task".to_string(), &mut ctx);
@@ -2038,12 +2096,12 @@ fn test_long_transcript_line_truncated() {
     let last = lines.last().expect("should have at least one line");
     assert!(
         last.len() < long_line.len(),
-        "transcript lines exceeding 512 chars must be truncated; got {} chars",
+        "transcript lines exceeding 512 chars must be shortened; got {} chars",
         last.len()
     );
     assert!(
-        last.contains("truncated"),
-        "truncated transcript line must indicate truncation; got: {}",
+        last.contains("more chars omitted"),
+        "shortened transcript line must explain omitted characters; got: {}",
         &last[last.len().saturating_sub(60)..]
     );
 }

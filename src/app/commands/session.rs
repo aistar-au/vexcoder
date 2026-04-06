@@ -111,7 +111,7 @@ impl TuiMode {
         let old = std::mem::replace(&mut self.model_name, name.to_string());
         self.push_history_line(format!("[model] {} -> {}", old, self.model_name));
     }
-    /// PK-07: `/diff [--staged]` — show git diff output, truncated at 200 lines.
+    /// PK-07: `/diff [--staged]` — show git diff output, capped at 200 lines.
     pub(crate) fn handle_diff_command(&mut self, args: &str) {
         let diff_defaults = ContextAssembler::default();
         let max_diff_lines = diff_defaults.max_diff_lines;
@@ -162,7 +162,7 @@ impl TuiMode {
                 }
                 if lines.len() > max_diff_lines {
                     self.push_history_line(format!(
-                        "[diff truncated \u{2014} showing first {max_diff_lines} lines]"
+                        "[diff limited to first {max_diff_lines} lines]"
                     ));
                 }
             }

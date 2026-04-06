@@ -105,13 +105,13 @@ impl TuiMode {
             }
             Ok(Some(_)) => match operator.read_file(path) {
                 Ok(content) => {
-                    let (content, truncated) =
+                    let (content, content_limited) =
                         truncate_head_bytes(&content, assembler.max_file_bytes);
                     format_inline_block(
                         "file",
                         path,
                         &content,
-                        truncated,
+                        content_limited,
                         Some(assembler.max_file_bytes),
                     )
                 }

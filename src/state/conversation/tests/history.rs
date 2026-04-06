@@ -41,23 +41,23 @@ cal.js
 #[test]
 fn test_truncate_for_history() {
     let text = "abcdefghij";
-    let truncated = truncate_for_history(text, 40);
-    assert_eq!(truncated, text);
+    let shortened = truncate_for_history(text, 40);
+    assert_eq!(shortened, text);
 
-    let truncated = truncate_for_history(text, 5);
-    assert!(truncated.len() <= 5);
+    let shortened = truncate_for_history(text, 5);
+    assert!(shortened.len() <= 5);
 
     let long_text = "abcdefghijklmnopqrstuvwxyz0123456789";
-    let truncated_with_marker = truncate_for_history(long_text, 30);
-    assert!(truncated_with_marker.contains("[truncated"));
+    let shortened_with_marker = truncate_for_history(long_text, 30);
+    assert!(shortened_with_marker.contains("chars omitted"));
 }
 #[test]
 fn test_truncate_for_history_preserves_tail_context() {
     let text = "head-aaaa-bbbb-cccc-dddd-eeee-ffff-gggg-tail";
-    let truncated = truncate_for_history(text, 40);
-    assert!(truncated.contains("[truncated"));
-    assert!(truncated.contains("head"));
-    assert!(truncated.contains("tail"));
+    let shortened = truncate_for_history(text, 40);
+    assert!(shortened.contains("chars omitted"));
+    assert!(shortened.contains("head"));
+    assert!(shortened.contains("tail"));
 }
 #[test]
 fn test_required_tool_string_validation() {
@@ -557,7 +557,7 @@ fn test_clear_messages_resets_cached_conversation_state() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_condense_old_tool_results_truncates_blocks() {
+fn test_condense_old_tool_results_clips_blocks() {
     let client = Arc::new(MockApiClient::new(vec![]));
     let dir = tempfile::tempdir().unwrap();
     let operator = ToolOperator::new(dir.path().to_path_buf());

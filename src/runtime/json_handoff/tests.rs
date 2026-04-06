@@ -148,25 +148,38 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
     let mut normalizer = RuntimeEnvelopeNormalizer::new("task-2");
     let _ = normalizer.start_turn(1, Some("review".to_string()));
 
-    let delta = normalizer
-        .normalize_ui_update(&UiUpdate::StreamDelta("hello".to_string()), None)
-        .pop()
-        .expect("delta envelope");
-    assert_eq!(delta.seq, 2);
+    let delta = normalizer.normalize_ui_update(&UiUpdate::StreamDelta("hello".to_string()), None);
+    assert_eq!(delta.len(), 2);
+    assert_eq!(delta[0].seq, 2);
+    let final_text_index = match &delta[0].event {
+        RuntimeEvent::TranscriptBlockStart {
+            index,
+            block: StreamBlock::FinalText { content },
+        } => {
+            assert!(content.is_empty());
+            *index
+        }
+        other => panic!("expected final-text block start, got {other:?}"),
+    };
     assert!(matches!(
-        delta.event,
-        RuntimeEvent::AssistantDelta { ref text } if text == "hello"
+        delta[1].event,
+        RuntimeEvent::TranscriptBlockDelta {
+            index,
+            ref delta,
+        } if index == final_text_index && delta == "hello"
     ));
 
-    let transcript_line = normalizer
-        .normalize_ui_update(
-            &UiUpdate::TranscriptLine("[edit loop: running validation]".to_string()),
-            None,
-        )
-        .pop()
-        .expect("transcript line envelope");
+    let transcript_line = normalizer.normalize_ui_update(
+        &UiUpdate::TranscriptLine("[edit loop: running validation]".to_string()),
+        None,
+    );
+    assert_eq!(transcript_line.len(), 2);
     assert!(matches!(
-        transcript_line.event,
+        transcript_line[0].event,
+        RuntimeEvent::TranscriptBlockComplete { index } if index == final_text_index
+    ));
+    assert!(matches!(
+        transcript_line[1].event,
         RuntimeEvent::TranscriptLine { ref line }
             if line == "[edit loop: running validation]"
     ));
@@ -282,13 +295,9 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
             changed_files: vec!["src/main.rs".to_string()],
         }),
     );
-    assert_eq!(terminal.len(), 2);
+    assert_eq!(terminal.len(), 1);
     assert!(matches!(
         terminal[0].event,
-        RuntimeEvent::AssistantMessage { ref content } if content == "hello"
-    ));
-    assert!(matches!(
-        terminal[1].event,
         RuntimeEvent::TurnEnd {
             ref status,
             usage: Some(TokenUsageEnvelope { input: 4, output: 2, estimated: false }),
@@ -336,8 +345,11 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
         task_id: "batch-1741700000000".to_string(),
         turn: 2,
         seq: 2,
-        event: RuntimeEvent::AssistantDelta {
-            text: "fallback".to_string(),
+        event: RuntimeEvent::TranscriptBlockStart {
+            index: 0,
+            block: StreamBlock::FinalText {
+                content: String::new(),
+            },
         },
     });
     envelopes.push(RuntimeEnvelope {
@@ -345,6 +357,23 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
         task_id: "batch-1741700000000".to_string(),
         turn: 2,
         seq: 3,
+        event: RuntimeEvent::TranscriptBlockDelta {
+            index: 0,
+            delta: "fallback".to_string(),
+        },
+    });
+    envelopes.push(RuntimeEnvelope {
+        version: 1,
+        task_id: "batch-1741700000000".to_string(),
+        turn: 2,
+        seq: 4,
+        event: RuntimeEvent::TranscriptBlockComplete { index: 0 },
+    });
+    envelopes.push(RuntimeEnvelope {
+        version: 1,
+        task_id: "batch-1741700000000".to_string(),
+        turn: 2,
+        seq: 5,
         event: RuntimeEvent::TurnEnd {
             status: "completed".to_string(),
             usage: None,

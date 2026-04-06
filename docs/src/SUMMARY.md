@@ -2,6 +2,7 @@
 
 - [Introduction](introduction.md)
 - [Architecture Overview](architecture.md)
+- [Tool-Call Cutover](tool-call-cutover.md)
 
 ---
 

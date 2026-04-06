@@ -40,8 +40,8 @@ pub struct ValidationOutput {
     pub exit_code: i32,
     pub stdout_tail: String,
     pub stderr_tail: String,
-    pub stdout_truncated: bool,
-    pub stderr_truncated: bool,
+    pub stdout_tail_limited: bool,
+    pub stderr_tail_limited: bool,
 }
 
 #[derive(serde::Deserialize)]
@@ -154,8 +154,8 @@ impl ValidationSuite {
             ));
 
             if !output.stdout_tail.is_empty() {
-                if output.stdout_truncated {
-                    out.push_str("[stdout truncated \u{2014} showing last 8192 bytes]\n");
+                if output.stdout_tail_limited {
+                    out.push_str("[showing last 8192 bytes of stdout]\n");
                 }
                 out.push_str("stdout:\n```text\n");
                 out.push_str(&output.stdout_tail);
@@ -166,8 +166,8 @@ impl ValidationSuite {
             }
 
             if !output.stderr_tail.is_empty() {
-                if output.stderr_truncated {
-                    out.push_str("[stderr truncated \u{2014} showing last 8192 bytes]\n");
+                if output.stderr_tail_limited {
+                    out.push_str("[showing last 8192 bytes of stderr]\n");
                 }
                 out.push_str("stderr:\n```text\n");
                 out.push_str(&output.stderr_tail);
@@ -273,8 +273,8 @@ where
             exit_code: -1,
             stdout_tail: String::new(),
             stderr_tail: "validation command program cannot be empty".to_string(),
-            stdout_truncated: false,
-            stderr_truncated: false,
+            stdout_tail_limited: false,
+            stderr_tail_limited: false,
         };
     }
 
@@ -287,29 +287,29 @@ where
     let result = timeout(Duration::from_secs(timeout_secs), runner.run_one_shot(req)).await;
     match result {
         Ok(Ok(output)) => {
-            let (stdout_tail, stdout_truncated) =
+            let (stdout_tail, stdout_tail_limited) =
                 truncate_tail_bytes(&output.stdout, VALIDATION_TAIL_BYTES);
-            let (stderr_tail, stderr_truncated) =
+            let (stderr_tail, stderr_tail_limited) =
                 truncate_tail_bytes(&output.stderr, VALIDATION_TAIL_BYTES);
             ValidationOutput {
                 label: command.label.clone(),
                 exit_code: output.exit_code,
                 stdout_tail,
                 stderr_tail,
-                stdout_truncated,
-                stderr_truncated,
+                stdout_tail_limited,
+                stderr_tail_limited,
             }
         }
         Ok(Err(error)) => {
-            let (stderr_tail, stderr_truncated) =
+            let (stderr_tail, stderr_tail_limited) =
                 truncate_tail_bytes(&error.to_string(), VALIDATION_TAIL_BYTES);
             ValidationOutput {
                 label: command.label.clone(),
                 exit_code: -1,
                 stdout_tail: String::new(),
                 stderr_tail,
-                stdout_truncated: false,
-                stderr_truncated,
+                stdout_tail_limited: false,
+                stderr_tail_limited,
             }
         }
         Err(_) => ValidationOutput {
@@ -317,8 +317,8 @@ where
             exit_code: -1,
             stdout_tail: String::new(),
             stderr_tail: format!("validation command timed out after {}s", timeout_secs),
-            stdout_truncated: false,
-            stderr_truncated: false,
+            stdout_tail_limited: false,
+            stderr_tail_limited: false,
         },
     }
 }
@@ -347,8 +347,8 @@ where
                 exit_code: -1,
                 stdout_tail: String::new(),
                 stderr_tail: error.to_string(),
-                stdout_truncated: false,
-                stderr_truncated: false,
+                stdout_tail_limited: false,
+                stderr_tail_limited: false,
             };
         }
     };
@@ -361,17 +361,17 @@ where
 
     match result {
         Ok(Ok(result)) => {
-            let (stdout_tail, stdout_truncated) =
+            let (stdout_tail, stdout_tail_limited) =
                 truncate_tail_bytes(&result.stdout, VALIDATION_TAIL_BYTES);
-            let (stderr_tail, stderr_truncated) =
+            let (stderr_tail, stderr_tail_limited) =
                 truncate_tail_bytes(&result.stderr, VALIDATION_TAIL_BYTES);
             ValidationOutput {
                 label: command.label.clone(),
                 exit_code: result.exit_code,
                 stdout_tail,
                 stderr_tail,
-                stdout_truncated,
-                stderr_truncated,
+                stdout_tail_limited,
+                stderr_tail_limited,
             }
         }
         Ok(Err(error)) => ValidationOutput {
@@ -379,16 +379,16 @@ where
             exit_code: -1,
             stdout_tail: String::new(),
             stderr_tail: error.to_string(),
-            stdout_truncated: false,
-            stderr_truncated: false,
+            stdout_tail_limited: false,
+            stderr_tail_limited: false,
         },
         Err(_) => ValidationOutput {
             label: command.label.clone(),
             exit_code: -1,
             stdout_tail: String::new(),
             stderr_tail: format!("timed out after {}s", timeout_secs),
-            stdout_truncated: false,
-            stderr_truncated: false,
+            stdout_tail_limited: false,
+            stderr_tail_limited: false,
         },
     }
 }

@@ -376,7 +376,7 @@ pub(super) fn compact_param_value(value: &str) -> String {
     if first_line.chars().count() <= 77 {
         format!("{first_line}\u{2026}")
     } else {
-        let truncated: String = first_line.chars().take(77).collect();
-        format!("{truncated}\u{2026}")
+        let shortened: String = first_line.chars().take(77).collect();
+        format!("{shortened}\u{2026}")
     }
 }

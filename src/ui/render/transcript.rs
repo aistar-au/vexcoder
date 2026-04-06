@@ -443,19 +443,19 @@ pub(crate) fn truncate_line(input: &str, width: usize) -> String {
     let width = width.max(1);
     let mut out = String::new();
     let mut used = 0usize;
-    let mut truncated = false;
+    let mut clipped = false;
 
     for ch in input.chars() {
         let ch_width = char_display_width(ch);
         if used + ch_width > width {
-            truncated = true;
+            clipped = true;
             break;
         }
         out.push(ch);
         used += ch_width;
     }
 
-    if truncated && width >= 4 {
+    if clipped && width >= 4 {
         out = truncate_to_display_width(&out, width - 3);
         out.push_str("...");
     }
@@ -492,7 +492,7 @@ pub(crate) fn task_output_window(
 }
 
 pub(crate) fn task_output_render_area(
-    state: &TaskLayoutState,
+    _state: &TaskLayoutState,
     area: Rect,
     visible_rows: usize,
 ) -> Rect {
@@ -502,17 +502,6 @@ pub(crate) fn task_output_render_area(
             y: area.y,
             width: area.width,
             height: 0,
-        };
-    }
-
-    if state.output_scroll_anchor == crate::app::OutputScrollAnchor::Bottom
-        && visible_rows < area.height as usize
-    {
-        return Rect {
-            x: area.x,
-            y: area.y + area.height.saturating_sub(visible_rows as u16),
-            width: area.width,
-            height: visible_rows as u16,
         };
     }
 

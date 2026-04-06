@@ -1,6 +1,6 @@
 /// Truncate `text` to at most `max_bytes` bytes from the **start**,
-/// respecting UTF-8 char boundaries. Returns the (possibly truncated)
-/// string and a flag indicating whether truncation occurred.
+/// respecting UTF-8 char boundaries. Returns the possibly shortened
+/// string and a flag indicating whether any bytes were omitted.
 ///
 /// Used by `ContextAssembler` for file-snapshot content.
 pub fn truncate_head_bytes(text: &str, max_bytes: usize) -> (String, bool) {
@@ -15,8 +15,8 @@ pub fn truncate_head_bytes(text: &str, max_bytes: usize) -> (String, bool) {
 }
 
 /// Truncate `text` to at most `max_bytes` bytes from the **end**,
-/// respecting UTF-8 char boundaries. Returns the (possibly truncated)
-/// string and a flag indicating whether truncation occurred.
+/// respecting UTF-8 char boundaries. Returns the possibly shortened
+/// string and a flag indicating whether any bytes were omitted.
 ///
 /// Used by `ValidationSuite` for stdout/stderr tail capture.
 pub fn truncate_tail_bytes(text: &str, max_bytes: usize) -> (String, bool) {
@@ -35,44 +35,44 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_truncate_head_bytes_no_truncation_needed() {
-        let (result, truncated) = truncate_head_bytes("hello", 10);
+    fn test_truncate_head_bytes_no_limit_needed() {
+        let (result, was_limited) = truncate_head_bytes("hello", 10);
         assert_eq!(result, "hello");
-        assert!(!truncated);
+        assert!(!was_limited);
     }
 
     #[test]
-    fn test_truncate_head_bytes_truncates_at_boundary() {
-        let (result, truncated) = truncate_head_bytes("hello world", 5);
+    fn test_truncate_head_bytes_limits_at_boundary() {
+        let (result, was_limited) = truncate_head_bytes("hello world", 5);
         assert_eq!(result, "hello");
-        assert!(truncated);
+        assert!(was_limited);
     }
 
     #[test]
     fn test_truncate_head_bytes_exact_boundary() {
-        let (result, truncated) = truncate_head_bytes("hello", 5);
+        let (result, was_limited) = truncate_head_bytes("hello", 5);
         assert_eq!(result, "hello");
-        assert!(!truncated);
+        assert!(!was_limited);
     }
 
     #[test]
-    fn test_truncate_tail_bytes_no_truncation_needed() {
-        let (result, truncated) = truncate_tail_bytes("hello", 10);
+    fn test_truncate_tail_bytes_no_limit_needed() {
+        let (result, was_limited) = truncate_tail_bytes("hello", 10);
         assert_eq!(result, "hello");
-        assert!(!truncated);
+        assert!(!was_limited);
     }
 
     #[test]
-    fn test_truncate_tail_bytes_truncates_at_boundary() {
-        let (result, truncated) = truncate_tail_bytes("hello world", 5);
+    fn test_truncate_tail_bytes_limits_at_boundary() {
+        let (result, was_limited) = truncate_tail_bytes("hello world", 5);
         assert_eq!(result, "world");
-        assert!(truncated);
+        assert!(was_limited);
     }
 
     #[test]
     fn test_truncate_tail_bytes_exact_boundary() {
-        let (result, truncated) = truncate_tail_bytes("hello", 5);
+        let (result, was_limited) = truncate_tail_bytes("hello", 5);
         assert_eq!(result, "hello");
-        assert!(!truncated);
+        assert!(!was_limited);
     }
 }

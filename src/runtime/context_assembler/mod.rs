@@ -51,7 +51,7 @@ pub struct AssembledContext {
 pub struct FileRollup {
     pub path: PathBuf,
     pub content: Option<String>,
-    pub truncated: bool,
+    pub content_limited: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -211,9 +211,9 @@ impl ContextAssembler {
             out.push_str("### File rollups\n");
             for snapshot in &ctx.file_rollups {
                 out.push_str(&format!("- {}\n", snapshot.path.display()));
-                if snapshot.truncated {
+                if snapshot.content_limited {
                     out.push_str(&format!(
-                        "  [context: file truncated to first {} bytes]\n",
+                        "  [context: file excerpt limited to first {} bytes]\n",
                         self.max_file_bytes
                     ));
                 }

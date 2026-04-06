@@ -169,17 +169,17 @@ pub(super) fn format_inline_block(
     kind: &str,
     path: &str,
     content: &str,
-    truncated: bool,
+    content_limited: bool,
     byte_limit: Option<usize>,
 ) -> String {
     let mut rendered = format!("[{kind}: {path}]\n```text\n{content}\n```");
-    if truncated {
+    if content_limited {
         if let Some(limit) = byte_limit {
             rendered.push_str(&format!(
-                "\n[{kind}: {path} \u{2014} truncated to {limit} bytes]"
+                "\n[{kind}: {path} \u{2014} excerpt limited to {limit} bytes]"
             ));
         } else {
-            rendered.push_str(&format!("\n[{kind}: {path} \u{2014} truncated]"));
+            rendered.push_str(&format!("\n[{kind}: {path} \u{2014} excerpt limited]"));
         }
     }
     rendered

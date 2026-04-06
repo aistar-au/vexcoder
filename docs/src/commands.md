@@ -308,7 +308,7 @@ the overflow from the HTTP 400 response body and provides actionable guidance:
   size (e.g. `--ctx-size 8192`) or using `/compact` to reset the conversation.
 - **Remote endpoints:** suggests using `/compact` to reset the conversation.
 
-The server's error message is shown verbatim (truncated to 300 characters).
+The server's error message is shown verbatim, capped at 300 characters.
 
 For non-context-overflow HTTP 400 errors from local endpoints, the error
 includes the detected protocol (MessagesV1 vs ChatCompat) and suggests
