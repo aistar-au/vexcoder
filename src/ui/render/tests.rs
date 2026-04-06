@@ -427,7 +427,7 @@ fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
 }
 
 #[test]
-fn task_layout_without_changed_files_bottom_anchors_short_transcript() {
+fn task_layout_without_changed_files_starts_short_transcript_below_status_row() {
     let backend = TestBackend::new(60, 16);
     let mut terminal = Terminal::new(backend).unwrap();
     let state = crate::app::TaskLayoutState {
@@ -477,8 +477,8 @@ fn task_layout_without_changed_files_bottom_anchors_short_transcript() {
         .position(|row| row.contains("body row"))
         .expect("body row must appear in rendered output");
     assert!(
-        first_non_empty > 0,
-        "short transcript should hug the prompt edge instead of starting at the top row"
+        first_non_empty <= 1,
+        "short transcript should start directly below the status row so new output grows downward before scrollback engages"
     );
 }
 

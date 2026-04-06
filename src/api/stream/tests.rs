@@ -424,7 +424,7 @@ fn test_normaliser_compact_param_value_short() {
 fn test_normaliser_compact_param_value_long() {
     let long = "a".repeat(100);
     let result = super::text_normaliser::compact_param_value(&long);
-    assert!(result.len() <= 81, "should be truncated: {}", result.len());
+    assert!(result.len() <= 81, "should be shortened: {}", result.len());
     assert!(result.ends_with('\u{2026}'));
 }
 

@@ -5,7 +5,7 @@
 //!
 //! If the file's estimated token count (byte length / 4) exceeds
 //! `token_budget`, `LoadResult::OverBudget` is returned and the caller must
-//! emit a warning and skip injection. The file is never truncated.
+//! emit a warning and skip injection. The file is never shortened.
 
 use std::path::{Path, PathBuf};
 

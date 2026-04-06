@@ -1,14 +1,14 @@
 # Tool-Call Cutover
 
 This note records the current tool-call and transcript rendering findings for
-the ratatui task surface, the short-term repairs applied in PR 348, and the
-larger cutover that still remains.
+the ratatui task surface, the deliberate cutover choices applied in PR 348,
+and the remaining architecture work after that cutover.
 
 ## Current constraints
 
-The ratatui task surface already keeps the composer pinned at the bottom edge
-and treats transcript scroll offset `0` as the live bottom anchor. The
-remaining complexity is not the layout split; it is the live transcript state.
+The ratatui task surface already keeps the composer pinned at the bottom edge.
+The remaining complexity is no longer the pane split; it is the live
+transcript state.
 
 Today the transcript is assembled from three mutable sources:
 
@@ -51,25 +51,42 @@ source of truth for:
 The viewport then consumes one ordered document instead of reconstructing rows
 from multiple mutable sources.
 
-## What PR 348 changes now
+## PR 348 cutover choices
 
-The current PR keeps the ratatui-native transcript surface and applies the
-lowest-risk repairs needed to stabilize it before the larger document-model
-cutover.
+PR 348 keeps the ratatui-native transcript surface and makes four explicit
+choices so the UI, parser, and API route all move in the same direction.
 
-### Transcript-side repairs
+### 1. Viewport contract
 
-- Pending tool paragraphs are still rendered directly into the transcript body
+- The composer stays pinned to the bottom edge.
+- Short transcript bodies now start directly below the status row instead of
+  being bottom-filled with blank space.
+- As new rows arrive, the transcript grows downward until it fills the body.
+  Once the body is full, the live window follows the bottom and older rows
+  scroll upward out of view.
+
+### 2. Transcript rendering contract
+
+- Pending tool paragraphs still render directly into the transcript body
   instead of a separate timeline strip.
-- Completed tool-result replacement now preserves scroll position by using the
-  net transcript growth across the full replacement, not the height of the
-  inserted result paragraph alone.
-- The composer remains pinned to the bottom while transcript paragraphs scroll
-  upward above it.
+- Completed tool-result replacement preserves scroll position by using the net
+  transcript growth across the full replacement, not the height of the
+  inserted paragraph alone.
 
-### Parser-side repairs
+### 3. API-route contract
 
-- Local text-protocol turns now default to the hybrid parser chain.
+- The local API/runtime envelope is now transcript-first.
+- Plain `StreamDelta` text is normalized into synthetic
+  `final_text` transcript blocks (`transcript_block_start`,
+  `transcript_block_delta`, `transcript_block_complete`) instead of emitting a
+  separate live `assistant_delta` / terminal `assistant_message` pair.
+- Historical `assistant_delta` and `assistant_message` events remain parseable
+  for old recordings and batch derivation, but the live local API path no
+  longer depends on them.
+
+### 4. Parser contract
+
+- Local text-protocol turns default to the hybrid parser chain.
 - Tagged `<function=...>` parsing stays the fast path.
 - Generic `<tool_call>`, `<invoke>`, and `<tool_use>` wrappers are accepted as
   fallback input, then normalized into the tagged text protocol for assistant
@@ -78,7 +95,9 @@ cutover.
 ## Next cutover
 
 The next architecture step is to replace the split transcript state with one
-canonical task document.
+canonical task document. The API route has already cut over to the
+transcript-first shape; the remaining work is to make the in-process task
+state match that same model.
 
 That cutover should:
 
@@ -89,8 +108,9 @@ That cutover should:
 3. Let the ratatui viewport render wrapped display rows from that paragraph
    list without reconstructing state from `history_state.lines`,
    `current_turn_stream_segments`, and `active_stream_blocks`.
-4. Keep the local API/runtime envelope transcript-first so downstream clients
-   do not need to reparse flattened assistant text.
+4. Remove the remaining split between `history_state.lines`,
+  `current_turn_stream_segments`, and `active_stream_blocks` so the renderer
+  and the runtime both consume one ordered document.
 
 Until that larger cutover lands, the ratatui transcript path should continue
 to prefer paragraph-preserving repairs over additional side buffers.

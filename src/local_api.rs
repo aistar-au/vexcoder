@@ -291,14 +291,8 @@ mod tests {
         mode.on_interrupt(&mut ctx);
         mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
 
-        let assistant: RuntimeEnvelope =
-            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         let terminal: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
-        assert!(matches!(
-            assistant.event,
-            RuntimeEvent::AssistantMessage { .. }
-        ));
         assert!(matches!(
             terminal.event,
             RuntimeEvent::TurnEnd { ref status, .. } if status == "cancelled"
@@ -394,21 +388,35 @@ mod tests {
             serde_json::from_str::<RuntimeEnvelope>(&envelope_rx.recv().await.unwrap()).unwrap(),
             serde_json::from_str::<RuntimeEnvelope>(&envelope_rx.recv().await.unwrap()).unwrap(),
             serde_json::from_str::<RuntimeEnvelope>(&envelope_rx.recv().await.unwrap()).unwrap(),
+            serde_json::from_str::<RuntimeEnvelope>(&envelope_rx.recv().await.unwrap()).unwrap(),
         ];
 
         let seqs: Vec<u64> = envelopes.iter().map(|envelope| envelope.seq).collect();
-        assert_eq!(seqs, vec![1, 2, 3, 4]);
+        assert_eq!(seqs, vec![1, 2, 3, 4, 5]);
         assert!(matches!(envelopes[0].event, RuntimeEvent::TurnStart { .. }));
-        assert!(matches!(
-            envelopes[1].event,
-            RuntimeEvent::AssistantDelta { .. }
-        ));
+        let final_text_index = match &envelopes[1].event {
+            RuntimeEvent::TranscriptBlockStart {
+                index,
+                block: StreamBlock::FinalText { content },
+            } => {
+                assert!(content.is_empty());
+                *index
+            }
+            other => panic!("expected transcript final-text block start, got {other:?}"),
+        };
         assert!(matches!(
             envelopes[2].event,
-            RuntimeEvent::AssistantMessage { .. }
+            RuntimeEvent::TranscriptBlockDelta {
+                index,
+                ref delta,
+            } if index == final_text_index && delta == "working"
         ));
         assert!(matches!(
             envelopes[3].event,
+            RuntimeEvent::TranscriptBlockComplete { index } if index == final_text_index
+        ));
+        assert!(matches!(
+            envelopes[4].event,
             RuntimeEvent::TurnEnd { ref status, .. } if status == "completed"
         ));
     }

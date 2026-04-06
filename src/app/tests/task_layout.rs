@@ -805,7 +805,7 @@ fn test_task_layout_state_exposes_structured_footer_inputs() {
         file_rollups: vec![crate::runtime::FileRollup {
             path: std::path::PathBuf::from("src/main.rs"),
             content: Some("fn main() {}\n".to_string()),
-            truncated: false,
+            content_limited: false,
         }],
         git_status_summary: Some(" M src/main.rs".to_string()),
         recent_diff: None,

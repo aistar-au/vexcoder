@@ -16,6 +16,8 @@ mod derived;
 use self::derived::{empty_json_object, turn_tokens_from_usage, DerivedTurnState};
 pub use self::derived::{runtime_approval_request_event, token_usage_from_turn_tokens};
 
+const SYNTHETIC_FINAL_TEXT_BLOCK_START: usize = 1_000_000;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeEnvelope {
     pub version: u16,
@@ -157,10 +159,11 @@ pub struct RuntimeEnvelopeNormalizer {
     task_id: String,
     turn: u32,
     next_seq: u64,
-    assistant_text: String,
     pending_tool_calls: IndexMap<String, PendingToolCall>,
     turn_changed_files: BTreeSet<String>,
     tool_id_counter: u64,
+    open_final_text_block: Option<usize>,
+    next_synthetic_block_index: usize,
 }
 
 impl RuntimeEnvelopeNormalizer {
@@ -169,19 +172,21 @@ impl RuntimeEnvelopeNormalizer {
             task_id: task_id.into(),
             turn: 0,
             next_seq: 1,
-            assistant_text: String::new(),
             pending_tool_calls: IndexMap::new(),
             turn_changed_files: BTreeSet::new(),
             tool_id_counter: 0,
+            open_final_text_block: None,
+            next_synthetic_block_index: SYNTHETIC_FINAL_TEXT_BLOCK_START,
         }
     }
 
     pub fn start_turn(&mut self, turn: u32, input: Option<String>) -> RuntimeEnvelope {
         self.turn = turn;
         self.next_seq = 1;
-        self.assistant_text.clear();
         self.pending_tool_calls.clear();
         self.turn_changed_files.clear();
+        self.open_final_text_block = None;
+        self.next_synthetic_block_index = SYNTHETIC_FINAL_TEXT_BLOCK_START;
 
         self.next_envelope(RuntimeEvent::TurnStart { input })
     }
@@ -244,17 +249,26 @@ impl RuntimeEnvelopeNormalizer {
     ) -> Vec<RuntimeEnvelope> {
         match update {
             UiUpdate::TranscriptLine(line) => {
-                vec![self.next_envelope(RuntimeEvent::TranscriptLine { line: line.clone() })]
+                let mut envelopes = self.close_open_final_text_block();
+                envelopes
+                    .push(self.next_envelope(RuntimeEvent::TranscriptLine { line: line.clone() }));
+                envelopes
             }
             UiUpdate::StreamDelta(text) => {
-                self.assistant_text.push_str(text);
-                vec![self.next_envelope(RuntimeEvent::AssistantDelta { text: text.clone() })]
+                let (index, block_start) = self.ensure_open_final_text_block();
+                let mut envelopes = block_start.into_iter().collect::<Vec<_>>();
+                envelopes.push(self.next_envelope(RuntimeEvent::TranscriptBlockDelta {
+                    index,
+                    delta: text.clone(),
+                }));
+                envelopes
             }
             UiUpdate::StreamBlockStart { index, block } => {
-                let mut envelopes = vec![self.next_envelope(RuntimeEvent::TranscriptBlockStart {
+                let mut envelopes = self.close_open_final_text_block();
+                envelopes.push(self.next_envelope(RuntimeEvent::TranscriptBlockStart {
                     index: *index,
                     block: block.clone(),
-                })];
+                }));
                 envelopes.extend(self.normalize_stream_block(block));
                 envelopes
             }
@@ -275,7 +289,9 @@ impl RuntimeEnvelopeNormalizer {
                 terminal.unwrap_or_default(),
             ),
             UiUpdate::ToolApprovalRequest(request) => {
-                vec![self.next_envelope(runtime_approval_request_event(request))]
+                let mut envelopes = self.close_open_final_text_block();
+                envelopes.push(self.next_envelope(runtime_approval_request_event(request)));
+                envelopes
             }
             UiUpdate::ServerMetadata(_) => Vec::new(),
             UiUpdate::CommandSessionStarted { .. }
@@ -299,11 +315,12 @@ impl RuntimeEnvelopeNormalizer {
         recoverable: bool,
         terminal: TurnEndContext,
     ) -> Vec<RuntimeEnvelope> {
-        let mut envelopes = vec![self.next_envelope(RuntimeEvent::Error {
+        let mut envelopes = self.close_open_final_text_block();
+        envelopes.push(self.next_envelope(RuntimeEvent::Error {
             code,
             message,
             recoverable,
-        })];
+        }));
 
         if !recoverable {
             envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
@@ -321,14 +338,14 @@ impl RuntimeEnvelopeNormalizer {
         max_turns: u32,
         terminal: TurnEndContext,
     ) -> Vec<RuntimeEnvelope> {
-        vec![
-            self.next_envelope(RuntimeEvent::MaxTurnsReached { max_turns }),
-            self.next_envelope(RuntimeEvent::TurnEnd {
-                status: "failed".to_string(),
-                usage: terminal.usage,
-                changed_files: self.resolve_changed_files(terminal.changed_files),
-            }),
-        ]
+        let mut envelopes = self.close_open_final_text_block();
+        envelopes.push(self.next_envelope(RuntimeEvent::MaxTurnsReached { max_turns }));
+        envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
+            status: "failed".to_string(),
+            usage: terminal.usage,
+            changed_files: self.resolve_changed_files(terminal.changed_files),
+        }));
+        envelopes
     }
 
     pub fn emit_cancelled(&mut self, terminal: TurnEndContext) -> Vec<RuntimeEnvelope> {
@@ -348,16 +365,41 @@ impl RuntimeEnvelopeNormalizer {
         status: &str,
         terminal: TurnEndContext,
     ) -> Vec<RuntimeEnvelope> {
-        vec![
-            self.next_envelope(RuntimeEvent::AssistantMessage {
-                content: self.assistant_text.clone(),
-            }),
-            self.next_envelope(RuntimeEvent::TurnEnd {
-                status: status.to_string(),
-                usage: terminal.usage,
-                changed_files: self.resolve_changed_files(terminal.changed_files),
-            }),
-        ]
+        let mut envelopes = self.close_open_final_text_block();
+        envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
+            status: status.to_string(),
+            usage: terminal.usage,
+            changed_files: self.resolve_changed_files(terminal.changed_files),
+        }));
+        envelopes
+    }
+
+    fn ensure_open_final_text_block(&mut self) -> (usize, Option<RuntimeEnvelope>) {
+        if let Some(index) = self.open_final_text_block {
+            return (index, None);
+        }
+
+        let index = self.next_synthetic_block_index;
+        self.next_synthetic_block_index = self.next_synthetic_block_index.saturating_add(1);
+        self.open_final_text_block = Some(index);
+
+        (
+            index,
+            Some(self.next_envelope(RuntimeEvent::TranscriptBlockStart {
+                index,
+                block: StreamBlock::FinalText {
+                    content: String::new(),
+                },
+            })),
+        )
+    }
+
+    fn close_open_final_text_block(&mut self) -> Vec<RuntimeEnvelope> {
+        let Some(index) = self.open_final_text_block.take() else {
+            return Vec::new();
+        };
+
+        vec![self.next_envelope(RuntimeEvent::TranscriptBlockComplete { index })]
     }
 
     fn normalize_grammar_tool_call(
@@ -521,6 +563,23 @@ pub fn derive_batch_records(
                     state.assistant_message = Some(content.clone());
                 }
             }
+            RuntimeEvent::TranscriptBlockStart { index, block } => {
+                if let Some(state) = current_turn.as_mut() {
+                    if let StreamBlock::FinalText { content } = block {
+                        state.start_final_text_block(*index, content.clone());
+                    }
+                }
+            }
+            RuntimeEvent::TranscriptBlockDelta { index, delta } => {
+                if let Some(state) = current_turn.as_mut() {
+                    state.append_final_text_delta(*index, delta);
+                }
+            }
+            RuntimeEvent::TranscriptBlockComplete { index } => {
+                if let Some(state) = current_turn.as_mut() {
+                    state.complete_final_text_block(*index);
+                }
+            }
             RuntimeEvent::ToolResult {
                 tool_name,
                 is_error,
@@ -555,9 +614,6 @@ pub fn derive_batch_records(
                 max_turns_reached = true;
             }
             RuntimeEvent::TranscriptLine { .. }
-            | RuntimeEvent::TranscriptBlockStart { .. }
-            | RuntimeEvent::TranscriptBlockDelta { .. }
-            | RuntimeEvent::TranscriptBlockComplete { .. }
             | RuntimeEvent::ToolCall { .. }
             | RuntimeEvent::ApprovalRequest { .. }
             | RuntimeEvent::ApprovalResolved { .. }

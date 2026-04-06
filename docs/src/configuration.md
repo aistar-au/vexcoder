@@ -409,7 +409,7 @@ Number of texts sent per embedding API call. Default: `32`.
 ### `VEX_HISTORY_KEEP_TURNS`
 
 Number of recent conversation turns kept at full fidelity. Older turns are
-condensed: tool results are truncated to their first 5 lines plus a
+condensed: tool results keep their first 5 lines plus a
 `(N more lines)` indicator, keeping the conversation within the context
 budget without losing the thread of earlier work. Default: `10`.
 

@@ -95,16 +95,16 @@ impl TuiMode {
                 for line in output.stdout_tail.lines() {
                     self.push_history_line(format!("  stdout: {line}"));
                 }
-                if output.stdout_truncated {
-                    self.push_history_line("  stdout: [truncated]".to_string());
+                if output.stdout_tail_limited {
+                    self.push_history_line("  stdout: [earlier output omitted]".to_string());
                 }
             }
             if !output.stderr_tail.trim().is_empty() {
                 for line in output.stderr_tail.lines() {
                     self.push_history_line(format!("  stderr: {line}"));
                 }
-                if output.stderr_truncated {
-                    self.push_history_line("  stderr: [truncated]".to_string());
+                if output.stderr_tail_limited {
+                    self.push_history_line("  stderr: [earlier output omitted]".to_string());
                 }
             }
             if output.stdout_tail.trim().is_empty() && output.stderr_tail.trim().is_empty() {

@@ -92,7 +92,7 @@ pub fn list_dir(operator: &ToolOperator, path: Option<&str>, max_entries: usize)
     let mut out = entries.join("\n");
     if entries.len() >= limit && total > limit {
         out.push_str(&format!(
-            "\n[results truncated — showing first {} of {} entries]",
+            "\n[results limited to first {} of {} entries]",
             limit, total
         ));
     }
@@ -147,7 +147,7 @@ pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) ->
     let mut out = matched.join("\n");
     if total > limit {
         out.push_str(&format!(
-            "\n[results truncated — showing first {} of {} matches]",
+            "\n[results limited to first {} of {} matches]",
             limit, total
         ));
     }
@@ -262,8 +262,8 @@ mod tests {
         let ws = make_workspace(&["a.rs", "b.rs", "c.rs", "d.rs", "e.rs"]);
         let out = list_dir(&op(&ws), None, 3).unwrap();
         assert!(
-            out.contains("[results truncated"),
-            "expected truncation annotation: {out}"
+            out.contains("[results limited to first"),
+            "expected bounded-results annotation: {out}"
         );
     }
 
@@ -283,8 +283,8 @@ mod tests {
         let ws = make_workspace(&["a.rs", "b.rs", "c.rs", "d.rs", "e.rs"]);
         let out = glob_files(&op(&ws), "*.rs", 2).unwrap();
         assert!(
-            out.contains("[results truncated"),
-            "expected truncation when limit < total: {out}"
+            out.contains("[results limited to first"),
+            "expected bounded-results annotation when limit < total: {out}"
         );
     }
 

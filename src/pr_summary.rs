@@ -36,7 +36,7 @@ pub async fn run_git_capture(cwd: PathBuf, args: Vec<String>) -> Result<String> 
 
 pub fn truncate_lines(text: &str, max_lines: usize) -> (String, bool) {
     let lines = text.lines().collect::<Vec<_>>();
-    let truncated = lines.len() > max_lines;
+    let was_limited = lines.len() > max_lines;
     let mut rendered = lines
         .iter()
         .take(max_lines)
@@ -46,7 +46,7 @@ pub fn truncate_lines(text: &str, max_lines: usize) -> (String, bool) {
     if text.ends_with('\n') && !rendered.is_empty() {
         rendered.push('\n');
     }
-    (rendered, truncated)
+    (rendered, was_limited)
 }
 
 pub fn record_branch_on_active_task(cwd: &Path, branch_name: &str) -> Result<Option<String>> {
@@ -144,7 +144,7 @@ pub async fn prepare_pr_summary_prompt(cwd: &Path) -> Result<String> {
     }
 
     let max_diff_lines = ContextAssembler::default().max_diff_lines;
-    let (diff_excerpt, truncated) = truncate_lines(&diff, max_diff_lines);
+    let (diff_excerpt, diff_limited) = truncate_lines(&diff, max_diff_lines);
     let mut diff_context = String::new();
     diff_context.push_str("## Diff stat\n```text\n");
     if diff_stat.trim().is_empty() {
@@ -159,9 +159,9 @@ pub async fn prepare_pr_summary_prompt(cwd: &Path) -> Result<String> {
         diff_context.push('\n');
     }
     diff_context.push_str("```\n");
-    if truncated {
+    if diff_limited {
         diff_context.push_str(&format!(
-            "\n[diff truncated — showing first {max_diff_lines} lines]\n"
+            "\n[diff limited to first {max_diff_lines} lines]\n"
         ));
     }
 

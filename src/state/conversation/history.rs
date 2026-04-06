@@ -226,8 +226,8 @@ impl ConversationManager {
     }
 
     /// Condense tool results in messages older than `keep_turns` recent
-    /// message pairs. Each affected tool result is truncated to its first 5
-    /// lines plus a `(N more lines)` indicator.
+    /// message pairs. Each affected tool result keeps its first 5 lines plus
+    /// a `(N more lines)` indicator.
     pub(super) fn condense_old_tool_results(&mut self, keep_turns: usize) {
         let len = self.api_messages.len();
         if len == 0 {
@@ -462,7 +462,7 @@ pub(super) fn truncate_for_history(text: &str, max_chars: usize) -> String {
 
     let total = chars.len();
     let indicator = format!(
-        "\n...[truncated {} chars]...\n",
+        "\n...[{} chars omitted]...\n",
         total.saturating_sub(max_chars)
     );
     let indicator_len = indicator.chars().count();
@@ -680,8 +680,8 @@ fn truncate_preview_line(line: &str, max_chars: usize) -> String {
         return line.to_string();
     }
 
-    let truncated = chars.into_iter().take(max_chars).collect::<String>();
-    format!("{truncated}...")
+    let shortened = chars.into_iter().take(max_chars).collect::<String>();
+    format!("{shortened}...")
 }
 
 fn indent_block(text: &str, indent: &str) -> String {

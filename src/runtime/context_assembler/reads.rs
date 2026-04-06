@@ -68,12 +68,12 @@ pub(super) fn rollup_from_read(
 ) -> (FileRollup, bool) {
     match result {
         Ok(read) => {
-            let (content, truncated) = truncate_head_bytes(&read.content, max_file_bytes);
+            let (content, content_limited) = truncate_head_bytes(&read.content, max_file_bytes);
             (
                 FileRollup {
                     path,
                     content: Some(content),
-                    truncated,
+                    content_limited,
                 },
                 read.cache_hit,
             )
@@ -82,7 +82,7 @@ pub(super) fn rollup_from_read(
             FileRollup {
                 path,
                 content: None,
-                truncated: false,
+                content_limited: false,
             },
             false,
         ),

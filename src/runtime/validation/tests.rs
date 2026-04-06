@@ -15,8 +15,8 @@ async fn test_validation_suite_formats_failure_for_retry() {
             exit_code: 101,
             stdout_tail: String::new(),
             stderr_tail: "assertion failed".to_string(),
-            stdout_truncated: false,
-            stderr_truncated: false,
+            stdout_tail_limited: false,
+            stderr_tail_limited: false,
         }],
     };
 

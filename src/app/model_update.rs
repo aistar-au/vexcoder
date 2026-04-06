@@ -90,12 +90,12 @@ impl TuiMode {
                 // responsive and avoid memory bloat.
                 const MAX_TRANSCRIPT_LINE_CHARS: usize = 512;
                 if line.len() > MAX_TRANSCRIPT_LINE_CHARS {
-                    let truncated = format!(
-                        "{}... (+{} chars truncated)",
+                    let clipped_line = format!(
+                        "{}... (+{} more chars omitted)",
                         &line[..MAX_TRANSCRIPT_LINE_CHARS],
                         line.len() - MAX_TRANSCRIPT_LINE_CHARS
                     );
-                    self.push_history_line(truncated);
+                    self.push_history_line(clipped_line);
                 } else {
                     self.push_history_line(line);
                 }
