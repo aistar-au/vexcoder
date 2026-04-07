@@ -8,7 +8,7 @@ on:
     #
     # Temporary proof slot: 22:30 UTC on 2026-04-07 for immediate verification.
     # Revert to daily cadence (03:00 UTC) once this run is confirmed green.
-    - cron: "30 22 * * *"
+    - cron: "0 3 * * *"
   workflow_dispatch: # Manual trigger for testing and one-off nightly snapshots.
 
 permissions:
