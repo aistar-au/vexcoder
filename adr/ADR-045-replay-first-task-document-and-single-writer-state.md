@@ -542,6 +542,28 @@ Remains the file-level undo decision. This ADR defines a complementary but
 distinct concern: replay-aware session and turn rollback via rollback markers.
 The two MUST NOT be conflated.
 
+### ADR-034 (Multi-Agent / Parallel Task Execution)
+
+ADR-045 supplies the replay-first, single-writer substrate required by
+ADR-034's session-task graph, worktree leases, and orchestrator-owned
+lifecycle.
+
+- All session-task metadata (`agent_id`, `worktree_path`, `lifecycle_state`,
+  heartbeats) is **replay-relevant** and MUST be covered by `RuntimeEvent`
+  variants in accordance with Invariant C. No multi-agent coordination field
+  may be written to `TaskDocument` outside `TaskDocumentCondenser`.
+- Parallel fan-out and join operations have deterministic replay parity:
+  every agent sub-turn is appended to `RuntimeEventLog` in arrival order,
+  enabling exact resume of interrupted multi-agent sessions without semantic
+  loss.
+- Rollback markers defined in ADR-045 provide safe session-level revert
+  boundaries that respect the worktree isolation model defined in ADR-034.
+  A rollback marker MUST reference the workspace checkpoint for the specific
+  worktree being reverted.
+
+*ADR-034 defines the orchestration and agent model. ADR-045 guarantees the
+state consistency and auditability that model relies upon.*
+
 ## Verification requirements
 
 The repository MUST prove all of the following through named tests.
