@@ -502,15 +502,19 @@ mod tests {
 
     /// `watch_working_dir` constructs a watcher without panicking.
     /// The returned handle is dropped immediately to stop the watch.
+    ///
+    /// Uses a fresh empty tempdir rather than the workspace root to avoid
+    /// exhausting the kqueue file-descriptor limit on macOS CI runners when
+    /// watching a large recursive tree.
     #[test]
     fn test_watch_working_dir_constructs_watcher() {
-        let here = std::env::current_dir().expect("cwd must be available in tests");
-        let result = watch_working_dir(&here, |_paths| {});
+        let tmp = tempfile::tempdir().expect("failed to create tempdir");
+        let result = watch_working_dir(tmp.path(), |_paths| {});
         assert!(
             result.is_ok(),
             "watcher construction should succeed: {:?}",
             result
         );
-        // watcher dropped here — watch stops cleanly
+        // watcher (and tempdir) dropped here — watch stops cleanly
     }
 }
