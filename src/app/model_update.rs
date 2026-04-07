@@ -2,6 +2,28 @@ use super::*;
 use crate::runtime::{AssistantPhase, NoticeSeverity, TurnEntry};
 use crate::state::StreamBlock;
 
+fn compact_preview_text(text: &str) -> String {
+    const MAX_SUMMARY_WIDTH: usize = 60;
+
+    let compact = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if compact.is_empty() || compact.len() <= MAX_SUMMARY_WIDTH {
+        return compact;
+    }
+
+    let mut end = compact.floor_char_boundary(MAX_SUMMARY_WIDTH);
+    if let Some(space_pos) = compact[..end].rfind(' ') {
+        if space_pos > MAX_SUMMARY_WIDTH / 2 {
+            end = space_pos;
+        }
+    }
+    format!("{}\u{2026}", &compact[..end])
+}
+
 impl TuiMode {
     /// Allocate the next monotonic step ID from `task_doc.meta`.
     fn alloc_step_id(&mut self) -> u64 {
@@ -361,11 +383,18 @@ impl TuiMode {
                 let summary = summarize_tool_approval_context(&tool_name, &input_preview);
                 let step_id = self.pending_tool_step_id(&tool_name, &input_preview);
                 let previous_output_len = self.expanded_output_row_count();
-                for row in super::layout::tool_approval_paragraph_rows(
-                    &format!("{summary} · awaiting approval"),
-                    &input_preview,
-                ) {
-                    self.push_document_notice(row, NoticeSeverity::Info);
+                self.push_document_notice(
+                    format!("[approval] {summary} · awaiting approval"),
+                    NoticeSeverity::Info,
+                );
+                {
+                    let compact = compact_preview_text(&input_preview);
+                    if !compact.is_empty() {
+                        self.push_document_notice(
+                            format!("[approval_detail] Input: {compact}"),
+                            NoticeSeverity::Info,
+                        );
+                    }
                 }
                 self.preserve_transcript_scroll_on_growth(previous_output_len);
                 self.overlay_state.pending_approval = Some(PendingApproval {

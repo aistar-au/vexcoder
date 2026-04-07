@@ -24,9 +24,6 @@ pub struct ManagedTuiFrontend {
     quit: bool,
     editor: InputEditor,
     started_at: Instant,
-    last_hint_input: String,
-    last_hint_cursor: usize,
-    last_hint_text: String,
     last_file_picker_prefix: String,
     selected_file_hint: usize,
     dismissed_file_picker: Option<(String, Range<usize>)>,
@@ -46,9 +43,6 @@ impl ManagedTuiFrontend {
             quit: false,
             editor: InputEditor::new(),
             started_at: Instant::now(),
-            last_hint_input: String::new(),
-            last_hint_cursor: 0,
-            last_hint_text: String::new(),
             last_file_picker_prefix: String::new(),
             selected_file_hint: 0,
             dismissed_file_picker: None,
@@ -83,7 +77,6 @@ impl ManagedTuiFrontend {
         self.cached_file_picker = None;
         self.last_file_picker_prefix.clear();
         self.selected_file_hint = 0;
-        self.last_hint_input.clear();
     }
 
     fn current_slash_picker(&mut self, mode: &TuiMode) -> Option<SlashPickerState> {
@@ -107,7 +100,6 @@ impl ManagedTuiFrontend {
         self.cached_slash_picker = None;
         self.last_slash_picker_prefix.clear();
         self.selected_slash_hint = 0;
-        self.last_hint_input.clear();
     }
 
     fn drain_startup_events() {
@@ -230,7 +222,6 @@ impl ManagedTuiFrontend {
                         self.cached_slash_picker = None;
                         self.last_slash_picker_prefix.clear();
                         self.selected_slash_hint = 0;
-                        self.last_hint_input.clear();
                         return None;
                     }
                     KeyCode::Esc => {
@@ -270,7 +261,6 @@ impl ManagedTuiFrontend {
                         self.cached_file_picker = None;
                         self.last_file_picker_prefix.clear();
                         self.selected_file_hint = 0;
-                        self.last_hint_input.clear();
                         return None;
                     }
                     KeyCode::Esc => {
@@ -432,48 +422,6 @@ impl ManagedTuiFrontend {
         }
     }
 
-    fn prompt_hint(&mut self, mode: &TuiMode, input: &str, cursor: usize) -> String {
-        // Slash command picker takes priority when active.
-        if let Some(picker) = self.current_slash_picker(mode) {
-            if self.last_slash_picker_prefix != picker.prefix {
-                self.last_slash_picker_prefix = picker.prefix.clone();
-                self.selected_slash_hint = 0;
-            }
-            let selected = self
-                .selected_slash_hint
-                .min(picker.matches.len().saturating_sub(1));
-            self.last_hint_input = input.to_string();
-            self.last_hint_text = render_slash_picker_hint(&picker.matches, selected);
-            return self.last_hint_text.clone();
-        }
-
-        self.last_slash_picker_prefix.clear();
-        self.selected_slash_hint = 0;
-
-        if let Some(picker) = self.current_file_picker(mode) {
-            if self.last_file_picker_prefix != picker.prefix {
-                self.last_file_picker_prefix = picker.prefix.clone();
-                self.selected_file_hint = 0;
-            }
-            let selected = self
-                .selected_file_hint
-                .min(picker.matches.len().saturating_sub(1));
-            self.last_hint_input = input.to_string();
-            self.last_hint_text =
-                render_file_picker_hint(&picker.prefix, &picker.matches, selected);
-            return self.last_hint_text.clone();
-        }
-
-        self.last_file_picker_prefix.clear();
-        self.selected_file_hint = 0;
-        if self.last_hint_input != input || self.last_hint_cursor != cursor {
-            self.last_hint_input = input.to_string();
-            self.last_hint_cursor = cursor;
-            self.last_hint_text = mode.prompt_hint_for_input(input, cursor);
-        }
-        self.last_hint_text.clone()
-    }
-
     /// Build the floating picker overlay lines from the currently active picker.
     fn build_picker_overlay(&mut self, mode: &TuiMode) -> Vec<PickerOverlayLine> {
         // Slash picker takes priority.
@@ -565,16 +513,40 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
         let cursor = self.editor.cursor();
 
         if let Some(mut task_state) = mode.task_layout_state() {
-            task_state.input_hint = self.prompt_hint(mode, &input, cursor);
             task_state.picker_overlay = self.build_picker_overlay(mode);
             task_state.composer_text = input;
             task_state.composer_cursor = cursor;
             task_state.composer_focused = mode.composer_is_focused();
             let size = self.terminal.size().unwrap_or_default();
             mode.set_history_content_width(size.width.max(1) as usize);
-            let _ = self
-                .terminal
-                .draw(|frame| render_task_layout(frame, &task_state));
+            let _ = self.terminal.draw(|frame| {
+                render_task_layout(frame, &task_state);
+                let area = frame.area();
+                if let Some((patch_preview, scroll_offset)) = mode.pending_patch_overlay() {
+                    render_overlay_modal_in_area(
+                        frame,
+                        area,
+                        OverlayModal::PatchApprove {
+                            patch_preview,
+                            scroll_offset,
+                        },
+                    );
+                } else if let Some((tool_name, input_preview, auto_approve_enabled)) =
+                    mode.pending_tool_overlay()
+                {
+                    render_overlay_modal_in_area(
+                        frame,
+                        area,
+                        OverlayModal::ToolPermission {
+                            tool_name,
+                            input_preview,
+                            auto_approve_enabled,
+                        },
+                    );
+                } else if mode.pending_memory_clear_overlay() {
+                    render_overlay_modal_in_area(frame, area, OverlayModal::MemoryClear);
+                }
+            });
         } else {
             let _ = self.terminal.draw(|frame| {
                 let area = frame.area();
@@ -592,7 +564,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
 
                 render_status_line(frame, panes.header, &status);
                 render_messages(frame, panes.history, &history_lines);
-                render_input(frame, panes.input, &input, cursor);
+                render_input(frame, panes.input, &input, cursor, true);
 
                 if let Some((patch_preview, scroll_offset)) = mode.pending_patch_overlay() {
                     render_overlay_modal_in_area(
@@ -601,7 +573,6 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                         OverlayModal::PatchApprove {
                             patch_preview,
                             scroll_offset,
-                            viewport_rows: panes.history.height.max(1) as usize,
                         },
                     );
                 } else if let Some((tool_name, input_preview, auto_approve_enabled)) =
@@ -617,15 +588,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                         },
                     );
                 } else if mode.pending_memory_clear_overlay() {
-                    render_overlay_modal_in_area(
-                        frame,
-                        area,
-                        OverlayModal::ToolPermission {
-                            tool_name: "memory clear",
-                            input_preview: "clear all notes? type y to confirm, n to cancel",
-                            auto_approve_enabled: false,
-                        },
-                    );
+                    render_overlay_modal_in_area(frame, area, OverlayModal::MemoryClear);
                 }
             });
         }

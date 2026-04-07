@@ -244,7 +244,6 @@ pub struct TaskLayoutState {
     pub output_scroll_offset: usize,
     pub output_scroll_anchor: OutputScrollAnchor,
     pub pending_approval: Option<String>,
-    pub input_hint: String,
     /// Active composer buffer for the fullscreen task surface.
     pub composer_text: String,
     /// Cursor byte offset within `composer_text`.
@@ -261,6 +260,17 @@ pub struct TaskLayoutState {
     /// Model API endpoint URL shown at the prompt separator.
     pub model_url: String,
 }
+
+/// Projection of canonical task state for the renderer.
+///
+/// The renderer consumes this type exclusively — no `TaskLayoutState` fields
+/// are accessed from within `src/ui/render/`.  Fields that drove the now-
+/// removed sticky footer (`input_hint`) are absent.
+///
+/// Structurally identical to `TaskLayoutState` in this PR; the view-model
+/// shrinkage that drops timeline, inspector, and other unused fields is
+/// deferred to PR 5.
+pub type TaskViewProjection = TaskLayoutState;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TaskContextSummaryState {

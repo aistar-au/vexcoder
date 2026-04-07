@@ -11,13 +11,13 @@ fn all_modals_use_unified_renderer() {
         OverlayModal::PatchApprove {
             patch_preview: "diff --git a/src/app/mod.rs b/src/app/mod.rs",
             scroll_offset: 0,
-            viewport_rows: 8,
         },
         OverlayModal::ToolPermission {
             tool_name: "exec_command",
             input_preview: "echo hi",
             auto_approve_enabled: false,
         },
+        OverlayModal::MemoryClear,
     ];
 
     for modal in modals {
@@ -25,6 +25,28 @@ fn all_modals_use_unified_renderer() {
             .draw(|frame| render_overlay_modal(frame, modal))
             .expect("renderer should support every modal class");
     }
+}
+
+#[test]
+fn patch_modal_uses_body_viewport_for_visible_range() {
+    let (_, _, body, _) = modal_content(
+        OverlayModal::PatchApprove {
+            patch_preview: "a\nb\nc\nd\ne\nf",
+            scroll_offset: 0,
+        },
+        5,
+    );
+
+    assert!(body
+        .iter()
+        .any(|line| line.to_string().contains("showing 1-1 of 6")));
+}
+
+#[test]
+fn memory_clear_modal_shows_matching_shortcuts() {
+    let (_, _, _, shortcuts) = modal_content(OverlayModal::MemoryClear, 5);
+
+    assert_eq!(shortcuts, "y/yes confirm   n/esc cancel");
 }
 
 #[test]
@@ -234,12 +256,11 @@ fn test_changed_files_and_live_approval_prompt_render() {
         selected_step: 0,
         total_steps: 1,
         output_title: "Transcript".into(),
-        output_rows: vec![],
+        output_rows: vec!["[approval] ApplyPatch: src/main.rs · awaiting approval".into()],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         changed_files: vec!["src/main.rs".into()],
         pending_approval: Some("ApplyPatch: src/main.rs".into()),
-        input_hint: "ApplyPatch: src/main.rs\n[y/n/s] ".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
@@ -265,10 +286,6 @@ fn test_changed_files_and_live_approval_prompt_render() {
     assert!(
         flat.contains("ApplyPatch"),
         "approval prompt must appear in rendered output"
-    );
-    assert!(
-        flat.contains("[y/n/s]"),
-        "approval choices must appear in rendered output"
     );
 }
 
@@ -304,7 +321,6 @@ fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
         output_scroll_anchor: crate::app::OutputScrollAnchor::Top,
         changed_files: vec![],
         pending_approval: None,
-        input_hint: "> ".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
@@ -350,7 +366,6 @@ fn task_layout_renders_status_row_on_primary_surface() {
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         changed_files: vec![],
         pending_approval: None,
-        input_hint: "> ".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
@@ -401,7 +416,6 @@ fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
         output_scroll_anchor: crate::app::OutputScrollAnchor::Top,
         changed_files: vec![],
         pending_approval: None,
-        input_hint: "> ".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
@@ -449,7 +463,6 @@ fn task_layout_without_changed_files_starts_short_transcript_below_status_row() 
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         changed_files: vec![],
         pending_approval: None,
-        input_hint: "> ".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
@@ -497,7 +510,6 @@ fn task_output_window_uses_expanded_display_rows() {
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         changed_files: vec![],
         pending_approval: None,
-        input_hint: "> ".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
@@ -595,7 +607,6 @@ fn task_layout_renders_picker_overlay() {
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         changed_files: vec![],
         pending_approval: None,
-        input_hint: "Prompt\nmode: file mention".into(),
         composer_text: "@".into(),
         composer_cursor: 1,
         composer_focused: true,

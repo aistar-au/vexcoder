@@ -1,4 +1,3 @@
-use crate::app::TaskLayoutState;
 use crate::ui::input_metrics::{
     cursor_row_col, display_width, visual_row_count, visual_window_start, wrap_input_lines,
 };
@@ -17,20 +16,26 @@ pub enum OverlayModal<'a> {
     PatchApprove {
         patch_preview: &'a str,
         scroll_offset: usize,
-        viewport_rows: usize,
     },
     ToolPermission {
         tool_name: &'a str,
         input_preview: &'a str,
         auto_approve_enabled: bool,
     },
+    MemoryClear,
 }
 
 pub fn input_visual_rows(input: &str, width: usize) -> usize {
     visual_row_count(input, width)
 }
 
-pub fn render_input(frame: &mut Frame<'_>, area: Rect, input: &str, cursor_byte: usize) {
+pub fn render_input(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    input: &str,
+    cursor_byte: usize,
+    show_cursor: bool,
+) {
     if area.height == 0 || area.width <= 2 {
         return;
     }
@@ -62,68 +67,20 @@ pub fn render_input(frame: &mut Frame<'_>, area: Rect, input: &str, cursor_byte:
         inner,
     );
 
-    let cursor_y = inner
-        .y
-        .saturating_add(cursor_row.saturating_sub(window_start) as u16);
-    let cursor_x = inner
-        .x
-        .saturating_add(2 + cursor_col as u16)
-        .min(inner.x.saturating_add(inner.width.saturating_sub(1)));
-    frame.set_cursor_position((cursor_x, cursor_y));
+    if show_cursor {
+        let cursor_y = inner
+            .y
+            .saturating_add(cursor_row.saturating_sub(window_start) as u16);
+        let cursor_x = inner
+            .x
+            .saturating_add(2 + cursor_col as u16)
+            .min(inner.x.saturating_add(inner.width.saturating_sub(1)));
+        frame.set_cursor_position((cursor_x, cursor_y));
+    }
 }
 
-pub fn render_task_input(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    input: &str,
-    cursor_byte: usize,
-    footer: &str,
-) {
-    if area.height == 0 || area.width <= 2 {
-        return;
-    }
-
-    let footer_lines = footer
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .map(ToOwned::to_owned)
-        .collect::<Vec<_>>();
-    let footer_height = footer_lines
-        .len()
-        .min(area.height.saturating_sub(1) as usize) as u16;
-    let input_height = area.height.saturating_sub(footer_height).max(1);
-    let input_area = Rect {
-        x: area.x,
-        y: area.y,
-        width: area.width,
-        height: input_height,
-    };
-    render_input(frame, input_area, input, cursor_byte);
-
-    if footer_height == 0 {
-        return;
-    }
-
-    let footer_area = Rect {
-        x: area.x,
-        y: area.y.saturating_add(input_height),
-        width: area.width,
-        height: footer_height,
-    };
-    let rows = footer_lines
-        .into_iter()
-        .take(footer_height as usize)
-        .map(Line::from)
-        .collect::<Vec<_>>();
-    frame.render_widget(
-        Paragraph::new(rows).style(
-            Style::default()
-                .fg(Color::Yellow)
-                .bg(Color::Rgb(24, 24, 24))
-                .add_modifier(Modifier::DIM),
-        ),
-        footer_area,
-    );
+pub fn render_task_input(frame: &mut Frame<'_>, area: Rect, input: &str, cursor_byte: usize) {
+    render_input(frame, area, input, cursor_byte, true);
 }
 
 pub fn render_messages(frame: &mut Frame<'_>, area: Rect, messages: &[String]) {
@@ -310,7 +267,7 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
 /// The activity pane uses structured `timeline_entries` to render
 /// the selected timeline entry highlighted with its detail shown
 /// in the output/inspector pane.
-pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
+pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewProjection) {
     let input_width = frame.area().width.saturating_sub(2).max(1) as usize;
     let layout = split_four_region_layout(
         frame.area(),
@@ -337,20 +294,15 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     }
 
     // --- Input pane ---
-    if state.pending_approval.is_none() {
-        render_task_input(
-            frame,
-            layout.input,
-            &state.composer_text,
-            state.composer_cursor,
-            &state.input_hint,
-        );
-    } else {
-        frame.render_widget(
-            Paragraph::new(state.input_hint.clone()).wrap(Wrap { trim: false }),
-            layout.input,
-        );
-    }
+    // Always render the composer; approval and resume prompts route through
+    // the overlay modal system (rendered by the caller after this function).
+    render_input(
+        frame,
+        layout.input,
+        &state.composer_text,
+        state.composer_cursor,
+        state.composer_focused,
+    );
 
     render_picker_overlay(frame, layout.input, &state.picker_overlay);
 }
@@ -479,25 +431,32 @@ pub fn render_overlay_modal_in_area(frame: &mut Frame<'_>, anchor: Rect, modal: 
         return;
     }
 
-    let (title, accent, body, shortcuts) = modal_content(modal);
-    let preferred_height = (body.len() + 8) as u16;
+    let preferred_height = modal_preferred_height(&modal);
     let area = centered_modal_area(anchor, preferred_height);
-    frame.render_widget(Clear, area);
+    let provisional_outer = Block::default().borders(Borders::ALL);
+    let provisional_inner = provisional_outer.inner(area);
+    let provisional_vertical = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(3), Constraint::Length(1)])
+        .split(provisional_inner);
+    let provisional_body_area = provisional_vertical[0];
+    let body_block = Block::default().borders(Borders::ALL).title("Body");
+    let body_inner = body_block.inner(provisional_body_area);
+    let (title, accent, body, shortcuts) = modal_content(modal, body_inner.height as usize);
 
+    frame.render_widget(Clear, area);
     let outer = Block::default()
         .borders(Borders::ALL)
         .title(title)
         .style(Style::default().fg(accent));
     let inner = outer.inner(area);
     frame.render_widget(outer, area);
-
     let vertical = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(3), Constraint::Length(1)])
         .split(inner);
     let body_area = vertical[0];
     let shortcuts_area = vertical[1];
-
     let body_block = Block::default().borders(Borders::ALL).title("Body");
     let body_inner = body_block.inner(body_area);
     frame.render_widget(body_block, body_area);
@@ -517,18 +476,26 @@ pub fn render_overlay_modal_in_area(frame: &mut Frame<'_>, anchor: Rect, modal: 
     );
 }
 
+fn modal_preferred_height(modal: &OverlayModal<'_>) -> u16 {
+    match modal {
+        OverlayModal::PatchApprove { .. } => 18,
+        OverlayModal::ToolPermission { .. } => 14,
+        OverlayModal::MemoryClear => 10,
+    }
+}
+
 fn modal_content(
     modal: OverlayModal<'_>,
+    body_viewport_rows: usize,
 ) -> (&'static str, Color, Vec<Line<'static>>, &'static str) {
     match modal {
         OverlayModal::PatchApprove {
             patch_preview,
             scroll_offset,
-            viewport_rows,
         } => {
             let lines: Vec<&str> = patch_preview.lines().collect();
             let start = scroll_offset.min(lines.len().saturating_sub(1));
-            let visible = viewport_rows.max(1);
+            let visible = body_viewport_rows.saturating_sub(4).max(1);
             let end = (start + visible).min(lines.len());
 
             let mut body = Vec::new();
@@ -579,7 +546,8 @@ fn modal_content(
                 Style::default().add_modifier(Modifier::BOLD),
             ));
             let preview_lines: Vec<&str> = input_preview.lines().collect();
-            let max_preview_lines = 6;
+            let reserved_rows = if auto_approve_enabled { 4 } else { 3 };
+            let max_preview_lines = body_viewport_rows.saturating_sub(reserved_rows).max(1);
             for line in preview_lines.iter().take(max_preview_lines) {
                 body.push(Line::from(line.to_string()));
             }
@@ -601,6 +569,19 @@ fn modal_content(
                 "1 yes   2 allow this session   3/esc cancel",
             )
         }
+        OverlayModal::MemoryClear => (
+            "Memory Clear",
+            Color::Yellow,
+            vec![
+                Line::styled(
+                    "Clear all saved memory notes?",
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
+                Line::from("Type y or yes to confirm."),
+                Line::from("Any deny action leaves the notes file unchanged."),
+            ],
+            "y/yes confirm   n/esc cancel",
+        ),
     }
 }
 

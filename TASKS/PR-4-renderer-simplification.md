@@ -4,6 +4,13 @@
 **Follows:** PR 3 (`work/vexcoder-task-document-pr3`, PR #351)
 **Source spec:** batch-start.txt PR 4
 
+**Current status (2026-04-07):** Implemented in PR #352 and green in CI. The
+sticky footer removal and overlay routing landed. Two consistency gaps remain
+against the original source spec: `src/ui/render/transcript.rs` still decodes
+structured marker prefixes, and the renderer-facing view type is still a
+`TaskViewProjection = TaskLayoutState` alias rather than a reduced standalone
+projection struct.
+
 ---
 
 ## Scope
@@ -21,6 +28,29 @@ approval notices. PR 4 collapses that surface:
 - The whole marker-row protocol layer is deleted from `helpers.rs`.
 - Any new files introduced in this lane use descriptive, domain-specific names
   and stay near the ~300-line ceiling whenever the split boundary is clear.
+
+## Consistency Debug
+
+Matched in PR #352:
+
+- The sticky footer and `input_hint` path were removed.
+- The bottom pane now renders only the composer.
+- Approval and memory-clear prompts render through overlays instead of the
+  footer.
+- The marker-row helper layer was deleted from `src/app/layout/helpers.rs` and
+  absorbed into projection code.
+
+Residual deltas against `batch-start.txt`:
+
+- `src/ui/render/transcript.rs` still interprets marker-prefixed rows such as
+  `[tool]`, `[detail]`, and `[approval]` instead of acting as a pure viewport
+  slicer over fully projected rows.
+- `src/ui/render/` is not yet free of `TaskLayoutState`: `TaskViewProjection`
+  is still a type alias, and `src/ui/render/transcript.rs` still accepts
+  `TaskLayoutState` for output-window math.
+- `TuiMode` still carries live `command_sessions` outside `task_doc`, so the
+  PR 3 "document projector in one shot" cutover is functionally landed for
+  transcript ownership but not fully complete for command-session ownership.
 
 ---
 
@@ -88,20 +118,22 @@ hoc helpers:
 
 ## Acceptance Criteria
 
-- [ ] `cargo nextest run --no-fail-fast` passes (count must not regress below
+- [x] `cargo nextest run --no-fail-fast` passes (count must not regress below
   1301).
-- [ ] `make check-arch` clean.
-- [ ] `make check-names` clean (no `#[allow(dead_code)]` in `src/` or
+- [x] `make check-arch` clean.
+- [x] `make check-names` clean (no `#[allow(dead_code)]` in `src/` or
   `tests/`).
-- [ ] `cargo clippy --all-targets --all-features -- -D warnings` clean.
-- [ ] `cargo fmt --check` clean.
+- [x] `cargo clippy --all-targets --all-features -- -D warnings` clean.
+- [x] `cargo fmt --check` clean.
 - [ ] The renderer reads only `TaskViewProjection` fields; no access to
   `TaskLayoutState` from within `src/ui/render/`.
-- [ ] No `input_hint` string is constructed anywhere in `src/app/layout.rs`.
-- [ ] No marker-row protocol functions remain in `src/app/layout/helpers.rs`.
-- [ ] Approval and resume prompts route through the overlay system, not the
+- [ ] `src/ui/render/transcript.rs` performs only viewport slicing of
+  already-projected rows; no marker-prefix decoding remains.
+- [x] No `input_hint` string is constructed anywhere in `src/app/layout.rs`.
+- [x] No marker-row protocol functions remain in `src/app/layout/helpers.rs`.
+- [x] Approval and resume prompts route through the overlay system, not the
   footer.
-- [ ] Any new files or split modules use descriptive names and remain near the
+- [x] Any new files or split modules use descriptive names and remain near the
   ~300-line ceiling.
 
 ---
