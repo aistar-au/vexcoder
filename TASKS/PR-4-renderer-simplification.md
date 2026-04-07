@@ -4,12 +4,12 @@
 **Follows:** PR 3 (`work/vexcoder-task-document-pr3`, PR #351)
 **Source spec:** batch-start.txt PR 4
 
-**Current status (2026-04-07):** Implemented in PR #352 and green in CI. The
-sticky footer removal and overlay routing landed. Two consistency gaps remain
-against the original source spec: `src/ui/render/transcript.rs` still decodes
-structured marker prefixes, and the renderer-facing view type is still a
-`TaskViewProjection = TaskLayoutState` alias rather than a reduced standalone
-projection struct.
+**Current status (2026-04-07):** Implemented across PR #352 and PR #353 and
+merged on main. The sticky footer removal, overlay routing, and standalone
+`TaskViewProjection` cutover landed. Two consistency gaps remain against the
+original source spec: `src/ui/render/transcript.rs` still decodes structured
+marker prefixes, and `TuiMode` still owns live `command_sessions` outside
+`task_doc`.
 
 ---
 
@@ -45,12 +45,15 @@ Residual deltas against `batch-start.txt`:
 - `src/ui/render/transcript.rs` still interprets marker-prefixed rows such as
   `[tool]`, `[detail]`, and `[approval]` instead of acting as a pure viewport
   slicer over fully projected rows.
-- `src/ui/render/` is not yet free of `TaskLayoutState`: `TaskViewProjection`
-  is still a type alias, and `src/ui/render/transcript.rs` still accepts
-  `TaskLayoutState` for output-window math.
 - `TuiMode` still carries live `command_sessions` outside `task_doc`, so the
   PR 3 "document projector in one shot" cutover is functionally landed for
   transcript ownership but not fully complete for command-session ownership.
+
+### Post-merge follow-up todo
+
+- Open the next narrow cleanup lane for the remaining deltas from PRs #350-
+  #353: remove marker decoding from `src/ui/render/transcript.rs` and move
+  command-session ownership fully into `task_doc`.
 
 ---
 

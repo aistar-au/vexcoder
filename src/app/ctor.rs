@@ -35,8 +35,6 @@ impl TuiMode {
         let task_doc = task_doc_reducer.begin_task(initial_meta);
         Self {
             overlay_state: OverlayState::default(),
-            command_sessions: Vec::new(),
-            next_command_session_id: 1,
             repo_label: resolve_repo_label(),
             git_branch: util::resolve_git_branch(),
             instructions_path: None,

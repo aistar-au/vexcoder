@@ -9,10 +9,13 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(state.output_rows.len(), 2);
-    assert_eq!(state.output_rows[0], "> hi");
+    assert_eq!(
+        state.output_rows[0],
+        TranscriptRow::UserInput("hi".to_string())
+    );
     // The second row is the ADR-039 canonical waiting phrase with elapsed suffix.
     assert!(
-        state.output_rows[1].starts_with("[thinking] Mapping adjacent sectors..."),
+        matches!(&state.output_rows[1], TranscriptRow::WaitingPlaceholder(s) if s.starts_with("[thinking] Mapping adjacent sectors...")),
         "expected canonical ADR-039 waiting row, got: {:?}",
         state.output_rows[1]
     );
@@ -38,7 +41,9 @@ fn test_task_layout_state_shows_server_read_progress_in_waiting_row() {
     );
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert!(state.output_rows[1].contains("\u{2191}:2048/2641"));
+    assert!(state.output_rows[1]
+        .as_display_str()
+        .contains("\u{2191}:2048/2641"));
     assert_eq!(state.telemetry.mode, "streaming");
     assert_eq!(state.telemetry.approval, "none");
     assert!(
@@ -80,14 +85,20 @@ fn test_task_layout_state_transcript_streaming_with_pending_approval() {
     );
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert_eq!(state.output_rows[0], "> plan it");
+    assert_eq!(
+        state.output_rows[0],
+        TranscriptRow::UserInput("plan it".to_string())
+    );
     assert!(
-        state.output_rows.iter().any(|r| r == "streaming line▌"),
+        state.output_rows.iter().any(|r| matches!(r, TranscriptRow::AssistantText { text, .. } if text == "streaming line\u{258c}")),
         "streaming content must appear in transcript"
     );
     assert_eq!(
         state.output_rows.last().expect("last row"),
-        "streaming line▌"
+        &TranscriptRow::AssistantText {
+            text: "streaming line\u{258c}".to_string(),
+            streaming: true
+        }
     );
 }
 
@@ -157,7 +168,13 @@ fn test_task_layout_state_routes_streamed_response_to_output_pane() {
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(
         state.output_rows,
-        vec!["> hi".to_string(), "hello from model▌".to_string()]
+        vec![
+            TranscriptRow::UserInput("hi".to_string()),
+            TranscriptRow::AssistantText {
+                text: "hello from model\u{258c}".to_string(),
+                streaming: true
+            },
+        ]
     );
 }
 
@@ -176,9 +193,15 @@ fn test_task_layout_state_preserves_multiline_streamed_response_in_transcript() 
     assert_eq!(
         state.output_rows,
         vec![
-            "> hi".to_string(),
-            "first line".to_string(),
-            "second line▌".to_string(),
+            TranscriptRow::UserInput("hi".to_string()),
+            TranscriptRow::AssistantText {
+                text: "first line".to_string(),
+                streaming: false
+            },
+            TranscriptRow::AssistantText {
+                text: "second line\u{258c}".to_string(),
+                streaming: true
+            },
         ]
     );
 }
@@ -244,19 +267,19 @@ fn test_task_layout_state_preserves_structured_text_order_around_tool_rows() {
     let intro_idx = state
         .output_rows
         .iter()
-        .position(|row| row.starts_with("I will read the file."))
+        .position(|row| row.as_display_str().starts_with("I will read the file."))
         .expect("intro row");
     let tool_idx = state
         .output_rows
         .iter()
         .position(|row| {
-            row.starts_with("[tool] read_file · ") && row.ends_with("Response complete.")
+            matches!(row, TranscriptRow::ToolHeader(s) if s.starts_with("read_file \u{00b7} ") && s.ends_with("Response complete."))
         })
         .expect("tool result row");
     let final_idx = state
         .output_rows
         .iter()
-        .position(|row| row.starts_with("The file says hello."))
+        .position(|row| row.as_display_str().starts_with("The file says hello."))
         .expect("final response row");
 
     assert!(
@@ -331,15 +354,26 @@ fn test_commit_completed_turn_materializes_structured_stream_segments() {
     mode.commit_completed_turn(&ctx);
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert_eq!(state.output_rows[0], "> read file".to_string());
-    assert_eq!(state.output_rows[1], "I will read the file.".to_string());
+    assert_eq!(
+        state.output_rows[0],
+        TranscriptRow::UserInput("read file".to_string())
+    );
+    assert_eq!(
+        state.output_rows[1],
+        TranscriptRow::AssistantText {
+            text: "I will read the file.".to_string(),
+            streaming: false
+        }
+    );
     assert!(
-        state.output_rows[2].starts_with("[tool] read_file · ")
-            && state.output_rows[2].ends_with("Response complete.")
+        matches!(&state.output_rows[2], TranscriptRow::ToolHeader(s) if s.starts_with("read_file \u{00b7} ") && s.ends_with("Response complete."))
     );
     assert_eq!(
         state.output_rows.last(),
-        Some(&"The file says hello.".to_string())
+        Some(&TranscriptRow::AssistantText {
+            text: "The file says hello.".to_string(),
+            streaming: false
+        })
     );
 }
 
@@ -375,7 +409,12 @@ fn test_commit_completed_turn_uses_normalized_stream_text_once() {
     assert_eq!(response, "Hello");
 
     let state = mode.task_layout_state().expect("task layout state");
-    let joined = state.output_rows.join("\n");
+    let joined = state
+        .output_rows
+        .iter()
+        .map(|r| r.to_history_string())
+        .collect::<Vec<_>>()
+        .join("\n");
     assert_eq!(
         joined.matches("Hello").count(),
         1,
@@ -395,7 +434,13 @@ fn test_task_layout_state_keeps_prior_responses_visible_after_turn_completion() 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(
         state.output_rows,
-        vec!["> inspect the file".to_string(), "Done.".to_string()]
+        vec![
+            TranscriptRow::UserInput("inspect the file".to_string()),
+            TranscriptRow::AssistantText {
+                text: "Done.".to_string(),
+                streaming: false
+            },
+        ]
     );
 }
 
@@ -420,7 +465,7 @@ fn test_manual_timeline_selection_opens_tool_inspector() {
     let state = mode.task_layout_state().expect("task layout state");
     assert!(state.output_title.starts_with("Inspector"));
     assert!(state.output_title.contains("read_file"));
-    assert_eq!(state.output_rows[0], "Tool: read_file");
+    assert_eq!(state.output_rows[0].as_display_str(), "Tool: read_file");
 }
 
 #[test]
@@ -495,7 +540,7 @@ fn test_manual_timeline_browse_stays_selected_when_new_transcript_rows_arrive() 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(state.selected_step, 1);
     assert!(!state.follow_mode);
-    assert_eq!(state.output_rows[0], "Tool: read_file");
+    assert_eq!(state.output_rows[0].as_display_str(), "Tool: read_file");
 }
 
 #[test]
@@ -603,12 +648,18 @@ fn test_task_layout_state_keeps_command_sessions_alongside_other_steps() {
             status: crate::state::ToolStatus::Pending,
         });
     }
-    mode.command_sessions.push(CommandSessionState {
-        id: 99,
-        command: "cargo nextest run".to_string(),
-        pid: Some(4242),
-        status: "running".to_string(),
-    });
+    if let Some(active) = mode.task_doc.active_turn.as_mut() {
+        active.command_sessions.insert(
+            99,
+            crate::runtime::task_document::CommandSessionDocument {
+                session_id: 99,
+                command: "cargo nextest run".to_string(),
+                pid: Some(4242),
+                status: "running".to_string(),
+                output_tail: vec![],
+            },
+        );
+    }
 
     let state = mode.task_layout_state().expect("task layout state");
     let labels = state
@@ -792,7 +843,7 @@ fn test_task_layout_state_exposes_turn_timing_summary_in_structured_telemetry() 
         state
             .output_rows
             .iter()
-            .any(|line| line.starts_with("[\u{2191}:1.0s")),
+            .any(|line| line.as_display_str().starts_with("[\u{2191}:1.0s")),
         "the transcript should continue to carry the inline timing line"
     );
 }
@@ -943,7 +994,12 @@ fn test_final_text_block_delta_does_not_duplicate_normalized_stream_rows() {
     mode.on_model_update(UiUpdate::StreamDelta("world!".to_string()), &mut ctx);
 
     let state = mode.task_layout_state().expect("task layout state");
-    let joined = state.output_rows.join("\n");
+    let joined = state
+        .output_rows
+        .iter()
+        .map(|r| r.to_history_string())
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(
         joined.contains("Hello world!"),
         "normalized stream text must appear in output rows: {joined:?}"
@@ -986,7 +1042,12 @@ fn test_thinking_block_delta_does_not_duplicate_normalized_stream_rows() {
     );
 
     let state = mode.task_layout_state().expect("task layout state");
-    let joined = state.output_rows.join("\n");
+    let joined = state
+        .output_rows
+        .iter()
+        .map(|r| r.to_history_string())
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(
         joined.contains("analyzing the problem"),
         "normalized thinking text must appear in output rows: {joined:?}"

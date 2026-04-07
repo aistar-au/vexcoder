@@ -1,11 +1,16 @@
 use std::fs;
 use std::path::Path;
 
+use crate::tools::operator::ToolOperator;
+use crate::tools::workspace_ignore::WorkspaceIgnore;
+
 /// Kind of a source-level item extracted by the structural index.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ItemKind {
     Function,
     Struct,
+    Class,
+    Interface,
     Enum,
     Impl,
     Trait,
@@ -20,6 +25,8 @@ impl ItemKind {
         match self {
             Self::Function => "function",
             Self::Struct => "struct",
+            Self::Class => "class",
+            Self::Interface => "interface",
             Self::Enum => "enum",
             Self::Impl => "impl",
             Self::Trait => "trait",
@@ -46,6 +53,27 @@ pub struct IndexChunk {
     pub source: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SourceLanguage {
+    Rust,
+    Python,
+    TypeScript,
+    Tsx,
+    JavaScript,
+}
+
+impl SourceLanguage {
+    fn parser_language(self) -> tree_sitter::Language {
+        match self {
+            Self::Rust => tree_sitter_rust::LANGUAGE.into(),
+            Self::Python => tree_sitter_python::LANGUAGE.into(),
+            Self::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+            Self::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
+            Self::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
+        }
+    }
+}
+
 /// Build a structural index of all `.rs` files under `workspace_root`.
 ///
 /// Walks the source tree, parses each Rust file with Tree-sitter, and extracts
@@ -65,18 +93,36 @@ pub fn build_index_filtered(
     exclude: &[String],
     max_file_size: usize,
 ) -> Vec<IndexChunk> {
+    let operator = ToolOperator::new(workspace_root.to_path_buf());
+    let ignore = WorkspaceIgnore::load(workspace_root);
+    let Ok(paths) = operator.walk_workspace_files_ignoring(workspace_root, &ignore) else {
+        return Vec::new();
+    };
+
     let mut chunks = Vec::new();
-    let src_dir = workspace_root.join("src");
-    if !src_dir.is_dir() {
-        return chunks;
+    for path in paths {
+        let rel = workspace_relative(&path, workspace_root);
+        if exclude.iter().any(|ex| rel.starts_with(ex.as_str())) {
+            continue;
+        }
+
+        let Some(language) = detect_source_language(&path) else {
+            continue;
+        };
+
+        let size = path
+            .metadata()
+            .map(|metadata| metadata.len() as usize)
+            .unwrap_or(0);
+        if size > max_file_size {
+            continue;
+        }
+
+        if let Ok(source) = fs::read_to_string(&path) {
+            parse_source_file(&rel, &source, language, &mut chunks);
+        }
     }
-    collect_rs_files_filtered(
-        &src_dir,
-        workspace_root,
-        exclude,
-        max_file_size,
-        &mut chunks,
-    );
+
     chunks
 }
 
@@ -98,49 +144,26 @@ pub fn update_index_filtered(
     if exclude.iter().any(|ex| rel.starts_with(ex.as_str())) {
         return;
     }
-    if changed_path.extension().is_some_and(|e| e == "rs") {
-        let size = changed_path
-            .metadata()
-            .map(|m| m.len() as usize)
-            .unwrap_or(0);
-        if size > max_file_size {
-            return;
-        }
-        if let Ok(source) = fs::read_to_string(changed_path) {
-            parse_rust_file(&rel, &source, index);
-        }
-    }
-}
 
-fn collect_rs_files_filtered(
-    dir: &Path,
-    workspace_root: &Path,
-    exclude: &[String],
-    max_file_size: usize,
-    chunks: &mut Vec<IndexChunk>,
-) {
-    let entries = match fs::read_dir(dir) {
-        Ok(e) => e,
-        Err(_) => return,
+    let ignore = WorkspaceIgnore::load(workspace_root);
+    if ignore.is_ignored(&rel, changed_path.is_dir()) {
+        return;
+    }
+
+    let Some(language) = detect_source_language(changed_path) else {
+        return;
     };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let rel = workspace_relative(&path, workspace_root);
-        if exclude.iter().any(|ex| rel.starts_with(ex.as_str())) {
-            continue;
-        }
-        if path.is_dir() {
-            collect_rs_files_filtered(&path, workspace_root, exclude, max_file_size, chunks);
-        } else if path.extension().is_some_and(|e| e == "rs") {
-            // Skip files exceeding the size limit.
-            let size = path.metadata().map(|m| m.len() as usize).unwrap_or(0);
-            if size > max_file_size {
-                continue;
-            }
-            if let Ok(source) = fs::read_to_string(&path) {
-                parse_rust_file(&rel, &source, chunks);
-            }
-        }
+
+    let size = changed_path
+        .metadata()
+        .map(|m| m.len() as usize)
+        .unwrap_or(0);
+    if size > max_file_size {
+        return;
+    }
+
+    if let Ok(source) = fs::read_to_string(changed_path) {
+        parse_source_file(&rel, &source, language, index);
     }
 }
 
@@ -151,22 +174,48 @@ fn workspace_relative(path: &Path, workspace_root: &Path) -> String {
         .replace('\\', "/")
 }
 
-/// Parse a single Rust source file and extract structural items.
-fn parse_rust_file(rel_path: &str, source: &str, chunks: &mut Vec<IndexChunk>) {
+fn detect_source_language(path: &Path) -> Option<SourceLanguage> {
+    let ext = path.extension()?.to_str()?;
+    match ext {
+        "rs" => Some(SourceLanguage::Rust),
+        "py" => Some(SourceLanguage::Python),
+        "ts" => Some(SourceLanguage::TypeScript),
+        "tsx" => Some(SourceLanguage::Tsx),
+        "js" | "mjs" | "cjs" | "jsx" => Some(SourceLanguage::JavaScript),
+        _ => None,
+    }
+}
+
+fn parse_source_file(
+    rel_path: &str,
+    source: &str,
+    language: SourceLanguage,
+    chunks: &mut Vec<IndexChunk>,
+) {
     let mut parser = tree_sitter::Parser::new();
-    let language = tree_sitter_rust::LANGUAGE;
-    if parser.set_language(&language.into()).is_err() {
+    if parser.set_language(&language.parser_language()).is_err() {
         return;
     }
     let tree = match parser.parse(source, None) {
-        Some(t) => t,
+        Some(tree) => tree,
         None => return,
     };
+
     let source_bytes = source.as_bytes();
-    extract_items(tree.root_node(), source_bytes, rel_path, None, chunks);
+    match language {
+        SourceLanguage::Rust => {
+            extract_rust_items(tree.root_node(), source_bytes, rel_path, None, chunks)
+        }
+        SourceLanguage::Python => {
+            extract_python_items(tree.root_node(), source_bytes, rel_path, None, chunks)
+        }
+        SourceLanguage::TypeScript | SourceLanguage::Tsx | SourceLanguage::JavaScript => {
+            extract_javascript_items(tree.root_node(), source_bytes, rel_path, None, chunks)
+        }
+    }
 }
 
-fn extract_items(
+fn extract_rust_items(
     node: tree_sitter::Node,
     source: &[u8],
     rel_path: &str,
@@ -191,10 +240,6 @@ fn extract_items(
 
         if let Some(kind) = item_kind {
             let name = extract_name(child, source, &kind);
-            let start_line = child.start_position().row + 1;
-            let end_line = child.end_position().row + 1;
-            let chunk_source = child.utf8_text(source).unwrap_or("").to_string();
-
             let scope_name =
                 if kind == ItemKind::Impl || kind == ItemKind::Trait || kind == ItemKind::Module {
                     Some(name.clone())
@@ -202,26 +247,183 @@ fn extract_items(
                     parent_scope.map(String::from)
                 };
 
-            chunks.push(IndexChunk {
-                path: rel_path.to_string(),
-                start_line,
-                end_line,
-                kind: kind.clone(),
+            push_chunk(
+                chunks,
+                rel_path,
+                child,
+                source,
+                kind.clone(),
                 name,
-                parent_scope: scope_name.clone(),
-                source: chunk_source,
-            });
+                scope_name.clone(),
+            );
 
             // Recurse into impl/trait/mod bodies for nested items.
             if kind == ItemKind::Impl || kind == ItemKind::Trait || kind == ItemKind::Module {
                 let scope = scope_name.as_deref();
-                extract_items(child, source, rel_path, scope, chunks);
+                extract_rust_items(child, source, rel_path, scope, chunks);
             }
         } else if kind_str == "declaration_list" {
             // Recurse into declaration_list (body of impl/trait/mod blocks).
-            extract_items(child, source, rel_path, parent_scope, chunks);
+            extract_rust_items(child, source, rel_path, parent_scope, chunks);
         }
     }
+}
+
+fn extract_python_items(
+    node: tree_sitter::Node,
+    source: &[u8],
+    rel_path: &str,
+    parent_scope: Option<&str>,
+    chunks: &mut Vec<IndexChunk>,
+) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "class_definition" => {
+                let name = extract_name(child, source, &ItemKind::Class);
+                push_chunk(
+                    chunks,
+                    rel_path,
+                    child,
+                    source,
+                    ItemKind::Class,
+                    name.clone(),
+                    parent_scope.map(String::from),
+                );
+                extract_python_items(child, source, rel_path, Some(&name), chunks);
+            }
+            "function_definition" => {
+                let name = extract_name(child, source, &ItemKind::Function);
+                push_chunk(
+                    chunks,
+                    rel_path,
+                    child,
+                    source,
+                    ItemKind::Function,
+                    name,
+                    parent_scope.map(String::from),
+                );
+            }
+            _ => extract_python_items(child, source, rel_path, parent_scope, chunks),
+        }
+    }
+}
+
+fn extract_javascript_items(
+    node: tree_sitter::Node,
+    source: &[u8],
+    rel_path: &str,
+    parent_scope: Option<&str>,
+    chunks: &mut Vec<IndexChunk>,
+) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "class_declaration" => {
+                let name = extract_name(child, source, &ItemKind::Class);
+                push_chunk(
+                    chunks,
+                    rel_path,
+                    child,
+                    source,
+                    ItemKind::Class,
+                    name.clone(),
+                    parent_scope.map(String::from),
+                );
+                extract_javascript_items(child, source, rel_path, Some(&name), chunks);
+            }
+            "function_declaration" | "generator_function_declaration" | "method_definition" => {
+                let name = extract_name(child, source, &ItemKind::Function);
+                push_chunk(
+                    chunks,
+                    rel_path,
+                    child,
+                    source,
+                    ItemKind::Function,
+                    name,
+                    parent_scope.map(String::from),
+                );
+            }
+            "interface_declaration" => {
+                let name = extract_name(child, source, &ItemKind::Interface);
+                push_chunk(
+                    chunks,
+                    rel_path,
+                    child,
+                    source,
+                    ItemKind::Interface,
+                    name,
+                    parent_scope.map(String::from),
+                );
+            }
+            "type_alias_declaration" => {
+                let name = extract_name(child, source, &ItemKind::TypeAlias);
+                push_chunk(
+                    chunks,
+                    rel_path,
+                    child,
+                    source,
+                    ItemKind::TypeAlias,
+                    name,
+                    parent_scope.map(String::from),
+                );
+            }
+            "enum_declaration" => {
+                let name = extract_name(child, source, &ItemKind::Enum);
+                push_chunk(
+                    chunks,
+                    rel_path,
+                    child,
+                    source,
+                    ItemKind::Enum,
+                    name,
+                    parent_scope.map(String::from),
+                );
+            }
+            "variable_declarator" if function_valued_variable(child) => {
+                let name = extract_name(child, source, &ItemKind::Function);
+                push_chunk(
+                    chunks,
+                    rel_path,
+                    child,
+                    source,
+                    ItemKind::Function,
+                    name,
+                    parent_scope.map(String::from),
+                );
+            }
+            _ => extract_javascript_items(child, source, rel_path, parent_scope, chunks),
+        }
+    }
+}
+
+fn function_valued_variable(node: tree_sitter::Node) -> bool {
+    node.child_by_field_name("value").is_some_and(|value| {
+        matches!(
+            value.kind(),
+            "arrow_function" | "function" | "function_expression"
+        )
+    })
+}
+
+fn push_chunk(
+    chunks: &mut Vec<IndexChunk>,
+    rel_path: &str,
+    node: tree_sitter::Node,
+    source: &[u8],
+    kind: ItemKind,
+    name: String,
+    parent_scope: Option<String>,
+) {
+    chunks.push(IndexChunk {
+        path: rel_path.to_string(),
+        start_line: node.start_position().row + 1,
+        end_line: node.end_position().row + 1,
+        kind,
+        name,
+        parent_scope,
+        source: node.utf8_text(source).unwrap_or("").to_string(),
+    });
 }
 
 fn extract_name(node: tree_sitter::Node, source: &[u8], kind: &ItemKind) -> String {
@@ -244,7 +446,10 @@ fn extract_name(node: tree_sitter::Node, source: &[u8], kind: &ItemKind) -> Stri
 
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        if child.kind() == "identifier" || child.kind() == "type_identifier" {
+        if matches!(
+            child.kind(),
+            "identifier" | "type_identifier" | "property_identifier"
+        ) {
             return child.utf8_text(source).unwrap_or("_").to_string();
         }
     }
@@ -260,7 +465,7 @@ mod tests {
     fn test_parse_rust_file_extracts_function() {
         let source = "pub fn hello_world() -> i32 { 42 }\n";
         let mut chunks = Vec::new();
-        parse_rust_file("test.rs", source, &mut chunks);
+        parse_source_file("test.rs", source, SourceLanguage::Rust, &mut chunks);
         assert!(!chunks.is_empty());
         assert_eq!(chunks[0].kind, ItemKind::Function);
         assert_eq!(chunks[0].name, "hello_world");
@@ -271,7 +476,7 @@ mod tests {
     fn test_parse_rust_file_extracts_struct() {
         let source = "pub struct Foo {\n    bar: i32,\n}\n";
         let mut chunks = Vec::new();
-        parse_rust_file("test.rs", source, &mut chunks);
+        parse_source_file("test.rs", source, SourceLanguage::Rust, &mut chunks);
         assert!(!chunks.is_empty());
         assert_eq!(chunks[0].kind, ItemKind::Struct);
         assert_eq!(chunks[0].name, "Foo");
@@ -281,7 +486,7 @@ mod tests {
     fn test_parse_rust_file_extracts_impl_methods() {
         let source = "struct Foo;\nimpl Foo {\n    fn bar(&self) {}\n    fn baz(&self) {}\n}\n";
         let mut chunks = Vec::new();
-        parse_rust_file("test.rs", source, &mut chunks);
+        parse_source_file("test.rs", source, SourceLanguage::Rust, &mut chunks);
         let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
         assert!(names.contains(&"Foo")); // struct + impl
         assert!(names.contains(&"bar"));
@@ -303,6 +508,57 @@ mod tests {
         let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
         assert!(names.contains(&"main"));
         assert!(names.contains(&"App"));
+    }
+
+    #[test]
+    fn test_build_index_filtered_indexes_supported_languages_outside_src() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let scripts = tmp.path().join("scripts");
+        let web = tmp.path().join("web");
+        fs::create_dir_all(&scripts).expect("mkdir scripts");
+        fs::create_dir_all(&web).expect("mkdir web");
+
+        fs::write(
+            scripts.join("worker.py"),
+            "class Worker:\n    def run(self):\n        return 1\n",
+        )
+        .expect("write worker.py");
+        fs::write(
+            web.join("app.ts"),
+            "interface Props {}\nclass App {}\nfunction render() {}\nconst boot = () => {};\n",
+        )
+        .expect("write app.ts");
+
+        let mut python_chunks = Vec::new();
+        parse_source_file(
+            "scripts/worker.py",
+            "class Worker:\n    def run(self):\n        return 1\n",
+            SourceLanguage::Python,
+            &mut python_chunks,
+        );
+        assert!(
+            !python_chunks.is_empty(),
+            "direct Python parse produced no chunks"
+        );
+
+        let chunks = build_index_filtered(tmp.path(), &[], usize::MAX);
+        let names: Vec<&str> = chunks.iter().map(|c| c.name.as_str()).collect();
+        let paths: Vec<&str> = chunks.iter().map(|c| c.path.as_str()).collect();
+
+        assert!(
+            paths.contains(&"scripts/worker.py"),
+            "expected Python chunks, got paths={paths:?} names={names:?}"
+        );
+        assert!(
+            paths.contains(&"web/app.ts"),
+            "expected TypeScript chunks, got paths={paths:?} names={names:?}"
+        );
+        assert!(names.contains(&"Worker"), "got names={names:?}");
+        assert!(names.contains(&"run"), "got names={names:?}");
+        assert!(names.contains(&"Props"), "got names={names:?}");
+        assert!(names.contains(&"App"), "got names={names:?}");
+        assert!(names.contains(&"render"), "got names={names:?}");
+        assert!(names.contains(&"boot"), "got names={names:?}");
     }
 
     #[test]
@@ -331,7 +587,7 @@ mod tests {
     fn test_mod_item_propagates_scope_to_nested_functions() {
         let source = "mod mymod {\n    fn inner() {}\n}\n";
         let mut chunks = Vec::new();
-        parse_rust_file("test.rs", source, &mut chunks);
+        parse_source_file("test.rs", source, SourceLanguage::Rust, &mut chunks);
         let inner = chunks.iter().find(|c| c.name == "inner");
         assert!(inner.is_some(), "expected to find function 'inner'");
         assert_eq!(

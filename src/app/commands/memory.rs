@@ -89,7 +89,11 @@ impl TuiMode {
             return;
         }
 
-        let starting_batch = self.command_sessions.is_empty();
+        let starting_batch = self
+            .task_doc
+            .active_turn
+            .as_ref()
+            .is_none_or(|t| t.command_sessions.is_empty());
         if starting_batch {
             self.begin_turn_capture("/reindex".to_string());
         }

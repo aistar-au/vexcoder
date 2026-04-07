@@ -16,6 +16,26 @@ const LIST_DIR_MAX: usize = 500;
 /// Maximum number of file paths returned by [`glob_files`].
 const GLOB_FILES_MAX: usize = 200;
 
+pub(crate) struct WorkspaceGlobMatcher {
+    matcher: globset::GlobSet,
+    match_basename: bool,
+    requires_path_separator: bool,
+}
+
+impl WorkspaceGlobMatcher {
+    pub(crate) fn matches(&self, path: &str) -> bool {
+        if self.requires_path_separator && !path.contains('/') {
+            return false;
+        }
+
+        self.matcher.is_match(path)
+            || (self.match_basename
+                && self
+                    .matcher
+                    .is_match(path.rsplit('/').next().unwrap_or(path)))
+    }
+}
+
 /// List the immediate (non-recursive) contents of a workspace directory.
 ///
 /// - `path`: workspace-relative directory path; defaults to workspace root.
@@ -114,7 +134,7 @@ pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) ->
 
     let ignore = WorkspaceIgnore::load(operator.working_dir());
     let limit = max_results.clamp(1, GLOB_FILES_MAX);
-    let Some(matcher) = build_glob_matcher(pattern) else {
+    let Some(matcher) = compile_workspace_glob(pattern) else {
         return Ok("(no files found)".to_string());
     };
 
@@ -128,7 +148,7 @@ pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) ->
             let rel = make_relative(operator.working_dir(), &p)
                 .to_string_lossy()
                 .replace('\\', "/");
-            if glob_path_match(&matcher, &rel) {
+            if matcher.matches(&rel) {
                 Some(rel)
             } else {
                 None
@@ -154,21 +174,26 @@ pub fn glob_files(operator: &ToolOperator, pattern: &str, max_results: usize) ->
     Ok(out)
 }
 
-/// Match `pattern` against a workspace-relative path using `globset`.
-/// Falls back to matching against just the filename component if the full
-/// path doesn't match, for bare-name patterns like `*.rs`.
-fn build_glob_matcher(pattern: &str) -> Option<globset::GlobSet> {
+/// Compile a glob matcher shared by `glob_files`, `find_files`, and
+/// `search_content` path filtering.
+pub(crate) fn compile_workspace_glob(pattern: &str) -> Option<WorkspaceGlobMatcher> {
     let Ok(glob) = globset::GlobBuilder::new(pattern)
         .literal_separator(false)
         .build()
     else {
         return None;
     };
-    globset::GlobSetBuilder::new().add(glob).build().ok()
+    let matcher = globset::GlobSetBuilder::new().add(glob).build().ok()?;
+    Some(WorkspaceGlobMatcher {
+        matcher,
+        match_basename: !pattern.contains('/'),
+        requires_path_separator: pattern.contains('/'),
+    })
 }
 
-fn glob_path_match(matcher: &globset::GlobSet, path: &str) -> bool {
-    matcher.is_match(path) || matcher.is_match(path.rsplit('/').next().unwrap_or(path))
+#[cfg(test)]
+pub(crate) fn glob_matches(pattern: &str, path: &str) -> bool {
+    compile_workspace_glob(pattern).is_some_and(|matcher| matcher.matches(path))
 }
 
 #[cfg(test)]

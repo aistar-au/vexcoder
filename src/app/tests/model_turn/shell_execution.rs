@@ -108,8 +108,28 @@ fn test_command_session_updates_track_matching_session() {
         &mut ctx,
     );
 
-    assert_eq!(mode.command_sessions[0].pid, Some(11));
-    assert_eq!(mode.command_sessions[1].pid, Some(22));
+    assert_eq!(
+        mode.task_doc
+            .active_turn
+            .as_ref()
+            .unwrap()
+            .command_sessions
+            .get(&first)
+            .unwrap()
+            .pid,
+        Some(11)
+    );
+    assert_eq!(
+        mode.task_doc
+            .active_turn
+            .as_ref()
+            .unwrap()
+            .command_sessions
+            .get(&second)
+            .unwrap()
+            .pid,
+        Some(22)
+    );
 
     mode.on_model_update(
         UiUpdate::CommandSessionFinished { session_id: first },
@@ -117,9 +137,27 @@ fn test_command_session_updates_track_matching_session() {
     );
     mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
 
-    assert_eq!(mode.command_sessions.len(), 1);
+    assert_eq!(
+        mode.task_doc
+            .active_turn
+            .as_ref()
+            .unwrap()
+            .command_sessions
+            .len(),
+        1
+    );
     assert!(mode.is_turn_in_progress());
-    assert_eq!(mode.command_sessions[0].command, "second");
+    assert_eq!(
+        mode.task_doc
+            .active_turn
+            .as_ref()
+            .unwrap()
+            .command_sessions
+            .get(&second)
+            .unwrap()
+            .command,
+        "second"
+    );
 
     mode.on_model_update(
         UiUpdate::CommandSessionFinished { session_id: second },
@@ -127,7 +165,11 @@ fn test_command_session_updates_track_matching_session() {
     );
     mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
 
-    assert!(mode.command_sessions.is_empty());
+    assert!(mode
+        .task_doc
+        .active_turn
+        .as_ref()
+        .is_none_or(|t| t.command_sessions.is_empty()));
     assert!(!mode.is_turn_in_progress());
 }
 
@@ -152,11 +194,59 @@ fn test_command_session_started_update_creates_running_session() {
         &mut ctx,
     );
 
-    assert_eq!(mode.command_sessions.len(), 1);
-    assert_eq!(mode.command_sessions[0].id, 77);
-    assert_eq!(mode.command_sessions[0].command, "echo from-tool");
-    assert_eq!(mode.command_sessions[0].pid, Some(7700));
-    assert_eq!(mode.command_sessions[0].status, "running");
+    assert_eq!(
+        mode.task_doc
+            .active_turn
+            .as_ref()
+            .unwrap()
+            .command_sessions
+            .len(),
+        1
+    );
+    assert_eq!(
+        mode.task_doc
+            .active_turn
+            .as_ref()
+            .unwrap()
+            .command_sessions
+            .get(&77)
+            .unwrap()
+            .session_id,
+        77
+    );
+    assert_eq!(
+        mode.task_doc
+            .active_turn
+            .as_ref()
+            .unwrap()
+            .command_sessions
+            .get(&77)
+            .unwrap()
+            .command,
+        "echo from-tool"
+    );
+    assert_eq!(
+        mode.task_doc
+            .active_turn
+            .as_ref()
+            .unwrap()
+            .command_sessions
+            .get(&77)
+            .unwrap()
+            .pid,
+        Some(7700)
+    );
+    assert_eq!(
+        mode.task_doc
+            .active_turn
+            .as_ref()
+            .unwrap()
+            .command_sessions
+            .get(&77)
+            .unwrap()
+            .status,
+        "running"
+    );
 }
 
 #[test]
@@ -174,7 +264,11 @@ fn test_turn_complete_waits_for_last_command_session_to_finish() {
 
     mode.on_model_update(UiUpdate::CommandSessionFinished { session_id }, &mut ctx);
 
-    assert!(mode.command_sessions.is_empty());
+    assert!(mode
+        .task_doc
+        .active_turn
+        .as_ref()
+        .is_none_or(|t| t.command_sessions.is_empty()));
     assert!(!mode.is_turn_in_progress());
     assert!(!mode.turn_completion_pending);
     assert_eq!(mode.task_doc.meta.status, crate::runtime::TaskStatus::Ready);

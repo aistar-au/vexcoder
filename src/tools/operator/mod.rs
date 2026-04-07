@@ -7,7 +7,7 @@ mod search;
 use std::path::{Path, PathBuf};
 
 #[cfg(test)]
-use self::search::glob_matches;
+use crate::tools::workspace_explore::glob_matches;
 
 #[derive(Clone)]
 pub struct ToolOperator {
@@ -201,5 +201,42 @@ mod tests {
             names.iter().any(|n| n == "src/main.rs"),
             "find_files(**) must include nested src/main.rs, got: {names:?}"
         );
+    }
+
+    #[test]
+    fn test_find_files_bare_glob_matches_nested_files() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("src")).unwrap();
+        fs::write(dir.path().join("src/main.rs"), "fn main() {}").unwrap();
+        fs::write(dir.path().join("src/lib.rs"), "pub fn lib() {}").unwrap();
+        let op = ToolOperator::new(dir.path().to_path_buf());
+
+        let files = op.find_files("*.rs").expect("find_files");
+        let names: Vec<String> = files
+            .iter()
+            .map(|path| op.to_workspace_relative_display(path))
+            .collect();
+
+        assert!(names.iter().any(|name| name == "src/main.rs"));
+        assert!(names.iter().any(|name| name == "src/lib.rs"));
+    }
+
+    #[test]
+    fn test_search_content_bare_glob_matches_nested_files() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("src")).unwrap();
+        fs::write(dir.path().join("src/main.rs"), "needle\n").unwrap();
+        fs::write(dir.path().join("src/data.txt"), "needle\n").unwrap();
+        let op = ToolOperator::new(dir.path().to_path_buf());
+
+        let matches = op
+            .search_content("needle", Some("*.rs"))
+            .expect("search_content");
+        let names: Vec<String> = matches
+            .iter()
+            .map(|m| op.to_workspace_relative_display(&m.file))
+            .collect();
+
+        assert_eq!(names, vec!["src/main.rs".to_string()]);
     }
 }

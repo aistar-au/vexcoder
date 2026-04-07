@@ -13,7 +13,7 @@ use crate::status_contract::{
 };
 use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
 
-use super::StepLifecycle;
+use super::{StepLifecycle, TranscriptRow};
 
 /// Build the full ordered list of transcript rows from `task_doc`.
 ///
@@ -22,11 +22,11 @@ use super::StepLifecycle;
 pub(super) fn project_transcript_rows(
     task_doc: &TaskDocument,
     pre_session_notices: &[String],
-) -> Vec<String> {
-    let mut rows: Vec<String> = Vec::new();
+) -> Vec<TranscriptRow> {
+    let mut rows: Vec<TranscriptRow> = Vec::new();
 
     for notice in pre_session_notices {
-        rows.push(notice.clone());
+        rows.push(TranscriptRow::Plain(notice.clone()));
     }
 
     for completed in &task_doc.completed_turns {
@@ -40,7 +40,7 @@ pub(super) fn project_transcript_rows(
     rows
 }
 
-fn append_turn_rows(rows: &mut Vec<String>, entries: &[TurnEntry]) {
+fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
     // Pre-index ToolResult entries by tool_call_id for O(1) lookup while
     // projecting ToolCall entries, avoiding an O(n²) scan per entry.
     let tool_results: std::collections::HashMap<&str, (&str, bool)> = entries
@@ -65,7 +65,7 @@ fn append_turn_rows(rows: &mut Vec<String>, entries: &[TurnEntry]) {
         match &entries[idx] {
             TurnEntry::UserInput { text, .. } => {
                 if !text.trim().is_empty() {
-                    rows.push(format!("> {text}"));
+                    rows.push(TranscriptRow::UserInput(text.clone()));
                 }
                 idx += 1;
             }
@@ -76,11 +76,19 @@ fn append_turn_rows(rows: &mut Vec<String>, entries: &[TurnEntry]) {
                 }
                 let row_before = rows.len();
                 for line in block.content.lines() {
-                    rows.push(line.to_string());
+                    rows.push(TranscriptRow::AssistantText {
+                        text: line.to_string(),
+                        streaming: false,
+                    });
                 }
                 if block.streaming && !block.content.is_empty() && !block.content.ends_with('\n') {
-                    if let Some(last) = rows.get_mut(row_before..).and_then(|s| s.last_mut()) {
-                        last.push('▌');
+                    if let Some(last) = rows.get_mut(row_before..) {
+                        if let Some(TranscriptRow::AssistantText { text, streaming }) =
+                            last.last_mut()
+                        {
+                            text.push('▌');
+                            *streaming = true;
+                        }
                     }
                 }
                 idx += 1;
@@ -118,8 +126,8 @@ fn append_turn_rows(rows: &mut Vec<String>, entries: &[TurnEntry]) {
                 message, severity, ..
             } => {
                 match severity {
-                    NoticeSeverity::Error => rows.push(format!("[error] {message}")),
-                    _ => rows.push(message.clone()),
+                    NoticeSeverity::Error => rows.push(TranscriptRow::Error(message.clone())),
+                    _ => rows.push(TranscriptRow::Plain(message.clone())),
                 }
                 idx += 1;
             }
@@ -132,7 +140,7 @@ fn append_turn_rows(rows: &mut Vec<String>, entries: &[TurnEntry]) {
     }
 }
 
-fn append_active_turn_rows(rows: &mut Vec<String>, active: &ActiveTurnDocument) {
+fn append_active_turn_rows(rows: &mut Vec<TranscriptRow>, active: &ActiveTurnDocument) {
     append_turn_rows(rows, &active.entries);
 
     // If no streaming content arrived yet, show a waiting placeholder.
@@ -152,7 +160,7 @@ fn append_active_turn_rows(rows: &mut Vec<String>, active: &ActiveTurnDocument) 
                 line.push_str(&format!(" \u{2191}:{processed}/{total}"));
             }
         }
-        rows.push(line);
+        rows.push(TranscriptRow::WaitingPlaceholder(line));
     }
 }
 
@@ -168,17 +176,16 @@ fn pending_tool_paragraph_rows(
     name: &str,
     input_preview: &str,
     lifecycle: StepLifecycle,
-) -> Vec<String> {
+) -> Vec<TranscriptRow> {
     let status = match lifecycle {
         StepLifecycle::AwaitingApproval => "awaiting approval",
         StepLifecycle::Approved => "approved",
         _ => pending_status_label(),
     };
     let target = tool_target_summary(input_preview);
-    let mut rows = vec![format!(
-        "[tool] {}",
-        tool_header_summary(name, target, status)
-    )];
+    let mut rows = vec![TranscriptRow::ToolHeader(tool_header_summary(
+        name, target, status,
+    ))];
     append_preview_rows(&mut rows, preview_rows(input_preview));
     rows
 }
@@ -188,7 +195,7 @@ fn completed_tool_paragraph_rows(
     input: &serde_json::Value,
     output: &str,
     is_error: bool,
-) -> Vec<String> {
+) -> Vec<TranscriptRow> {
     let status = if is_error {
         "failed"
     } else {
@@ -202,10 +209,9 @@ fn completed_tool_paragraph_rows(
     );
     let first_line = first_nonempty_line(output).unwrap_or(status);
     let target = tool_target_summary(first_line).or_else(|| tool_target_summary(&input_preview));
-    let mut rows = vec![format!(
-        "[tool] {}",
-        tool_header_summary(name, target, status)
-    )];
+    let mut rows = vec![TranscriptRow::ToolHeader(tool_header_summary(
+        name, target, status,
+    ))];
     let input_rows = preview_rows(&input_preview);
     if !input_rows.is_empty()
         && input_rows
@@ -214,10 +220,10 @@ fn completed_tool_paragraph_rows(
     {
         append_preview_rows(&mut rows, input_rows);
     }
-    rows.push(format!(
-        "[detail] Result: {}",
+    rows.push(TranscriptRow::ToolDetail(format!(
+        "Result: {}",
         compact_outcome_summary(first_line)
-    ));
+    )));
     const MAX_EVIDENCE_LINES: usize = 3;
     let nonempty: Vec<&str> = output
         .lines()
@@ -225,13 +231,13 @@ fn completed_tool_paragraph_rows(
         .filter(|line| !line.trim().is_empty())
         .collect();
     for line in nonempty.iter().take(MAX_EVIDENCE_LINES) {
-        rows.push(format!("[evidence] {line}"));
+        rows.push(TranscriptRow::Evidence((*line).to_string()));
     }
     if nonempty.len() > MAX_EVIDENCE_LINES {
-        rows.push(format!(
-            "[evidence] +{} more lines",
+        rows.push(TranscriptRow::Evidence(format!(
+            "+{} more lines",
             nonempty.len() - MAX_EVIDENCE_LINES
-        ));
+        )));
     }
     rows
 }
@@ -251,14 +257,14 @@ fn preview_rows(preview: &str) -> Vec<String> {
         .collect()
 }
 
-fn append_preview_rows(rows: &mut Vec<String>, preview_rows: Vec<String>) {
+fn append_preview_rows(rows: &mut Vec<TranscriptRow>, preview_rows: Vec<String>) {
     let mut preview_rows = preview_rows.into_iter();
     let Some(first) = preview_rows.next() else {
         return;
     };
-    rows.push(format!("[detail] Input: {first}"));
+    rows.push(TranscriptRow::ToolDetail(format!("Input: {first}")));
     for line in preview_rows {
-        rows.push(format!("[evidence] {line}"));
+        rows.push(TranscriptRow::Evidence(line));
     }
 }
 

@@ -4,6 +4,13 @@
 
 **Depends on:** None (green on current main)
 
+**Current status (2026-04-07):** The current PR 6 branch narrows this task to
+the search-substrate cutover from `batch-start.txt`: whole-workspace structural
+indexing, live use of the Python and JS/TS tree-sitter grammars, and one
+shared glob matcher across `glob_files`, `find_files`, and `search_content`.
+The broader `/reindex`, config-surface, and lifecycle work described below
+remains a later follow-up.
+
 ---
 
 ## Issue
@@ -11,7 +18,8 @@
 The agent already exposes `codebase_search` backed by a lazy structural index
 plus optional semantic reranking. The current search stack is still limited:
 
-1. Structural indexing is hard-coded around the current Rust source tree.
+1. Before the current PR 6 lane, structural indexing was hard-coded around
+  the current Rust source tree.
 2. There is no operator-facing `/reindex` command for out-of-band file
   changes.
 3. Search limits, exclusions, and rebuild policy are not configurable.

@@ -386,24 +386,6 @@ pub fn parallel_search_files(paths: &[PathBuf], pattern: &str) -> Vec<(String, u
     rx.into_iter().collect()
 }
 
-// ── Syntax-aware language detection ──────────────────────────────────────────
-
-/// Map a source file path to a tree-sitter `Language` by file extension.
-///
-/// Supported extensions: `.py` (Python), `.ts` (TypeScript), `.tsx` (TSX),
-/// `.js` / `.mjs` / `.cjs` / `.jsx` (JavaScript).  Returns `None` for
-/// unrecognised extensions.
-pub fn detect_language(path: &Path) -> Option<tree_sitter::Language> {
-    let ext = path.extension()?.to_str()?;
-    match ext {
-        "py" => Some(tree_sitter_python::LANGUAGE.into()),
-        "ts" => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
-        "tsx" => Some(tree_sitter_typescript::LANGUAGE_TSX.into()),
-        "js" | "mjs" | "cjs" | "jsx" => Some(tree_sitter_javascript::LANGUAGE.into()),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -590,15 +572,5 @@ mod tests {
         assert!(is_binary_content(b"hello\x00world"));
         assert!(!is_binary_content(b"hello world"));
         assert!(!is_binary_content(b""));
-    }
-
-    #[test]
-    fn test_detect_language_maps_extensions() {
-        assert!(detect_language(Path::new("foo.py")).is_some());
-        assert!(detect_language(Path::new("bar.ts")).is_some());
-        assert!(detect_language(Path::new("baz.tsx")).is_some());
-        assert!(detect_language(Path::new("qux.js")).is_some());
-        assert!(detect_language(Path::new("qux.mjs")).is_some());
-        assert!(detect_language(Path::new("unknown.xyz")).is_none());
     }
 }

@@ -182,13 +182,13 @@ crossbeam-channel = "0.5"
 # --- syntax-aware code parsing ---
 # tree-sitter-python: Python grammar for tree-sitter; enables symbol
 #                     extraction and structural search in Python files.
-#                     Wire point: src/tools/search.rs.
-tree-sitter-python = "0.25"
+#                     Wire point: src/tools/index.rs.
+tree-sitter-python = "0.23"
 # tree-sitter-typescript: TypeScript and TSX grammars for tree-sitter.
-#                         Wire point: src/tools/search.rs.
+#                         Wire point: src/tools/index.rs.
 tree-sitter-typescript = "0.23"
 # tree-sitter-javascript: JavaScript grammar for tree-sitter.
-#                         Wire point: src/tools/search.rs.
+#                         Wire point: src/tools/index.rs.
 tree-sitter-javascript = "0.25"
 
 [dev-dependencies]

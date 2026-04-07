@@ -410,7 +410,9 @@ impl TuiMode {
                 outcome,
                 last_validation_result,
             } => {
-                self.command_sessions.clear();
+                if let Some(t) = self.task_doc.active_turn.as_mut() {
+                    t.command_sessions.clear();
+                }
                 self.last_error_message = None;
                 if let Some(result) = last_validation_result {
                     if let Some(edit_loop) = self.active_edit_loop.as_mut() {
@@ -497,25 +499,20 @@ impl TuiMode {
 
             UiUpdate::CommandSessionAttached { session_id, pid } => {
                 if let Some(session) = self
-                    .command_sessions
-                    .iter_mut()
-                    .find(|s| s.id == session_id)
+                    .task_doc
+                    .active_turn
+                    .as_mut()
+                    .and_then(|t| t.command_sessions.get_mut(&session_id))
                 {
                     session.pid = pid;
                 }
             }
 
             UiUpdate::CommandSessionFinished { session_id } => {
-                if let Some(pos) = self
-                    .command_sessions
-                    .iter()
-                    .position(|s| s.id == session_id)
-                {
-                    self.command_sessions.remove(pos);
+                if let Some(active) = self.task_doc.active_turn.as_mut() {
+                    active.command_sessions.remove(&session_id);
                 }
-                if self.command_sessions.is_empty() {
-                    self.complete_turn_if_idle(ctx);
-                }
+                self.complete_turn_if_idle(ctx);
             }
 
             UiUpdate::TurnComplete => {
@@ -541,7 +538,9 @@ impl TuiMode {
             }
 
             UiUpdate::Error(msg) => {
-                self.command_sessions.clear();
+                if let Some(t) = self.task_doc.active_turn.as_mut() {
+                    t.command_sessions.clear();
+                }
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);
                 self.streaming_tool_input_buffers.clear();

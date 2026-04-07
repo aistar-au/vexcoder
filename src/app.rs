@@ -70,6 +70,8 @@ pub(crate) mod task_facade;
 #[cfg(test)]
 mod tests;
 mod transcript_projection;
+pub mod transcript_row;
+pub use transcript_row::TranscriptRow;
 mod turn;
 mod turn_start;
 pub(crate) mod util;
@@ -176,14 +178,6 @@ struct OverlayState {
     pending_memory_clear: bool,
 }
 
-#[derive(Clone, Debug, Default)]
-struct CommandSessionState {
-    id: u64,
-    command: String,
-    pid: Option<u32>,
-    status: String,
-}
-
 /// Lifecycle state of a single orchestration step visible in the timeline.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StepLifecycle {
@@ -239,7 +233,7 @@ pub struct TaskLayoutState {
     pub total_steps: usize,
     /// Human-readable title for the output pane.
     pub output_title: String,
-    pub output_rows: Vec<String>,
+    pub output_rows: Vec<TranscriptRow>,
     /// Scroll amount for the output pane, interpreted using `output_scroll_anchor`.
     pub output_scroll_offset: usize,
     pub output_scroll_anchor: OutputScrollAnchor,
@@ -270,7 +264,7 @@ pub struct TaskLayoutState {
 #[derive(Clone, Debug, Default)]
 pub struct TaskViewProjection {
     pub status_line: String,
-    pub output_rows: Vec<String>,
+    pub output_rows: Vec<TranscriptRow>,
     pub output_scroll_offset: usize,
     pub output_scroll_anchor: OutputScrollAnchor,
     pub composer_text: String,
@@ -357,9 +351,6 @@ pub struct SlashPickerState {
 pub struct TuiMode {
     // ── Overlay / approval state ──────────────────────────────────────────
     overlay_state: OverlayState,
-    // ── Live command sessions for the current turn ────────────────────────
-    command_sessions: Vec<CommandSessionState>,
-    next_command_session_id: u64,
     // ── Session metadata (set once at startup, rarely changed) ────────────
     repo_label: String,
     git_branch: String,
