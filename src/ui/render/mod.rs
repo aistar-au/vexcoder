@@ -262,11 +262,8 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
     );
 }
 
-/// Render the four-region task control surface.
-///
-/// The activity pane uses structured `timeline_entries` to render
-/// the selected timeline entry highlighted with its detail shown
-/// in the output/inspector pane.
+/// Render the task control surface: status bar, output/transcript pane,
+/// composer input, and optional picker overlay.
 pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewProjection) {
     let input_width = frame.area().width.saturating_sub(2).max(1) as usize;
     let layout = split_four_region_layout(
@@ -374,52 +371,6 @@ fn render_picker_overlay(
         .collect::<Vec<_>>();
 
     frame.render_widget(Paragraph::new(rendered), inner);
-}
-
-#[cfg(test)]
-/// Render a single timeline entry with lifecycle-based colour coding
-/// and an optional selection indicator.
-fn render_timeline_entry(entry: &crate::app::TimelineEntry, is_selected: bool) -> Line<'static> {
-    use crate::app::StepLifecycle;
-
-    let (prefix, prefix_color) = match entry.lifecycle {
-        StepLifecycle::Completed => ("[ok]", Color::Green),
-        StepLifecycle::Failed => ("[!]", Color::Red),
-        StepLifecycle::Running => ("[->]", Color::Magenta),
-        StepLifecycle::AwaitingApproval => ("[?]", Color::Yellow),
-        StepLifecycle::Approved => ("[v]", Color::Green),
-        StepLifecycle::UserInput => (">", Color::DarkGray),
-        StepLifecycle::CommandSession => ("[$$]", Color::Magenta),
-    };
-
-    let selector = if is_selected { "> " } else { "  " };
-    let body_style = if is_selected {
-        Style::default()
-            .fg(Color::White)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(prefix_color)
-    };
-
-    Line::from(vec![
-        Span::styled(
-            selector.to_string(),
-            if is_selected {
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::DarkGray)
-            },
-        ),
-        Span::styled(
-            prefix.to_string(),
-            Style::default()
-                .fg(prefix_color)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(format!(" {}", entry.label), body_style),
-    ])
 }
 
 pub fn render_overlay_modal(frame: &mut Frame<'_>, modal: OverlayModal<'_>) {

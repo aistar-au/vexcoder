@@ -519,8 +519,9 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
             task_state.composer_focused = mode.composer_is_focused();
             let size = self.terminal.size().unwrap_or_default();
             mode.set_history_content_width(size.width.max(1) as usize);
+            let view = task_state.into_view_projection();
             let _ = self.terminal.draw(|frame| {
-                render_task_layout(frame, &task_state);
+                render_task_layout(frame, &view);
                 let area = frame.area();
                 if let Some((patch_preview, scroll_offset)) = mode.pending_patch_overlay() {
                     render_overlay_modal_in_area(
