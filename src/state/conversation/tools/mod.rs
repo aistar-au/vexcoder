@@ -389,6 +389,14 @@ async fn execute_mcp_tool(
     }
 }
 
+/// Execute `run_command` as a sandboxed command session.
+///
+/// This tool is **frontend-only**: it is not included in the model-facing
+/// tool schema (`tool_definitions()`) and the system prompt explicitly
+/// tells models that shell utilities are unavailable.  The only callers
+/// are the TUI `!command` path and pre/post hooks.  If the model
+/// hallucinates a `run_command` call, [`execute_tool_blocking_with_operator`]
+/// in `dispatch.rs` returns an immediate error.
 async fn execute_run_command_tool(
     tool_operator: &ToolOperator,
     sandbox: &ConfiguredSandbox,

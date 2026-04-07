@@ -88,6 +88,32 @@ tool names:
    error result (`Unknown tool: <name>`) instead of silently failing,
    matching the existing tagged-fallback behaviour.
 
+### D5: Keep `run_command` frontend-only
+
+The `run_command` tool is intentionally excluded from the model-facing
+tool schema (`tool_definitions()`) and from the system prompt tool
+inventory.  Shell access is available only through the TUI `!command`
+path and pre/post hooks.
+
+**Rationale:**
+
+1. Models frequently hallucinate shell tool names (e.g. `run_shell_command`,
+   `bash`, `execute_command`), producing retry loops that waste context.
+2. Sandboxed command execution adds latency and approval friction that
+   interacts poorly with the model's turn-completion heuristics.
+3. The existing file and search tools cover the model's legitimate
+   read/write needs without ambient shell access.
+
+**Enforcement points:**
+
+- `tool_definitions()` in `src/api/client/tools.rs` omits `run_command`.
+- The system prompt in `src/api/client/mod.rs` explicitly states shell
+  utilities are not available.
+- `execute_tool_blocking_with_operator()` in `dispatch.rs` returns an
+  immediate error if `run_command` reaches the blocking dispatcher.
+- `tool_requires_confirmation()` in `formatting.rs` still lists
+  `run_command` so that frontend-initiated commands require user approval.
+
 ## Consequences
 
 - Local sessions automatically adapt `max_tokens` to the server's context

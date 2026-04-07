@@ -307,7 +307,12 @@ pub(crate) fn execute_tool_dispatch_with_search_config(
             let results = search::codebase_search(query, &idx, max_results);
             Ok(search::format_search_results(query, &results))
         }
-        "run_command" => bail!("run_command must execute through the runtime command runner"),
+        // run_command is intentionally frontend-only (see ADR-042 D5).
+        // The model-facing tool schema does not include it; if the model
+        // hallucinated this call, return an error rather than executing.
+        "run_command" => bail!(
+            "run_command is frontend-only and must execute through the runtime command runner"
+        ),
         _ => bail!("Unknown tool: {name}"),
     }
 }
