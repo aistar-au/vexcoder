@@ -27,7 +27,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 16 | `adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md` | ~188 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-039-neutral-cli-voice-and-spatial-status-language.md> |
 | 17 | `adr/ADR-040-real-time-local-turn-telemetry.md` | ~193 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-040-real-time-local-turn-telemetry.md> |
 | 18 | `adr/ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md` | ~362 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md> |
-| 19 | `adr/ADR-042-server-derived-batch-and-context-configuration.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-042-server-derived-batch-and-context-configuration.md> |
+| 19 | `adr/ADR-042-tool-registration-and-approval-layer.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-042-tool-registration-and-approval-layer.md> |
 | 20 | `adr/ADR-043-structured-output-parser-adoption-gates.md` | ~85 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-043-structured-output-parser-adoption-gates.md> |
 | 21 | `adr/ADR-044-test-suite-scalability-and-fixture-patterns.md` | ~226 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-044-test-suite-scalability-and-fixture-patterns.md> |
 | 22 | `adr/ADR-README.md` | ~97 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |

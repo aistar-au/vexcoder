@@ -23,6 +23,12 @@ pub(super) struct Cli {
     /// Example: `vex -p "summarise this file" < README.md`
     #[arg(short = 'p', long = "print")]
     pub(super) print_prompt: Option<String>,
+
+    /// Use the chat/completions API format instead of the default messages/v1 format.
+    /// Required when connecting to endpoints that use the chat/completions schema
+    /// instead of the messages/v1 schema.
+    #[arg(long = "chat-compat")]
+    pub(super) chat_compat: bool,
 }
 
 #[derive(Subcommand)]

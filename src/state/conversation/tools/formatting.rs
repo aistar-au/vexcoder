@@ -313,6 +313,10 @@ pub(crate) fn tool_requires_confirmation(name: &str) -> bool {
             | "git_add"
             | "git_commit"
             | "run_command"
+            | "run_shell_command"
+            | "bash"
+            | "execute_command"
+            | "execute_bash"
     )
 }
 

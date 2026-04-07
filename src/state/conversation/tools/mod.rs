@@ -86,6 +86,9 @@ impl ConversationManager {
         tool_timeout: Duration,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) -> Result<String> {
+        // Normalize commonly-hallucinated shell tool aliases to the canonical
+        // run_command name so they all route through the approval gate (ADR-042 D5/D6).
+        let name = normalize_shell_tool_alias(name);
         let tool_name = name.to_string();
         self.run_hooks(HookEvent::PreTool, &tool_name, input, stream_delta_tx)
             .await?;
@@ -389,14 +392,24 @@ async fn execute_mcp_tool(
     }
 }
 
+/// Normalize commonly-hallucinated shell tool aliases to the canonical `run_command`
+/// name so they all pass through the defense-in-depth approval overlay (ADR-042 D5/D6).
+///
+/// Names covered: `bash`, `run_shell_command`, `execute_command`, `execute_bash`.
+/// Any other name is returned unchanged.
+fn normalize_shell_tool_alias(name: &str) -> &str {
+    match name {
+        "run_shell_command" | "bash" | "execute_command" | "execute_bash" => "run_command",
+        other => other,
+    }
+}
+
 /// Execute `run_command` as a sandboxed command session.
 ///
-/// This tool is **frontend-only**: it is not included in the model-facing
-/// tool schema (`tool_definitions()`) and the system prompt explicitly
-/// tells models that shell utilities are unavailable.  The only callers
-/// are the TUI `!command` path and pre/post hooks.  If the model
-/// hallucinates a `run_command` call, [`execute_tool_blocking_with_operator`]
-/// in `dispatch.rs` returns an immediate error.
+/// Registered in the model-facing tool schema as `run_command` (ADR-042 D5 amendment).
+/// Dispatch aliases (`bash`, `run_shell_command`, `execute_command`, `execute_bash`)
+/// are normalized to this name by `normalize_shell_tool_alias` before reaching this
+/// path, ensuring every shell call passes through the approval overlay (ADR-042 D6).
 async fn execute_run_command_tool(
     tool_operator: &ToolOperator,
     sandbox: &ConfiguredSandbox,

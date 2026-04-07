@@ -27,10 +27,12 @@ pub(crate) fn builtin_tool_summaries() -> Vec<ToolSummary> {
 
 /// Model-facing tool schema.
 ///
-/// `run_command` is intentionally excluded — shell access is frontend-only.
-/// See ADR-042 decision D5 for the rationale.  The system prompt also
-/// includes an explicit sentence telling models that shell utilities are
-/// not available.
+/// `run_command` is the canonical registered shell tool (ADR-042 D5 amendment).
+/// Commonly-hallucinated aliases (`bash`, `run_shell_command`, `execute_command`,
+/// `execute_bash`) are handled as dispatch-level aliases in the tool executor and
+/// are NOT registered here to keep the schema compact.
+/// Every `run_command` invocation (including aliases) passes through the
+/// defense-in-depth approval overlay described in ADR-042 D6.
 pub(super) fn tool_definitions() -> &'static Value {
     static TOOL_DEFINITIONS: OnceLock<Value> = OnceLock::new();
 
@@ -268,6 +270,17 @@ pub(super) fn tool_definitions() -> &'static Value {
                             "max_results": { "type": "integer", "description": "Maximum results to return (default 10)", "minimum": 1, "maximum": 50 }
                         },
                         "required": ["query"]
+                    }
+                },
+                {
+                    "name": "run_command",
+                    "description": "Run a shell command in the workspace. IMPORTANT: every invocation requires explicit user approval before the command executes. The user must confirm or deny via the approval overlay; no command runs without an affirmative response. Use this only when file and search tools cannot satisfy the need. Aliases run_shell_command, bash, execute_command, and execute_bash all route to this tool.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "command": { "type": "string", "description": "Shell command to execute" }
+                        },
+                        "required": ["command"]
                     }
                 }
             ])

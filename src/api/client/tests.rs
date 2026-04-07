@@ -258,6 +258,7 @@ fn test_tool_definitions_cover_execute_tool_dispatch_names() {
         "search_content",
         "find_files",
         "codebase_search",
+        "run_command",
     ]);
 
     let names: BTreeSet<String> = tool_definitions()
@@ -897,18 +898,18 @@ fn test_server_info_native_protocol_field_default() {
 }
 
 #[test]
-fn test_system_prompt_forbids_shell_utilities() {
+fn test_system_prompt_registers_run_command_with_approval_notice() {
     let prompt = BASE_SYSTEM_PROMPT;
     assert!(
+        prompt.contains("run_command"),
+        "system prompt must list run_command in the registered tool set"
+    );
+    assert!(
         prompt.contains("run_shell_command"),
-        "system prompt must explicitly forbid run_shell_command"
+        "system prompt must mention run_shell_command alias"
     );
     assert!(
-        prompt.contains("Shell utilities"),
-        "system prompt must mention shell utilities are unavailable"
-    );
-    assert!(
-        !prompt.contains("e.g. do not call run_shell_command"),
-        "system prompt must use the stronger shell-utility prohibition"
+        prompt.contains("approval"),
+        "system prompt must state that run_command requires user approval"
     );
 }

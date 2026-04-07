@@ -95,6 +95,17 @@ fn test_tool_requires_confirmation_for_mutating_tools() {
     assert!(!tool_requires_confirmation("git_log"));
     assert!(!tool_requires_confirmation("git_show"));
 }
+
+#[test]
+fn test_tool_requires_confirmation_for_run_command_and_all_aliases() {
+    // ADR-042 D5/D6: canonical name and all dispatch aliases must require
+    // confirmation so no shell invocation can bypass the approval overlay.
+    assert!(tool_requires_confirmation("run_command"));
+    assert!(tool_requires_confirmation("run_shell_command"));
+    assert!(tool_requires_confirmation("bash"));
+    assert!(tool_requires_confirmation("execute_command"));
+    assert!(tool_requires_confirmation("execute_bash"));
+}
 #[test]
 fn test_search_files_accepts_common_query_aliases() {
     let temp = tempfile::tempdir().unwrap();
