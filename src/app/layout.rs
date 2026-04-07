@@ -9,9 +9,6 @@ use self::helpers::{
     compact_outcome_summary, extend_visual_rows, timeline_label_for_invocation,
     tool_outcome_is_error, tool_scope_detail, tool_target_summary,
 };
-pub(crate) use self::helpers::{
-    completed_tool_paragraph_rows, pending_tool_paragraph_rows, tool_approval_paragraph_rows,
-};
 
 fn telemetry_waiting_summary(rows: &[String]) -> Option<String> {
     rows.iter().rev().find_map(|line| {
@@ -323,13 +320,6 @@ impl TuiMode {
             .count();
         let changed_files = self.visible_changed_files();
 
-        let input_hint = if let Some(approval) = pending_approval.clone() {
-            format!("{approval}\n[y/n/s] ")
-        } else if self.command_session_active() {
-            "Prompt\nsubmit: / commands  @ files  ! shell  Ctrl+C cancels".to_string()
-        } else {
-            "Prompt\nsubmit: / commands  @ files  ! shell".to_string()
-        };
         Some(TaskLayoutState {
             task_id: self.task_doc.meta.id.clone(),
             status_line: self.status_line(),
@@ -358,7 +348,6 @@ impl TuiMode {
             output_scroll_offset,
             output_scroll_anchor,
             pending_approval,
-            input_hint,
             composer_text: String::new(),
             composer_cursor: 0,
             composer_focused: self.composer_is_focused(),

@@ -234,12 +234,11 @@ fn test_changed_files_and_live_approval_prompt_render() {
         selected_step: 0,
         total_steps: 1,
         output_title: "Transcript".into(),
-        output_rows: vec![],
+        output_rows: vec!["[approval] ApplyPatch: src/main.rs · awaiting approval".into()],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         changed_files: vec!["src/main.rs".into()],
         pending_approval: Some("ApplyPatch: src/main.rs".into()),
-        input_hint: "ApplyPatch: src/main.rs\n[y/n/s] ".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
@@ -265,10 +264,6 @@ fn test_changed_files_and_live_approval_prompt_render() {
     assert!(
         flat.contains("ApplyPatch"),
         "approval prompt must appear in rendered output"
-    );
-    assert!(
-        flat.contains("[y/n/s]"),
-        "approval choices must appear in rendered output"
     );
 }
 
@@ -304,7 +299,6 @@ fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
         output_scroll_anchor: crate::app::OutputScrollAnchor::Top,
         changed_files: vec![],
         pending_approval: None,
-        input_hint: "> ".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
@@ -350,7 +344,6 @@ fn task_layout_renders_status_row_on_primary_surface() {
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         changed_files: vec![],
         pending_approval: None,
-        input_hint: "> ".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
@@ -401,7 +394,6 @@ fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
         output_scroll_anchor: crate::app::OutputScrollAnchor::Top,
         changed_files: vec![],
         pending_approval: None,
-        input_hint: "> ".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
@@ -449,7 +441,6 @@ fn task_layout_without_changed_files_starts_short_transcript_below_status_row() 
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         changed_files: vec![],
         pending_approval: None,
-        input_hint: "> ".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
@@ -497,7 +488,6 @@ fn task_output_window_uses_expanded_display_rows() {
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         changed_files: vec![],
         pending_approval: None,
-        input_hint: "> ".into(),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
@@ -595,7 +585,6 @@ fn task_layout_renders_picker_overlay() {
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         changed_files: vec![],
         pending_approval: None,
-        input_hint: "Prompt\nmode: file mention".into(),
         composer_text: "@".into(),
         composer_cursor: 1,
         composer_focused: true,

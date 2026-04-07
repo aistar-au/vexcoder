@@ -1,4 +1,3 @@
-use crate::app::TaskLayoutState;
 use crate::ui::input_metrics::{
     cursor_row_col, display_width, visual_row_count, visual_window_start, wrap_input_lines,
 };
@@ -72,58 +71,8 @@ pub fn render_input(frame: &mut Frame<'_>, area: Rect, input: &str, cursor_byte:
     frame.set_cursor_position((cursor_x, cursor_y));
 }
 
-pub fn render_task_input(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    input: &str,
-    cursor_byte: usize,
-    footer: &str,
-) {
-    if area.height == 0 || area.width <= 2 {
-        return;
-    }
-
-    let footer_lines = footer
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .map(ToOwned::to_owned)
-        .collect::<Vec<_>>();
-    let footer_height = footer_lines
-        .len()
-        .min(area.height.saturating_sub(1) as usize) as u16;
-    let input_height = area.height.saturating_sub(footer_height).max(1);
-    let input_area = Rect {
-        x: area.x,
-        y: area.y,
-        width: area.width,
-        height: input_height,
-    };
-    render_input(frame, input_area, input, cursor_byte);
-
-    if footer_height == 0 {
-        return;
-    }
-
-    let footer_area = Rect {
-        x: area.x,
-        y: area.y.saturating_add(input_height),
-        width: area.width,
-        height: footer_height,
-    };
-    let rows = footer_lines
-        .into_iter()
-        .take(footer_height as usize)
-        .map(Line::from)
-        .collect::<Vec<_>>();
-    frame.render_widget(
-        Paragraph::new(rows).style(
-            Style::default()
-                .fg(Color::Yellow)
-                .bg(Color::Rgb(24, 24, 24))
-                .add_modifier(Modifier::DIM),
-        ),
-        footer_area,
-    );
+pub fn render_task_input(frame: &mut Frame<'_>, area: Rect, input: &str, cursor_byte: usize) {
+    render_input(frame, area, input, cursor_byte);
 }
 
 pub fn render_messages(frame: &mut Frame<'_>, area: Rect, messages: &[String]) {
@@ -310,7 +259,7 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
 /// The activity pane uses structured `timeline_entries` to render
 /// the selected timeline entry highlighted with its detail shown
 /// in the output/inspector pane.
-pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
+pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewProjection) {
     let input_width = frame.area().width.saturating_sub(2).max(1) as usize;
     let layout = split_four_region_layout(
         frame.area(),
@@ -337,20 +286,14 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &TaskLayoutState) {
     }
 
     // --- Input pane ---
-    if state.pending_approval.is_none() {
-        render_task_input(
-            frame,
-            layout.input,
-            &state.composer_text,
-            state.composer_cursor,
-            &state.input_hint,
-        );
-    } else {
-        frame.render_widget(
-            Paragraph::new(state.input_hint.clone()).wrap(Wrap { trim: false }),
-            layout.input,
-        );
-    }
+    // Always render the composer; approval and resume prompts route through
+    // the overlay modal system (rendered by the caller after this function).
+    render_input(
+        frame,
+        layout.input,
+        &state.composer_text,
+        state.composer_cursor,
+    );
 
     render_picker_overlay(frame, layout.input, &state.picker_overlay);
 }

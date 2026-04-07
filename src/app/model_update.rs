@@ -361,11 +361,23 @@ impl TuiMode {
                 let summary = summarize_tool_approval_context(&tool_name, &input_preview);
                 let step_id = self.pending_tool_step_id(&tool_name, &input_preview);
                 let previous_output_len = self.expanded_output_row_count();
-                for row in super::layout::tool_approval_paragraph_rows(
-                    &format!("{summary} · awaiting approval"),
-                    &input_preview,
-                ) {
-                    self.push_document_notice(row, NoticeSeverity::Info);
+                self.push_document_notice(
+                    format!("[approval] {summary} · awaiting approval"),
+                    NoticeSeverity::Info,
+                );
+                {
+                    let compact = input_preview
+                        .lines()
+                        .map(str::trim)
+                        .filter(|line| !line.is_empty())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    if !compact.is_empty() {
+                        self.push_document_notice(
+                            format!("[approval_detail] Input: {compact}"),
+                            NoticeSeverity::Info,
+                        );
+                    }
                 }
                 self.preserve_transcript_scroll_on_growth(previous_output_len);
                 self.overlay_state.pending_approval = Some(PendingApproval {
