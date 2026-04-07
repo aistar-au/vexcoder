@@ -28,7 +28,7 @@ pub use approval::{
     load_policy_from_env, ApprovalPolicy, ApprovalScope, Capability, FileApprovalPolicy,
     PolicyAction,
 };
-pub use backend::{ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode};
+pub use backend::{ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy};
 pub(crate) use command::{
     format_command_session_cancelled, format_command_session_exit, format_command_session_output,
     format_command_session_started,

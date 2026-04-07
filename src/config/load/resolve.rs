@@ -2,7 +2,7 @@ use anyhow::{bail, Context, Result};
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use crate::runtime::{ModelBackendKind, SandboxConfig, SandboxKind, ToolCallMode};
+use crate::runtime::{ModelBackendKind, SandboxConfig, SandboxKind, ToolCallMode, ToolPolicy};
 use crate::util::is_local_endpoint_url;
 
 use super::super::{
@@ -166,6 +166,7 @@ pub(super) fn resolve_config(
         model_backend,
         model_protocol,
         tool_call_mode,
+        tool_policy: ToolPolicy::Full,
         model_profile,
         max_project_instructions_tokens,
         max_memory_tokens,

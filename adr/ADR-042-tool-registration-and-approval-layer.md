@@ -10,26 +10,18 @@
 
 ## Context
 
-A local inference server session log (`server-log.txt`) shows the model generating
-at ~1.5 tokens/second with `n_predict: 1024`, exhausting the generation
-budget repeatedly on large file reads without completing useful work. The
-model retries the same `read_file` call with different offset/limit
-parameters, each retry consuming the full 1024-token budget. The root
-cause is that `max_tokens` is resolved from a fixed default (1024) or
-clamped environment variable (`VEX_MAX_TOKENS`) with no awareness of the
-server's actual resource limits.
+When `max_tokens` is resolved from a fixed default or clamped environment
+variable (`VEX_MAX_TOKENS`) with no awareness of the server's actual context
+window, the model can exhaust its generation budget on large file reads
+without completing useful work. Each retry consumes the full token budget
+because the client cannot calculate a safe `max_tokens` ceiling — the
+server's context size is unknown.
 
-Additionally, the server exposes a 65536-token context window
-(`n_ctx: 65536`) but the client never queries server capabilities. The
-model's system prompt, tool definitions, and conversation history consume
-a significant fraction of the context before generation begins, but the
-client cannot calculate a safe `max_tokens` ceiling because the server's
-`n_ctx` is unknown.
-
-The session log also shows the model calling `run_shell_command` (a name
-that does not exist in the registered tool set), indicating a mismatch
-between the names the model expects from training data and the names
-actually registered in the schema.
+Separately, models frequently call shell tool names that do not exist in the
+registered tool set (e.g. `run_shell_command`, `bash`, `execute_command`),
+producing `Unknown tool` errors and retry loops. This indicates a mismatch
+between the names models expect from training data and the names actually
+registered in the schema.
 
 ### Tool registration landscape (amendment context)
 
@@ -170,6 +162,27 @@ passes through the approval overlay unconditionally:
   `run_command` before dispatch so the approval flow is uniform.
 - The system prompt states that `run_command` is registered and requires
   user approval.
+
+### D7: Session-level tool policy
+
+A `ToolPolicy` enum (`Full`, `Plan`, `Chat`) controls which tools are
+exposed to the model for a session:
+
+- **Full** (default): all registered tools including mutating and shell tools.
+- **Plan**: read-only tools only (search, read, list, git status/diff/log/show,
+  `codebase_search`) plus any configured MCP tools. Mutating tools
+  (`write_file`, `apply_patch`, `edit_file`, `rename_file`, `git_add`,
+  `git_commit`, `run_command`) are excluded from the schema and rejected at
+  the dispatch layer as a defense-in-depth guard.
+- **Chat**: no tools. The model operates in plain conversation mode.
+
+The policy is set via `--plan` or `--chat` CLI flags (mutually exclusive), or
+via `tool_policy` in `config.toml`. The CLI flags override the config value.
+
+The policy flows through `Config.tool_policy` → `ApiClient.tool_policy` →
+`tool_definitions_for_policy()` which filters the tool schema, and a
+defense-in-depth guard in `execute_tool_with_timeout_with_updates()` that
+rejects mutating tools even if the model hallucinates them.
 
 ## Consequences
 

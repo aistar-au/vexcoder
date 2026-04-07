@@ -23,6 +23,14 @@ repo-overview prompts, the runtime now steers the model
 toward `list_files` at the workspace root or `codebase_search` before any
 targeted `read_file`; `read_file` itself requires an explicit non-empty path.
 
+#### Top-level flags
+
+| Flag | Effect |
+|------|--------|
+| `--chat-compat` | Use the `chat/completions` API format instead of the default `messages/v1` format. Required for endpoints that only expose the chat completions schema. |
+| `--plan` | Restrict tools to read-only operations (search, read, list, git read ops, `codebase_search`, MCP). Mutating and shell tools are excluded from the model schema and rejected at dispatch. Cannot be combined with `--chat`. |
+| `--chat` | Disable all tool use. The model operates in plain conversation mode without access to any file, search, or shell tools. Cannot be combined with `--plan`. |
+
 ### `vex --resume [task-id]`
 
 Resumes a saved task. With no task id, VexCoder offers recent tasks for

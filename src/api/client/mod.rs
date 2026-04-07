@@ -1,7 +1,7 @@
 use super::logging::{debug_payload_enabled, emit_debug_payload};
 use crate::config::Config;
 use crate::runtime::backend::{
-    ByteStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode,
+    ByteStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy,
 };
 use crate::types::{ApiMessage, Content, ContentBlock};
 use crate::util::{is_local_endpoint_url, preferred_plain_http_url_for_local_endpoint};
@@ -239,6 +239,7 @@ pub struct ApiClient {
     model_backend: ModelBackendKind,
     model_protocol: ModelProtocol,
     tool_call_mode: ToolCallMode,
+    tool_policy: ToolPolicy,
     model_headers: reqwest::header::HeaderMap,
     temperature: f32,
     top_p: f32,
@@ -274,6 +275,7 @@ impl ApiClient {
             model_backend: config.model_backend,
             model_protocol: config.model_protocol,
             tool_call_mode: config.tool_call_mode,
+            tool_policy: config.tool_policy,
             model_headers: config.model_headers.clone(),
             temperature: config.model_profile.temperature,
             top_p: config.model_profile.top_p,
@@ -302,6 +304,7 @@ impl ApiClient {
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
+            tool_policy: ToolPolicy::Full,
             model_headers: reqwest::header::HeaderMap::new(),
             temperature: 0.3,
             top_p: 1.0,
@@ -356,6 +359,11 @@ impl ApiClient {
 
     pub fn supports_structured_tool_protocol(&self) -> bool {
         matches!(self.tool_call_mode, ToolCallMode::Structured)
+            && !matches!(self.tool_policy, ToolPolicy::Chat)
+    }
+
+    pub fn tool_policy(&self) -> ToolPolicy {
+        self.tool_policy
     }
 
     pub fn is_local_endpoint(&self) -> bool {
@@ -505,7 +513,7 @@ impl ApiClient {
                     payload_object.insert("tool_choice".to_string(), json!({ "type": "auto" }));
                     payload_object.insert(
                         "tools".to_string(),
-                        tool_definitions_with_extra(&self.extra_tool_definitions),
+                        tool_definitions_for_policy(self.tool_policy, &self.extra_tool_definitions),
                     );
                 }
                 if !self.stop_sequences.is_empty() {
@@ -538,7 +546,10 @@ impl ApiClient {
                     payload_object.insert("tool_choice".to_string(), json!("auto"));
                     payload_object.insert(
                         "tools".to_string(),
-                        tool_definitions_chat_compat_with_extra(&self.extra_tool_definitions),
+                        tool_definitions_chat_compat_for_policy(
+                            self.tool_policy,
+                            &self.extra_tool_definitions,
+                        ),
                     );
                 }
                 if !self.stop_sequences.is_empty() {
@@ -992,10 +1003,10 @@ fn tool_input_to_json_string(value: &Value) -> String {
 }
 
 mod tools;
-pub(crate) use tools::builtin_tool_summaries;
+pub(crate) use tools::{builtin_tool_summaries, is_readonly_tool};
 #[cfg(test)]
-use tools::tool_definitions;
-use tools::{tool_definitions_chat_compat_with_extra, tool_definitions_with_extra};
+use tools::{tool_definitions, tool_definitions_chat_compat_with_extra};
+use tools::{tool_definitions_chat_compat_for_policy, tool_definitions_for_policy};
 
 fn apply_local_chat_compat_stream_flags(payload_object: &mut serde_json::Map<String, Value>) {
     payload_object.insert("return_progress".to_string(), json!(true));

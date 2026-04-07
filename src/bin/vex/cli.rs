@@ -29,6 +29,16 @@ pub(super) struct Cli {
     /// instead of the messages/v1 schema.
     #[arg(long = "chat-compat")]
     pub(super) chat_compat: bool,
+
+    /// Restrict tools to read-only operations (search, read, list, git read
+    /// ops, codebase_search, MCP). Mutating and shell tools are excluded.
+    #[arg(long, conflicts_with = "chat")]
+    pub(super) plan: bool,
+
+    /// Disable all tool use. The model operates in plain conversation mode
+    /// without access to any file, search, or shell tools.
+    #[arg(long, conflicts_with = "plan")]
+    pub(super) chat: bool,
 }
 
 #[derive(Subcommand)]

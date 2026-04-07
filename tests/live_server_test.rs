@@ -14,7 +14,7 @@
 use reqwest::header::HeaderMap;
 use std::time::Duration;
 use vexcoder::config::Config;
-use vexcoder::runtime::{ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode};
+use vexcoder::runtime::{ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy};
 use vexcoder::types::ModelProfile;
 
 /// Resolve the live server URL from the environment or use the default.
@@ -86,6 +86,7 @@ fn build_chat_compat_config(base_url: &str, model_name: &str) -> Config {
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::ChatCompat,
         tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_policy: ToolPolicy::Full,
         model_profile: ModelProfile {
             max_tokens: 256,
             temperature: 0.1,
@@ -117,6 +118,7 @@ fn build_messages_v1_config(base_url: &str, model_name: &str) -> Config {
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_policy: ToolPolicy::Full,
         model_profile: ModelProfile {
             max_tokens: 256,
             temperature: 0.1,

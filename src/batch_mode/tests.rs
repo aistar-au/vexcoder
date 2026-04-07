@@ -119,6 +119,7 @@ async fn test_batch_mode_memory_clear_with_auto_approve_clears_notes() {
         model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
         model_protocol: crate::runtime::ModelProtocol::MessagesV1,
         tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+        tool_policy: crate::runtime::ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             crate::runtime::ModelBackendKind::LocalRuntime,
         ),
@@ -405,6 +406,7 @@ async fn test_build_batch_runtime_injects_memory_notes_into_system_prompt() {
         model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
         model_protocol: crate::runtime::ModelProtocol::MessagesV1,
         tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+        tool_policy: crate::runtime::ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             crate::runtime::ModelBackendKind::LocalRuntime,
         ),
@@ -450,6 +452,7 @@ async fn test_build_batch_runtime_injects_project_instructions_into_system_promp
         model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
         model_protocol: crate::runtime::ModelProtocol::MessagesV1,
         tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+        tool_policy: crate::runtime::ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             crate::runtime::ModelBackendKind::LocalRuntime,
         ),
@@ -518,6 +521,7 @@ fn test_build_batch_runtime_uses_resumed_task_id() {
         model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
         model_protocol: crate::runtime::ModelProtocol::MessagesV1,
         tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+        tool_policy: crate::runtime::ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             crate::runtime::ModelBackendKind::LocalRuntime,
         ),

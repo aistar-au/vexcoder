@@ -1,10 +1,11 @@
 use super::{ConversationManager, ConversationStreamUpdate, ToolApprovalRequest, TurnToolPolicy};
+use crate::api::client::is_readonly_tool;
 use crate::config::{HookEvent, HookOnFail, SearchConfig};
 use crate::mcp::McpRegistry;
 use crate::runtime::{
     format_command_session_cancelled, format_command_session_exit, format_command_session_output,
     format_command_session_started, CommandRequest, CommandRunner, ConfiguredSandbox,
-    DefaultCommandRunner, SandboxDriver,
+    DefaultCommandRunner, SandboxDriver, ToolPolicy,
 };
 use crate::tools::embed::EmbeddingConfig;
 use crate::tools::search;
@@ -89,6 +90,21 @@ impl ConversationManager {
         // Normalize commonly-hallucinated shell tool aliases to the canonical
         // run_command name so they all route through the approval gate (ADR-042 D5/D6).
         let name = normalize_shell_tool_alias(name);
+
+        // Defense-in-depth: reject mutating tools when the session-level tool
+        // policy restricts to read-only or chat-only mode, even if the model
+        // hallucinated a tool that was not in the schema.
+        let policy = self.client.tool_policy();
+        match policy {
+            ToolPolicy::Chat => {
+                bail!("tool use is disabled in chat mode");
+            }
+            ToolPolicy::Plan if !is_readonly_tool(name) => {
+                bail!("tool '{}' is not available in plan (read-only) mode", name);
+            }
+            _ => {}
+        }
+
         let tool_name = name.to_string();
         self.run_hooks(HookEvent::PreTool, &tool_name, input, stream_delta_tx)
             .await?;

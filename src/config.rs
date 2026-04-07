@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use crate::runtime::{ModelBackendKind, ModelProtocol, SandboxConfig, ToolCallMode};
+use crate::runtime::{ModelBackendKind, ModelProtocol, SandboxConfig, ToolCallMode, ToolPolicy};
 use crate::types::ModelProfile;
 use crate::util::is_local_endpoint_url;
 
@@ -225,6 +225,7 @@ pub struct Config {
     pub model_backend: ModelBackendKind,
     pub model_protocol: ModelProtocol,
     pub tool_call_mode: ToolCallMode,
+    pub tool_policy: ToolPolicy,
     pub model_profile: ModelProfile,
     /// Estimated token budget for project instructions injection (byte len / 4).
     /// Controlled by `VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS`. Default: 4096.
@@ -385,6 +386,7 @@ impl Config {
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::TaggedFallback,
+            tool_policy: ToolPolicy::Full,
             model_profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
             max_project_instructions_tokens: 4096,
             max_memory_tokens: 2048,
