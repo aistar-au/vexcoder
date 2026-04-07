@@ -168,7 +168,7 @@ fn test_changed_files_and_live_approval_prompt_render() {
     let mut terminal = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "AwaitingApproval".into(),
-        output_rows: vec!["[approval] ApplyPatch: src/main.rs · awaiting approval".into()],
+        output_rows: vec![crate::app::TranscriptRow::Plain("[approval] ApplyPatch: src/main.rs · awaiting approval".to_string())],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         composer_text: String::new(),
@@ -202,7 +202,7 @@ fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
     let mut terminal = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
-        output_rows: vec!["streamed output".into()],
+        output_rows: vec![crate::app::TranscriptRow::Plain("streamed output".to_string())],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Top,
         composer_text: String::new(),
@@ -236,7 +236,7 @@ fn task_layout_renders_status_row_on_primary_surface() {
     let mut terminal = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "mode: task | approval: auto | branch: work/pr347".into(),
-        output_rows: vec!["status row stays visible".into()],
+        output_rows: vec![crate::app::TranscriptRow::Plain("status row stays visible".to_string())],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         composer_text: String::new(),
@@ -266,7 +266,7 @@ fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
     let mut terminal = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
-        output_rows: vec!["output".into()],
+        output_rows: vec![crate::app::TranscriptRow::Plain("output".to_string())],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Top,
         composer_text: String::new(),
@@ -296,7 +296,7 @@ fn task_layout_without_changed_files_starts_short_transcript_below_status_row() 
     let mut terminal = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
-        output_rows: vec!["body row".into()],
+        output_rows: vec![crate::app::TranscriptRow::Plain("body row".to_string())],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         composer_text: String::new(),
@@ -332,7 +332,9 @@ fn task_layout_without_changed_files_starts_short_transcript_below_status_row() 
 fn task_output_window_uses_expanded_display_rows() {
     let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
-        output_rows: vec!["alpha beta gamma delta epsilon".into()],
+        output_rows: vec![crate::app::TranscriptRow::Plain(
+            "alpha beta gamma delta epsilon".to_string(),
+        )],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         composer_text: String::new(),
@@ -376,13 +378,16 @@ fn horizontal_rules_are_detected() {
 
 #[test]
 fn expand_rows_for_display_wraps_long_plain_rows() {
-    let rows = vec!["wordone123 wordtwo456 wrdthree7 wrd4four56 wordFive0".to_string()];
+    use crate::app::TranscriptRow;
+    let rows = vec![TranscriptRow::Plain(
+        "wordone123 wordtwo456 wrdthree7 wrd4four56 wordFive0".to_string(),
+    )];
     let expanded = expand_rows_for_display(&rows, 20);
 
     assert!(expanded.len() > 1, "plain prose should wrap: {expanded:?}");
     for row in &expanded {
         assert!(
-            display_width(row) <= 20,
+            display_width(row.as_display_str()) <= 20,
             "expanded row exceeds width: {row:?}"
         );
     }
@@ -390,25 +395,33 @@ fn expand_rows_for_display_wraps_long_plain_rows() {
 
 #[test]
 fn expand_rows_for_display_leaves_structural_rows_intact() {
+    use crate::app::TranscriptRow;
     let rows = vec![
-        "[tool:thinking]".to_string(),
-        "    disclosure detail".to_string(),
-        "normal short line".to_string(),
+        TranscriptRow::Plain("[tool:thinking]".to_string()),
+        TranscriptRow::Plain("    disclosure detail".to_string()),
+        TranscriptRow::Plain("normal short line".to_string()),
     ];
 
     let expanded = expand_rows_for_display(&rows, 80);
-    assert_eq!(&expanded[0], "[tool:thinking]");
-    assert_eq!(&expanded[1], "    disclosure detail");
-    assert!(expanded.contains(&"normal short line".to_string()));
+    assert_eq!(expanded[0].as_display_str(), "[tool:thinking]");
+    assert_eq!(expanded[1].as_display_str(), "    disclosure detail");
+    assert!(expanded
+        .iter()
+        .any(|r| r.as_display_str() == "normal short line"));
 }
 
 #[test]
 fn expand_rows_for_display_splits_embedded_newlines() {
-    let rows = vec!["line one\nline two\nline three".to_string()];
+    use crate::app::TranscriptRow;
+    let rows = vec![TranscriptRow::Plain("line one\nline two\nline three".to_string())];
 
     assert_eq!(
         expand_rows_for_display(&rows, 80),
-        vec!["line one", "line two", "line three"]
+        vec![
+            TranscriptRow::Plain("line one".to_string()),
+            TranscriptRow::Plain("line two".to_string()),
+            TranscriptRow::Plain("line three".to_string()),
+        ]
     );
 }
 
@@ -418,7 +431,7 @@ fn task_layout_renders_picker_overlay() {
     let mut terminal = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
-        output_rows: vec!["line 1".into()],
+        output_rows: vec![crate::app::TranscriptRow::Plain("line 1".to_string())],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         composer_text: "@".into(),
@@ -457,9 +470,13 @@ fn task_layout_renders_picker_overlay() {
 
 #[test]
 fn transcript_output_line_styles_paragraph_markers() {
-    let tool = transcript_output_line("[tool] read_file · Response complete.");
-    let detail = transcript_output_line("[detail] Scope: Read file content");
-    let evidence = transcript_output_line("[evidence] Outcome: ok");
+    use crate::app::TranscriptRow;
+    let tool =
+        transcript_output_line(&TranscriptRow::ToolHeader("read_file · Response complete.".to_string()));
+    let detail =
+        transcript_output_line(&TranscriptRow::ToolDetail("Scope: Read file content".to_string()));
+    let evidence =
+        transcript_output_line(&TranscriptRow::Evidence("Outcome: ok".to_string()));
 
     let tool_text: String = tool
         .spans
@@ -484,7 +501,10 @@ fn transcript_output_line_styles_paragraph_markers() {
 
 #[test]
 fn transcript_output_line_styles_waiting_placeholder_as_progress() {
-    let waiting = transcript_output_line("[thinking] Mapping adjacent sectors...");
+    use crate::app::TranscriptRow;
+    let waiting = transcript_output_line(&TranscriptRow::WaitingPlaceholder(
+        "[thinking] Mapping adjacent sectors...".to_string(),
+    ));
 
     let waiting_text: String = waiting
         .spans
@@ -499,7 +519,8 @@ fn transcript_output_line_styles_waiting_placeholder_as_progress() {
 
 #[test]
 fn transcript_output_line_defaults_plain_text_to_white() {
-    let plain = transcript_output_line("plain response");
+    use crate::app::TranscriptRow;
+    let plain = transcript_output_line(&TranscriptRow::Plain("plain response".to_string()));
 
     assert_eq!(plain.spans.len(), 1);
     assert_eq!(plain.spans[0].content.as_ref(), "plain response");
@@ -508,7 +529,11 @@ fn transcript_output_line_defaults_plain_text_to_white() {
 
 #[test]
 fn transcript_output_line_styles_single_line_markdown_without_dropping_rows() {
-    let heading = transcript_output_line("## Heading");
+    use crate::app::TranscriptRow;
+    let heading = transcript_output_line(&TranscriptRow::AssistantText {
+        text: "## Heading".to_string(),
+        streaming: false,
+    });
     let text: String = heading
         .spans
         .iter()
@@ -521,7 +546,11 @@ fn transcript_output_line_styles_single_line_markdown_without_dropping_rows() {
 
 #[test]
 fn transcript_output_line_keeps_fenced_code_markers_literal_until_pre_expansion_rendering() {
-    let fence = transcript_output_line("```rust");
+    use crate::app::TranscriptRow;
+    let fence = transcript_output_line(&TranscriptRow::AssistantText {
+        text: "```rust".to_string(),
+        streaming: false,
+    });
 
     assert_eq!(fence.spans.len(), 1);
     assert_eq!(fence.spans[0].content.as_ref(), "```rust");
@@ -530,7 +559,10 @@ fn transcript_output_line_keeps_fenced_code_markers_literal_until_pre_expansion_
 
 #[test]
 fn transcript_output_line_keeps_command_session_progress_status_with_pid() {
-    let command = transcript_output_line("[command session started pid=42] cargo test");
+    use crate::app::TranscriptRow;
+    let command = transcript_output_line(&TranscriptRow::Plain(
+        "[command session started pid=42] cargo test".to_string(),
+    ));
 
     let command_text: String = command
         .spans
@@ -548,7 +580,10 @@ fn transcript_output_line_keeps_command_session_progress_status_with_pid() {
 
 #[test]
 fn transcript_output_line_highlights_tool_target_and_failed_status() {
-    let tool = transcript_output_line("[tool] write_file · src/lib.rs · failed");
+    use crate::app::TranscriptRow;
+    let tool = transcript_output_line(&TranscriptRow::ToolHeader(
+        "write_file \u{00b7} src/lib.rs \u{00b7} failed".to_string(),
+    ));
 
     assert_eq!(tool.spans[1].content.as_ref(), "write_file");
     assert_eq!(tool.spans[1].style.fg, Some(Color::White));

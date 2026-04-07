@@ -6,7 +6,9 @@ impl TuiMode {
         ctx.clear_conversation();
         self.pre_session_notices.clear();
         self.streaming_tool_input_buffers.clear();
-        self.command_sessions.clear();
+        if let Some(t) = self.task_doc.active_turn.as_mut() {
+            t.command_sessions.clear();
+        }
         self.transcript_scroll_offset = 0;
         self.inspector_scroll_offset = 0;
         self.last_assembled_context = None;
@@ -134,29 +136,34 @@ impl TuiMode {
     }
 
     pub(super) fn begin_command_session(&mut self, command: String) -> u64 {
-        let session_id = self.next_command_session_id;
+        let session_id = self.task_doc.meta.next_step_id;
+        self.task_doc.meta.next_step_id += 1;
         self.begin_command_session_with_id(session_id, command);
         session_id
     }
 
     pub(super) fn begin_command_session_with_id(&mut self, session_id: u64, command: String) {
-        self.next_command_session_id = self
-            .next_command_session_id
-            .max(session_id.saturating_add(1));
-        if self.command_sessions.iter().any(|s| s.id == session_id) {
-            return;
+        if let Some(t) = self.task_doc.active_turn.as_mut() {
+            t.command_sessions
+                .entry(session_id)
+                .or_insert_with(|| crate::runtime::task_document::CommandSessionDocument {
+                    session_id,
+                    command,
+                    pid: None,
+                    status: "running".to_string(),
+                    output_tail: vec![],
+                });
         }
-        self.command_sessions.push(CommandSessionState {
-            id: session_id,
-            command,
-            pid: None,
-            status: "running".to_string(),
-        });
         self.set_task_status(TaskStatus::Running);
     }
 
     pub(super) fn complete_turn_if_idle(&mut self, ctx: &RuntimeContext) -> bool {
-        if !self.turn_completion_pending || !self.command_sessions.is_empty() {
+        let sessions_empty = self
+            .task_doc
+            .active_turn
+            .as_ref()
+            .map_or(true, |t| t.command_sessions.is_empty());
+        if !self.turn_completion_pending || !sessions_empty {
             return false;
         }
         self.last_error_message = None;

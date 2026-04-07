@@ -10,22 +10,30 @@ use self::helpers::{
     tool_outcome_is_error, tool_scope_detail, tool_target_summary,
 };
 
-fn telemetry_waiting_summary(rows: &[String]) -> Option<String> {
-    rows.iter().rev().find_map(|line| {
-        line.strip_prefix(waiting_for_response_line())
-            .map(str::trim)
-            .filter(|suffix| !suffix.is_empty())
-            .map(ToOwned::to_owned)
+fn telemetry_waiting_summary(rows: &[TranscriptRow]) -> Option<String> {
+    rows.iter().rev().find_map(|row| {
+        if let TranscriptRow::WaitingPlaceholder(line) = row {
+            line.strip_prefix(waiting_for_response_line())
+                .map(str::trim)
+                .filter(|suffix| !suffix.is_empty())
+                .map(ToOwned::to_owned)
+        } else {
+            None
+        }
     })
 }
 
-fn telemetry_timing_summary(rows: &[String]) -> Option<String> {
-    rows.iter().rev().find_map(|line| {
-        (line.starts_with('[') && line.ends_with(']') && line.contains("total:")).then(|| {
-            line.trim_start_matches('[')
-                .trim_end_matches(']')
-                .to_string()
-        })
+fn telemetry_timing_summary(rows: &[TranscriptRow]) -> Option<String> {
+    rows.iter().rev().find_map(|row| {
+        if let TranscriptRow::Plain(line) = row {
+            (line.starts_with('[') && line.ends_with(']') && line.contains("total:")).then(|| {
+                line.trim_start_matches('[')
+                    .trim_end_matches(']')
+                    .to_string()
+            })
+        } else {
+            None
+        }
     })
 }
 
@@ -167,23 +175,25 @@ impl TuiMode {
             }
         }
 
-        // Include live command sessions tracked in the TuiMode vec.
-        for session in &self.command_sessions {
-            let display_status = display_status_text(&session.status);
-            let pid_text = session
-                .pid
-                .map(|p| p.to_string())
-                .unwrap_or_else(|| "pending".to_string());
-            entries.push(TaskStepView {
-                step_id: session.id,
-                lifecycle: StepLifecycle::CommandSession,
-                label: format!("{}: {display_status}", session.command),
-                detail: format!(
-                    "command: {}\npid: {}\nstatus: {}",
-                    session.command, pid_text, display_status,
-                ),
-                session_id: Some(session.id),
-            });
+        // Include live command sessions from task_doc.active_turn.
+        if let Some(active) = self.task_doc.active_turn.as_ref() {
+            for (_, session) in &active.command_sessions {
+                let display_status = display_status_text(&session.status);
+                let pid_text = session
+                    .pid
+                    .map(|p| p.to_string())
+                    .unwrap_or_else(|| "pending".to_string());
+                entries.push(TaskStepView {
+                    step_id: session.session_id,
+                    lifecycle: StepLifecycle::CommandSession,
+                    label: format!("{}: {display_status}", session.command),
+                    detail: format!(
+                        "command: {}\npid: {}\nstatus: {}",
+                        session.command, pid_text, display_status,
+                    ),
+                    session_id: Some(session.session_id),
+                });
+            }
         }
 
         entries
@@ -199,7 +209,7 @@ impl TuiMode {
     ///   for the selected tool step, with streaming model response appended
     ///   below.
     /// - Before any turn: welcome hint.
-    pub(super) fn task_output_view(&self) -> (String, Vec<String>, OutputScrollAnchor) {
+    pub(super) fn task_output_view(&self) -> (String, Vec<TranscriptRow>, OutputScrollAnchor) {
         let steps = self.task_step_views();
         let entries = Self::task_timeline_entries_from(&steps);
         self.task_output_view_with(&entries)
@@ -208,7 +218,7 @@ impl TuiMode {
     fn task_output_view_with(
         &self,
         entries: &[TimelineEntry],
-    ) -> (String, Vec<String>, OutputScrollAnchor) {
+    ) -> (String, Vec<TranscriptRow>, OutputScrollAnchor) {
         // Inspector mode: show selected tool step detail when not following.
         if !self.timeline_follow_mode && !entries.is_empty() {
             let idx = self
@@ -217,7 +227,11 @@ impl TuiMode {
             if let Some(entry) = entries.get(idx) {
                 let is_tool_step = !matches!(entry.lifecycle, StepLifecycle::UserInput);
                 if is_tool_step && !entry.detail.is_empty() {
-                    let rows: Vec<String> = entry.detail.lines().map(ToOwned::to_owned).collect();
+                    let rows: Vec<TranscriptRow> = entry
+                        .detail
+                        .lines()
+                        .map(|l| TranscriptRow::Plain(l.to_owned()))
+                        .collect();
                     return (
                         format!(
                             "Inspector \u{00b7} {}/{} \u{00b7} {} \u{00b7} {} rows",
@@ -249,7 +263,7 @@ impl TuiMode {
         )
     }
 
-    fn transcript_display_rows(&self) -> Vec<String> {
+    fn transcript_display_rows(&self) -> Vec<TranscriptRow> {
         crate::app::transcript_projection::project_transcript_rows(
             &self.task_doc,
             &self.pre_session_notices,
@@ -520,7 +534,8 @@ mod tests {
         // Transcript rows should include the notice.
         let rows = mode.transcript_display_rows();
         assert!(
-            rows.iter().any(|r| r.contains("Hello!")),
+            rows.iter()
+                .any(|r| r.as_display_str().contains("Hello!")),
             "transcript rows should include notice: {rows:?}"
         );
     }
