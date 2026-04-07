@@ -66,7 +66,7 @@ impl ToolOperator {
         let glob_matcher = match glob_pattern {
             Some(pattern) => match compile_workspace_glob(pattern) {
                 Some(matcher) => Some(matcher),
-                None => return Ok(Vec::new()),
+                None => return Err(anyhow::anyhow!("invalid path_glob pattern: {pattern:?}")),
             },
             None => None,
         };
@@ -121,7 +121,7 @@ impl ToolOperator {
         let pattern = non_empty_trimmed(name_glob)
             .context("find_files requires a non-empty 'name_glob' field")?;
         let Some(matcher) = compile_workspace_glob(pattern) else {
-            return Ok(Vec::new());
+            return Err(anyhow::anyhow!("invalid name_glob pattern: {pattern:?}"));
         };
 
         let mut results = Vec::new();

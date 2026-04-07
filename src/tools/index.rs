@@ -9,6 +9,8 @@ use crate::tools::workspace_ignore::WorkspaceIgnore;
 pub enum ItemKind {
     Function,
     Struct,
+    Class,
+    Interface,
     Enum,
     Impl,
     Trait,
@@ -23,6 +25,8 @@ impl ItemKind {
         match self {
             Self::Function => "function",
             Self::Struct => "struct",
+            Self::Class => "class",
+            Self::Interface => "interface",
             Self::Enum => "enum",
             Self::Impl => "impl",
             Self::Trait => "trait",
@@ -276,13 +280,13 @@ fn extract_python_items(
     for child in node.children(&mut cursor) {
         match child.kind() {
             "class_definition" => {
-                let name = extract_name(child, source, &ItemKind::Struct);
+                let name = extract_name(child, source, &ItemKind::Class);
                 push_chunk(
                     chunks,
                     rel_path,
                     child,
                     source,
-                    ItemKind::Struct,
+                    ItemKind::Class,
                     name.clone(),
                     parent_scope.map(String::from),
                 );
@@ -316,13 +320,13 @@ fn extract_javascript_items(
     for child in node.children(&mut cursor) {
         match child.kind() {
             "class_declaration" => {
-                let name = extract_name(child, source, &ItemKind::Struct);
+                let name = extract_name(child, source, &ItemKind::Class);
                 push_chunk(
                     chunks,
                     rel_path,
                     child,
                     source,
-                    ItemKind::Struct,
+                    ItemKind::Class,
                     name.clone(),
                     parent_scope.map(String::from),
                 );
@@ -341,13 +345,13 @@ fn extract_javascript_items(
                 );
             }
             "interface_declaration" => {
-                let name = extract_name(child, source, &ItemKind::Trait);
+                let name = extract_name(child, source, &ItemKind::Interface);
                 push_chunk(
                     chunks,
                     rel_path,
                     child,
                     source,
-                    ItemKind::Trait,
+                    ItemKind::Interface,
                     name,
                     parent_scope.map(String::from),
                 );
