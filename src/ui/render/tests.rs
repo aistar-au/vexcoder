@@ -163,111 +163,18 @@ fn test_diff_line_color_maps_markers_consistently() {
 }
 
 #[test]
-fn render_timeline_entry_normalizes_prefix_spacing() {
-    let approval = render_timeline_entry(
-        &crate::app::TimelineEntry {
-            step_id: 1,
-            lifecycle: crate::app::StepLifecycle::AwaitingApproval,
-            label: "ApplyPatch: src/main.rs".into(),
-            detail: String::new(),
-            session_id: None,
-        },
-        true,
-    );
-    let user_input = render_timeline_entry(
-        &crate::app::TimelineEntry {
-            step_id: 0,
-            lifecycle: crate::app::StepLifecycle::UserInput,
-            label: "ship it".into(),
-            detail: String::new(),
-            session_id: None,
-        },
-        true,
-    );
-
-    let approval_text: String = approval
-        .spans
-        .iter()
-        .map(|span| span.content.as_ref())
-        .collect();
-    let user_input_text: String = user_input
-        .spans
-        .iter()
-        .map(|span| span.content.as_ref())
-        .collect();
-
-    assert_eq!(approval_text, "> [?] ApplyPatch: src/main.rs");
-    assert_eq!(user_input_text, "> > ship it");
-}
-
-#[test]
-fn render_timeline_entry_gives_approved_a_distinct_prefix() {
-    let approved = render_timeline_entry(
-        &crate::app::TimelineEntry {
-            step_id: 1,
-            lifecycle: crate::app::StepLifecycle::Approved,
-            label: "ApplyPatch: approved".into(),
-            detail: String::new(),
-            session_id: None,
-        },
-        false,
-    );
-    let completed = render_timeline_entry(
-        &crate::app::TimelineEntry {
-            step_id: 2,
-            lifecycle: crate::app::StepLifecycle::Completed,
-            label: "ApplyPatch: done".into(),
-            detail: String::new(),
-            session_id: None,
-        },
-        false,
-    );
-
-    let approved_text: String = approved
-        .spans
-        .iter()
-        .map(|span| span.content.as_ref())
-        .collect();
-    let completed_text: String = completed
-        .spans
-        .iter()
-        .map(|span| span.content.as_ref())
-        .collect();
-
-    assert!(approved_text.starts_with("  [v]"));
-    assert!(completed_text.starts_with("  [ok]"));
-}
-
-#[test]
 fn test_changed_files_and_live_approval_prompt_render() {
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
-    let state = crate::app::TaskLayoutState {
-        task_id: "task-001".into(),
+    let state = crate::app::TaskViewProjection {
         status_line: "AwaitingApproval".into(),
-        telemetry: crate::app::TaskTelemetryState::default(),
-        timeline_entries: vec![crate::app::TimelineEntry {
-            step_id: 1,
-            lifecycle: crate::app::StepLifecycle::AwaitingApproval,
-            label: "ApplyPatch: src/main.rs".into(),
-            detail: "Tool: ApplyPatch\nFile: src/main.rs".into(),
-            session_id: None,
-        }],
-        selected_step: 0,
-        total_steps: 1,
-        output_title: "Transcript".into(),
         output_rows: vec!["[approval] ApplyPatch: src/main.rs · awaiting approval".into()],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
-        changed_files: vec!["src/main.rs".into()],
-        pending_approval: Some("ApplyPatch: src/main.rs".into()),
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
-        follow_mode: true,
         picker_overlay: vec![],
-        working_dir: String::new(),
-        model_url: String::new(),
     };
 
     terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -293,41 +200,15 @@ fn test_changed_files_and_live_approval_prompt_render() {
 fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
-    let state = crate::app::TaskLayoutState {
-        task_id: "task-002".into(),
+    let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
-        telemetry: crate::app::TaskTelemetryState::default(),
-        timeline_entries: vec![
-            crate::app::TimelineEntry {
-                step_id: 1,
-                lifecycle: crate::app::StepLifecycle::Completed,
-                label: "read_file: ok".into(),
-                detail: "Tool: read_file\nOutcome: ok".into(),
-                session_id: None,
-            },
-            crate::app::TimelineEntry {
-                step_id: 2,
-                lifecycle: crate::app::StepLifecycle::Running,
-                label: "validate: Mapping adjacent sectors...".into(),
-                detail: "Tool: validate\nInput: ...".into(),
-                session_id: None,
-            },
-        ],
-        selected_step: 1,
-        total_steps: 2,
-        output_title: "Inspector".into(),
         output_rows: vec!["streamed output".into()],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Top,
-        changed_files: vec![],
-        pending_approval: None,
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
-        follow_mode: true,
         picker_overlay: vec![],
-        working_dir: String::new(),
-        model_url: String::new(),
     };
 
     terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -353,26 +234,15 @@ fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
 fn task_layout_renders_status_row_on_primary_surface() {
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
-    let state = crate::app::TaskLayoutState {
-        task_id: "task-status".into(),
+    let state = crate::app::TaskViewProjection {
         status_line: "mode: task | approval: auto | branch: work/pr347".into(),
-        telemetry: crate::app::TaskTelemetryState::default(),
-        timeline_entries: vec![],
-        selected_step: 0,
-        total_steps: 0,
-        output_title: "Transcript".into(),
         output_rows: vec!["status row stays visible".into()],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
-        changed_files: vec![],
-        pending_approval: None,
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
-        follow_mode: true,
         picker_overlay: vec![],
-        working_dir: String::new(),
-        model_url: String::new(),
     };
 
     terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -394,35 +264,15 @@ fn task_layout_renders_status_row_on_primary_surface() {
 fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
     let backend = TestBackend::new(80, 40);
     let mut terminal = Terminal::new(backend).unwrap();
-    let timeline_entries = (0..12)
-        .map(|index| crate::app::TimelineEntry {
-            step_id: index as u64,
-            lifecycle: crate::app::StepLifecycle::Completed,
-            label: format!("step_{index} · Response complete."),
-            detail: format!("Tool: step_{index}"),
-            session_id: None,
-        })
-        .collect();
-    let state = crate::app::TaskLayoutState {
-        task_id: "task-003".into(),
+    let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
-        telemetry: crate::app::TaskTelemetryState::default(),
-        timeline_entries,
-        selected_step: 8,
-        total_steps: 12,
-        output_title: "Inspector".into(),
         output_rows: vec!["output".into()],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Top,
-        changed_files: vec![],
-        pending_approval: None,
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
-        follow_mode: true,
         picker_overlay: vec![],
-        working_dir: String::new(),
-        model_url: String::new(),
     };
 
     terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -444,32 +294,15 @@ fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
 fn task_layout_without_changed_files_starts_short_transcript_below_status_row() {
     let backend = TestBackend::new(60, 16);
     let mut terminal = Terminal::new(backend).unwrap();
-    let state = crate::app::TaskLayoutState {
-        task_id: "task-004".into(),
+    let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
-        telemetry: crate::app::TaskTelemetryState::default(),
-        timeline_entries: vec![crate::app::TimelineEntry {
-            step_id: 1,
-            lifecycle: crate::app::StepLifecycle::Completed,
-            label: "step_1 · Response complete.".into(),
-            detail: "Tool: step_1".into(),
-            session_id: None,
-        }],
-        selected_step: 0,
-        total_steps: 1,
-        output_title: "Transcript".into(),
         output_rows: vec!["body row".into()],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
-        changed_files: vec![],
-        pending_approval: None,
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
-        follow_mode: true,
         picker_overlay: vec![],
-        working_dir: String::new(),
-        model_url: String::new(),
     };
 
     terminal.draw(|f| render_task_layout(f, &state)).unwrap();
@@ -497,26 +330,15 @@ fn task_layout_without_changed_files_starts_short_transcript_below_status_row() 
 
 #[test]
 fn task_output_window_uses_expanded_display_rows() {
-    let state = crate::app::TaskLayoutState {
-        task_id: "task-wrap".into(),
+    let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
-        telemetry: crate::app::TaskTelemetryState::default(),
-        timeline_entries: vec![],
-        selected_step: 0,
-        total_steps: 0,
-        output_title: "Transcript".into(),
         output_rows: vec!["alpha beta gamma delta epsilon".into()],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
-        changed_files: vec![],
-        pending_approval: None,
         composer_text: String::new(),
         composer_cursor: 0,
         composer_focused: true,
-        follow_mode: true,
         picker_overlay: vec![],
-        working_dir: String::new(),
-        model_url: String::new(),
     };
 
     let expanded = expand_rows_for_display(&state.output_rows, 10);
@@ -594,23 +416,14 @@ fn expand_rows_for_display_splits_embedded_newlines() {
 fn task_layout_renders_picker_overlay() {
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
-    let state = crate::app::TaskLayoutState {
-        task_id: "task-picker".into(),
+    let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
-        telemetry: crate::app::TaskTelemetryState::default(),
-        timeline_entries: vec![],
-        selected_step: 0,
-        total_steps: 0,
-        output_title: "Transcript".into(),
         output_rows: vec!["line 1".into()],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
-        changed_files: vec![],
-        pending_approval: None,
         composer_text: "@".into(),
         composer_cursor: 1,
         composer_focused: true,
-        follow_mode: true,
         picker_overlay: vec![
             crate::app::PickerOverlayLine {
                 text: "[file] 3 match(es) — Up/Down to navigate, Enter to select".into(),
@@ -625,8 +438,6 @@ fn task_layout_renders_picker_overlay() {
                 selected: false,
             },
         ],
-        working_dir: String::new(),
-        model_url: String::new(),
     };
 
     terminal

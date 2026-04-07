@@ -261,16 +261,39 @@ pub struct TaskLayoutState {
     pub model_url: String,
 }
 
-/// Projection of canonical task state for the renderer.
+/// Minimal projection of task state consumed exclusively by the renderer.
 ///
-/// The renderer consumes this type exclusively — no `TaskLayoutState` fields
-/// are accessed from within `src/ui/render/`.  Fields that drove the now-
-/// removed sticky footer (`input_hint`) are absent.
-///
-/// Structurally identical to `TaskLayoutState` in this PR; the view-model
-/// shrinkage that drops timeline, inspector, and other unused fields is
-/// deferred to PR 5.
-pub type TaskViewProjection = TaskLayoutState;
+/// Contains only the fields that `render_task_layout` and its helpers in
+/// `src/ui/render/` actually read.  The full `TaskLayoutState` (with
+/// telemetry, timeline, inspector fields etc.) remains available for tests
+/// and the activity-pane inspector, but is never passed into the render path.
+#[derive(Clone, Debug, Default)]
+pub struct TaskViewProjection {
+    pub status_line: String,
+    pub output_rows: Vec<String>,
+    pub output_scroll_offset: usize,
+    pub output_scroll_anchor: OutputScrollAnchor,
+    pub composer_text: String,
+    pub composer_cursor: usize,
+    pub composer_focused: bool,
+    pub picker_overlay: Vec<PickerOverlayLine>,
+}
+
+impl TaskLayoutState {
+    /// Extract the renderer-facing subset into a `TaskViewProjection`.
+    pub fn into_view_projection(self) -> TaskViewProjection {
+        TaskViewProjection {
+            status_line: self.status_line,
+            output_rows: self.output_rows,
+            output_scroll_offset: self.output_scroll_offset,
+            output_scroll_anchor: self.output_scroll_anchor,
+            composer_text: self.composer_text,
+            composer_cursor: self.composer_cursor,
+            composer_focused: self.composer_focused,
+            picker_overlay: self.picker_overlay,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TaskContextSummaryState {

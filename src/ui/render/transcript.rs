@@ -1,4 +1,4 @@
-use crate::app::TaskLayoutState;
+use crate::app::TaskViewProjection;
 use crate::status_contract::{
     is_waiting_placeholder, pending_status_label, status_tone, StatusTone,
 };
@@ -463,7 +463,7 @@ pub(crate) fn truncate_line(input: &str, width: usize) -> String {
 }
 
 pub(crate) fn task_output_window(
-    state: &TaskLayoutState,
+    state: &TaskViewProjection,
     viewport_width: u16,
     viewport_height: usize,
 ) -> (usize, usize) {
@@ -492,7 +492,7 @@ pub(crate) fn task_output_window(
 }
 
 pub(crate) fn task_output_render_area(
-    _state: &TaskLayoutState,
+    _state: &TaskViewProjection,
     area: Rect,
     visible_rows: usize,
 ) -> Rect {
