@@ -529,7 +529,6 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                         OverlayModal::PatchApprove {
                             patch_preview,
                             scroll_offset,
-                            viewport_rows: area.height.max(1) as usize,
                         },
                     );
                 } else if let Some((tool_name, input_preview, auto_approve_enabled)) =
@@ -545,15 +544,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                         },
                     );
                 } else if mode.pending_memory_clear_overlay() {
-                    render_overlay_modal_in_area(
-                        frame,
-                        area,
-                        OverlayModal::ToolPermission {
-                            tool_name: "memory clear",
-                            input_preview: "clear all notes? type y to confirm, n to cancel",
-                            auto_approve_enabled: false,
-                        },
-                    );
+                    render_overlay_modal_in_area(frame, area, OverlayModal::MemoryClear);
                 }
             });
         } else {
@@ -573,7 +564,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
 
                 render_status_line(frame, panes.header, &status);
                 render_messages(frame, panes.history, &history_lines);
-                render_input(frame, panes.input, &input, cursor);
+                render_input(frame, panes.input, &input, cursor, true);
 
                 if let Some((patch_preview, scroll_offset)) = mode.pending_patch_overlay() {
                     render_overlay_modal_in_area(
@@ -582,7 +573,6 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                         OverlayModal::PatchApprove {
                             patch_preview,
                             scroll_offset,
-                            viewport_rows: panes.history.height.max(1) as usize,
                         },
                     );
                 } else if let Some((tool_name, input_preview, auto_approve_enabled)) =
@@ -598,15 +588,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                         },
                     );
                 } else if mode.pending_memory_clear_overlay() {
-                    render_overlay_modal_in_area(
-                        frame,
-                        area,
-                        OverlayModal::ToolPermission {
-                            tool_name: "memory clear",
-                            input_preview: "clear all notes? type y to confirm, n to cancel",
-                            auto_approve_enabled: false,
-                        },
-                    );
+                    render_overlay_modal_in_area(frame, area, OverlayModal::MemoryClear);
                 }
             });
         }

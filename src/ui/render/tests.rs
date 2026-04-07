@@ -11,13 +11,13 @@ fn all_modals_use_unified_renderer() {
         OverlayModal::PatchApprove {
             patch_preview: "diff --git a/src/app/mod.rs b/src/app/mod.rs",
             scroll_offset: 0,
-            viewport_rows: 8,
         },
         OverlayModal::ToolPermission {
             tool_name: "exec_command",
             input_preview: "echo hi",
             auto_approve_enabled: false,
         },
+        OverlayModal::MemoryClear,
     ];
 
     for modal in modals {
@@ -25,6 +25,28 @@ fn all_modals_use_unified_renderer() {
             .draw(|frame| render_overlay_modal(frame, modal))
             .expect("renderer should support every modal class");
     }
+}
+
+#[test]
+fn patch_modal_uses_body_viewport_for_visible_range() {
+    let (_, _, body, _) = modal_content(
+        OverlayModal::PatchApprove {
+            patch_preview: "a\nb\nc\nd\ne\nf",
+            scroll_offset: 0,
+        },
+        5,
+    );
+
+    assert!(body
+        .iter()
+        .any(|line| line.to_string().contains("showing 1-1 of 6")));
+}
+
+#[test]
+fn memory_clear_modal_shows_matching_shortcuts() {
+    let (_, _, _, shortcuts) = modal_content(OverlayModal::MemoryClear, 5);
+
+    assert_eq!(shortcuts, "y/yes confirm   n/esc cancel");
 }
 
 #[test]
