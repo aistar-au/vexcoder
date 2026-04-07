@@ -1,3 +1,4 @@
+use crate::runtime::backend::ToolPolicy;
 use serde_json::{json, Value};
 use std::sync::OnceLock;
 
@@ -27,10 +28,12 @@ pub(crate) fn builtin_tool_summaries() -> Vec<ToolSummary> {
 
 /// Model-facing tool schema.
 ///
-/// `run_command` is intentionally excluded — shell access is frontend-only.
-/// See ADR-042 decision D5 for the rationale.  The system prompt also
-/// includes an explicit sentence telling models that shell utilities are
-/// not available.
+/// `run_command` is the canonical registered shell tool (ADR-042 D5 amendment).
+/// Commonly-hallucinated aliases (`bash`, `run_shell_command`, `execute_command`,
+/// `execute_bash`) are handled as dispatch-level aliases in the tool executor and
+/// are NOT registered here to keep the schema compact.
+/// Every `run_command` invocation (including aliases) passes through the
+/// defense-in-depth approval overlay described in ADR-042 D6.
 pub(super) fn tool_definitions() -> &'static Value {
     static TOOL_DEFINITIONS: OnceLock<Value> = OnceLock::new();
 
@@ -269,6 +272,17 @@ pub(super) fn tool_definitions() -> &'static Value {
                         },
                         "required": ["query"]
                     }
+                },
+                {
+                    "name": "run_command",
+                    "description": "Run a shell command in the workspace. IMPORTANT: every invocation requires explicit user approval before the command executes. The user must confirm or deny via the approval overlay; no command runs without an affirmative response. Use this only when file and search tools cannot satisfy the need. Aliases run_shell_command, bash, execute_command, and execute_bash all route to this tool.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "command": { "type": "string", "description": "Shell command to execute" }
+                        },
+                        "required": ["command"]
+                    }
                 }
             ])
         })
@@ -283,8 +297,78 @@ pub(super) fn tool_definitions_with_extra(extra: &[Value]) -> serde_json::Value 
     Value::Array(definitions)
 }
 
+#[cfg(test)]
 pub(super) fn tool_definitions_chat_compat_with_extra(extra: &[Value]) -> Value {
     let base = tool_definitions_with_extra(extra);
+    wrap_as_chat_compat_functions(&base)
+}
+
+/// Tool names that are safe for plan (read-only) mode.
+///
+/// Every tool not in this list is considered mutating and is excluded when the
+/// active [`ToolPolicy`] is `Plan`.  MCP (extra) tool definitions are always
+/// included in plan mode because the caller explicitly opted into them.
+const READONLY_TOOL_NAMES: &[&str] = &[
+    "read_file",
+    "list_files",
+    "list_directory",
+    "list_dir",
+    "glob_files",
+    "search_files",
+    "search",
+    "git_status",
+    "git_diff",
+    "git_log",
+    "git_show",
+    "search_content",
+    "find_files",
+    "codebase_search",
+];
+
+/// Returns `true` when the tool name corresponds to a read-only operation.
+pub(crate) fn is_readonly_tool(name: &str) -> bool {
+    READONLY_TOOL_NAMES.contains(&name)
+}
+
+/// Build the MessagesV1 tool array filtered by `policy`.
+///
+/// - `Full`: all built-in + extra (MCP) tools.
+/// - `Plan`: read-only built-in tools + all extra (MCP) tools.
+/// - `Chat`: empty array (caller should skip injection entirely).
+pub(super) fn tool_definitions_for_policy(policy: ToolPolicy, extra: &[Value]) -> Value {
+    match policy {
+        ToolPolicy::Full => tool_definitions_with_extra(extra),
+        ToolPolicy::Plan => {
+            let mut defs: Vec<Value> = tool_definitions()
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|t| {
+                    t.get("name")
+                        .and_then(|n| n.as_str())
+                        .map(|n| READONLY_TOOL_NAMES.contains(&n))
+                        .unwrap_or(false)
+                })
+                .cloned()
+                .collect();
+            // MCP tools are always included in plan mode.
+            defs.extend(extra.iter().cloned());
+            Value::Array(defs)
+        }
+        ToolPolicy::Chat => Value::Array(vec![]),
+    }
+}
+
+/// Build the ChatCompat tool array filtered by `policy`.
+pub(super) fn tool_definitions_chat_compat_for_policy(
+    policy: ToolPolicy,
+    extra: &[Value],
+) -> Value {
+    let base = tool_definitions_for_policy(policy, extra);
+    wrap_as_chat_compat_functions(&base)
+}
+
+fn wrap_as_chat_compat_functions(base: &Value) -> Value {
     let converted = base
         .as_array()
         .map(|tools| {

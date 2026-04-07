@@ -26,6 +26,7 @@ fn test_local_messages_endpoint_keeps_messages_v1_wire_protocol() {
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             ModelBackendKind::LocalRuntime,
         ),
@@ -61,6 +62,7 @@ fn test_local_bare_v1_endpoint_resolves_messages_v1_url() {
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             ModelBackendKind::LocalRuntime,
         ),
@@ -96,6 +98,7 @@ fn test_local_bare_v1_endpoint_resolves_chat_compat_url() {
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::ChatCompat,
         tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             ModelBackendKind::LocalRuntime,
         ),
@@ -134,6 +137,7 @@ fn test_remote_messages_endpoint_preserves_messages_wire_protocol() {
         model_backend: ModelBackendKind::ApiServer,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,
+        tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(ModelBackendKind::ApiServer),
         max_project_instructions_tokens: 4096,
         max_memory_tokens: 2048,
@@ -169,6 +173,7 @@ fn test_https_localhost_messages_endpoint_preserves_full_request_url() {
         model_backend: ModelBackendKind::ApiServer,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,
+        tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(ModelBackendKind::ApiServer),
         max_project_instructions_tokens: 4096,
         max_memory_tokens: 2048,
@@ -258,6 +263,7 @@ fn test_tool_definitions_cover_execute_tool_dispatch_names() {
         "search_content",
         "find_files",
         "codebase_search",
+        "run_command",
     ]);
 
     let names: BTreeSet<String> = tool_definitions()
@@ -285,6 +291,7 @@ fn test_structured_tool_protocol_env_off_disables_protocol() {
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             ModelBackendKind::LocalRuntime,
         ),
@@ -321,6 +328,7 @@ fn test_structured_tool_protocol_defaults_off_for_local_endpoint() {
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(
             ModelBackendKind::LocalRuntime,
         ),
@@ -356,6 +364,7 @@ fn test_structured_tool_protocol_defaults_on_for_remote_endpoint() {
         model_backend: ModelBackendKind::ApiServer,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,
+        tool_policy: ToolPolicy::Full,
         model_profile: crate::types::ModelProfile::default_for_backend(ModelBackendKind::ApiServer),
         max_project_instructions_tokens: 4096,
         max_memory_tokens: 2048,
@@ -821,6 +830,7 @@ fn test_native_protocol_overrides_configured_protocol() {
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,
+        tool_policy: ToolPolicy::Full,
         model_headers: reqwest::header::HeaderMap::new(),
         temperature: 0.3,
         top_p: 1.0,
@@ -861,6 +871,7 @@ fn test_no_native_protocol_falls_back_to_configured() {
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,
+        tool_policy: ToolPolicy::Full,
         model_headers: reqwest::header::HeaderMap::new(),
         temperature: 0.3,
         top_p: 1.0,
@@ -897,18 +908,18 @@ fn test_server_info_native_protocol_field_default() {
 }
 
 #[test]
-fn test_system_prompt_forbids_shell_utilities() {
+fn test_system_prompt_registers_run_command_with_approval_notice() {
     let prompt = BASE_SYSTEM_PROMPT;
     assert!(
+        prompt.contains("run_command"),
+        "system prompt must list run_command in the registered tool set"
+    );
+    assert!(
         prompt.contains("run_shell_command"),
-        "system prompt must explicitly forbid run_shell_command"
+        "system prompt must mention run_shell_command alias"
     );
     assert!(
-        prompt.contains("Shell utilities"),
-        "system prompt must mention shell utilities are unavailable"
-    );
-    assert!(
-        !prompt.contains("e.g. do not call run_shell_command"),
-        "system prompt must use the stronger shell-utility prohibition"
+        prompt.contains("approval"),
+        "system prompt must state that run_command requires user approval"
     );
 }

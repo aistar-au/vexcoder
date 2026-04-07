@@ -22,6 +22,7 @@ fn test_build_runtime_with_resume_restores_task() {
         model_backend: crate::runtime::ModelBackendKind::LocalRuntime,
         model_protocol: crate::runtime::ModelProtocol::MessagesV1,
         tool_call_mode: crate::runtime::ToolCallMode::TaggedFallback,
+        tool_policy: crate::runtime::ToolPolicy::Full,
         model_profile: ModelProfile::default_for_backend(
             crate::runtime::ModelBackendKind::LocalRuntime,
         ),

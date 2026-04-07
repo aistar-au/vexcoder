@@ -677,6 +677,55 @@ fn test_task_layout_state_keeps_command_sessions_alongside_other_steps() {
             "cargo nextest run: Mapping adjacent sectors...".to_string(),
         ]
     );
+    assert_eq!(mode.timeline_entry_count(), 4);
+}
+
+#[test]
+fn test_timeline_end_reaches_last_mixed_step_with_command_sessions() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+
+    mode.on_user_input("run the validation".to_string(), &mut ctx);
+    if let Some(active) = mode.task_doc.active_turn.as_mut() {
+        active.entries.push(TurnEntry::ToolCall {
+            step_id: 1,
+            id: "tc1".to_string(),
+            name: "read_file".to_string(),
+            input: serde_json::json!({}),
+            status: crate::state::ToolStatus::Complete,
+        });
+        active.entries.push(TurnEntry::ToolCall {
+            step_id: 2,
+            id: "tc2".to_string(),
+            name: "run_command".to_string(),
+            input: serde_json::json!({}),
+            status: crate::state::ToolStatus::Pending,
+        });
+        active.command_sessions.insert(
+            99,
+            crate::runtime::task_document::CommandSessionDocument {
+                session_id: 99,
+                command: "cargo nextest run".to_string(),
+                pid: Some(4242),
+                status: "running".to_string(),
+                output_tail: vec![],
+            },
+        );
+    }
+
+    mode.timeline_follow_mode = false;
+    mode.selected_timeline_index = 0;
+
+    mode.on_frontend_event(
+        crate::runtime::frontend::UserInputEvent::Scroll {
+            target: crate::runtime::frontend::ScrollTarget::Timeline,
+            action: crate::runtime::frontend::ScrollAction::End,
+        },
+        &mut ctx,
+    );
+
+    assert_eq!(mode.selected_timeline_index, 3);
+    assert!(mode.timeline_follow_mode);
 }
 
 #[test]

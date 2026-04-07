@@ -38,9 +38,10 @@ across `src/app/tests/`, `src/state/conversation/tests/`, and `tests/`; the
 series target is to grow past 100 focused tests without reintroducing fixture
 duplication or oversized generic test buckets.
 
-As the TaskDocument reducer expands, the number of scenarios exercised in each
-of these files will grow. Without a binding rule, individual test files will
-exceed 1000 lines and the duplicated setup boilerplate will compound across
+As the `TaskDocumentCondenser` expands its event coverage (ADR-045), the
+number of scenarios exercised in each of these files will grow. Without a
+binding rule, individual test files will exceed 1000 lines and the duplicated
+setup boilerplate will compound across
 every new fixture added in PRs 4–7.
 
 This ADR records the structural conventions that should govern the test suite
@@ -133,7 +134,7 @@ deferred to the split milestone for the relevant file.
 ### Rule 6 — Async test runtime declaration
 
 All async tests must use the `#[tokio::test]` attribute. No test may use
-`Runtime::new().unwrap().block_on(…)` inline. Streaming, reducer, search, and
+`Runtime::new().unwrap().block_on(…)` inline. Streaming, condenser, search, and
 renderer integration tests should default to:
 
 ```rust

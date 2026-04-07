@@ -14,7 +14,7 @@ use vexcoder::exec::{parse_exec_command, run_exec};
 use vexcoder::export::{render_task_export, write_export_output, ExportFormat};
 use vexcoder::init::run_init;
 use vexcoder::pr_summary::{run_branch, run_pr_summary};
-use vexcoder::runtime::{TaskState, TaskStatus};
+use vexcoder::runtime::{ModelProtocol, TaskState, TaskStatus, ToolPolicy};
 use vexcoder::serve_local_api;
 use vexcoder::startup::emit_model_endpoint_warnings;
 use vexcoder::tui_frontend::ManagedTuiFrontend;
@@ -234,6 +234,14 @@ async fn main() -> Result<ExitCode> {
     };
 
     let cli = Cli::parse();
+    let chat_compat = cli.chat_compat;
+    let tool_policy = if cli.plan {
+        ToolPolicy::Plan
+    } else if cli.chat {
+        ToolPolicy::Chat
+    } else {
+        ToolPolicy::Full
+    };
 
     // Subcommands take unconditional priority.
     match cli.command {
@@ -247,7 +255,8 @@ async fn main() -> Result<ExitCode> {
         }) => {
             let exec_args =
                 parse_exec_command(task, task_file, max_turns, auto_approve, output, format)?;
-            let config = Config::load()?;
+            let mut config = Config::load()?;
+            apply_cli_overrides(chat_compat, tool_policy, &mut config);
             config.validate()?;
             return run_exec(exec_args, config).await;
         }
@@ -349,7 +358,8 @@ async fn main() -> Result<ExitCode> {
             return Ok(ExitCode::SUCCESS);
         }
         Some(Commands::Serve { host, port }) => {
-            let config = Config::load()?;
+            let mut config = Config::load()?;
+            apply_cli_overrides(chat_compat, tool_policy, &mut config);
             config.validate()?;
             serve_local_api(config, host, port).await?;
             return Ok(ExitCode::SUCCESS);
@@ -357,7 +367,8 @@ async fn main() -> Result<ExitCode> {
         None => {}
     }
 
-    let config = Config::load()?;
+    let mut config = Config::load()?;
+    apply_cli_overrides(chat_compat, tool_policy, &mut config);
 
     let resume_state = match cli.resume.as_deref() {
         Some(task_id) => match resolve_resume_state(task_id)? {
@@ -391,6 +402,18 @@ async fn main() -> Result<ExitCode> {
     let mut frontend = ManagedTuiFrontend::new()?;
     run_tui_session(config, None, &mut frontend).await?;
     Ok(ExitCode::SUCCESS)
+}
+
+/// Apply top-level CLI flag overrides to a loaded config.
+///
+/// This is called once per code path after `Config::load()` so that flags such
+/// as `--chat-compat`, `--plan`, and `--chat` take effect regardless of which
+/// subcommand is active.
+fn apply_cli_overrides(chat_compat: bool, tool_policy: ToolPolicy, config: &mut Config) {
+    if chat_compat {
+        config.model_protocol = ModelProtocol::ChatCompat;
+    }
+    config.tool_policy = tool_policy;
 }
 
 fn exit_code_for_status(status: TaskStatus) -> ExitCode {

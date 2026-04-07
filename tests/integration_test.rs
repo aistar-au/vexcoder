@@ -1,7 +1,7 @@
 use reqwest::header::HeaderMap;
 use vexcoder::batch_mode::{build_batch_runtime, AutoApproveScope, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
-use vexcoder::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode};
+use vexcoder::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy};
 use vexcoder::types::ModelProfile;
 
 // Each integration test binary needs its own ENV_LOCK to serialise
@@ -164,6 +164,7 @@ fn test_config_validation_rejects_local_model_for_remote_endpoint() {
         model_backend: ModelBackendKind::ApiServer,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,
+        tool_policy: ToolPolicy::Full,
         model_profile: ModelProfile::default_for_backend(ModelBackendKind::ApiServer),
         max_project_instructions_tokens: 4096,
         max_memory_tokens: 2048,
@@ -193,6 +194,7 @@ fn test_config_validation_allows_local_endpoint_without_token() {
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::TaggedFallback,
+        tool_policy: ToolPolicy::Full,
         model_profile: ModelProfile::default_for_backend(ModelBackendKind::LocalRuntime),
         max_project_instructions_tokens: 4096,
         max_memory_tokens: 2048,
@@ -529,6 +531,7 @@ async fn test_build_batch_runtime_succeeds_with_local_config() {
         model_backend: vexcoder::runtime::ModelBackendKind::LocalRuntime,
         model_protocol: vexcoder::runtime::ModelProtocol::MessagesV1,
         tool_call_mode: vexcoder::runtime::ToolCallMode::TaggedFallback,
+        tool_policy: vexcoder::runtime::ToolPolicy::Full,
         model_profile: ModelProfile::default_for_backend(
             vexcoder::runtime::ModelBackendKind::LocalRuntime,
         ),

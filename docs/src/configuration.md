@@ -36,6 +36,7 @@ These keys are read by the current runtime from config files:
 | `model_backend` | `local-runtime` or `api-server` | inferred |
 | `model_protocol` | `messages-v1` or `chat-compat` | inferred |
 | `tool_call_mode` | `structured` or `tagged-fallback` | inferred |
+| `tool_policy` | `full`, `plan`, or `chat` | `full` |
 | `model_profile` | Path to a repo-tracked profile under `models/` | backend default profile |
 | `max_project_instructions_tokens` | Project instructions token budget | `4096` |
 | `max_memory_tokens` | Notes token budget | `2048` |
@@ -71,6 +72,20 @@ The runtime currently documents three structured tool-call shapes:
 These paths are distinct from `regex-lite` processing. `regex-lite` is used for
 git output parsing, secret redaction, and rate-limit extraction; it is not used
 for live tool-call parsing.
+
+## Tool policy
+
+`tool_policy` controls which tools are exposed to the model for a session.
+
+| Policy | Tools exposed | CLI flag |
+| :--- | :--- | :--- |
+| `full` | All registered tools including mutating and shell tools | (default) |
+| `plan` | Read-only tools only: `read_file`, `list_files`, `list_directory`, `list_dir`, `glob_files`, `search_files`, `search`, `git_status`, `git_diff`, `git_log`, `git_show`, `search_content`, `find_files`, `codebase_search`, plus any configured MCP tools | `--plan` |
+| `chat` | No tools — plain conversation mode | `--chat` |
+
+When `plan` is active, mutating tools (`write_file`, `apply_patch`, `edit_file`,
+`rename_file`, `git_add`, `git_commit`, `run_command`) are excluded from the
+model schema and rejected at the dispatch layer as a defense-in-depth guard.
 
 ## Feature config sections
 
