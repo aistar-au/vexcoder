@@ -15,13 +15,15 @@ impl TuiMode {
         }
 
         if let Some(scope) = self
-            .current_task
+            .task_doc
+            .meta
             .active_grants
             .get(&Capability::RunCommand)
             .copied()
         {
             if matches!(scope, ApprovalScope::Once) {
-                self.current_task
+                self.task_doc
+                    .meta
                     .active_grants
                     .remove(&Capability::RunCommand);
             }
@@ -48,9 +50,6 @@ impl TuiMode {
 
     pub(super) fn start_command_session(&mut self, command: String, ctx: &RuntimeContext) {
         let starting_batch = self.command_sessions.is_empty();
-        self.history_state.turn_in_progress = true;
-        self.history_state.cancel_pending = false;
-        self.history_state.active_assistant_index = None;
         if starting_batch {
             self.begin_turn_capture(format!("!{command}"));
         }

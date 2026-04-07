@@ -1,7 +1,6 @@
 use super::{
     ApprovalScope, Capability, CommandRequest, DefaultCommandRunner, GenerateTestsArgs,
-    ResumeTaskEntry, ReviewArgs, TaskState, ValidationSuite, DEFAULT_MAX_HISTORY_LINES,
-    MAX_HISTORY_LINES_ENV, SLASH_COMMANDS,
+    ResumeTaskEntry, ReviewArgs, TaskState, ValidationSuite, SLASH_COMMANDS,
 };
 use anyhow::Result;
 use std::path::{Path, PathBuf};
@@ -218,14 +217,6 @@ pub(super) fn new_task_id() -> String {
     format!("task-{stable_ms}")
 }
 
-pub(super) fn resolve_history_line_cap() -> usize {
-    std::env::var(MAX_HISTORY_LINES_ENV)
-        .ok()
-        .and_then(|value| value.trim().parse::<usize>().ok())
-        .filter(|cap| *cap > 0)
-        .unwrap_or(DEFAULT_MAX_HISTORY_LINES)
-}
-
 pub(super) fn resolve_repo_label() -> String {
     std::env::var("VEX_REPO_LABEL")
         .ok()
@@ -287,21 +278,6 @@ pub(super) fn sanitize_task_label(label: &str) -> String {
     }
 
     out.trim_matches('-').to_string()
-}
-
-pub(super) fn summarize_tool_outcome(output: &str, is_error: bool) -> &'static str {
-    if !is_error {
-        return "ok";
-    }
-
-    let lowered = output.to_ascii_lowercase();
-    if lowered.contains("denied") {
-        "denied"
-    } else if lowered.contains("cancel") {
-        "cancelled"
-    } else {
-        "error"
-    }
 }
 
 pub(super) fn list_recent_task_entries(working_dir: &Path, limit: usize) -> Vec<ResumeTaskEntry> {

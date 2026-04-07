@@ -319,9 +319,17 @@ impl TaskDocumentReducer {
         completed_at_ms: u64,
     ) -> TaskMutationSummary {
         let mut summary = TaskMutationSummary::default();
-        let Some(active) = doc.active_turn.take() else {
+        let Some(mut active) = doc.active_turn.take() else {
             return summary;
         };
+
+        // Clear streaming flags so completed turn entries render without a
+        // live-typing cursor.
+        for entry in &mut active.entries {
+            if let TurnEntry::AssistantBlock { block, .. } = entry {
+                block.streaming = false;
+            }
+        }
 
         doc.meta.status = match &outcome {
             TurnOutcome::Completed => TaskStatus::Ready,

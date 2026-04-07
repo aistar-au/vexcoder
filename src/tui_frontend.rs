@@ -584,14 +584,14 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                     as u16;
                 let panes = split_three_pane_layout(area, input_rows);
                 frame.render_widget(Clear, area);
-                let history_width =
-                    history_content_width_for_area(mode.history_lines(), panes.history);
+                let history_lines = mode.history_lines();
+                let history_width = history_content_width_for_area(&history_lines, panes.history);
                 mode.set_history_content_width(history_width);
 
                 let status = mode.status_line();
 
                 render_status_line(frame, panes.header, &status);
-                render_messages(frame, panes.history, mode.history_lines());
+                render_messages(frame, panes.history, &history_lines);
                 render_input(frame, panes.input, &input, cursor);
 
                 if let Some((patch_preview, scroll_offset)) = mode.pending_patch_overlay() {

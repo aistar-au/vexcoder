@@ -1,4 +1,6 @@
-use super::{PendingTurnToolCall, StepLifecycle, ToolInvocationSummary};
+use super::StepLifecycle;
+#[cfg(test)]
+use super::ToolInvocationSummary;
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::status_contract::{completed_status_label, pending_status_label};
 use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
@@ -6,6 +8,7 @@ use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
 #[cfg(test)]
 use crate::api::client::builtin_tool_summaries;
 
+#[cfg(test)]
 pub(super) fn extend_visual_rows(
     rows: &mut Vec<String>,
     history_lines: &[String],
@@ -36,6 +39,7 @@ pub(super) fn display_status_text(status: &str) -> &str {
     }
 }
 
+#[cfg(test)]
 pub(super) fn timeline_label_for_invocation(invocation: &ToolInvocationSummary) -> String {
     let is_error = tool_outcome_is_error(&invocation.outcome);
     let status_label = if is_error {
@@ -85,6 +89,7 @@ pub(super) fn compact_outcome_summary(line: &str) -> String {
     format!("{}\u{2026}", &trimmed[..end])
 }
 
+#[cfg(test)]
 pub(super) fn tool_outcome_is_error(outcome: &str) -> bool {
     let lowered = outcome.trim().to_ascii_lowercase();
     lowered.starts_with("error")
@@ -191,7 +196,8 @@ fn tool_header_summary(name: &str, target: Option<String>, status: &str) -> Stri
 }
 
 pub(crate) fn pending_tool_paragraph_rows(
-    pending: &PendingTurnToolCall,
+    name: &str,
+    input_preview: &str,
     lifecycle: StepLifecycle,
 ) -> Vec<String> {
     let status = match lifecycle {
@@ -199,12 +205,12 @@ pub(crate) fn pending_tool_paragraph_rows(
         StepLifecycle::Approved => "approved",
         _ => pending_status_label(),
     };
-    let target = tool_target_summary(&pending.input_preview);
+    let target = tool_target_summary(input_preview);
     let mut rows = vec![format!(
         "[tool] {}",
-        tool_header_summary(&pending.name, target, status)
+        tool_header_summary(name, target, status)
     )];
-    append_preview_rows(&mut rows, preview_rows(&pending.input_preview));
+    append_preview_rows(&mut rows, preview_rows(input_preview));
     rows
 }
 

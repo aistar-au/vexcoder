@@ -17,7 +17,7 @@ async fn test_ref_03_tui_mode_overlay_blocks_input() {
 
     mode.on_user_input("blocked".to_string(), &mut ctx);
     assert!(
-        !mode.history_state.turn_in_progress,
+        mode.task_doc.active_turn.is_none(),
         "overlay must block input dispatch"
     );
 
@@ -29,7 +29,7 @@ async fn test_ref_03_tui_mode_overlay_blocks_input() {
 
     mode.on_user_input("resume".to_string(), &mut ctx);
     assert!(
-        mode.history_state.turn_in_progress,
+        mode.task_doc.active_turn.is_some(),
         "dispatch should resume after overlay clears"
     );
 }
@@ -170,19 +170,14 @@ fn multiline_submit_outside_overlay_only() {
 
     mode.on_user_input(submitted.clone(), &mut ctx);
     assert!(
-        mode.history_state.turn_in_progress,
+        mode.task_doc.active_turn.is_some(),
         "outside overlay, enter must submit and start a turn"
     );
     assert!(
-        mode.history_state
-            .lines
-            .iter()
-            .any(|line| line == "> a\nb\nc"),
+        mode.history_lines().iter().any(|line| line == "> a\nb\nc"),
         "submitted multiline prompt should be recorded in history"
     );
 
-    mode.history_state.turn_in_progress = false;
-    mode.history_state.active_assistant_index = None;
     let (response_tx, _response_rx) = tokio::sync::oneshot::channel::<bool>();
     mode.overlay_state.pending_approval = Some(PendingApproval {
         step_id: None,
@@ -207,8 +202,7 @@ fn multiline_submit_outside_overlay_only() {
     );
     assert!(
         !mode
-            .history_state
-            .lines
+            .history_lines()
             .iter()
             .any(|line| line == "> overlay\nattempt"),
         "overlay-focused input must not submit as a user prompt"
@@ -386,8 +380,7 @@ async fn test_invalid_approval_input_keeps_overlay_active_with_feedback() {
         "overlay should stay active on invalid input"
     );
     assert!(
-        mode.history_state
-            .lines
+        mode.history_lines()
             .iter()
             .any(|line| line.contains("[invalid selection, expected 1/2/3]")),
         "expected invalid selection feedback line"

@@ -6,7 +6,7 @@ pub fn build_runtime(config: Config) -> Result<(Runtime<TuiMode>, RuntimeContext
     runtime.mode.instructions_path = bootstrap.instructions_path;
     runtime.mode.sandbox = bootstrap.sandbox;
     runtime.mode.mcp_rollup = bootstrap.mcp_rollup;
-    runtime.mode.current_task.instructions_path = runtime.mode.instructions_path.clone();
+    runtime.mode.task_doc.meta.instructions_path = runtime.mode.instructions_path.clone();
     if let Some(warning) = bootstrap.notes_warning {
         runtime.mode.push_history_line(warning);
     }
@@ -25,11 +25,15 @@ pub fn build_runtime_with_resume(
     let (mut runtime, ctx) = build_runtime(config)?;
     let restored_id = resume_state.id.clone();
     let status = format!("{:?}", resume_state.status);
-    runtime.mode.current_task = resume_state;
-    if let Some(path) = runtime.mode.current_task.instructions_path.clone() {
-        runtime.mode.instructions_path = Some(path);
+    let task_doc = runtime
+        .mode
+        .task_doc_reducer
+        .restore_from_snapshot(resume_state);
+    runtime.mode.task_doc = task_doc;
+    if let Some(path_str) = runtime.mode.task_doc.meta.instructions_path.clone() {
+        runtime.mode.instructions_path = Some(path_str);
     } else {
-        runtime.mode.current_task.instructions_path = runtime.mode.instructions_path.clone();
+        runtime.mode.task_doc.meta.instructions_path = runtime.mode.instructions_path.clone();
     }
     runtime
         .mode

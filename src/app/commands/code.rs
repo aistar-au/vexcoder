@@ -2,7 +2,7 @@ use super::super::*;
 
 impl TuiMode {
     pub(crate) fn handle_edit_command(&mut self, instruction: &str, ctx: &mut RuntimeContext) {
-        if self.active_edit_loop.is_some() && self.history_state.turn_in_progress {
+        if self.active_edit_loop.is_some() && self.task_doc.active_turn.is_some() {
             self.push_history_line(
                 "[edit loop already active \u{2014} cancel with Ctrl+C before starting a new task]"
                     .to_string(),
@@ -22,14 +22,12 @@ impl TuiMode {
             ],
             "/edit",
         );
-        let task_id = self.current_task.id.clone();
+        let task_id = self.task_doc.meta.id.clone();
         let edit_loop = EditLoop::new(task_id)
             .with_working_dir(self.working_dir.clone())
             .with_profile(self.model_profile.clone());
         self.active_edit_loop = Some(edit_loop.clone());
-        self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
-        self.history_state.turn_in_progress = true;
-        self.set_task_status(TaskStatus::Running);
+        self.begin_turn_capture(instruction.clone());
         #[cfg(test)]
         {
             self.last_turn_input = Some(instruction.clone());
@@ -37,7 +35,7 @@ impl TuiMode {
         ctx.start_edit_loop(edit_loop, instruction);
     }
     pub(crate) fn handle_fix_command(&mut self, ctx: &mut RuntimeContext) {
-        if self.active_edit_loop.is_some() && self.history_state.turn_in_progress {
+        if self.active_edit_loop.is_some() && self.task_doc.active_turn.is_some() {
             self.push_history_line(
                 "[edit loop already active \u{2014} cancel with Ctrl+C before starting a new task]"
                     .to_string(),
@@ -71,14 +69,12 @@ impl TuiMode {
             ],
             "/fix",
         );
-        let task_id = self.current_task.id.clone();
+        let task_id = self.task_doc.meta.id.clone();
         let edit_loop = EditLoop::new(task_id)
             .with_working_dir(self.working_dir.clone())
             .with_profile(self.model_profile.clone());
         self.active_edit_loop = Some(edit_loop.clone());
-        self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
-        self.history_state.turn_in_progress = true;
-        self.set_task_status(TaskStatus::Running);
+        self.begin_turn_capture(instruction.clone());
         #[cfg(test)]
         {
             self.last_turn_input = Some(instruction.clone());
@@ -96,10 +92,22 @@ impl TuiMode {
         let requested_path = if !normalized_path_hint.is_empty() {
             Some(normalized_path_hint.to_string())
         } else {
-            self.current_task
-                .changed_files
-                .last()
-                .map(|path| path.to_string_lossy().into_owned())
+            self.task_doc
+                .completed_turns
+                .iter()
+                .rev()
+                .flat_map(|t| t.changed_files.iter().rev())
+                .next()
+                .cloned()
+                .or_else(|| {
+                    self.task_doc
+                        .active_turn
+                        .as_ref()?
+                        .changed_files
+                        .iter()
+                        .next_back()
+                        .cloned()
+                })
         };
         let scope_instruction = requested_path
             .as_deref()

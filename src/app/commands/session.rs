@@ -58,10 +58,22 @@ impl TuiMode {
             .and_then(|context| context.file_rollups.first())
             .map(|snapshot| snapshot.path.to_string_lossy().into_owned())
             .or_else(|| {
-                self.current_task
-                    .changed_files
-                    .last()
-                    .map(|path| path.to_string_lossy().into_owned())
+                self.task_doc
+                    .completed_turns
+                    .iter()
+                    .rev()
+                    .flat_map(|t| t.changed_files.iter().rev())
+                    .next()
+                    .cloned()
+                    .or_else(|| {
+                        self.task_doc
+                            .active_turn
+                            .as_ref()?
+                            .changed_files
+                            .iter()
+                            .next_back()
+                            .cloned()
+                    })
             })
     }
     pub(crate) fn infer_generate_tests_framework(&self) -> String {
@@ -176,7 +188,8 @@ impl TuiMode {
         for &cap in ALL_CAPABILITIES {
             let cap_name = capability_to_kebab(cap);
             let scope_label = self
-                .current_task
+                .task_doc
+                .meta
                 .active_grants
                 .get(&cap)
                 .map(|scope| scope_to_label(*scope))
@@ -215,7 +228,7 @@ impl TuiMode {
         };
 
         let scope_label = scope_to_label(scope);
-        self.current_task.active_grants.insert(cap, scope);
+        self.task_doc.meta.active_grants.insert(cap, scope);
         self.push_history_line(format!("[allow: {cap_str} granted for {scope_label}]"));
     }
     pub(crate) fn handle_deny_command(&mut self, rest: &str) {
@@ -229,21 +242,34 @@ impl TuiMode {
             return;
         };
 
-        if self.current_task.active_grants.remove(&cap).is_some() {
+        if self.task_doc.meta.active_grants.remove(&cap).is_some() {
             self.push_history_line(format!("[deny: {cap_str} removed]"));
         } else {
             self.push_history_line(format!("[deny: {cap_str} not in active grants]"));
         }
     }
     pub(crate) fn handle_new_command(&mut self, ctx: &mut RuntimeContext) {
-        let dir = TaskState::state_dir();
-        if let Err(e) = self.current_task.save(&dir) {
-            self.push_history_line(format!("[new] save failed: {e} - session not reset"));
-            return;
-        }
+        self.persist_task_document();
         let new_id = new_task_id();
-        self.current_task = TaskState::new(new_id.clone());
-        self.current_task.instructions_path = self.instructions_path.clone();
+        let instructions_path = self.instructions_path.clone();
+        let new_meta = crate::runtime::TaskMeta {
+            id: new_id.clone(),
+            status: TaskStatus::Running,
+            parent_task_id: None,
+            agent_id: None,
+            worktree_path: None,
+            branch_name: None,
+            instructions_path,
+            model_name: self.model_name.clone(),
+            model_backend: self.model_backend,
+            model_url: self.model_url.clone(),
+            started_at_ms: Some(crate::runtime::session_task::now_millis()),
+            updated_at_ms: crate::runtime::session_task::now_millis(),
+            last_heartbeat_ms: None,
+            active_grants: Default::default(),
+            next_step_id: 0,
+        };
+        self.task_doc = self.task_doc_reducer.begin_task(new_meta);
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
         self.reset_conversation_window(ctx);
@@ -267,11 +293,11 @@ impl TuiMode {
         }
     }
     pub(crate) fn handle_compact_command(&mut self, ctx: &mut RuntimeContext) {
-        let task_id = self.current_task.id.clone();
+        let task_id = self.task_doc.meta.id.clone();
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
-        self.current_task.turns.clear();
-        self.persist_current_task_state();
+        self.task_doc.completed_turns.clear();
+        self.persist_task_document();
         self.reset_conversation_window(ctx);
         self.push_history_line(format!(
             "[compacted: conversation history reset; task {task_id} continues]"
@@ -337,9 +363,12 @@ impl TuiMode {
     }
 
     pub(crate) fn handle_fork_command(&mut self, label: &str, ctx: &mut RuntimeContext) {
-        let dir = TaskState::state_dir();
-        if let Err(e) = self.current_task.save(&dir) {
-            self.push_history_line(format!("[fork] save failed: {e} - fork aborted"));
+        // Persist the parent state before forking.  If this fails, abort so the
+        // parent task id is left unchanged.
+        let parent_snapshot = self.task_doc_reducer.persistable_snapshot(&self.task_doc);
+        let state_dir = TaskState::state_dir_from(&self.working_dir);
+        if let Err(error) = parent_snapshot.save(&state_dir) {
+            self.push_history_line(format!("[fork] save failed: {error}"));
             return;
         }
         let sanitized_label = sanitize_task_label(label);
@@ -348,13 +377,26 @@ impl TuiMode {
         } else {
             format!("{}-{sanitized_label}", new_task_id())
         };
-        let parent_id = self.current_task.id.clone();
-        let mut fork = TaskState::new(new_id.clone());
-        fork.active_grants = self.current_task.active_grants.clone();
-        fork.changed_files = self.current_task.changed_files.clone();
-        fork.status = self.current_task.status.clone();
-        fork.instructions_path = self.instructions_path.clone();
-        self.current_task = fork;
+        let parent_id = self.task_doc.meta.id.clone();
+        let instructions_path = self.instructions_path.clone();
+        let fork_meta = crate::runtime::TaskMeta {
+            id: new_id.clone(),
+            status: self.task_doc.meta.status.clone(),
+            parent_task_id: Some(parent_id.clone()),
+            agent_id: None,
+            worktree_path: None,
+            branch_name: None,
+            instructions_path,
+            model_name: self.model_name.clone(),
+            model_backend: self.model_backend,
+            model_url: self.model_url.clone(),
+            started_at_ms: Some(crate::runtime::session_task::now_millis()),
+            updated_at_ms: crate::runtime::session_task::now_millis(),
+            last_heartbeat_ms: None,
+            active_grants: self.task_doc.meta.active_grants.clone(),
+            next_step_id: self.task_doc.meta.next_step_id,
+        };
+        self.task_doc = self.task_doc_reducer.begin_task(fork_meta);
         self.reset_conversation_window(ctx);
         self.push_history_line(format!("[fork: {new_id} branched from {parent_id}]"));
     }
@@ -376,9 +418,8 @@ impl TuiMode {
     }
 
     pub(crate) fn handle_copy_command(&mut self) {
-        let text = self
-            .history_state
-            .lines
+        let rows = self.history_lines();
+        let text = rows
             .iter()
             .rev()
             .take(50)

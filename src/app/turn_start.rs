@@ -25,10 +25,8 @@ impl TuiMode {
         supplementary_system_prompt: Option<&str>,
         turn_tool_policy: TurnToolPolicy,
     ) {
-        self.history_state.active_assistant_index = Some(self.history_state.lines.len() - 1);
-        self.history_state.turn_in_progress = true;
         self.read_only_turn_active = read_only;
-        self.begin_turn_capture(rendered.clone());
+        self.begin_turn_capture_with_policy(rendered.clone(), turn_tool_policy);
         #[cfg(test)]
         {
             self.last_turn_input = Some(rendered.clone());

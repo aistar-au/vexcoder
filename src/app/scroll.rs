@@ -34,76 +34,34 @@ impl TuiMode {
         }
 
         let (_, rows, anchor) = self.task_output_view();
-        let cols = self.history_content_width.get() as u16;
+        let cols = self.display_column_width.get() as u16;
         let expanded = crate::ui::render::expand_rows_for_display(&rows, cols).len();
         if anchor == OutputScrollAnchor::Bottom && expanded > previous_expanded_rows {
             let growth = expanded - previous_expanded_rows;
             self.transcript_scroll_offset = self.transcript_scroll_offset.saturating_add(growth);
         }
-        // Always clamp to prevent the offset from exceeding the scrollable
-        // range — this also handles the case where rows were removed (e.g.
-        // pending tool paragraph replacement).
         let max_offset = expanded.saturating_sub(1);
         self.transcript_scroll_offset = self.transcript_scroll_offset.min(max_offset);
     }
 
-    /// Compute the total number of word-wrapped display rows for the current
-    /// task output. Used to capture a pre-mutation snapshot that
-    /// `preserve_transcript_scroll_on_growth` can compare against.
     pub(super) fn expanded_output_row_count(&self) -> usize {
         let (_, rows, _) = self.task_output_view();
-        let cols = self.history_content_width.get() as u16;
+        let cols = self.display_column_width.get() as u16;
         crate::ui::render::expand_rows_for_display(&rows, cols).len()
     }
 
-    /// Append `delta` text to the current stream segment, creating a new
-    /// segment if `active_stream_segment_index` is `None`.  Returns the
-    /// segment index that was written to.
-    pub(super) fn append_stream_segment_delta(&mut self, delta: &str) -> usize {
-        if let Some(seg_idx) = self.active_stream_segment_index {
-            if seg_idx < self.current_turn_stream_segments.len() {
-                self.current_turn_stream_segments[seg_idx]
-                    .text
-                    .push_str(delta);
-                return seg_idx;
-            }
-        }
-        self.current_turn_stream_segments
-            .push(StreamedResponseSegment {
-                text: delta.to_owned(),
-            });
-        let idx = self.current_turn_stream_segments.len() - 1;
-        self.active_stream_segment_index = Some(idx);
-        idx
-    }
-
+    /// Compatibility shim: push a plain-text notice into the document store.
+    /// All callers that previously used the flat `history_state.lines` buffer
+    /// now route through the document-oriented `push_document_notice`.
     pub(super) fn push_history_line(&mut self, line: String) {
-        if self.structured_streaming_active && self.history_state.turn_in_progress {
-            self.materialize_current_turn_stream_segments();
-        }
-        self.history_state.lines.push(line);
-        self.enforce_history_cap();
-    }
-
-    pub(super) fn enforce_history_cap(&mut self) {
-        let cap = self.history_line_cap;
-        if self.history_state.lines.len() <= cap {
-            return;
-        }
-
-        let excess = self.history_state.lines.len() - cap;
-        self.history_state.lines.drain(..excess);
-        self.history_state.active_assistant_index = self
-            .history_state
-            .active_assistant_index
-            .and_then(|idx| idx.checked_sub(excess));
+        self.push_document_notice(line, crate::runtime::NoticeSeverity::Info);
     }
 
     /// Clamp the transcript scroll offset to a valid range after content
     /// mutations (line removals, replacements, cap enforcement).
     pub(super) fn clamp_transcript_after_mutation(&mut self) {
         let (_, rows, anchor) = self.task_output_view();
-        let cols = self.history_content_width.get() as u16;
+        let cols = self.display_column_width.get() as u16;
         let total_rows = crate::ui::render::expand_rows_for_display(&rows, cols).len();
         match anchor {
             OutputScrollAnchor::Bottom => self.clamp_transcript_scroll_offset(total_rows),
@@ -172,9 +130,7 @@ impl TuiMode {
 
     pub(super) fn apply_output_scroll_action(&mut self, action: ScrollAction) {
         let (_, rows, anchor) = self.task_output_view();
-        // Use the expanded (word-wrapped) row count so the scroll range
-        // matches the display row count used by the draw path.
-        let cols = self.history_content_width.get() as u16;
+        let cols = self.display_column_width.get() as u16;
         let total_rows = crate::ui::render::expand_rows_for_display(&rows, cols).len();
 
         match anchor {
