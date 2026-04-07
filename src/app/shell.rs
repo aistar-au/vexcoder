@@ -49,7 +49,11 @@ impl TuiMode {
     }
 
     pub(super) fn start_command_session(&mut self, command: String, ctx: &RuntimeContext) {
-        let starting_batch = self.command_sessions.is_empty();
+        let starting_batch = self
+            .task_doc
+            .active_turn
+            .as_ref()
+            .map_or(true, |t| t.command_sessions.is_empty());
         if starting_batch {
             self.begin_turn_capture(format!("!{command}"));
         }

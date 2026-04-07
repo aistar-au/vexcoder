@@ -1,7 +1,5 @@
-use crate::app::TaskViewProjection;
-use crate::status_contract::{
-    is_waiting_placeholder, pending_status_label, status_tone, StatusTone,
-};
+use crate::app::{TranscriptRow, TaskViewProjection};
+use crate::status_contract::{pending_status_label, status_tone, StatusTone};
 use crate::ui::input_metrics::{char_display_width, display_width, truncate_to_display_width};
 use ansi_to_tui::IntoText;
 use ratatui::{
@@ -10,84 +8,9 @@ use ratatui::{
     text::{Line, Span},
 };
 
-pub(crate) fn pipeline_activity_line(row: &str) -> Line<'static> {
-    if let Some(rest) = row.strip_prefix("[ok]") {
-        Line::from(vec![
-            Span::styled(
-                "[ok]",
-                Style::default()
-                    .fg(Color::Green)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(rest.to_string(), Style::default().fg(Color::Green)),
-        ])
-    } else if let Some(rest) = row.strip_prefix("[!]") {
-        Line::from(vec![
-            Span::styled(
-                "[!] ",
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(rest.to_string(), Style::default().fg(Color::Red)),
-        ])
-    } else if let Some(rest) = row.strip_prefix("[->]") {
-        Line::from(vec![
-            Span::styled(
-                "[->]",
-                Style::default()
-                    .fg(Color::Magenta)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(rest.to_string(), Style::default().fg(Color::Magenta)),
-        ])
-    } else if let Some(rest) = row.strip_prefix("[?]") {
-        Line::from(vec![
-            Span::styled(
-                "[?] ",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(rest.to_string(), Style::default().fg(Color::Yellow)),
-        ])
-    } else if let Some(rest) = row.strip_prefix("> ") {
-        Line::from(vec![
-            Span::styled(
-                "> ",
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::DIM),
-            ),
-            Span::styled(
-                rest.to_string(),
-                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
-            ),
-        ])
-    } else {
-        Line::from(Span::styled(
-            row.to_string(),
-            Style::default().fg(Color::White),
-        ))
-    }
-}
-
-pub(crate) fn transcript_output_line(row: &str) -> Line<'static> {
-    if let Some(rest) = row.strip_prefix("[turn] ") {
-        Line::from(vec![
-            Span::styled(
-                "─── ✦ ",
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::DIM),
-            ),
-            Span::styled(
-                rest.to_string(),
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ])
-    } else if is_waiting_placeholder(row) {
-        Line::from(vec![
+pub(crate) fn transcript_output_line(row: &TranscriptRow) -> Line<'static> {
+    match row {
+        TranscriptRow::WaitingPlaceholder(_) => Line::from(vec![
             Span::styled(
                 "  ⋯ ",
                 Style::default()
@@ -100,30 +23,111 @@ pub(crate) fn transcript_output_line(row: &str) -> Line<'static> {
                     .fg(Color::Magenta)
                     .add_modifier(Modifier::DIM),
             ),
-        ])
-    } else if let Some(rest) = row.strip_prefix("[thinking] ") {
-        Line::from(vec![
+        ]),
+        TranscriptRow::Error(rest) => Line::from(vec![
             Span::styled(
-                "  ⋯ ",
-                Style::default()
-                    .fg(Color::Magenta)
-                    .add_modifier(Modifier::BOLD),
+                "  ✖ ",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                rest.to_string(),
+                rest.clone(),
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        TranscriptRow::ToolHeader(rest) => render_tool_header(rest),
+        TranscriptRow::ToolDetail(rest) => structured_transcript_line(rest, "    ", None),
+        TranscriptRow::Evidence(rest) => {
+            structured_transcript_line(rest, "      ", Some("\u{2727} "))
+        }
+        TranscriptRow::UserInput(text) => Line::from(vec![
+            Span::styled(
+                "> ",
                 Style::default()
-                    .fg(Color::Magenta)
+                    .fg(Color::DarkGray)
                     .add_modifier(Modifier::DIM),
             ),
-        ])
-    } else if let Some(rest) = row.strip_prefix("[thinking_detail] ") {
-        Line::styled(
-            format!("    {rest}"),
+            Span::styled(
+                text.clone(),
+                Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+            ),
+        ]),
+        TranscriptRow::AssistantText { text, .. } => render_assistant_text(text),
+        TranscriptRow::Plain(s) => render_plain_row(s),
+    }
+}
+
+/// Render a `ToolHeader` row: `"⬧ name · target · status"`.
+fn render_tool_header(rest: &str) -> Line<'static> {
+    let mut spans = vec![Span::styled(
+        "  \u{2726} ",
+        Style::default()
+            .fg(Color::Magenta)
+            .add_modifier(Modifier::BOLD),
+    )];
+    if let Some((leading, status)) = split_tool_summary(rest) {
+        for (index, segment) in leading.iter().enumerate() {
+            if index > 0 {
+                spans.push(Span::styled(
+                    " \u{00b7} ",
+                    Style::default()
+                        .fg(Color::DarkGray)
+                        .add_modifier(Modifier::DIM),
+                ));
+            }
+            spans.push(Span::styled(
+                (*segment).to_string(),
+                if index == 0 {
+                    Style::default().fg(Color::White)
+                } else {
+                    Style::default().fg(Color::Gray)
+                },
+            ));
+        }
+        spans.push(Span::styled(
+            " \u{00b7} ",
             Style::default()
-                .fg(Color::Gray)
-                .add_modifier(Modifier::ITALIC | Modifier::DIM),
-        )
-    } else if let Some(rest) = row.strip_prefix("[approval] ") {
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::DIM),
+        ));
+        spans.push(Span::styled(status.to_string(), tool_status_style(status)));
+    } else {
+        spans.push(Span::styled(
+            rest.to_string(),
+            Style::default().fg(Color::White),
+        ));
+    }
+    Line::from(spans)
+}
+
+/// Render an `AssistantText` row (ANSI, markdown, or plain).
+fn render_assistant_text(text: &str) -> Line<'static> {
+    if text.contains('\x1b') {
+        match text.into_text() {
+            Ok(t) => t
+                .lines
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| Line::from("")),
+            Err(_) => Line::from(Span::styled(
+                text.to_string(),
+                Style::default().fg(Color::White),
+            )),
+        }
+    } else if looks_like_inline_markdown(text) {
+        super::markdown_to_inline_line(text)
+            .unwrap_or_else(|| Line::from(Span::raw(text.to_string())))
+    } else {
+        Line::from(Span::styled(
+            text.to_string(),
+            Style::default().fg(Color::White),
+        ))
+    }
+}
+
+/// Render a `Plain` row — handles legacy runtime marker prefixes for command
+/// sessions, approval notices, and other free-form system strings.
+fn render_plain_row(row: &str) -> Line<'static> {
+    if let Some(rest) = row.strip_prefix("[approval] ") {
         Line::from(vec![
             Span::styled(
                 "  ? ",
@@ -143,62 +147,6 @@ pub(crate) fn transcript_output_line(row: &str) -> Line<'static> {
             format!("    {rest}"),
             Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
         )
-    } else if let Some(rest) = row.strip_prefix("[error] ") {
-        Line::from(vec![
-            Span::styled(
-                "  ✖ ",
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                rest.to_string(),
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-            ),
-        ])
-    } else if let Some(rest) = row.strip_prefix("[tool] ") {
-        let mut spans = vec![Span::styled(
-            "  \u{2726} ",
-            Style::default()
-                .fg(Color::Magenta)
-                .add_modifier(Modifier::BOLD),
-        )];
-        if let Some((leading, status)) = split_tool_summary(rest) {
-            for (index, segment) in leading.iter().enumerate() {
-                if index > 0 {
-                    spans.push(Span::styled(
-                        " \u{00b7} ",
-                        Style::default()
-                            .fg(Color::DarkGray)
-                            .add_modifier(Modifier::DIM),
-                    ));
-                }
-                spans.push(Span::styled(
-                    (*segment).to_string(),
-                    if index == 0 {
-                        Style::default().fg(Color::White)
-                    } else {
-                        Style::default().fg(Color::Gray)
-                    },
-                ));
-            }
-            spans.push(Span::styled(
-                " \u{00b7} ",
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::DIM),
-            ));
-            spans.push(Span::styled(status.to_string(), tool_status_style(status)));
-            Line::from(spans)
-        } else {
-            spans.push(Span::styled(
-                rest.to_string(),
-                Style::default().fg(Color::White),
-            ));
-            Line::from(spans)
-        }
-    } else if let Some(rest) = row.strip_prefix("[detail] ") {
-        structured_transcript_line(rest, "    ", None)
-    } else if let Some(rest) = row.strip_prefix("[evidence] ") {
-        structured_transcript_line(rest, "      ", Some("\u{2727} "))
     } else if let Some((command, pid)) = parse_command_session_started(row) {
         let summary = pid
             .map(|pid| {
@@ -208,7 +156,7 @@ pub(crate) fn transcript_output_line(row: &str) -> Line<'static> {
                 )
             })
             .unwrap_or_else(|| format!("command session · {command} · {}", pending_status_label()));
-        transcript_output_line(&format!("[tool] {summary}"))
+        render_tool_header(&summary)
     } else if let Some(rest) = row.strip_prefix("[command session exit: ") {
         structured_transcript_line(
             &format!("Exit: {}", rest.trim_end_matches(']')),
@@ -220,7 +168,16 @@ pub(crate) fn transcript_output_line(row: &str) -> Line<'static> {
     } else if row == "[command session cancellation requested]" {
         structured_transcript_line("Status: cancellation requested", "    ", None)
     } else if let Some(rest) = row.strip_prefix("[command session] error: ") {
-        transcript_output_line(&format!("[error] {rest}"))
+        Line::from(vec![
+            Span::styled(
+                "  ✖ ",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                rest.to_string(),
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
+        ])
     } else if let Some(rest) = row.strip_prefix("[stderr] ") {
         Line::from(vec![
             Span::styled(
@@ -234,15 +191,7 @@ pub(crate) fn transcript_output_line(row: &str) -> Line<'static> {
                 Style::default().fg(Color::Red).add_modifier(Modifier::DIM),
             ),
         ])
-    } else if row.starts_with("[ok]")
-        || row.starts_with("[!]")
-        || row.starts_with("[->]")
-        || row.starts_with("[?]")
-        || row.starts_with("> ")
-    {
-        pipeline_activity_line(row)
     } else if row.contains('\x1b') {
-        // Parse ANSI escape sequences into styled ratatui spans.
         match row.into_text() {
             Ok(text) => text
                 .lines
@@ -255,8 +204,6 @@ pub(crate) fn transcript_output_line(row: &str) -> Line<'static> {
             )),
         }
     } else if looks_like_inline_markdown(row) {
-        // The fallback renderer can safely style single logical markdown rows
-        // here, but fenced blocks need to be parsed before row expansion.
         super::markdown_to_inline_line(row)
             .unwrap_or_else(|| Line::from(Span::raw(row.to_string())))
     } else {
@@ -513,35 +460,73 @@ pub(crate) fn task_output_render_area(
     }
 }
 
-pub(crate) fn expand_rows_for_display(rows: &[String], cols: u16) -> Vec<String> {
+pub(crate) fn expand_rows_for_display(rows: &[TranscriptRow], cols: u16) -> Vec<TranscriptRow> {
     if cols < 4 {
         return rows.to_vec();
     }
 
     let mut expanded = Vec::with_capacity((rows.len() * 3) / 2);
     for row in rows {
-        if row.contains('\n') {
-            for sub in row.split('\n') {
-                expanded.extend(word_wrap_plain_row(sub, cols as usize));
+        let text = row.as_display_str();
+        if text.contains('\n') {
+            for sub in text.split('\n') {
+                for wrapped in word_wrap_plain_row(sub, cols as usize) {
+                    expanded.push(row.clone_with_text(wrapped));
+                }
             }
         } else {
-            expanded.extend(word_wrap_plain_row(row, cols as usize));
+            let mut first = true;
+            for wrapped in word_wrap_transcript_row(row, cols as usize) {
+                if first {
+                    expanded.push(row.clone_with_text(wrapped));
+                    first = false;
+                } else {
+                    // Continuation lines of a wrapped row share the same variant.
+                    expanded.push(row.clone_with_text(wrapped));
+                }
+            }
         }
     }
     expanded
+}
+
+fn word_wrap_transcript_row(row: &TranscriptRow, cols: usize) -> Vec<String> {
+    // Structural rows (tool headers, evidence, etc.) are never word-wrapped.
+    if is_structural_transcript_row(row) {
+        return vec![row.as_display_str().to_string()];
+    }
+    let text = row.as_display_str();
+    word_wrap_plain_row(text, cols)
 }
 
 fn word_wrap_plain_row(line: &str, cols: usize) -> Vec<String> {
     if cols < 4 || line.is_empty() {
         return vec![line.to_string()];
     }
-    if display_width(line) <= cols || is_structural_transcript_row(line) {
+    if display_width(line) <= cols || is_structural_plain_str(line) {
         return vec![line.to_string()];
     }
     word_wrap_to_cols(line, cols)
 }
 
-fn is_structural_transcript_row(line: &str) -> bool {
+/// Returns true if `row` should not be word-wrapped.
+fn is_structural_transcript_row(row: &TranscriptRow) -> bool {
+    match row {
+        // These variants are always structural: indented or short by design.
+        TranscriptRow::ToolHeader(_)
+        | TranscriptRow::ToolDetail(_)
+        | TranscriptRow::Evidence(_)
+        | TranscriptRow::Error(_)
+        | TranscriptRow::UserInput(_)
+        | TranscriptRow::WaitingPlaceholder(_) => true,
+        // Plain runtime strings: use the legacy string heuristic.
+        TranscriptRow::Plain(s) => is_structural_plain_str(s),
+        // AssistantText is wrapped normally.
+        TranscriptRow::AssistantText { .. } => false,
+    }
+}
+
+fn is_structural_plain_str(line: &str) -> bool {
     if line.starts_with('[')
         || line.starts_with("    ")
         || line.starts_with("  ")

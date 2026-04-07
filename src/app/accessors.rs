@@ -97,7 +97,8 @@ impl TuiMode {
             &self.task_doc,
             &self.pre_session_notices,
         );
-        crate::ui::render::history_visual_line_count(&rows, self.display_column_width.get())
+        let strings: Vec<String> = rows.iter().map(|r| r.to_history_string()).collect();
+        crate::ui::render::history_visual_line_count(&strings, self.display_column_width.get())
     }
 
     pub(super) fn total_session_tokens(&self) -> u64 {
@@ -156,6 +157,9 @@ impl TuiMode {
             &self.task_doc,
             &self.pre_session_notices,
         )
+        .iter()
+        .map(|r| r.to_history_string())
+        .collect()
     }
 
     /// Returns `None`; the active-assistant-index concept has been removed.
@@ -190,7 +194,10 @@ impl TuiMode {
     }
 
     pub fn command_session_active(&self) -> bool {
-        !self.command_sessions.is_empty()
+        self.task_doc
+            .active_turn
+            .as_ref()
+            .map_or(false, |t| !t.command_sessions.is_empty())
     }
 
     pub fn prompt_hint_for_input(&self, input: &str, cursor: usize) -> String {
@@ -337,8 +344,13 @@ impl TuiMode {
 
     /// Total number of timeline entries available for selection.
     pub(super) fn timeline_entry_count(&self) -> usize {
-        if !self.command_sessions.is_empty() {
-            return self.command_sessions.len().max(1);
+        let command_sessions_len = self
+            .task_doc
+            .active_turn
+            .as_ref()
+            .map_or(0, |t| t.command_sessions.len());
+        if command_sessions_len > 0 {
+            return command_sessions_len.max(1);
         }
 
         let (has_input, tool_count) = if let Some(active) = self.task_doc.active_turn.as_ref() {

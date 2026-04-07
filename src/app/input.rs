@@ -102,9 +102,16 @@ impl TuiMode {
             if let Some(active) = self.task_doc.active_turn.as_mut() {
                 active.cancel_pending = true;
             }
-            if !self.command_sessions.is_empty() {
-                for session in &mut self.command_sessions {
-                    session.status = "cancelling".to_string();
+            let has_command_sessions = self
+                .task_doc
+                .active_turn
+                .as_ref()
+                .map_or(false, |t| !t.command_sessions.is_empty());
+            if has_command_sessions {
+                if let Some(active) = self.task_doc.active_turn.as_mut() {
+                    for session in active.command_sessions.values_mut() {
+                        session.status = "cancelling".to_string();
+                    }
                 }
                 self.set_task_status(TaskStatus::Cancelling);
                 self.push_history_line("[command session cancellation requested]".to_string());
