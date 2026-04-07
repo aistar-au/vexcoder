@@ -197,7 +197,7 @@ impl TuiMode {
         self.task_doc
             .active_turn
             .as_ref()
-            .map_or(false, |t| !t.command_sessions.is_empty())
+            .is_some_and(|t| !t.command_sessions.is_empty())
     }
 
     pub fn prompt_hint_for_input(&self, input: &str, cursor: usize) -> String {

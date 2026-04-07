@@ -106,7 +106,7 @@ impl TuiMode {
                 .task_doc
                 .active_turn
                 .as_ref()
-                .map_or(false, |t| !t.command_sessions.is_empty());
+                .is_some_and(|t| !t.command_sessions.is_empty());
             if has_command_sessions {
                 if let Some(active) = self.task_doc.active_turn.as_mut() {
                     for session in active.command_sessions.values_mut() {

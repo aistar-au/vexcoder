@@ -83,7 +83,9 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                 }
                 if block.streaming && !block.content.is_empty() && !block.content.ends_with('\n') {
                     if let Some(last) = rows.get_mut(row_before..) {
-                        if let Some(TranscriptRow::AssistantText { text, streaming }) = last.last_mut() {
+                        if let Some(TranscriptRow::AssistantText { text, streaming }) =
+                            last.last_mut()
+                        {
                             text.push('▌');
                             *streaming = true;
                         }

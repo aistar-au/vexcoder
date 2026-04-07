@@ -1,4 +1,4 @@
-use crate::app::{TranscriptRow, TaskViewProjection};
+use crate::app::{TaskViewProjection, TranscriptRow};
 use crate::status_contract::{pending_status_label, status_tone, StatusTone};
 use crate::ui::input_metrics::{char_display_width, display_width, truncate_to_display_width};
 use ansi_to_tui::IntoText;
@@ -103,11 +103,7 @@ fn render_tool_header(rest: &str) -> Line<'static> {
 fn render_assistant_text(text: &str) -> Line<'static> {
     if text.contains('\x1b') {
         match text.into_text() {
-            Ok(t) => t
-                .lines
-                .into_iter()
-                .next()
-                .unwrap_or_else(|| Line::from("")),
+            Ok(t) => t.lines.into_iter().next().unwrap_or_else(|| Line::from("")),
             Err(_) => Line::from(Span::styled(
                 text.to_string(),
                 Style::default().fg(Color::White),

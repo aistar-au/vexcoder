@@ -177,7 +177,7 @@ impl TuiMode {
 
         // Include live command sessions from task_doc.active_turn.
         if let Some(active) = self.task_doc.active_turn.as_ref() {
-            for (_, session) in &active.command_sessions {
+            for session in active.command_sessions.values() {
                 let display_status = display_status_text(&session.status);
                 let pid_text = session
                     .pid
@@ -534,8 +534,7 @@ mod tests {
         // Transcript rows should include the notice.
         let rows = mode.transcript_display_rows();
         assert!(
-            rows.iter()
-                .any(|r| r.as_display_str().contains("Hello!")),
+            rows.iter().any(|r| r.as_display_str().contains("Hello!")),
             "transcript rows should include notice: {rows:?}"
         );
     }

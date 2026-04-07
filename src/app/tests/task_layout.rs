@@ -9,7 +9,10 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(state.output_rows.len(), 2);
-    assert_eq!(state.output_rows[0], TranscriptRow::UserInput("hi".to_string()));
+    assert_eq!(
+        state.output_rows[0],
+        TranscriptRow::UserInput("hi".to_string())
+    );
     // The second row is the ADR-039 canonical waiting phrase with elapsed suffix.
     assert!(
         matches!(&state.output_rows[1], TranscriptRow::WaitingPlaceholder(s) if s.starts_with("[thinking] Mapping adjacent sectors...")),
@@ -38,7 +41,9 @@ fn test_task_layout_state_shows_server_read_progress_in_waiting_row() {
     );
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert!(state.output_rows[1].as_display_str().contains("\u{2191}:2048/2641"));
+    assert!(state.output_rows[1]
+        .as_display_str()
+        .contains("\u{2191}:2048/2641"));
     assert_eq!(state.telemetry.mode, "streaming");
     assert_eq!(state.telemetry.approval, "none");
     assert!(
@@ -80,14 +85,20 @@ fn test_task_layout_state_transcript_streaming_with_pending_approval() {
     );
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert_eq!(state.output_rows[0], TranscriptRow::UserInput("plan it".to_string()));
+    assert_eq!(
+        state.output_rows[0],
+        TranscriptRow::UserInput("plan it".to_string())
+    );
     assert!(
         state.output_rows.iter().any(|r| matches!(r, TranscriptRow::AssistantText { text, .. } if text == "streaming line\u{258c}")),
         "streaming content must appear in transcript"
     );
     assert_eq!(
         state.output_rows.last().expect("last row"),
-        &TranscriptRow::AssistantText { text: "streaming line\u{258c}".to_string(), streaming: true }
+        &TranscriptRow::AssistantText {
+            text: "streaming line\u{258c}".to_string(),
+            streaming: true
+        }
     );
 }
 
@@ -159,7 +170,10 @@ fn test_task_layout_state_routes_streamed_response_to_output_pane() {
         state.output_rows,
         vec![
             TranscriptRow::UserInput("hi".to_string()),
-            TranscriptRow::AssistantText { text: "hello from model\u{258c}".to_string(), streaming: true },
+            TranscriptRow::AssistantText {
+                text: "hello from model\u{258c}".to_string(),
+                streaming: true
+            },
         ]
     );
 }
@@ -180,8 +194,14 @@ fn test_task_layout_state_preserves_multiline_streamed_response_in_transcript() 
         state.output_rows,
         vec![
             TranscriptRow::UserInput("hi".to_string()),
-            TranscriptRow::AssistantText { text: "first line".to_string(), streaming: false },
-            TranscriptRow::AssistantText { text: "second line\u{258c}".to_string(), streaming: true },
+            TranscriptRow::AssistantText {
+                text: "first line".to_string(),
+                streaming: false
+            },
+            TranscriptRow::AssistantText {
+                text: "second line\u{258c}".to_string(),
+                streaming: true
+            },
         ]
     );
 }
@@ -334,14 +354,26 @@ fn test_commit_completed_turn_materializes_structured_stream_segments() {
     mode.commit_completed_turn(&ctx);
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert_eq!(state.output_rows[0], TranscriptRow::UserInput("read file".to_string()));
-    assert_eq!(state.output_rows[1], TranscriptRow::AssistantText { text: "I will read the file.".to_string(), streaming: false });
+    assert_eq!(
+        state.output_rows[0],
+        TranscriptRow::UserInput("read file".to_string())
+    );
+    assert_eq!(
+        state.output_rows[1],
+        TranscriptRow::AssistantText {
+            text: "I will read the file.".to_string(),
+            streaming: false
+        }
+    );
     assert!(
         matches!(&state.output_rows[2], TranscriptRow::ToolHeader(s) if s.starts_with("read_file \u{00b7} ") && s.ends_with("Response complete."))
     );
     assert_eq!(
         state.output_rows.last(),
-        Some(&TranscriptRow::AssistantText { text: "The file says hello.".to_string(), streaming: false })
+        Some(&TranscriptRow::AssistantText {
+            text: "The file says hello.".to_string(),
+            streaming: false
+        })
     );
 }
 
@@ -377,7 +409,12 @@ fn test_commit_completed_turn_uses_normalized_stream_text_once() {
     assert_eq!(response, "Hello");
 
     let state = mode.task_layout_state().expect("task layout state");
-    let joined = state.output_rows.iter().map(|r| r.to_history_string()).collect::<Vec<_>>().join("\n");
+    let joined = state
+        .output_rows
+        .iter()
+        .map(|r| r.to_history_string())
+        .collect::<Vec<_>>()
+        .join("\n");
     assert_eq!(
         joined.matches("Hello").count(),
         1,
@@ -399,7 +436,10 @@ fn test_task_layout_state_keeps_prior_responses_visible_after_turn_completion() 
         state.output_rows,
         vec![
             TranscriptRow::UserInput("inspect the file".to_string()),
-            TranscriptRow::AssistantText { text: "Done.".to_string(), streaming: false },
+            TranscriptRow::AssistantText {
+                text: "Done.".to_string(),
+                streaming: false
+            },
         ]
     );
 }
@@ -954,7 +994,12 @@ fn test_final_text_block_delta_does_not_duplicate_normalized_stream_rows() {
     mode.on_model_update(UiUpdate::StreamDelta("world!".to_string()), &mut ctx);
 
     let state = mode.task_layout_state().expect("task layout state");
-    let joined = state.output_rows.iter().map(|r| r.to_history_string()).collect::<Vec<_>>().join("\n");
+    let joined = state
+        .output_rows
+        .iter()
+        .map(|r| r.to_history_string())
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(
         joined.contains("Hello world!"),
         "normalized stream text must appear in output rows: {joined:?}"
@@ -997,7 +1042,12 @@ fn test_thinking_block_delta_does_not_duplicate_normalized_stream_rows() {
     );
 
     let state = mode.task_layout_state().expect("task layout state");
-    let joined = state.output_rows.iter().map(|r| r.to_history_string()).collect::<Vec<_>>().join("\n");
+    let joined = state
+        .output_rows
+        .iter()
+        .map(|r| r.to_history_string())
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(
         joined.contains("analyzing the problem"),
         "normalized thinking text must appear in output rows: {joined:?}"

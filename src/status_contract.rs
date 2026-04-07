@@ -11,9 +11,6 @@ pub const MAPPING_ADJACENT_SECTORS: &str = "Mapping adjacent sectors...";
 pub const RESPONSE_COMPLETE: &str = "Response complete.";
 pub const WAITING_FOR_RESPONSE_LINE: &str = "[thinking] Mapping adjacent sectors...";
 
-const LEGACY_WAITING_FOR_RESPONSE_LINE: &str = "[waiting for response...]";
-const LEGACY_AWAITING_MODEL_RESPONSE_LINE: &str = "[awaiting model response]";
-
 pub const fn pending_status_label() -> &'static str {
     MAPPING_ADJACENT_SECTORS
 }
@@ -26,7 +23,13 @@ pub const fn waiting_for_response_line() -> &'static str {
     WAITING_FOR_RESPONSE_LINE
 }
 
-pub fn is_waiting_placeholder(line: &str) -> bool {
+#[cfg(test)]
+const LEGACY_WAITING_FOR_RESPONSE_LINE: &str = "[waiting for response...]";
+#[cfg(test)]
+const LEGACY_AWAITING_MODEL_RESPONSE_LINE: &str = "[awaiting model response]";
+
+#[cfg(test)]
+fn is_waiting_placeholder(line: &str) -> bool {
     if matches!(
         line,
         WAITING_FOR_RESPONSE_LINE

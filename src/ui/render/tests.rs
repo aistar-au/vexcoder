@@ -168,7 +168,9 @@ fn test_changed_files_and_live_approval_prompt_render() {
     let mut terminal = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "AwaitingApproval".into(),
-        output_rows: vec![crate::app::TranscriptRow::Plain("[approval] ApplyPatch: src/main.rs · awaiting approval".to_string())],
+        output_rows: vec![crate::app::TranscriptRow::Plain(
+            "[approval] ApplyPatch: src/main.rs · awaiting approval".to_string(),
+        )],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         composer_text: String::new(),
@@ -202,7 +204,9 @@ fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
     let mut terminal = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
-        output_rows: vec![crate::app::TranscriptRow::Plain("streamed output".to_string())],
+        output_rows: vec![crate::app::TranscriptRow::Plain(
+            "streamed output".to_string(),
+        )],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Top,
         composer_text: String::new(),
@@ -236,7 +240,9 @@ fn task_layout_renders_status_row_on_primary_surface() {
     let mut terminal = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "mode: task | approval: auto | branch: work/pr347".into(),
-        output_rows: vec![crate::app::TranscriptRow::Plain("status row stays visible".to_string())],
+        output_rows: vec![crate::app::TranscriptRow::Plain(
+            "status row stays visible".to_string(),
+        )],
         output_scroll_offset: 0,
         output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
         composer_text: String::new(),
@@ -413,7 +419,9 @@ fn expand_rows_for_display_leaves_structural_rows_intact() {
 #[test]
 fn expand_rows_for_display_splits_embedded_newlines() {
     use crate::app::TranscriptRow;
-    let rows = vec![TranscriptRow::Plain("line one\nline two\nline three".to_string())];
+    let rows = vec![TranscriptRow::Plain(
+        "line one\nline two\nline three".to_string(),
+    )];
 
     assert_eq!(
         expand_rows_for_display(&rows, 80),
@@ -471,12 +479,13 @@ fn task_layout_renders_picker_overlay() {
 #[test]
 fn transcript_output_line_styles_paragraph_markers() {
     use crate::app::TranscriptRow;
-    let tool =
-        transcript_output_line(&TranscriptRow::ToolHeader("read_file · Response complete.".to_string()));
-    let detail =
-        transcript_output_line(&TranscriptRow::ToolDetail("Scope: Read file content".to_string()));
-    let evidence =
-        transcript_output_line(&TranscriptRow::Evidence("Outcome: ok".to_string()));
+    let tool = transcript_output_line(&TranscriptRow::ToolHeader(
+        "read_file · Response complete.".to_string(),
+    ));
+    let detail = transcript_output_line(&TranscriptRow::ToolDetail(
+        "Scope: Read file content".to_string(),
+    ));
+    let evidence = transcript_output_line(&TranscriptRow::Evidence("Outcome: ok".to_string()));
 
     let tool_text: String = tool
         .spans

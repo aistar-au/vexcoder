@@ -53,7 +53,7 @@ impl TuiMode {
             .task_doc
             .active_turn
             .as_ref()
-            .map_or(true, |t| t.command_sessions.is_empty());
+            .is_none_or(|t| t.command_sessions.is_empty());
         if starting_batch {
             self.begin_turn_capture(format!("!{command}"));
         }

@@ -144,15 +144,15 @@ impl TuiMode {
 
     pub(super) fn begin_command_session_with_id(&mut self, session_id: u64, command: String) {
         if let Some(t) = self.task_doc.active_turn.as_mut() {
-            t.command_sessions
-                .entry(session_id)
-                .or_insert_with(|| crate::runtime::task_document::CommandSessionDocument {
+            t.command_sessions.entry(session_id).or_insert_with(|| {
+                crate::runtime::task_document::CommandSessionDocument {
                     session_id,
                     command,
                     pid: None,
                     status: "running".to_string(),
                     output_tail: vec![],
-                });
+                }
+            });
         }
         self.set_task_status(TaskStatus::Running);
     }
@@ -162,7 +162,7 @@ impl TuiMode {
             .task_doc
             .active_turn
             .as_ref()
-            .map_or(true, |t| t.command_sessions.is_empty());
+            .is_none_or(|t| t.command_sessions.is_empty());
         if !self.turn_completion_pending || !sessions_empty {
             return false;
         }
