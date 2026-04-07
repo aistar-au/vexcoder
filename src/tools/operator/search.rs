@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use super::{non_empty_trimmed, path_to_repo_relative_string, SearchMatch, ToolOperator};
 use crate::tools::search::parallel_search_files;
+use crate::tools::workspace_explore::compile_workspace_glob;
 
 impl ToolOperator {
     pub fn search_files(
@@ -62,16 +63,23 @@ impl ToolOperator {
         let query = non_empty_trimmed(query)
             .context("search_content requires a non-empty 'query' field")?;
         let glob_pattern = path_glob.and_then(non_empty_trimmed);
+        let glob_matcher = match glob_pattern {
+            Some(pattern) => match compile_workspace_glob(pattern) {
+                Some(matcher) => Some(matcher),
+                None => return Ok(Vec::new()),
+            },
+            None => None,
+        };
 
         // Collect candidate paths, applying the optional glob filter.
         let mut candidates: Vec<PathBuf> = Vec::new();
         for path in self.walk_workspace_files(&self.working_dir)? {
-            if let Some(pattern) = glob_pattern {
+            if let Some(matcher) = glob_matcher.as_ref() {
                 let relative = path
                     .strip_prefix(&self.working_dir)
                     .unwrap_or_else(|_| Path::new(""));
                 let candidate = path_to_repo_relative_string(relative);
-                if !glob_matches(pattern, &candidate) {
+                if !matcher.matches(&candidate) {
                     continue;
                 }
             }
@@ -112,6 +120,9 @@ impl ToolOperator {
     pub fn find_files(&self, name_glob: &str) -> Result<Vec<std::path::PathBuf>> {
         let pattern = non_empty_trimmed(name_glob)
             .context("find_files requires a non-empty 'name_glob' field")?;
+        let Some(matcher) = compile_workspace_glob(pattern) else {
+            return Ok(Vec::new());
+        };
 
         let mut results = Vec::new();
         for path in self.walk_workspace_files(&self.working_dir)? {
@@ -119,7 +130,7 @@ impl ToolOperator {
                 .strip_prefix(&self.working_dir)
                 .unwrap_or_else(|_| Path::new(""));
             let candidate = path_to_repo_relative_string(relative);
-            if glob_matches(pattern, &candidate) {
+            if matcher.matches(&candidate) {
                 results.push(path);
             }
         }
@@ -153,40 +164,4 @@ fn line_matches_literal_query(
     } else {
         matcher.is_match(line)
     }
-}
-
-pub(super) fn glob_matches(pattern: &str, candidate: &str) -> bool {
-    wildcard_match(pattern.as_bytes(), candidate.as_bytes())
-}
-
-fn wildcard_match(pattern: &[u8], text: &[u8]) -> bool {
-    let mut pattern_idx = 0usize;
-    let mut text_idx = 0usize;
-    let mut star_idx: Option<usize> = None;
-    let mut retry_text_idx = 0usize;
-
-    while text_idx < text.len() {
-        if pattern_idx < pattern.len()
-            && (pattern[pattern_idx] == b'?' || pattern[pattern_idx] == text[text_idx])
-        {
-            pattern_idx += 1;
-            text_idx += 1;
-        } else if pattern_idx < pattern.len() && pattern[pattern_idx] == b'*' {
-            star_idx = Some(pattern_idx);
-            pattern_idx += 1;
-            retry_text_idx = text_idx;
-        } else if let Some(star) = star_idx {
-            pattern_idx = star + 1;
-            retry_text_idx += 1;
-            text_idx = retry_text_idx;
-        } else {
-            return false;
-        }
-    }
-
-    while pattern_idx < pattern.len() && pattern[pattern_idx] == b'*' {
-        pattern_idx += 1;
-    }
-
-    pattern_idx == pattern.len()
 }
