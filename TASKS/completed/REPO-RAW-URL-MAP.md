@@ -337,7 +337,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 325 | `TASKS/PM-05-crate-boundaries-and-tool-calls.md` | ~81 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PM-05-crate-boundaries-and-tool-calls.md> |
 | 326 | `TASKS/PR-347-ratatui-native-followup.md` | ~16 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-347-ratatui-native-followup.md> |
 | 327 | `TASKS/PR-348-transcript-first-debug.md` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-348-transcript-first-debug.md> |
-| 328 | `TASKS/PR-4-renderer-simplification.md` | ~150 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-4-renderer-simplification.md> |
+| 328 | `TASKS/PR-4-renderer-simplification.md` | ~182 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PR-4-renderer-simplification.md> |
 | 329 | `TASKS/TASKS-DISPATCH-MAP.md` | ~109 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/TASKS-DISPATCH-MAP.md> |
 | 330 | `TASKS/transcript-first-task-state.md` | ~175 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/transcript-first-task-state.md> |
 | 331 | `tests/agents_config_tests.rs` | ~100 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/agents_config_tests.rs> |
