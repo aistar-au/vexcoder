@@ -25,6 +25,12 @@ pub(crate) fn builtin_tool_summaries() -> Vec<ToolSummary> {
     summaries
 }
 
+/// Model-facing tool schema.
+///
+/// `run_command` is intentionally excluded — shell access is frontend-only.
+/// See ADR-042 decision D5 for the rationale.  The system prompt also
+/// includes an explicit sentence telling models that shell utilities are
+/// not available.
 pub(super) fn tool_definitions() -> &'static Value {
     static TOOL_DEFINITIONS: OnceLock<Value> = OnceLock::new();
 
