@@ -344,38 +344,35 @@ impl TuiMode {
 
     /// Total number of timeline entries available for selection.
     pub(super) fn timeline_entry_count(&self) -> usize {
-        let command_sessions_len = self
-            .task_doc
-            .active_turn
-            .as_ref()
-            .map_or(0, |t| t.command_sessions.len());
-        if command_sessions_len > 0 {
-            return command_sessions_len.max(1);
-        }
-
-        let (has_input, tool_count) = if let Some(active) = self.task_doc.active_turn.as_ref() {
-            let tools = active
-                .entries
-                .iter()
-                .filter(|e| matches!(e, crate::runtime::TurnEntry::ToolCall { .. }))
-                .count();
-            (!active.input.trim().is_empty(), tools)
-        } else if let Some(last) = self.task_doc.completed_turns.last() {
-            let tools = last
-                .entries
-                .iter()
-                .filter(|e| matches!(e, crate::runtime::TurnEntry::ToolCall { .. }))
-                .count();
-            (!last.input.trim().is_empty(), tools)
-        } else {
-            (false, 0)
-        };
+        let (has_input, tool_count, command_sessions_len) =
+            if let Some(active) = self.task_doc.active_turn.as_ref() {
+                let tools = active
+                    .entries
+                    .iter()
+                    .filter(|e| matches!(e, crate::runtime::TurnEntry::ToolCall { .. }))
+                    .count();
+                (
+                    !active.input.trim().is_empty(),
+                    tools,
+                    active.command_sessions.len(),
+                )
+            } else if let Some(last) = self.task_doc.completed_turns.last() {
+                let tools = last
+                    .entries
+                    .iter()
+                    .filter(|e| matches!(e, crate::runtime::TurnEntry::ToolCall { .. }))
+                    .count();
+                (!last.input.trim().is_empty(), tools, 0)
+            } else {
+                (false, 0, 0)
+            };
 
         let mut count = 0;
         if has_input {
             count += 1;
         }
         count += tool_count;
+        count += command_sessions_len;
         count.max(1)
     }
 }
