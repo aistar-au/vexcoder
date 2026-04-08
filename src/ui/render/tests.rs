@@ -331,10 +331,10 @@ fn task_layout_without_changed_files_starts_short_transcript_below_status_row() 
     // With bottom-aligned output, a single body row should appear near the
     // bottom of the output area (just above the input pane), not at the top.
     // The input pane occupies the last 3 rows (rows 13-15 in 0-indexed 16-row
-    // terminal), so the body row must be somewhere above it but not at row 1.
+    // terminal), so the body row must be within the output region.
     assert!(
-        body_row_pos > 1,
-        "bottom-aligned transcript should place short content near the input pane, not at the top; found at row {body_row_pos}"
+        body_row_pos > 1 && body_row_pos < 13,
+        "bottom-aligned transcript should place short content within the output area above the input pane (rows 2-12); found at row {body_row_pos}"
     );
 }
 

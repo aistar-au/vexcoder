@@ -62,7 +62,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
 
     // Track the last completed tool header to fold consecutive identical calls
     // (e.g. when the model retries the same read_file repeatedly).
-    let mut last_completed_header: Option<String> = None;
+    let mut last_tool_header: Option<String> = None;
     let mut repeat_count: usize = 0;
 
     let mut idx = 0;
@@ -72,7 +72,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                 if !text.trim().is_empty() {
                     rows.push(TranscriptRow::UserInput(text.clone()));
                 }
-                last_completed_header = None;
+                last_tool_header = None;
                 repeat_count = 0;
                 idx += 1;
             }
@@ -98,15 +98,15 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                         }
                     }
                 }
-                // Only reset the dedup tracker when this block actually
-                // produced visible rows — empty or whitespace-only
+                // Only reset the dedup tracker when this block contains
+                // non-whitespace content — empty or whitespace-only
                 // assistant rounds between tool calls must not break the
                 // fold.  This fixes the cross-round dedup failure where
                 // every `AssistantBlock(Final, "")` previously reset the
                 // tracker causing identical consecutive tool calls to
                 // appear un-folded.
-                if rows.len() > row_before {
-                    last_completed_header = None;
+                if !block.content.trim().is_empty() {
+                    last_tool_header = None;
                     repeat_count = 0;
                 }
                 idx += 1;
@@ -144,7 +144,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                             },
                         );
 
-                        if last_completed_header.as_deref() == Some(&current_header) {
+                        if last_tool_header.as_deref() == Some(&current_header) {
                             // Exact duplicate: fold into a single "(repeated ×N)" notice
                             // replacing or appending the count annotation.
                             repeat_count += 1;
@@ -165,7 +165,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                             }
                         } else {
                             repeat_count = 0;
-                            last_completed_header = Some(current_header);
+                            last_tool_header = Some(current_header);
                             rows.extend(completed_tool_paragraph_rows(
                                 name, input, output, is_error,
                             ));
@@ -182,7 +182,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                         let target = tool_target_summary(&input_preview);
                         let pending_header =
                             tool_header_summary(name, target, pending_status_label());
-                        if last_completed_header.as_deref() == Some(&pending_header) {
+                        if last_tool_header.as_deref() == Some(&pending_header) {
                             repeat_count += 1;
                             let fold_line =
                                 format!("(repeated \u{d7}{}, same call)", repeat_count + 1);
@@ -200,7 +200,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                             }
                         } else {
                             repeat_count = 0;
-                            last_completed_header = Some(pending_header);
+                            last_tool_header = Some(pending_header);
                             rows.extend(pending_tool_paragraph_rows(
                                 name,
                                 &input_preview,
@@ -222,7 +222,7 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                     NoticeSeverity::Error => rows.push(TranscriptRow::Error(message.clone())),
                     _ => rows.push(TranscriptRow::Plain(message.clone())),
                 }
-                last_completed_header = None;
+                last_tool_header = None;
                 repeat_count = 0;
                 idx += 1;
             }
