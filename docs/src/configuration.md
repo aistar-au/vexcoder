@@ -181,9 +181,6 @@ The full model endpoint URL.
 - All other URLs, including bare `/v1` suffix URLs, default to `messages-v1`.
   If the local server only exposes `/v1/chat/completions`, `vex` detects this
   automatically at session start via the `/props` probe and switches to
-  `chat-compat` without any manual configuration` suffix URLs, default to `messages-v1`.
-  If the local server only exposes `/v1/chat/completions`, `vex` detects this
-  automatically at session start via the `/props` probe and switches to
   `chat-compat` without any manual configuration.
 - For plain local inference servers, prefer explicit HTTP
   localhost URLs such as `http://localhost:8000/v1/messages`. If you enter an
