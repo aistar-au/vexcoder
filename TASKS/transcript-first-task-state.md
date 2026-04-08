@@ -4,7 +4,7 @@
 
 In progress — PR #349 (`work/vexcoder-task-document-pr1`) introduces the
 canonical `TaskDocument` runtime module rooted at `src/runtime/task_document.rs`
-with focused submodules in `src/runtime/task_document/{model,reducer,snapshot,tests}.rs`.
+with focused submodules in `src/runtime/task_document/{model,condenser,task_state_bridge,tests}.rs`.
 All core types (`TaskDocument`, `TaskMeta`, `ActiveTurnDocument`,
 `TurnDocument`, `TurnEntry`, `TaskDocumentReducer`, `TaskMutationSummary`) and
 the snapshot round-trip adapter (`persistable_snapshot` /

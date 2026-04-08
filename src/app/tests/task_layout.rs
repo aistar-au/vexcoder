@@ -5,13 +5,13 @@ fn test_task_layout_state_shows_waiting_output_without_prompt_duplication() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    mode.on_user_input("hi".to_string(), &mut ctx);
+    mode.on_user_input("check the build status".to_string(), &mut ctx);
 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(state.output_rows.len(), 2);
     assert_eq!(
         state.output_rows[0],
-        TranscriptRow::UserInput("hi".to_string())
+        TranscriptRow::UserInput("check the build status".to_string())
     );
     // The second row is the ADR-039 canonical waiting phrase with elapsed suffix.
     assert!(
@@ -26,7 +26,7 @@ fn test_task_layout_state_shows_server_read_progress_in_waiting_row() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    mode.on_user_input("hi".to_string(), &mut ctx);
+    mode.on_user_input("check the build status".to_string(), &mut ctx);
     mode.on_model_update(
         UiUpdate::ServerMetadata(Box::new(crate::types::StreamChunkMetadata {
             prompt_progress: Some(crate::types::StreamPromptProgress {
@@ -159,9 +159,9 @@ fn test_task_layout_state_routes_streamed_response_to_output_pane() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    mode.on_user_input("hi".to_string(), &mut ctx);
+    mode.on_user_input("describe the project layout".to_string(), &mut ctx);
     mode.on_model_update(
-        UiUpdate::StreamDelta("hello from model".to_string()),
+        UiUpdate::StreamDelta("the project has three modules".to_string()),
         &mut ctx,
     );
 
@@ -169,9 +169,9 @@ fn test_task_layout_state_routes_streamed_response_to_output_pane() {
     assert_eq!(
         state.output_rows,
         vec![
-            TranscriptRow::UserInput("hi".to_string()),
+            TranscriptRow::UserInput("describe the project layout".to_string()),
             TranscriptRow::AssistantText {
-                text: "hello from model\u{258c}".to_string(),
+                text: "the project has three modules\u{258c}".to_string(),
                 streaming: true
             },
         ]
@@ -183,7 +183,7 @@ fn test_task_layout_state_preserves_multiline_streamed_response_in_transcript() 
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    mode.on_user_input("hi".to_string(), &mut ctx);
+    mode.on_user_input("check the build status".to_string(), &mut ctx);
     mode.on_model_update(
         UiUpdate::StreamDelta("first line\nsecond line".to_string()),
         &mut ctx,
@@ -193,7 +193,7 @@ fn test_task_layout_state_preserves_multiline_streamed_response_in_transcript() 
     assert_eq!(
         state.output_rows,
         vec![
-            TranscriptRow::UserInput("hi".to_string()),
+            TranscriptRow::UserInput("check the build status".to_string()),
             TranscriptRow::AssistantText {
                 text: "first line".to_string(),
                 streaming: false
@@ -243,7 +243,7 @@ fn test_task_layout_state_preserves_structured_text_order_around_tool_rows() {
             index: 2,
             block: StreamBlock::ToolResult {
                 tool_call_id: "tool-1".to_string(),
-                output: "hello".to_string(),
+                output: "file content retrieved".to_string(),
                 is_error: false,
             },
         },
@@ -259,7 +259,7 @@ fn test_task_layout_state_preserves_structured_text_order_around_tool_rows() {
         &mut ctx,
     );
     mode.on_model_update(
-        UiUpdate::StreamDelta("The file says hello.".to_string()),
+        UiUpdate::StreamDelta("The file contains project configuration.".to_string()),
         &mut ctx,
     );
 
@@ -279,7 +279,10 @@ fn test_task_layout_state_preserves_structured_text_order_around_tool_rows() {
     let final_idx = state
         .output_rows
         .iter()
-        .position(|row| row.as_display_str().starts_with("The file says hello."))
+        .position(|row| {
+            row.as_display_str()
+                .starts_with("The file contains project configuration.")
+        })
         .expect("final response row");
 
     assert!(
@@ -331,7 +334,7 @@ fn test_commit_completed_turn_materializes_structured_stream_segments() {
             index: 2,
             block: StreamBlock::ToolResult {
                 tool_call_id: "tool-1".to_string(),
-                output: "hello".to_string(),
+                output: "file content retrieved".to_string(),
                 is_error: false,
             },
         },
@@ -347,7 +350,7 @@ fn test_commit_completed_turn_materializes_structured_stream_segments() {
         &mut ctx,
     );
     mode.on_model_update(
-        UiUpdate::StreamDelta("The file says hello.".to_string()),
+        UiUpdate::StreamDelta("The file contains project configuration.".to_string()),
         &mut ctx,
     );
 
@@ -371,7 +374,7 @@ fn test_commit_completed_turn_materializes_structured_stream_segments() {
     assert_eq!(
         state.output_rows.last(),
         Some(&TranscriptRow::AssistantText {
-            text: "The file says hello.".to_string(),
+            text: "The file contains project configuration.".to_string(),
             streaming: false
         })
     );
@@ -382,7 +385,7 @@ fn test_commit_completed_turn_uses_normalized_stream_text_once() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    mode.on_user_input("hello".to_string(), &mut ctx);
+    mode.on_user_input("summarize the changes".to_string(), &mut ctx);
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
             index: 0,
@@ -1013,7 +1016,7 @@ fn test_final_text_block_delta_does_not_duplicate_normalized_stream_rows() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    mode.on_user_input("hello".to_string(), &mut ctx);
+    mode.on_user_input("summarize the changes".to_string(), &mut ctx);
 
     mode.on_model_update(
         UiUpdate::StreamBlockStart {
