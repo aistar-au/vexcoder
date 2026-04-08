@@ -1,11 +1,16 @@
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use ratatui::widgets::Clear;
+use ratatui::{
+    backend::Backend,
+    text::Text,
+    widgets::{Clear, Paragraph, Widget},
+};
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
 use crate::app::{
-    FileMentionPickerState, PickerOverlayLine, SlashPickerMatch, SlashPickerState, TuiMode,
+    FileMentionPickerState, PickerOverlayLine, SlashPickerMatch, SlashPickerState, TranscriptRow,
+    TuiMode,
 };
 use crate::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
 use crate::runtime::mode::RuntimeMode;
@@ -21,6 +26,7 @@ use crate::ui::render::{
 
 pub struct ManagedTuiFrontend {
     terminal: crate::terminal::TerminalType,
+    history_sink: TerminalHistorySink,
     quit: bool,
     editor: InputEditor,
     started_at: Instant,
@@ -40,6 +46,7 @@ impl ManagedTuiFrontend {
         Self::drain_startup_events();
         Ok(Self {
             terminal,
+            history_sink: TerminalHistorySink::default(),
             quit: false,
             editor: InputEditor::new(),
             started_at: Instant::now(),
@@ -441,6 +448,46 @@ impl ManagedTuiFrontend {
     }
 }
 
+const HISTORY_INSERT_CHUNK_ROWS: usize = 256;
+
+#[derive(Default)]
+struct TerminalHistorySink {
+    flushed_committed_rows: usize,
+}
+
+impl TerminalHistorySink {
+    fn flush<B: Backend>(
+        &mut self,
+        terminal: &mut ratatui::Terminal<B>,
+        committed_rows: &[TranscriptRow],
+        viewport_width: u16,
+    ) -> std::io::Result<()> {
+        if committed_rows.len() < self.flushed_committed_rows {
+            self.flushed_committed_rows = committed_rows.len();
+        }
+
+        let pending_rows = &committed_rows[self.flushed_committed_rows..];
+        if pending_rows.is_empty() {
+            return Ok(());
+        }
+
+        let expanded_rows =
+            crate::ui::render::expand_rows_for_display(pending_rows, viewport_width.max(1));
+        for chunk in expanded_rows.chunks(HISTORY_INSERT_CHUNK_ROWS) {
+            let lines = chunk
+                .iter()
+                .map(crate::ui::render::transcript_output_line)
+                .collect::<Vec<_>>();
+            terminal.insert_before(chunk.len() as u16, move |buf| {
+                Paragraph::new(Text::from(lines)).render(buf.area, buf);
+            })?;
+        }
+
+        self.flushed_committed_rows = committed_rows.len();
+        Ok(())
+    }
+}
+
 /// Maximum number of visible entries in the floating picker overlay.
 const MAX_PICKER_OVERLAY_VISIBLE: usize = 12;
 
@@ -511,14 +558,29 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
     fn render(&mut self, mode: &TuiMode) {
         let input = self.editor.buffer().to_string();
         let cursor = self.editor.cursor();
+        let size = self.terminal.size().unwrap_or_default();
+        mode.set_display_column_width(size.width.max(1) as usize);
 
-        if let Some(mut task_state) = mode.task_layout_state() {
+        if self.terminal.uses_inline_viewport() {
+            let committed_rows = mode.committed_transcript_rows();
+            let _ = self.history_sink.flush(
+                self.terminal.inner_mut(),
+                &committed_rows,
+                size.width.max(1),
+            );
+        }
+
+        let task_state = if self.terminal.uses_inline_viewport() {
+            mode.terminal_history_task_layout_state()
+        } else {
+            mode.task_layout_state()
+        };
+
+        if let Some(mut task_state) = task_state {
             task_state.picker_overlay = self.build_picker_overlay(mode);
             task_state.composer_text = input;
             task_state.composer_cursor = cursor;
             task_state.composer_focused = mode.composer_is_focused();
-            let size = self.terminal.size().unwrap_or_default();
-            mode.set_display_column_width(size.width.max(1) as usize);
             let view = task_state.into_view_projection();
             let _ = self.terminal.draw(|frame| {
                 render_task_layout(frame, &view);
@@ -602,3 +664,105 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
 
 pub(crate) mod picker;
 pub use self::picker::*;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::{
+        backend::TestBackend, buffer::Buffer, widgets::Paragraph, Terminal, TerminalOptions,
+        Viewport,
+    };
+
+    fn rendered_lines(buffer: &Buffer) -> Vec<String> {
+        buffer
+            .content
+            .chunks(buffer.area.width as usize)
+            .map(|cells| {
+                let mut line = String::new();
+                for cell in cells {
+                    line.push_str(cell.symbol());
+                }
+                line
+            })
+            .collect()
+    }
+
+    #[test]
+    fn terminal_history_sink_flushes_committed_rows_into_scrollback() {
+        let backend = TestBackend::new(20, 5);
+        let mut terminal = Terminal::with_options(
+            backend,
+            TerminalOptions {
+                viewport: Viewport::Inline(1),
+            },
+        )
+        .expect("inline terminal");
+        let mut sink = TerminalHistorySink::default();
+        let committed_rows = vec![
+            TranscriptRow::Plain("------ Line 1 ------".to_string()),
+            TranscriptRow::Plain("------ Line 2 ------".to_string()),
+            TranscriptRow::Plain("------ Line 3 ------".to_string()),
+            TranscriptRow::Plain("------ Line 4 ------".to_string()),
+            TranscriptRow::Plain("------ Line 5 ------".to_string()),
+        ];
+
+        sink.flush(&mut terminal, &committed_rows, 20)
+            .expect("flush committed rows");
+        terminal
+            .draw(|frame| {
+                frame.render_widget(Paragraph::new("[---- Viewport ----]"), frame.area());
+            })
+            .expect("draw viewport");
+
+        assert_eq!(
+            rendered_lines(terminal.backend().scrollback()),
+            vec!["------ Line 1 ------".to_string()]
+        );
+        assert_eq!(
+            rendered_lines(terminal.backend().buffer()),
+            vec![
+                "------ Line 2 ------".to_string(),
+                "------ Line 3 ------".to_string(),
+                "------ Line 4 ------".to_string(),
+                "------ Line 5 ------".to_string(),
+                "[---- Viewport ----]".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn terminal_history_sink_only_flushes_new_committed_rows_once() {
+        let backend = TestBackend::new(20, 5);
+        let mut terminal = Terminal::with_options(
+            backend,
+            TerminalOptions {
+                viewport: Viewport::Inline(1),
+            },
+        )
+        .expect("inline terminal");
+        let mut sink = TerminalHistorySink::default();
+        let committed_rows = vec![TranscriptRow::Plain("------ Line 1 ------".to_string())];
+
+        sink.flush(&mut terminal, &committed_rows, 20)
+            .expect("first flush");
+        sink.flush(&mut terminal, &committed_rows, 20)
+            .expect("second flush");
+        terminal
+            .draw(|frame| {
+                frame.render_widget(Paragraph::new("[---- Viewport ----]"), frame.area());
+            })
+            .expect("draw viewport");
+
+        assert!(rendered_lines(terminal.backend().scrollback()).is_empty());
+        assert_eq!(
+            rendered_lines(terminal.backend().buffer()),
+            vec![
+                "------ Line 1 ------".to_string(),
+                "[---- Viewport ----]".to_string(),
+                "                    ".to_string(),
+                "                    ".to_string(),
+                "                    ".to_string(),
+            ]
+        );
+    }
+}

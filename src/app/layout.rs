@@ -219,6 +219,21 @@ impl TuiMode {
         &self,
         entries: &[TimelineEntry],
     ) -> (String, Vec<TranscriptRow>, OutputScrollAnchor) {
+        self.output_view_for_surface(entries, self.transcript_display_rows())
+    }
+
+    fn terminal_history_output_view_with(
+        &self,
+        entries: &[TimelineEntry],
+    ) -> (String, Vec<TranscriptRow>, OutputScrollAnchor) {
+        self.output_view_for_surface(entries, self.active_transcript_display_rows())
+    }
+
+    fn output_view_for_surface(
+        &self,
+        entries: &[TimelineEntry],
+        transcript_rows: Vec<TranscriptRow>,
+    ) -> (String, Vec<TranscriptRow>, OutputScrollAnchor) {
         // Inspector mode: show selected tool step detail when not following.
         if !self.timeline_follow_mode && !entries.is_empty() {
             let idx = self
@@ -247,7 +262,6 @@ impl TuiMode {
             }
         }
 
-        let transcript_rows = self.transcript_display_rows();
         if !transcript_rows.is_empty() {
             return (
                 "Transcript".to_string(),
@@ -270,6 +284,19 @@ impl TuiMode {
         )
     }
 
+    fn active_transcript_display_rows(&self) -> Vec<TranscriptRow> {
+        crate::app::transcript_projection::project_active_transcript_rows(
+            self.task_doc.active_turn.as_ref(),
+        )
+    }
+
+    pub(crate) fn committed_transcript_rows(&self) -> Vec<TranscriptRow> {
+        crate::app::transcript_projection::project_committed_transcript_rows(
+            &self.task_doc,
+            &self.pre_session_notices,
+        )
+    }
+
     fn visible_changed_files(&self) -> Vec<String> {
         let mut visible = std::collections::BTreeSet::new();
         for turn in &self.task_doc.completed_turns {
@@ -281,7 +308,13 @@ impl TuiMode {
         visible.into_iter().collect()
     }
 
-    pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
+    fn build_task_layout_state_with_output_view(
+        &self,
+        output_view: impl FnOnce(
+            &Self,
+            &[TimelineEntry],
+        ) -> (String, Vec<TranscriptRow>, OutputScrollAnchor),
+    ) -> Option<TaskLayoutState> {
         // Always return the task-state control surface. The fullscreen CLI/app
         // stays in the top transcript + prompt + status-bar arrangement
         // between tool calls and after turn completion instead of yielding back
@@ -312,7 +345,7 @@ impl TuiMode {
                 .min(total_steps.saturating_sub(1))
         };
         let (output_title, output_rows, output_scroll_anchor) =
-            self.task_output_view_with(&timeline_entries);
+            output_view(self, &timeline_entries);
         let output_scroll_offset = match output_scroll_anchor {
             OutputScrollAnchor::Bottom => self.transcript_scroll_offset,
             OutputScrollAnchor::Top => self.inspector_scroll_offset,
@@ -370,6 +403,18 @@ impl TuiMode {
             picker_overlay: vec![],
             working_dir: self.working_dir.display().to_string(),
             model_url: self.model_url.clone(),
+        })
+    }
+
+    pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
+        self.build_task_layout_state_with_output_view(|mode, timeline_entries| {
+            mode.task_output_view_with(timeline_entries)
+        })
+    }
+
+    pub(crate) fn terminal_history_task_layout_state(&self) -> Option<TaskLayoutState> {
+        self.build_task_layout_state_with_output_view(|mode, timeline_entries| {
+            mode.terminal_history_output_view_with(timeline_entries)
         })
     }
 
