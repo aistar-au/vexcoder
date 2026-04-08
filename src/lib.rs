@@ -24,7 +24,7 @@ pub mod skills;
 pub mod startup;
 pub mod state;
 pub(crate) mod status_contract;
-pub mod terminal;
+pub mod tui_handle;
 pub mod tool_preview;
 pub mod tools;
 pub mod tui_frontend;

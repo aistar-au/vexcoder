@@ -222,7 +222,7 @@ impl TuiMode {
         self.output_view_for_surface(entries, self.transcript_display_rows())
     }
 
-    fn terminal_history_output_view_with(
+    fn host_history_output_view_with(
         &self,
         entries: &[TimelineEntry],
     ) -> (String, Vec<TranscriptRow>, OutputScrollAnchor) {
@@ -412,9 +412,9 @@ impl TuiMode {
         })
     }
 
-    pub(crate) fn terminal_history_task_layout_state(&self) -> Option<TaskLayoutState> {
+    pub(crate) fn host_history_task_layout_state(&self) -> Option<TaskLayoutState> {
         self.build_task_layout_state_with_output_view(|mode, timeline_entries| {
-            mode.terminal_history_output_view_with(timeline_entries)
+            mode.host_history_output_view_with(timeline_entries)
         })
     }
 

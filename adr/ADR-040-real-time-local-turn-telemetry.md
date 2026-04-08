@@ -117,9 +117,9 @@ streaming protocols.
 21. The waiting lane keeps the ADR-039 canonical phrase
     `Mapping adjacent sectors...` and appends telemetry rather than replacing
     the phrase.
-22. Under the terminal-owned history model (ADR-031 amendment 2026-04-08),
-    committed transcript and stable telemetry summaries flush into terminal
-    history through the terminal history sink. The reserved live viewport at
+22. Under the host-owned scrollback model (ADR-031 amendment 2026-04-08),
+    committed transcript and stable telemetry summaries flush into host
+    scrollback through the host scrollback sink. The reserved live viewport at
     the bottom renders only in-flight waiting status, active tool output,
     approval surfaces, and the current response tail.
 23. The persistent bottom surface is limited to the multiline composer and

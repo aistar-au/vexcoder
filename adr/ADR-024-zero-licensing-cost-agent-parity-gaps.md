@@ -118,7 +118,7 @@ task-state requirements, renderer tests, and the repository's own operator
 language decisions. External products may be used only as neutral category
 anchors such as transcript-first layout, compact footer budgeting,
 multiline composer behavior, overlay-based detail work, resize discipline,
-append-first transcript redraw, terminal-owned history, live bottom viewport,
+append-first transcript redraw, host-owned scrollback, live bottom viewport,
 committed paragraph flush, and scroll-region insertion.
 
 The navigator or mapping theme must use repository-owned wording and symbols.
@@ -135,7 +135,7 @@ behavior specifications and repository-local tests only.
 #### IP enforcement rules for tracked ADR text
 
 1. **Allowed behavior categories only.** Tracked ADR text may reference
-   neutral behavior categories (terminal-owned history, live bottom viewport,
+   neutral behavior categories (host-owned scrollback, live bottom viewport,
    committed paragraph flush, history sink, scroll-region insertion, newline
    fallback, detail overlay, owned-transcript fallback). It must not reference
    external product names, pane labels, or UI terminology derived from
@@ -153,7 +153,7 @@ behavior specifications and repository-local tests only.
 
 4. **Required neutral terminology.** All new ADR amendments, task documents,
    and implementation code must use repository-approved neutral terms. When
-   describing scroll ownership, use: terminal-owned history, committed
+   describing scroll ownership, use: host-owned scrollback, committed
    history flush, live bottom viewport, history sink, scroll-region insertion,
    newline fallback, detail overlay, and owned-transcript fallback.
 

@@ -220,7 +220,7 @@ fn test_tool_blocks_emit_paragraph_rows_into_history() {
         mode.history_lines()
             .iter()
             .any(|line| line == "[tool] read_file · src/main.rs · Response complete."),
-        "completed tool calls must render their terminal paragraph header"
+        "completed tool calls must render their final paragraph header"
     );
     assert!(
         mode.history_lines()

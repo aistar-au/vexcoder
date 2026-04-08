@@ -77,9 +77,9 @@ ordered streamed-text segmentation, bounded-suffix reuse in
 conversation streaming, accumulator drain cleanup, and chunk-safe
 normalisation hardening for wrapper-tagged deltas) merged in PR #332
 (commit 7638619) on 2026-04-03.
-ADR-041 D15 (word-wrap plain-text rows to terminal width, `expand_rows_for_display`,
+ADR-041 D15 (word-wrap plain-text rows to display width, `expand_rows_for_display`,
 `transcript_window_rows`) merged in PR #333 on 2026-04-04.
-ADR-041 D17-D22 (terminal history sink abstraction, committed/live viewport
+ADR-041 D17-D22 (host scrollback sink abstraction, committed/live viewport
 split, restricted main-surface scroll state, width-aware wrapping for new
 rendering paths, turn-boundary reset semantics, idle u16 cap removal) defined
 in the 2026-04-08 ADR amendment; initial wiring in PR #363.
@@ -149,7 +149,7 @@ first and is not a blocker for the Phase H distribution milestone.
 - ~~PG-01: Release workflow -- Linux/macOS targets~~ (done 2026-03-28; existing release.yml targets verified; ADR-024 PG-01 checked)
 - ~~PG-02: Release workflow -- Windows (gnu) target~~ (done 2026-03-28; x86_64-pc-windows-gnu added to release matrix via cross on ubuntu-24.04)
 - ~~PG-03: Package-manager tap formula~~ (done 2026-03-28; packaging/homebrew/vex.rb template + scripts/update_homebrew_formula.py added; tap auto-dispatch next batch planned)
-- ~~PH-01: macOS app layer -- process management~~ (done 2026-03-28; packaging/macos/src/main.rs + bundle.rs added; vex-launcher opens Terminal.app with bundled vex binary)
+- ~~PH-01: macOS app layer -- process management~~ (done 2026-03-28; packaging/macos/src/main.rs + bundle.rs added; vex-launcher opens the macOS CLI host app with bundled vex binary)
 - ~~PH-02: macOS app layer -- keychain credential storage~~ (done 2026-03-28; packaging/macos/src/keychain.rs added; Security.framework FFI reads VEX_MODEL_TOKEN from system keychain)
 - ~~PH-03: macOS code signing + notarisation + .dmg~~ (done 2026-03-28; packaging/macos/build-app.sh + release.yml macos-pkg job added; codesign + xcrun notarytool + hdiutil .dmg; signing conditional on APPLE_DEVELOPER_ID_CERT secret)
 - ~~ADR-022 Decision 11: Native packaging (post-milestone-1)~~ (satisfied by PH-01/PH-02/PH-03 above)
@@ -305,8 +305,8 @@ would duplicate traversal logic.
 | PM-03 | `work/vexcoder-code-search` | #273 | **Merged** | Code search hardening and `/reindex` command |
 | PM-04 | `work/vexcoder-auto-memory` | #274 | **Merged** | Automatic extraction of memory-worthy facts from conversation turns |
 | ADR-041-D8D13 | `work/vexcoder-delta-consume-switchover` | #332 | **Merged** | Pending-row replacement, live input preview, ordered streamed-text segmentation, bounded-suffix streaming reuse, delta accumulator drain activation, and chunk-safe wrapper-tag normalisation for the transcript-first path post PR #331 |
-| ADR-041-D15 | `work/vexcoder-tui-transcript-render-fixes` | #333 | **Merged** | Word-wrap plain-text transcript rows to terminal width; `expand_rows_for_display`, `transcript_window_rows` viewport primitive (ADR-041 D15) |
-| ADR-041-D17D22 | `work/vexcoder-terminal-history-adr` | #363 | **Open** | Terminal-owned history ADR amendments (ADR-024, ADR-031, ADR-032, ADR-039, ADR-040, ADR-041 D17-D22) plus initial inline viewport wiring (`TerminalHistorySink`, `Viewport::Inline`, committed/live viewport split) |
+| ADR-041-D15 | `work/vexcoder-tui-transcript-render-fixes` | #333 | **Merged** | Word-wrap plain-text transcript rows to display width; `expand_rows_for_display`, `transcript_window_rows` viewport primitive (ADR-041 D15) |
+| ADR-041-D17D22 | PR #363 branch | #363 | **Open** | Host-owned scrollback ADR amendments (ADR-024, ADR-031, ADR-032, ADR-039, ADR-040, ADR-041 D17-D22) plus initial inline viewport wiring (`HostScrollbackSink`, `Viewport::Inline`, committed/live viewport split) |
 
 Each branch had a task manifest in `TASKS/` defining scope, constraints, and anchor tests.
 

@@ -48,7 +48,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 37 | `adr/completed/ADR-014-runtime-core-policy-dedup-and-enforcement.md` | ~73 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-014-runtime-core-policy-dedup-and-enforcement.md> |
 | 38 | `adr/completed/ADR-015-local-endpoint-text-protocol-default.md` | ~58 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-015-local-endpoint-text-protocol-default.md> |
 | 39 | `adr/completed/ADR-016-local-tool-loop-guard-and-correction.md` | ~40 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-016-local-tool-loop-guard-and-correction.md> |
-| 40 | `adr/completed/ADR-017-append-terminal-single-session.md` | ~29 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-017-append-terminal-single-session.md> |
+| 40 | `adr/completed/ADR-017-append-single-session-runtime.md` | ~29 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-017-append-single-session-runtime.md> |
 | 41 | `adr/completed/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md` | ~141 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md> |
 | 42 | `adr/completed/ADR-019-adr-018-follow-up-correctness-cutover-cleanup.md` | ~497 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-019-adr-018-follow-up-correctness-cutover-cleanup.md> |
 | 43 | `adr/completed/ADR-020-looping-architecture-enriched-response-correctness.md` | ~385 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-020-looping-architecture-enriched-response-correctness.md> |
@@ -291,7 +291,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 280 | `src/state/stream_block.rs` | ~50 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/stream_block.rs> |
 | 281 | `src/state/transcript_delta.rs` | ~144 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/transcript_delta.rs> |
 | 282 | `src/status_contract.rs` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/status_contract.rs> |
-| 283 | `src/terminal.rs` | ~128 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/terminal.rs> |
+| 283 | `src/tui_handle.rs` | ~128 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_handle.rs> |
 | 284 | `src/test_support.rs` | ~5 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/test_support.rs> |
 | 285 | `src/tool_preview.rs` | ~486 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tool_preview.rs> |
 | 286 | `src/tools/embed.rs` | ~222 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools/embed.rs> |

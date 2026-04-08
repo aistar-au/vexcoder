@@ -107,9 +107,10 @@ workflows, or documentation tied to the same feature lane.
   `scripts/check_forbidden_names.sh`) are banned from documentation targets.
   Use neutral alternatives (e.g. "stale" or "inactive" instead of non-neutral
   lifecycle terms).
-- In operator-surface prose, prefer `CLI`, `CLI app`, or `surface` over generic
-  `terminal` wording unless the exact technical term is required for a crate
-  name, ANSI control, terminal-size API, or quoted log line.
+- In operator-surface prose, prefer `CLI`, `CLI app`, or `surface` over the
+  generic host-app noun (banned, see `check_forbidden_names.sh`) unless the
+  exact technical term is required for a crate name, ANSI control, TTY-size
+  API, or quoted log line.
 - PR bodies always use `Summary`, `Motivation`, `Approach`, `Validation`, and
   `Risks`. `Risks` is mandatory even for narrow cleanup or documentation lanes.
 

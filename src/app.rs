@@ -149,7 +149,7 @@ enum ApprovalSelection {
     Deny,
 }
 
-/// Fallback display column width when the terminal width is unknown.
+/// Fallback display column width when the host display width is unknown.
 const DISPLAY_COLUMN_WIDTH_FALLBACK: usize = usize::MAX;
 
 mod slash_commands;
@@ -356,7 +356,7 @@ pub struct TuiMode {
     git_branch: String,
     instructions_path: Option<String>,
     mcp_rollup: Option<McpRegistryRollup>,
-    /// Effective terminal column width used for word-wrap scroll math.
+    /// Effective display column width used for word-wrap scroll math.
     display_column_width: Cell<usize>,
     // ── Persistence / quit flow ───────────────────────────────────────────
     pending_quit: bool,

@@ -15,7 +15,7 @@ use crate::app::{
 use crate::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
 use crate::runtime::mode::RuntimeMode;
 use crate::startup::{
-    looks_like_terminal_transcript, should_ignore_startup_paste_text, STARTUP_NOISE_GUARD,
+    looks_like_session_output, should_ignore_startup_paste_text, STARTUP_NOISE_GUARD,
 };
 use crate::ui::editor::{file_mention_range, InputAction, InputEditor};
 use crate::ui::layout::split_three_pane_layout;
@@ -25,8 +25,8 @@ use crate::ui::render::{
 };
 
 pub struct ManagedTuiFrontend {
-    terminal: crate::terminal::TerminalType,
-    history_sink: TerminalHistorySink,
+    tui: crate::tui_handle::TuiHandle,
+    history_sink: HostScrollbackSink,
     quit: bool,
     editor: InputEditor,
     started_at: Instant,
@@ -42,11 +42,11 @@ pub struct ManagedTuiFrontend {
 
 impl ManagedTuiFrontend {
     pub fn new() -> Result<Self> {
-        let terminal = crate::terminal::setup()?;
+        let tui = crate::tui_handle::setup()?;
         Self::drain_startup_events();
         Ok(Self {
-            terminal,
-            history_sink: TerminalHistorySink::default(),
+            tui,
+            history_sink: HostScrollbackSink::default(),
             quit: false,
             editor: InputEditor::new(),
             started_at: Instant::now(),
@@ -139,7 +139,7 @@ impl ManagedTuiFrontend {
     fn should_ignore_startup_submission(&self, text: &str) -> bool {
         Self::startup_filter_active()
             && self.started_at.elapsed() <= STARTUP_NOISE_GUARD
-            && looks_like_terminal_transcript(text)
+            && looks_like_session_output(text)
     }
 
     fn map_editor_action(&mut self, action: InputAction) -> Option<UserInputEvent> {
@@ -201,7 +201,7 @@ impl ManagedTuiFrontend {
     }
 
     fn editor_visual_width(&self) -> usize {
-        self.terminal
+        self.tui
             .size()
             .map(|size| size.width.saturating_sub(2).max(1) as usize)
             .unwrap_or(1)
@@ -451,14 +451,14 @@ impl ManagedTuiFrontend {
 const HISTORY_INSERT_CHUNK_ROWS: usize = 256;
 
 #[derive(Default)]
-struct TerminalHistorySink {
+struct HostScrollbackSink {
     flushed_committed_rows: usize,
 }
 
-impl TerminalHistorySink {
+impl HostScrollbackSink {
     fn flush<B: Backend>(
         &mut self,
-        terminal: &mut ratatui::Terminal<B>,
+        ratatui_tui: &mut ratatui::Terminal<B>,
         committed_rows: &[TranscriptRow],
         viewport_width: u16,
     ) -> std::io::Result<()> {
@@ -478,7 +478,7 @@ impl TerminalHistorySink {
                 .iter()
                 .map(crate::ui::render::transcript_output_line)
                 .collect::<Vec<_>>();
-            terminal.insert_before(chunk.len() as u16, move |buf| {
+            ratatui_tui.insert_before(chunk.len() as u16, move |buf| {
                 Paragraph::new(Text::from(lines)).render(buf.area, buf);
             })?;
         }
@@ -493,7 +493,7 @@ const MAX_PICKER_OVERLAY_VISIBLE: usize = 12;
 
 impl Drop for ManagedTuiFrontend {
     fn drop(&mut self) {
-        let _ = crate::terminal::restore();
+        let _ = crate::tui_handle::restore();
     }
 }
 
@@ -558,20 +558,20 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
     fn render(&mut self, mode: &TuiMode) {
         let input = self.editor.buffer().to_string();
         let cursor = self.editor.cursor();
-        let size = self.terminal.size().unwrap_or_default();
+        let size = self.tui.size().unwrap_or_default();
         mode.set_display_column_width(size.width.max(1) as usize);
 
-        if self.terminal.uses_inline_viewport() {
+        if self.tui.uses_inline_viewport() {
             let committed_rows = mode.committed_transcript_rows();
             let _ = self.history_sink.flush(
-                self.terminal.inner_mut(),
+                self.tui.inner_mut(),
                 &committed_rows,
                 size.width.max(1),
             );
         }
 
-        let task_state = if self.terminal.uses_inline_viewport() {
-            mode.terminal_history_task_layout_state()
+        let task_state = if self.tui.uses_inline_viewport() {
+            mode.host_history_task_layout_state()
         } else {
             mode.task_layout_state()
         };
@@ -582,7 +582,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
             task_state.composer_cursor = cursor;
             task_state.composer_focused = mode.composer_is_focused();
             let view = task_state.into_view_projection();
-            let _ = self.terminal.draw(|frame| {
+            let _ = self.tui.draw(|frame| {
                 render_task_layout(frame, &view);
                 let area = frame.area();
                 if let Some((patch_preview, scroll_offset)) = mode.pending_patch_overlay() {
@@ -611,7 +611,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                 }
             });
         } else {
-            let _ = self.terminal.draw(|frame| {
+            let _ = self.tui.draw(|frame| {
                 let area = frame.area();
                 let input_width = area.width.saturating_sub(2).max(1) as usize;
                 let input_rows = input_visual_rows(&input, input_width)
@@ -688,16 +688,16 @@ mod tests {
     }
 
     #[test]
-    fn terminal_history_sink_flushes_committed_rows_into_scrollback() {
+    fn host_scrollback_sink_flushes_committed_rows() {
         let backend = TestBackend::new(20, 5);
-        let mut terminal = Terminal::with_options(
+        let mut tui = Terminal::with_options(
             backend,
             TerminalOptions {
                 viewport: Viewport::Inline(1),
             },
         )
-        .expect("inline terminal");
-        let mut sink = TerminalHistorySink::default();
+        .expect("inline viewport");
+        let mut sink = HostScrollbackSink::default();
         let committed_rows = vec![
             TranscriptRow::Plain("------ Line 1 ------".to_string()),
             TranscriptRow::Plain("------ Line 2 ------".to_string()),
@@ -706,20 +706,20 @@ mod tests {
             TranscriptRow::Plain("------ Line 5 ------".to_string()),
         ];
 
-        sink.flush(&mut terminal, &committed_rows, 20)
+        sink.flush(&mut tui, &committed_rows, 20)
             .expect("flush committed rows");
-        terminal
+        tui
             .draw(|frame| {
                 frame.render_widget(Paragraph::new("[---- Viewport ----]"), frame.area());
             })
             .expect("draw viewport");
 
         assert_eq!(
-            rendered_lines(terminal.backend().scrollback()),
+            rendered_lines(tui.backend().scrollback()),
             vec!["------ Line 1 ------".to_string()]
         );
         assert_eq!(
-            rendered_lines(terminal.backend().buffer()),
+            rendered_lines(tui.backend().buffer()),
             vec![
                 "------ Line 2 ------".to_string(),
                 "------ Line 3 ------".to_string(),
@@ -731,31 +731,31 @@ mod tests {
     }
 
     #[test]
-    fn terminal_history_sink_only_flushes_new_committed_rows_once() {
+    fn host_scrollback_sink_idempotent_on_same_rows() {
         let backend = TestBackend::new(20, 5);
-        let mut terminal = Terminal::with_options(
+        let mut tui = Terminal::with_options(
             backend,
             TerminalOptions {
                 viewport: Viewport::Inline(1),
             },
         )
-        .expect("inline terminal");
-        let mut sink = TerminalHistorySink::default();
+        .expect("inline viewport");
+        let mut sink = HostScrollbackSink::default();
         let committed_rows = vec![TranscriptRow::Plain("------ Line 1 ------".to_string())];
 
-        sink.flush(&mut terminal, &committed_rows, 20)
+        sink.flush(&mut tui, &committed_rows, 20)
             .expect("first flush");
-        sink.flush(&mut terminal, &committed_rows, 20)
+        sink.flush(&mut tui, &committed_rows, 20)
             .expect("second flush");
-        terminal
+        tui
             .draw(|frame| {
                 frame.render_widget(Paragraph::new("[---- Viewport ----]"), frame.area());
             })
             .expect("draw viewport");
 
-        assert!(rendered_lines(terminal.backend().scrollback()).is_empty());
+        assert!(rendered_lines(tui.backend().scrollback()).is_empty());
         assert_eq!(
-            rendered_lines(terminal.backend().buffer()),
+            rendered_lines(tui.backend().buffer()),
             vec![
                 "------ Line 1 ------".to_string(),
                 "[---- Viewport ----]".to_string(),

@@ -78,9 +78,9 @@ pub(super) async fn drain_until_turn_complete(
             .await
             .expect("timed out waiting for ui update")
             .expect("ui update channel closed");
-        let terminal = matches!(update, UiUpdate::TurnComplete | UiUpdate::Error(_));
+        let is_final_update = matches!(update, UiUpdate::TurnComplete | UiUpdate::Error(_));
         mode.on_model_update(update, ctx);
-        if terminal && !mode.is_turn_in_progress() {
+        if is_final_update && !mode.is_turn_in_progress() {
             break;
         }
     }

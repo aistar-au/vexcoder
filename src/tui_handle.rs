@@ -4,18 +4,18 @@ use crossterm::{
     cursor::Show,
     event::{DisableBracketedPaste, EnableBracketedPaste},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, size as terminal_size, Clear, ClearType},
+    terminal::{disable_raw_mode, enable_raw_mode, size as host_display_size, Clear, ClearType},
 };
 use ratatui::{backend::CrosstermBackend, Terminal, TerminalOptions, Viewport};
 use std::io::{self, IsTerminal, Stdout};
 use std::sync::Once;
 
-pub struct TerminalType {
+pub struct TuiHandle {
     inner: Terminal<CrosstermBackend<Stdout>>,
     inline_viewport: bool,
 }
 
-impl TerminalType {
+impl TuiHandle {
     pub fn draw<F>(&mut self, render_callback: F) -> io::Result<()>
     where
         F: FnOnce(&mut ratatui::Frame),
@@ -52,13 +52,13 @@ pub fn install_panic_hook_once() {
     });
 }
 
-fn terminal_supports_full_screen() -> bool {
+fn host_has_tty() -> bool {
     io::stdin().is_terminal() && io::stdout().is_terminal()
 }
 
-fn enter_full_screen_mode() -> Result<()> {
+fn enter_raw_mode() -> Result<()> {
     install_panic_hook_once();
-    if !terminal_supports_full_screen() {
+    if !host_has_tty() {
         return Ok(());
     }
 
@@ -67,36 +67,36 @@ fn enter_full_screen_mode() -> Result<()> {
     Ok(())
 }
 
-pub fn setup() -> Result<TerminalType> {
-    enter_full_screen_mode()?;
+pub fn setup() -> Result<TuiHandle> {
+    enter_raw_mode()?;
     let backend = CrosstermBackend::new(io::stdout());
-    let mut terminal = if terminal_supports_full_screen() {
-        let (_, rows) = terminal_size()?;
+    let mut tui = if host_has_tty() {
+        let (_, rows) = host_display_size()?;
         let inner = Terminal::with_options(
             backend,
             TerminalOptions {
                 viewport: Viewport::Inline(rows.max(1)),
             },
         )?;
-        TerminalType {
+        TuiHandle {
             inner,
             inline_viewport: true,
         }
     } else {
         let inner = Terminal::new(backend)?;
-        TerminalType {
+        TuiHandle {
             inner,
             inline_viewport: false,
         }
     };
-    if terminal_supports_full_screen() {
-        terminal.clear()?;
+    if host_has_tty() {
+        tui.clear()?
     }
-    Ok(terminal)
+    Ok(tui)
 }
 
 pub fn restore() -> Result<()> {
-    if !terminal_supports_full_screen() {
+    if !host_has_tty() {
         return Ok(());
     }
 
@@ -117,7 +117,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_terminal_restored_after_simulated_panic() {
+    fn test_host_tui_restored_after_simulated_panic() {
         install_panic_hook_once();
         install_panic_hook_once();
         assert!(

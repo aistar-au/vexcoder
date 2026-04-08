@@ -5,7 +5,7 @@ use ratatui::{backend::TestBackend, Terminal};
 #[test]
 fn all_modals_use_unified_renderer() {
     let backend = TestBackend::new(100, 30);
-    let mut terminal = Terminal::new(backend).expect("test terminal");
+    let mut tui = ratatui::Terminal::new(backend).expect("test backend");
 
     let modals = [
         OverlayModal::PatchApprove {
@@ -21,7 +21,7 @@ fn all_modals_use_unified_renderer() {
     ];
 
     for modal in modals {
-        terminal
+        tui
             .draw(|frame| render_overlay_modal(frame, modal))
             .expect("renderer should support every modal class");
     }
@@ -165,7 +165,7 @@ fn test_diff_line_color_maps_markers_consistently() {
 #[test]
 fn test_changed_files_and_live_approval_prompt_render() {
     let backend = TestBackend::new(80, 24);
-    let mut terminal = Terminal::new(backend).unwrap();
+    let mut tui = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "AwaitingApproval".into(),
         output_rows: vec![crate::app::TranscriptRow::Plain(
@@ -179,9 +179,9 @@ fn test_changed_files_and_live_approval_prompt_render() {
         picker_overlay: vec![],
     };
 
-    terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+    tui.draw(|f| render_task_layout(f, &state)).unwrap();
 
-    let rendered = terminal.backend().buffer().clone();
+    let rendered = tui.backend().buffer().clone();
     let flat = rendered
         .content()
         .iter()
@@ -201,7 +201,7 @@ fn test_changed_files_and_live_approval_prompt_render() {
 #[test]
 fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
     let backend = TestBackend::new(80, 24);
-    let mut terminal = Terminal::new(backend).unwrap();
+    let mut tui = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
         output_rows: vec![crate::app::TranscriptRow::Plain(
@@ -215,9 +215,9 @@ fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
         picker_overlay: vec![],
     };
 
-    terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+    tui.draw(|f| render_task_layout(f, &state)).unwrap();
 
-    let rendered = terminal.backend().buffer().clone();
+    let rendered = tui.backend().buffer().clone();
     let flat = rendered
         .content()
         .iter()
@@ -237,7 +237,7 @@ fn task_layout_keeps_output_surface_primary_when_steps_are_pending() {
 #[test]
 fn task_layout_renders_status_row_on_primary_surface() {
     let backend = TestBackend::new(80, 24);
-    let mut terminal = Terminal::new(backend).unwrap();
+    let mut tui = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "mode: task | approval: auto | branch: work/pr347".into(),
         output_rows: vec![crate::app::TranscriptRow::Plain(
@@ -251,9 +251,9 @@ fn task_layout_renders_status_row_on_primary_surface() {
         picker_overlay: vec![],
     };
 
-    terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+    tui.draw(|f| render_task_layout(f, &state)).unwrap();
 
-    let rendered = terminal.backend().buffer().clone();
+    let rendered = tui.backend().buffer().clone();
     let flat = rendered
         .content()
         .iter()
@@ -267,9 +267,9 @@ fn task_layout_renders_status_row_on_primary_surface() {
 }
 
 #[test]
-fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
+fn task_layout_uses_full_body_for_transcript_on_large_display() {
     let backend = TestBackend::new(80, 40);
-    let mut terminal = Terminal::new(backend).unwrap();
+    let mut tui = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
         output_rows: vec![crate::app::TranscriptRow::Plain("output".to_string())],
@@ -281,9 +281,9 @@ fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
         picker_overlay: vec![],
     };
 
-    terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+    tui.draw(|f| render_task_layout(f, &state)).unwrap();
 
-    let rendered = terminal.backend().buffer().clone();
+    let rendered = tui.backend().buffer().clone();
     let flat = rendered
         .content()
         .iter()
@@ -299,7 +299,7 @@ fn task_layout_uses_full_body_for_transcript_on_tall_terminals() {
 #[test]
 fn task_layout_without_changed_files_starts_short_transcript_below_status_row() {
     let backend = TestBackend::new(60, 16);
-    let mut terminal = Terminal::new(backend).unwrap();
+    let mut tui = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
         output_rows: vec![crate::app::TranscriptRow::Plain("body row".to_string())],
@@ -311,9 +311,9 @@ fn task_layout_without_changed_files_starts_short_transcript_below_status_row() 
         picker_overlay: vec![],
     };
 
-    terminal.draw(|f| render_task_layout(f, &state)).unwrap();
+    tui.draw(|f| render_task_layout(f, &state)).unwrap();
 
-    let rendered = terminal.backend().buffer().clone();
+    let rendered = tui.backend().buffer().clone();
     let rows: Vec<String> = rendered
         .content()
         .chunks(60)
@@ -331,7 +331,7 @@ fn task_layout_without_changed_files_starts_short_transcript_below_status_row() 
     // With bottom-aligned output, a single body row should appear near the
     // bottom of the output area (just above the input pane), not at the top.
     // The input pane occupies the last 3 rows (rows 13-15 in 0-indexed 16-row
-    // terminal), so the body row must be within the output region.
+    // host display), so the body row must be within the output region.
     assert!(
         body_row_pos > 1 && body_row_pos < 13,
         "bottom-aligned transcript should place short content within the output area above the input pane (rows 2-12); found at row {body_row_pos}"
@@ -466,7 +466,7 @@ fn expand_rows_for_display_splits_embedded_newlines() {
 #[test]
 fn task_layout_renders_picker_overlay() {
     let backend = TestBackend::new(80, 24);
-    let mut terminal = Terminal::new(backend).unwrap();
+    let mut tui = Terminal::new(backend).unwrap();
     let state = crate::app::TaskViewProjection {
         status_line: "Running".into(),
         output_rows: vec![crate::app::TranscriptRow::Plain("line 1".to_string())],
@@ -491,11 +491,11 @@ fn task_layout_renders_picker_overlay() {
         ],
     };
 
-    terminal
+    tui
         .draw(|frame| render_task_layout(frame, &state))
         .unwrap();
 
-    let rendered = terminal.backend().buffer().clone();
+    let rendered = tui.backend().buffer().clone();
     let flat = rendered
         .content()
         .iter()

@@ -1112,7 +1112,7 @@ fn test_thinking_block_delta_does_not_duplicate_normalized_stream_rows() {
 }
 
 #[test]
-fn terminal_history_layout_keeps_active_rows_in_the_live_viewport() {
+fn host_history_layout_keeps_active_rows_in_the_live_viewport() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
@@ -1120,7 +1120,7 @@ fn terminal_history_layout_keeps_active_rows_in_the_live_viewport() {
     mode.on_model_update(UiUpdate::StreamDelta("working".to_string()), &mut ctx);
 
     let state = mode
-        .terminal_history_task_layout_state()
+        .host_history_task_layout_state()
         .expect("task layout state");
     assert_eq!(
         state.output_rows,
@@ -1139,7 +1139,7 @@ fn terminal_history_layout_keeps_active_rows_in_the_live_viewport() {
 }
 
 #[test]
-fn terminal_history_layout_flushes_completed_turns_out_of_the_live_viewport() {
+fn host_history_layout_flushes_completed_turns_out_of_the_live_viewport() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
@@ -1148,7 +1148,7 @@ fn terminal_history_layout_flushes_completed_turns_out_of_the_live_viewport() {
     mode.commit_completed_turn(&ctx);
 
     let state = mode
-        .terminal_history_task_layout_state()
+        .host_history_task_layout_state()
         .expect("task layout state");
     assert!(
         state.output_rows.is_empty(),

@@ -291,10 +291,10 @@ mod tests {
         mode.on_interrupt(&mut ctx);
         mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
 
-        let terminal: RuntimeEnvelope =
+        let final_envelope: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         assert!(matches!(
-            terminal.event,
+            final_envelope.event,
             RuntimeEvent::TurnEnd { ref status, .. } if status == "cancelled"
         ));
     }
@@ -544,7 +544,7 @@ mod tests {
 
         let error: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
-        let terminal: RuntimeEnvelope =
+        let final_envelope: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
 
         assert!(matches!(
@@ -556,7 +556,7 @@ mod tests {
             } if code == "runtime_error" && message == "stream failed"
         ));
         assert!(matches!(
-            terminal.event,
+            final_envelope.event,
             RuntimeEvent::TurnEnd { ref status, .. } if status == "failed"
         ));
     }

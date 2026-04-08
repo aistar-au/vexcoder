@@ -101,7 +101,7 @@ Key changes from the current implementation:
    the cap.
 7. Cross-platform resize robustness: the draw engine enforces a minimum viable
    surface (10×4), resets all hash state on resize, and performs a full repaint
-   to ensure consistent layout across Windows Terminal, GNOME, and macOS.
+   to ensure consistent layout across Windows CLI host, GNOME, and macOS.
 
 ### Task-state-first rule for this ADR
 
@@ -296,7 +296,7 @@ remote branches, but merges must respect the dependency chain above.
 
 Batches A through E are merged into `main`. Any further implementation lane
 must be recorded by ADR amendment before dispatch; the 2026-04-08 amendment
-below does exactly that for the terminal-owned history cutover.
+below does exactly that for the host-owned scrollback cutover.
 
 ## Batch descriptions
 
@@ -380,7 +380,7 @@ dependency and it must land first.
 
 This distinction is what ADR-030 is designed to protect.
 
-## Amendment — 2026-04-08: Terminal-owned history and live bottom viewport
+## Amendment — 2026-04-08: Host-owned scrollback and live bottom viewport
 
 ### Scroll ownership change
 
@@ -406,58 +406,58 @@ sessions:
    `src/ui/render/mod.rs` miscounts display rows for bracket-delimited
    transcript markers.
 
-### Terminal-owned history contract
+### Host-owned scrollback contract
 
-The operator surface target is amended. The terminal now owns committed
+The operator surface target is amended. The host now owns committed
 transcript history above the viewport:
 
 The preferred implementation path is ratatui-native. The current tree already
 pins `ratatui = 0.29`, which provides `Viewport::Inline(..)`,
-`Terminal::with_options(..)`, and `Terminal::insert_before(..)` for an inline
+`with_options(..)`, and `insert_before(..)` for an inline
 reserved viewport with committed lines inserted above it. Any app-local
-`TerminalHistorySink` should therefore be a thin wrapper over the ratatui
-terminal API rather than a bespoke escape-sequence subsystem.
+`HostScrollbackSink` should therefore be a thin wrapper over the ratatui
+ratatui API rather than a bespoke escape-sequence subsystem.
 
 This remains compatible with the current frontend bootstrap because
-`src/terminal.rs` enables raw mode but does not enter the alternate screen.
+`src/tui_handle.rs` enables raw mode but does not enter the alternate screen.
 The main screen and its scrollback remain available as the owner of committed
 history, and Batch F must preserve that property.
 
-1. **Terminal owns committed history.** Stable transcript paragraphs are
-   flushed upward through a terminal history sink (`TerminalHistorySink`)
-   as soon as they become committed. The host terminal's scrollback buffer
+1. **Host owns committed history.** Stable transcript paragraphs are
+   flushed upward through a host scrollback sink (`HostScrollbackSink`)
+   as soon as they become committed. The host's scrollback buffer
    becomes the indefinite review surface for committed content.
 
 2. **App owns only the live tail.** The application retains ownership of the
    live bottom viewport: the current response tail, composer or approval
    surface, and status line. This reserved viewport occupies the bottom
-   portion of the terminal.
+   portion of the viewport.
 
 3. **Committed paragraphs flush upward.** `flush_committed_history()` writes
-   stable paragraphs into terminal history using the preferred insertion
+   stable paragraphs into host scrollback using the preferred insertion
    mode. The app does not maintain scroll offsets for committed content on
    the main surface.
 
 4. **Full-session review uses host scrollback or a transcript overlay.** The
-   operator reviews committed history by scrolling the host terminal's
+   operator reviews committed history by scrolling the host's
    scrollback buffer. An explicit transcript overlay (detail surface) is
    available for structured navigation within the app, but it is not the
    primary review mechanism.
 
-5. **Compatibility ladder.** The terminal history sink supports three
+5. **Compatibility ladder.** The host scrollback sink supports three
    insertion modes in priority order:
    - **Scroll-region insertion** (preferred): on the ratatui-native path,
-     `ManagedTuiFrontend` switches from `Terminal::new(..)` to
-     `Terminal::with_options(.. Viewport::Inline(..))` and flushes committed
-     rows with `Terminal::insert_before(..)`. When ratatui's
+     `ManagedTuiFrontend` switches from ratatui's `new(..)` to
+     `with_options(.. Viewport::Inline(..))` and flushes committed
+     rows with `insert_before(..)`. When ratatui's
      `scrolling-regions` feature is enabled, that API uses backend
      scroll-region insertion above the reserved live viewport.
    - **Newline fallback**: when scroll-region insertion is unavailable, the
      same inline-viewport design may fall back to ratatui's
      non-scrolling-region insertion path or explicit newline writes that
-     scroll the terminal naturally.
-   - **Owned-transcript fallback**: when neither terminal insertion mode is
-     viable (e.g., non-terminal output), the existing app-owned transcript
+     scroll the host naturally.
+   - **Owned-transcript fallback**: when neither host insertion mode is
+     viable (e.g., non-TTY output), the existing app-owned transcript
      renderer (`render_messages`, `render_task_layout`) remains active as
      the last fallback.
 
@@ -473,23 +473,23 @@ history, and Batch F must preserve that property.
 
 The following names are documented for implementation reference:
 
-- `TerminalHistorySink` — abstraction for committed transcript insertion
-- `TerminalHistoryInsertMode` — enum: `ScrollRegionInsert`,
+- `HostScrollbackSink` — abstraction for committed transcript insertion
+- `HostInsertMode` — enum: `ScrollRegionInsert`,
   `BottomNewlineFallback`, `OwnedTranscriptFallback`
 - `LiveBottomViewportState` — state for the reserved live viewport
 - `committed_history_flush_cursor` — position tracker for flush progress
-- `pending_history_flush_rows` — rows awaiting flush to terminal history
+- `pending_history_flush_rows` — rows awaiting flush to host scrollback
 - `live_tail_rows` — rows in the active live viewport
 - `detail_overlay_rows` — rows in the detail/overlay surface
 - `detail_overlay_scroll_offset` — scroll offset for overlay-only navigation
-- `surface_mode` — current `TerminalHistoryInsertMode` selection
+- `surface_mode` — current `HostInsertMode` selection
 - `reserved_viewport_text_width` — wrap budget for the live bottom viewport
 
 ### Relationship to existing batches
 
 Batches A through E remain valid as merged. This amendment adds a Batch F
-scope: the terminal-owned history cutover. Batch F is merge-gated by the
-existing Batches A–E and by ADR-041 D17–D22 (terminal history sink
+scope: the host-owned scrollback cutover. Batch F is merge-gated by the
+existing Batches A–E and by ADR-041 D17–D22 (host scrollback sink
 technical decisions).
 
 ## Consequences

@@ -80,7 +80,7 @@ demand.
 - Tool call sections consume roughly half the vertical space they did
   before, keeping the prompt area visible during multi-tool turns.
 - The telemetry line is more compact; `↑`/`↓` are standard Unicode
-  arrows supported by all terminal emulators that support the existing
+  arrows supported by all CLI hosts that support the existing
   braille spinner characters.
 - Snapshot and unit tests updated to reflect the new evidence-line
   count (3 instead of 6) and arrow labels.
@@ -297,7 +297,7 @@ continue to exercise the same logic.
 
 The root cause this resolves: long model responses emitted without embedded
 newlines produced a single logical row that was silently truncated to the
-terminal width by `truncate_to_width` inside `draw_inline_markdown`, making
+display width by `truncate_to_width` inside `draw_inline_markdown`, making
 the remainder of the response invisible and preventing upward scrolling past
 the truncated row.
 
@@ -363,44 +363,44 @@ Additional unused-code cleanup in the same pass:
 
 ---
 
-## Amendment — 2026-04-08: Terminal history sink and live viewport technical cutover
+## Amendment — 2026-04-08: Host scrollback sink and live viewport technical cutover
 
-This amendment defines the technical decisions for the terminal-owned history
+This amendment defines the technical decisions for the host-owned scrollback
 cutover described in ADR-031 amendment 2026-04-08. D15 remains valid for the
 transcript overlay and owned-transcript fallback, but not as the main
 indefinite scroll owner.
 
-### D17: Terminal history sink abstraction
+### D17: Host scrollback sink abstraction
 
-Introduce `TerminalHistorySink` as the abstraction for committed transcript
-insertion into terminal history. The sink accepts fully-wrapped committed
+Introduce `HostScrollbackSink` as the abstraction for committed transcript
+insertion into host scrollback. The sink accepts fully-wrapped committed
 rows and writes them above the reserved live viewport using the active
-`TerminalHistoryInsertMode`:
+`HostInsertMode`:
 
 The preferred implementation path is ratatui-native. The current tree already
 pins `ratatui = 0.29`, whose `Viewport::Inline(..)`,
-`Terminal::with_options(..)`, and `Terminal::insert_before(..)` APIs map
-directly onto this contract. `TerminalHistorySink` should therefore be a thin
-app-local wrapper over the ratatui terminal API, not a parallel bespoke
+`with_options(..)`, and `insert_before(..)` APIs map
+directly onto this contract. `HostScrollbackSink` should therefore be a thin
+app-local wrapper over the ratatui API, not a parallel bespoke
 renderer.
 
 - `ScrollRegionInsert` — preferred; uses the ratatui inline viewport path and
-  `Terminal::insert_before(..)`. When ratatui's `scrolling-regions` feature
+  `insert_before(..)`. When ratatui's `scrolling-regions` feature
   is enabled, that API uses backend scroll-region insertion above the
   reserved viewport without disturbing the live tail.
 - `BottomNewlineFallback` — when scroll-region insertion is unavailable,
   committed lines are flushed via ratatui's non-scrolling-region insertion
-  path or explicit newline writes that scroll the terminal naturally.
-- `OwnedTranscriptFallback` — when neither terminal insertion mode is viable
-  (non-terminal output, pipe mode), the existing app-owned transcript
+  path or explicit newline writes that scroll the host naturally.
+- `OwnedTranscriptFallback` — when neither host insertion mode is viable
+  (non-TTY output, pipe mode), the existing app-owned transcript
   renderer remains active and D15 governs its display-row expansion.
 
-Because `src/terminal.rs` does not enter the alternate screen today, host
+Because `src/tui_handle.rs` does not enter the alternate screen today, host
 scrollback remains available to own committed history. Batch F must preserve
 that property.
 
 The managed frontend draw loop in `src/tui_frontend.rs` is the integration
-point for this change because it currently owns terminal setup, viewport
+point for this change because it currently owns host setup, viewport
 sizing, and the `render_task_layout` / `render_messages` dispatch.
 
 The current tree does not yet enable ratatui's `scrolling-regions` feature in
@@ -414,7 +414,7 @@ The cutover splits the managed frontend and renderer in
 responsibilities:
 
 - `flush_committed_history()` — writes stable committed paragraphs into
-  terminal history through the `TerminalHistorySink`.
+  host scrollback through the `HostScrollbackSink`.
 - `render_live_bottom_viewport()` — renders the live tail (current response,
   active tools, approval surfaces) in the reserved bottom viewport.
 - `render_detail_overlay()` — renders the detail/overlay surface for
@@ -426,17 +426,17 @@ but are no longer the main rendering path.
 
 ### D19: Restrict main-surface scroll state to live tail and detail overlays
 
-After the terminal-owned history cutover, `transcript_scroll_offset` in
+After the host-owned scrollback cutover, `transcript_scroll_offset` in
 `src/app.rs` no longer governs committed history position on the main
 surface. The replacement state model:
 
-- `committed_history_flush_cursor` — tracks flush progress into terminal
+- `committed_history_flush_cursor` — tracks flush progress into host scrollback
   history. Replaces the main-surface meaning of `transcript_scroll_offset`.
 - `detail_overlay_scroll_offset` — scroll offset for the overlay/detail
   surface only.
-- `surface_mode` — the active `TerminalHistoryInsertMode` selection.
+- `surface_mode` — the active `HostInsertMode` selection.
 
-Committed history is not app-scrolled on the main path. The terminal's
+Committed history is not app-scrolled on the main path. The host's
 scrollback buffer or the detail overlay provides review.
 
 ### D20: Width-aware wrapping for new rendering paths
@@ -447,9 +447,9 @@ Width-aware wrapping is retained for:
 - Owned-transcript fallback (D15 path)
 
 A new `wrap_committed_history_line` helper wraps committed rows to
-`reserved_viewport_text_width` before flushing to terminal history. A
+`reserved_viewport_text_width` before flushing to host scrollback. A
 `build_terminal_history_insert_lines` helper batches wrapped committed
-rows into terminal history insertion sequences.
+rows into host scrollback insertion sequences.
 
 Stop using main-surface full-history display-row expansion as the indefinite
 scroll owner. `expand_rows_for_display()` in `src/ui/render/transcript.rs`
@@ -466,7 +466,7 @@ Turn-boundary resets in `src/app/turn.rs` (`reset_turn_capture`,
 
 Turn-boundary resets must **not** forcibly destroy committed-history review
 semantics. Specifically, they must not zero the committed history flush
-cursor or interfere with the operator's position in the host terminal
+cursor or interfere with the operator's position in the host
 scrollback.
 
 The current `self.transcript_scroll_offset = 0` assignments at turn
@@ -477,8 +477,8 @@ committed-transcript position destruction.
 
 After the cutover, the idle rendering path in `src/ui/render/mod.rs`
 (`render_messages`) no longer uses the `u16` `Paragraph::new().scroll()`
-tail-pin as the long-session history mechanism. Under terminal-owned
-history, idle committed content is flushed to terminal history and is no
+tail-pin as the long-session history mechanism. Under host-owned scrollback
+history, idle committed content is flushed to host scrollback and is no
 longer a `Paragraph` scroll surface. The `u16` cap (~65,000 display rows)
 ceases to be a session-length constraint.
 

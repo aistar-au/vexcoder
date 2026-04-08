@@ -137,11 +137,11 @@ Adopt a neutral spatial voice for operator-facing CLI text.
 ### Batch D -- Paragraph progress stream (amended 2026-04-08)
 
 - Consolidate long-running tool and agent updates into one paragraph-oriented
-   status stream. Under the terminal-owned history model (ADR-031 amendment
+   status stream. Under the host-owned scrollback model (ADR-031 amendment
    2026-04-08), paragraph-oriented progress means committed paragraph flushes
-   into terminal-owned history plus a live tail in the reserved bottom
+   into host-owned scrollback plus a live tail in the reserved bottom
    viewport.
-- Committed stable paragraphs flush upward through the terminal history sink.
+- Committed stable paragraphs flush upward through the host scrollback sink.
   The live bottom viewport renders only in-flight progress, active tool
   output, and the current response tail.
 - Add active counters for files processed and active agents where the runtime
@@ -150,7 +150,7 @@ Adopt a neutral spatial voice for operator-facing CLI text.
    keeping code and diff text visually dominant in phosphor white / green / red.
 - Keep the code / diff surface visually dominant over status text.
 - This batch does not require the app to own a full-history scroll surface.
-  Committed progress paragraphs become terminal-owned history; only the live
+  Committed progress paragraphs become host-owned scrollback; only the live
   tail remains app-rendered.
 
 ## Consequences

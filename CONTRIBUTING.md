@@ -53,9 +53,9 @@ agent-authored notes. Keep `bash scripts/check_forbidden_names.sh` green and
 treat that gate as authoritative for wording that must not ship.
 
 When describing the operator surface in prose, prefer `CLI`, `CLI app`, or
-`surface` over generic `terminal` wording unless the exact technical term is
-required for a crate name, ANSI control sequence, terminal-size API, or quoted
-log output.
+`surface` over the generic host-app noun (banned, see `check_forbidden_names.sh`)
+unless the exact technical term is required for a crate name, ANSI control
+sequence, TTY-size API, or quoted log output.
 
 Every PR body uses five sections in this order: `Summary`, `Motivation`,
 `Approach`, `Validation`, and `Risks`. Do not omit `Risks`, even for docs-only
@@ -527,7 +527,7 @@ vexcoder/ (standalone view)
 | `src/state/conversation/tests.rs` | Conversation module tests covering protocol flow, loop guards, and regression anchors. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tests.rs> |
 | `src/state/conversation/tools/mod.rs` | Tool execution dispatch module root; approval gating, guard helpers, and search/config helpers now live under `src/state/conversation/tools/`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/conversation/tools/mod.rs> |
 | `src/state/stream_block.rs` | Structured stream block models and tool status enum. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/state/stream_block.rs> |
-| `src/terminal.rs` | CLI raw-mode lifecycle and panic-safe restore guard. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/terminal.rs> |
+| `src/tui_handle.rs` | CLI raw-mode lifecycle and panic-safe restore guard. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tui_handle.rs> |
 | `src/test_support.rs` | Shared test synchronization helpers (e.g., env lock). Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/test_support.rs> |
 | `src/tool_preview.rs` | Tool approval preview rendering and read-file snapshot summaries. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tool_preview.rs> |
 | `src/tools.rs` | Tools module entry and re-exports. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/tools.rs> |
