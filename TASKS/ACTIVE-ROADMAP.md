@@ -30,7 +30,7 @@ Last updated: 2026-04-05 (PR #342 Tier 4 debug: full git parsing stack, expanded
 | ADR-039 | Proposed (Batch A merged on main) | 3 batches (B-D) | Batch A status anchors and semantic color feedback merged in PR #292; search.exclude path-boundary normalization fix in PR #293; remaining work is broader vocabulary, active indicator, and paragraph-oriented progress stream without renaming machine statuses |
 | ADR-042 | Proposed (Batch A merged) | ToolPolicy wiring, config-file support | Batch A: tool registration behind approval layer + ToolPolicy enum (PR #358); remaining: config-file `tool_policy` deserialization, system-prompt policy annotation |
 | ADR-043 | Proposed | 3 adoption gates | Future structured parser lane remains optional until live runtime wiring, parity coverage, and defect-reduction gates land |
-| ADR-045 | Proposed | All items pending | Defines `TaskDocumentCondenser` as sole writer, `RuntimeEventLog` as canonical persisted history, full `RuntimeEvent` coverage requirement, full-fidelity checkpoints, and session rollback markers; reclassifies `persistable_snapshot` as compatibility export (PR #358) |
+| ADR-045 | Proposed (Batch 1 merged) | Batches 2+ pending | Batch 1: sole-writer enforcement in streaming.rs, tool-call dedup in projection, messages-v1 default (PR #359); remaining: promote_thinking_blocks phase events, model_update.rs TUI-layer violations, full RuntimeEvent coverage, checkpoints, rollback markers |
 
 ## Implementation-Complete ADRs (moved to completed/)
 

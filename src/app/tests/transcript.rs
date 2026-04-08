@@ -4,11 +4,11 @@ use super::*;
 fn test_ref_08_stream_delta_appends_to_assistant_placeholder_not_user_line() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
-    mode.on_user_input("hello".to_string(), &mut ctx);
+    mode.on_user_input("describe the error".to_string(), &mut ctx);
     mode.on_model_update(UiUpdate::StreamDelta("assistant".to_string()), &mut ctx);
 
     let hl = mode.history_lines();
-    assert_eq!(hl[0], "> hello");
+    assert_eq!(hl[0], "> describe the error");
     assert!(
         hl[1].starts_with("assistant"),
         "assistant content should appear at index 1, got hl[1]={:?}",
@@ -30,7 +30,7 @@ fn test_scrollback_retains_position_during_streaming() {
         mode.push_document_notice(format!("line-{i}"), NoticeSeverity::Info);
     }
     // Start a turn so StreamDelta is not dropped.
-    mode.on_user_input("hello".to_string(), &mut ctx);
+    mode.on_user_input("fix the import error".to_string(), &mut ctx);
     // Simulate user having scrolled up by setting a non-zero transcript offset.
     mode.transcript_scroll_offset = 5;
 
@@ -47,7 +47,7 @@ fn test_output_scroll_commands_update_scroll_state() {
     let mut ctx = setup_ctx();
 
     // Populate history so the output pane has content to scroll.
-    mode.on_user_input("hello".to_string(), &mut ctx);
+    mode.on_user_input("list the test failures".to_string(), &mut ctx);
     for i in 0..50 {
         mode.push_history_line(format!("line-{i}"));
     }
@@ -106,7 +106,7 @@ fn header_stable_during_streaming() {
         "header row must remain first in render order"
     );
 
-    mode.on_user_input("hello".to_string(), &mut ctx);
+    mode.on_user_input("explain this function".to_string(), &mut ctx);
     mode.on_model_update(UiUpdate::StreamDelta("assistant".to_string()), &mut ctx);
     let streaming_status = mode.status_line();
     assert!(
@@ -165,11 +165,11 @@ fn test_stream_delta_ignored_without_active_turn_slot() {
 fn test_cancel_pending_blocks_stream_delta_appends() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
-    mode.on_user_input("hello".to_string(), &mut ctx);
+    mode.on_user_input("run the linter".to_string(), &mut ctx);
     mode.on_interrupt(&mut ctx);
     mode.on_model_update(UiUpdate::StreamDelta("stale".to_string()), &mut ctx);
     let hl = mode.history_lines();
-    assert_eq!(hl[0], "> hello");
+    assert_eq!(hl[0], "> run the linter");
     assert!(
         hl.iter()
             .any(|l| l.starts_with("[thinking] Mapping adjacent sectors...")),

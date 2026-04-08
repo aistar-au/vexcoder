@@ -42,11 +42,16 @@ fn begin_turn_opens_active_turn_with_user_input_entry() {
     let reducer = TaskDocumentReducer::new();
     let mut doc = reducer.begin_task(test_meta());
 
-    reducer.begin_turn(&mut doc, "hello".to_string(), 2000, TurnToolPolicy::Default);
+    reducer.begin_turn(
+        &mut doc,
+        "analyze the test output".to_string(),
+        2000,
+        TurnToolPolicy::Default,
+    );
 
     let active = doc.active_turn.as_ref().expect("active turn");
     assert_eq!(active.turn_index, 0);
-    assert_eq!(active.input, "hello");
+    assert_eq!(active.input, "analyze the test output");
     assert_eq!(active.entries.len(), 1);
     assert!(matches!(active.entries[0], TurnEntry::UserInput { .. }));
 }

@@ -249,7 +249,7 @@ mod tests {
             branch_name: Some("feature/task-001".to_string()),
             instructions_path: Some("AGENTS.md".to_string()),
             turns: vec![TurnEvidenceState {
-                input: "hello".to_string(),
+                input: "explain the error".to_string(),
                 response: "world".to_string(),
                 changed_files: vec!["src/main.rs".to_string()],
                 command_history: Vec::new(),
