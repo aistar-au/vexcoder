@@ -21,8 +21,7 @@ fn all_modals_use_unified_renderer() {
     ];
 
     for modal in modals {
-        tui
-            .draw(|frame| render_overlay_modal(frame, modal))
+        tui.draw(|frame| render_overlay_modal(frame, modal))
             .expect("renderer should support every modal class");
     }
 }
@@ -491,9 +490,7 @@ fn task_layout_renders_picker_overlay() {
         ],
     };
 
-    tui
-        .draw(|frame| render_task_layout(frame, &state))
-        .unwrap();
+    tui.draw(|frame| render_task_layout(frame, &state)).unwrap();
 
     let rendered = tui.backend().buffer().clone();
     let flat = rendered

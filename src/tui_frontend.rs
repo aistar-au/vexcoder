@@ -563,11 +563,9 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
 
         if self.tui.uses_inline_viewport() {
             let committed_rows = mode.committed_transcript_rows();
-            let _ = self.history_sink.flush(
-                self.tui.inner_mut(),
-                &committed_rows,
-                size.width.max(1),
-            );
+            let _ =
+                self.history_sink
+                    .flush(self.tui.inner_mut(), &committed_rows, size.width.max(1));
         }
 
         let task_state = if self.tui.uses_inline_viewport() {
@@ -708,11 +706,10 @@ mod tests {
 
         sink.flush(&mut tui, &committed_rows, 20)
             .expect("flush committed rows");
-        tui
-            .draw(|frame| {
-                frame.render_widget(Paragraph::new("[---- Viewport ----]"), frame.area());
-            })
-            .expect("draw viewport");
+        tui.draw(|frame| {
+            frame.render_widget(Paragraph::new("[---- Viewport ----]"), frame.area());
+        })
+        .expect("draw viewport");
 
         assert_eq!(
             rendered_lines(tui.backend().scrollback()),
@@ -747,11 +744,10 @@ mod tests {
             .expect("first flush");
         sink.flush(&mut tui, &committed_rows, 20)
             .expect("second flush");
-        tui
-            .draw(|frame| {
-                frame.render_widget(Paragraph::new("[---- Viewport ----]"), frame.area());
-            })
-            .expect("draw viewport");
+        tui.draw(|frame| {
+            frame.render_widget(Paragraph::new("[---- Viewport ----]"), frame.area());
+        })
+        .expect("draw viewport");
 
         assert!(rendered_lines(tui.backend().scrollback()).is_empty());
         assert_eq!(
