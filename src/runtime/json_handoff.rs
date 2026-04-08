@@ -1,5 +1,5 @@
 use super::UiUpdate;
-use crate::state::StreamBlock;
+use crate::state::{StreamBlock, ToolStatus};
 use crate::turn_evidence::{
     command_evidence_from_tool_result, note_changed_files_from_tool_call, SummaryRecord,
     TurnEvidenceRecord,
@@ -47,6 +47,13 @@ pub enum RuntimeEvent {
     },
     TranscriptBlockComplete {
         index: usize,
+    },
+    /// Update the status of an in-flight tool call without a full ToolResult.
+    /// Emitted by the streaming layer when a tool transitions from Pending to
+    /// Executing so the sole-writer reducer can track all status mutations.
+    ToolCallStatusUpdated {
+        tool_call_id: String,
+        status: ToolStatus,
     },
     ToolCall {
         id: String,
@@ -599,6 +606,7 @@ pub fn derive_batch_records(
             }
             RuntimeEvent::TranscriptLine { .. }
             | RuntimeEvent::ToolCall { .. }
+            | RuntimeEvent::ToolCallStatusUpdated { .. }
             | RuntimeEvent::ApprovalRequest { .. }
             | RuntimeEvent::ApprovalResolved { .. }
             | RuntimeEvent::ValidationResult { .. }

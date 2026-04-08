@@ -155,6 +155,27 @@ impl TaskDocumentReducer {
                     summary.active_turn_changed = true;
                 }
             }
+            RuntimeEvent::ToolCallStatusUpdated {
+                tool_call_id,
+                status,
+            } => {
+                if let Some(active) = doc.active_turn.as_mut() {
+                    for entry in &mut active.entries {
+                        if let TurnEntry::ToolCall {
+                            id,
+                            status: current_status,
+                            ..
+                        } = entry
+                        {
+                            if *id == tool_call_id {
+                                *current_status = status;
+                                summary.active_turn_changed = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
             RuntimeEvent::ToolCall {
                 id,
                 name,

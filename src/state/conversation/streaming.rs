@@ -83,39 +83,47 @@ impl ConversationManager {
     /// Append `text` to the Thinking block at `index`, computing only the
     /// incremental suffix relative to what is already stored.  Returns the
     /// appended suffix so the caller can forward it to the stream.
+    ///
+    /// ADR-045 Invariant A: all writes to `task_doc` go through the reducer
+    /// via `apply_doc_event`.  We compute the deduplicated delta with a
+    /// read-only pass, then emit `TranscriptBlockDelta` so the reducer
+    /// performs the actual write.
     pub(super) fn append_text_delta(
         &mut self,
         index: usize,
         text: &str,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) -> String {
-        let mut appended = String::new();
-        let mut found_entry = false;
-
-        if let Some(doc) = self.task_doc.as_mut() {
-            if let Some(active) = doc.active_turn.as_mut() {
-                // Find the latest AssistantBlock entry with this block_index.
-                if let Some(block_entry) = active.entries.iter_mut().rev().find_map(|entry| {
-                    if let TurnEntry::AssistantBlock { block, .. } = entry {
-                        if block.block_index == index {
-                            return Some(block);
+        // Read-only pass: find the block and compute the deduplicated delta.
+        let (delta, found_entry) = {
+            let doc_opt = self.task_doc.as_ref();
+            match doc_opt.and_then(|d| d.active_turn.as_ref()) {
+                Some(active) => {
+                    let maybe_block = active.entries.iter().rev().find_map(|entry| {
+                        if let TurnEntry::AssistantBlock { block, .. } = entry {
+                            if block.block_index == index {
+                                return Some(block);
+                            }
                         }
-                    }
-                    None
-                }) {
-                    found_entry = true;
-                    appended = append_incremental_suffix(&mut block_entry.content, text);
-                    if !appended.is_empty() && active.ttft_ms.is_none() {
-                        use crate::runtime::session_task::now_millis;
-                        active.ttft_ms = Some(now_millis().saturating_sub(active.started_at_ms));
+                        None
+                    });
+                    match maybe_block {
+                        Some(block_entry) => {
+                            let d = crate::state::transcript_delta::bounded_incremental_suffix(
+                                &block_entry.content,
+                                text,
+                            );
+                            (d, true)
+                        }
+                        None => (String::new(), false),
                     }
                 }
+                None => (String::new(), false),
             }
-        }
+        };
 
         if !found_entry {
-            // No existing entry at this index; create one.
-            appended = text.to_string();
+            // No existing entry at this index; create one via the reducer.
             self.upsert_turn_block(
                 index,
                 StreamBlock::Thinking {
@@ -124,61 +132,81 @@ impl ConversationManager {
                 },
                 stream_delta_tx,
             );
-            return appended;
+            return text.to_string();
         }
 
-        if !appended.is_empty() {
-            emit_stream_update(
-                stream_delta_tx,
-                ConversationStreamUpdate::BlockDelta {
-                    index,
-                    delta: appended.clone(),
-                },
-            );
+        if delta.is_empty() {
+            return String::new();
         }
 
-        appended
+        // Write via reducer (ADR-045 sole-writer).
+        self.apply_doc_event(RuntimeEvent::TranscriptBlockDelta {
+            index,
+            delta: delta.clone(),
+        });
+
+        emit_stream_update(
+            stream_delta_tx,
+            ConversationStreamUpdate::BlockDelta {
+                index,
+                delta: delta.clone(),
+            },
+        );
+
+        delta
     }
 
     /// Update the status of a ToolCall entry and re-emit a BlockStart update.
+    /// Update the status of a ToolCall entry and re-emit a BlockStart update.
+    ///
+    /// ADR-045 Invariant A: the status mutation is routed through the reducer
+    /// via `apply_doc_event(RuntimeEvent::ToolCallStatusUpdated)` so the
+    /// document has a single write path.  A read-only pass collects the
+    /// entry index and block shape needed for the stream update.
     pub(super) fn set_tool_call_status(
         &mut self,
         tool_call_id: &str,
         status: ToolStatus,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) {
-        let mut emit_info: Option<(usize, StreamBlock)> = None;
-
-        if let Some(doc) = self.task_doc.as_mut() {
-            if let Some(active) = doc.active_turn.as_mut() {
-                for (entry_idx, entry) in active.entries.iter_mut().enumerate() {
-                    if let TurnEntry::ToolCall {
-                        id,
-                        name,
-                        input,
-                        status: current_status,
-                        ..
-                    } = entry
-                    {
-                        if id == tool_call_id {
-                            *current_status = status;
-                            emit_info = Some((
-                                entry_idx,
-                                StreamBlock::ToolCall {
-                                    id: id.clone(),
-                                    name: name.clone(),
-                                    input: input.clone(),
-                                    status: current_status.clone(),
-                                },
-                            ));
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        // Read-only pass: find the entry index and pre-update block shape.
+        let emit_info: Option<(usize, StreamBlock)> = {
+            self.task_doc
+                .as_ref()
+                .and_then(|d| d.active_turn.as_ref())
+                .and_then(|active| {
+                    active
+                        .entries
+                        .iter()
+                        .enumerate()
+                        .find_map(|(entry_idx, entry)| {
+                            if let TurnEntry::ToolCall {
+                                id, name, input, ..
+                            } = entry
+                            {
+                                if id == tool_call_id {
+                                    return Some((
+                                        entry_idx,
+                                        StreamBlock::ToolCall {
+                                            id: id.clone(),
+                                            name: name.clone(),
+                                            input: input.clone(),
+                                            status: status.clone(),
+                                        },
+                                    ));
+                                }
+                            }
+                            None
+                        })
+                })
+        };
 
         if let Some((index, block)) = emit_info {
+            // Write via reducer (ADR-045 sole-writer).
+            self.apply_doc_event(RuntimeEvent::ToolCallStatusUpdated {
+                tool_call_id: tool_call_id.to_string(),
+                status,
+            });
             emit_stream_update(
                 stream_delta_tx,
                 ConversationStreamUpdate::BlockStart { index, block },
@@ -354,6 +382,7 @@ pub(super) fn emit_text_update(
     emit_stream_update(stream_delta_tx, ConversationStreamUpdate::Delta(text));
 }
 
+#[cfg(test)]
 pub(super) fn append_incremental_suffix(existing: &mut String, incoming: &str) -> String {
     let suffix = crate::state::transcript_delta::bounded_incremental_suffix(existing, incoming);
     existing.push_str(&suffix);
