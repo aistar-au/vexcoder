@@ -60,6 +60,11 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
         })
         .collect();
 
+    // Track the last completed tool header to fold consecutive identical calls
+    // (e.g. when the model retries the same read_file repeatedly).
+    let mut last_completed_header: Option<String> = None;
+    let mut repeat_count: usize = 0;
+
     let mut idx = 0;
     while idx < entries.len() {
         match &entries[idx] {
@@ -67,6 +72,8 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                 if !text.trim().is_empty() {
                     rows.push(TranscriptRow::UserInput(text.clone()));
                 }
+                last_completed_header = None;
+                repeat_count = 0;
                 idx += 1;
             }
             TurnEntry::AssistantBlock { block, .. } => {
@@ -91,6 +98,8 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                         }
                     }
                 }
+                last_completed_header = None;
+                repeat_count = 0;
                 idx += 1;
             }
             TurnEntry::ToolCall {
@@ -103,7 +112,55 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                 let result = tool_results.get(call_id.as_str()).copied();
                 match result {
                     Some((output, is_error)) => {
-                        rows.extend(completed_tool_paragraph_rows(name, input, output, is_error));
+                        let input_preview_for_header = preview_tool_input(
+                            name,
+                            input,
+                            ToolPreviewStyle::Structured,
+                            crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
+                        );
+                        let first_output = first_nonempty_line(output).unwrap_or(if is_error {
+                            "failed"
+                        } else {
+                            completed_status_label()
+                        });
+                        let target = tool_target_summary(first_output)
+                            .or_else(|| tool_target_summary(&input_preview_for_header));
+                        let current_header = tool_header_summary(
+                            name,
+                            target,
+                            if is_error {
+                                "failed"
+                            } else {
+                                completed_status_label()
+                            },
+                        );
+
+                        if last_completed_header.as_deref() == Some(&current_header) {
+                            // Exact duplicate: fold into a single "(repeated ×N)" notice
+                            // replacing or appending the count annotation.
+                            repeat_count += 1;
+                            let fold_line =
+                                format!("(repeated \u{d7}{}, same call)", repeat_count + 1);
+                            // Replace the previous fold annotation if present, or append.
+                            let replace_last = rows.last().is_some_and(|r| {
+                                if let TranscriptRow::ToolDetail(s) = r {
+                                    s.starts_with("(repeated")
+                                } else {
+                                    false
+                                }
+                            });
+                            if replace_last {
+                                *rows.last_mut().unwrap() = TranscriptRow::ToolDetail(fold_line);
+                            } else {
+                                rows.push(TranscriptRow::ToolDetail(fold_line));
+                            }
+                        } else {
+                            repeat_count = 0;
+                            last_completed_header = Some(current_header);
+                            rows.extend(completed_tool_paragraph_rows(
+                                name, input, output, is_error,
+                            ));
+                        }
                     }
                     None => {
                         let lifecycle = tool_status_to_pending_lifecycle(status);
@@ -114,6 +171,8 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                             crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
                         );
                         rows.extend(pending_tool_paragraph_rows(name, &input_preview, lifecycle));
+                        last_completed_header = None;
+                        repeat_count = 0;
                     }
                 }
                 idx += 1;
@@ -129,6 +188,8 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                     NoticeSeverity::Error => rows.push(TranscriptRow::Error(message.clone())),
                     _ => rows.push(TranscriptRow::Plain(message.clone())),
                 }
+                last_completed_header = None;
+                repeat_count = 0;
                 idx += 1;
             }
             TurnEntry::ApprovalRequest { .. }

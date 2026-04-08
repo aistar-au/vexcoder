@@ -434,16 +434,21 @@ fn test_duplicate_tool_calls_fold_to_repeated_indicator() {
     mode.on_model_update(tool_result(3, "t2", "fn main() {}"), &mut ctx);
 
     let lines = &mode.history_lines();
-    // NOTE: The document-projector refactor removed duplicate-call folding.
-    // Each tool call now renders its own paragraph.  Verify both appear.
+    // The second identical completed tool call folds into a "(repeated ×N)" indicator;
+    // only the first call renders a full [tool] header paragraph.
     let tool_headers: Vec<_> = lines
         .iter()
         .filter(|l| l.starts_with("[tool] read_file"))
         .collect();
     assert_eq!(
         tool_headers.len(),
-        2,
-        "both duplicate tool calls must render individually; got:\n{:#?}",
+        1,
+        "first duplicate renders normally; subsequent identical calls fold to indicator; got:\n{:#?}",
+        lines
+    );
+    assert!(
+        lines.iter().any(|l| l.starts_with("[detail] (repeated")),
+        "expected a fold indicator row for the duplicate call; got:\n{:#?}",
         lines
     );
 }
