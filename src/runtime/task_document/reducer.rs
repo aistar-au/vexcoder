@@ -182,16 +182,11 @@ impl TaskDocumentReducer {
                 streaming,
             } => {
                 if let Some(active) = doc.active_turn.as_mut() {
-                    for entry in &mut active.entries {
-                        if let TurnEntry::AssistantBlock { block, .. } = entry {
-                            if block.block_index == index {
-                                block.phase = phase;
-                                block.streaming = streaming;
-                                summary.active_turn_changed = true;
-                                break;
-                            }
-                        }
-                    }
+                    Self::update_block_content(active, index, |entry| {
+                        entry.phase = phase.clone();
+                        entry.streaming = streaming;
+                    });
+                    summary.active_turn_changed = true;
                 }
             }
             RuntimeEvent::ToolCall {
