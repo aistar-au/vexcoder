@@ -7,7 +7,7 @@ fn test_waiting_indicator_appears_on_turn_start() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
-    mode.on_user_input("hello world".to_string(), &mut ctx);
+    mode.on_user_input("read the release workflow".to_string(), &mut ctx);
 
     assert!(
         mode.history_lines()

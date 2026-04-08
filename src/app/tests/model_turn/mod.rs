@@ -154,7 +154,7 @@ fn test_input_drop_shows_feedback() {
     let mut ctx = setup_ctx();
 
     mode.begin_turn_capture("test".to_string());
-    mode.on_user_input("hello".to_string(), &mut ctx);
+    mode.on_user_input("analyze the test output".to_string(), &mut ctx);
 
     assert!(
         mode.task_doc.active_turn.is_some(),
@@ -167,7 +167,10 @@ fn test_input_drop_shows_feedback() {
         "busy input must produce visible rejection feedback"
     );
     assert!(
-        !mode.history_lines().iter().any(|line| line == "> hello"),
+        !mode
+            .history_lines()
+            .iter()
+            .any(|line| line == "> analyze the test output"),
         "discarded busy input must not be appended as user message"
     );
 }

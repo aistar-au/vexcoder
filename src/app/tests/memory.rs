@@ -55,7 +55,10 @@ fn test_tui_memory_add_appends_to_file() {
     std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str());
     let mut ctx = setup_ctx();
     let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
-    mode.on_user_input("/memory add hello world".to_string(), &mut ctx);
+    mode.on_user_input(
+        "/memory add track the open build issue".to_string(),
+        &mut ctx,
+    );
     assert!(
         mode.history_lines()
             .iter()
@@ -63,9 +66,12 @@ fn test_tui_memory_add_appends_to_file() {
         "expected '[memory: note added]' in history"
     );
     let content = std::fs::read_to_string(&notes_path).unwrap();
-    assert!(content.contains("hello world"));
+    assert!(content.contains("track the open build issue"));
     assert_eq!(mode.task_doc.session_notes.len(), 1);
-    assert_eq!(mode.task_doc.session_notes[0].content, "hello world");
+    assert_eq!(
+        mode.task_doc.session_notes[0].content,
+        "track the open build issue"
+    );
     let saved = TaskState::load(&state_dir, &mode.current_task_id()).unwrap();
     assert_eq!(saved.session_notes, mode.task_doc.session_notes);
     assert!(!mode.is_turn_in_progress());

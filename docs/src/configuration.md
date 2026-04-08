@@ -34,7 +34,7 @@ These keys are read by the current runtime from config files:
 | `model_name` | Model identifier | `local/default` |
 | `working_dir` | Workspace root for tool execution | current directory |
 | `model_backend` | `local-runtime` or `api-server` | inferred |
-| `model_protocol` | `messages-v1` or `chat-compat` | inferred |
+| `model_protocol` | `messages-v1` or `chat-compat`; URLs containing `/chat/completions` default to `chat-compat`, all others default to `messages-v1` | inferred |
 | `tool_call_mode` | `structured` or `tagged-fallback` | inferred |
 | `tool_policy` | `full`, `plan`, or `chat` | `full` |
 | `model_profile` | Path to a repo-tracked profile under `models/` | backend default profile |

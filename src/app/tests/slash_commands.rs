@@ -21,7 +21,7 @@ fn test_tui_second_edit_command_blocked_while_loop_active() {
 fn test_slash_command_returns_none_for_non_slash_input() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
-    mode.on_user_input("hello world".to_string(), &mut ctx);
+    mode.on_user_input("describe the open issues".to_string(), &mut ctx);
     assert!(
         mode.is_turn_in_progress(),
         "non-slash input must dispatch a model turn"
