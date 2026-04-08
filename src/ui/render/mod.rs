@@ -279,8 +279,11 @@ pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewPro
 
     // --- Output / Inspector pane ---
     let expanded_output_rows = expand_rows_for_display(&state.output_rows, layout.output.width);
-    let (output_start, output_end) =
-        task_output_window(state, layout.output.width, layout.output.height as usize);
+    let (output_start, output_end) = task_output_window_with_total(
+        state,
+        expanded_output_rows.len(),
+        layout.output.height as usize,
+    );
     let output_lines: Vec<Line> = expanded_output_rows[output_start..output_end]
         .iter()
         .map(|row| transcript_output_line(row))

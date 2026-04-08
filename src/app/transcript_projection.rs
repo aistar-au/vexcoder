@@ -98,8 +98,17 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                         }
                     }
                 }
-                last_completed_header = None;
-                repeat_count = 0;
+                // Only reset the dedup tracker when this block actually
+                // produced visible rows — empty or whitespace-only
+                // assistant rounds between tool calls must not break the
+                // fold.  This fixes the cross-round dedup failure where
+                // every `AssistantBlock(Final, "")` previously reset the
+                // tracker causing identical consecutive tool calls to
+                // appear un-folded.
+                if rows.len() > row_before {
+                    last_completed_header = None;
+                    repeat_count = 0;
+                }
                 idx += 1;
             }
             TurnEntry::ToolCall {
@@ -170,9 +179,34 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                             ToolPreviewStyle::Structured,
                             crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
                         );
-                        rows.extend(pending_tool_paragraph_rows(name, &input_preview, lifecycle));
-                        last_completed_header = None;
-                        repeat_count = 0;
+                        let target = tool_target_summary(&input_preview);
+                        let pending_header =
+                            tool_header_summary(name, target, pending_status_label());
+                        if last_completed_header.as_deref() == Some(&pending_header) {
+                            repeat_count += 1;
+                            let fold_line =
+                                format!("(repeated \u{d7}{}, same call)", repeat_count + 1);
+                            let replace_last = rows.last().is_some_and(|r| {
+                                if let TranscriptRow::ToolDetail(s) = r {
+                                    s.starts_with("(repeated")
+                                } else {
+                                    false
+                                }
+                            });
+                            if replace_last {
+                                *rows.last_mut().unwrap() = TranscriptRow::ToolDetail(fold_line);
+                            } else {
+                                rows.push(TranscriptRow::ToolDetail(fold_line));
+                            }
+                        } else {
+                            repeat_count = 0;
+                            last_completed_header = Some(pending_header);
+                            rows.extend(pending_tool_paragraph_rows(
+                                name,
+                                &input_preview,
+                                lifecycle,
+                            ));
+                        }
                     }
                 }
                 idx += 1;
