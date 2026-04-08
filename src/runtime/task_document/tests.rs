@@ -6,7 +6,7 @@ use crate::runtime::{ApprovalScope, Capability, ModelBackendKind};
 use crate::state::{ToolStatus, TurnToolPolicy};
 use crate::usage::TurnTokens;
 
-use super::{TaskDocumentReducer, TaskMeta, TurnEntry, TurnOutcome};
+use super::{TaskDocumentCondenser, TaskMeta, TurnEntry, TurnOutcome};
 
 fn test_meta() -> TaskMeta {
     TaskMeta {
@@ -30,8 +30,8 @@ fn test_meta() -> TaskMeta {
 
 #[test]
 fn begin_task_produces_empty_document() {
-    let reducer = TaskDocumentReducer::new();
-    let doc = reducer.begin_task(test_meta());
+    let condenser = TaskDocumentCondenser::new();
+    let doc = condenser.begin_task(test_meta());
     assert!(doc.completed_turns.is_empty());
     assert!(doc.active_turn.is_none());
     assert_eq!(doc.meta.id, "test-task-01");
@@ -39,25 +39,30 @@ fn begin_task_produces_empty_document() {
 
 #[test]
 fn begin_turn_opens_active_turn_with_user_input_entry() {
-    let reducer = TaskDocumentReducer::new();
-    let mut doc = reducer.begin_task(test_meta());
+    let condenser = TaskDocumentCondenser::new();
+    let mut doc = condenser.begin_task(test_meta());
 
-    reducer.begin_turn(&mut doc, "hello".to_string(), 2000, TurnToolPolicy::Default);
+    condenser.begin_turn(
+        &mut doc,
+        "analyze the test output".to_string(),
+        2000,
+        TurnToolPolicy::Default,
+    );
 
     let active = doc.active_turn.as_ref().expect("active turn");
     assert_eq!(active.turn_index, 0);
-    assert_eq!(active.input, "hello");
+    assert_eq!(active.input, "analyze the test output");
     assert_eq!(active.entries.len(), 1);
     assert!(matches!(active.entries[0], TurnEntry::UserInput { .. }));
 }
 
 #[test]
 fn finish_turn_moves_active_turn_to_completed() {
-    let reducer = TaskDocumentReducer::new();
-    let mut doc = reducer.begin_task(test_meta());
+    let condenser = TaskDocumentCondenser::new();
+    let mut doc = condenser.begin_task(test_meta());
 
-    reducer.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
-    let summary = reducer.finish_turn(
+    condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
+    let summary = condenser.finish_turn(
         &mut doc,
         TurnOutcome::Completed,
         TurnTokens::default(),
@@ -73,11 +78,11 @@ fn finish_turn_moves_active_turn_to_completed() {
 
 #[test]
 fn apply_tool_call_event_appends_entry() {
-    let reducer = TaskDocumentReducer::new();
-    let mut doc = reducer.begin_task(test_meta());
+    let condenser = TaskDocumentCondenser::new();
+    let mut doc = condenser.begin_task(test_meta());
 
-    reducer.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
-    let summary = reducer.apply_runtime_event(
+    condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
+    let summary = condenser.apply_runtime_event(
         &mut doc,
         RuntimeEvent::ToolCall {
             id: "tc-01".to_string(),
@@ -96,11 +101,11 @@ fn apply_tool_call_event_appends_entry() {
 
 #[test]
 fn tool_result_advances_tool_call_status() {
-    let reducer = TaskDocumentReducer::new();
-    let mut doc = reducer.begin_task(test_meta());
+    let condenser = TaskDocumentCondenser::new();
+    let mut doc = condenser.begin_task(test_meta());
 
-    reducer.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
-    reducer.apply_runtime_event(
+    condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
+    condenser.apply_runtime_event(
         &mut doc,
         RuntimeEvent::ToolCall {
             id: "tc-01".to_string(),
@@ -108,7 +113,7 @@ fn tool_result_advances_tool_call_status() {
             arguments: serde_json::json!({}),
         },
     );
-    reducer.apply_runtime_event(
+    condenser.apply_runtime_event(
         &mut doc,
         RuntimeEvent::ToolResult {
             tool_call_id: "tc-01".to_string(),
@@ -132,47 +137,47 @@ fn tool_result_advances_tool_call_status() {
 
 #[test]
 fn snapshot_roundtrip_preserves_turn_count() {
-    let reducer = TaskDocumentReducer::new();
-    let mut doc = reducer.begin_task(test_meta());
+    let condenser = TaskDocumentCondenser::new();
+    let mut doc = condenser.begin_task(test_meta());
 
-    reducer.begin_turn(
+    condenser.begin_turn(
         &mut doc,
         "turn one".to_string(),
         1000,
         TurnToolPolicy::Default,
     );
-    reducer.finish_turn(
+    condenser.finish_turn(
         &mut doc,
         TurnOutcome::Completed,
         TurnTokens::default(),
         2000,
     );
-    reducer.begin_turn(
+    condenser.begin_turn(
         &mut doc,
         "turn two".to_string(),
         3000,
         TurnToolPolicy::Default,
     );
-    reducer.finish_turn(
+    condenser.finish_turn(
         &mut doc,
         TurnOutcome::Completed,
         TurnTokens::default(),
         4000,
     );
 
-    let snapshot = reducer.persistable_snapshot(&doc);
+    let snapshot = condenser.persistable_snapshot(&doc);
     assert_eq!(snapshot.turns.len(), 2);
 
-    let restored = reducer.restore_from_snapshot(snapshot);
+    let restored = condenser.restore_from_snapshot(snapshot);
     assert_eq!(restored.completed_turns.len(), 2);
 }
 
 #[test]
 fn error_event_sets_error_state_and_status() {
-    let reducer = TaskDocumentReducer::new();
-    let mut doc = reducer.begin_task(test_meta());
+    let condenser = TaskDocumentCondenser::new();
+    let mut doc = condenser.begin_task(test_meta());
 
-    let summary = reducer.apply_runtime_event(
+    let summary = condenser.apply_runtime_event(
         &mut doc,
         RuntimeEvent::Error {
             code: "E001".to_string(),
@@ -201,12 +206,12 @@ fn hyphenated_capability_names_parse() {
 
 #[test]
 fn approval_resolution_updates_grants_by_scope() {
-    let reducer = TaskDocumentReducer::new();
-    let mut doc = reducer.begin_task(test_meta());
+    let condenser = TaskDocumentCondenser::new();
+    let mut doc = condenser.begin_task(test_meta());
 
-    reducer.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
+    condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
 
-    reducer.apply_runtime_event(
+    condenser.apply_runtime_event(
         &mut doc,
         RuntimeEvent::ApprovalResolved {
             capability: "apply-patch".to_string(),
@@ -219,7 +224,7 @@ fn approval_resolution_updates_grants_by_scope() {
         Some(&ApprovalScope::Session)
     );
 
-    reducer.apply_runtime_event(
+    condenser.apply_runtime_event(
         &mut doc,
         RuntimeEvent::ApprovalResolved {
             capability: "run-command".to_string(),
@@ -232,11 +237,11 @@ fn approval_resolution_updates_grants_by_scope() {
 
 #[test]
 fn snapshot_preserves_denied_tool_outcome_on_restore() {
-    let reducer = TaskDocumentReducer::new();
-    let mut doc = reducer.begin_task(test_meta());
+    let condenser = TaskDocumentCondenser::new();
+    let mut doc = condenser.begin_task(test_meta());
 
-    reducer.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
-    reducer.apply_runtime_event(
+    condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
+    condenser.apply_runtime_event(
         &mut doc,
         RuntimeEvent::ToolCall {
             id: "tc-01".to_string(),
@@ -244,7 +249,7 @@ fn snapshot_preserves_denied_tool_outcome_on_restore() {
             arguments: serde_json::json!({"path": "src/main.rs"}),
         },
     );
-    reducer.apply_runtime_event(
+    condenser.apply_runtime_event(
         &mut doc,
         RuntimeEvent::ToolResult {
             tool_call_id: "tc-01".to_string(),
@@ -253,17 +258,17 @@ fn snapshot_preserves_denied_tool_outcome_on_restore() {
             output: "permission denied".to_string(),
         },
     );
-    reducer.finish_turn(
+    condenser.finish_turn(
         &mut doc,
         TurnOutcome::Completed,
         TurnTokens::default(),
         2000,
     );
 
-    let snapshot = reducer.persistable_snapshot(&doc);
+    let snapshot = condenser.persistable_snapshot(&doc);
     assert_eq!(snapshot.turns[0].tool_invocations[0].outcome, "denied");
 
-    let restored = reducer.restore_from_snapshot(snapshot);
+    let restored = condenser.restore_from_snapshot(snapshot);
     let restored_status = restored.completed_turns[0]
         .entries
         .iter()

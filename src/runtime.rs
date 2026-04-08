@@ -62,7 +62,7 @@ pub use secrets::{contains_secret, redact_secrets};
 pub use session_task::{SessionTask, SessionTaskId, SessionTaskStatus};
 pub use task_document::{
     ActiveTurnDocument, ApprovalDocument, AssistantBlockEntry, AssistantPhase,
-    CommandSessionDocument, NoticeSeverity, TaskDocument, TaskDocumentReducer, TaskErrorState,
+    CommandSessionDocument, NoticeSeverity, TaskDocument, TaskDocumentCondenser, TaskErrorState,
     TaskMeta, TaskMutationSummary, TurnDocument, TurnEntry, TurnOutcome,
 };
 pub use task_state::{

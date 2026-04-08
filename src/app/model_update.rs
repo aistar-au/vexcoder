@@ -460,7 +460,7 @@ impl TuiMode {
                 self.append_turn_timing_line();
                 // Finish the active turn with the correct outcome.
                 // finish_turn sets meta.status from the outcome, then we
-                // override to Completed for Success (reducer maps
+                // override to Completed for Success (condenser maps
                 // TurnOutcome::Completed → Ready, but edit-loop success
                 // means the task is done).
                 if self.task_doc.active_turn.is_some() {
@@ -471,7 +471,7 @@ impl TuiMode {
                         EditLoopOutcome::Cancelled => TurnOutcome::Cancelled,
                     };
                     let turn_tokens = ctx.session_tokens_rollup().last_turn();
-                    self.task_doc_reducer.finish_turn(
+                    self.task_doc_condenser.finish_turn(
                         &mut self.task_doc,
                         turn_outcome,
                         turn_tokens,
@@ -554,7 +554,7 @@ impl TuiMode {
                 self.transcript_scroll_offset = 0;
                 self.inspector_scroll_offset = 0;
                 let tokens = ctx.session_tokens_rollup().last_turn();
-                self.task_doc_reducer.finish_turn(
+                self.task_doc_condenser.finish_turn(
                     &mut self.task_doc,
                     TurnOutcome::Failed { message: msg },
                     tokens,

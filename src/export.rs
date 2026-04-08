@@ -172,7 +172,7 @@ mod tests {
         state.status = TaskStatus::Completed;
         state.instructions_path = Some("AGENTS.md".to_string());
         state.turns.push(TurnEvidenceState {
-            input: "hello".to_string(),
+            input: "explain the build error".to_string(),
             response: "world".to_string(),
             changed_files: vec!["src/lib.rs".to_string()],
             command_history: Vec::new(),
@@ -202,7 +202,7 @@ mod tests {
     fn test_vex_export_markdown_omits_model_response_text() {
         let mut state = TaskState::new("task-export".to_string());
         state.turns.push(TurnEvidenceState {
-            input: "hello".to_string(),
+            input: "explain the build error".to_string(),
             response: "sensitive full response".to_string(),
             changed_files: Vec::new(),
             command_history: Vec::new(),

@@ -428,8 +428,12 @@ async fn test_build_batch_runtime_injects_memory_notes_into_system_prompt() {
         auto_memory: crate::config::AutoMemoryConfig::default(),
     };
 
-    let (_runtime, ctx, _task_id) =
-        build_batch_runtime(&config, "hello".to_string(), BatchRunOpts::default()).unwrap();
+    let (_runtime, ctx, _task_id) = build_batch_runtime(
+        &config,
+        "run the lint checks".to_string(),
+        BatchRunOpts::default(),
+    )
+    .unwrap();
     let system_prompt = ctx.test_system_prompt().await;
     assert!(
         system_prompt.contains("<memory>\nbatch note\n</memory>"),
@@ -474,8 +478,12 @@ async fn test_build_batch_runtime_injects_project_instructions_into_system_promp
         auto_memory: crate::config::AutoMemoryConfig::default(),
     };
 
-    let (_runtime, ctx, _task_id) =
-        build_batch_runtime(&config, "hello".to_string(), BatchRunOpts::default()).unwrap();
+    let (_runtime, ctx, _task_id) = build_batch_runtime(
+        &config,
+        "run the lint checks".to_string(),
+        BatchRunOpts::default(),
+    )
+    .unwrap();
     let system_prompt = ctx.test_system_prompt().await;
     assert!(system_prompt.contains("[project instructions: start]"));
     assert!(system_prompt.contains("# batch instructions"));
@@ -546,7 +554,7 @@ fn test_build_batch_runtime_uses_resumed_task_id() {
 
     let (_runtime, _ctx, task_id) = build_batch_runtime(
         &config,
-        "hello".to_string(),
+        "run the lint checks".to_string(),
         BatchRunOpts {
             resume_state: Some(resume_state),
             ..Default::default()

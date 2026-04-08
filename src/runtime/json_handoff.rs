@@ -1,4 +1,5 @@
 use super::UiUpdate;
+use crate::runtime::AssistantPhase;
 use crate::state::{StreamBlock, ToolStatus};
 use crate::turn_evidence::{
     command_evidence_from_tool_result, note_changed_files_from_tool_call, SummaryRecord,
@@ -50,10 +51,18 @@ pub enum RuntimeEvent {
     },
     /// Update the status of an in-flight tool call without a full ToolResult.
     /// Emitted by the streaming layer when a tool transitions from Pending to
-    /// Executing so the sole-writer reducer can track all status mutations.
+    /// Executing so the sole-writer condenser can track all status mutations.
     ToolCallStatusUpdated {
         tool_call_id: String,
         status: ToolStatus,
+    },
+    /// Promote a Thinking block to Final phase and mark it as no longer
+    /// streaming.  Emitted at the end of an API round so the sole-writer
+    /// condenser is the only code path that mutates block phase.
+    TranscriptBlockPhaseUpdated {
+        index: usize,
+        phase: AssistantPhase,
+        streaming: bool,
     },
     ToolCall {
         id: String,
@@ -607,6 +616,7 @@ pub fn derive_batch_records(
             RuntimeEvent::TranscriptLine { .. }
             | RuntimeEvent::ToolCall { .. }
             | RuntimeEvent::ToolCallStatusUpdated { .. }
+            | RuntimeEvent::TranscriptBlockPhaseUpdated { .. }
             | RuntimeEvent::ApprovalRequest { .. }
             | RuntimeEvent::ApprovalResolved { .. }
             | RuntimeEvent::ValidationResult { .. }

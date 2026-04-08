@@ -269,7 +269,7 @@ impl TuiMode {
             active_grants: Default::default(),
             next_step_id: 0,
         };
-        self.task_doc = self.task_doc_reducer.begin_task(new_meta);
+        self.task_doc = self.task_doc_condenser.begin_task(new_meta);
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
         self.reset_conversation_window(ctx);
@@ -365,7 +365,7 @@ impl TuiMode {
     pub(crate) fn handle_fork_command(&mut self, label: &str, ctx: &mut RuntimeContext) {
         // Persist the parent state before forking.  If this fails, abort so the
         // parent task id is left unchanged.
-        let parent_snapshot = self.task_doc_reducer.persistable_snapshot(&self.task_doc);
+        let parent_snapshot = self.task_doc_condenser.persistable_snapshot(&self.task_doc);
         let state_dir = TaskState::state_dir_from(&self.working_dir);
         if let Err(error) = parent_snapshot.save(&state_dir) {
             self.push_history_line(format!("[fork] save failed: {error}"));
@@ -396,7 +396,7 @@ impl TuiMode {
             active_grants: self.task_doc.meta.active_grants.clone(),
             next_step_id: self.task_doc.meta.next_step_id,
         };
-        self.task_doc = self.task_doc_reducer.begin_task(fork_meta);
+        self.task_doc = self.task_doc_condenser.begin_task(fork_meta);
         self.reset_conversation_window(ctx);
         self.push_history_line(format!("[fork: {new_id} branched from {parent_id}]"));
     }

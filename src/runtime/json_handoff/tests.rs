@@ -148,7 +148,10 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
     let mut normalizer = RuntimeEnvelopeNormalizer::new("task-2");
     let _ = normalizer.start_turn(1, Some("review".to_string()));
 
-    let delta = normalizer.normalize_ui_update(&UiUpdate::StreamDelta("hello".to_string()), None);
+    let delta = normalizer.normalize_ui_update(
+        &UiUpdate::StreamDelta("partial model response".to_string()),
+        None,
+    );
     assert_eq!(delta.len(), 2);
     assert_eq!(delta[0].seq, 2);
     let final_text_index = match &delta[0].event {
@@ -166,7 +169,7 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         RuntimeEvent::TranscriptBlockDelta {
             index,
             ref delta,
-        } if index == final_text_index && delta == "hello"
+        } if index == final_text_index && delta == "partial model response"
     ));
 
     let transcript_line = normalizer.normalize_ui_update(

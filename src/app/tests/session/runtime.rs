@@ -110,7 +110,7 @@ fn test_tui_compact_resets_turn_evidence_and_token_counter() {
         .completed_turns
         .push(crate::runtime::task_document::TurnDocument {
             turn_index: 0,
-            input: "hello".to_string(),
+            input: "summarize the diff".to_string(),
             entries: vec![],
             outcome: crate::runtime::task_document::TurnOutcome::Completed,
             changed_files: vec![],

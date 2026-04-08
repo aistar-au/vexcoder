@@ -95,12 +95,12 @@ math operates on the document paragraph list, not on `history_state.lines`.
 
 ## Items
 
-### TF-01 — Define `TaskDocument` and reducer-owned turn types
+### TF-01 — Define `TaskDocument` and condenser-owned turn types
 
 **Files:** `src/runtime/task_document.rs`, `src/runtime/task_document/model.rs`,
-`src/runtime/task_document/reducer.rs`, `src/runtime/task_document/snapshot.rs`
+`src/runtime/task_document/condenser.rs`, `src/runtime/task_document/snapshot.rs`
 
-Define the canonical task and turn types at the runtime layer, keep the reducer
+Define the canonical task and turn types at the runtime layer, keep the condenser
 adjacent to the model, and add the snapshot adapter that round-trips through
 `TaskState` and `TurnEvidenceState` without introducing a parallel event model.
 Add focused unit tests for approval parsing, grant persistence, and snapshot

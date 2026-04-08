@@ -3,7 +3,7 @@ use crate::config::{HookConfig, HttpHookConfig, SearchConfig};
 use crate::mcp::McpRegistry;
 use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::session_task::now_millis;
-use crate::runtime::task_document::{TaskDocument, TaskDocumentReducer, TaskMeta, TurnOutcome};
+use crate::runtime::task_document::{TaskDocument, TaskDocumentCondenser, TaskMeta, TurnOutcome};
 use crate::runtime::task_state::TaskStatus;
 use crate::runtime::ConfiguredSandbox;
 use crate::runtime::{ModelBackendKind, TaskMutationSummary};
@@ -92,10 +92,10 @@ pub struct ConversationManager {
     pub(super) http_hooks: Vec<HttpHookConfig>,
     pub(super) search_config: SearchConfig,
     pub(super) api_messages: Vec<ApiMessage>,
-    /// Canonical in-process task document. Owned by the reducer; replaces the
+    /// Canonical in-process task document. Owned by the condenser; replaces the
     /// former `current_turn_blocks` parallel live-turn model.
     pub(super) task_doc: Option<TaskDocument>,
-    pub(super) reducer: TaskDocumentReducer,
+    pub(super) condenser: TaskDocumentCondenser,
     /// Entry index in `active_turn.entries` where the current API round began.
     /// Reset at the start of every round so that per-round operations such as
     /// `promote_thinking_blocks_to_final_text` only touch the current round's
@@ -143,7 +143,7 @@ impl ConversationManager {
             search_config: SearchConfig::default(),
             api_messages: Vec::new(),
             task_doc: None,
-            reducer: TaskDocumentReducer::new(),
+            condenser: TaskDocumentCondenser::new(),
             current_round_entry_start: 0,
             current_round_stream_block_count: 0,
             last_turn_tokens: TurnTokens::default(),
@@ -221,7 +221,7 @@ impl ConversationManager {
             search_config: SearchConfig::default(),
             api_messages: Vec::new(),
             task_doc: None,
-            reducer: TaskDocumentReducer::new(),
+            condenser: TaskDocumentCondenser::new(),
             current_round_entry_start: 0,
             current_round_stream_block_count: 0,
             last_turn_tokens: TurnTokens::default(),
@@ -340,7 +340,7 @@ impl ConversationManager {
             active_grants: std::collections::HashMap::new(),
             next_step_id: 0,
         };
-        self.task_doc = Some(self.reducer.begin_task(meta));
+        self.task_doc = Some(self.condenser.begin_task(meta));
     }
 
     /// Begin a new turn inside the document. The caller must have called
@@ -352,7 +352,7 @@ impl ConversationManager {
     ) {
         if let Some(doc) = self.task_doc.as_mut() {
             let now = now_millis();
-            self.reducer.begin_turn(doc, input, now, tool_policy);
+            self.condenser.begin_turn(doc, input, now, tool_policy);
         }
         self.current_round_stream_block_count = 0;
     }
@@ -361,14 +361,14 @@ impl ConversationManager {
     pub(super) fn finish_turn_doc(&mut self, outcome: TurnOutcome, tokens: TurnTokens) {
         if let Some(doc) = self.task_doc.as_mut() {
             let now = now_millis();
-            self.reducer.finish_turn(doc, outcome, tokens, now);
+            self.condenser.finish_turn(doc, outcome, tokens, now);
         }
     }
 
     /// Apply one `RuntimeEvent` to the document.
     pub(super) fn apply_doc_event(&mut self, event: RuntimeEvent) -> TaskMutationSummary {
         if let Some(doc) = self.task_doc.as_mut() {
-            self.reducer.apply_runtime_event(doc, event)
+            self.condenser.apply_runtime_event(doc, event)
         } else {
             TaskMutationSummary::default()
         }

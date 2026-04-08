@@ -193,7 +193,7 @@ mod tests {
         let mode = crate::app::TuiMode::new();
         let mut runtime = Runtime::new(mode, update_rx);
 
-        let mut frontend = HeadlessFrontend::new(vec!["hello", "world"], 3);
+        let mut frontend = HeadlessFrontend::new(vec!["check imports", "fix warnings"], 3);
         runtime.run(&mut frontend, &mut ctx).await;
 
         assert_eq!(
@@ -214,7 +214,7 @@ mod tests {
         let mode = crate::app::TuiMode::new();
         let mut runtime = Runtime::new(mode, update_rx);
 
-        let mut frontend = HeadlessFrontend::new(vec!["hello"], 2);
+        let mut frontend = HeadlessFrontend::new(vec!["check imports"], 2);
         runtime.run(&mut frontend, &mut ctx).await;
 
         assert_eq!(frontend.render_count, 2);
