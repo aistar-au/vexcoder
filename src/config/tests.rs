@@ -1116,10 +1116,12 @@ fn test_infer_model_protocol_chat_compat_for_completions_url() {
 }
 
 #[test]
-fn test_infer_model_protocol_chat_compat_for_v1_url() {
+fn test_infer_model_protocol_messages_v1_for_v1_url() {
+    // /v1 suffix now defaults to messages-v1; poll_server_info() overrides to
+    // ChatCompat at session start when the server only exposes chat/completions.
     assert_eq!(
         super::infer_model_protocol("https://api.example.internal/v1"),
-        crate::runtime::ModelProtocol::ChatCompat
+        crate::runtime::ModelProtocol::MessagesV1
     );
 }
 

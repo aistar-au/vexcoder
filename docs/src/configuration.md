@@ -177,8 +177,14 @@ max_notes_per_turn = 5
 
 The full model endpoint URL.
 
-- URLs containing `/chat/completions` or ending in `/v1` default to `chat-compat`.
-- Other URLs default to `messages-v1`.
+- URLs containing `/chat/completions` default to `chat-compat`.
+- All other URLs, including bare `/v1` suffix URLs, default to `messages-v1`.
+  If the local server only exposes `/v1/chat/completions`, `vex` detects this
+  automatically at session start via the `/props` probe and switches to
+  `chat-compat` without any manual configuration` suffix URLs, default to `messages-v1`.
+  If the local server only exposes `/v1/chat/completions`, `vex` detects this
+  automatically at session start via the `/props` probe and switches to
+  `chat-compat` without any manual configuration.
 - For plain local inference servers, prefer explicit HTTP
   localhost URLs such as `http://localhost:8000/v1/messages`. If you enter an
   HTTPS localhost URL in the interactive startup prompt, `vex` now suggests the

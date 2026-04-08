@@ -55,9 +55,11 @@ pub(crate) fn infer_model_protocol(api_url: &str) -> ModelProtocol {
     } else if normalized.contains("/messages") {
         // Covers both "/v1/messages" and the transposed "/messages/v1".
         ModelProtocol::MessagesV1
-    } else if normalized.ends_with("/v1") {
-        ModelProtocol::ChatCompat
     } else {
+        // Default to messages-v1 for all other URLs including bare /v1
+        // suffixes.  Local inference servers that only expose chat/completions
+        // will be detected at session start by poll_server_info() and the
+        // protocol will be overridden to ChatCompat automatically.
         ModelProtocol::MessagesV1
     }
 }
