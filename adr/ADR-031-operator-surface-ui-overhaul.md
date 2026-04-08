@@ -380,6 +380,101 @@ dependency and it must land first.
 
 This distinction is what ADR-030 is designed to protect.
 
+## Amendment — 2026-04-08: Terminal-owned history and live bottom viewport
+
+### Scroll ownership change
+
+The original operator surface target described the scrolling transcript as an
+app-owned upper body where the TUI maintains scroll offsets across the full
+committed history. Analysis of six concrete scroll defects in the current
+implementation demonstrates that this model does not scale to indefinite
+sessions:
+
+1. The idle-mode `Paragraph::new().scroll()` path uses a `u16` offset
+   (`src/ui/render/mod.rs`), capping reviewable history at ~65,000 display
+   rows.
+2. Turn-boundary resets in `src/app/turn.rs` and `src/app/model_update.rs`
+   force `transcript_scroll_offset = 0`, destroying the operator's review
+   position whenever a turn completes or an error occurs.
+3. `expand_rows_for_display()` in `src/ui/render/transcript.rs` performs
+   O(n) full-history re-expansion every frame, growing linearly with session
+   length.
+4. The idle path is always tail-pinned with no interactive scroll support.
+5. The six-row inspector cap in `src/app/layout.rs` hard-limits detail
+   surface height.
+6. Structural no-wrap in `src/ui/render/transcript.rs` and
+   `src/ui/render/mod.rs` miscounts display rows for bracket-delimited
+   transcript markers.
+
+### Terminal-owned history contract
+
+The operator surface target is amended. The terminal now owns committed
+transcript history above the viewport:
+
+1. **Terminal owns committed history.** Stable transcript paragraphs are
+   flushed upward through a terminal history sink (`TerminalHistorySink`)
+   as soon as they become committed. The host terminal's scrollback buffer
+   becomes the indefinite review surface for committed content.
+
+2. **App owns only the live tail.** The application retains ownership of the
+   live bottom viewport: the current response tail, composer or approval
+   surface, and status line. This reserved viewport occupies the bottom
+   portion of the terminal.
+
+3. **Committed paragraphs flush upward.** `flush_committed_history()` writes
+   stable paragraphs into terminal history using the preferred insertion
+   mode. The app does not maintain scroll offsets for committed content on
+   the main surface.
+
+4. **Full-session review uses host scrollback or a transcript overlay.** The
+   operator reviews committed history by scrolling the host terminal's
+   scrollback buffer. An explicit transcript overlay (detail surface) is
+   available for structured navigation within the app, but it is not the
+   primary review mechanism.
+
+5. **Compatibility ladder.** The terminal history sink supports three
+   insertion modes in priority order:
+   - **Scroll-region insertion** (preferred): ANSI scroll-region escape
+     sequences insert committed lines above the reserved live viewport.
+   - **Newline fallback**: when scroll-region insertion is unavailable,
+     committed lines are flushed via newline writes that scroll the
+     terminal naturally.
+   - **Owned-transcript fallback**: when neither terminal insertion mode is
+     viable (e.g., non-terminal output), the existing app-owned transcript
+     renderer (`render_messages`, `render_task_layout`) remains active as
+     the last fallback.
+
+6. **Current app-owned scroll path is transitional.** The scroll logic in
+   `src/ui/render/mod.rs`, `src/ui/render/transcript.rs`,
+   `src/app/scroll.rs`, and `src/app/turn.rs` that maintains
+   `transcript_scroll_offset` as a main-surface position tracker is now
+   transitional. It remains available for the owned-transcript fallback and
+   detail overlays but is no longer the target architecture for the primary
+   operator surface.
+
+### Proposed state and type names
+
+The following names are documented for implementation reference:
+
+- `TerminalHistorySink` — abstraction for committed transcript insertion
+- `TerminalHistoryInsertMode` — enum: `ScrollRegionInsert`,
+  `BottomNewlineFallback`, `OwnedTranscriptFallback`
+- `LiveBottomViewportState` — state for the reserved live viewport
+- `committed_history_flush_cursor` — position tracker for flush progress
+- `pending_history_flush_rows` — rows awaiting flush to terminal history
+- `live_tail_rows` — rows in the active live viewport
+- `detail_overlay_rows` — rows in the detail/overlay surface
+- `detail_overlay_scroll_offset` — scroll offset for overlay-only navigation
+- `surface_mode` — current `TerminalHistoryInsertMode` selection
+- `reserved_viewport_text_width` — wrap budget for the live bottom viewport
+
+### Relationship to existing batches
+
+Batches A through E remain valid as merged. This amendment adds a Batch F
+scope: the terminal-owned history cutover. Batch F is merge-gated by the
+existing Batches A–E and by ADR-041 D16–D21 (terminal history sink
+technical decisions).
+
 ## Consequences
 
 ### Positive
