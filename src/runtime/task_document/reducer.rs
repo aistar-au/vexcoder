@@ -176,6 +176,24 @@ impl TaskDocumentReducer {
                     }
                 }
             }
+            RuntimeEvent::TranscriptBlockPhaseUpdated {
+                index,
+                phase,
+                streaming,
+            } => {
+                if let Some(active) = doc.active_turn.as_mut() {
+                    for entry in &mut active.entries {
+                        if let TurnEntry::AssistantBlock { block, .. } = entry {
+                            if block.block_index == index {
+                                block.phase = phase;
+                                block.streaming = streaming;
+                                summary.active_turn_changed = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
             RuntimeEvent::ToolCall {
                 id,
                 name,

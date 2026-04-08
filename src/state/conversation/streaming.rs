@@ -321,6 +321,11 @@ impl ConversationManager {
 
     /// At the end of the final API round, change remaining Thinking entries
     /// from this round to FinalText and emit stream updates.
+    ///
+    /// ADR-045 Invariant A: phase mutations are routed through the reducer
+    /// via `apply_doc_event(RuntimeEvent::TranscriptBlockPhaseUpdated)` so
+    /// the document has a single write path.  A read-only pass collects the
+    /// block indices and content needed for the stream updates.
     pub(super) fn promote_thinking_blocks_to_final_text(
         &mut self,
         deferred_text_block_indices: &BTreeSet<usize>,
@@ -328,40 +333,50 @@ impl ConversationManager {
     ) {
         let round_start = self.current_round_entry_start;
 
-        let Some(doc) = self.task_doc.as_mut() else {
-            return;
+        // Read-only pass: collect block index + content for each Thinking block.
+        let promotions: Vec<(usize, String)> = {
+            let Some(doc) = self.task_doc.as_ref() else {
+                return;
+            };
+            let Some(active) = doc.active_turn.as_ref() else {
+                return;
+            };
+            active.entries[round_start..]
+                .iter()
+                .filter_map(|entry| {
+                    if let TurnEntry::AssistantBlock { block, .. } = entry {
+                        if block.phase == AssistantPhase::Thinking {
+                            let emit_content =
+                                if deferred_text_block_indices.contains(&block.block_index) {
+                                    block.content.clone()
+                                } else {
+                                    String::new()
+                                };
+                            return Some((block.block_index, emit_content));
+                        }
+                    }
+                    None
+                })
+                .collect()
         };
-        let Some(active) = doc.active_turn.as_mut() else {
-            return;
-        };
 
-        for entry in active.entries[round_start..].iter_mut() {
-            if let TurnEntry::AssistantBlock { block, .. } = entry {
-                if block.phase == AssistantPhase::Thinking {
-                    let full_content = block.content.clone();
-                    block.phase = AssistantPhase::Final;
-                    block.streaming = false;
+        // Write via reducer + emit stream updates (ADR-045 sole-writer).
+        for (block_index, emit_content) in promotions {
+            self.apply_doc_event(RuntimeEvent::TranscriptBlockPhaseUpdated {
+                index: block_index,
+                phase: AssistantPhase::Final,
+                streaming: false,
+            });
 
-                    // If the block was deferred, include the full content in
-                    // the FinalText emit.  Otherwise the content was already
-                    // streamed as Thinking deltas so emit empty content.
-                    let emit_content = if deferred_text_block_indices.contains(&block.block_index) {
-                        full_content
-                    } else {
-                        String::new()
-                    };
-
-                    emit_stream_update(
-                        stream_delta_tx,
-                        ConversationStreamUpdate::BlockStart {
-                            index: block.block_index,
-                            block: StreamBlock::FinalText {
-                                content: emit_content,
-                            },
-                        },
-                    );
-                }
-            }
+            emit_stream_update(
+                stream_delta_tx,
+                ConversationStreamUpdate::BlockStart {
+                    index: block_index,
+                    block: StreamBlock::FinalText {
+                        content: emit_content,
+                    },
+                },
+            );
         }
     }
 }
