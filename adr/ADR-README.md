@@ -29,7 +29,7 @@ All ADR files are stored under `adr/`.
 | [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active | Phase 1+2 merged; boundary tests now cover grouped, multiline, and `super::`-relative imports |
 | [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness | Accepted | All 8 decision items verified (2026-03-28) |
 | [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Accepted | All 6 coverage requirements verified (2026-03-28) |
-| [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Accepted (all batches A-E merged; terminal-owned history amendment 2026-04-08) | Batch F scope: terminal-owned history cutover; merge-gated by ADR-041 D17-D22 |
+| [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Accepted (all batches A-E merged; terminal-owned history amendment 2026-04-08) | Batch F scope: terminal-owned history cutover via ratatui inline viewport + terminal scrollback; merge-gated by ADR-041 D17-D22 |
 | [ADR-032](ADR-032-prompt-area-interactivity-and-context-guard.md) | Prompt area interactivity and context guard | Accepted (bottom-anchored prompt amendment 2026-04-08) | Item 9 transferred to ADR-033; items 10-14 align prompt with terminal-owned history model |
 | [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Accepted (all phases 1-4 merged) | 0 items remaining |
 | [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Hardening merged for serialized concurrency caps, prompt guard, explicit release, and normalized watch/boundary coverage |
@@ -37,7 +37,7 @@ All ADR files are stored under `adr/`.
 | [ADR-038](ADR-038-memory-first-architecture-with-minimal-disk-io.md) | Memory-first architecture with minimal disk I/O | Accepted (Batches D-H merged) | 0 items remaining |
 | [ADR-039](ADR-039-neutral-cli-voice-and-spatial-status-language.md) | Neutral CLI voice and spatial status language | Proposed (Batch A merged on main) | Batch A merged in PR #292; search.exclude path-boundary fix in PR #293; Batch D amended 2026-04-08 to target committed-history flush plus live viewport; remaining batches B-D cover vocabulary, active indicator, and paragraph progress stream |
 | [ADR-040](ADR-040-real-time-local-turn-telemetry.md) | Real-time local turn telemetry | Proposed (operator-surface contract amended 2026-04-08) | Telemetry labels updated to arrow notation in ADR-041; operator-surface items 22-23 amended for terminal-owned history model |
-| [ADR-041](ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md) | Transcript renderer wiring and compact tool paragraphs | Accepted (terminal history sink amendment 2026-04-08) | Normaliser flush, compact tool paragraphs, arrow telemetry labels; D17-D22 define terminal history sink, live viewport split, turn-boundary reset semantics, and idle u16 cap removal |
+| [ADR-041](ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md) | Transcript renderer wiring and compact tool paragraphs | Accepted (terminal history sink amendment 2026-04-08) | Normaliser flush, compact tool paragraphs, arrow telemetry labels; D17-D22 define ratatui-native inline viewport insertion, live viewport split, turn-boundary reset semantics, and idle u16 cap removal |
 | [ADR-043](ADR-043-structured-output-parser-adoption-gates.md) | Structured output parser adoption gates | Active, with open adoption gates | Present in tree but not the default runtime parser path; 3 gates: live wiring, parity, defect reduction |
 | [ADR-044](ADR-044-test-suite-scalability-and-fixture-patterns.md) | Test suite scalability and fixture patterns | Proposed | 3-phase implementation roadmap; Phase 1: aggregator + RAII helpers; Phase 2: builder API + async; Phase 3: parameterization + coverage |
 | [ADR-045](ADR-045-replay-first-task-document-and-single-writer-state.md) | Replay-first task document and single-writer state | Proposed | Defines `TaskDocumentCondenser` as sole writer, `RuntimeEventLog` as canonical persisted history, full event coverage requirement, full-fidelity checkpoints, and session rollback markers; supersedes lossy `persistable_snapshot` as canonical resume source |
@@ -60,11 +60,12 @@ the top-level `adr/` directory pending a housekeeping move.
 
 ADR-031 and ADR-041 now carry a terminal-owned history follow-up amendment
 (2026-04-08). ADR-031 defines the scroll ownership change and compatibility
-ladder (scroll-region insertion, newline fallback, owned-transcript fallback).
-ADR-041 D17-D22 define the technical cutover: terminal history sink,
-live viewport split, restricted main-surface scroll state, width-aware
-wrapping for new paths, turn-boundary reset semantics, and idle u16 cap
-removal. ADR-039 Batch D now targets committed-history flush plus live
+ladder (ratatui inline viewport insertion via `Terminal::insert_before(..)`,
+newline fallback, owned-transcript fallback). ADR-041 D17-D22 define the
+technical cutover: ratatui-native inline viewport adoption, live viewport
+split, restricted main-surface scroll state, width-aware wrapping for new
+paths, turn-boundary reset semantics, and idle u16 cap removal. ADR-039
+Batch D now targets committed-history flush plus live
 viewport rather than full app-owned upper-body scrolling. ADR-040 operator-
 surface items 22-23 are amended for the same terminal-owned history model.
 ADR-032 items 10-14 align the prompt area with the bottom-anchored viewport

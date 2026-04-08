@@ -294,9 +294,9 @@ Work should be split so that prerequisite batches land first in this order:
 Independent cleanup, tests, and renderer polish may proceed in parallel on
 remote branches, but merges must respect the dependency chain above.
 
-Batches A through E are merged into `main`. The implementation queue for
-this ADR is complete. No Batch F is currently defined by this ADR; any
-additional lane requires an ADR update before dispatch.
+Batches A through E are merged into `main`. Any further implementation lane
+must be recorded by ADR amendment before dispatch; the 2026-04-08 amendment
+below does exactly that for the terminal-owned history cutover.
 
 ## Batch descriptions
 
@@ -411,6 +411,18 @@ sessions:
 The operator surface target is amended. The terminal now owns committed
 transcript history above the viewport:
 
+The preferred implementation path is ratatui-native. The current tree already
+pins `ratatui = 0.29`, which provides `Viewport::Inline(..)`,
+`Terminal::with_options(..)`, and `Terminal::insert_before(..)` for an inline
+reserved viewport with committed lines inserted above it. Any app-local
+`TerminalHistorySink` should therefore be a thin wrapper over the ratatui
+terminal API rather than a bespoke escape-sequence subsystem.
+
+This remains compatible with the current frontend bootstrap because
+`src/terminal.rs` enables raw mode but does not enter the alternate screen.
+The main screen and its scrollback remain available as the owner of committed
+history, and Batch F must preserve that property.
+
 1. **Terminal owns committed history.** Stable transcript paragraphs are
    flushed upward through a terminal history sink (`TerminalHistorySink`)
    as soon as they become committed. The host terminal's scrollback buffer
@@ -434,11 +446,16 @@ transcript history above the viewport:
 
 5. **Compatibility ladder.** The terminal history sink supports three
    insertion modes in priority order:
-   - **Scroll-region insertion** (preferred): ANSI scroll-region escape
-     sequences insert committed lines above the reserved live viewport.
-   - **Newline fallback**: when scroll-region insertion is unavailable,
-     committed lines are flushed via newline writes that scroll the
-     terminal naturally.
+   - **Scroll-region insertion** (preferred): on the ratatui-native path,
+     `ManagedTuiFrontend` switches from `Terminal::new(..)` to
+     `Terminal::with_options(.. Viewport::Inline(..))` and flushes committed
+     rows with `Terminal::insert_before(..)`. When ratatui's
+     `scrolling-regions` feature is enabled, that API uses backend
+     scroll-region insertion above the reserved live viewport.
+   - **Newline fallback**: when scroll-region insertion is unavailable, the
+     same inline-viewport design may fall back to ratatui's
+     non-scrolling-region insertion path or explicit newline writes that
+     scroll the terminal naturally.
    - **Owned-transcript fallback**: when neither terminal insertion mode is
      viable (e.g., non-terminal output), the existing app-owned transcript
      renderer (`render_messages`, `render_task_layout`) remains active as
@@ -472,7 +489,7 @@ The following names are documented for implementation reference:
 
 Batches A through E remain valid as merged. This amendment adds a Batch F
 scope: the terminal-owned history cutover. Batch F is merge-gated by the
-existing Batches A–E and by ADR-041 D16–D21 (terminal history sink
+existing Batches A–E and by ADR-041 D17–D22 (terminal history sink
 technical decisions).
 
 ## Consequences

@@ -377,22 +377,40 @@ insertion into terminal history. The sink accepts fully-wrapped committed
 rows and writes them above the reserved live viewport using the active
 `TerminalHistoryInsertMode`:
 
-- `ScrollRegionInsert` — preferred; uses ANSI scroll-region escape sequences
-  to insert committed lines above the reserved viewport without disturbing
-  the live tail.
+The preferred implementation path is ratatui-native. The current tree already
+pins `ratatui = 0.29`, whose `Viewport::Inline(..)`,
+`Terminal::with_options(..)`, and `Terminal::insert_before(..)` APIs map
+directly onto this contract. `TerminalHistorySink` should therefore be a thin
+app-local wrapper over the ratatui terminal API, not a parallel bespoke
+renderer.
+
+- `ScrollRegionInsert` — preferred; uses the ratatui inline viewport path and
+  `Terminal::insert_before(..)`. When ratatui's `scrolling-regions` feature
+  is enabled, that API uses backend scroll-region insertion above the
+  reserved viewport without disturbing the live tail.
 - `BottomNewlineFallback` — when scroll-region insertion is unavailable,
-  committed lines are flushed via newline writes that scroll the terminal
-  naturally.
+  committed lines are flushed via ratatui's non-scrolling-region insertion
+  path or explicit newline writes that scroll the terminal naturally.
 - `OwnedTranscriptFallback` — when neither terminal insertion mode is viable
   (non-terminal output, pipe mode), the existing app-owned transcript
   renderer remains active and D15 governs its display-row expansion.
 
-The sink is wired in `src/tui_frontend.rs` as the integration point for
-terminal history insertion during the draw loop.
+Because `src/terminal.rs` does not enter the alternate screen today, host
+scrollback remains available to own committed history. Batch F must preserve
+that property.
+
+The managed frontend draw loop in `src/tui_frontend.rs` is the integration
+point for this change because it currently owns terminal setup, viewport
+sizing, and the `render_task_layout` / `render_messages` dispatch.
+
+The current tree does not yet enable ratatui's `scrolling-regions` feature in
+`Cargo.toml`, so Batch F must make that feature decision explicitly before it
+can rely on scroll-region semantics on the preferred path.
 
 ### D18: Split committed transcript rows from live viewport rows
 
-The renderer in `src/ui/render/mod.rs` is split into three explicit
+The cutover splits the managed frontend and renderer in
+`src/tui_frontend.rs` and `src/ui/render/mod.rs` into three explicit
 responsibilities:
 
 - `flush_committed_history()` — writes stable committed paragraphs into
@@ -457,12 +475,12 @@ committed-transcript position destruction.
 
 ### D22: Idle path no longer uses u16 Paragraph scroll
 
-The idle rendering path in `src/ui/render/mod.rs` (`render_messages`)
-no longer uses the `u16` `Paragraph::new().scroll()` tail-pin as the
-long-session history mechanism. Under terminal-owned history, idle
-committed content is flushed to terminal history and is no longer a
-`Paragraph` scroll surface. The `u16` cap (~65,000 display rows) ceases
-to be a session-length constraint.
+After the cutover, the idle rendering path in `src/ui/render/mod.rs`
+(`render_messages`) no longer uses the `u16` `Paragraph::new().scroll()`
+tail-pin as the long-session history mechanism. Under terminal-owned
+history, idle committed content is flushed to terminal history and is no
+longer a `Paragraph` scroll surface. The `u16` cap (~65,000 display rows)
+ceases to be a session-length constraint.
 
 ### Bug resolution mapping
 

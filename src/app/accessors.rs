@@ -338,7 +338,7 @@ impl TuiMode {
         children.into_iter().collect()
     }
 
-    pub fn set_history_content_width(&self, width: usize) {
+    pub fn set_display_column_width(&self, width: usize) {
         self.display_column_width.set(width.max(1));
     }
 

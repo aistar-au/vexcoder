@@ -518,7 +518,7 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
             task_state.composer_cursor = cursor;
             task_state.composer_focused = mode.composer_is_focused();
             let size = self.terminal.size().unwrap_or_default();
-            mode.set_history_content_width(size.width.max(1) as usize);
+            mode.set_display_column_width(size.width.max(1) as usize);
             let view = task_state.into_view_projection();
             let _ = self.terminal.draw(|frame| {
                 render_task_layout(frame, &view);
@@ -558,8 +558,8 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
                 let panes = split_three_pane_layout(area, input_rows);
                 frame.render_widget(Clear, area);
                 let history_lines = mode.history_lines();
-                let history_width = history_content_width_for_area(&history_lines, panes.history);
-                mode.set_history_content_width(history_width);
+                let content_width = history_content_width_for_area(&history_lines, panes.history);
+                mode.set_display_column_width(content_width);
 
                 let status = mode.status_line();
 
