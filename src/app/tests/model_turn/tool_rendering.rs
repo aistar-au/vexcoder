@@ -592,7 +592,7 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
 fn test_cross_round_duplicate_tool_calls_fold_across_assistant_blocks() {
     // Regression test: the model sends an empty or whitespace-only
     // AssistantBlock(FinalText) between each tool-call round.  The dedup
-    // tracker must survive those empty blocks so that identical consecutive
+    // tracker must navigate those empty blocks so that identical consecutive
     // tool calls across rounds are folded.
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
