@@ -5,6 +5,7 @@ use ratatui::{
     text::Text,
     widgets::{Clear, Paragraph, Widget},
 };
+use std::io::Write;
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
@@ -38,6 +39,9 @@ pub struct ManagedTuiFrontend {
     last_slash_picker_prefix: String,
     dismissed_slash_picker: bool,
     cached_slash_picker: Option<(String, usize, Option<SlashPickerState>)>,
+    /// Tracks the turn count seen at last flush so the full row projection is
+    /// skipped on frames where no new turns have been committed.
+    last_committed_turns_count: usize,
 }
 
 impl ManagedTuiFrontend {
@@ -58,6 +62,7 @@ impl ManagedTuiFrontend {
             last_slash_picker_prefix: String::new(),
             dismissed_slash_picker: false,
             cached_slash_picker: None,
+            last_committed_turns_count: 0,
         })
     }
 
@@ -562,10 +567,27 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
         mode.set_display_column_width(size.width.max(1) as usize);
 
         if self.tui.uses_inline_viewport() {
-            let committed_rows = mode.committed_transcript_rows();
-            let _ =
-                self.history_sink
-                    .flush(self.tui.inner_mut(), &committed_rows, size.width.max(1));
+            let current_count = mode.committed_turns_count();
+            if current_count > self.last_committed_turns_count {
+                let committed_rows = mode.committed_transcript_rows();
+                match self.history_sink.flush(
+                    self.tui.inner_mut(),
+                    &committed_rows,
+                    size.width.max(1),
+                ) {
+                    Ok(()) => {
+                        self.last_committed_turns_count = current_count;
+                    }
+                    Err(err) => {
+                        // insert_before failed (unsupported backend or I/O
+                        // error). Disable inline viewport so subsequent
+                        // frames fall back to the owned-transcript path
+                        // rather than silently losing committed content.
+                        let _ = writeln!(std::io::stderr(), "[vex] scrollback flush error — falling back to owned-transcript path: {err}");
+                        self.tui.disable_inline_viewport();
+                    }
+                }
+            }
         }
 
         let task_state = if self.tui.uses_inline_viewport() {

@@ -35,6 +35,15 @@ impl TuiHandle {
         self.inline_viewport
     }
 
+    /// Permanently disable the inline viewport for this session.
+    ///
+    /// Called when host-scrollback flush fails (e.g. unsupported backend or
+    /// I/O error) so subsequent frames fall back to the owned-transcript path
+    /// rather than silently losing committed content.
+    pub(crate) fn disable_inline_viewport(&mut self) {
+        self.inline_viewport = false;
+    }
+
     pub(crate) fn inner_mut(&mut self) -> &mut Terminal<CrosstermBackend<Stdout>> {
         &mut self.inner
     }

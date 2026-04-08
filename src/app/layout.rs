@@ -297,6 +297,13 @@ impl TuiMode {
         )
     }
 
+    /// Cheap O(1) count of committed-turn sources (completed turns plus
+    /// pre-session notices). Use this to short-circuit the full row projection
+    /// when nothing new has been committed since the last flush.
+    pub(crate) fn committed_turns_count(&self) -> usize {
+        self.task_doc.completed_turns.len() + self.pre_session_notices.len()
+    }
+
     fn visible_changed_files(&self) -> Vec<String> {
         let mut visible = std::collections::BTreeSet::new();
         for turn in &self.task_doc.completed_turns {
@@ -415,6 +422,15 @@ impl TuiMode {
     pub(crate) fn host_history_task_layout_state(&self) -> Option<TaskLayoutState> {
         self.build_task_layout_state_with_output_view(|mode, timeline_entries| {
             mode.host_history_output_view_with(timeline_entries)
+        })
+        .map(|mut state| {
+            // The live-tail output_rows in the host-owned scrollback path
+            // contain only the active turn. transcript_scroll_offset is
+            // derived from the full transcript and can exceed the active-only
+            // row count, which would blank the live viewport. Always anchor
+            // at the bottom tail.
+            state.output_scroll_offset = 0;
+            state
         })
     }
 
