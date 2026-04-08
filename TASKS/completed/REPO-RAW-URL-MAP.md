@@ -235,7 +235,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 224 | `src/runtime/secrets.rs` | ~263 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/secrets.rs> |
 | 225 | `src/runtime/session_task.rs` | ~158 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/session_task.rs> |
 | 226 | `src/runtime/task_document/model.rs` | ~226 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/task_document/model.rs> |
-| 227 | `src/runtime/task_document/reducer.rs` | ~380 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/task_document/reducer.rs> |
+| 227 | `src/runtime/task_document/condenser.rs` | ~380 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/task_document/condenser.rs> |
 | 228 | `src/runtime/task_document.rs` | ~13 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/task_document.rs> |
 | 229 | `src/runtime/task_document/task_state_bridge.rs` | ~274 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/task_document/task_state_bridge.rs> |
 | 230 | `src/runtime/task_document/tests.rs` | ~277 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/task_document/tests.rs> |

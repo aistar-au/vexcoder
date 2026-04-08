@@ -9,7 +9,7 @@ impl ConversationManager {
     /// Insert or update a stream block in the active turn and emit a
     /// `BlockStart` update to the TUI channel.
     ///
-    /// For deferred text blocks (tx is None) only the reducer state is updated;
+    /// For deferred text blocks (tx is None) only the condenser state is updated;
     /// the stream update is withheld until `flush_deferred_thinking_blocks` is
     /// called.
     pub(super) fn upsert_turn_block(
@@ -42,7 +42,7 @@ impl ConversationManager {
         }
         self.current_round_stream_block_count = index + 1;
 
-        // Apply the canonical block-start event to the reducer.
+        // Apply the canonical block-start event to the condenser.
         let event = match &block {
             StreamBlock::Thinking { content, collapsed } => {
                 Some(RuntimeEvent::TranscriptBlockStart {
@@ -60,7 +60,7 @@ impl ConversationManager {
                 },
             }),
             // RuntimeEvent::TranscriptBlockStart ignores ToolCall blocks in
-            // the reducer; use the dedicated ToolCall variant instead.
+            // the condenser; use the dedicated ToolCall variant instead.
             StreamBlock::ToolCall {
                 id, name, input, ..
             } => Some(RuntimeEvent::ToolCall {
@@ -84,9 +84,9 @@ impl ConversationManager {
     /// incremental suffix relative to what is already stored.  Returns the
     /// appended suffix so the caller can forward it to the stream.
     ///
-    /// ADR-045 Invariant A: all writes to `task_doc` go through the reducer
+    /// ADR-045 Invariant A: all writes to `task_doc` go through the condenser
     /// via `apply_doc_event`.  We compute the deduplicated delta with a
-    /// read-only pass, then emit `TranscriptBlockDelta` so the reducer
+    /// read-only pass, then emit `TranscriptBlockDelta` so the condenser
     /// performs the actual write.
     pub(super) fn append_text_delta(
         &mut self,
@@ -123,7 +123,7 @@ impl ConversationManager {
         };
 
         if !found_entry {
-            // No existing entry at this index; create one via the reducer.
+            // No existing entry at this index; create one via the condenser.
             self.upsert_turn_block(
                 index,
                 StreamBlock::Thinking {
@@ -139,7 +139,7 @@ impl ConversationManager {
             return String::new();
         }
 
-        // Write via reducer (ADR-045 sole-writer).
+        // Write via condenser (ADR-045 sole-writer).
         self.apply_doc_event(RuntimeEvent::TranscriptBlockDelta {
             index,
             delta: delta.clone(),
@@ -159,7 +159,7 @@ impl ConversationManager {
     /// Update the status of a ToolCall entry and re-emit a BlockStart update.
     /// Update the status of a ToolCall entry and re-emit a BlockStart update.
     ///
-    /// ADR-045 Invariant A: the status mutation is routed through the reducer
+    /// ADR-045 Invariant A: the status mutation is routed through the condenser
     /// via `apply_doc_event(RuntimeEvent::ToolCallStatusUpdated)` so the
     /// document has a single write path.  A read-only pass collects the
     /// entry index and block shape needed for the stream update.
@@ -202,7 +202,7 @@ impl ConversationManager {
         };
 
         if let Some((index, block)) = emit_info {
-            // Write via reducer (ADR-045 sole-writer).
+            // Write via condenser (ADR-045 sole-writer).
             self.apply_doc_event(RuntimeEvent::ToolCallStatusUpdated {
                 tool_call_id: tool_call_id.to_string(),
                 status,
@@ -322,7 +322,7 @@ impl ConversationManager {
     /// At the end of the final API round, change remaining Thinking entries
     /// from this round to FinalText and emit stream updates.
     ///
-    /// ADR-045 Invariant A: phase mutations are routed through the reducer
+    /// ADR-045 Invariant A: phase mutations are routed through the condenser
     /// via `apply_doc_event(RuntimeEvent::TranscriptBlockPhaseUpdated)` so
     /// the document has a single write path.  A read-only pass collects the
     /// block indices and content needed for the stream updates.
@@ -360,7 +360,7 @@ impl ConversationManager {
                 .collect()
         };
 
-        // Write via reducer + emit stream updates (ADR-045 sole-writer).
+        // Write via condenser + emit stream updates (ADR-045 sole-writer).
         for (block_index, emit_content) in promotions {
             self.apply_doc_event(RuntimeEvent::TranscriptBlockPhaseUpdated {
                 index: block_index,

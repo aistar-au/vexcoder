@@ -517,10 +517,10 @@ mod tests {
 
     #[test]
     fn transcript_display_rows_projects_from_task_doc() {
-        use crate::runtime::task_document::TaskDocumentReducer;
+        use crate::runtime::task_document::TaskDocumentCondenser;
         let mut mode = TuiMode::new();
-        let reducer = TaskDocumentReducer;
-        reducer.begin_turn(
+        let condenser = TaskDocumentCondenser;
+        condenser.begin_turn(
             &mut mode.task_doc,
             "> hi".to_string(),
             0,

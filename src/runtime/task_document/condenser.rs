@@ -10,13 +10,15 @@ use super::{
     TaskDocument, TaskErrorState, TaskMeta, TurnDocument, TurnEntry, TurnOutcome,
 };
 
-/// Stateless reducer that applies [`RuntimeEvent`] mutations to a
+/// Stateless condenser that applies [`RuntimeEvent`] mutations to a
 /// [`TaskDocument`] and produces snapshot adapters compatible with the
 /// existing [`crate::runtime::TaskState`] persistence format.
+///
+/// Renamed from `TaskDocumentCondenser` per ADR-045 sole-writer contract.
 #[derive(Debug, Default)]
-pub struct TaskDocumentReducer;
+pub struct TaskDocumentCondenser;
 
-/// Summary of what changed after a single reducer call. Callers use this to
+/// Summary of what changed after a single condenser call. Callers use this to
 /// drive incremental UI updates without re-rendering the whole document.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TaskMutationSummary {
@@ -27,7 +29,7 @@ pub struct TaskMutationSummary {
     pub approval_changed: bool,
 }
 
-impl TaskDocumentReducer {
+impl TaskDocumentCondenser {
     pub fn new() -> Self {
         Self
     }

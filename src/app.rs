@@ -26,7 +26,7 @@ use crate::runtime::{
     format_command_session_cancelled, format_command_session_exit, format_command_session_output,
     format_command_session_started, truncate_head_bytes, ApprovalScope, Capability, CommandRequest,
     CommandRunner, ConfiguredSandbox, DefaultCommandRunner, EditLoopOutcome, SandboxDriver,
-    TaskDocument, TaskDocumentReducer, TaskState, TaskStatus, TurnOutcome, UiUpdate,
+    TaskDocument, TaskDocumentCondenser, TaskState, TaskStatus, TurnOutcome, UiUpdate,
 };
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
@@ -378,7 +378,7 @@ pub struct TuiMode {
     /// grants, and metadata.  Replaces the legacy `TaskState` + per-turn
     /// transcript buffers.
     task_doc: TaskDocument,
-    task_doc_reducer: TaskDocumentReducer,
+    task_doc_condenser: TaskDocumentCondenser,
     /// System notices that arrived before the first turn opened (e.g. notes
     /// warnings, sandbox state).  Shown at the top of the transcript.
     pre_session_notices: Vec<String>,

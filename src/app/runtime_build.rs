@@ -27,7 +27,7 @@ pub fn build_runtime_with_resume(
     let status = format!("{:?}", resume_state.status);
     let task_doc = runtime
         .mode
-        .task_doc_reducer
+        .task_doc_condenser
         .restore_from_snapshot(resume_state);
     runtime.mode.task_doc = task_doc;
     if let Some(path_str) = runtime.mode.task_doc.meta.instructions_path.clone() {

@@ -20,7 +20,7 @@ impl TuiMode {
     pub(super) fn apply_resumed_task(&mut self, state: TaskState, ctx: &RuntimeContext) {
         let restored_id = state.id.clone();
         let status = format!("{:?}", state.status);
-        let task_doc = self.task_doc_reducer.restore_from_snapshot(state);
+        let task_doc = self.task_doc_condenser.restore_from_snapshot(state);
         self.task_doc = task_doc;
         if let Some(path_str) = self.task_doc.meta.instructions_path.clone() {
             self.instructions_path = Some(path_str);
@@ -95,7 +95,7 @@ impl TuiMode {
     /// Persist the current task document to disk via the legacy TaskState
     /// bridge format.  Persistence errors are non-fatal.
     pub(super) fn persist_task_document(&mut self) {
-        let snapshot = self.task_doc_reducer.persistable_snapshot(&self.task_doc);
+        let snapshot = self.task_doc_condenser.persistable_snapshot(&self.task_doc);
         let dir = TaskState::state_dir_from(&self.working_dir);
         if let Err(error) = snapshot.save(&dir) {
             eprintln!("[state] save failed: {error}");
@@ -127,7 +127,7 @@ impl TuiMode {
         tool_policy: crate::state::TurnToolPolicy,
     ) {
         self.reset_turn_capture();
-        self.task_doc_reducer
+        self.task_doc_condenser
             .begin_turn(&mut self.task_doc, input, now_millis(), tool_policy);
         self.set_task_status(TaskStatus::Running);
         self.transcript_scroll_offset = 0;
@@ -229,7 +229,7 @@ impl TuiMode {
         self.last_turn_ttft = self.ttft;
         self.last_error_message = None;
 
-        self.task_doc_reducer.finish_turn(
+        self.task_doc_condenser.finish_turn(
             &mut self.task_doc,
             TurnOutcome::Completed,
             turn_tokens,

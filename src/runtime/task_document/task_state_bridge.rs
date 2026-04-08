@@ -6,11 +6,11 @@ use crate::state::ToolStatus;
 use crate::turn_evidence::{ToolInvocationSummary, TurnEvidenceState};
 
 use super::{
-    AssistantBlockEntry, AssistantPhase, TaskDocument, TaskDocumentReducer, TaskMeta, TurnDocument,
-    TurnEntry, TurnOutcome,
+    AssistantBlockEntry, AssistantPhase, TaskDocument, TaskDocumentCondenser, TaskMeta,
+    TurnDocument, TurnEntry, TurnOutcome,
 };
 
-impl TaskDocumentReducer {
+impl TaskDocumentCondenser {
     /// Produce a [`TaskState`] snapshot suitable for persistence. This is a
     /// lossy projection: completed turns are summarised as
     /// [`TurnEvidenceState`] records.

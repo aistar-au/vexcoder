@@ -14,7 +14,7 @@ impl TuiMode {
     pub fn new_with_config(notes_path: Option<PathBuf>, config: Config) -> Self {
         let custom_commands =
             load_custom_commands(&config.working_dir, &builtin_slash_command_names());
-        let task_doc_reducer = TaskDocumentReducer::new();
+        let task_doc_condenser = TaskDocumentCondenser::new();
         let initial_meta = crate::runtime::TaskMeta {
             id: new_task_id(),
             status: TaskStatus::Ready,
@@ -32,7 +32,7 @@ impl TuiMode {
             active_grants: std::collections::HashMap::new(),
             next_step_id: 0,
         };
-        let task_doc = task_doc_reducer.begin_task(initial_meta);
+        let task_doc = task_doc_condenser.begin_task(initial_meta);
         Self {
             overlay_state: OverlayState::default(),
             repo_label: resolve_repo_label(),
@@ -54,7 +54,7 @@ impl TuiMode {
             custom_commands,
             last_assembled_context: None,
             task_doc,
-            task_doc_reducer,
+            task_doc_condenser,
             pre_session_notices: Vec::new(),
             streaming_tool_input_buffers: std::collections::HashMap::new(),
             stream_uses_block_deltas: false,
