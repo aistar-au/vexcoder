@@ -589,6 +589,137 @@ fn test_same_name_different_target_tool_calls_fold_into_paragraph() {
 // -- transcript rendering ----------------------------------------------------
 
 #[test]
+fn test_cross_round_duplicate_tool_calls_fold_across_assistant_blocks() {
+    // Regression test: the model sends an empty or whitespace-only
+    // AssistantBlock(FinalText) between each tool-call round.  The dedup
+    // tracker must survive those empty blocks so that identical consecutive
+    // tool calls across rounds are folded.
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("read release workflow".to_string(), &mut ctx);
+
+    let input = serde_json::json!({"path": ".github/workflows/release.yml"});
+
+    // Round 1: assistant says "I'll read..." → tool call → tool result
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::FinalText {
+                content: String::new(),
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        tool_call_start(1, "t1", "read_file", input.clone()),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(2, "t1", "name: release"), &mut ctx);
+
+    // Round 2: empty assistant block → identical tool call → same result
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 3,
+            block: StreamBlock::FinalText {
+                content: String::new(),
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        tool_call_start(4, "t2", "read_file", input.clone()),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(5, "t2", "name: release"), &mut ctx);
+
+    // Round 3: another empty assistant block → third identical call
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 6,
+            block: StreamBlock::FinalText {
+                content: String::new(),
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        tool_call_start(7, "t3", "read_file", input.clone()),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(8, "t3", "name: release"), &mut ctx);
+
+    let lines = &mode.history_lines();
+    let tool_headers: Vec<_> = lines
+        .iter()
+        .filter(|l| l.starts_with("[tool] read_file"))
+        .collect();
+    assert_eq!(
+        tool_headers.len(),
+        1,
+        "cross-round duplicates separated by empty assistant blocks must fold; got:\n{:#?}",
+        lines
+    );
+    assert!(
+        lines.iter().any(|l| l.contains("repeated \u{d7}3")),
+        "expected fold indicator showing 3 identical calls; got:\n{:#?}",
+        lines
+    );
+}
+
+#[test]
+fn test_substantive_assistant_block_resets_dedup_tracker() {
+    // When the model sends a non-empty assistant text block between tool
+    // calls, the dedup tracker should reset so the next call renders fully.
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("examine files".to_string(), &mut ctx);
+
+    let input = serde_json::json!({"path": "src/main.rs"});
+
+    // Round 1
+    mode.on_model_update(
+        tool_call_start(0, "t1", "read_file", input.clone()),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(1, "t1", "fn main() {}"), &mut ctx);
+
+    // Non-empty assistant text resets the tracker
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 2,
+            block: StreamBlock::FinalText {
+                content: "Let me check the same file again with different parameters.".to_string(),
+            },
+        },
+        &mut ctx,
+    );
+
+    // Round 2: identical tool call, but preceded by substantive text
+    mode.on_model_update(
+        tool_call_start(3, "t2", "read_file", input.clone()),
+        &mut ctx,
+    );
+    mode.on_model_update(tool_result(4, "t2", "fn main() {}"), &mut ctx);
+
+    let lines = &mode.history_lines();
+    let tool_headers: Vec<_> = lines
+        .iter()
+        .filter(|l| l.starts_with("[tool] read_file"))
+        .collect();
+    assert_eq!(
+        tool_headers.len(),
+        2,
+        "substantive assistant text between identical tool calls must reset the tracker; got:\n{:#?}",
+        lines
+    );
+    assert!(
+        !lines.iter().any(|l| l.starts_with("[detail] (repeated")),
+        "no fold indicator when assistant text intervenes; got:\n{:#?}",
+        lines
+    );
+}
+
+#[test]
 fn test_long_transcript_line_marks_omitted_characters() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();

@@ -405,14 +405,26 @@ pub(crate) fn truncate_line(input: &str, width: usize) -> String {
     out
 }
 
+#[cfg(test)]
 pub(crate) fn task_output_window(
     state: &TaskViewProjection,
     viewport_width: u16,
     viewport_height: usize,
 ) -> (usize, usize) {
+    let total = expand_rows_for_display(&state.output_rows, viewport_width).len();
+    task_output_window_with_total(state, total, viewport_height)
+}
+
+/// Compute the visible (start, end) range given a precomputed `total` row
+/// count, avoiding a redundant `expand_rows_for_display` call when the
+/// caller already has the expanded rows.
+pub(crate) fn task_output_window_with_total(
+    state: &TaskViewProjection,
+    total: usize,
+    viewport_height: usize,
+) -> (usize, usize) {
     const INSPECTOR_VIEWPORT_ROWS: usize = 6;
 
-    let total = expand_rows_for_display(&state.output_rows, viewport_width).len();
     if viewport_height == 0 || total == 0 {
         return (0, 0);
     }
@@ -448,11 +460,16 @@ pub(crate) fn task_output_render_area(
         };
     }
 
+    let height = visible_rows.min(area.height as usize) as u16;
+    // Bottom-align the output within the available area so the transcript
+    // appears directly above the input pane rather than leaving a gap at the
+    // bottom when content is shorter than the viewport.
+    let y_offset = area.height.saturating_sub(height);
     Rect {
         x: area.x,
-        y: area.y,
+        y: area.y + y_offset,
         width: area.width,
-        height: visible_rows.min(area.height as usize) as u16,
+        height,
     }
 }
 

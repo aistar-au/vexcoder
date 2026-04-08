@@ -324,13 +324,17 @@ fn task_layout_without_changed_files_starts_short_transcript_below_status_row() 
                 .join("")
         })
         .collect();
-    let first_non_empty = rows
+    let body_row_pos = rows
         .iter()
         .position(|row| row.contains("body row"))
         .expect("body row must appear in rendered output");
+    // With bottom-aligned output, a single body row should appear near the
+    // bottom of the output area (just above the input pane), not at the top.
+    // The input pane occupies the last 3 rows (rows 13-15 in 0-indexed 16-row
+    // terminal), so the body row must be within the output region.
     assert!(
-        first_non_empty <= 1,
-        "short transcript should start directly below the status row so new output grows downward before scrollback engages"
+        body_row_pos > 1 && body_row_pos < 13,
+        "bottom-aligned transcript should place short content within the output area above the input pane (rows 2-12); found at row {body_row_pos}"
     );
 }
 
@@ -354,6 +358,32 @@ fn task_output_window_uses_expanded_display_rows() {
 
     let (start, end) = task_output_window(&state, 10, 2);
     assert_eq!((start, end), (expanded.len() - 2, expanded.len()));
+}
+
+#[test]
+fn task_output_render_area_bottom_aligns_content() {
+    let state = crate::app::TaskViewProjection {
+        status_line: String::new(),
+        output_rows: vec![],
+        output_scroll_offset: 0,
+        output_scroll_anchor: crate::app::OutputScrollAnchor::Bottom,
+        composer_text: String::new(),
+        composer_cursor: 0,
+        composer_focused: true,
+        picker_overlay: vec![],
+    };
+    let area = ratatui::layout::Rect::new(0, 0, 80, 20);
+    // When visible_rows < area.height, the render rect must be bottom-aligned.
+    let render_area = task_output_render_area(&state, area, 5);
+    assert_eq!(
+        render_area.y, 15,
+        "content should be bottom-aligned: y = area.height - visible_rows"
+    );
+    assert_eq!(render_area.height, 5);
+    // When visible_rows fills the area, y stays at 0.
+    let render_area_full = task_output_render_area(&state, area, 20);
+    assert_eq!(render_area_full.y, 0);
+    assert_eq!(render_area_full.height, 20);
 }
 
 #[test]
