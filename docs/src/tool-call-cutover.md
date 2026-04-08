@@ -83,7 +83,7 @@ choices so the UI, parser, and API route all move in the same direction.
 - Plain `StreamDelta` text is normalized into synthetic
   `final_text` transcript blocks (`transcript_block_start`,
   `transcript_block_delta`, `transcript_block_complete`) instead of emitting a
-  separate live `assistant_delta` / terminal `assistant_message` pair.
+  separate live `assistant_delta` / final `assistant_message` pair.
 - The `assistant_delta` and `assistant_message` events are removed. All
   downstream consumers must read transcript block events only.
 

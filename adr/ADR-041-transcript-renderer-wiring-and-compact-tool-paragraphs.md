@@ -80,7 +80,7 @@ demand.
 - Tool call sections consume roughly half the vertical space they did
   before, keeping the prompt area visible during multi-tool turns.
 - The telemetry line is more compact; `↑`/`↓` are standard Unicode
-  arrows supported by all terminal emulators that support the existing
+  arrows supported by all CLI hosts that support the existing
   braille spinner characters.
 - Snapshot and unit tests updated to reflect the new evidence-line
   count (3 instead of 6) and arrow labels.
@@ -297,7 +297,7 @@ continue to exercise the same logic.
 
 The root cause this resolves: long model responses emitted without embedded
 newlines produced a single logical row that was silently truncated to the
-terminal width by `truncate_to_width` inside `draw_inline_markdown`, making
+display width by `truncate_to_width` inside `draw_inline_markdown`, making
 the remainder of the response invisible and preventing upward scrolling past
 the truncated row.
 
@@ -360,3 +360,144 @@ Additional unused-code cleanup in the same pass:
 - `execute_tool_with_timeout` in `tools/mod.rs` and
   `execute_tool_dispatch` in `tools/dispatch.rs` converted to
   `#[cfg(test)]` — simplifiedshims used only by unit tests.
+
+---
+
+## Amendment — 2026-04-08: Host scrollback sink and live viewport technical cutover
+
+This amendment defines the technical decisions for the host-owned scrollback
+cutover described in ADR-031 amendment 2026-04-08. D15 remains valid for the
+transcript overlay and owned-transcript fallback, but not as the main
+indefinite scroll owner.
+
+### D17: Host scrollback sink abstraction
+
+Introduce `HostScrollbackSink` as the abstraction for committed transcript
+insertion into host scrollback. The sink accepts fully-wrapped committed
+rows and writes them above the reserved live viewport using the active
+`HostInsertMode`:
+
+The preferred implementation path is ratatui-native. The current tree already
+pins `ratatui = 0.29`, whose `Viewport::Inline(..)`,
+`with_options(..)`, and `insert_before(..)` APIs map
+directly onto this contract. `HostScrollbackSink` should therefore be a thin
+app-local wrapper over the ratatui API, not a parallel bespoke
+renderer.
+
+- `ScrollRegionInsert` — preferred; uses the ratatui inline viewport path and
+  `insert_before(..)`. When ratatui's `scrolling-regions` feature
+  is enabled, that API uses backend scroll-region insertion above the
+  reserved viewport without disturbing the live tail.
+- `BottomNewlineFallback` — when scroll-region insertion is unavailable,
+  committed lines are flushed via ratatui's non-scrolling-region insertion
+  path or explicit newline writes that scroll the host naturally.
+- `OwnedTranscriptFallback` — when neither host insertion mode is viable
+  (non-TTY output, pipe mode), the existing app-owned transcript
+  renderer remains active and D15 governs its display-row expansion.
+
+Because `src/tui_handle.rs` does not enter the alternate screen today, host
+scrollback remains available to own committed history. Batch F must preserve
+that property.
+
+The managed frontend draw loop in `src/tui_frontend.rs` is the integration
+point for this change because it currently owns host setup, viewport
+sizing, and the `render_task_layout` / `render_messages` dispatch.
+
+The current tree does not yet enable ratatui's `scrolling-regions` feature in
+`Cargo.toml`, so Batch F must make that feature decision explicitly before it
+can rely on scroll-region semantics on the preferred path.
+
+### D18: Split committed transcript rows from live viewport rows
+
+The cutover splits the managed frontend and renderer in
+`src/tui_frontend.rs` and `src/ui/render/mod.rs` into three explicit
+responsibilities:
+
+- `flush_committed_history()` — writes stable committed paragraphs into
+  host scrollback through the `HostScrollbackSink`.
+- `render_live_bottom_viewport()` — renders the live tail (current response,
+  active tools, approval surfaces) in the reserved bottom viewport.
+- `render_detail_overlay()` — renders the detail/overlay surface for
+  structured transcript navigation.
+
+The current `render_messages()` and `render_task_layout()` functions are the
+cut points. They remain available for the `OwnedTranscriptFallback` path
+but are no longer the main rendering path.
+
+### D19: Restrict main-surface scroll state to live tail and detail overlays
+
+After the host-owned scrollback cutover, `transcript_scroll_offset` in
+`src/app.rs` no longer governs committed history position on the main
+surface. The replacement state model:
+
+- `committed_history_flush_cursor` — tracks flush progress into host scrollback
+  history. Replaces the main-surface meaning of `transcript_scroll_offset`.
+- `detail_overlay_scroll_offset` — scroll offset for the overlay/detail
+  surface only.
+- `surface_mode` — the active `HostInsertMode` selection.
+
+Committed history is not app-scrolled on the main path. The host's
+scrollback buffer or the detail overlay provides review.
+
+### D20: Width-aware wrapping for new rendering paths
+
+Width-aware wrapping is retained for:
+- Live viewport rendering (`wrap_live_tail_line`)
+- Transcript overlay rendering (D15 `expand_rows_for_display` path)
+- Owned-transcript fallback (D15 path)
+
+A new `wrap_committed_history_line` helper wraps committed rows to
+`reserved_viewport_text_width` before flushing to host scrollback. A
+`build_terminal_history_insert_lines` helper batches wrapped committed
+rows into host scrollback insertion sequences.
+
+Stop using main-surface full-history display-row expansion as the indefinite
+scroll owner. `expand_rows_for_display()` in `src/ui/render/transcript.rs`
+is narrowed to overlay and owned-transcript fallback use only.
+
+### D21: Turn-boundary reset semantics
+
+Turn-boundary resets in `src/app/turn.rs` (`reset_turn_capture`,
+`begin_turn_capture`, `complete_turn_if_idle`) and `src/app/model_update.rs`
+(`EditLoopComplete`, `UiUpdate::Error`) may clear:
+
+- Live-tail ephemeral state (streaming buffers, pending rows)
+- Overlay-local detail scroll offset (`detail_overlay_scroll_offset`)
+
+Turn-boundary resets must **not** forcibly destroy committed-history review
+semantics. Specifically, they must not zero the committed history flush
+cursor or interfere with the operator's position in the host
+scrollback.
+
+The current `self.transcript_scroll_offset = 0` assignments at turn
+boundaries become live-tail and overlay resets only, not main-surface
+committed-transcript position destruction.
+
+### D22: Idle path no longer uses u16 Paragraph scroll
+
+After the cutover, the idle rendering path in `src/ui/render/mod.rs`
+(`render_messages`) no longer uses the `u16` `Paragraph::new().scroll()`
+tail-pin as the long-session history mechanism. Under host-owned scrollback
+history, idle committed content is flushed to host scrollback and is no
+longer a `Paragraph` scroll surface. The `u16` cap (~65,000 display rows)
+ceases to be a session-length constraint.
+
+### Bug resolution mapping
+
+The six identified scroll defects map to this cutover:
+
+1. **Idle 65k cap** (`src/ui/render/mod.rs` u16 cast) — resolved by D22;
+   idle committed history is no longer a `Paragraph` scroll surface.
+2. **Jump-to-bottom resets** (`src/app/turn.rs`, `src/app/model_update.rs`
+   forced `transcript_scroll_offset = 0`) — resolved by D21; turn-boundary
+   resets no longer destroy committed-history review position.
+3. **Structural row clipping** (`src/ui/render/transcript.rs`,
+   `src/ui/render/mod.rs` no-wrap on structural lines) — becomes overlay or
+   fallback concern only (D20).
+4. **O(n) scroll cost** (`src/ui/render/transcript.rs`
+   `expand_rows_for_display`, `src/app/scroll.rs`) — drops out of the main
+   render loop (D18, D20); full expansion remains only for overlay/fallback.
+5. **Weak inspector cap** (`src/app/layout.rs` six-row hard cap) — becomes
+   an overlay/pager concern rather than the main output surface.
+6. **No idle interactive scroll** (`src/ui/render/mod.rs` always tail-pinned)
+   — resolved by delegating idle review to host scrollback (D17, D19).

@@ -14,7 +14,7 @@ use vexcoder::init::{
 };
 use vexcoder::pr_summary::{prepare_pr_summary_prompt, run_branch, run_pr_summary_with_batch};
 use vexcoder::runtime::{TaskState, TaskStatus};
-use vexcoder::startup::{looks_like_terminal_transcript, should_ignore_startup_paste_text};
+use vexcoder::startup::{looks_like_session_output, should_ignore_startup_paste_text};
 use vexcoder::tui_frontend::{
     active_file_picker, active_slash_picker, apply_file_picker_selection,
     apply_slash_picker_selection, build_file_overlay, build_slash_overlay,
@@ -148,7 +148,7 @@ fn test_emit_migrate_config_output_writes_requested_file() {
 fn transcript_detection_matches_following_view_dump() {
     let input =
         "mode:ready approval:none history:9 view:scrolled\n1 | > list files\ntest result: ok.";
-    assert!(looks_like_terminal_transcript(input));
+    assert!(looks_like_session_output(input));
 }
 
 #[test]
@@ -157,13 +157,13 @@ fn transcript_detection_matches_cargo_test_noise() {
         "Running tests/integration_test.rs (target/debug/deps/integration_test-b458ef4801b11438)\n\
                      test result: ok. 2 passed; 0 failed; 0 ignored;\n\
                      Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s";
-    assert!(looks_like_terminal_transcript(input));
+    assert!(looks_like_session_output(input));
 }
 
 #[test]
 fn transcript_detection_keeps_normal_prompt() {
     let input = "list files in this directory and summarize in one sentence";
-    assert!(!looks_like_terminal_transcript(input));
+    assert!(!looks_like_session_output(input));
 }
 
 #[test]

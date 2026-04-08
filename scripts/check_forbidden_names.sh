@@ -271,6 +271,7 @@ tone_words=(
   $'\x64\x65\x63\x6f\x6d\x70\x6f\x73\x65\x64'
   $'\x64\x65\x63\x6f\x6d\x70\x6f\x73\x69\x6e\x67'
   $'\x64\x65\x63\x6f\x6d\x70\x6f\x73\x69\x74\x69\x6f\x6e'
+  $'\x74\x65\x72\x6d\x69\x6e\x61\x6c'
 )
 tone_regex="$(printf '%s|' "${tone_words[@]}")"
 tone_regex="${tone_regex%|}"
@@ -297,6 +298,13 @@ scan_tone_targets() {
       --glob '!adr/ADR-022-amendment-2026-03-13.md' \
       --glob '!adr/ADR-023-deterministic-edit-loop.md' \
       --glob '!adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md' \
+      --glob '!adr/completed/ADR-004-runtime-seam-headless-first.md' \
+      --glob '!adr/completed/ADR-006-runtime-mode-contracts.md' \
+      --glob '!adr/completed/ADR-013-tui-completion-deployment-plan.md' \
+      --glob '!adr/completed/ADR-017-append-single-session-runtime.md' \
+      --glob '!adr/completed/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md' \
+      --glob '!adr/completed/ADR-019-adr-018-follow-up-correctness-cutover-cleanup.md' \
+      --glob '!adr/completed/ADR-020-looping-architecture-enriched-response-correctness.md' \
       --glob '!adr/completed/ADR-027-full-screen-tui-command-session-capture.md' \
       "$pattern" "$@" | sed 's#\\#/#g'
     return
@@ -313,6 +321,13 @@ _TONE_EXCLUDES = {
     "adr/ADR-022-amendment-2026-03-13.md",
     "adr/ADR-023-deterministic-edit-loop.md",
     "adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md",
+    "adr/completed/ADR-004-runtime-seam-headless-first.md",
+    "adr/completed/ADR-006-runtime-mode-contracts.md",
+    "adr/completed/ADR-013-tui-completion-deployment-plan.md",
+    "adr/completed/ADR-017-append-single-session-runtime.md",
+    "adr/completed/ADR-018-managed-tui-scrollback-streaming-cell-overlays.md",
+    "adr/completed/ADR-019-adr-018-follow-up-correctness-cutover-cleanup.md",
+    "adr/completed/ADR-020-looping-architecture-enriched-response-correctness.md",
     "adr/completed/ADR-027-full-screen-tui-command-session-capture.md",
 }
 pattern = re.compile(sys.argv[1], re.IGNORECASE)

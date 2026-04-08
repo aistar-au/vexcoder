@@ -345,7 +345,7 @@ the matching endpoint path for the configured protocol.
 
 ### Bug 2 — TUI must own the alternate-screen session surface
 
-**Location:** `src/terminal.rs`
+**Location:** `src/tui_handle.rs`
 
 **Root cause:** The cli lifecycle notes drifted into contradictory wording.
 The interactive task surface is a fullscreen session and therefore must own the

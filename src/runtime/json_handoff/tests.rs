@@ -287,7 +287,7 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         } if capability == "apply-patch" && scope == "session"
     ));
 
-    let terminal = normalizer.normalize_ui_update(
+    let result = normalizer.normalize_ui_update(
         &UiUpdate::TurnComplete,
         Some(TurnEndContext {
             usage: Some(TokenUsageEnvelope {
@@ -298,9 +298,9 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
             changed_files: vec!["src/main.rs".to_string()],
         }),
     );
-    assert_eq!(terminal.len(), 1);
+    assert_eq!(result.len(), 1);
     assert!(matches!(
-        terminal[0].event,
+        result[0].event,
         RuntimeEvent::TurnEnd {
             ref status,
             usage: Some(TokenUsageEnvelope { input: 4, output: 2, estimated: false }),
@@ -462,22 +462,22 @@ fn test_pi_12_error_and_max_turn_sequences_follow_contract() {
         } if code == "warning" && message == "retry"
     ));
 
-    let terminal = normalizer.emit_error(
+    let result = normalizer.emit_error(
         "fatal".to_string(),
         "boom".to_string(),
         false,
         TurnEndContext::default(),
     );
-    assert_eq!(terminal.len(), 2);
+    assert_eq!(result.len(), 2);
     assert!(matches!(
-        terminal[0].event,
+        result[0].event,
         RuntimeEvent::Error {
             recoverable: false,
             ..
         }
     ));
     assert!(matches!(
-        terminal[1].event,
+        result[1].event,
         RuntimeEvent::TurnEnd { ref status, .. } if status == "failed"
     ));
 

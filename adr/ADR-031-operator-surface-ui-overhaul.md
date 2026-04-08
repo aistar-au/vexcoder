@@ -101,7 +101,7 @@ Key changes from the current implementation:
    the cap.
 7. Cross-platform resize robustness: the draw engine enforces a minimum viable
    surface (10×4), resets all hash state on resize, and performs a full repaint
-   to ensure consistent layout across Windows Terminal, GNOME, and macOS.
+   to ensure consistent layout across Windows CLI host, GNOME, and macOS.
 
 ### Task-state-first rule for this ADR
 
@@ -294,9 +294,9 @@ Work should be split so that prerequisite batches land first in this order:
 Independent cleanup, tests, and renderer polish may proceed in parallel on
 remote branches, but merges must respect the dependency chain above.
 
-Batches A through E are merged into `main`. The implementation queue for
-this ADR is complete. No Batch F is currently defined by this ADR; any
-additional lane requires an ADR update before dispatch.
+Batches A through E are merged into `main`. Any further implementation lane
+must be recorded by ADR amendment before dispatch; the 2026-04-08 amendment
+below does exactly that for the host-owned scrollback cutover.
 
 ## Batch descriptions
 
@@ -379,6 +379,118 @@ approval pause is runtime-owned or UI-owned, that is an execution-truth
 dependency and it must land first.
 
 This distinction is what ADR-030 is designed to protect.
+
+## Amendment — 2026-04-08: Host-owned scrollback and live bottom viewport
+
+### Scroll ownership change
+
+The original operator surface target described the scrolling transcript as an
+app-owned upper body where the TUI maintains scroll offsets across the full
+committed history. Analysis of six concrete scroll defects in the current
+implementation demonstrates that this model does not scale to indefinite
+sessions:
+
+1. The idle-mode `Paragraph::new().scroll()` path uses a `u16` offset
+   (`src/ui/render/mod.rs`), capping reviewable history at ~65,000 display
+   rows.
+2. Turn-boundary resets in `src/app/turn.rs` and `src/app/model_update.rs`
+   force `transcript_scroll_offset = 0`, destroying the operator's review
+   position whenever a turn completes or an error occurs.
+3. `expand_rows_for_display()` in `src/ui/render/transcript.rs` performs
+   O(n) full-history re-expansion every frame, growing linearly with session
+   length.
+4. The idle path is always tail-pinned with no interactive scroll support.
+5. The six-row inspector cap in `src/app/layout.rs` hard-limits detail
+   surface height.
+6. Structural no-wrap in `src/ui/render/transcript.rs` and
+   `src/ui/render/mod.rs` miscounts display rows for bracket-delimited
+   transcript markers.
+
+### Host-owned scrollback contract
+
+The operator surface target is amended. The host now owns committed
+transcript history above the viewport:
+
+The preferred implementation path is ratatui-native. The current tree already
+pins `ratatui = 0.29`, which provides `Viewport::Inline(..)`,
+`with_options(..)`, and `insert_before(..)` for an inline
+reserved viewport with committed lines inserted above it. Any app-local
+`HostScrollbackSink` should therefore be a thin wrapper over the ratatui
+ratatui API rather than a bespoke escape-sequence subsystem.
+
+This remains compatible with the current frontend bootstrap because
+`src/tui_handle.rs` enables raw mode but does not enter the alternate screen.
+The main screen and its scrollback remain available as the owner of committed
+history, and Batch F must preserve that property.
+
+1. **Host owns committed history.** Stable transcript paragraphs are
+   flushed upward through a host scrollback sink (`HostScrollbackSink`)
+   as soon as they become committed. The host's scrollback buffer
+   becomes the indefinite review surface for committed content.
+
+2. **App owns only the live tail.** The application retains ownership of the
+   live bottom viewport: the current response tail, composer or approval
+   surface, and status line. This reserved viewport occupies the bottom
+   portion of the viewport.
+
+3. **Committed paragraphs flush upward.** `flush_committed_history()` writes
+   stable paragraphs into host scrollback using the preferred insertion
+   mode. The app does not maintain scroll offsets for committed content on
+   the main surface.
+
+4. **Full-session review uses host scrollback or a transcript overlay.** The
+   operator reviews committed history by scrolling the host's
+   scrollback buffer. An explicit transcript overlay (detail surface) is
+   available for structured navigation within the app, but it is not the
+   primary review mechanism.
+
+5. **Compatibility ladder.** The host scrollback sink supports three
+   insertion modes in priority order:
+   - **Scroll-region insertion** (preferred): on the ratatui-native path,
+     `ManagedTuiFrontend` switches from ratatui's `new(..)` to
+     `with_options(.. Viewport::Inline(..))` and flushes committed
+     rows with `insert_before(..)`. When ratatui's
+     `scrolling-regions` feature is enabled, that API uses backend
+     scroll-region insertion above the reserved live viewport.
+   - **Newline fallback**: when scroll-region insertion is unavailable, the
+     same inline-viewport design may fall back to ratatui's
+     non-scrolling-region insertion path or explicit newline writes that
+     scroll the host naturally.
+   - **Owned-transcript fallback**: when neither host insertion mode is
+     viable (e.g., non-TTY output), the existing app-owned transcript
+     renderer (`render_messages`, `render_task_layout`) remains active as
+     the last fallback.
+
+6. **Current app-owned scroll path is transitional.** The scroll logic in
+   `src/ui/render/mod.rs`, `src/ui/render/transcript.rs`,
+   `src/app/scroll.rs`, and `src/app/turn.rs` that maintains
+   `transcript_scroll_offset` as a main-surface position tracker is now
+   transitional. It remains available for the owned-transcript fallback and
+   detail overlays but is no longer the target architecture for the primary
+   operator surface.
+
+### Proposed state and type names
+
+The following names are documented for implementation reference:
+
+- `HostScrollbackSink` — abstraction for committed transcript insertion
+- `HostInsertMode` — enum: `ScrollRegionInsert`,
+  `BottomNewlineFallback`, `OwnedTranscriptFallback`
+- `LiveBottomViewportState` — state for the reserved live viewport
+- `committed_history_flush_cursor` — position tracker for flush progress
+- `pending_history_flush_rows` — rows awaiting flush to host scrollback
+- `live_tail_rows` — rows in the active live viewport
+- `detail_overlay_rows` — rows in the detail/overlay surface
+- `detail_overlay_scroll_offset` — scroll offset for overlay-only navigation
+- `surface_mode` — current `HostInsertMode` selection
+- `reserved_viewport_text_width` — wrap budget for the live bottom viewport
+
+### Relationship to existing batches
+
+Batches A through E remain valid as merged. This amendment adds a Batch F
+scope: the host-owned scrollback cutover. Batch F is merge-gated by the
+existing Batches A–E and by ADR-041 D17–D22 (host scrollback sink
+technical decisions).
 
 ## Consequences
 

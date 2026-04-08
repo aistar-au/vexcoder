@@ -255,7 +255,7 @@ impl RuntimeEnvelopeNormalizer {
     pub fn normalize_ui_update(
         &mut self,
         update: &UiUpdate,
-        terminal: Option<TurnEndContext>,
+        turn_end: Option<TurnEndContext>,
     ) -> Vec<RuntimeEnvelope> {
         match update {
             UiUpdate::TranscriptLine(line) => {
@@ -291,12 +291,12 @@ impl RuntimeEnvelopeNormalizer {
             UiUpdate::StreamBlockComplete { index } => {
                 vec![self.next_envelope(RuntimeEvent::TranscriptBlockComplete { index: *index })]
             }
-            UiUpdate::TurnComplete => self.complete_turn(terminal.unwrap_or_default()),
+            UiUpdate::TurnComplete => self.complete_turn(turn_end.unwrap_or_default()),
             UiUpdate::Error(message) => self.emit_error(
                 "runtime_error".to_string(),
                 message.clone(),
                 false,
-                terminal.unwrap_or_default(),
+                turn_end.unwrap_or_default(),
             ),
             UiUpdate::ToolApprovalRequest(request) => {
                 let mut envelopes = self.close_open_final_text_block();
@@ -323,7 +323,7 @@ impl RuntimeEnvelopeNormalizer {
         code: String,
         message: String,
         recoverable: bool,
-        terminal: TurnEndContext,
+        turn_end: TurnEndContext,
     ) -> Vec<RuntimeEnvelope> {
         let mut envelopes = self.close_open_final_text_block();
         envelopes.push(self.next_envelope(RuntimeEvent::Error {
@@ -335,8 +335,8 @@ impl RuntimeEnvelopeNormalizer {
         if !recoverable {
             envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
                 status: "failed".to_string(),
-                usage: terminal.usage,
-                changed_files: self.resolve_changed_files(terminal.changed_files),
+                usage: turn_end.usage,
+                changed_files: self.resolve_changed_files(turn_end.changed_files),
             }));
         }
 
@@ -346,40 +346,40 @@ impl RuntimeEnvelopeNormalizer {
     pub fn emit_max_turns_reached(
         &mut self,
         max_turns: u32,
-        terminal: TurnEndContext,
+        turn_end: TurnEndContext,
     ) -> Vec<RuntimeEnvelope> {
         let mut envelopes = self.close_open_final_text_block();
         envelopes.push(self.next_envelope(RuntimeEvent::MaxTurnsReached { max_turns }));
         envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
             status: "failed".to_string(),
-            usage: terminal.usage,
-            changed_files: self.resolve_changed_files(terminal.changed_files),
+            usage: turn_end.usage,
+            changed_files: self.resolve_changed_files(turn_end.changed_files),
         }));
         envelopes
     }
 
-    pub fn emit_cancelled(&mut self, terminal: TurnEndContext) -> Vec<RuntimeEnvelope> {
-        self.finish_turn_with_status("cancelled", terminal)
+    pub fn emit_cancelled(&mut self, turn_end: TurnEndContext) -> Vec<RuntimeEnvelope> {
+        self.finish_turn_with_status("cancelled", turn_end)
     }
 
     pub fn emit_event(&mut self, event: RuntimeEvent) -> RuntimeEnvelope {
         self.next_envelope(event)
     }
 
-    fn complete_turn(&mut self, terminal: TurnEndContext) -> Vec<RuntimeEnvelope> {
-        self.finish_turn_with_status("completed", terminal)
+    fn complete_turn(&mut self, turn_end: TurnEndContext) -> Vec<RuntimeEnvelope> {
+        self.finish_turn_with_status("completed", turn_end)
     }
 
     fn finish_turn_with_status(
         &mut self,
         status: &str,
-        terminal: TurnEndContext,
+        turn_end: TurnEndContext,
     ) -> Vec<RuntimeEnvelope> {
         let mut envelopes = self.close_open_final_text_block();
         envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
             status: status.to_string(),
-            usage: terminal.usage,
-            changed_files: self.resolve_changed_files(terminal.changed_files),
+            usage: turn_end.usage,
+            changed_files: self.resolve_changed_files(turn_end.changed_files),
         }));
         envelopes
     }

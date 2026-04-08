@@ -117,13 +117,15 @@ streaming protocols.
 21. The waiting lane keeps the ADR-039 canonical phrase
     `Mapping adjacent sectors...` and appends telemetry rather than replacing
     the phrase.
-22. The direct ANSI CLI/app surface does not reserve a dedicated timeline
-    strip; one top-aligned scrolling transcript pane owns the full upper body
-    and renders waiting status, tool activity, approvals, and assistant output
-    as paragraphs in that shared stream.
+22. Under the host-owned scrollback model (ADR-031 amendment 2026-04-08),
+    committed transcript and stable telemetry summaries flush into host
+    scrollback through the host scrollback sink. The reserved live viewport at
+    the bottom renders only in-flight waiting status, active tool output,
+    approval surfaces, and the current response tail.
 23. The persistent bottom surface is limited to the multiline composer and
-    separate status bar; telemetry remains inline in transcript paragraphs,
-    while the status bar folds compact telemetry (mode, approval, latency),
+    separate status bar. There is no dedicated timeline strip. Telemetry
+    remains inline in transcript paragraphs (committed or live-tail), while
+    the status bar folds compact telemetry (mode, approval, latency),
     git branch (`\ue0a0branch`), token counters (`↑sent ↓received`), and
     change/activity counts into a single truncated line instead of claiming
     a dedicated fixed pane.

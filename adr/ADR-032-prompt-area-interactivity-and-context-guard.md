@@ -1,6 +1,6 @@
 # ADR-032: Prompt Area Interactivity and Context Guard
 
-- **Status:** Active
+- **Status:** Accepted
 - **Date:** 2026-03-22
 - **Deciders:** Core maintainer
 - **Depends on:** ADR-031, ADR-015
@@ -100,6 +100,30 @@ surface.
    - **Observe-revise self-correction**: agent runs tests/linters on
      changes, observes failures, then uses index to pull just the broken
      part for the next turn rather than re-scanning files.
+
+### Bottom-anchored prompt over host-owned scrollback
+
+10. Under the host-owned scrollback model (ADR-031 amendment 2026-04-08),
+    the prompt stays in a reserved bottom viewport. Committed transcript
+    history scrolls into the host's scrollback above the live
+    viewport.
+
+11. Up and Down keys in the multiline composer continue to mean cursor
+    motion, input history recall, or picker navigation within the composer.
+    They do not scroll the main-surface committed transcript. Main-surface
+    transcript inspection uses host scrollback.
+
+12. In-app transcript inspection, when needed, uses an explicit transcript
+    overlay (detail surface) rather than app-level idle transcript scrolling
+    on the main surface.
+
+13. Character count indicator, focus indicator, `/compact` recovery, `@`
+    file picker, and fullscreen reflow contracts remain unchanged by the
+    host-owned scrollback amendment.
+
+14. The prompt area must not imply that app-level idle transcript scrolling
+    is required for the main surface. Interactive transcript review on the
+    main path is delegated to host scrollback.
 
 ## Consequences
 

@@ -23,6 +23,17 @@ pub(super) fn project_transcript_rows(
     task_doc: &TaskDocument,
     pre_session_notices: &[String],
 ) -> Vec<TranscriptRow> {
+    let mut rows = project_committed_transcript_rows(task_doc, pre_session_notices);
+    rows.extend(project_active_transcript_rows(
+        task_doc.active_turn.as_ref(),
+    ));
+    rows
+}
+
+pub(crate) fn project_committed_transcript_rows(
+    task_doc: &TaskDocument,
+    pre_session_notices: &[String],
+) -> Vec<TranscriptRow> {
     let mut rows: Vec<TranscriptRow> = Vec::new();
 
     for notice in pre_session_notices {
@@ -33,10 +44,16 @@ pub(super) fn project_transcript_rows(
         append_turn_rows(&mut rows, &completed.entries);
     }
 
-    if let Some(active) = &task_doc.active_turn {
+    rows
+}
+
+pub(crate) fn project_active_transcript_rows(
+    active_turn: Option<&ActiveTurnDocument>,
+) -> Vec<TranscriptRow> {
+    let mut rows = Vec::new();
+    if let Some(active) = active_turn {
         append_active_turn_rows(&mut rows, active);
     }
-
     rows
 }
 

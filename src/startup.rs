@@ -59,7 +59,7 @@ fn transcript_signature_hits(text: &str) -> usize {
         .count()
 }
 
-pub fn looks_like_terminal_transcript(text: &str) -> bool {
+pub fn looks_like_session_output(text: &str) -> bool {
     let trimmed = text.trim();
     if trimmed.is_empty() {
         return false;
@@ -76,5 +76,5 @@ pub fn looks_like_terminal_transcript(text: &str) -> bool {
 }
 
 pub fn should_ignore_startup_paste_text(text: &str, within_startup_guard: bool) -> bool {
-    text.contains('\u{1b}') || (within_startup_guard && looks_like_terminal_transcript(text))
+    text.contains('\u{1b}') || (within_startup_guard && looks_like_session_output(text))
 }

@@ -118,7 +118,8 @@ task-state requirements, renderer tests, and the repository's own operator
 language decisions. External products may be used only as neutral category
 anchors such as transcript-first layout, compact footer budgeting,
 multiline composer behavior, overlay-based detail work, resize discipline,
-and append-first transcript redraw.
+append-first transcript redraw, host-owned scrollback, live bottom viewport,
+committed paragraph flush, and scroll-region insertion.
 
 The navigator or mapping theme must use repository-owned wording and symbols.
 External product names must not appear in user-facing surfaces, screenshots,
@@ -130,6 +131,31 @@ the implementation could otherwise read too close to an outside source.
 If third-party source code is ever reused, that reuse requires a separate
 license and attribution review. Otherwise, implementation must proceed from
 behavior specifications and repository-local tests only.
+
+#### IP enforcement rules for tracked ADR text
+
+1. **Allowed behavior categories only.** Tracked ADR text may reference
+   neutral behavior categories (host-owned scrollback, live bottom viewport,
+   committed paragraph flush, history sink, scroll-region insertion, newline
+   fallback, detail overlay, owned-transcript fallback). It must not reference
+   external product names, pane labels, or UI terminology derived from
+   external products.
+
+2. **Forbidden tracked wording.** Tracked files under `adr/`, `src/`,
+   `tests/`, `docs/`, and `TASKS/` must not contain external product names
+   even when the implementation was informed by external research. Provenance
+   notes belong in non-shipping research notes, not architecture records.
+
+3. **Forbidden product names in shipped prose.** External product names,
+   company names, and branded terminology must not appear in shipped ADR
+   prose, commit messages, or PR descriptions. The repository gate
+   `scripts/check_forbidden_names.sh` enforces this rule at CI time.
+
+4. **Required neutral terminology.** All new ADR amendments, task documents,
+   and implementation code must use repository-approved neutral terms. When
+   describing scroll ownership, use: host-owned scrollback, committed
+   history flush, live bottom viewport, history sink, scroll-region insertion,
+   newline fallback, detail overlay, and owned-transcript fallback.
 
 ---
 
