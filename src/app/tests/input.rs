@@ -285,6 +285,22 @@ fn test_prompt_hint_for_file_mentions_uses_cursor_scoped_token() {
     assert!(hint.contains("src/bar.rs"));
     assert!(!hint.contains("src/foo.rs"));
 }
+
+#[test]
+fn test_prompt_hint_for_directory_filter_shows_total_children() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("src/ui")).unwrap();
+    std::fs::write(temp.path().join("src/ui/editor.rs"), "fn hint() {}\n").unwrap();
+    std::fs::write(temp.path().join("src/lib.rs"), "pub fn lib() {}\n").unwrap();
+
+    let mut mode = TuiMode::new();
+    mode.working_dir = temp.path().to_path_buf();
+
+    let hint = mode.prompt_hint_for_input("inspect @src/u", "inspect @src/u".len());
+
+    assert!(hint.contains("[file] 1 shown of 2 in src/"), "hint: {hint}");
+    assert!(hint.contains("[file] src/ui/"), "hint: {hint}");
+}
 #[test]
 fn test_bang_prefix_requires_run_command_approval() {
     let temp = tempfile::tempdir().unwrap();

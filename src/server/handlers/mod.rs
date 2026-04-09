@@ -346,6 +346,8 @@ pub async fn turns_handler(
         quit: Arc::clone(&quit),
         turn_in_progress: false,
         interrupted: false,
+        active_command_sessions: std::collections::BTreeSet::new(),
+        turn_completion_pending: false,
     }));
 
     {

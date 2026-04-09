@@ -201,6 +201,7 @@ fn file_picker_hint_marks_selected_entry() {
     let hint = render_file_picker_hint(
         "inp",
         &["src/app/input.rs".into(), "src/app/inline.rs".into()],
+        2,
         1,
     );
     assert!(hint.contains("> [file] src/app/inline.rs"));
@@ -279,13 +280,13 @@ fn dismissed_file_picker_stays_suppressed_until_input_changes() {
 
 #[test]
 fn render_file_picker_hint_empty_matches_no_prefix() {
-    let hint = render_file_picker_hint("", &[], 0);
+    let hint = render_file_picker_hint("", &[], 0, 0);
     assert!(hint.contains("[file] no files available"), "hint: {hint}");
 }
 
 #[test]
 fn render_file_picker_hint_empty_matches_with_prefix() {
-    let hint = render_file_picker_hint("nonexist", &[], 0);
+    let hint = render_file_picker_hint("nonexist", &[], 0, 0);
     assert!(
         hint.contains("[file] no matches for nonexist"),
         "hint: {hint}"
@@ -297,6 +298,7 @@ fn render_file_picker_hint_clamps_selected_past_end() {
     let hint = render_file_picker_hint(
         "x",
         &["src/x.rs".into(), "src/xy.rs".into()],
+        2,
         999, // way past end
     );
     assert!(
@@ -307,7 +309,7 @@ fn render_file_picker_hint_clamps_selected_past_end() {
 
 #[test]
 fn render_file_picker_hint_single_match() {
-    let hint = render_file_picker_hint("exact", &["src/exact.rs".into()], 0);
+    let hint = render_file_picker_hint("exact", &["src/exact.rs".into()], 1, 0);
     assert!(hint.contains("[file] 1 match(es)"));
     assert!(hint.contains("> [file] src/exact.rs"));
 }
@@ -468,6 +470,7 @@ fn file_picker_directory_drill_shows_children() {
     // @src/ should show immediate children only
     let picker = active_file_picker(&mode, "@src/", "@src/".len()).expect("picker");
     assert_eq!(picker.prefix, "src/");
+    assert_eq!(picker.total_matches, 2);
     assert!(
         picker.matches.iter().any(|m| m == "src/ui/"),
         "should include dir: {:?}",
@@ -482,6 +485,35 @@ fn file_picker_directory_drill_shows_children() {
         !picker.matches.iter().any(|m| m == "src/ui/editor.rs"),
         "should NOT include nested file: {:?}",
         picker.matches
+    );
+}
+
+#[test]
+fn file_picker_directory_filter_reports_total_children() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("src/ui")).unwrap();
+    std::fs::write(temp.path().join("src/ui/editor.rs"), "").unwrap();
+    std::fs::write(temp.path().join("src/lib.rs"), "").unwrap();
+
+    let mut config = Config::default_for_tui();
+    config.working_dir = temp.path().to_path_buf();
+    let mode = TuiMode::new_with_config(None, config);
+
+    let picker = active_file_picker(&mode, "@src/u", "@src/u".len()).expect("picker");
+    assert_eq!(picker.matches, vec!["src/ui/".to_string()]);
+    assert_eq!(picker.total_matches, 2);
+
+    let overlay = build_file_overlay(&picker.prefix, &picker.matches, picker.total_matches, 0);
+    assert!(
+        overlay[0].text.contains("1 shown of 2 in src/"),
+        "header should show filtered and total directory counts: {:?}",
+        overlay[0]
+    );
+
+    let hint = render_file_picker_hint(&picker.prefix, &picker.matches, picker.total_matches, 0);
+    assert!(
+        hint.contains("[file] 1 shown of 2 in src/"),
+        "hint should show filtered and total directory counts: {hint}"
     );
 }
 
@@ -636,7 +668,7 @@ fn build_file_overlay_bare_at_returns_entries() {
     let mode = TuiMode::new_with_config(None, config);
 
     let picker = active_file_picker(&mode, "@", 1).expect("bare @ picker");
-    let overlay = build_file_overlay(&picker.prefix, &picker.matches, 0);
+    let overlay = build_file_overlay(&picker.prefix, &picker.matches, picker.total_matches, 0);
 
     // Must have at least a header line and one entry
     assert!(
@@ -663,7 +695,7 @@ fn build_file_overlay_bare_at_returns_entries() {
 
 #[test]
 fn build_file_overlay_empty_matches_shows_hint() {
-    let overlay = build_file_overlay("nonexist", &[], 0);
+    let overlay = build_file_overlay("nonexist", &[], 0, 0);
     assert_eq!(overlay.len(), 1);
     assert!(
         overlay[0].text.contains("no matches for nonexist"),
@@ -674,7 +706,7 @@ fn build_file_overlay_empty_matches_shows_hint() {
 
 #[test]
 fn build_file_overlay_bare_at_empty_shows_type_hint() {
-    let overlay = build_file_overlay("", &[], 0);
+    let overlay = build_file_overlay("", &[], 0, 0);
     assert_eq!(overlay.len(), 1);
     assert!(
         overlay[0].text.contains("type to search"),
@@ -687,9 +719,9 @@ fn build_file_overlay_bare_at_empty_shows_type_hint() {
 fn build_file_overlay_navigates_selection() {
     let matches: Vec<String> = vec!["src/a.rs".into(), "src/b.rs".into(), "src/c.rs".into()];
 
-    let overlay_0 = build_file_overlay("", &matches, 0);
-    let overlay_1 = build_file_overlay("", &matches, 1);
-    let overlay_2 = build_file_overlay("", &matches, 2);
+    let overlay_0 = build_file_overlay("", &matches, matches.len(), 0);
+    let overlay_1 = build_file_overlay("", &matches, matches.len(), 1);
+    let overlay_2 = build_file_overlay("", &matches, matches.len(), 2);
 
     // Selection at 0
     let sel_0 = overlay_0.iter().find(|l| l.selected).unwrap();
@@ -743,7 +775,7 @@ fn build_slash_overlay_empty_returns_empty() {
 #[test]
 fn file_overlay_clamps_selected_past_end() {
     let matches: Vec<String> = vec!["src/a.rs".into(), "src/b.rs".into()];
-    let overlay = build_file_overlay("", &matches, 999);
+    let overlay = build_file_overlay("", &matches, matches.len(), 999);
     let selected = overlay.iter().find(|l| l.selected).unwrap();
     assert!(
         selected.text.contains("src/b.rs"),
@@ -768,12 +800,12 @@ fn file_overlay_integration_with_active_picker() {
     let picker = active_file_picker(&mode, "@", 1).expect("@ must activate picker");
     assert!(!picker.matches.is_empty(), "@ must return file matches");
 
-    let overlay = build_file_overlay(&picker.prefix, &picker.matches, 0);
+    let overlay = build_file_overlay(&picker.prefix, &picker.matches, picker.total_matches, 0);
     assert!(overlay.len() >= 2, "overlay must show menu entries for @");
 
     // Simulate typing "@src/"
     let picker2 = active_file_picker(&mode, "@src/", 5).expect("@src/ picker");
-    let overlay2 = build_file_overlay(&picker2.prefix, &picker2.matches, 0);
+    let overlay2 = build_file_overlay(&picker2.prefix, &picker2.matches, picker2.total_matches, 0);
     assert!(
         overlay2.iter().any(|l| l.text.contains("src/ui/")),
         "directory drill-down must show children: {overlay2:?}"

@@ -134,6 +134,13 @@ impl StreamTextNormaliser {
     }
 
     fn process_line(&mut self, line: &str, output: &mut Vec<NormalisedChunk>) {
+        if let Some(fragments) = split_inline_control_fragments(line) {
+            for fragment in fragments {
+                self.process_line(&fragment, output);
+            }
+            return;
+        }
+
         let trimmed = line.trim();
 
         if is_tool_call_wrapper_line(trimmed) {
@@ -280,6 +287,73 @@ fn parse_embedded_function_open(text: &str) -> Option<String> {
 
 fn is_tool_call_wrapper_line(text: &str) -> bool {
     matches!(text.trim(), "<tool_call>" | "</tool_call>")
+}
+
+fn split_inline_control_fragments(line: &str) -> Option<Vec<String>> {
+    let mut fragments = Vec::new();
+    let mut cursor = 0usize;
+    let mut last_emit = 0usize;
+    let mut found_inline = false;
+
+    while let Some(rel) = line[cursor..].find('<') {
+        let start = cursor + rel;
+        let Some(fragment_len) = inline_control_fragment_len(&line[start..]) else {
+            cursor = start + 1;
+            continue;
+        };
+
+        if start == 0 && fragment_len == line.len() {
+            return None;
+        }
+
+        if start > last_emit {
+            fragments.push(line[last_emit..start].to_string());
+        }
+        fragments.push(line[start..start + fragment_len].to_string());
+        cursor = start + fragment_len;
+        last_emit = cursor;
+        found_inline = true;
+    }
+
+    if !found_inline {
+        return None;
+    }
+
+    if last_emit < line.len() {
+        fragments.push(line[last_emit..].to_string());
+    }
+
+    Some(
+        fragments
+            .into_iter()
+            .filter(|fragment| !fragment.is_empty())
+            .collect(),
+    )
+}
+
+fn inline_control_fragment_len(text: &str) -> Option<usize> {
+    if text.starts_with("<tool_call>") {
+        return Some("<tool_call>".len());
+    }
+    if text.starts_with("</tool_call>") {
+        return Some("</tool_call>".len());
+    }
+    if text.starts_with("</function>") {
+        return Some("</function>".len());
+    }
+    if text.starts_with("</parameter>") {
+        return Some("</parameter>".len());
+    }
+    if text.starts_with("<function=") || text.starts_with("<parameter=") {
+        let end = text.find('>')?;
+        let fragment = &text[..=end];
+        if parse_embedded_function_open(fragment).is_some()
+            || parse_embedded_parameter_open(fragment).is_some()
+        {
+            return Some(end + 1);
+        }
+    }
+    None
 }
 
 fn complete_control_fragment_len(text: &str) -> Option<usize> {

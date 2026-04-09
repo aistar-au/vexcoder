@@ -477,6 +477,8 @@ async fn test_approve_handler_returns_conflict_without_pending_approval() {
         quit,
         turn_in_progress: false,
         interrupted: false,
+        active_command_sessions: std::collections::BTreeSet::new(),
+        turn_completion_pending: false,
     }));
     state.tasks.lock().await.insert(
         task_id.clone(),

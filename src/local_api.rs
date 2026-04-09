@@ -24,7 +24,7 @@ use crate::state::ConversationManager;
 use crate::state::TurnToolPolicy;
 #[cfg(test)]
 use crate::tools::ToolOperator;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::Mutex as AsyncMutex;
@@ -51,6 +51,8 @@ pub(crate) struct LocalApiTaskShared {
     pub quit: Arc<AtomicBool>,
     pub turn_in_progress: bool,
     pub interrupted: bool,
+    pub active_command_sessions: BTreeSet<u64>,
+    pub turn_completion_pending: bool,
 }
 
 pub(crate) struct PendingApproval {
@@ -125,6 +127,24 @@ impl LocalApiMode {
             }
         }
     }
+
+    fn complete_turn_if_idle(shared: &mut LocalApiTaskShared) {
+        if !shared.turn_completion_pending || !shared.active_command_sessions.is_empty() {
+            return;
+        }
+
+        let envelopes = if shared.interrupted {
+            shared.normalizer.emit_cancelled(TurnEndContext::default())
+        } else {
+            shared
+                .normalizer
+                .normalize_ui_update(&UiUpdate::TurnComplete, Some(TurnEndContext::default()))
+        };
+        shared.turn_completion_pending = false;
+        shared.turn_in_progress = false;
+        shared.quit.store(true, Ordering::SeqCst);
+        Self::emit_envelopes(shared, envelopes);
+    }
 }
 
 impl RuntimeMode for LocalApiMode {
@@ -132,6 +152,9 @@ impl RuntimeMode for LocalApiMode {
         let mut shared = self.shared.lock().unwrap_or_else(|e| e.into_inner());
         shared.turn_in_progress = true;
         shared.interrupted = false;
+        shared.active_command_sessions.clear();
+        shared.turn_completion_pending = false;
+        shared.quit.store(false, Ordering::SeqCst);
         let start = shared.normalizer.start_turn(1, Some(input.clone()));
         Self::emit_envelopes(&mut shared, vec![start]);
         drop(shared);
@@ -200,17 +223,8 @@ impl RuntimeMode for LocalApiMode {
             }
             UiUpdate::ServerMetadata(_) => {}
             UiUpdate::TurnComplete => {
-                let envelopes = if shared.interrupted {
-                    shared.normalizer.emit_cancelled(TurnEndContext::default())
-                } else {
-                    shared.normalizer.normalize_ui_update(
-                        &UiUpdate::TurnComplete,
-                        Some(TurnEndContext::default()),
-                    )
-                };
-                shared.turn_in_progress = false;
-                shared.quit.store(true, Ordering::SeqCst);
-                Self::emit_envelopes(&mut shared, envelopes);
+                shared.turn_completion_pending = true;
+                Self::complete_turn_if_idle(&mut shared);
             }
             UiUpdate::Error(message) => {
                 let envelopes = shared.normalizer.emit_error(
@@ -219,15 +233,22 @@ impl RuntimeMode for LocalApiMode {
                     false,
                     TurnEndContext::default(),
                 );
+                shared.active_command_sessions.clear();
+                shared.turn_completion_pending = false;
                 shared.turn_in_progress = false;
                 shared.quit.store(true, Ordering::SeqCst);
                 Self::emit_envelopes(&mut shared, envelopes);
             }
-            UiUpdate::CommandSessionStarted { .. }
-            | UiUpdate::CommandSessionAttached { .. }
+            UiUpdate::CommandSessionStarted { session_id, .. } => {
+                shared.active_command_sessions.insert(session_id);
+            }
+            UiUpdate::CommandSessionAttached { .. }
             | UiUpdate::EditLoopComplete { .. }
-            | UiUpdate::CommandSessionFinished { .. }
             | UiUpdate::ContextCompacted { .. } => {}
+            UiUpdate::CommandSessionFinished { session_id } => {
+                shared.active_command_sessions.remove(&session_id);
+                Self::complete_turn_if_idle(&mut shared);
+            }
         }
     }
 
@@ -278,6 +299,8 @@ mod tests {
             quit,
             turn_in_progress: false,
             interrupted: false,
+            active_command_sessions: BTreeSet::new(),
+            turn_completion_pending: false,
         }));
         let mut mode = LocalApiMode::new(Arc::clone(&shared));
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
@@ -310,6 +333,8 @@ mod tests {
             quit,
             turn_in_progress: false,
             interrupted: false,
+            active_command_sessions: BTreeSet::new(),
+            turn_completion_pending: false,
         }));
         let mut mode = LocalApiMode::new(Arc::clone(&shared));
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
@@ -371,6 +396,8 @@ mod tests {
             quit,
             turn_in_progress: false,
             interrupted: false,
+            active_command_sessions: BTreeSet::new(),
+            turn_completion_pending: false,
         }));
         let mut mode = LocalApiMode::new(Arc::clone(&shared));
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
@@ -432,6 +459,8 @@ mod tests {
             quit,
             turn_in_progress: false,
             interrupted: false,
+            active_command_sessions: BTreeSet::new(),
+            turn_completion_pending: false,
         }));
         let mut mode = LocalApiMode::new(Arc::clone(&shared));
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
@@ -518,6 +547,71 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_local_api_mode_waits_for_command_sessions_before_turn_end() {
+        let (envelope_tx, mut envelope_rx) = mpsc::unbounded_channel();
+        let quit = Arc::new(AtomicBool::new(false));
+        let shared = Arc::new(Mutex::new(LocalApiTaskShared {
+            normalizer: RuntimeEnvelopeNormalizer::new("task-command-session"),
+            envelope_tx,
+            pending_approval: None,
+            quit: Arc::clone(&quit),
+            turn_in_progress: false,
+            interrupted: false,
+            active_command_sessions: BTreeSet::new(),
+            turn_completion_pending: false,
+        }));
+        let mut mode = LocalApiMode::new(Arc::clone(&shared));
+        let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
+        let conversation =
+            ConversationManager::new(client, ToolOperator::new(std::env::temp_dir()));
+        let (update_tx, _update_rx) = mpsc::unbounded_channel();
+        let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
+
+        mode.on_user_input("run delayed command".to_string(), &mut ctx);
+        let start: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        assert!(matches!(start.event, RuntimeEvent::TurnStart { .. }));
+
+        mode.on_model_update(
+            UiUpdate::CommandSessionStarted {
+                session_id: 41,
+                command: "echo delayed".to_string(),
+            },
+            &mut ctx,
+        );
+        mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
+
+        {
+            let shared = shared.lock().unwrap();
+            assert!(shared.turn_in_progress);
+            assert!(shared.turn_completion_pending);
+            assert!(shared.active_command_sessions.contains(&41));
+        }
+        assert!(!quit.load(Ordering::SeqCst));
+        assert!(envelope_rx.try_recv().is_err());
+
+        mode.on_model_update(
+            UiUpdate::CommandSessionFinished { session_id: 41 },
+            &mut ctx,
+        );
+
+        let final_envelope: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        assert!(matches!(
+            final_envelope.event,
+            RuntimeEvent::TurnEnd { ref status, .. } if status == "completed"
+        ));
+
+        {
+            let shared = shared.lock().unwrap();
+            assert!(!shared.turn_in_progress);
+            assert!(!shared.turn_completion_pending);
+            assert!(shared.active_command_sessions.is_empty());
+        }
+        assert!(quit.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
     async fn test_local_api_mode_error_emits_failed_turn_end() {
         let (envelope_tx, mut envelope_rx) = mpsc::unbounded_channel();
         let quit = Arc::new(AtomicBool::new(false));
@@ -528,6 +622,8 @@ mod tests {
             quit,
             turn_in_progress: false,
             interrupted: false,
+            active_command_sessions: BTreeSet::new(),
+            turn_completion_pending: false,
         }));
         let mut mode = LocalApiMode::new(Arc::clone(&shared));
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));

@@ -434,7 +434,12 @@ impl ManagedTuiFrontend {
 
         // File mention picker.
         if let Some(picker) = self.current_file_picker(mode) {
-            return build_file_overlay(&picker.prefix, &picker.matches, self.selected_file_hint);
+            return build_file_overlay(
+                &picker.prefix,
+                &picker.matches,
+                picker.total_matches,
+                self.selected_file_hint,
+            );
         }
 
         Vec::new()

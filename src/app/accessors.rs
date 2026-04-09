@@ -225,15 +225,19 @@ impl TuiMode {
         if let Some(range) = file_mention_range(input, cursor) {
             if let Some(prefix) = input[range].strip_prefix('@') {
                 let mut lines = vec!["Prompt".to_string(), "mode: file mention".to_string()];
-                let suggestions = self.file_prompt_matches(prefix);
+                let (suggestions, total_matches) = self.file_prompt_matches_with_total(prefix);
                 if suggestions.is_empty() {
                     if prefix.is_empty() {
                         lines.push("[file] no files available".to_string());
                     } else {
-                        lines.push(format!("[file] no matches for {prefix}"));
+                        lines.push(file_picker_no_match_summary(prefix, total_matches));
                     }
                 } else {
-                    lines.push(format!("[file] {} match(es)", suggestions.len()));
+                    lines.push(file_picker_match_summary(
+                        prefix,
+                        suggestions.len(),
+                        total_matches,
+                    ));
                     lines.extend(
                         suggestions
                             .into_iter()
@@ -252,21 +256,24 @@ impl TuiMode {
         !self.overlay_active() && !self.command_session_active()
     }
 
-    pub fn file_prompt_matches(&self, prefix: &str) -> Vec<String> {
+    pub(crate) fn file_prompt_matches_with_total(&self, prefix: &str) -> (Vec<String>, usize) {
         let needle = prefix.trim();
 
-        // Directory navigation mode: when prefix contains `/` (or `\` on
-        // Windows), show immediate children of the directory path.
         if needle.contains('/') || needle.contains('\\') {
             let needle_normalized = needle.replace('\\', "/");
             let (dir_prefix, name_filter) = match needle_normalized.rfind('/') {
                 Some(pos) => (&needle_normalized[..=pos], &needle_normalized[pos + 1..]),
                 None => ("", needle_normalized.as_str()),
             };
-            return self.directory_filtered_children(dir_prefix, name_filter);
+            let total_matches = self.directory_filtered_children(dir_prefix, "").len();
+            let matches = if name_filter.is_empty() {
+                self.directory_filtered_children(dir_prefix, "")
+            } else {
+                self.directory_filtered_children(dir_prefix, name_filter)
+            };
+            return (matches, total_matches);
         }
 
-        // Fuzzy matching for simple (no-slash) prefixes.
         let needle_lower = needle.to_ascii_lowercase();
         let mut scored = BinaryHeap::new();
 
@@ -291,7 +298,13 @@ impl TuiMode {
             },
         );
 
-        ranked.into_iter().map(|(_, _, display)| display).collect()
+        let matches: Vec<String> = ranked.into_iter().map(|(_, _, display)| display).collect();
+        let total_matches = matches.len();
+        (matches, total_matches)
+    }
+
+    pub fn file_prompt_matches(&self, prefix: &str) -> Vec<String> {
+        self.file_prompt_matches_with_total(prefix).0
     }
 
     /// List immediate children of `dir_prefix`, optionally filtered by `name_filter`.
