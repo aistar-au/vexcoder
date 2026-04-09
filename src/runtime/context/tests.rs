@@ -29,7 +29,9 @@ async fn test_ref_04_start_turn_dispatches_message() {
     let mut saw_complete = false;
     loop {
         match tokio::time::timeout(Duration::from_millis(500), rx.recv()).await {
-            Ok(Some(UiUpdate::StreamDelta(_))) => saw_delta = true,
+            Ok(Some(UiUpdate::StreamDelta(_))) | Ok(Some(UiUpdate::StreamBlockDelta { .. })) => {
+                saw_delta = true
+            }
             Ok(Some(UiUpdate::TurnComplete)) => {
                 saw_complete = true;
                 break;
@@ -40,7 +42,7 @@ async fn test_ref_04_start_turn_dispatches_message() {
         }
     }
 
-    assert!(saw_delta, "expected at least one StreamDelta");
+    assert!(saw_delta, "expected at least one streamed text update");
     assert!(saw_complete, "expected TurnComplete");
 }
 
@@ -539,6 +541,23 @@ async fn test_normaliser_intercepts_embedded_tool_markup_in_delta() {
                     saw_transcript_line = true;
                 }
             }
+            UiUpdate::StreamBlockStart {
+                block: StreamBlock::FinalText { content },
+                ..
+            }
+            | UiUpdate::StreamBlockStart {
+                block: StreamBlock::Thinking { content, .. },
+                ..
+            } => {
+                if content.contains("function=") || content.contains("parameter=") {
+                    leaked_markup = true;
+                }
+            }
+            UiUpdate::StreamBlockDelta { delta, .. } => {
+                if delta.contains("function=") || delta.contains("parameter=") {
+                    leaked_markup = true;
+                }
+            }
             UiUpdate::StreamDelta(text) => {
                 if text.contains("function=") || text.contains("parameter=") {
                     leaked_markup = true;
@@ -554,7 +573,7 @@ async fn test_normaliser_intercepts_embedded_tool_markup_in_delta() {
     );
     assert!(
         !leaked_markup,
-        "raw tool markup must not leak through as StreamDelta"
+        "raw tool markup must not leak through any UI text channel"
     );
 }
 
@@ -606,11 +625,11 @@ async fn test_normaliser_flushes_stale_tool_markup_before_follow_up_text_block()
     );
 
     let mut transcript_lines = Vec::new();
-    let mut stream_deltas = Vec::new();
+    let mut block_deltas = Vec::new();
     while let Ok(update) = rx.try_recv() {
         match update {
             UiUpdate::TranscriptLine(line) => transcript_lines.push(line),
-            UiUpdate::StreamDelta(text) => stream_deltas.push(text),
+            UiUpdate::StreamBlockDelta { delta, .. } => block_deltas.push(delta),
             _ => {}
         }
     }
@@ -628,7 +647,7 @@ async fn test_normaliser_flushes_stale_tool_markup_before_follow_up_text_block()
         "flush should close the orphaned tool block: {transcript_lines:?}"
     );
     assert!(
-        stream_deltas.iter().any(|text| text == "Recovered answer."),
-        "follow-up text must be forwarded after the flush: {stream_deltas:?}"
+        block_deltas.iter().any(|text| text == "Recovered answer."),
+        "follow-up text must be forwarded after the flush: {block_deltas:?}"
     );
 }

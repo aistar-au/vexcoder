@@ -817,6 +817,20 @@ async fn test_live_server_messages_v1_reachable() {
 // ── Protocol conversion boundary regression tests ────────────────────
 
 #[test]
+fn test_detected_native_protocol_requires_exclusive_route() {
+    assert_eq!(
+        select_detected_native_protocol(true, false),
+        Some(ModelProtocol::ChatCompat)
+    );
+    assert_eq!(
+        select_detected_native_protocol(false, true),
+        Some(ModelProtocol::MessagesV1)
+    );
+    assert_eq!(select_detected_native_protocol(true, true), None);
+    assert_eq!(select_detected_native_protocol(false, false), None);
+}
+
+#[test]
 fn test_native_protocol_overrides_configured_protocol() {
     // When server discovery detects native ChatCompat, the client must
     // use ChatCompat even if the user configured MessagesV1 — this is

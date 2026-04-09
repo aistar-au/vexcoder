@@ -406,10 +406,17 @@ sessions:
    `src/ui/render/mod.rs` miscounts display rows for bracket-delimited
    transcript markers.
 
-### Host-owned scrollback contract
+### Superseded host-owned scrollback contract
 
-The operator surface target is amended. The host now owns committed
-transcript history above the viewport:
+The 2026-04-08 host-owned scrollback direction is retained as rejected design
+history only. A 2026-04-09 follow-up reversed this split after it reintroduced
+multi-writer transcript state, raw tagged-tool leakage risk at the block/UI
+boundary, and resize/reflow complexity without improving review correctness.
+The active architecture keeps one owned transcript surface in the task layout;
+scrollback outside the app remains incidental display behaviour, not a
+transcript insertion target owned by the application.
+
+The rejected 2026-04-08 target was:
 
 The preferred implementation path is ratatui-native. The current tree already
 pins `ratatui = 0.29`, which provides `Viewport::Inline(..)`,

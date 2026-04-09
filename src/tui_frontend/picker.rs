@@ -1,15 +1,17 @@
 use super::*;
+use crate::app::{file_picker_match_summary, file_picker_no_match_summary};
 
 pub fn build_file_overlay(
     prefix: &str,
     matches: &[String],
+    total_matches: usize,
     selected: usize,
 ) -> Vec<PickerOverlayLine> {
     if matches.is_empty() {
         let text = if prefix.is_empty() {
             "[file] type to search files".to_string()
         } else {
-            format!("[file] no matches for {prefix}")
+            file_picker_no_match_summary(prefix, total_matches)
         };
         return vec![PickerOverlayLine {
             text,
@@ -27,8 +29,8 @@ pub fn build_file_overlay(
 
     lines.push(PickerOverlayLine {
         text: format!(
-            "[file] {} match(es) — Up/Down to navigate, Enter to select",
-            matches.len()
+            "{} — Up/Down to navigate, Enter to select",
+            file_picker_match_summary(prefix, matches.len(), total_matches)
         ),
         selected: false,
     });
@@ -102,10 +104,12 @@ pub fn active_file_picker(
     let range = file_mention_range(buffer, cursor)?;
     let token = &buffer[range.clone()];
     let prefix = token.strip_prefix('@')?.to_string();
+    let (matches, total_matches) = mode.file_prompt_matches_with_total(&prefix);
     Some(FileMentionPickerState {
         range,
         prefix: prefix.clone(),
-        matches: mode.file_prompt_matches(&prefix),
+        matches,
+        total_matches,
     })
 }
 
@@ -122,18 +126,27 @@ pub fn file_picker_is_dismissed(
     })
 }
 
-pub fn render_file_picker_hint(prefix: &str, matches: &[String], selected: usize) -> String {
+pub fn render_file_picker_hint(
+    prefix: &str,
+    matches: &[String],
+    total_matches: usize,
+    selected: usize,
+) -> String {
     let mut lines = vec!["Prompt".to_string(), "mode: file mention".to_string()];
     if matches.is_empty() {
         if prefix.is_empty() {
             lines.push("[file] no files available".to_string());
         } else {
-            lines.push(format!("[file] no matches for {prefix}"));
+            lines.push(file_picker_no_match_summary(prefix, total_matches));
         }
         return lines.join("\n");
     }
 
-    lines.push(format!("[file] {} match(es)", matches.len()));
+    lines.push(file_picker_match_summary(
+        prefix,
+        matches.len(),
+        total_matches,
+    ));
     let selected = selected.min(matches.len().saturating_sub(1));
     let window = 12.min(matches.len());
     let start = selected

@@ -14,7 +14,6 @@ const DEFAULT_INLINE_VIEWPORT_ROWS: u16 = 12;
 
 pub struct TuiHandle {
     inner: Terminal<CrosstermBackend<Stdout>>,
-    inline_viewport: bool,
 }
 
 impl TuiHandle {
@@ -31,23 +30,6 @@ impl TuiHandle {
 
     pub fn clear(&mut self) -> io::Result<()> {
         self.inner.clear()
-    }
-
-    pub fn uses_inline_viewport(&self) -> bool {
-        self.inline_viewport
-    }
-
-    /// Permanently disable the inline viewport for this session.
-    ///
-    /// Called when host-scrollback flush fails (e.g. unsupported backend or
-    /// I/O error) so subsequent frames fall back to the owned-transcript path
-    /// rather than silently losing committed content.
-    pub(crate) fn disable_inline_viewport(&mut self) {
-        self.inline_viewport = false;
-    }
-
-    pub(crate) fn inner_mut(&mut self) -> &mut Terminal<CrosstermBackend<Stdout>> {
-        &mut self.inner
     }
 }
 
@@ -105,16 +87,10 @@ pub fn setup() -> Result<TuiHandle> {
                 viewport: Viewport::Inline(inline_rows),
             },
         )?;
-        TuiHandle {
-            inner,
-            inline_viewport: true,
-        }
+        TuiHandle { inner }
     } else {
         let inner = Terminal::new(backend)?;
-        TuiHandle {
-            inner,
-            inline_viewport: false,
-        }
+        TuiHandle { inner }
     };
     if host_has_tty() {
         tui.clear()?

@@ -34,7 +34,7 @@ These keys are read by the current runtime from config files:
 | `model_name` | Model identifier | `local/default` |
 | `working_dir` | Workspace root for tool execution | current directory |
 | `model_backend` | `local-runtime` or `api-server` | inferred |
-| `model_protocol` | `messages-v1` or `chat-compat`; URLs containing `/chat/completions` default to `chat-compat`, all others default to `messages-v1` | inferred |
+| `model_protocol` | `messages-v1` or `chat-compat`; URLs containing `/chat/completions` default to `chat-compat`, all others default to `messages-v1`; local endpoint probes only override when one route is exclusive | inferred |
 | `tool_call_mode` | `structured` or `tagged-fallback` | inferred |
 | `tool_policy` | `full`, `plan`, or `chat` | `full` |
 | `model_profile` | Path to a repo-tracked profile under `models/` | backend default profile |
@@ -181,7 +181,9 @@ The full model endpoint URL.
 - All other URLs, including bare `/v1` suffix URLs, default to `messages-v1`.
   If the local server only exposes `/v1/chat/completions`, `vex` detects this
   automatically at session start via the `/props` probe and switches to
-  `chat-compat` without any manual configuration.
+  `chat-compat` without any manual configuration. If both `/v1/messages` and
+  `/v1/chat/completions` respond, `vex` preserves the configured or
+  URL-inferred protocol instead of silently preferring `chat-compat`.
 - For plain local inference servers, prefer explicit HTTP
   localhost URLs such as `http://localhost:8000/v1/messages`. If you enter an
   HTTPS localhost URL in the interactive startup prompt, `vex` now suggests the
@@ -195,7 +197,7 @@ The full model endpoint URL.
 - If a local endpoint returns HTTP 400 due to context overflow, the error now
   shows the server's message verbatim and suggests increasing `--ctx-size` on
   the server or using `/compact` to reset the conversation.
-- For non-context-overflow 400s, the error includes the detected protocol
+- For non-context-overflow 400s, the error includes the inferred protocol
   (MessagesV1 vs ChatCompat) and suggests checking the model name, protocol
   format, and whether the server supports streaming.
 

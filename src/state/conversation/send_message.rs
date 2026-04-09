@@ -76,6 +76,12 @@ impl ConversationManager {
                     &last_assistant_text_for_history,
                     max_tool_rounds,
                 );
+                if let Some(guard_line) = msg.lines().find(|l| l.starts_with("[loop guard]")) {
+                    emit_stream_update(
+                        stream_delta_tx,
+                        ConversationStreamUpdate::TranscriptLine(guard_line.to_string()),
+                    );
+                }
                 self.finish_turn_doc(TurnOutcome::MaxTurnsReached, TurnTokens::default());
                 return Ok(msg);
             }
@@ -350,6 +356,12 @@ impl ConversationManager {
                 if repeated_mutating_rounds >= 1 {
                     let msg =
                         render_repeated_mutating_tool_guard_message(&assistant_text_for_history);
+                    if let Some(guard_line) = msg.lines().find(|l| l.starts_with("[loop guard]")) {
+                        emit_stream_update(
+                            stream_delta_tx,
+                            ConversationStreamUpdate::TranscriptLine(guard_line.to_string()),
+                        );
+                    }
                     self.finish_turn_doc(TurnOutcome::Completed, self.last_turn_tokens);
                     return Ok(msg);
                 }
@@ -382,6 +394,14 @@ impl ConversationManager {
                         inject_repeated_round_nudge = true;
                     } else {
                         let msg = render_repeated_tool_guard_message(&assistant_text_for_history);
+                        if let Some(guard_line) =
+                            msg.lines().find(|l| l.starts_with("[loop guard]"))
+                        {
+                            emit_stream_update(
+                                stream_delta_tx,
+                                ConversationStreamUpdate::TranscriptLine(guard_line.to_string()),
+                            );
+                        }
                         self.finish_turn_doc(TurnOutcome::Completed, self.last_turn_tokens);
                         return Ok(msg);
                     }
@@ -449,6 +469,12 @@ impl ConversationManager {
                 {
                     let msg =
                         render_missing_tool_evidence_guard_message(&assistant_text_for_history);
+                    if let Some(guard_line) = msg.lines().find(|l| l.starts_with("[loop guard]")) {
+                        emit_stream_update(
+                            stream_delta_tx,
+                            ConversationStreamUpdate::TranscriptLine(guard_line.to_string()),
+                        );
+                    }
                     self.finish_turn_doc(TurnOutcome::Completed, self.last_turn_tokens);
                     return Ok(msg);
                 }

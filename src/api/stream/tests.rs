@@ -158,6 +158,17 @@ fn test_process_accepts_raw_json_frame_without_sse_delimiter() {
 }
 
 #[test]
+fn test_process_accepts_raw_done_frame_without_sse_delimiter() {
+    let mut parser = StreamParser::new();
+    let events = parser.process(b"[DONE]").unwrap();
+
+    assert!(
+        events.is_empty(),
+        "raw [DONE] should terminate cleanly without emitting a parse error"
+    );
+}
+
+#[test]
 fn test_process_emits_error_event_on_unparseable_frame() {
     let mut parser = StreamParser::new();
     let events = parser.process(b"data: not-a-json-value\n\n").unwrap();
@@ -315,6 +326,37 @@ fn test_normaliser_buffers_chunk_split_tool_call_wrapper_and_function_open() {
     assert!(
         saw_dispatched,
         "chunked closing tags must dispatch by the end of the stream; third={lines:?} flush={flushed_lines:?}"
+    );
+}
+
+#[test]
+fn test_normaliser_strips_inline_wrappers_and_adjacent_function_tags() {
+    let mut normaliser = StreamTextNormaliser::new();
+    let input = "</tool_call>Let me read more of the repository structure to understand what kind of application this is:\n\n<function=list_files>\n<parameter=path>\n.\n</parameter>\n</function><function=read_file>\n<parameter=path>\nCargo.toml\n</parameter>\n</function>";
+
+    let chunks = normaliser.normalise(input);
+    let flushed = normaliser.flush();
+    let text = format!("{}{}", collect_text(&chunks), collect_text(&flushed));
+    let lines: Vec<String> = collect_transcript_lines(&chunks)
+        .into_iter()
+        .chain(collect_transcript_lines(&flushed))
+        .collect();
+
+    assert!(
+        text.contains("Let me read more of the repository structure"),
+        "reasoning text should be preserved: {text:?}"
+    );
+    assert!(
+        !text.contains("</tool_call>") && !text.contains("<function="),
+        "inline control markup must not leak to text: {text:?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("[tool] list_files")),
+        "should detect the first tool call: {lines:?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("[tool] read_file")),
+        "should detect the adjacent second tool call: {lines:?}"
     );
 }
 

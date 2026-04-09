@@ -117,14 +117,14 @@ streaming protocols.
 21. The waiting lane keeps the ADR-039 canonical phrase
     `Mapping adjacent sectors...` and appends telemetry rather than replacing
     the phrase.
-22. Under the host-owned scrollback model (ADR-031 amendment 2026-04-08),
-    committed transcript and stable telemetry summaries flush into host
-    scrollback through the host scrollback sink. The reserved live viewport at
-    the bottom renders only in-flight waiting status, active tool output,
-    approval surfaces, and the current response tail.
+22. Under the 2026-04-09 owned-transcript correction, committed transcript and
+  stable telemetry summaries remain on the owned task surface together with
+  in-flight waiting status, active tool output, approval surfaces, and the
+  current response tail. No host scrollback sink or split committed/live
+  viewport is part of the primary contract.
 23. The persistent bottom surface is limited to the multiline composer and
     separate status bar. There is no dedicated timeline strip. Telemetry
-    remains inline in transcript paragraphs (committed or live-tail), while
+  remains inline in transcript paragraphs on that owned surface, while
     the status bar folds compact telemetry (mode, approval, latency),
     git branch (`\ue0a0branch`), token counters (`↑sent ↓received`), and
     change/activity counts into a single truncated line instead of claiming

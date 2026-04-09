@@ -222,13 +222,6 @@ impl TuiMode {
         self.output_view_for_surface(entries, self.transcript_display_rows())
     }
 
-    fn host_history_output_view_with(
-        &self,
-        entries: &[TimelineEntry],
-    ) -> (String, Vec<TranscriptRow>, OutputScrollAnchor) {
-        self.output_view_for_surface(entries, self.active_transcript_display_rows())
-    }
-
     fn output_view_for_surface(
         &self,
         entries: &[TimelineEntry],
@@ -282,26 +275,6 @@ impl TuiMode {
             &self.task_doc,
             &self.pre_session_notices,
         )
-    }
-
-    fn active_transcript_display_rows(&self) -> Vec<TranscriptRow> {
-        crate::app::transcript_projection::project_active_transcript_rows(
-            self.task_doc.active_turn.as_ref(),
-        )
-    }
-
-    pub(crate) fn committed_transcript_rows(&self) -> Vec<TranscriptRow> {
-        crate::app::transcript_projection::project_committed_transcript_rows(
-            &self.task_doc,
-            &self.pre_session_notices,
-        )
-    }
-
-    /// Cheap O(1) count of committed-turn sources (completed turns plus
-    /// pre-session notices). Use this to short-circuit the full row projection
-    /// when nothing new has been committed since the last flush.
-    pub(crate) fn committed_turns_count(&self) -> usize {
-        self.task_doc.completed_turns.len() + self.pre_session_notices.len()
     }
 
     fn visible_changed_files(&self) -> Vec<String> {
@@ -416,21 +389,6 @@ impl TuiMode {
     pub fn task_layout_state(&self) -> Option<TaskLayoutState> {
         self.build_task_layout_state_with_output_view(|mode, timeline_entries| {
             mode.task_output_view_with(timeline_entries)
-        })
-    }
-
-    pub(crate) fn host_history_task_layout_state(&self) -> Option<TaskLayoutState> {
-        self.build_task_layout_state_with_output_view(|mode, timeline_entries| {
-            mode.host_history_output_view_with(timeline_entries)
-        })
-        .map(|mut state| {
-            // The live-tail output_rows in the host-owned scrollback path
-            // contain only the active turn. transcript_scroll_offset is
-            // derived from the full transcript and can exceed the active-only
-            // row count, which would blank the live viewport. Always anchor
-            // at the bottom tail.
-            state.output_scroll_offset = 0;
-            state
         })
     }
 

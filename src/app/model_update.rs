@@ -200,22 +200,48 @@ impl TuiMode {
                         });
                     }
                     StreamBlock::ToolCall {
-                        id, name, input, ..
+                        id,
+                        name,
+                        input,
+                        status,
                     } => {
-                        let step_id = self.alloc_step_id();
-                        self.append_turn_entry(TurnEntry::ToolCall {
-                            step_id,
-                            id,
-                            name,
-                            input,
-                            status: crate::state::ToolStatus::Pending,
-                        });
-                        self.streaming_tool_input_buffers
-                            .insert(index, String::new());
-                        if self.timeline_follow_mode {
-                            let total = self.timeline_entry_count();
-                            self.selected_timeline_index = total.saturating_sub(1);
-                            self.inspector_scroll_offset = 0;
+                        // Upsert: update the status on an existing entry with
+                        // the same id (emitted by set_tool_call_status) rather
+                        // than always appending a duplicate pending entry.
+                        let exists = if let Some(active) = self.task_doc.active_turn.as_mut() {
+                            active.entries.iter_mut().any(|e| {
+                                if let TurnEntry::ToolCall {
+                                    id: existing_id,
+                                    status: existing_status,
+                                    ..
+                                } = e
+                                {
+                                    if *existing_id == id {
+                                        *existing_status = status.clone();
+                                        return true;
+                                    }
+                                }
+                                false
+                            })
+                        } else {
+                            false
+                        };
+                        if !exists {
+                            let step_id = self.alloc_step_id();
+                            self.append_turn_entry(TurnEntry::ToolCall {
+                                step_id,
+                                id,
+                                name,
+                                input,
+                                status: crate::state::ToolStatus::Pending,
+                            });
+                            self.streaming_tool_input_buffers
+                                .insert(index, String::new());
+                            if self.timeline_follow_mode {
+                                let total = self.timeline_entry_count();
+                                self.selected_timeline_index = total.saturating_sub(1);
+                                self.inspector_scroll_offset = 0;
+                            }
                         }
                     }
                     StreamBlock::ToolResult {

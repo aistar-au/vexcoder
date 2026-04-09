@@ -363,12 +363,14 @@ Additional unused-code cleanup in the same pass:
 
 ---
 
-## Amendment — 2026-04-08: Host scrollback sink and live viewport technical cutover
+## Superseded amendment — 2026-04-08: Host scrollback sink and live viewport technical cutover
 
-This amendment defines the technical decisions for the host-owned scrollback
-cutover described in ADR-031 amendment 2026-04-08. D15 remains valid for the
-transcript overlay and owned-transcript fallback, but not as the main
-indefinite scroll owner.
+This amendment is retained as rejected design history only. A 2026-04-09
+follow-up reversed the host-owned scrollback direction after the split
+introduced double-writer transcript state, raw tagged-tool leakage risk, and
+width/reflow complexity with no operator-surface benefit. D15 remains the main
+transcript path: the active architecture keeps one owned transcript surface in
+the task layout and sanitises textual block deltas before they mutate UI state.
 
 ### D17: Host scrollback sink abstraction
 

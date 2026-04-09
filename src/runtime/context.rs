@@ -91,7 +91,8 @@ impl RuntimeContext {
                 (result, turn_tokens)
             });
 
-            let mut textual_block_by_index = std::collections::HashMap::<usize, bool>::new();
+            let mut textual_block_by_index =
+                std::collections::HashMap::<usize, crate::api::stream::StreamTextNormaliser>::new();
             let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
             let mut cancelled = false;
 
@@ -108,6 +109,18 @@ impl RuntimeContext {
                             None => break,
                         }
                     }
+                }
+            }
+
+            // Flush normaliser buffers when the stream ends naturally.
+            // This emits any pending text and closes stale open tool-call
+            // blocks so the TUI sees a clean terminal state. Skip when
+            // cancelled – the turn was aborted and partial output is noise.
+            if !cancelled {
+                flush_normalised_text(&mut normaliser, &tx);
+                for (index, mut block_normaliser) in textual_block_by_index.drain() {
+                    flush_normalised_block_text(&mut block_normaliser, index, &tx);
+                    let _ = tx.send(UiUpdate::StreamBlockComplete { index });
                 }
             }
 
@@ -211,10 +224,18 @@ impl RuntimeContext {
             (result, patch_applied)
         });
 
-        let mut textual_block_by_index = std::collections::HashMap::<usize, bool>::new();
+        let mut textual_block_by_index =
+            std::collections::HashMap::<usize, crate::api::stream::StreamTextNormaliser>::new();
         let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
         while let Some(update) = delta_rx.recv().await {
             forward_conversation_update(update, &mut textual_block_by_index, &mut normaliser, &tx);
+        }
+        // Flush normaliser state after the edit stream ends so that any
+        // buffered text and stale open tool-call blocks are emitted cleanly.
+        flush_normalised_text(&mut normaliser, &tx);
+        for (index, mut block_normaliser) in textual_block_by_index.drain() {
+            flush_normalised_block_text(&mut block_normaliser, index, &tx);
+            let _ = tx.send(UiUpdate::StreamBlockComplete { index });
         }
 
         match send_handle.await {
@@ -455,7 +476,10 @@ fn estimate_char_count(messages: &[crate::types::ApiMessage]) -> usize {
 
 fn forward_conversation_update(
     update: ConversationStreamUpdate,
-    textual_block_by_index: &mut std::collections::HashMap<usize, bool>,
+    textual_block_by_index: &mut std::collections::HashMap<
+        usize,
+        crate::api::stream::StreamTextNormaliser,
+    >,
     normaliser: &mut crate::api::stream::StreamTextNormaliser,
     tx: &mpsc::UnboundedSender<UiUpdate>,
 ) {
@@ -463,46 +487,64 @@ fn forward_conversation_update(
         ConversationStreamUpdate::Delta(text) => {
             emit_normalised_text(normaliser, &text, tx);
         }
-        ConversationStreamUpdate::BlockStart { index, block } => {
-            let is_textual = matches!(
-                block,
-                StreamBlock::Thinking { .. } | StreamBlock::FinalText { .. }
-            );
-            textual_block_by_index.insert(index, is_textual);
-            // Flush any stale normaliser state when a new textual block
-            // begins (e.g. the model producing response text after tool
-            // execution).  This prevents inline tool markup with missing
-            // close tags from swallowing subsequent response content.
-            if is_textual {
-                for chunk in normaliser.flush() {
-                    match chunk {
-                        crate::api::stream::NormalisedChunk::Text(t) => {
-                            let _ = tx.send(UiUpdate::StreamDelta(t));
-                        }
-                        crate::api::stream::NormalisedChunk::TranscriptLine(line) => {
-                            let _ = tx.send(UiUpdate::TranscriptLine(line));
-                        }
+        ConversationStreamUpdate::BlockStart { index, block } => match block {
+            StreamBlock::Thinking { content, collapsed } => {
+                flush_normalised_text(normaliser, tx);
+                if let Some(existing) = textual_block_by_index.get_mut(&index) {
+                    flush_normalised_block_text(existing, index, tx);
+                }
+                textual_block_by_index
+                    .insert(index, crate::api::stream::StreamTextNormaliser::new());
+                let _ = tx.send(UiUpdate::StreamBlockStart {
+                    index,
+                    block: StreamBlock::Thinking {
+                        content: String::new(),
+                        collapsed,
+                    },
+                });
+                if !content.is_empty() {
+                    if let Some(block_normaliser) = textual_block_by_index.get_mut(&index) {
+                        emit_normalised_block_text(block_normaliser, index, &content, tx);
                     }
                 }
             }
-            if let StreamBlock::FinalText { content } = &block {
+            StreamBlock::FinalText { content } => {
+                flush_normalised_text(normaliser, tx);
+                if let Some(existing) = textual_block_by_index.get_mut(&index) {
+                    flush_normalised_block_text(existing, index, tx);
+                }
+                textual_block_by_index
+                    .insert(index, crate::api::stream::StreamTextNormaliser::new());
+                let _ = tx.send(UiUpdate::StreamBlockStart {
+                    index,
+                    block: StreamBlock::FinalText {
+                        content: String::new(),
+                    },
+                });
                 if !content.is_empty() {
-                    emit_normalised_text(normaliser, content, tx);
+                    if let Some(block_normaliser) = textual_block_by_index.get_mut(&index) {
+                        emit_normalised_block_text(block_normaliser, index, &content, tx);
+                    }
                 }
             }
-            let _ = tx.send(UiUpdate::StreamBlockStart { index, block });
-        }
+            other => {
+                let _ = tx.send(UiUpdate::StreamBlockStart {
+                    index,
+                    block: other,
+                });
+            }
+        },
         ConversationStreamUpdate::BlockDelta { index, delta } => {
-            let _ = tx.send(UiUpdate::StreamBlockDelta {
-                index,
-                delta: delta.clone(),
-            });
-            if textual_block_by_index.get(&index).copied().unwrap_or(false) {
-                emit_normalised_text(normaliser, &delta, tx);
+            if let Some(block_normaliser) = textual_block_by_index.get_mut(&index) {
+                emit_normalised_block_text(block_normaliser, index, &delta, tx);
+            } else {
+                let _ = tx.send(UiUpdate::StreamBlockDelta { index, delta });
             }
         }
         ConversationStreamUpdate::BlockComplete { index } => {
-            textual_block_by_index.remove(&index);
+            if let Some(mut block_normaliser) = textual_block_by_index.remove(&index) {
+                flush_normalised_block_text(&mut block_normaliser, index, tx);
+            }
             let _ = tx.send(UiUpdate::StreamBlockComplete { index });
         }
         ConversationStreamUpdate::ToolApprovalRequest(request) => {
@@ -548,23 +590,59 @@ fn forward_conversation_update(
     }
 }
 
-/// Route text through the normaliser before sending to the UI.
+/// Route standalone text through the normaliser before sending it to the UI.
 ///
 /// Embedded tool call markup is intercepted and converted to structured
-/// `TranscriptLine` entries.  Clean text passes through as `StreamDelta`.
-/// This is the single authoritative boundary between the stream parser
-/// (which normalises SSE events in memory) and the task state orchestrator
-/// (which displays drawn paragraphs in the TUI).
+/// `TranscriptLine` entries. Clean text passes through as `StreamDelta` for
+/// unindexed updates and `StreamBlockDelta` for textual block streams. This is
+/// the single authoritative boundary between streamed model text and the TUI's
+/// task-state projection.
 fn emit_normalised_text(
     normaliser: &mut crate::api::stream::StreamTextNormaliser,
     text: &str,
     tx: &mpsc::UnboundedSender<UiUpdate>,
 ) {
+    emit_normalised_chunks(normaliser.normalise(text), None, tx);
+}
+
+fn flush_normalised_text(
+    normaliser: &mut crate::api::stream::StreamTextNormaliser,
+    tx: &mpsc::UnboundedSender<UiUpdate>,
+) {
+    emit_normalised_chunks(normaliser.flush(), None, tx);
+}
+
+fn emit_normalised_block_text(
+    normaliser: &mut crate::api::stream::StreamTextNormaliser,
+    index: usize,
+    text: &str,
+    tx: &mpsc::UnboundedSender<UiUpdate>,
+) {
+    emit_normalised_chunks(normaliser.normalise(text), Some(index), tx);
+}
+
+fn flush_normalised_block_text(
+    normaliser: &mut crate::api::stream::StreamTextNormaliser,
+    index: usize,
+    tx: &mpsc::UnboundedSender<UiUpdate>,
+) {
+    emit_normalised_chunks(normaliser.flush(), Some(index), tx);
+}
+
+fn emit_normalised_chunks(
+    chunks: Vec<crate::api::stream::NormalisedChunk>,
+    block_index: Option<usize>,
+    tx: &mpsc::UnboundedSender<UiUpdate>,
+) {
     use crate::api::stream::NormalisedChunk;
-    for chunk in normaliser.normalise(text) {
+    for chunk in chunks {
         match chunk {
-            NormalisedChunk::Text(t) => {
-                let _ = tx.send(UiUpdate::StreamDelta(t));
+            NormalisedChunk::Text(text) => {
+                if let Some(index) = block_index {
+                    let _ = tx.send(UiUpdate::StreamBlockDelta { index, delta: text });
+                } else {
+                    let _ = tx.send(UiUpdate::StreamDelta(text));
+                }
             }
             NormalisedChunk::TranscriptLine(line) => {
                 let _ = tx.send(UiUpdate::TranscriptLine(line));

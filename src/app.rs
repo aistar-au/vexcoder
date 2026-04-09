@@ -332,6 +332,43 @@ pub struct FileMentionPickerState {
     pub range: Range<usize>,
     pub prefix: String,
     pub matches: Vec<String>,
+    pub total_matches: usize,
+}
+
+pub(crate) fn file_picker_match_summary(
+    prefix: &str,
+    visible_count: usize,
+    total_matches: usize,
+) -> String {
+    if let Some((dir_prefix, is_filtered)) = directory_picker_context(prefix) {
+        if is_filtered && visible_count < total_matches {
+            format!("[file] {visible_count} shown of {total_matches} in {dir_prefix}")
+        } else {
+            format!("[file] {total_matches} item(s) in {dir_prefix}")
+        }
+    } else {
+        format!("[file] {visible_count} match(es)")
+    }
+}
+
+pub(crate) fn file_picker_no_match_summary(prefix: &str, total_matches: usize) -> String {
+    if let Some((dir_prefix, is_filtered)) = directory_picker_context(prefix) {
+        if is_filtered && total_matches > 0 {
+            format!("[file] no matches for {prefix} - {total_matches} in {dir_prefix}")
+        } else {
+            format!("[file] no matches for {prefix}")
+        }
+    } else {
+        format!("[file] no matches for {prefix}")
+    }
+}
+
+fn directory_picker_context(prefix: &str) -> Option<(String, bool)> {
+    let normalized = prefix.replace('\\', "/");
+    let slash_pos = normalized.rfind('/')?;
+    let dir_prefix = normalized[..=slash_pos].to_string();
+    let is_filtered = slash_pos + 1 < normalized.len();
+    Some((dir_prefix, is_filtered))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

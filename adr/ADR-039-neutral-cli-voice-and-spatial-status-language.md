@@ -134,16 +134,16 @@ Adopt a neutral spatial voice for operator-facing CLI text.
 - Add the pulsing-star active indicator where the renderer supports it.
 - Ensure reduced-color and plain-text fallbacks remain readable.
 
-### Batch D -- Paragraph progress stream (amended 2026-04-08)
+### Batch D -- Paragraph progress stream (corrected 2026-04-09)
 
 - Consolidate long-running tool and agent updates into one paragraph-oriented
-   status stream. Under the host-owned scrollback model (ADR-031 amendment
-   2026-04-08), paragraph-oriented progress means committed paragraph flushes
-   into host-owned scrollback plus a live tail in the reserved bottom
-   viewport.
-- Committed stable paragraphs flush upward through the host scrollback sink.
-  The live bottom viewport renders only in-flight progress, active tool
-  output, and the current response tail.
+   status stream. Under the owned-transcript correction, paragraph-oriented
+   progress means committed paragraphs, in-flight progress, active tool output,
+   and the current response tail share the same task-surface transcript rather
+   than splitting between host scrollback and a reserved live viewport.
+- No host scrollback sink is required. One owned transcript surface carries
+  both committed progress and live progress while preserving the same inline
+  paragraph language.
 - Add active counters for files processed and active agents where the runtime
    already knows those values.
 - Render the orchestrator lane as a continuous enriched paragraph while
