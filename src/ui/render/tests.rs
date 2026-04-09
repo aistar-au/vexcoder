@@ -370,18 +370,18 @@ fn task_output_render_area_top_aligns_content() {
         composer_focused: true,
         picker_overlay: vec![],
     };
-    let area = ratatui::layout::Rect::new(0, 0, 80, 20);
+    let area = ratatui::layout::Rect::new(0, 5, 80, 20);
     // When visible_rows < area.height, the render rect should start at the top
-    // of the output pane and grow downward.
+    // of the output pane and grow downward (y == area.y for any non-zero y).
     let render_area = task_output_render_area(&state, area, 5);
     assert_eq!(
-        render_area.y, 0,
+        render_area.y, area.y,
         "content should be top-aligned: y = area.y"
     );
     assert_eq!(render_area.height, 5);
-    // When visible_rows fills the area, y still stays at 0.
+    // When visible_rows fills the area, y still stays at area.y.
     let render_area_full = task_output_render_area(&state, area, 20);
-    assert_eq!(render_area_full.y, 0);
+    assert_eq!(render_area_full.y, area.y);
     assert_eq!(render_area_full.height, 20);
 }
 
