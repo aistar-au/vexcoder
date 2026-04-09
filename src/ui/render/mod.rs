@@ -1,7 +1,7 @@
 use crate::ui::input_metrics::{
     cursor_row_col, display_width, visual_row_count, visual_window_start, wrap_input_lines,
 };
-use crate::ui::layout::{preferred_four_region_input_rows_for_content, split_four_region_layout};
+use crate::ui::layout::{preferred_four_region_input_rows_for_content, split_compact_task_layout};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -265,25 +265,31 @@ pub fn render_status_line(frame: &mut Frame<'_>, area: Rect, status: &str) {
 /// Render the task control surface: status bar, output/transcript pane,
 /// composer input, and optional picker overlay.
 pub fn render_task_layout(frame: &mut Frame<'_>, state: &crate::app::TaskViewProjection) {
-    let input_width = frame.area().width.saturating_sub(2).max(1) as usize;
-    let layout = split_four_region_layout(
-        frame.area(),
-        1,
-        preferred_four_region_input_rows_for_content(
-            frame.area().height,
-            input_visual_rows(&state.composer_text, input_width) as u16,
-        ),
+    let frame_area = frame.area();
+    let input_width = frame_area.width.saturating_sub(2).max(1) as usize;
+    let input_rows = preferred_four_region_input_rows_for_content(
+        frame_area.height,
+        input_visual_rows(&state.composer_text, input_width) as u16,
     );
-    frame.render_widget(Clear, frame.area());
+
+    // Pre-expand output rows before the layout split so the compact layout can
+    // size the output pane to exactly the visible content rows, keeping the
+    // composer immediately below the content instead of at the bottom of the
+    // full reserved inline viewport area.
+    let expanded_output_rows = expand_rows_for_display(&state.output_rows, frame_area.width);
+    const STATUS_ROWS: u16 = 1;
+    let available_output = frame_area
+        .height
+        .saturating_sub(STATUS_ROWS)
+        .saturating_sub(input_rows);
+    let (output_start, output_end) =
+        task_output_window_with_total(state, expanded_output_rows.len(), available_output as usize);
+    let visible_rows = (output_end - output_start) as u16;
+    let layout = split_compact_task_layout(frame_area, STATUS_ROWS, visible_rows, input_rows);
+    frame.render_widget(Clear, frame_area);
     render_status_line(frame, layout.header, &state.status_line);
 
     // --- Output / Inspector pane ---
-    let expanded_output_rows = expand_rows_for_display(&state.output_rows, layout.output.width);
-    let (output_start, output_end) = task_output_window_with_total(
-        state,
-        expanded_output_rows.len(),
-        layout.output.height as usize,
-    );
     let output_lines: Vec<Line> = expanded_output_rows[output_start..output_end]
         .iter()
         .map(|row| transcript_output_line(row))

@@ -461,13 +461,9 @@ pub(crate) fn task_output_render_area(
     }
 
     let height = visible_rows.min(area.height as usize) as u16;
-    // Bottom-align the output within the available area so the transcript
-    // appears directly above the input pane rather than leaving a gap at the
-    // bottom when content is shorter than the viewport.
-    let y_offset = area.height.saturating_sub(height);
     Rect {
         x: area.x,
-        y: area.y + y_offset,
+        y: area.y,
         width: area.width,
         height,
     }

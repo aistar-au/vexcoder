@@ -6,7 +6,9 @@ and the remaining architecture work after that cutover.
 
 ## Current constraints
 
-The ratatui task surface already keeps the composer pinned at the bottom edge.
+The ratatui task surface keeps the composer immediately below the visible
+transcript content. Any surplus rows in the bounded inline viewport accumulate
+below the composer rather than between the content and the input pane.
 The remaining complexity is no longer the pane split; it is the live
 transcript state.
 
@@ -58,9 +60,11 @@ choices so the UI, parser, and API route all move in the same direction.
 
 ### 1. Viewport contract
 
-- The composer stays pinned to the bottom edge.
-- Short transcript bodies now start directly below the status row instead of
-  being bottom-filled with blank space.
+- The composer sits immediately below the visible transcript content.
+  Surplus rows in the bounded inline viewport accumulate below the composer
+  so blank space never appears between content and the input pane.
+- Short transcript bodies start directly below the status row and grow
+  downward; the output pane is sized to exactly the visible content rows.
 - As new rows arrive, the transcript grows downward until it fills the body.
   Once the body is full, the live window follows the bottom and older rows
   scroll upward out of view.
