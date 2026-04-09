@@ -591,33 +591,34 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
     fn render(&mut self, mode: &TuiMode) {
         let input = self.editor.buffer().to_string();
         let cursor = self.editor.cursor();
-        let size = self.tui.size().unwrap_or_default();
-        let width = size.width.max(1);
-        mode.set_display_column_width(width as usize);
+        if let Ok(size) = self.tui.size() {
+            let width = size.width.max(1);
+            mode.set_display_column_width(width as usize);
 
-        if self.tui.uses_inline_viewport()
-            && should_disable_inline_history_after_resize(self.last_history_insert_width, width)
-        {
-            self.disable_inline_history(&format!(
-                "host width changed from {} to {width}; stock ratatui inline insertion cannot rewrap already-flushed history",
-                self.last_history_insert_width.unwrap_or(width)
-            ));
-        }
+            if self.tui.uses_inline_viewport()
+                && should_disable_inline_history_after_resize(self.last_history_insert_width, width)
+            {
+                self.disable_inline_history(&format!(
+                    "host width changed from {} to {width}; stock ratatui inline insertion cannot rewrap already-flushed history",
+                    self.last_history_insert_width.unwrap_or(width)
+                ));
+            }
 
-        if self.tui.uses_inline_viewport() {
-            let current_count = mode.committed_turns_count();
-            if current_count > self.last_committed_turns_count {
-                let committed_rows = mode.committed_transcript_rows();
-                match self
-                    .history_sink
-                    .flush(self.tui.inner_mut(), &committed_rows, width)
-                {
-                    Ok(()) => {
-                        self.last_committed_turns_count = current_count;
-                        self.last_history_insert_width = Some(width);
-                    }
-                    Err(err) => {
-                        self.disable_inline_history(&format!("scrollback flush failed: {err}"));
+            if self.tui.uses_inline_viewport() {
+                let current_count = mode.committed_turns_count();
+                if current_count > self.last_committed_turns_count {
+                    let committed_rows = mode.committed_transcript_rows();
+                    match self
+                        .history_sink
+                        .flush(self.tui.inner_mut(), &committed_rows, width)
+                    {
+                        Ok(()) => {
+                            self.last_committed_turns_count = current_count;
+                            self.last_history_insert_width = Some(width);
+                        }
+                        Err(err) => {
+                            self.disable_inline_history(&format!("scrollback flush failed: {err}"));
+                        }
                     }
                 }
             }
