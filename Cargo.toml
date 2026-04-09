@@ -28,6 +28,7 @@ hyper-util = { version = "0.1", features = [
   "tokio",
 ] }
 ratatui = { version = "0.29", features = [
+  "scrolling-regions",
   "unstable-backend-writer",
   "unstable-rendered-line-info",
   "unstable-widget-ref",
