@@ -403,9 +403,11 @@ The managed frontend draw loop in `src/tui_frontend.rs` is the integration
 point for this change because it currently owns host setup, viewport
 sizing, and the `render_task_layout` / `render_messages` dispatch.
 
-The current tree does not yet enable ratatui's `scrolling-regions` feature in
-`Cargo.toml`, so Batch F must make that feature decision explicitly before it
-can rely on scroll-region semantics on the preferred path.
+The tree now enables ratatui's `scrolling-regions` feature in `Cargo.toml`, so
+Batch F's preferred path can rely on scroll-region semantics on supported
+backends. The remaining correctness concern is the resize fallback around
+`insert_before(..)`, because prior committed lines cannot be rewrapped in place
+when the host width changes after a flush.
 
 ### D18: Split committed transcript rows from live viewport rows
 

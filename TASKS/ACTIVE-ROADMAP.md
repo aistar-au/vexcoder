@@ -82,7 +82,8 @@ ADR-041 D15 (word-wrap plain-text rows to display width, `expand_rows_for_displa
 ADR-041 D17-D22 (host scrollback sink abstraction, committed/live viewport
 split, restricted main-surface scroll state, width-aware wrapping for new
 rendering paths, turn-boundary reset semantics, idle u16 cap removal) defined
-in the 2026-04-08 ADR amendment; initial wiring in PR #363.
+in the 2026-04-08 ADR amendment; initial wiring landed in PR #363 and resize
+hardening plus ratatui `scrolling-regions` enablement landed in PR #364.
 
 ### ~~Tier 1 -- Open PRs~~ (cleared 2026-03-27)
 
@@ -306,7 +307,7 @@ would duplicate traversal logic.
 | PM-04 | `work/vexcoder-auto-memory` | #274 | **Merged** | Automatic extraction of memory-worthy facts from conversation turns |
 | ADR-041-D8D13 | `work/vexcoder-delta-consume-switchover` | #332 | **Merged** | Pending-row replacement, live input preview, ordered streamed-text segmentation, bounded-suffix streaming reuse, delta accumulator drain activation, and chunk-safe wrapper-tag normalisation for the transcript-first path post PR #331 |
 | ADR-041-D15 | `work/vexcoder-tui-transcript-render-fixes` | #333 | **Merged** | Word-wrap plain-text transcript rows to display width; `expand_rows_for_display`, `transcript_window_rows` viewport primitive (ADR-041 D15) |
-| ADR-041-D17D22 | PR #363 branch | #363 | **Open** | Host-owned scrollback ADR amendments (ADR-024, ADR-031, ADR-032, ADR-039, ADR-040, ADR-041 D17-D22) plus initial inline viewport wiring (`HostScrollbackSink`, `Viewport::Inline`, committed/live viewport split) |
+| ADR-041-D17D22 | PR #363 / #364 | #363, #364 | **Merged** | Host-owned scrollback ADR amendments (ADR-024, ADR-031, ADR-032, ADR-039, ADR-040, ADR-041 D17-D22) plus inline viewport wiring, ratatui `scrolling-regions` enablement, and resize hardening for committed-history insertion |
 
 Each branch had a task manifest in `TASKS/` defining scope, constraints, and anchor tests.
 
