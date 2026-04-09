@@ -61,9 +61,9 @@ so transcript-first consumers follow the backend's JSON delta stream
 without showing raw wrapper or partial tag text when the server breaks
 markup across arbitrary chunk boundaries.
 
-The current ratatui surface keeps the composer pinned at the bottom edge of a
-bounded inline task surface, but the live turn state is still assembled from
-three sources: `history_state.lines`,
+The current ratatui surface sizes the output pane to the visible content rows
+and keeps the composer immediately below them in a bounded inline task surface,
+but the live turn state is still assembled from three sources: `history_state.lines`,
 `current_turn_stream_segments`, and `active_stream_blocks`. That split is the
 remaining complexity boundary for the tool-call cutover. The current repair
 work keeps scroll ownership on the ratatui transcript, fixes net-growth
