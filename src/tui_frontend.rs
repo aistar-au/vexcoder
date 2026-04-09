@@ -42,6 +42,12 @@ pub struct ManagedTuiFrontend {
     /// Tracks the turn count seen at last flush so the full row projection is
     /// skipped on frames where no new turns have been committed.
     last_committed_turns_count: usize,
+    /// Width used for the most recent committed-history flush.
+    ///
+    /// Ratatui's current `insert_before()` API renders into a fixed-width
+    /// buffer, so already-flushed history cannot be rewrapped if the host
+    /// display width changes mid-session.
+    last_history_insert_width: Option<u16>,
 }
 
 impl ManagedTuiFrontend {
@@ -63,7 +69,16 @@ impl ManagedTuiFrontend {
             dismissed_slash_picker: false,
             cached_slash_picker: None,
             last_committed_turns_count: 0,
+            last_history_insert_width: None,
         })
+    }
+
+    fn disable_inline_history(&mut self, reason: &str) {
+        let _ = writeln!(
+            std::io::stderr(),
+            "[vex] inline history disabled — falling back to owned-transcript path: {reason}"
+        );
+        self.tui.disable_inline_viewport();
     }
 
     fn current_file_picker(&mut self, mode: &TuiMode) -> Option<FileMentionPickerState> {
@@ -476,8 +491,7 @@ impl HostScrollbackSink {
             return Ok(());
         }
 
-        let expanded_rows =
-            crate::ui::render::expand_rows_for_display(pending_rows, viewport_width.max(1));
+        let expanded_rows = wrap_committed_history_rows(pending_rows, viewport_width.max(1));
         for chunk in expanded_rows.chunks(HISTORY_INSERT_CHUNK_ROWS) {
             let lines = chunk
                 .iter()
@@ -491,6 +505,20 @@ impl HostScrollbackSink {
         self.flushed_committed_rows = committed_rows.len();
         Ok(())
     }
+}
+
+fn wrap_committed_history_rows(rows: &[TranscriptRow], cols: u16) -> Vec<TranscriptRow> {
+    // Keep committed-history insertion distinct from the overlay/fallback path.
+    // Ratatui still requires a screen-width buffer for `insert_before()`, so we
+    // must wrap rows before flushing them into host scrollback.
+    crate::ui::render::expand_rows_for_display(rows, cols.max(1))
+}
+
+fn should_disable_inline_history_after_resize(
+    last_history_insert_width: Option<u16>,
+    current_width: u16,
+) -> bool {
+    last_history_insert_width.is_some_and(|previous_width| previous_width != current_width)
 }
 
 /// Maximum number of visible entries in the floating picker overlay.
@@ -563,28 +591,34 @@ impl FrontendAdapter<TuiMode> for ManagedTuiFrontend {
     fn render(&mut self, mode: &TuiMode) {
         let input = self.editor.buffer().to_string();
         let cursor = self.editor.cursor();
-        let size = self.tui.size().unwrap_or_default();
-        mode.set_display_column_width(size.width.max(1) as usize);
+        if let Ok(size) = self.tui.size() {
+            let width = size.width.max(1);
+            mode.set_display_column_width(width as usize);
 
-        if self.tui.uses_inline_viewport() {
-            let current_count = mode.committed_turns_count();
-            if current_count > self.last_committed_turns_count {
-                let committed_rows = mode.committed_transcript_rows();
-                match self.history_sink.flush(
-                    self.tui.inner_mut(),
-                    &committed_rows,
-                    size.width.max(1),
-                ) {
-                    Ok(()) => {
-                        self.last_committed_turns_count = current_count;
-                    }
-                    Err(err) => {
-                        // insert_before failed (unsupported backend or I/O
-                        // error). Disable inline viewport so subsequent
-                        // frames fall back to the owned-transcript path
-                        // rather than silently losing committed content.
-                        let _ = writeln!(std::io::stderr(), "[vex] scrollback flush error — falling back to owned-transcript path: {err}");
-                        self.tui.disable_inline_viewport();
+            if self.tui.uses_inline_viewport()
+                && should_disable_inline_history_after_resize(self.last_history_insert_width, width)
+            {
+                self.disable_inline_history(&format!(
+                    "host width changed from {} to {width}; stock ratatui inline insertion cannot rewrap already-flushed history",
+                    self.last_history_insert_width.unwrap_or(width)
+                ));
+            }
+
+            if self.tui.uses_inline_viewport() {
+                let current_count = mode.committed_turns_count();
+                if current_count > self.last_committed_turns_count {
+                    let committed_rows = mode.committed_transcript_rows();
+                    match self
+                        .history_sink
+                        .flush(self.tui.inner_mut(), &committed_rows, width)
+                    {
+                        Ok(()) => {
+                            self.last_committed_turns_count = current_count;
+                            self.last_history_insert_width = Some(width);
+                        }
+                        Err(err) => {
+                            self.disable_inline_history(&format!("scrollback flush failed: {err}"));
+                        }
                     }
                 }
             }
@@ -782,5 +816,56 @@ mod tests {
                 "                    ".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn host_scrollback_sink_flushes_directly_to_scrollback_when_viewport_fills_screen() {
+        let backend = TestBackend::new(20, 5);
+        let mut tui = Terminal::with_options(
+            backend,
+            TerminalOptions {
+                viewport: Viewport::Inline(5),
+            },
+        )
+        .expect("inline viewport");
+        let mut sink = HostScrollbackSink::default();
+        let committed_rows = vec![
+            TranscriptRow::Plain("------ Line 1 ------".to_string()),
+            TranscriptRow::Plain("------ Line 2 ------".to_string()),
+            TranscriptRow::Plain("------ Line 3 ------".to_string()),
+        ];
+
+        sink.flush(&mut tui, &committed_rows, 20)
+            .expect("flush committed rows");
+        tui.draw(|frame| {
+            frame.render_widget(Paragraph::new("[---- Viewport ----]"), frame.area());
+        })
+        .expect("draw viewport");
+
+        assert_eq!(
+            rendered_lines(tui.backend().scrollback()),
+            vec![
+                "------ Line 1 ------".to_string(),
+                "------ Line 2 ------".to_string(),
+                "------ Line 3 ------".to_string(),
+            ]
+        );
+        assert_eq!(
+            rendered_lines(tui.backend().buffer()),
+            vec![
+                "[---- Viewport ----]".to_string(),
+                "                    ".to_string(),
+                "                    ".to_string(),
+                "                    ".to_string(),
+                "                    ".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn inline_history_resize_detection_matches_known_ratatui_gap() {
+        assert!(!should_disable_inline_history_after_resize(None, 80));
+        assert!(!should_disable_inline_history_after_resize(Some(80), 80));
+        assert!(should_disable_inline_history_after_resize(Some(80), 100));
     }
 }
