@@ -58,7 +58,7 @@ choices so the UI, parser, and API route all move in the same direction.
 
 ### 1. Viewport contract
 
-- The composer stays pinned to the bottom edge.
+- The composer stays pinned to the bottom edge of a bounded inline task surface.
 - Short transcript bodies now start directly below the status row instead of
   being bottom-filled with blank space.
 - As new rows arrive, the transcript grows downward until it fills the body.
