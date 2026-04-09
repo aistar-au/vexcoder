@@ -481,7 +481,7 @@ fn looks_like_raw_json_frame(text: &str) -> bool {
     let trimmed = text.trim();
     !trimmed.is_empty()
         && (trimmed.starts_with('{') || trimmed == "[DONE]")
-        && serde_json::from_str::<serde_json::Value>(trimmed).is_ok()
+        && (trimmed == "[DONE]" || serde_json::from_str::<serde_json::Value>(trimmed).is_ok())
 }
 
 #[cfg(test)]

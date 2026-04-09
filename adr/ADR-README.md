@@ -29,15 +29,15 @@ All ADR files are stored under `adr/`.
 | [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active | Phase 1+2 merged; boundary tests now cover grouped, multiline, and `super::`-relative imports |
 | [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness | Accepted | All 8 decision items verified (2026-03-28) |
 | [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Accepted | All 6 coverage requirements verified (2026-03-28) |
-| [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Accepted (all batches A-E merged; host-owned scrollback amendment 2026-04-08) | Batch F scope: host-owned scrollback cutover via ratatui inline viewport + host scrollback; merge-gated by ADR-041 D17-D22 |
-| [ADR-032](ADR-032-prompt-area-interactivity-and-context-guard.md) | Prompt area interactivity and context guard | Accepted (bottom-anchored prompt amendment 2026-04-08) | Item 9 transferred to ADR-033; items 10-14 align prompt with host-owned scrollback model |
+| [ADR-031](ADR-031-operator-surface-ui-overhaul.md) | Operator surface UI overhaul | Accepted (all batches A-E merged; 2026-04-08 host-scrollback amendment superseded 2026-04-09) | Current operator surface keeps one owned transcript; no host-scrollback cutover is pending |
+| [ADR-032](ADR-032-prompt-area-interactivity-and-context-guard.md) | Prompt area interactivity and context guard | Accepted (bottom-anchored prompt amendment corrected 2026-04-09) | Item 9 transferred to ADR-033; items 10-14 now align prompt/navigation with the owned-transcript review model |
 | [ADR-033](ADR-033-hybrid-retrieval-context-architecture.md) | Hybrid retrieval context architecture | Accepted (all phases 1-4 merged) | 0 items remaining |
 | [ADR-034](ADR-034-multi-agent-parallel-task-execution.md) | Multi-agent / parallel task execution | Active (Phase A + B-E merged) | Hardening merged for serialized concurrency caps, prompt guard, explicit release, and normalized watch/boundary coverage |
 | [ADR-035](ADR-035-undo-checkpoints-and-binary-safe-rollback.md) | Undo checkpoints and binary-safe rollback | Accepted | 0 items remaining; Gap 14 rollback strategy formalized for `/undo` |
 | [ADR-038](ADR-038-memory-first-architecture-with-minimal-disk-io.md) | Memory-first architecture with minimal disk I/O | Accepted (Batches D-H merged) | 0 items remaining |
-| [ADR-039](ADR-039-neutral-cli-voice-and-spatial-status-language.md) | Neutral CLI voice and spatial status language | Proposed (Batch A merged on main) | Batch A merged in PR #292; search.exclude path-boundary fix in PR #293; Batch D amended 2026-04-08 to target committed-history flush plus live viewport; remaining batches B-D cover vocabulary, active indicator, and paragraph progress stream |
-| [ADR-040](ADR-040-real-time-local-turn-telemetry.md) | Real-time local turn telemetry | Proposed (operator-surface contract amended 2026-04-08) | Telemetry labels updated to arrow notation in ADR-041; operator-surface items 22-23 amended for host-owned scrollback model |
-| [ADR-041](ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md) | Transcript renderer wiring and compact tool paragraphs | Accepted (host scrollback sink amendment 2026-04-08) | Normaliser flush, compact tool paragraphs, arrow telemetry labels; D17-D22 define ratatui-native inline viewport insertion, live viewport split, turn-boundary reset semantics, and idle u16 cap removal |
+| [ADR-039](ADR-039-neutral-cli-voice-and-spatial-status-language.md) | Neutral CLI voice and spatial status language | Proposed (Batch A merged on main) | Batch A merged in PR #292; search.exclude path-boundary fix in PR #293; Batch D corrected 2026-04-09 to keep paragraph progress on the owned transcript surface; remaining batches B-D cover vocabulary, active indicator, and paragraph progress stream |
+| [ADR-040](ADR-040-real-time-local-turn-telemetry.md) | Real-time local turn telemetry | Proposed (operator-surface contract corrected 2026-04-09) | Telemetry labels updated to arrow notation in ADR-041; operator-surface items 22-23 keep committed and live telemetry on the owned transcript surface |
+| [ADR-041](ADR-041-transcript-renderer-wiring-and-compact-tool-paragraphs.md) | Transcript renderer wiring and compact tool paragraphs | Accepted (2026-04-08 host-scrollback amendment superseded 2026-04-09) | Normaliser flush, compact tool paragraphs, arrow telemetry labels; D17-D22 are retained as rejected design history, not an active cutover target |
 | [ADR-043](ADR-043-structured-output-parser-adoption-gates.md) | Structured output parser adoption gates | Active, with open adoption gates | Present in tree but not the default runtime parser path; 3 gates: live wiring, parity, defect reduction |
 | [ADR-044](ADR-044-test-suite-scalability-and-fixture-patterns.md) | Test suite scalability and fixture patterns | Proposed | 3-phase implementation roadmap; Phase 1: aggregator + RAII helpers; Phase 2: builder API + async; Phase 3: parameterization + coverage |
 | [ADR-045](ADR-045-replay-first-task-document-and-single-writer-state.md) | Replay-first task document and single-writer state | Proposed | Defines `TaskDocumentCondenser` as sole writer, `RuntimeEventLog` as canonical persisted history, full event coverage requirement, full-fidelity checkpoints, and session rollback markers; supersedes lossy `persistable_snapshot` as canonical resume source |
@@ -56,20 +56,17 @@ the top-level `adr/` directory pending a housekeeping move.
 | [ADR-026](ADR-026-localapiserver-transport-binding.md) | LocalApiServer transport binding | Complete | PI-13 through PI-16 all merged |
 | [ADR-027](ADR-027-full-screen-tui-command-session-capture.md) | Full-screen TUI command-session capture | Accepted (complete) | Supersedes ADR-018/019 |
 
-## Remaining Work Summary (host-owned scrollback cutover + 1 external dependency)
+## Remaining Work Summary (current transcript surface + 1 external dependency)
 
-ADR-031 and ADR-041 now carry a host-owned scrollback follow-up amendment
-(2026-04-08). ADR-031 defines the scroll ownership change and compatibility
-ladder (ratatui inline viewport insertion via `insert_before(..)`,
-newline fallback, owned-transcript fallback). ADR-041 D17-D22 define the
-technical cutover: ratatui-native inline viewport adoption, live viewport
-split, restricted main-surface scroll state, width-aware wrapping for new
-paths, turn-boundary reset semantics, and idle u16 cap removal. ADR-039
-Batch D now targets committed-history flush plus live
-viewport rather than full app-owned upper-body scrolling. ADR-040 operator-
-surface items 22-23 are amended for the same host-owned scrollback model.
-ADR-032 items 10-14 align the prompt area with the bottom-anchored viewport
-contract.
+ADR-031 and ADR-041 still retain the 2026-04-08 host-owned scrollback text as
+historical context, but that direction is superseded by the 2026-04-09
+owned-transcript correction. The operator surface keeps one app-owned
+transcript, review stays in-surface or via explicit overlays, and no ratatui
+inline viewport insertion or `HostScrollbackSink` cutover is an active merge
+target. ADR-039 Batch D now targets paragraph-oriented progress on that owned
+transcript surface, ADR-040 items 22-23 describe the same single-surface
+telemetry contract, and ADR-032 items 10-14 align prompt navigation with
+owned-surface review rather than host scrollback.
 
 ADR-039 Batch A is merged on main (PR #292); remaining batches B-D cover
 vocabulary, active indicator, and paragraph progress stream. ADR-038 is

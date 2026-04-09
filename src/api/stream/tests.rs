@@ -158,6 +158,17 @@ fn test_process_accepts_raw_json_frame_without_sse_delimiter() {
 }
 
 #[test]
+fn test_process_accepts_raw_done_frame_without_sse_delimiter() {
+    let mut parser = StreamParser::new();
+    let events = parser.process(b"[DONE]").unwrap();
+
+    assert!(
+        events.is_empty(),
+        "raw [DONE] should terminate cleanly without emitting a parse error"
+    );
+}
+
+#[test]
 fn test_process_emits_error_event_on_unparseable_frame() {
     let mut parser = StreamParser::new();
     let events = parser.process(b"data: not-a-json-value\n\n").unwrap();

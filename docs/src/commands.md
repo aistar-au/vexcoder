@@ -319,7 +319,7 @@ the overflow from the HTTP 400 response body and provides actionable guidance:
 The server's error message is shown verbatim, capped at 300 characters.
 
 For non-context-overflow HTTP 400 errors from local endpoints, the error
-includes the detected protocol (MessagesV1 vs ChatCompat) and suggests
+includes the inferred protocol (MessagesV1 vs ChatCompat) and suggests
 checking the model name, protocol format, and whether the server supports
 streaming.
 

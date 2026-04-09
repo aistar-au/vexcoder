@@ -111,19 +111,21 @@ surface.
 11. Up and Down keys in the multiline composer continue to mean cursor
     motion, input history recall, or picker navigation within the composer.
     They do not scroll the main-surface committed transcript. Main-surface
-    transcript inspection uses host scrollback.
+    transcript inspection stays on the owned task surface or an explicit
+    transcript overlay, not host scrollback.
 
 12. In-app transcript inspection, when needed, uses an explicit transcript
-    overlay (detail surface) rather than app-level idle transcript scrolling
-    on the main surface.
+    overlay (detail surface) or the owned transcript surface rather than a
+    host-scrollback review contract.
 
 13. Character count indicator, focus indicator, `/compact` recovery, `@`
     file picker, and fullscreen reflow contracts remain unchanged by the
-    host-owned scrollback amendment.
+    2026-04-09 owned-transcript correction.
 
 14. The prompt area must not imply that app-level idle transcript scrolling
     is required for the main surface. Interactive transcript review on the
-    main path is delegated to host scrollback.
+    main path remains within the task surface, with explicit overlays for
+    deeper inspection.
 
 ## Consequences
 

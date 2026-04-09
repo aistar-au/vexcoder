@@ -115,9 +115,9 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
         }
     }
 
-    // Probe native protocol support. If the server handles ChatCompat
-    // natively, prefer it to avoid MessagesV1 -> ChatCompat conversion
-    // overhead on the server side.
+    // Probe protocol support. When the server only accepts one wire shape,
+    // cache that exclusive preference. If both endpoints respond, keep the
+    // configured protocol instead of silently overriding it.
     if let Some(ref mut server_info) = info {
         server_info.native_protocol = detect_native_protocol(http, base).await;
     }
@@ -125,10 +125,9 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
     info
 }
 
-/// Probe both `/v1/chat/completions` and `/v1/messages` to determine which
-/// protocol the server handles natively. When both endpoints respond, returns
-/// `ChatCompat` as local inference servers typically handle it natively.
-/// Returns `None` only when probing fails entirely.
+/// Probe both `/v1/chat/completions` and `/v1/messages` to determine whether
+/// the server exposes only one wire protocol. When both endpoints respond,
+/// fall back to the configured protocol instead of overriding it.
 async fn detect_native_protocol(http: &reqwest::Client, base: &str) -> Option<ModelProtocol> {
     let timeout = std::time::Duration::from_secs(2);
 
@@ -182,16 +181,17 @@ async fn detect_native_protocol(http: &reqwest::Client, base: &str) -> Option<Mo
 
     let (chat_result, messages_result) = tokio::join!(chat_ok, messages_ok);
 
-    match (chat_result, messages_result) {
-        // Server accepts chat completions but not messages — native ChatCompat.
-        (Some(()), None) => Some(ModelProtocol::ChatCompat),
-        // Server accepts messages but not chat completions — native MessagesV1.
-        (None, Some(())) => Some(ModelProtocol::MessagesV1),
-        // Both or neither — cannot determine; return ChatCompat if both
-        // are accepted since most local inference servers handle ChatCompat
-        // natively and convert MessagesV1 internally.
-        (Some(()), Some(())) => Some(ModelProtocol::ChatCompat),
-        (None, None) => None,
+    select_detected_native_protocol(chat_result.is_some(), messages_result.is_some())
+}
+
+fn select_detected_native_protocol(
+    chat_supported: bool,
+    messages_supported: bool,
+) -> Option<ModelProtocol> {
+    match (chat_supported, messages_supported) {
+        (true, false) => Some(ModelProtocol::ChatCompat),
+        (false, true) => Some(ModelProtocol::MessagesV1),
+        (true, true) | (false, false) => None,
     }
 }
 /// Base system prompt applied to every API call.
@@ -405,10 +405,9 @@ impl ApiClient {
     }
 
     fn api_protocol(&self) -> ApiProtocol {
-        // When a local server's native protocol has been detected, prefer it
-        // to avoid server-side format conversion (e.g. MessagesV1 -> ChatCompat).
-        // This is the core boundary: if both protocols are supported, the
-        // client sends in the server's native format directly.
+        // When server discovery proves that only one wire protocol works,
+        // prefer that exclusive route. If both routes are available, preserve
+        // the configured protocol instead of silently switching transports.
         if let Some(native) = self.server_info().and_then(|si| si.native_protocol) {
             return match native {
                 ModelProtocol::MessagesV1 => ApiProtocol::MessagesV1,

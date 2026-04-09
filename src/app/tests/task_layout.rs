@@ -1112,16 +1112,14 @@ fn test_thinking_block_delta_does_not_duplicate_normalized_stream_rows() {
 }
 
 #[test]
-fn host_history_layout_keeps_active_rows_in_the_live_viewport() {
+fn task_layout_keeps_active_rows_in_the_owned_viewport() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
     mode.on_user_input("stream the answer".to_string(), &mut ctx);
     mode.on_model_update(UiUpdate::StreamDelta("working".to_string()), &mut ctx);
 
-    let state = mode
-        .host_history_task_layout_state()
-        .expect("task layout state");
+    let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(
         state.output_rows,
         vec![
@@ -1132,14 +1130,10 @@ fn host_history_layout_keeps_active_rows_in_the_live_viewport() {
             },
         ]
     );
-    assert!(
-        mode.committed_transcript_rows().is_empty(),
-        "committed rows should stay empty until the turn is completed"
-    );
 }
 
 #[test]
-fn host_history_layout_flushes_completed_turns_out_of_the_live_viewport() {
+fn task_layout_keeps_completed_turns_in_the_owned_viewport() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
 
@@ -1147,15 +1141,9 @@ fn host_history_layout_flushes_completed_turns_out_of_the_live_viewport() {
     mode.on_model_update(UiUpdate::StreamDelta("done".to_string()), &mut ctx);
     mode.commit_completed_turn(&ctx);
 
-    let state = mode
-        .host_history_task_layout_state()
-        .expect("task layout state");
-    assert!(
-        state.output_rows.is_empty(),
-        "the live viewport should stop owning committed transcript rows"
-    );
+    let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(
-        mode.committed_transcript_rows(),
+        state.output_rows,
         vec![
             TranscriptRow::UserInput("finish the answer".to_string()),
             TranscriptRow::AssistantText {
