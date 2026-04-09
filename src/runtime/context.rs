@@ -112,6 +112,18 @@ impl RuntimeContext {
                 }
             }
 
+            // Flush normaliser buffers when the stream ends naturally.
+            // This emits any pending text and closes stale open tool-call
+            // blocks so the TUI sees a clean terminal state. Skip when
+            // cancelled – the turn was aborted and partial output is noise.
+            if !cancelled {
+                flush_normalised_text(&mut normaliser, &tx);
+                for (index, mut block_normaliser) in textual_block_by_index.drain() {
+                    flush_normalised_block_text(&mut block_normaliser, index, &tx);
+                    let _ = tx.send(UiUpdate::StreamBlockComplete { index });
+                }
+            }
+
             let send_result = if cancelled {
                 None
             } else {
@@ -217,6 +229,13 @@ impl RuntimeContext {
         let mut normaliser = crate::api::stream::StreamTextNormaliser::new();
         while let Some(update) = delta_rx.recv().await {
             forward_conversation_update(update, &mut textual_block_by_index, &mut normaliser, &tx);
+        }
+        // Flush normaliser state after the edit stream ends so that any
+        // buffered text and stale open tool-call blocks are emitted cleanly.
+        flush_normalised_text(&mut normaliser, &tx);
+        for (index, mut block_normaliser) in textual_block_by_index.drain() {
+            flush_normalised_block_text(&mut block_normaliser, index, &tx);
+            let _ = tx.send(UiUpdate::StreamBlockComplete { index });
         }
 
         match send_handle.await {
