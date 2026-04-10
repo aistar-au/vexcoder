@@ -478,7 +478,17 @@ pub(crate) fn expand_rows_for_display(rows: &[TranscriptRow], cols: u16) -> Vec<
     for row in rows {
         let text = row.as_display_str();
         if text.contains('\n') {
-            for sub in text.split('\n') {
+            // UserInput rows may contain expanded [file: path]\n```text\n...\n```
+            // blocks from @path mentions submitted to the API.  Collapse those
+            // back to compact @path tokens for the transcript display so that
+            // attaching a large file does not flood the output pane with
+            // thousands of file-content lines.
+            let cow: std::borrow::Cow<str> = if matches!(row, TranscriptRow::UserInput(_)) {
+                std::borrow::Cow::Owned(collapse_file_blocks_for_display(text))
+            } else {
+                std::borrow::Cow::Borrowed(text)
+            };
+            for sub in cow.split('\n') {
                 for wrapped in word_wrap_plain_row(sub, cols as usize) {
                     expanded.push(row.clone_with_text(wrapped));
                 }
@@ -497,6 +507,55 @@ pub(crate) fn expand_rows_for_display(rows: &[TranscriptRow], cols: u16) -> Vec<
         }
     }
     expanded
+}
+
+/// Collapse `[file: path]\n```text\n<content>\n``` ` (and dir equivalents)
+/// blocks in a user-input display string back to compact `@path` tokens.
+/// The full content is never discarded — it lives in the underlying turn data
+/// for the API context.  This only affects what is shown in the TUI pane.
+fn collapse_file_blocks_for_display(text: &str) -> String {
+    if !text.contains("[file: ") && !text.contains("[dir: ") {
+        return text.to_string();
+    }
+    let mut result: Vec<String> = Vec::new();
+    let mut lines = text.lines();
+    let mut in_code_fence = false;
+
+    while let Some(line) = lines.next() {
+        if in_code_fence {
+            if line == "```" {
+                in_code_fence = false;
+            }
+            // Skip all lines inside the fenced block body.
+            continue;
+        }
+        // Skip "[\u2014 excerpt limited...]" footer lines produced when a
+        // file was truncated by the byte cap.
+        if (line.starts_with("[file: ") || line.starts_with("[dir: "))
+            && line.contains('\u{2014}')
+            && line.ends_with(']')
+        {
+            continue;
+        }
+        // [file: path] header — emit @path, consume the opening ```text fence.
+        if let Some(rest) = line.strip_prefix("[file: ").and_then(|r| r.strip_suffix(']')) {
+            result.push(format!("@{rest}"));
+            if matches!(lines.next(), Some(l) if l == "```text") {
+                in_code_fence = true;
+            }
+            continue;
+        }
+        // [dir: path] header — emit @path/, consume the opening ```text fence.
+        if let Some(rest) = line.strip_prefix("[dir: ").and_then(|r| r.strip_suffix(']')) {
+            result.push(format!("@{rest}/"));
+            if matches!(lines.next(), Some(l) if l == "```text") {
+                in_code_fence = true;
+            }
+            continue;
+        }
+        result.push(line.to_string());
+    }
+    result.join("\n")
 }
 
 fn word_wrap_transcript_row(row: &TranscriptRow, cols: usize) -> Vec<String> {
