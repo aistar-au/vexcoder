@@ -238,8 +238,8 @@ impl ConversationManager {
         &mut self,
         context_window_tokens: usize,
     ) -> Option<(usize, usize, String)> {
-        if !self.should_compact_proactively(&self.compaction_config.clone(), context_window_tokens)
-        {
+        let config = self.compaction_config.clone();
+        if !self.should_compact_proactively(&config, context_window_tokens) {
             return None;
         }
         let messages_before = self.api_messages.len();

@@ -70,18 +70,20 @@ impl ConversationManager {
         // Proactive compaction: if token estimate exceeds threshold, compact
         // before the turn starts (between-turns-only constraint).
         let ctx_window = self.client.context_window_tokens();
-        if let Some((before, after, summary)) = self.run_proactive_compaction(ctx_window) {
+        if let Some((before, after, _heuristic_content)) = self.run_proactive_compaction(ctx_window)
+        {
             compacted_this_turn = true;
+            let display_summary = format!("{before} → {after} messages (proactive)");
             emit_text_update(
                 stream_delta_tx,
-                format!("\n[context compacted: {} → {} messages]\n", before, after),
+                format!("\n[context compacted: {display_summary}]\n"),
             );
             emit_stream_update(
                 stream_delta_tx,
                 ConversationStreamUpdate::ContextCompacted {
                     messages_before: before,
                     messages_after: after,
-                    summary: summary.clone(),
+                    summary: display_summary,
                 },
             );
         }

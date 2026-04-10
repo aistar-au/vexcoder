@@ -274,10 +274,12 @@ impl TuiMode {
             return (matches, total_matches);
         }
 
+        let all_entries = self.cached_file_prompt_entries();
+        let total_count = all_entries.len();
         let needle_lower = needle.to_ascii_lowercase();
         let mut scored = BinaryHeap::new();
 
-        for display in self.cached_file_prompt_entries() {
+        for display in all_entries {
             let Some((rank, match_len)) = score_file_prompt_entry(&display, &needle_lower) else {
                 continue;
             };
@@ -299,7 +301,6 @@ impl TuiMode {
         );
 
         let matches: Vec<String> = ranked.into_iter().map(|(_, _, display)| display).collect();
-        let total_count = self.cached_file_prompt_entries().len();
         (matches, total_count)
     }
 

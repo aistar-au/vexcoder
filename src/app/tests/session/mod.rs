@@ -278,7 +278,7 @@ fn test_tui_compact_resets_conversation_history() {
         mode.history_lines()[0]
     );
     assert!(
-        mode.history_lines()[1].starts_with("[context compacted at turn "),
+        mode.history_lines()[1].starts_with("[context compacted: "),
         "expected compaction boundary marker, got: {}",
         mode.history_lines()[1]
     );
