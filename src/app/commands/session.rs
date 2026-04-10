@@ -293,14 +293,28 @@ impl TuiMode {
         }
     }
     pub(crate) fn handle_compact_command(&mut self, ctx: &mut RuntimeContext) {
+        use crate::runtime::ContextCompactionRecord;
         let task_id = self.task_doc.meta.id.clone();
+        let turns_before = self.task_doc.completed_turns.len();
+        let turn_index = turns_before;
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
+
+        // Record the compaction before clearing.
+        self.task_doc
+            .context_compaction
+            .push(ContextCompactionRecord {
+                turn_index,
+                messages_before: turns_before,
+                messages_after: 0,
+                summary: format!("/compact: cleared {turns_before} completed turn(s)"),
+            });
+
         self.task_doc.completed_turns.clear();
         self.persist_task_document();
         self.reset_conversation_window(ctx);
         self.push_history_line(format!(
-            "[compacted: conversation history reset; task {task_id} continues]"
+            "[compacted: {turns_before} turn(s) cleared; task {task_id} continues]"
         ));
     }
 

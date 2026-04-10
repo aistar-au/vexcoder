@@ -502,7 +502,8 @@ pub fn build_batch_runtime(
     let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
         .with_search_config(config.search.clone())
         .with_sandbox(sandbox)
-        .with_mcp_registry(mcp_registry);
+        .with_mcp_registry(mcp_registry)
+        .with_compaction_config(config.compaction.clone());
 
     let (update_tx, update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());
@@ -553,7 +554,8 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
     let conversation = ConversationManager::new_with_hooks(client, operator, config.hooks.clone())
         .with_search_config(config.search.clone())
         .with_sandbox(sandbox)
-        .with_mcp_registry(mcp_registry);
+        .with_mcp_registry(mcp_registry)
+        .with_compaction_config(config.compaction.clone());
 
     let (update_tx, mut update_rx) = mpsc::unbounded_channel::<UiUpdate>();
     let mut ctx = RuntimeContext::new(conversation, update_tx, CancellationToken::new());

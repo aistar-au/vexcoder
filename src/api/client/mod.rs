@@ -350,6 +350,15 @@ impl ApiClient {
             .clone()
     }
 
+    /// Estimated context window size in tokens. Returns the server-reported
+    /// `n_ctx` when known, or a conservative default of 8192 otherwise.
+    pub fn context_window_tokens(&self) -> usize {
+        self.server_info()
+            .map(|i| i.n_ctx as usize)
+            .filter(|&n| n > 0)
+            .unwrap_or(8192)
+    }
+
     /// Attach project-instructions text. Builder pattern; consumes and
     /// returns self. Pass `None` to use the base prompt unmodified.
     pub fn with_project_instructions(mut self, instructions: Option<String>) -> Self {

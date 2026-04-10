@@ -52,7 +52,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-mod accessors;
 mod commands;
 mod ctor;
 mod errors;
@@ -62,6 +61,7 @@ mod input;
 mod layout;
 mod model_update;
 mod overlay;
+mod queries;
 mod runtime_build;
 mod scroll;
 mod shell;
@@ -346,6 +346,8 @@ pub(crate) fn file_picker_match_summary(
         } else {
             format!("[file] {total_matches} item(s) in {dir_prefix}")
         }
+    } else if visible_count < total_matches {
+        format!("[file] {visible_count} of {total_matches} match(es)")
     } else {
         format!("[file] {visible_count} match(es)")
     }

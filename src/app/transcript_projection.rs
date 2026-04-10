@@ -40,8 +40,30 @@ pub(crate) fn project_committed_transcript_rows(
         rows.push(TranscriptRow::Plain(notice.clone()));
     }
 
-    for completed in &task_doc.completed_turns {
+    // Interleave compaction boundary markers at the turn they reference.
+    let mut compaction_iter = task_doc.context_compaction.iter().peekable();
+
+    for (turn_idx, completed) in task_doc.completed_turns.iter().enumerate() {
+        // Emit any compaction markers that point at this turn index.
+        while compaction_iter
+            .peek()
+            .is_some_and(|r| r.turn_index <= turn_idx)
+        {
+            let record = compaction_iter.next().unwrap();
+            rows.push(TranscriptRow::Plain(format!(
+                "[context compacted: {}]",
+                record.summary
+            )));
+        }
         append_turn_rows(&mut rows, &completed.entries);
+    }
+
+    // Emit any remaining compaction markers (e.g. from /compact which clears turns).
+    for record in compaction_iter {
+        rows.push(TranscriptRow::Plain(format!(
+            "[context compacted: {}]",
+            record.summary
+        )));
     }
 
     rows

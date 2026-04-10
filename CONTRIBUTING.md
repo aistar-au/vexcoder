@@ -306,7 +306,7 @@ repository-hosted sessions.
 Recommended shard ownership for UI-overhaul work:
 
 - `vexcoder-ui-parity-orchestrator`
-  `src/app.rs`, `src/app/accessors.rs`, `src/app/commands/mod.rs`,
+  `src/app.rs`, `src/app/queries.rs`, `src/app/commands/mod.rs`,
   `src/app/input.rs`, `src/app/inline.rs`, `src/app/model_update.rs`,
   `src/app/turn.rs`, `src/bin/vex.rs`, `src/ui/editor/mod.rs`, and final
   workflow/doc cleanup only when explicitly assigned.
@@ -328,7 +328,7 @@ git push -u origin work/vexcoder-ui-overhaul
 gh agent-task create \
   --base work/vexcoder-ui-overhaul \
   --custom-agent vexcoder-ui-parity-orchestrator \
-  "Shard: prompt interactivity. Own only src/app.rs, src/app/accessors.rs, src/app/commands/mod.rs, src/app/input.rs, src/app/inline.rs, src/app/model_update.rs, src/app/turn.rs, src/bin/vex.rs, and src/ui/editor/mod.rs. Focus on prompt submission, slash commands, @file expansion, and startup API/model prompting. Do not edit layout or ANSI-surface files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
+  "Shard: prompt interactivity. Own only src/app.rs, src/app/queries.rs, src/app/commands/mod.rs, src/app/input.rs, src/app/inline.rs, src/app/model_update.rs, src/app/turn.rs, src/bin/vex.rs, and src/ui/editor/mod.rs. Focus on prompt submission, slash commands, @file expansion, and startup API/model prompting. Do not edit layout or ANSI-surface files. Report base SHA, changed paths, and code-bearing commit SHAs before stopping. Use English only. Do not read any SKILL.md file. Do not bootstrap, inspect, or depend on private skills or adjacent repos. Use text-only verification only. Do not create screenshots, screen captures, pseudo-screenshots, parsed cli snapshots, image artifacts, or temporary visual-surrogate files. Do not create ad hoc temporary projects or files whose only purpose is to simulate, capture, or restyle the UI for visual verification."
 gh agent-task view <session-id-from-create-output> --log --follow
 
 gh agent-task create \
@@ -472,7 +472,7 @@ vexcoder/ (standalone view)
 | `src/api/mock_client.rs` | Mock streaming client used by tests. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
 | `src/api/stream.rs` | Stream/SSE event parsing helpers used by API layer. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/stream.rs> |
 | `src/app.rs` | Current interactive application module root: TUI mode state, input, overlays, history, and runtime-facing coordination. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app.rs> |
-| `src/app/accessors.rs` | TuiMode status and read-only accessor methods extracted from app facade under ADR-028 phase 4. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/accessors.rs> |
+| `src/app/queries.rs` | TuiMode read-only query methods and computed properties extracted from app facade under ADR-028 phase 4. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/queries.rs> |
 | `src/app/commands/mod.rs` | Slash-command handler module root; command families are split across focused files under `src/app/commands/`. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/commands/mod.rs> |
 | `src/app/ctor.rs` | TuiMode construction methods extracted from app facade under ADR-028 phase 4. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/ctor.rs> |
 | `src/app/errors.rs` | AppError wrapper type and AppResult type alias for error handling. Raw: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/app/errors.rs> |
