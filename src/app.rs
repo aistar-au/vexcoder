@@ -52,7 +52,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-mod accessors;
 mod commands;
 mod ctor;
 mod errors;
@@ -62,6 +61,7 @@ mod input;
 mod layout;
 mod model_update;
 mod overlay;
+mod queries;
 mod runtime_build;
 mod scroll;
 mod shell;
