@@ -40,6 +40,14 @@ pub(crate) fn project_committed_transcript_rows(
         rows.push(TranscriptRow::Plain(notice.clone()));
     }
 
+    // Show compaction boundary markers at the top of the transcript.
+    for record in &task_doc.context_compaction {
+        rows.push(TranscriptRow::Plain(format!(
+            "[context compacted at turn {}: {} → {} messages]",
+            record.turn_index, record.messages_before, record.messages_after
+        )));
+    }
+
     for completed in &task_doc.completed_turns {
         append_turn_rows(&mut rows, &completed.entries);
     }

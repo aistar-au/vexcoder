@@ -1,5 +1,4 @@
 use super::ConversationManager;
-#[cfg(test)]
 use crate::config::CompactionConfig;
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::state::conversation::tools::dispatch::missing_read_only_location_prompt;
@@ -10,6 +9,15 @@ use crate::tool_preview::{
 use crate::types::{ApiMessage, Content, ContentBlock};
 use anyhow::Result;
 use std::time::Duration;
+
+/// Fixed summarization prompt used when building a heuristic compaction summary.
+/// The prompt is intentionally not user-configurable to prevent prompt injection
+/// via config (PM-01 constraint).
+const COMPACTION_SUMMARY_PROMPT: &str = "\
+You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary \
+for the next turn. Include: current progress and key decisions made, important \
+constraints or user preferences, what remains to be done (clear next steps), \
+and any critical data or references needed to continue. Be concise and structured.";
 
 const LOCAL_DEFAULT_MAX_ASSISTANT_HISTORY_CHARS: usize = 1_200;
 const LOCAL_DEFAULT_MAX_TOOL_RESULT_HISTORY_CHARS: usize = 2_500;
@@ -131,7 +139,6 @@ impl ConversationManager {
 
     /// Estimate the total token count of the current message history using
     /// a byte-based heuristic (4 bytes per token).
-    #[cfg(test)]
     pub(super) fn estimate_history_tokens(&self) -> usize {
         self.api_messages
             .iter()
@@ -153,7 +160,6 @@ impl ConversationManager {
 
     /// Check whether proactive compaction should trigger based on the
     /// configured threshold and an estimated context window size.
-    #[cfg(test)]
     pub(super) fn should_compact_proactively(
         &self,
         config: &CompactionConfig,
@@ -175,7 +181,6 @@ impl ConversationManager {
     ///
     /// Preserves the MessagesV1 invariant that history starts with a
     /// plain user message.
-    #[cfg(test)]
     pub(super) fn compact_with_summary(
         &mut self,
         keep_recent_turns: usize,
@@ -223,6 +228,33 @@ impl ConversationManager {
         }
 
         removed
+    }
+
+    /// Run proactive compaction if the threshold is exceeded. Builds a
+    /// heuristic summary from the evicted messages (no LLM call) and calls
+    /// `compact_with_summary`. Returns `Some((messages_before, messages_after, summary))`
+    /// when compaction was performed, or `None` if it was not needed.
+    pub(super) fn run_proactive_compaction(
+        &mut self,
+        context_window_tokens: usize,
+    ) -> Option<(usize, usize, String)> {
+        if !self.should_compact_proactively(&self.compaction_config.clone(), context_window_tokens)
+        {
+            return None;
+        }
+        let messages_before = self.api_messages.len();
+        let keep = self.compaction_config.keep_recent_turns;
+        let summary = build_heuristic_summary(
+            &self.api_messages,
+            keep,
+            self.compaction_config.summary_max_tokens,
+        );
+        let removed = self.compact_with_summary(keep, &summary);
+        if removed == 0 {
+            return None;
+        }
+        let messages_after = self.api_messages.len();
+        Some((messages_before, messages_after, summary))
     }
 
     /// Condense tool results in messages older than `keep_turns` recent
@@ -689,4 +721,76 @@ fn indent_block(text: &str, indent: &str) -> String {
         .map(|line| format!("{indent}{line}"))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// Build a heuristic summary from the messages that will be evicted
+/// (everything before the most recent `keep_recent_turns` turns).
+/// Extracts the first line of each user message and the first line of
+/// each assistant response, capped at `max_tokens * 4` bytes.
+fn build_heuristic_summary(
+    messages: &[ApiMessage],
+    keep_recent_turns: usize,
+    max_tokens: usize,
+) -> String {
+    let len = messages.len();
+    if len == 0 {
+        return String::new();
+    }
+
+    // Find the boundary the same way compact_with_summary does.
+    let mut user_count = 0usize;
+    let mut boundary = 0;
+    for i in (0..len).rev() {
+        if messages[i].role == "user" && !message_contains_tool_result(&messages[i]) {
+            user_count += 1;
+            if user_count >= keep_recent_turns {
+                boundary = i;
+                break;
+            }
+        }
+    }
+    if boundary == 0 {
+        return String::new();
+    }
+
+    let max_bytes = max_tokens * 4;
+    let mut parts: Vec<String> = Vec::new();
+    let mut total_bytes = 0usize;
+
+    for msg in &messages[..boundary] {
+        let role = &msg.role;
+        let first_line = match &msg.content {
+            Content::Text(t) => t.lines().next().unwrap_or("").to_string(),
+            Content::Blocks(blocks) => blocks
+                .iter()
+                .find_map(|b| match b {
+                    ContentBlock::Text { text, .. } => text.lines().next().map(String::from),
+                    ContentBlock::ToolUse { name, .. } => Some(format!("[tool: {name}]")),
+                    ContentBlock::ToolResult { content, .. } => {
+                        content.lines().next().map(String::from)
+                    }
+                    _ => None,
+                })
+                .unwrap_or_default(),
+        };
+        if first_line.is_empty() {
+            continue;
+        }
+        let entry = format!("- {role}: {first_line}");
+        total_bytes += entry.len();
+        if total_bytes > max_bytes {
+            break;
+        }
+        parts.push(entry);
+    }
+
+    if parts.is_empty() {
+        return String::new();
+    }
+
+    format!(
+        "{}\n{}",
+        COMPACTION_SUMMARY_PROMPT,
+        parts.join("\n")
+    )
 }

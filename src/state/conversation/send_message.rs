@@ -66,6 +66,26 @@ impl ConversationManager {
             parser_for_mode(ToolParserMode::from_env_or(None, default_tool_parser_mode));
         // Condense once per user turn, not per API round, to stay idempotent.
         self.condense_old_tool_results(history_keep_turns);
+
+        // Proactive compaction: if token estimate exceeds threshold, compact
+        // before the turn starts (between-turns-only constraint).
+        let ctx_window = self.client.context_window_tokens();
+        if let Some((before, after, summary)) = self.run_proactive_compaction(ctx_window) {
+            compacted_this_turn = true;
+            emit_text_update(
+                stream_delta_tx,
+                format!("\n[context compacted: {} → {} messages]\n", before, after),
+            );
+            emit_stream_update(
+                stream_delta_tx,
+                ConversationStreamUpdate::ContextCompacted {
+                    messages_before: before,
+                    messages_after: after,
+                    summary: summary.clone(),
+                },
+            );
+        }
+
         loop {
             self.advance_round_start();
             turn_user_anchor_index = self

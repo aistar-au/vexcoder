@@ -346,6 +346,8 @@ pub(crate) fn file_picker_match_summary(
         } else {
             format!("[file] {total_matches} item(s) in {dir_prefix}")
         }
+    } else if visible_count < total_matches {
+        format!("[file] {visible_count} of {total_matches} match(es)")
     } else {
         format!("[file] {visible_count} match(es)")
     }

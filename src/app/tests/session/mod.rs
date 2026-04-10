@@ -266,14 +266,21 @@ fn test_tui_compact_resets_conversation_history() {
 
     mode.on_user_input("/compact".to_string(), &mut ctx);
 
+    // 1 confirmation line (pre_session_notice) + 1 compaction boundary row
     assert_eq!(
         mode.history_lines().len(),
-        1,
-        "/compact must reset the transcript"
+        2,
+        "/compact must reset the transcript with boundary marker"
     );
     assert!(
-        mode.history_lines()[0].starts_with("[compacted: conversation history reset; task "),
-        "expected compacted confirmation"
+        mode.history_lines()[0].starts_with("[compacted: "),
+        "expected compacted confirmation, got: {}",
+        mode.history_lines()[0]
+    );
+    assert!(
+        mode.history_lines()[1].starts_with("[context compacted at turn "),
+        "expected compaction boundary marker, got: {}",
+        mode.history_lines()[1]
     );
     assert!(!mode.is_turn_in_progress());
 }

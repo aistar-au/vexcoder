@@ -299,8 +299,8 @@ impl TuiMode {
         );
 
         let matches: Vec<String> = ranked.into_iter().map(|(_, _, display)| display).collect();
-        let total_matches = matches.len();
-        (matches, total_matches)
+        let total_count = self.cached_file_prompt_entries().len();
+        (matches, total_count)
     }
 
     pub fn file_prompt_matches(&self, prefix: &str) -> Vec<String> {

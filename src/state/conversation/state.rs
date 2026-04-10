@@ -1,5 +1,5 @@
 use crate::api::ApiClient;
-use crate::config::{HookConfig, HttpHookConfig, SearchConfig};
+use crate::config::{CompactionConfig, HookConfig, HttpHookConfig, SearchConfig};
 use crate::mcp::McpRegistry;
 use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::session_task::now_millis;
@@ -110,6 +110,7 @@ pub struct ConversationManager {
     pub(super) undo_stack: Vec<UndoCheckpoint>,
     pub(super) max_undo_checkpoints: usize,
     pub(super) undo_enabled: bool,
+    pub(super) compaction_config: CompactionConfig,
     #[cfg(test)]
     pub(super) mock_tool_operator_responses: Option<Arc<Mutex<HashMap<String, String>>>>,
 }
@@ -151,6 +152,7 @@ impl ConversationManager {
             undo_stack: Vec::new(),
             max_undo_checkpoints: 20,
             undo_enabled: true,
+            compaction_config: CompactionConfig::default(),
             #[cfg(test)]
             mock_tool_operator_responses: None,
         }
@@ -203,6 +205,11 @@ impl ConversationManager {
         self
     }
 
+    pub fn with_compaction_config(mut self, config: CompactionConfig) -> Self {
+        self.compaction_config = config;
+        self
+    }
+
     pub async fn shutdown_resources(&mut self) {
         if let Some(mcp_registry) = self.mcp_registry.take() {
             mcp_registry.shutdown().await;
@@ -229,6 +236,7 @@ impl ConversationManager {
             undo_stack: Vec::new(),
             max_undo_checkpoints: 20,
             undo_enabled: true,
+            compaction_config: CompactionConfig::default(),
             mock_tool_operator_responses: Some(Arc::new(Mutex::new(tool_operator_responses))),
         }
     }
