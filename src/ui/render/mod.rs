@@ -324,12 +324,16 @@ fn render_picker_overlay(
 
     let frame_area = frame.area();
     let above = composer_area.y.saturating_sub(frame_area.y);
-    let below = (frame_area.y + frame_area.height)
-        .saturating_sub(composer_area.y + composer_area.height);
+    let below =
+        (frame_area.y + frame_area.height).saturating_sub(composer_area.y + composer_area.height);
 
     // Prefer rendering above the composer; fall back to below when the
     // compact layout leaves more room underneath.
-    let (available_height, render_below) = if below > above { (below, true) } else { (above, false) };
+    let (available_height, render_below) = if below > above {
+        (below, true)
+    } else {
+        (above, false)
+    };
 
     if available_height < 3 {
         return;
