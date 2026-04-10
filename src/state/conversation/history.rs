@@ -788,9 +788,5 @@ fn build_heuristic_summary(
         return String::new();
     }
 
-    format!(
-        "{}\n{}",
-        COMPACTION_SUMMARY_PROMPT,
-        parts.join("\n")
-    )
+    format!("{}\n{}", COMPACTION_SUMMARY_PROMPT, parts.join("\n"))
 }
