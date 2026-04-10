@@ -10,7 +10,7 @@ use ratatui::{backend::CrosstermBackend, Terminal, TerminalOptions, Viewport};
 use std::io::{self, IsTerminal, Stdout};
 use std::sync::Once;
 
-const DEFAULT_INLINE_VIEWPORT_ROWS: u16 = 12;
+const DEFAULT_INLINE_VIEWPORT_ROWS: u16 = 20;
 
 pub struct TuiHandle {
     inner: Terminal<CrosstermBackend<Stdout>>,
@@ -121,8 +121,8 @@ mod tests {
 
     #[test]
     fn preferred_inline_viewport_rows_caps_tall_hosts() {
-        assert_eq!(preferred_inline_viewport_rows_with_override(40, None), 12);
-        assert_eq!(preferred_inline_viewport_rows_with_override(24, None), 12);
+        assert_eq!(preferred_inline_viewport_rows_with_override(40, None), 20);
+        assert_eq!(preferred_inline_viewport_rows_with_override(24, None), 20);
     }
 
     #[test]
