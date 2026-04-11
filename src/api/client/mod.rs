@@ -836,7 +836,13 @@ fn resolve_max_tokens(default_max_tokens: u32, server_n_ctx: u32) -> u32 {
     } else {
         16384
     };
-    base.clamp(128, ceiling)
+    // Guard against ceiling < 128 (server reports n_ctx < 171) which would
+    // panic in clamp because min > max is not permitted.
+    if ceiling < 128 {
+        ceiling
+    } else {
+        base.clamp(128, ceiling)
+    }
 }
 
 fn infer_api_protocol(api_url: &str) -> ApiProtocol {
@@ -903,7 +909,7 @@ fn adapt_to_messages_v1_url(api_url: &str) -> String {
 }
 
 fn chat_compat_messages(messages: &[ApiMessage], system_prompt: &str) -> Vec<Value> {
-    let mut out = Vec::with_capacity(messages.len() + 1);
+    let mut out = Vec::with_capacity(messages.len().saturating_add(1));
     out.push(json!({
         "role": "system",
         "content": system_prompt
