@@ -130,6 +130,17 @@ fn validate(config: &AgentsConfig, path: &Path) -> Result<()> {
 /// Agent names must be non-empty, within filesystem-safe length, and unique.
 const MAX_AGENT_NAME_LEN: usize = 64;
 
+/// Returns `true` when `name` is safe for use as a single filesystem path
+/// component. Rejects path separators, control characters (including NUL),
+/// and the reserved relative-directory names `.` and `..`.
+fn is_filesystem_safe(name: &str) -> bool {
+    if name == "." || name == ".." {
+        return false;
+    }
+    name.bytes()
+        .all(|b| b > 0x1F && b != b'/' && b != b'\\' && b != b'\0')
+}
+
 fn validate_agent_names(config: &AgentsConfig, path: &Path) -> Result<()> {
     let mut seen = HashSet::new();
     for agent in &config.agent_profiles {
@@ -139,6 +150,13 @@ fn validate_agent_names(config: &AgentsConfig, path: &Path) -> Result<()> {
         if agent.name.len() > MAX_AGENT_NAME_LEN {
             bail!(
                 "agent name '{}' exceeds {MAX_AGENT_NAME_LEN}-byte limit in '{}'",
+                agent.name,
+                path.display()
+            );
+        }
+        if !is_filesystem_safe(&agent.name) {
+            bail!(
+                "agent name '{}' contains characters unsafe for filesystem paths in '{}'",
                 agent.name,
                 path.display()
             );
@@ -168,6 +186,13 @@ fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
     for team in &config.team_definitions {
         if team.name.is_empty() {
             bail!("team name must not be empty in '{}'", path.display());
+        }
+        if !is_filesystem_safe(&team.name) {
+            bail!(
+                "team name '{}' contains characters unsafe for filesystem paths in '{}'",
+                team.name,
+                path.display()
+            );
         }
         if !team_names.insert(&team.name) {
             bail!(
@@ -539,5 +564,91 @@ scheduler = "sequential"
             config.team_definitions[0].scheduler,
             TeamScheduler::Sequential
         );
+    }
+
+    #[test]
+    fn rejects_agent_name_with_path_separator() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(dir.path(), "[[agents]]\nname = \"../escape\"\n");
+        let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("unsafe for filesystem"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
+    fn rejects_agent_name_with_backslash() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(dir.path(), "[[agents]]\nname = \"back\\\\slash\"\n");
+        let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("unsafe for filesystem"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
+    fn rejects_agent_name_with_control_char() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(dir.path(), "[[agents]]\nname = \"bad\\u0001name\"\n");
+        let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("unsafe for filesystem"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
+    fn rejects_dot_dot_agent_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(dir.path(), "[[agents]]\nname = \"..\"\n");
+        let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("unsafe for filesystem"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
+    fn rejects_dot_agent_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(dir.path(), "[[agents]]\nname = \".\"\n");
+        let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("unsafe for filesystem"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
+    fn rejects_team_name_with_path_separator() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(
+            dir.path(),
+            "[[agents]]\nname = \"a\"\n\n[[teams]]\nname = \"bad/team\"\nmembers = [\"a\"]\n",
+        );
+        let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("unsafe for filesystem"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
+    fn is_filesystem_safe_accepts_valid_names() {
+        assert!(super::is_filesystem_safe("fixer"));
+        assert!(super::is_filesystem_safe("rust-fixer-01"));
+        assert!(super::is_filesystem_safe("my_agent.v2"));
+    }
+
+    #[test]
+    fn is_filesystem_safe_rejects_dangerous_names() {
+        assert!(!super::is_filesystem_safe("."));
+        assert!(!super::is_filesystem_safe(".."));
+        assert!(!super::is_filesystem_safe("a/b"));
+        assert!(!super::is_filesystem_safe("a\\b"));
+        assert!(!super::is_filesystem_safe("a\0b"));
+        assert!(!super::is_filesystem_safe("a\x01b"));
     }
 }
