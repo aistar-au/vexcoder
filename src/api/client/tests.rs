@@ -241,6 +241,20 @@ fn test_resolve_max_tokens_unknown_server_caps_at_ceiling() {
 }
 
 #[test]
+fn test_resolve_max_tokens_small_n_ctx_does_not_panic() {
+    // server_n_ctx=100 → ceiling=75 (< 128); must not panic in clamp
+    let tokens = resolve_max_tokens(4096, 100);
+    assert_eq!(tokens, 75);
+}
+
+#[test]
+fn test_resolve_max_tokens_n_ctx_one_returns_zero() {
+    // server_n_ctx=1 → ceiling=0; boundary case for very small context
+    let tokens = resolve_max_tokens(4096, 1);
+    assert_eq!(tokens, 0);
+}
+
+#[test]
 fn test_tool_definitions_cover_execute_tool_dispatch_names() {
     let expected: BTreeSet<&str> = BTreeSet::from([
         "read_file",
