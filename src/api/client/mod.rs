@@ -831,7 +831,8 @@ fn resolve_max_tokens(default_max_tokens: u32, server_n_ctx: u32) -> u32 {
     // When server context is known, cap at 75% of n_ctx to leave room for
     // the prompt. When unknown (0), use a generous default ceiling.
     let ceiling = if server_n_ctx > 0 {
-        (server_n_ctx as f64 * 0.75) as u32
+        // Multiply in u64 to avoid f64 rounding issues on large context windows.
+        ((server_n_ctx as u64 * 3) / 4).min(u32::MAX as u64) as u32
     } else {
         16384
     };
