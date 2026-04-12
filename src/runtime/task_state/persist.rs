@@ -1,10 +1,9 @@
 use anyhow::{anyhow, Context, Result};
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use super::{TaskId, TaskState};
-use crate::runtime::session_task::{now_millis, SessionTask, SessionTaskStatus};
+use crate::runtime::session_task::{now_millis, SessionTask};
 use crate::turn_evidence::normalize_tool_invocation_step_ids;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,18 +15,6 @@ pub struct TaskStateFile {
 
 fn state_file_path(dir: &Path, id: &str) -> PathBuf {
     dir.join(format!("{id}.json"))
-}
-
-#[derive(Debug, Deserialize)]
-struct TaskStateLiveSummary {
-    #[serde(default)]
-    session_tasks: Vec<SessionTaskLiveSummary>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SessionTaskLiveSummary {
-    agent_id: String,
-    lifecycle_state: SessionTaskStatus,
 }
 
 /// Delegates to [`crate::util::write_json_safe`].
@@ -109,6 +96,19 @@ impl TaskState {
     }
 
     pub fn state_files_from(working_dir: &Path) -> Vec<TaskStateFile> {
+        Self::state_files_from_with_limit(working_dir, None)
+    }
+
+    /// Like `state_files_from` but caps the result at `limit` files
+    /// (the newest by filesystem mtime). When `limit` is `None` the
+    /// behaviour is identical to the unbounded form.
+    ///
+    /// All startup paths should call this variant with
+    /// `Some(StartupBudget::default().max_scans)` to bound allocation.
+    pub fn state_files_from_with_limit(
+        working_dir: &Path,
+        limit: Option<usize>,
+    ) -> Vec<TaskStateFile> {
         let mut files = Self::state_search_dirs_from(working_dir)
             .into_iter()
             .flat_map(|dir| Self::state_files_in_dir(&dir))
@@ -117,6 +117,10 @@ impl TaskState {
         files.sort_by(|left, right| right.modified_millis.cmp(&left.modified_millis));
         let mut seen = std::collections::HashSet::new();
         files.retain(|file| seen.insert(file.id.clone()));
+
+        if let Some(cap) = limit {
+            files.truncate(cap);
+        }
         files
     }
 
@@ -140,7 +144,43 @@ impl TaskState {
         working_dir: &Path,
         session_task_id: &str,
     ) -> Result<Option<(TaskState, SessionTask)>> {
-        for file in Self::state_files_from(working_dir) {
+        use super::meta_index::cached_metadata;
+        use crate::config::StartupBudget;
+
+        let budget = StartupBudget::default();
+
+        for file in Self::state_files_from_with_limit(working_dir, Some(budget.max_scans)) {
+            let path = file.dir.join(format!("{}.json", file.id));
+
+            // Metadata pass: check whether this file could contain the target
+            // session task before paying the cost of a full TaskState::load().
+            let header = match cached_metadata(&file.id, &path, &file) {
+                Some(h) => h,
+                None => {
+                    tracing::debug!(
+                        task_id = %file.id,
+                        "skipping unreadable task state during session task search"
+                    );
+                    continue;
+                }
+            };
+
+            // The session task id format is "{parent_task_id}-{agent_id}-{uuid}"
+            // (see SessionTask::new). A file is a candidate when its header lists
+            // a session task whose composite id matches, or when session_tasks
+            // is None (pre-ADR-034 file: fall through to full load to be safe).
+            let is_candidate = match &header.session_tasks {
+                None => true, // legacy file: always check
+                Some(tasks) => tasks.iter().any(|t| {
+                    session_task_id.starts_with(&format!("{}-{}-", header.id, t.agent_id))
+                }),
+            };
+
+            if !is_candidate {
+                continue;
+            }
+
+            // Full load only on the candidate file.
             let state = Self::load(&file.dir, &file.id)?;
             if let Some(task) = state.session_task(session_task_id).cloned() {
                 return Ok(Some((state, task)));
@@ -150,33 +190,29 @@ impl TaskState {
     }
 
     pub fn live_session_task_counts_from(working_dir: &Path) -> Result<HashMap<String, usize>> {
+        use super::meta_index::cached_metadata;
+        use crate::config::StartupBudget;
+
+        let budget = StartupBudget::default();
         let mut counts = HashMap::new();
-        for file in Self::state_files_from(working_dir) {
-            match Self::load_live_summary(&file.dir, &file.id) {
-                Ok(summary) => {
-                    for session_task in summary.session_tasks {
-                        if session_task.lifecycle_state.is_live() {
-                            *counts.entry(session_task.agent_id).or_default() += 1;
+
+        for file in Self::state_files_from_with_limit(working_dir, Some(budget.max_scans)) {
+            let path = file.dir.join(format!("{}.json", file.id));
+            match cached_metadata(&file.id, &path, &file) {
+                Some(header) => {
+                    for task in header.session_tasks.unwrap_or_default() {
+                        if task.status.is_live() {
+                            *counts.entry(task.agent_id).or_default() += 1;
                         }
                     }
                 }
-                Err(error) => tracing::debug!(
+                None => tracing::debug!(
                     task_id = %file.id,
-                    state_dir = %file.dir.display(),
-                    %error,
                     "skipping unreadable task state during inline active agent scan"
                 ),
             }
         }
         Ok(counts)
-    }
-
-    fn load_live_summary(dir: &Path, id: &str) -> Result<TaskStateLiveSummary> {
-        let path = state_file_path(dir, id);
-        let content = std::fs::read_to_string(&path)
-            .with_context(|| format!("Failed to read state file: {}", path.display()))?;
-        serde_json::from_str(&content)
-            .with_context(|| format!("Failed to deserialize state file: {}", path.display()))
     }
 
     fn state_files_in_dir(dir: &Path) -> Vec<TaskStateFile> {
@@ -579,5 +615,101 @@ mod tests {
         let counts = TaskState::live_session_task_counts_from(&nested).unwrap();
         assert_eq!(counts.get("legacy-reviewer"), Some(&1));
         assert!(!counts.contains_key("repo-reviewer"));
+    }
+
+    // --- ADR-038 amendment: bounded scan + metadata-projection tests ---
+
+    #[test]
+    fn state_files_from_with_limit_returns_newest_n() {
+        use filetime::{set_file_mtime, FileTime};
+        let _guard = ENV_LOCK.blocking_lock();
+        let dir = TempDir::new().unwrap();
+        let state_dir = dir.path().join(".vex/state");
+        std::fs::create_dir_all(&state_dir).unwrap();
+
+        // Write 5 task files with distinct mtimes
+        for i in 0..5u32 {
+            let id = format!("scan-task-{i}");
+            let state = TaskState::new(id.clone());
+            state.save(&state_dir).unwrap();
+            set_file_mtime(
+                state_dir.join(format!("{id}.json")),
+                FileTime::from_unix_time(1_700_000_000 + i as i64, 0),
+            )
+            .unwrap();
+        }
+
+        std::env::set_var("VEX_STATE_DIR", state_dir.to_str().unwrap());
+        let files = TaskState::state_files_from_with_limit(dir.path(), Some(3));
+        std::env::remove_var("VEX_STATE_DIR");
+
+        assert_eq!(files.len(), 3);
+        // Newest first
+        assert_eq!(files[0].id, "scan-task-4");
+        assert_eq!(files[1].id, "scan-task-3");
+        assert_eq!(files[2].id, "scan-task-2");
+    }
+
+    #[test]
+    fn state_files_from_compat_unchanged_with_no_limit() {
+        let _guard = ENV_LOCK.blocking_lock();
+        let dir = TempDir::new().unwrap();
+        let state_dir = dir.path().join(".vex/state");
+        std::fs::create_dir_all(&state_dir).unwrap();
+
+        for i in 0..4u32 {
+            let id = format!("compat-{i}");
+            let state = TaskState::new(id.clone());
+            state.save(&state_dir).unwrap();
+        }
+
+        std::env::set_var("VEX_STATE_DIR", state_dir.to_str().unwrap());
+        let with_none = TaskState::state_files_from_with_limit(dir.path(), None);
+        let without = TaskState::state_files_from(dir.path());
+        std::env::remove_var("VEX_STATE_DIR");
+
+        assert_eq!(with_none.len(), without.len());
+    }
+
+    #[test]
+    fn find_session_task_handles_legacy_json_without_session_tasks() {
+        let _guard = ENV_LOCK.blocking_lock();
+        let dir = TempDir::new().unwrap();
+        let state_dir = dir.path().join(".vex/state");
+        std::fs::create_dir_all(&state_dir).unwrap();
+
+        // Write a task with a session task so we have something to find.
+        let mut root = TaskState::new("legacy-root".to_string());
+        let session_task = SessionTask::new("legacy-root", "bot", "do work", None);
+        let expected_id = session_task.id.clone();
+        root.add_session_task(session_task);
+        root.save(&state_dir).unwrap();
+
+        std::env::set_var("VEX_STATE_DIR", state_dir.to_str().unwrap());
+        let result =
+            TaskState::find_session_task_in_saved_states(dir.path(), &expected_id).unwrap();
+        std::env::remove_var("VEX_STATE_DIR");
+
+        assert!(result.is_some());
+        let (_, found) = result.unwrap();
+        assert_eq!(found.id, expected_id);
+    }
+
+    #[test]
+    fn live_session_task_counts_uses_header_only() {
+        let _guard = ENV_LOCK.blocking_lock();
+        let dir = TempDir::new().unwrap();
+        let state_dir = dir.path().join(".vex/state");
+        std::fs::create_dir_all(&state_dir).unwrap();
+
+        let mut root = TaskState::new("hdr-task".to_string());
+        root.add_session_task(SessionTask::new("hdr-task", "analyst", "analyse", None));
+        root.save(&state_dir).unwrap();
+
+        std::env::set_var("VEX_STATE_DIR", state_dir.to_str().unwrap());
+        let counts = TaskState::live_session_task_counts_from(dir.path()).unwrap();
+        std::env::remove_var("VEX_STATE_DIR");
+
+        assert_eq!(counts.get("analyst"), Some(&1));
     }
 }

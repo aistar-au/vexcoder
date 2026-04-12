@@ -7,6 +7,10 @@ use crate::runtime::session_task::{now_millis, SessionTask, SessionTaskStatus};
 use crate::runtime::{ApprovalScope, Capability};
 use crate::turn_evidence::TurnEvidenceState;
 
+pub(crate) mod meta_index;
+pub(crate) mod meta_projection;
+#[cfg(test)]
+pub(crate) mod meta_ref;
 mod persist;
 
 pub use persist::TaskStateFile;
