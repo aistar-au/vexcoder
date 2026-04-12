@@ -10,8 +10,6 @@ use ratatui::{backend::CrosstermBackend, Terminal, TerminalOptions, Viewport};
 use std::io::{self, IsTerminal, Stdout};
 use std::sync::Once;
 
-const DEFAULT_INLINE_VIEWPORT_ROWS: u16 = 12;
-
 pub struct TuiHandle {
     inner: Terminal<CrosstermBackend<Stdout>>,
 }
@@ -64,8 +62,8 @@ fn preferred_inline_viewport_rows_with_override(host_rows: u16, override_rows: O
     let host_rows = host_rows.max(1);
     override_rows
         .filter(|rows| *rows > 0)
-        .unwrap_or(DEFAULT_INLINE_VIEWPORT_ROWS)
-        .min(host_rows)
+        .map(|rows| rows.min(host_rows))
+        .unwrap_or(host_rows)
 }
 
 fn preferred_inline_viewport_rows(host_rows: u16) -> u16 {
@@ -120,9 +118,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn preferred_inline_viewport_rows_caps_tall_hosts() {
-        assert_eq!(preferred_inline_viewport_rows_with_override(40, None), 12);
-        assert_eq!(preferred_inline_viewport_rows_with_override(24, None), 12);
+    fn preferred_inline_viewport_rows_autofits_to_terminal() {
+        assert_eq!(preferred_inline_viewport_rows_with_override(40, None), 40);
+        assert_eq!(preferred_inline_viewport_rows_with_override(24, None), 24);
     }
 
     #[test]

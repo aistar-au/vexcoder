@@ -322,7 +322,19 @@ fn render_picker_overlay(
         return;
     }
 
-    let available_height = composer_area.y.saturating_sub(frame.area().y);
+    let frame_area = frame.area();
+    let above = composer_area.y.saturating_sub(frame_area.y);
+    let below =
+        (frame_area.y + frame_area.height).saturating_sub(composer_area.y + composer_area.height);
+
+    // Prefer rendering above the composer; fall back to below when the
+    // compact layout leaves more room underneath.
+    let (available_height, render_below) = if below > above {
+        (below, true)
+    } else {
+        (above, false)
+    };
+
     if available_height < 3 {
         return;
     }
@@ -342,12 +354,12 @@ fn render_picker_overlay(
     let height = (visible_rows as u16)
         .saturating_add(2)
         .min(available_height);
-    let area = Rect::new(
-        composer_area.x,
-        composer_area.y.saturating_sub(height),
-        width,
-        height,
-    );
+    let y = if render_below {
+        composer_area.y + composer_area.height
+    } else {
+        composer_area.y.saturating_sub(height)
+    };
+    let area = Rect::new(composer_area.x, y, width, height);
 
     frame.render_widget(Clear, area);
     let block = Block::default()

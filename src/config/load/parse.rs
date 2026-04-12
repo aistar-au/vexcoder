@@ -48,20 +48,14 @@ pub(crate) fn parse_sandbox_kind(value: String) -> Option<SandboxKind> {
     }
 }
 
-pub(crate) fn infer_model_protocol(api_url: &str) -> ModelProtocol {
-    let normalized = api_url.trim().to_ascii_lowercase();
-    if normalized.contains("/chat/completions") {
-        ModelProtocol::ChatCompat
-    } else if normalized.contains("/messages") {
-        // Covers both "/v1/messages" and the transposed "/messages/v1".
-        ModelProtocol::MessagesV1
-    } else {
-        // Default to messages-v1 for all other URLs including bare /v1
-        // suffixes.  Local inference servers that only expose chat/completions
-        // will be detected at session start by poll_server_info() and the
-        // protocol will be overridden to ChatCompat automatically.
-        ModelProtocol::MessagesV1
-    }
+pub(crate) fn infer_model_protocol(_api_url: &str) -> ModelProtocol {
+    // messages-v1 is always the default wire protocol regardless of the URL
+    // path.  ChatCompat is selected only when the user explicitly sets
+    // `model_protocol = "chat-compat"` in config, or when server discovery
+    // proves the endpoint exclusively exposes /v1/chat/completions.  No
+    // URL-based inference is needed: both protocols are always attempted at
+    // session start via detect_native_protocol() for local endpoints.
+    ModelProtocol::MessagesV1
 }
 
 pub(crate) fn parse_model_headers_json() -> Result<HeaderMap> {

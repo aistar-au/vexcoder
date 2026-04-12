@@ -34,7 +34,7 @@ These keys are read by the current runtime from config files:
 | `model_name` | Model identifier | `local/default` |
 | `working_dir` | Workspace root for tool execution | current directory |
 | `model_backend` | `local-runtime` or `api-server` | inferred |
-| `model_protocol` | `messages-v1` or `chat-compat`; URLs containing `/chat/completions` default to `chat-compat`, all others default to `messages-v1`; local endpoint probes only override when one route is exclusive | inferred |
+| `model_protocol` | `messages-v1` or `chat-compat`; `messages-v1` is always the default wire protocol regardless of URL path; set `chat-compat` explicitly or rely on server discovery to switch | `messages-v1` |
 | `tool_call_mode` | `structured` or `tagged-fallback` | inferred |
 | `tool_policy` | `full`, `plan`, or `chat` | `full` |
 | `model_profile` | Path to a repo-tracked profile under `models/` | backend default profile |
@@ -177,13 +177,10 @@ max_notes_per_turn = 5
 
 The full model endpoint URL.
 
-- URLs containing `/chat/completions` default to `chat-compat`.
-- All other URLs, including bare `/v1` suffix URLs, default to `messages-v1`.
+- `messages-v1` is always the default wire protocol regardless of URL path.
   If the local server only exposes `/v1/chat/completions`, `vex` detects this
-  automatically at session start via the `/props` probe and switches to
-  `chat-compat` without any manual configuration. If both `/v1/messages` and
-  `/v1/chat/completions` respond, `vex` preserves the configured or
-  URL-inferred protocol instead of silently preferring `chat-compat`.
+  automatically at session start via the server discovery probe and switches to
+  `chat-compat` without any manual configuration.
 - For plain local inference servers, prefer explicit HTTP
   localhost URLs such as `http://localhost:8000/v1/messages`. If you enter an
   HTTPS localhost URL in the interactive startup prompt, `vex` now suggests the

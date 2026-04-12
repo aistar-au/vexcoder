@@ -1108,10 +1108,12 @@ fn test_valid_mcp_http_server_loads() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_infer_model_protocol_chat_compat_for_completions_url() {
+fn test_infer_model_protocol_messages_v1_for_completions_url() {
+    // messages-v1 is the default regardless of the URL path; ChatCompat is
+    // only active when explicitly configured or detected by server probing.
     assert_eq!(
         super::infer_model_protocol("https://api.example.internal/v1/chat/completions"),
-        crate::runtime::ModelProtocol::ChatCompat
+        crate::runtime::ModelProtocol::MessagesV1
     );
 }
 
