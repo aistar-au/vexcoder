@@ -506,7 +506,10 @@ pub(super) fn truncate_for_history(text: &str, max_chars: usize) -> String {
     let keep_suffix = available - keep_head;
 
     let head: String = chars.iter().take(keep_head).collect();
-    let suffix: String = chars.iter().skip(total.saturating_sub(keep_suffix)).collect();
+    let suffix: String = chars
+        .iter()
+        .skip(total.saturating_sub(keep_suffix))
+        .collect();
     format!("{head}{indicator}{suffix}")
 }
 

@@ -8,10 +8,10 @@ use crate::runtime::{ApprovalScope, Capability};
 use crate::turn_evidence::TurnEvidenceState;
 
 pub(crate) mod header_cache;
-pub(crate) mod task_header;
 #[cfg(test)]
 pub(crate) mod lazy_task_handle;
 mod persist;
+pub(crate) mod task_header;
 
 pub use persist::TaskStateFile;
 
