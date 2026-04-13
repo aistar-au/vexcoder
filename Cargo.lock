@@ -4986,8 +4986,17 @@ dependencies = [
  "unicode-segmentation",
  "unicode-width 0.2.0",
  "uuid",
+ "vexcoder-api-types",
  "which",
  "x509-parser",
+]
+
+[[package]]
+name = "vexcoder-api-types"
+version = "0.1.0-rc.9"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

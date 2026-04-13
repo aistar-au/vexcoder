@@ -9,7 +9,7 @@
 ## Context
 
 Previous discussions considered an inline overlay pattern that would keep
-pre-launch shell history visible. This ADR instead chooses the hosted-agent
+pre-session shell history visible. This ADR instead chooses the hosted-agent
 style full-screen session model:
 
 1. Full-screen TUI provides better focus for complex agent tasks
@@ -21,7 +21,7 @@ style full-screen session model:
 
 1. **Interactive sessions own the full cli**
    - The TUI enters the alternate screen buffer for normal interactive use.
-   - Pre-launch shell scrollback is hidden during the session and restored on exit.
+   - Pre-session shell scrollback is hidden during the session and restored on exit.
 
 2. **Normal command execution stays inside the TUI**
    - Inline `!command` execution is a captured command session, not parent-shell passthrough.
@@ -93,7 +93,7 @@ style full-screen session model:
 - Aligns inline command sessions, validation, and model-visible command execution around one runtime contract
 
 ### Negative / Trade-offs
-- Pre-launch shell history not visible during session
+- Pre-session shell history not visible during session
 - Long command output pushes transcript off-screen (user must scroll TUI)
 - Interactive tools require PTY emulation (some limitations)
 - Moves project away from the inline overlay companion-shell pattern

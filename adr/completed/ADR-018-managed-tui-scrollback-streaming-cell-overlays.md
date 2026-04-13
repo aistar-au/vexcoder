@@ -27,7 +27,7 @@ This aligns with common open-source Rust TUI patterns (`ratatui`,
 3. Use one active streaming cell; commit on `TurnComplete`.
 4. Route keyboard/mouse navigation into widget scrolling APIs.
 5. Keep overlays lifecycle-managed (enter/leave paired, panic-safe).
-6. The canonical cli surface must preserve operator access to pre-launch
+6. The canonical cli surface must preserve operator access to pre-session
    shell history. Managed TUI rendering therefore targets the primary cli
    session rather than treating the cli as a disposable full-screen
    surface. Operators must be able to inspect shell output that existed before
@@ -62,7 +62,7 @@ Implementation must be validated against the pinned ratatui version in this
 repo (`ratatui = 0.29`) before task dispatch is considered complete.
 
 The managed TUI is not permitted to rely on a rendering strategy that makes
-pre-launch shell history unreachable until process exit. Primary-cli
+pre-session shell history unreachable until process exit. Primary-cli
 rendering, inline insertion, or an equivalent cli mode that leaves shell
 scrollback available during runtime are acceptable; cli takeover that
 hides prior shell history for the duration of the session is not.

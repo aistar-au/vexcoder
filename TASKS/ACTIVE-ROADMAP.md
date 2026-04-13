@@ -16,8 +16,8 @@ Last updated: 2026-04-05 (PR #342 Tier 4 debug: full git parsing stack, expanded
 | :--- | :--- | :--- | :--- |
 | ADR-021 | Accepted | 0 (all items complete) | All P1/P2/P3 items complete; see Tier 6 section |
 | ADR-022 amendment | Amended | Amendment only | Tightens opening-stage command-execution rules relative to ADR-022 |
-| ADR-022 | Proposed (initial validation passed) | Post-launch G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
-| ADR-024 | Proposed (pre-launch complete) | 1 item (PG-03 tap auto-dispatch -- next batch planned) | PA–PM and PP done; PG-01/PG-02/PG-03 template complete; PH-01/PH-02/PH-03 complete; PL-01 (pre/post-tool hooks, Gap 26) complete |
+| ADR-022 | Proposed (initial validation passed) | Second-stage G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
+| ADR-024 | Proposed (pre-release complete) | 1 item (PG-03 tap auto-dispatch -- next batch planned) | PA–PM and PP done; PG-01/PG-02/PG-03 template complete; PH-01/PH-02/PH-03 complete; PL-01 (pre/post-tool hooks, Gap 26) complete |
 | ADR-028 | Active | Ongoing boundary alignment | Phase 1, 2, and transport extraction committed 2026-03-25; boundary tests now cover direct, grouped, multiline, and `super::`-relative `server`/`bin` imports for all inner layers |
 | ADR-029 | Accepted (amended 2026-04-01) | 0 items remaining | All 8 decision items verified in Tier 5 (PR #249); Amendment adds StreamTextNormaliser boundary for embedded tool call markup (PR #305) |
 | ADR-030 | Accepted | 0 items remaining | All 6 coverage requirements verified in Tier 5 (PR #249) |
@@ -153,7 +153,7 @@ first and is not a blocker for the Phase H distribution gate.
 - ~~PH-01: macOS app layer -- process management~~ (done 2026-03-28; packaging/macos/src/main.rs + bundle.rs added; vex-launcher opens the macOS CLI host app with bundled vex binary)
 - ~~PH-02: macOS app layer -- keychain credential storage~~ (done 2026-03-28; packaging/macos/src/keychain.rs added; Security.framework FFI reads VEX_MODEL_TOKEN from system keychain)
 - ~~PH-03: macOS code signing + notarisation + .dmg~~ (done 2026-03-28; packaging/macos/build-app.sh + release.yml macos-pkg job added; codesign + xcrun notarytool + hdiutil .dmg; signing conditional on APPLE_DEVELOPER_ID_CERT secret)
-- ~~ADR-022 Decision 11: Native packaging (post-launch)~~ (satisfied by PH-01/PH-02/PH-03 above)
+- ~~ADR-022 Decision 11: Native packaging (second stage)~~ (satisfied by PH-01/PH-02/PH-03 above)
 
 ### ~~Tier 9 -- Housekeeping~~ (cleared 2026-03-28) -- 0 items (all 8 cleared)
 

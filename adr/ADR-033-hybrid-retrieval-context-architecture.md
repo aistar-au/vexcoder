@@ -104,7 +104,7 @@ snippets with file:line references.
 
 ## Implementation order
 
-Phase 1 is the minimum viable delivery: Tree-sitter structural index +
+Phase 1 is the minimum viable implementation: Tree-sitter structural index +
 `codebase_search` tool. Phases 2-4 are additive and can land independently.
 
 ## Implementation status

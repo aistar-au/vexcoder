@@ -211,7 +211,7 @@ Deferred by ADR-004. Adding a flag without the seam requires duplicating or wrap
 ### Put `RuntimeContext` in `src/state/`
 
 `RuntimeContext` is staged: REF-02/03 use `&mut ConversationManager`; REF-04+
-uses owned `ConversationManager` plus sender/cancellation plumbing. Placing it
+uses owned `ConversationManager` plus sender/cancellation wiring. Placing it
 in `state/` would still invert dependency direction by forcing state-layer code
 to depend on runtime-layer update signaling.
 

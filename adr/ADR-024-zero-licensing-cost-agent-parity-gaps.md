@@ -17,7 +17,7 @@ ADR-022 covers command execution, diff-native writes, capability-based approval,
 
 ## Context
 
-ADR-022 locked the initial-delivery roadmap for `vexcoder` as a coding agent whose runtime and packaging dependencies carry exclusively permissive, no-cost licenses. A structured comparison against available reference implementations reveals the following gaps.
+ADR-022 locked the first-release roadmap for `vexcoder` as a coding agent whose runtime and packaging dependencies carry exclusively permissive, no-cost licenses. A structured comparison against available reference implementations reveals the following gaps.
 
 ### Dependency licensing constraint
 
@@ -42,10 +42,10 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 6 | No shell completions | Proposed |
 | 7 | No git commit attribution | Proposed |
 | 8 | No runtime model switching | Proposed |
-| 9 | No binary distribution pipeline | Proposed (post-launch) |
+| 9 | No binary distribution pipeline | Proposed (second stage) |
 | 10 | No skills registry or discovery mechanism | Proposed |
 | 11 | No migration tooling for operators | Proposed |
-| 12 | Code search / indexing | Formally deferred |
+| 12 | Code search / indexing | Complete (ADR-033) |
 | 13 | No interactive permission-control command surface | Proposed |
 | 14 | No session-lifecycle command surface | Proposed |
 | 15 | No MCP command-level management surface | Active (extends Gap 5) |
@@ -73,7 +73,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | Gap | Rationale |
 | :--- | :--- |
 | Image/screenshot input | Deferred until the model backend seam (ADR-022 Phase 1) is stable and a multimodal local runtime target exists |
-| Multi-agent / parallel task execution | Out of scope for the initial delivery per ADR-022 Decision item 5 (single active task). This gate also covers git worktree isolation per-agent (`isolation: worktree`), agent team definitions, inter-agent coordination, and background task lifecycle. ADR-034 now defines that post-launch lane; no implementation may bypass ADR-034's sequencing and isolation rules. |
+| Multi-agent / parallel task execution | Out of scope for the first release per ADR-022 Decision item 5 (single active task). This gate also covers git worktree isolation per-agent (`isolation: worktree`), agent team definitions, inter-agent coordination, and background task lifecycle. ADR-034 now defines that second-stage lane; no implementation may bypass ADR-034's sequencing and isolation rules. |
 | Cloud task delegation | Deferred indefinitely; contradicts the self-hostable, zero-licensing-cost posture established by the dependency licensing constraint above |
 | Inline code completion (LSP/language-server) | Fundamentally different runtime category from a turn-based agent. Requires a persistent language-server process, real-time keystroke handling, and IDE surface integration — none of which are compatible with the cli-first, turn-based interaction model. Deferred indefinitely. |
 | Enterprise governance (audit logs, seat management, org policy) | Single-user, self-hosted by design. Multi-tenant governance infrastructure contradicts the zero-licensing-cost constraint and the self-hostable posture. Deferred indefinitely. |
@@ -81,7 +81,7 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | Voice input | Requires audio I/O subsystem incompatible with cli-first constraint. Deferred indefinitely. |
 | Platform API integration (hosting-platform PR creation via REST API) | `vex pr-summary` (Gap 24) produces text for pipe to the operator's platform CLI; direct REST API calls require credential management for each platform and a dedicated ADR. Deferred indefinitely. |
 | Built-in web search | Depends on MCP (Gap 5). Implementing web search before MCP exists would permanently couple it to the core runtime |
-| IDE extensions | Deferred to a post-initial-delivery ADR per ADR-022 amendment Decision item 11. File-based editor extensions must use `vex exec` (Gap 2). Native GUI surfaces (IDE panels with live streaming, macOS native client) must use the `LocalApiServer` path (Phase I, spanning the runtime-mode bridge in `src/local_api.rs` and the transport layer in `src/server/`) |
+| IDE extensions | Deferred to a subsequent-release ADR per ADR-022 amendment Decision item 11. File-based editor extensions must use `vex exec` (Gap 2). Native GUI surfaces (IDE panels with live streaming, macOS native client) must use the `LocalApiServer` path (Phase I, spanning the runtime-mode bridge in `src/local_api.rs` and the transport layer in `src/server/`) |
 | Conversation compaction / context-window management | Long-running sessions that approach the model's context limit have no managed strategy for pruning or summarising old turns. `ConversationCheckpoint` in `TaskState` records a `message_count` and `summary` string but neither is populated nor acted upon by the runtime today. Implementing compaction requires a dedicated ADR: the summarisation prompt, the trigger threshold, and whether the summary is injected as a system message or a synthetic turn all affect model behaviour and must be decided deliberately. Deferred until the edit loop and BatchMode are stable — compaction adds the most value for long `vex exec` runs, and those require BatchMode to exist first. **Command-surface note:** reference CLIs expose active context management commands (`/compact`, `/usage`). ADR-023 `EL-12` introduces `/context` for read-only token-estimate display. `/compact` (trigger summarisation) and a richer `/usage` (per-tool token attribution) are part of this deferred gap and must not be implemented without the dedicated compaction ADR. This gap is a formal deferral gate: do not implement conversation pruning or summarisation without a dedicated ADR. A per-session turn-token counter (Gap 28) is separable from this gate: it reads token counts reported by the API response and requires no summarisation strategy. Gap 28 must not be blocked by this deferral. |
 | Additional operator-utility slash commands (`/copy`, `/stats`, `/cost`, `/keybindings`) | Reference implementations expose `/copy` (interactive picker for copying code blocks), `/stats` (session usage visualisation), `/cost` (session cost display), and `/keybindings` (live keybinding editor). These are operator-convenience commands with no effect on agent behaviour. Deferred indefinitely; do not implement without a dedicated ADR identifying which commands to introduce and their exact behaviour. |
 | Minimal execution mode (`VEX_SIMPLE` equivalent) | Reference implementations expose an env var that disables MCP tools, hooks, `AGENTS.md` loading, skills, and custom agents for a minimal execution environment. Useful for CI and debugging. Deferred; do not implement without a dedicated ADR defining the exact feature-disable set and env var name. |
@@ -91,9 +91,9 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 
 ## Sequencing guard
 
-**Phases G and H (distribution and macOS packaging) follow the opening delivery stage** and must not block initial correctness work (ADR-022 phases 1-8 and ADR-023 edit loop). They may not begin until the edit loop, approval system, and task state persistence are validated end-to-end. Any implementation lane that begins Phase G or H work before those gates are green must be considered out of scope.
+**Phases G and H (distribution and macOS packaging) follow the first-release stage** and must not block initial correctness work (ADR-022 phases 1-8 and ADR-023 edit loop). They may not begin until the edit loop, approval system, and task state persistence are validated end-to-end. Any implementation lane that begins Phase G or H work before those gates are green must be considered out of scope.
 
-**Phase I (local API server)** is specified by ADR-025 (canonical runtime JSON handoff contract) and ADR-026 (LocalApiServer transport binding); the implementation spans the runtime-mode bridge in `src/local_api.rs` and the transport plumbing in `src/server/` (HTTP, SSE, Unix socket).
+**Phase I (local API server)** is specified by ADR-025 (canonical runtime JSON handoff contract) and ADR-026 (LocalApiServer transport binding); the implementation spans the runtime-mode bridge in `src/local_api.rs` and the transport layer in `src/server/` (HTTP, SSE, Unix socket).
 
 The dedicated ADRs for the Phase I machine-readable and transport surfaces are
 ADR-025 (canonical runtime JSON handoff contract) and ADR-026
@@ -104,7 +104,7 @@ boundaries) is the boundary ADR that Phase I CLI and LocalApiServer work must re
 
 ## Decision
 
-This ADR locks decisions for gaps 1–11, gaps 13–32, and gap 35. Gap 12 is formally deferred with rationale recorded.
+This ADR locks decisions for gaps 1–11, gaps 13–32, and gap 35. Gap 12 is complete: ADR-033 introduced the hybrid retrieval context architecture with tree-sitter structural indexing and `codebase_search`.
 
 ### External parity research and IP-safe implementation
 
@@ -332,9 +332,9 @@ This constraint applies to Phase H specifically. It does not prohibit a future n
 
 #### Phase I — Local API server surface
 
-Specified in ADR-026, with the runtime-mode bridge in `src/local_api.rs` and transport plumbing in `src/server/`. The `LocalApiServer` is the third `RuntimeMode + FrontendAdapter` implementation after `TuiMode` and `BatchMode`. It exposes the shared runtime core over scoped HTTP or Unix domain socket transports, enabling rich bidirectional communication with future adapters (native macOS application, IDE/editor surface, local automation, and any later browser-based client) without duplicating any Rust logic in those adapters. Loopback remains the default bind mode; any non-loopback TCP exposure requires explicit operator configuration and TLS.
+Specified in ADR-026, with the runtime-mode bridge in `src/local_api.rs` and transport implementation in `src/server/`. The `LocalApiServer` is the third `RuntimeMode + FrontendAdapter` implementation after `TuiMode` and `BatchMode`. It exposes the shared runtime core over scoped HTTP or Unix domain socket transports, enabling rich bidirectional communication with future adapters (native macOS application, IDE/editor surface, local automation, and any later browser-based client) without duplicating any Rust logic in those adapters. Loopback remains the default bind mode; any non-loopback TCP exposure requires explicit operator configuration and TLS.
 
-For the inaugural delivery, the in-tree operator surfaces remain CLI/TUI and `BatchMode`. `LocalApiServer` exists to carry the ADR-025 JSON handoff seam across a transport boundary so later task handoff, worker, and agent surfaces can reuse the same canonical envelopes. Browser-specific behavior, origin policy, and any future web UI remain deferred.
+For the first release, the in-tree operator surfaces remain CLI/TUI and `BatchMode`. `LocalApiServer` exists to carry the ADR-025 JSON handoff seam across a transport boundary so later task handoff, worker, and agent surfaces can reuse the same canonical envelopes. Browser-specific behavior, origin policy, and any future web UI remain deferred.
 
 The relationship to cloud API servers is direct: architecturally, `LocalApiServer` and a cloud-hosted API server are the same construct — a `RuntimeMode` implementation that accepts requests and streams responses. The network path differs (private IPC, LAN, or internet); the interface contract does not. This means a future cloud-hosted or enterprise-licensed deployment follows the same expansion path: a `RuntimeMode` implementation that routes to a remote transport rather than a local socket.
 
@@ -1077,8 +1077,8 @@ from every existing mechanism in the ADR chain:
 - `!<command>` passthrough (Gap 20) routes through `SandboxDriver::wrap` and
   requires `Capability::RunCommand` approval — appropriate for arbitrary shell
   commands, not for read-only file enumeration.
-- Gap 12 (code indexing) is a semantic/embedding-based search capability —
-  formally deferred. The tools in this gap are literal-string-matching and
+- Gap 12 (code indexing) is now complete via ADR-033 (`src/tools/index.rs`,
+  `src/tools/search.rs`). The tools in this gap are literal-string-matching and
   directory-listing primitives that require no index, no external service, and
   no crate beyond the Rust standard library.
 
@@ -1150,11 +1150,16 @@ no subprocess calls.
 
 ---
 
-### Gap 12 — Code Search / Indexing (Formally Deferred)
+### Gap 12 — Code Search / Indexing (Complete — ADR-033)
 
-A `src/index/` module providing structured code search, symbol lookup, or semantic indexing is explicitly deferred to a subsequent ADR.
+ADR-033 introduced the hybrid retrieval context architecture with tree-sitter structural indexing (`src/tools/index.rs`, 791 lines) and a ranked `codebase_search` tool (`src/tools/search.rs`). The implementation provides:
 
-`ContextAssembler` (ADR-023) provides sufficient context for the current task scale using pattern-matching-based related-file inference with no external dependencies. A code index is warranted only when real usage evidence shows that pattern matching is insufficient for the tasks being performed. Adding an index before that evidence exists would be premature optimisation that adds a significant dependency surface. This gap is recorded as a formal deferral gate: `src/index/` must not be implemented without a dedicated ADR.
+- Tree-sitter AST parsing for Rust, Python, TypeScript, TSX, and JavaScript.
+- Named-item extraction: functions, structs, enums, impls, traits, modules, const/static declarations, type aliases.
+- Ranked search combining exact name match, substring/fuzzy match, content keyword match, and recency.
+- Incremental index updates on file writes.
+
+All four ADR-033 phases (structural search, semantic vector, write guards, context condensing) are implemented on `main` as of 2026-03-26. The original deferral rationale (premature optimisation without usage evidence) was superseded by demonstrated need during production workloads.
 
 ---
 
@@ -1316,7 +1321,7 @@ Roadmap alignment (2026-03-26): this branch is the Tier 2 PR `#232` merge
 blocker in the 60-item / 10-tier inventory. It closes the Phase F runtime items
 `PF-01` and `PF-02` and clears the immediate dependency chain into the `/mcp`
 inspection surface, leaving Tier 4 ADR-024 extensions (`PP-01`, `PM-02`,
-`PI-08`) and the post-launch Tier 9 items as the remaining backlog after
+`PI-08`) and the second-stage Tier 9 items as the remaining backlog after
 merge.
 
 ### Phase G — Binary distribution pipeline
@@ -1327,7 +1332,7 @@ merge.
 | Checksums | `checksums.txt` with `sha256` published alongside archives |
 | Package-manager tap | Deferred for the alpha packaging cut; future repository dispatch updates the formula |
 
-### Phase H — macOS application wrapper (post-launch)
+### Phase H — macOS application wrapper (second stage)
 
 | Objective | Completion condition |
 | :--- | :--- |
@@ -1571,8 +1576,8 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 - `SandboxDriver::wrap` must be called on every `CommandRequest` before it reaches `CommandRunner`. Bypassing it must use `PassthroughSandbox` explicitly. This includes `CommandRequest` instances produced by `ValidationSuite::run` (ADR-023) and by tool dispatch during edit-loop turns — the sandbox boundary applies uniformly to all subprocess execution regardless of the call site.
 - `BatchMode` must not import `ratatui` or `crossterm`. The REF-02 CI grep check must stay green.
 - The native macOS application layer (Phase H) must not contain agent logic. Any changeset to `packaging/macos/` that also modifies `src/` is out of scope for Phase H and must be rejected. This constraint is Phase H scoped — the `LocalApiServer: RuntimeMode + FrontendAdapter` implementation in `src/local_api.rs` is the expansion path for a full native macOS client.
-- `src/index/` must not be implemented without a dedicated ADR. Gap 12 is a formal gate.
-- Phases G and H must not begin until the initial delivery gate is closed.
+- Gap 12 (code search / indexing) is complete via ADR-033. The `src/tools/index.rs` and `src/tools/search.rs` modules fulfil this gap.
+- Phases G and H must not begin until the first-release gate is closed.
 - Runtime code and config must use only neutral, non-branded names. Documentation may reference external tools by name where necessary for operator clarity.
 
 ---
@@ -1680,7 +1685,7 @@ When checking a box above, append an evidence block under this section:
 | Do not infer browser-specific origin policy or in-tree web-UI behavior from `LocalApiServer` | Phase I defines a JSON transport seam for the runtime core; browser behavior requires a dedicated later ADR |
 | `model_url` must use `https://` when the host is non-loopback | Reject non-loopback `http://` URLs at config load time; applies the same sensitive-payload rule as ADR-026 §3.1 to the outbound model connection |
 | `VEX_MODEL_URL_SKIP_TLS_CHECK = true` must emit a startup warning on every launch | Development escape hatch only; never silently bypassed; must not appear in repo-local config |
-| Do not implement `src/index/` without a dedicated ADR | Gap 12 is a formal deferral gate |
+| Gap 12 (code search / indexing) complete via ADR-033 | `src/tools/index.rs` + `src/tools/search.rs` fulfil this gap |
 | Do not use `std::process::Command` in `src/tools/workspace_explore.rs` | `search_files` must use `str::contains` from the Rust standard library; no subprocess permitted; no `regex` crate or external pattern-matching dependency |
 | `search_files`, `list_dir`, and `glob_files` must skip `.gitignore`-excluded paths | Apply at minimum `.gitignore` rules before returning results; extend to any workspace ignore mechanism once available |
 | PP-01 must not begin until a workspace ignore ruleset is available in the codebase | Ignore integration is a correctness requirement, not an enhancement |

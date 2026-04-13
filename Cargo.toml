@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "crates/*"]
+resolver = "2"
+
 [package]
 name = "vexcoder"
 version = "0.1.0-rc.9"
@@ -14,6 +18,7 @@ name = "vex"
 path = "src/bin/vex.rs"
 
 [dependencies]
+vexcoder-api-types = { path = "crates/vexcoder-api-types" }
 aho-corasick = "1"
 anyhow = "1"
 axum = { version = "0.8", features = ["http1", "json", "tokio"] }

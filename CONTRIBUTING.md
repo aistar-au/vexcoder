@@ -257,7 +257,7 @@ instructions file under `.github/`.
 - Every `gh agent-task create` invocation must be followed immediately by an
   explicit log follow with `gh agent-task view <session-id> --log --follow`.
   Treat log tailing and violation triage as part of launch, not as an optional
-  post-launch observation step.
+  post-merge observation step.
 - Do not continue to `gh pr view`, `gh pr checks`, promotion, or merge work
   until that paired launch-log follow has completed and any contract violation
   has been handled.

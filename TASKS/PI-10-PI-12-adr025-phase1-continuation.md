@@ -142,7 +142,7 @@ PI-09 (complete) + PI-11 (complete)
 
 ## Constraints
 
-- Treat the initial delivery gate as already passed. Do not re-run validation gate work.
+- Treat the first-release gate as already passed. Do not re-run validation gate work.
 - Do not re-open ADR-022 validation except to cite it as completed dependency.
 - Keep ADR-026 sequenced after ADR-025 closeout and ADR-024 reconciliation.
 - Treat ADR-028 as boundary ADR for post-gate implementation.
