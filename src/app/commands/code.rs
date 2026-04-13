@@ -22,7 +22,7 @@ impl TuiMode {
             ],
             "/edit",
         );
-        let task_id = self.task_doc.meta.id.clone();
+        let task_id = self.task_doc.info.id.clone();
         let edit_loop = EditLoop::new(task_id)
             .with_working_dir(self.working_dir.clone())
             .with_profile(self.model_profile.clone());
@@ -69,7 +69,7 @@ impl TuiMode {
             ],
             "/fix",
         );
-        let task_id = self.task_doc.meta.id.clone();
+        let task_id = self.task_doc.info.id.clone();
         let edit_loop = EditLoop::new(task_id)
             .with_working_dir(self.working_dir.clone())
             .with_profile(self.model_profile.clone());

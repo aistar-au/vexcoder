@@ -7,7 +7,7 @@ Startup scans inspect at most `VEX_MAX_STARTUP_TASK_SCANS` task-state files by
 default and prefer the newest copies when the same task id exists in both the
 workspace state directory and a legacy fallback directory.
 
-Cold-start scans read a small metadata projection from each selected task-state
+Cold-start scans read a small header projection from each selected task-state
 file instead of deserialising the full `TaskState` graph. The projection keeps
 the fields needed for recent-task discovery and live session-task counts while
 skipping the large turn-history, approval, and command-evidence collections.
@@ -48,7 +48,7 @@ task-state surface needs a different latency or scale profile:
 - A manual streaming extractor built on `serde_json::Deserializer` can skip
   more work than a derived projection, but it also adds schema-coupled parsing
   code that is harder to evolve and test than the current typed header.
-- A dedicated sidecar index could persist the metadata projection separately and
+- A dedicated sidecar index could persist the header projection separately and
   avoid parsing the full JSON document during cold start.
 - A single-writer event log can make discovery replay-oriented rather than
   document-oriented.

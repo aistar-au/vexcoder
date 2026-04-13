@@ -15,7 +15,7 @@ impl TuiMode {
         let custom_commands =
             load_custom_commands(&config.working_dir, &builtin_slash_command_names());
         let task_doc_condenser = TaskDocumentCondenser::new();
-        let initial_meta = crate::runtime::TaskMeta {
+        let initial_meta = crate::runtime::TaskInfo {
             id: new_task_id(),
             status: TaskStatus::Ready,
             parent_task_id: None,

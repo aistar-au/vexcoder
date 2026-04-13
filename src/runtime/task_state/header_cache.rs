@@ -3,12 +3,12 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::SystemTime;
 
-use super::meta_projection::TaskMetadataHeader;
+use super::task_header::TaskStateHeader;
 
-/// Maximum number of metadata entries held in the process-global cache.
+/// Maximum number of header entries held in the process-global cache.
 /// Sized at 2.5x the default VEX_MAX_STARTUP_TASK_SCANS cap (200) to
 /// hold one full scan cycle plus headroom for repeated accesses.
-const MAX_METADATA_CACHE_ENTRIES: usize = 512;
+const MAX_HEADER_CACHE_ENTRIES: usize = 512;
 
 /// Fingerprint sufficient to detect that a file has changed since it was
 /// last cached. Uses filesystem mtime + size, matching context_cache.rs.
@@ -20,10 +20,10 @@ struct FileFingerprint {
 
 impl FileFingerprint {
     fn from_path(path: &Path) -> Option<Self> {
-        let meta = std::fs::metadata(path).ok()?;
-        let modified = meta.modified().ok()?;
+        let info = std::fs::metadata(path).ok()?;
+        let modified = info.modified().ok()?;
         Some(Self {
-            len: meta.len(),
+            len: info.len(),
             modified,
         })
     }
@@ -31,28 +31,28 @@ impl FileFingerprint {
 
 #[derive(Debug)]
 struct CacheEntry {
-    header: TaskMetadataHeader,
+    header: TaskStateHeader,
     fingerprint: FileFingerprint,
     last_access: u64,
-    /// Mirrors `TaskMetadataHeader.modified_millis` (JSON `updated_at`) for
+    /// Mirrors `TaskStateHeader.modified_millis` (JSON `updated_at`) for
     /// tiebreak eviction: equal-tick entries prefer evicting older task files.
     updated_at: u64,
 }
 
 #[derive(Debug, Default)]
-struct MetadataCache {
+struct HeaderLruCache {
     entries: HashMap<PathBuf, CacheEntry>,
     next_access: u64,
 }
 
-impl MetadataCache {
+impl HeaderLruCache {
     fn tick(&mut self) -> u64 {
         self.next_access = self.next_access.saturating_add(1);
         self.next_access
     }
 
     fn evict_lru(&mut self) {
-        while self.entries.len() > MAX_METADATA_CACHE_ENTRIES {
+        while self.entries.len() > MAX_HEADER_CACHE_ENTRIES {
             let oldest = self
                 .entries
                 .iter()
@@ -68,27 +68,27 @@ impl MetadataCache {
     }
 }
 
-fn global_metadata_cache() -> &'static Mutex<MetadataCache> {
-    static CACHE: OnceLock<Mutex<MetadataCache>> = OnceLock::new();
-    CACHE.get_or_init(|| Mutex::new(MetadataCache::default()))
+fn global_header_cache() -> &'static Mutex<HeaderLruCache> {
+    static CACHE: OnceLock<Mutex<HeaderLruCache>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HeaderLruCache::default()))
 }
 
-/// Retrieve the metadata header for a task, using the process-global LRU
-/// cache. Falls back to `TaskMetadataHeader::from_path` on a cache miss
+/// Retrieve the task-state header for a task, using the process-global LRU
+/// cache. Falls back to `TaskStateHeader::from_path` on a cache miss
 /// or fingerprint mismatch (file changed since last read).
 ///
 /// Returns `None` if the file cannot be read or parsed; callers should
 /// log a tracing::debug and skip the file, matching existing persist.rs
 /// error-handling conventions.
-pub(crate) fn cached_metadata(path: &Path) -> Option<TaskMetadataHeader> {
+pub(crate) fn cached_task_header(path: &Path) -> Option<TaskStateHeader> {
     let fingerprint = FileFingerprint::from_path(path)?;
     let cache_key = path.to_path_buf();
 
     // --- cache probe ---
     {
-        let mut cache = global_metadata_cache()
+        let mut cache = global_header_cache()
             .lock()
-            .expect("metadata cache mutex poisoned");
+            .expect("header cache mutex poisoned");
 
         // Clone the header while holding a shared borrow, then drop the entry
         // reference before calling `tick()` (which takes &mut self).
@@ -114,12 +114,22 @@ pub(crate) fn cached_metadata(path: &Path) -> Option<TaskMetadataHeader> {
     }
 
     // --- cache miss: parse from disk ---
-    let header = TaskMetadataHeader::from_path(path).ok()?;
+    let header = match TaskStateHeader::from_path(path) {
+        Ok(h) => h,
+        Err(err) => {
+            tracing::debug!(
+                path = %path.display(),
+                %err,
+                "skipping task state file: failed to read or parse task-state header"
+            );
+            return None;
+        }
+    };
 
     {
-        let mut cache = global_metadata_cache()
+        let mut cache = global_header_cache()
             .lock()
-            .expect("metadata cache mutex poisoned");
+            .expect("header cache mutex poisoned");
         let tick = cache.tick();
         cache.entries.insert(
             cache_key,
@@ -137,10 +147,10 @@ pub(crate) fn cached_metadata(path: &Path) -> Option<TaskMetadataHeader> {
 }
 
 #[cfg(test)]
-pub(crate) fn reset_metadata_cache_for_tests() {
-    *global_metadata_cache()
+pub(crate) fn reset_header_cache_for_tests() {
+    *global_header_cache()
         .lock()
-        .expect("metadata cache mutex poisoned") = MetadataCache::default();
+        .expect("header cache mutex poisoned") = HeaderLruCache::default();
 }
 
 #[cfg(test)]
@@ -162,12 +172,12 @@ mod tests {
 
     #[test]
     fn cache_hit_after_first_read() {
-        reset_metadata_cache_for_tests();
+        reset_header_cache_for_tests();
         let dir = TempDir::new().unwrap();
         let path = write_header_file(&dir, "t1", 100);
 
-        let first = cached_metadata(&path);
-        let second = cached_metadata(&path);
+        let first = cached_task_header(&path);
+        let second = cached_task_header(&path);
         assert!(first.is_some());
         assert!(second.is_some());
         assert_eq!(first.unwrap().id, second.unwrap().id);
@@ -175,11 +185,11 @@ mod tests {
 
     #[test]
     fn cache_invalidates_when_file_changes() {
-        reset_metadata_cache_for_tests();
+        reset_header_cache_for_tests();
         let dir = TempDir::new().unwrap();
         let path = write_header_file(&dir, "t2", 100);
 
-        cached_metadata(&path);
+        cached_task_header(&path);
 
         // Overwrite with different content and bump mtime
         std::fs::write(&path, r#"{"id":"t2","status":"Completed","updated_at":999,"active_grants":{},"changed_files":[],"command_history":[],"conversation_snapshot":{"message_count":0,"summary":""},"interrupted_sessions":[]}"#).unwrap();
@@ -187,26 +197,26 @@ mod tests {
         // even on fast file systems.
         filetime::set_file_mtime(&path, filetime::FileTime::from_unix_time(9_999_999, 0)).unwrap();
 
-        let after = cached_metadata(&path);
+        let after = cached_task_header(&path);
         assert_eq!(after.unwrap().modified_millis, 999);
     }
 
     #[test]
     fn cache_evicts_lru_entry_at_cap() {
-        reset_metadata_cache_for_tests();
+        reset_header_cache_for_tests();
         let dir = TempDir::new().unwrap();
 
         // Fill cache to MAX+1
-        for i in 0..=MAX_METADATA_CACHE_ENTRIES {
+        for i in 0..=MAX_HEADER_CACHE_ENTRIES {
             let id = format!("evict-{i}");
             let path = write_header_file(&dir, &id, i as u64);
-            cached_metadata(&path);
+            cached_task_header(&path);
         }
 
         {
-            let cache = global_metadata_cache().lock().unwrap();
+            let cache = global_header_cache().lock().unwrap();
             assert!(
-                cache.entries.len() <= MAX_METADATA_CACHE_ENTRIES,
+                cache.entries.len() <= MAX_HEADER_CACHE_ENTRIES,
                 "cache must not exceed cap; len = {}",
                 cache.entries.len()
             );
@@ -215,7 +225,7 @@ mod tests {
 
     #[test]
     fn cache_keys_by_path_when_duplicate_ids_share_a_fingerprint() {
-        reset_metadata_cache_for_tests();
+        reset_header_cache_for_tests();
         let dir_a = TempDir::new().unwrap();
         let dir_b = TempDir::new().unwrap();
         let path_a = write_header_file(&dir_a, "shared", 100);
@@ -224,8 +234,8 @@ mod tests {
         filetime::set_file_mtime(&path_a, shared_mtime).unwrap();
         filetime::set_file_mtime(&path_b, shared_mtime).unwrap();
 
-        let first = cached_metadata(&path_a).unwrap();
-        let second = cached_metadata(&path_b).unwrap();
+        let first = cached_task_header(&path_a).unwrap();
+        let second = cached_task_header(&path_b).unwrap();
 
         assert_eq!(first.modified_millis, 100);
         assert_eq!(second.modified_millis, 200);

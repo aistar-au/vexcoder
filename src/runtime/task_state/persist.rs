@@ -206,7 +206,7 @@ impl TaskState {
         working_dir: &Path,
         session_task_id: &str,
     ) -> Result<Option<(TaskState, SessionTask)>> {
-        use super::meta_index::cached_metadata;
+        use super::header_cache::cached_task_header;
         use crate::config::StartupBudget;
 
         let budget = StartupBudget::default();
@@ -214,9 +214,9 @@ impl TaskState {
         for file in Self::state_files_from_with_limit(working_dir, Some(budget.max_scans)) {
             let path = file.dir.join(format!("{}.json", file.id));
 
-            // Metadata pass: check whether this file could contain the target
+            // Header pass: check whether this file could contain the target
             // session task before paying the cost of a full TaskState::load().
-            let header = match cached_metadata(&path) {
+            let header = match cached_task_header(&path) {
                 Some(h) => h,
                 None => {
                     tracing::debug!(
@@ -252,7 +252,7 @@ impl TaskState {
     }
 
     pub fn live_session_task_counts_from(working_dir: &Path) -> Result<HashMap<String, usize>> {
-        use super::meta_index::cached_metadata;
+        use super::header_cache::cached_task_header;
         use crate::config::StartupBudget;
 
         let budget = StartupBudget::default();
@@ -260,7 +260,7 @@ impl TaskState {
 
         for file in Self::state_files_from_with_limit(working_dir, Some(budget.max_scans)) {
             let path = file.dir.join(format!("{}.json", file.id));
-            match cached_metadata(&path) {
+            match cached_task_header(&path) {
                 Some(header) => {
                     for task in header.session_tasks.unwrap_or_default() {
                         if task.status.is_live() {
@@ -293,7 +293,7 @@ impl TaskState {
                 let modified_millis = entry
                     .metadata()
                     .ok()
-                    .and_then(|meta| meta.modified().ok())
+                    .and_then(|info| info.modified().ok())
                     .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|duration| duration.as_millis())
                     .unwrap_or(0);
@@ -679,7 +679,7 @@ mod tests {
         assert!(!counts.contains_key("repo-reviewer"));
     }
 
-    // --- ADR-038 amendment: bounded scan + metadata-projection tests ---
+    // --- ADR-038 amendment: bounded scan + header-projection tests ---
 
     #[test]
     fn state_files_from_with_limit_returns_newest_n() {

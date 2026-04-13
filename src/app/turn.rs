@@ -22,10 +22,10 @@ impl TuiMode {
         let status = format!("{:?}", state.status);
         let task_doc = self.task_doc_condenser.restore_from_snapshot(state);
         self.task_doc = task_doc;
-        if let Some(path_str) = self.task_doc.meta.instructions_path.clone() {
+        if let Some(path_str) = self.task_doc.info.instructions_path.clone() {
             self.instructions_path = Some(path_str);
         } else {
-            self.task_doc.meta.instructions_path = self.instructions_path.clone();
+            self.task_doc.info.instructions_path = self.instructions_path.clone();
         }
         self.active_edit_loop = None;
         ctx.reset_session_tokens();
@@ -103,7 +103,7 @@ impl TuiMode {
     }
 
     pub(super) fn set_task_status(&mut self, status: TaskStatus) {
-        self.task_doc.meta.status = status;
+        self.task_doc.info.status = status;
         self.persist_task_document();
     }
 
@@ -112,7 +112,7 @@ impl TuiMode {
     /// session tasks to disk without going through `task_doc` directly.
     pub(super) fn sync_session_tasks_from_disk(&mut self) {
         let state_dir = TaskState::state_dir_from(&self.working_dir);
-        if let Ok(saved) = TaskState::load(&state_dir, &self.task_doc.meta.id) {
+        if let Ok(saved) = TaskState::load(&state_dir, &self.task_doc.info.id) {
             self.task_doc.session_tasks = saved.session_tasks;
         }
     }
@@ -136,8 +136,8 @@ impl TuiMode {
     }
 
     pub(super) fn begin_command_session(&mut self, command: String) -> u64 {
-        let session_id = self.task_doc.meta.next_step_id;
-        self.task_doc.meta.next_step_id += 1;
+        let session_id = self.task_doc.info.next_step_id;
+        self.task_doc.info.next_step_id += 1;
         self.begin_command_session_with_id(session_id, command);
         session_id
     }
@@ -219,7 +219,7 @@ impl TuiMode {
         let turn_tokens = ctx.session_tokens_rollup().last_turn();
 
         if !has_content {
-            self.task_doc.meta.status = TaskStatus::Completed;
+            self.task_doc.info.status = TaskStatus::Completed;
             self.persist_task_document();
             self.reset_turn_capture();
             return;

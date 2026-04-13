@@ -149,7 +149,7 @@ fn test_task_layout_state_shows_approved_pending_tool_after_acceptance() {
     assert_eq!(approved.lifecycle, StepLifecycle::Approved);
     assert_eq!(approved.label, "read_file: approved");
     assert_eq!(
-        mode.task_doc.meta.status,
+        mode.task_doc.info.status,
         crate::runtime::TaskStatus::Running
     );
 }

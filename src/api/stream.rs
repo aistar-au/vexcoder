@@ -308,7 +308,7 @@ impl StreamParser {
             let metadata = metadata_for_choice(choice_index, logprobs);
             let has_server_progress = metadata
                 .as_ref()
-                .is_some_and(|meta| meta.prompt_progress.is_some() || meta.timings.is_some());
+                .is_some_and(|md| md.prompt_progress.is_some() || md.timings.is_some());
 
             if refusal.is_some() || finish_reason.is_some() || has_logprobs || has_server_progress {
                 events.push(StreamEvent::MessageDelta {

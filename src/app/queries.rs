@@ -138,7 +138,7 @@ impl TuiMode {
     }
 
     pub fn current_task_id(&self) -> String {
-        self.task_doc.meta.id.clone()
+        self.task_doc.info.id.clone()
     }
 
     pub fn overlay_active(&self) -> bool {

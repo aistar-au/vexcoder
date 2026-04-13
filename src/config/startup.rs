@@ -1,7 +1,7 @@
 /// Startup-phase resource budget.
 ///
 /// Controls how many task-state files are scanned during cold-start
-/// discovery and how long metadata cache entries remain valid.
+/// discovery and how long header cache entries remain valid.
 ///
 /// All fields are read from environment variables at construction time.
 /// Callers should construct a `StartupBudget::default()` once at the
@@ -16,7 +16,7 @@ pub struct StartupBudget {
     /// The UI should surface a hint when the cap is active.
     pub max_scans: usize,
 
-    /// TTL for metadata cache entries in milliseconds.
+    /// TTL for header cache entries in milliseconds.
     ///
     /// Set via `VEX_STARTUP_CACHE_TTL_MS`. Default: 300_000 (5 minutes).
     /// Reserved for future use; the current cache implementation uses

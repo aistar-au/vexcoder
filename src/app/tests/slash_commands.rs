@@ -141,7 +141,7 @@ fn test_tui_context_shows_active_grants_count() {
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::RunCommand, ApprovalScope::Session);
 
@@ -294,7 +294,7 @@ fn test_watch_command_reports_saved_session_task() {
     let mut ctx = setup_ctx();
 
     let session_task = crate::runtime::SessionTask::new(
-        mode.task_doc.meta.id.clone(),
+        mode.task_doc.info.id.clone(),
         "reviewer",
         "inspect docs",
         None,

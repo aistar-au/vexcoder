@@ -16,7 +16,7 @@ use crate::usage::TurnTokens;
 /// maintaining a second copy.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TaskDocument {
-    pub meta: TaskMeta,
+    pub info: TaskInfo,
     pub completed_turns: Vec<TurnDocument>,
     pub active_turn: Option<ActiveTurnDocument>,
     pub session_notes: Vec<SessionNote>,
@@ -27,7 +27,7 @@ pub struct TaskDocument {
 
 /// Stable task-level metadata that does not change turn-to-turn.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct TaskMeta {
+pub struct TaskInfo {
     pub id: String,
     pub status: TaskStatus,
     pub parent_task_id: Option<String>,

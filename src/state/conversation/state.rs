@@ -3,7 +3,7 @@ use crate::config::{CompactionConfig, HookConfig, HttpHookConfig, SearchConfig};
 use crate::mcp::McpRegistry;
 use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::session_task::now_millis;
-use crate::runtime::task_document::{TaskDocument, TaskDocumentCondenser, TaskMeta, TurnOutcome};
+use crate::runtime::task_document::{TaskDocument, TaskDocumentCondenser, TaskInfo, TurnOutcome};
 use crate::runtime::task_state::TaskStatus;
 use crate::runtime::ConfiguredSandbox;
 use crate::runtime::{ModelBackendKind, TaskMutationSummary};
@@ -320,7 +320,7 @@ impl ConversationManager {
 
     /// Ensure a `TaskDocument` exists. Called once at the start of every
     /// `send_message_with_policy` invocation. Creates a minimal document when
-    /// no meta has been supplied by the caller.
+    /// no task info has been supplied by the caller.
     pub(super) fn ensure_task_doc(&mut self) {
         if self.task_doc.is_some() {
             return;
@@ -331,7 +331,7 @@ impl ConversationManager {
             ModelBackendKind::ApiServer
         };
         let now = now_millis();
-        let meta = TaskMeta {
+        let info = TaskInfo {
             id: uuid::Uuid::new_v4().to_string(),
             status: TaskStatus::Ready,
             parent_task_id: None,
@@ -348,7 +348,7 @@ impl ConversationManager {
             active_grants: std::collections::HashMap::new(),
             next_step_id: 0,
         };
-        self.task_doc = Some(self.condenser.begin_task(meta));
+        self.task_doc = Some(self.condenser.begin_task(info));
     }
 
     /// Begin a new turn inside the document. The caller must have called

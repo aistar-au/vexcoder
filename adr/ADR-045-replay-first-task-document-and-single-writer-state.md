@@ -103,7 +103,7 @@ correctness, transcript content, or orchestration decisions.
 
 `TaskDocumentCondenser` owns the following entry points and no others:
 
-- `begin_turn(meta: TurnMeta) -> TurnHandle` — initialise a new active turn
+- `begin_turn(info: TurnInfo) -> TurnHandle` — initialise a new active turn
   in the document
 - `finish_turn(handle: TurnHandle, outcome: TurnOutcome)` — close the active
   turn and commit it to the completed-turn list
@@ -409,7 +409,7 @@ Each entry also states the `TaskDocument` field it produces.
 
 | Coverage area | Required variants | Document target |
 | :--- | :--- | :--- |
-| Turn boundaries | `TurnStarted(TurnMeta)`, `TurnFinished(TurnOutcome)` | `active_turn`, `turns` |
+| Turn boundaries | `TurnStarted(TurnInfo)`, `TurnFinished(TurnOutcome)` | `active_turn`, `turns` |
 | Assistant blocks | `AssistantBlockStarted(BlockId, BlockKind)`, `AssistantTextDelta(BlockId, String)`, `AssistantBlockFinished(BlockId)` | `active_turn.entries` |
 | Tool lifecycle | `ToolCallStarted(ToolCallId, ToolName, Input)`, `ToolResultReceived(ToolCallId, ToolResult)` | `active_turn.entries` |
 | Approval lifecycle | `ApprovalRequested(ToolCallId, ToolName)`, `ApprovalResolved(ToolCallId, ApprovalOutcome)` | `active_turn.approval_state` |
@@ -417,7 +417,7 @@ Each entry also states the `TaskDocument` field it produces.
 | Command-session lifecycle | `CommandSessionStarted(SessionId, SessionMeta)`, `CommandSessionAttached(SessionId)`, `CommandSessionOutputChunk(SessionId, Chunk)`, `CommandSessionFinished(SessionId, ExitCode)`, `CommandSessionCancelled(SessionId)`, `CommandSessionFailed(SessionId, Reason)` | `active_turn.command_sessions` |
 | Validation lifecycle | `ValidationStarted(ValidationId)`, `ValidationFinished(ValidationId, ValidationOutcome)` | `active_turn.entries` |
 | Context compaction | `ContextCompacted(CompactionRecord)` | `task_doc.context_compaction` |
-| Task error and termination | `TaskErrored(ErrorDetail)`, `MaxTurnsReached(TurnCount)` | `task_doc.meta.status` |
+| Task error and termination | `TaskErrored(ErrorDetail)`, `MaxTurnsReached(TurnCount)` | `task_doc.info.status` |
 | Checkpoints and rollback | `CheckpointCreated(CheckpointId, LogPosition)`, `RollbackMarkerAppended(TargetBoundary, WorkspaceCheckpointRef)` | event log structural |
 
 If a conceptual event exists in the document model but has no `RuntimeEvent`

@@ -269,7 +269,7 @@ impl TuiMode {
             };
             match crate::app::facade_schedule_team(
                 &self.working_dir,
-                &self.task_doc.meta.id,
+                &self.task_doc.info.id,
                 team_name,
                 prompt,
             ) {
@@ -307,7 +307,7 @@ impl TuiMode {
         let prompt = rest;
         match crate::app::facade_delegate_session_task(
             &self.working_dir,
-            Some(self.task_doc.meta.id.clone()),
+            Some(self.task_doc.info.id.clone()),
             agent_id,
             prompt,
         ) {
@@ -365,7 +365,7 @@ impl TuiMode {
                 self.push_history_line(line);
             }
             if let Ok(Some(outcome)) =
-                crate::app::facade_poll_join(&self.working_dir, &self.task_doc.meta.id)
+                crate::app::facade_poll_join(&self.working_dir, &self.task_doc.info.id)
             {
                 self.push_history_line(format!(
                     "[watch] join: done={} completed={} failed={} cancelled={}",

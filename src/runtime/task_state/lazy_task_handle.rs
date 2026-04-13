@@ -1,7 +1,8 @@
-//! Lazy-load handle for task-state metadata.
+//! Lazy-load handle for task-state headers.
 //!
-//! `TaskMetadataRef` is forward-declared API consumed by the TUI recent-task
-//! list. The methods are not yet wired to a call-site in this batch.
+//! `LazyTaskHandle` is test-only scaffolding that validates the lazy-load
+//! pattern for the TUI recent-task list. The type is gated behind
+//! `#[cfg(test)]` and is not available in production builds.
 
 #[cfg(test)]
 use anyhow::Result;
@@ -9,29 +10,29 @@ use anyhow::Result;
 use std::path::PathBuf;
 
 #[cfg(test)]
-use super::meta_projection::TaskMetadataHeader;
+use super::task_header::TaskStateHeader;
 #[cfg(test)]
 use super::{TaskId, TaskState};
 
-/// Opaque reference to task metadata.
+/// Opaque reference to a task-state header.
 ///
-/// Holds only the projected `TaskMetadataHeader` until the caller
+/// Holds only the projected `TaskStateHeader` until the caller
 /// explicitly resolves to the full `TaskState` via `.resolve()`.
 /// Safe to hold in the UI recent-task list without triggering a full
 /// disk read beyond the header projection.
 #[cfg(test)]
-pub(crate) struct TaskMetadataRef {
+pub(crate) struct LazyTaskHandle {
     pub id: TaskId,
     dir: PathBuf,
-    header: TaskMetadataHeader,
+    header: TaskStateHeader,
     loaded: bool,
     /// Populated on first `.resolve()` call; None before that.
     state: Option<Box<TaskState>>,
 }
 
 #[cfg(test)]
-impl TaskMetadataRef {
-    pub(crate) fn new(id: TaskId, dir: PathBuf, header: TaskMetadataHeader) -> Self {
+impl LazyTaskHandle {
+    pub(crate) fn new(id: TaskId, dir: PathBuf, header: TaskStateHeader) -> Self {
         Self {
             id,
             dir,
@@ -54,8 +55,8 @@ impl TaskMetadataRef {
         Ok(self.state.as_ref().expect("state populated above"))
     }
 
-    /// Access the metadata header without loading the full state.
-    pub(crate) fn metadata(&self) -> &TaskMetadataHeader {
+    /// Access the task-state header without loading the full state.
+    pub(crate) fn header(&self) -> &TaskStateHeader {
         &self.header
     }
 
@@ -79,16 +80,16 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn make_ref(dir: &TempDir, id: &str) -> TaskMetadataRef {
+    fn make_ref(dir: &TempDir, id: &str) -> LazyTaskHandle {
         // Write a minimal task state so TaskState::load() can succeed.
         let state = TaskState::new(id.to_string());
         state.save(dir.path()).unwrap();
 
-        let header = super::super::meta_projection::TaskMetadataHeader::from_path(
+        let header = super::super::task_header::TaskStateHeader::from_path(
             &dir.path().join(format!("{id}.json")),
         )
         .unwrap();
-        TaskMetadataRef::new(id.to_string(), dir.path().to_path_buf(), header)
+        LazyTaskHandle::new(id.to_string(), dir.path().to_path_buf(), header)
     }
 
     #[test]
@@ -104,10 +105,10 @@ mod tests {
     }
 
     #[test]
-    fn metadata_accessible_before_resolve() {
+    fn header_accessible_before_resolve() {
         let dir = TempDir::new().unwrap();
         let r = make_ref(&dir, "pre-resolve");
-        assert_eq!(r.metadata().id, "pre-resolve");
+        assert_eq!(r.header().id, "pre-resolve");
         assert!(!r.is_loaded());
     }
 

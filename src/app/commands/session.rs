@@ -189,7 +189,7 @@ impl TuiMode {
             let cap_name = capability_to_kebab(cap);
             let scope_label = self
                 .task_doc
-                .meta
+                .info
                 .active_grants
                 .get(&cap)
                 .map(|scope| scope_to_label(*scope))
@@ -228,7 +228,7 @@ impl TuiMode {
         };
 
         let scope_label = scope_to_label(scope);
-        self.task_doc.meta.active_grants.insert(cap, scope);
+        self.task_doc.info.active_grants.insert(cap, scope);
         self.push_history_line(format!("[allow: {cap_str} granted for {scope_label}]"));
     }
     pub(crate) fn handle_deny_command(&mut self, rest: &str) {
@@ -242,7 +242,7 @@ impl TuiMode {
             return;
         };
 
-        if self.task_doc.meta.active_grants.remove(&cap).is_some() {
+        if self.task_doc.info.active_grants.remove(&cap).is_some() {
             self.push_history_line(format!("[deny: {cap_str} removed]"));
         } else {
             self.push_history_line(format!("[deny: {cap_str} not in active grants]"));
@@ -252,7 +252,7 @@ impl TuiMode {
         self.persist_task_document();
         let new_id = new_task_id();
         let instructions_path = self.instructions_path.clone();
-        let new_meta = crate::runtime::TaskMeta {
+        let new_meta = crate::runtime::TaskInfo {
             id: new_id.clone(),
             status: TaskStatus::Running,
             parent_task_id: None,
@@ -294,7 +294,7 @@ impl TuiMode {
     }
     pub(crate) fn handle_compact_command(&mut self, ctx: &mut RuntimeContext) {
         use crate::runtime::ContextCompactionRecord;
-        let task_id = self.task_doc.meta.id.clone();
+        let task_id = self.task_doc.info.id.clone();
         let turns_before = self.task_doc.completed_turns.len();
         let turn_index = turns_before;
         self.active_edit_loop = None;
@@ -391,11 +391,11 @@ impl TuiMode {
         } else {
             format!("{}-{sanitized_label}", new_task_id())
         };
-        let parent_id = self.task_doc.meta.id.clone();
+        let parent_id = self.task_doc.info.id.clone();
         let instructions_path = self.instructions_path.clone();
-        let fork_meta = crate::runtime::TaskMeta {
+        let fork_meta = crate::runtime::TaskInfo {
             id: new_id.clone(),
-            status: self.task_doc.meta.status.clone(),
+            status: self.task_doc.info.status.clone(),
             parent_task_id: Some(parent_id.clone()),
             agent_id: None,
             worktree_path: None,
@@ -407,8 +407,8 @@ impl TuiMode {
             started_at_ms: Some(crate::runtime::session_task::now_millis()),
             updated_at_ms: crate::runtime::session_task::now_millis(),
             last_heartbeat_ms: None,
-            active_grants: self.task_doc.meta.active_grants.clone(),
-            next_step_id: self.task_doc.meta.next_step_id,
+            active_grants: self.task_doc.info.active_grants.clone(),
+            next_step_id: self.task_doc.info.next_step_id,
         };
         self.task_doc = self.task_doc_condenser.begin_task(fork_meta);
         self.reset_conversation_window(ctx);

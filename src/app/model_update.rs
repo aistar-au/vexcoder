@@ -25,10 +25,10 @@ fn compact_preview_text(text: &str) -> String {
 }
 
 impl TuiMode {
-    /// Allocate the next monotonic step ID from `task_doc.meta`.
+    /// Allocate the next monotonic step ID from `task_doc.info`.
     fn alloc_step_id(&mut self) -> u64 {
-        let id = self.task_doc.meta.next_step_id;
-        self.task_doc.meta.next_step_id = self.task_doc.meta.next_step_id.saturating_add(1);
+        let id = self.task_doc.info.next_step_id;
+        self.task_doc.info.next_step_id = self.task_doc.info.next_step_id.saturating_add(1);
         id
     }
 
@@ -59,7 +59,7 @@ impl TuiMode {
             UiUpdate::TranscriptLine(line) => {
                 let previous_output_len = self.expanded_output_row_count();
                 if self.task_doc.active_turn.is_some() {
-                    self.task_doc.meta.status = TaskStatus::Running;
+                    self.task_doc.info.status = TaskStatus::Running;
                 }
                 const MAX_TRANSCRIPT_LINE_CHARS: usize = 512;
                 let clipped = if line.len() > MAX_TRANSCRIPT_LINE_CHARS {
@@ -92,7 +92,7 @@ impl TuiMode {
                     return;
                 }
                 if self.task_doc.active_turn.is_some() {
-                    self.task_doc.meta.status = TaskStatus::Running;
+                    self.task_doc.info.status = TaskStatus::Running;
                 }
                 if self.ttft.is_none() {
                     if let Some(started) = self.turn_started_at {
@@ -155,7 +155,7 @@ impl TuiMode {
 
             UiUpdate::StreamBlockStart { index, block } => {
                 if self.task_doc.active_turn.is_some() {
-                    self.task_doc.meta.status = TaskStatus::Running;
+                    self.task_doc.info.status = TaskStatus::Running;
                 }
                 let previous_output_len = self.expanded_output_row_count();
                 match block {
@@ -384,7 +384,7 @@ impl TuiMode {
                 if let Some((capability, scope)) =
                     capability_for_tool_name(&tool_name).and_then(|cap| {
                         self.task_doc
-                            .meta
+                            .info
                             .active_grants
                             .get(&cap)
                             .copied()
@@ -392,7 +392,7 @@ impl TuiMode {
                     })
                 {
                     if matches!(scope, ApprovalScope::Once) {
-                        self.task_doc.meta.active_grants.remove(&capability);
+                        self.task_doc.info.active_grants.remove(&capability);
                     }
                     let step_id = self.pending_tool_step_id(&tool_name, &input_preview);
                     self.mark_tool_step_approved(step_id);
@@ -485,7 +485,7 @@ impl TuiMode {
                 self.last_turn_ttft = self.ttft;
                 self.append_turn_timing_line();
                 // Finish the active turn with the correct outcome.
-                // finish_turn sets meta.status from the outcome, then we
+                // finish_turn sets info.status from the outcome, then we
                 // override to Completed for Success (condenser maps
                 // TurnOutcome::Completed → Ready, but edit-loop success
                 // means the task is done).
@@ -504,7 +504,7 @@ impl TuiMode {
                         crate::runtime::session_task::now_millis(),
                     );
                     if matches!(outcome, EditLoopOutcome::Success { .. }) {
-                        self.task_doc.meta.status = TaskStatus::Completed;
+                        self.task_doc.info.status = TaskStatus::Completed;
                     }
                     self.persist_task_document();
                     self.reset_turn_capture();

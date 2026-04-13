@@ -26,13 +26,13 @@ fn test_tui_fork_creates_new_task_id() {
 
     let mut mode = TuiMode::new();
     let parent_id = mode.current_task_id();
-    mode.task_doc.meta.active_grants.insert(
+    mode.task_doc.info.active_grants.insert(
         crate::runtime::Capability::RunCommand,
         crate::runtime::ApprovalScope::Session,
     );
     // In the new model changed_files live in completed turns, not on current_task.
     // Pre-populate a completed turn to carry the file across the fork.
-    mode.task_doc.meta.status = crate::runtime::TaskStatus::Running;
+    mode.task_doc.info.status = crate::runtime::TaskStatus::Running;
     mode.push_history_line("stale transcript".to_string());
     let mut ctx = setup_ctx();
 
@@ -46,13 +46,13 @@ fn test_tui_fork_creates_new_task_id() {
     assert!(mode.current_task_id().ends_with("-feature-work"));
     assert!(mode
         .task_doc
-        .meta
+        .info
         .active_grants
         .contains_key(&crate::runtime::Capability::RunCommand));
     // NOTE: In the document-projector model, forks start with empty completed_turns;
     // changed_files are per-turn and are not inherited by the forked task.
     assert_eq!(
-        mode.task_doc.meta.status,
+        mode.task_doc.info.status,
         crate::runtime::TaskStatus::Running
     );
     assert_eq!(mode.history_lines().len(), 1, "/fork must reset transcript");

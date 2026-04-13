@@ -21,7 +21,7 @@ use crate::runtime::session_task::SessionTaskStatus;
 ///
 /// Compatible with pre-ADR-045 TaskState JSON via #[serde(default)].
 #[derive(Debug, Clone, Deserialize)]
-pub(crate) struct TaskMetadataHeader {
+pub(crate) struct TaskStateHeader {
     pub id: String,
     /// Maps to TaskState.updated_at — milliseconds since the Unix epoch.
     /// u64 matches the TaskState field type; note TaskStateFile.modified_millis
@@ -42,7 +42,7 @@ pub(crate) struct SessionTaskSummary {
     pub status: SessionTaskStatus,
 }
 
-impl TaskMetadataHeader {
+impl TaskStateHeader {
     /// Open `path` and deserialise only the header projection.
     ///
     /// Calls `assert_durable_access` before opening (ADR-038 Batch G
@@ -53,7 +53,7 @@ impl TaskMetadataHeader {
             .with_context(|| format!("failed to open task state file: {}", path.display()))?;
         let reader = std::io::BufReader::new(file);
         serde_json::from_reader(reader)
-            .with_context(|| format!("failed to parse task metadata header: {}", path.display()))
+            .with_context(|| format!("failed to parse task-state header: {}", path.display()))
     }
 }
 
@@ -76,7 +76,7 @@ mod tests {
             "t1",
             r#"{"id":"t1","status":"Ready","updated_at":1000,"active_grants":{},"changed_files":[],"command_history":[],"conversation_snapshot":{"message_count":0,"summary":""},"interrupted_sessions":[]}"#,
         );
-        let header = TaskMetadataHeader::from_path(&path).unwrap();
+        let header = TaskStateHeader::from_path(&path).unwrap();
         assert_eq!(header.id, "t1");
         assert_eq!(header.modified_millis, 1000);
         assert!(header.session_tasks.is_none());
@@ -91,7 +91,7 @@ mod tests {
             "legacy",
             r#"{"id":"legacy","status":"Completed","active_grants":{},"changed_files":[],"command_history":[],"conversation_snapshot":{"message_count":0,"summary":""},"interrupted_sessions":[]}"#,
         );
-        let header = TaskMetadataHeader::from_path(&path).unwrap();
+        let header = TaskStateHeader::from_path(&path).unwrap();
         assert_eq!(header.id, "legacy");
         assert_eq!(header.modified_millis, 0);
     }
@@ -104,7 +104,7 @@ mod tests {
             "multi",
             r#"{"id":"multi","status":"Running","updated_at":2000,"active_grants":{},"changed_files":[],"command_history":[],"conversation_snapshot":{"message_count":0,"summary":""},"interrupted_sessions":[],"session_tasks":[{"id":"multi-reviewer-abc","parent_task_id":"multi","agent_id":"reviewer","prompt":"review","lifecycle_state":"Running","updated_at":2000}]}"#,
         );
-        let header = TaskMetadataHeader::from_path(&path).unwrap();
+        let header = TaskStateHeader::from_path(&path).unwrap();
         let tasks = header.session_tasks.unwrap();
         assert_eq!(tasks.len(), 1);
         assert!(tasks[0].status.is_live());
@@ -127,7 +127,7 @@ mod tests {
         }
         big.push_str("]}");
         let path = write_state_file(&dir, "big", &big);
-        let header = TaskMetadataHeader::from_path(&path).unwrap();
+        let header = TaskStateHeader::from_path(&path).unwrap();
         assert_eq!(header.id, "big");
     }
 }

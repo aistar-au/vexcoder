@@ -323,9 +323,9 @@ fn test_tui_edit_loop_completion_persists_max_turn_status_in_task_state() {
     );
 
     let saved =
-        crate::runtime::TaskState::load(temp.path(), &mode.task_doc.meta.id).expect("saved task");
+        crate::runtime::TaskState::load(temp.path(), &mode.task_doc.info.id).expect("saved task");
     assert_eq!(
-        mode.task_doc.meta.status,
+        mode.task_doc.info.status,
         crate::runtime::TaskStatus::MaxTurnsReached
     );
     assert_eq!(saved.status, crate::runtime::TaskStatus::MaxTurnsReached);

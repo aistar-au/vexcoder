@@ -43,7 +43,7 @@ async fn test_tool_approval_auto_approves_matching_session_grant() {
     let mut ctx = setup_ctx();
     let mut mode = TuiMode::new();
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::RunCommand, ApprovalScope::Session);
     let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();
@@ -60,7 +60,7 @@ async fn test_tool_approval_auto_approves_matching_session_grant() {
     assert!(response_rx.await.expect("response should resolve"));
     assert_eq!(
         mode.task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::RunCommand),
         Some(&ApprovalScope::Session),
@@ -83,7 +83,7 @@ async fn test_tool_approval_consumes_matching_once_grant() {
     let mut ctx = setup_ctx();
     let mut mode = TuiMode::new();
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::ApplyPatch, ApprovalScope::Once);
     let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();
@@ -101,7 +101,7 @@ async fn test_tool_approval_consumes_matching_once_grant() {
     assert!(
         !mode
             .task_doc
-            .meta
+            .info
             .active_grants
             .contains_key(&Capability::ApplyPatch),
         "once grant must be consumed after auto-approval"
@@ -117,7 +117,7 @@ async fn test_tool_approval_prompts_when_grant_does_not_match_tool() {
     let mut ctx = setup_ctx();
     let mut mode = TuiMode::new();
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::ApplyPatch, ApprovalScope::Session);
     let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();
@@ -142,7 +142,7 @@ async fn test_tool_approval_prompts_when_grant_does_not_match_tool() {
     );
     assert_eq!(
         mode.task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::ApplyPatch),
         Some(&ApprovalScope::Session),
@@ -158,7 +158,7 @@ async fn test_tool_approval_updates_task_status_until_turn_resumes() {
 
     mode.on_user_input("review the plan".to_string(), &mut ctx);
     assert_eq!(
-        mode.task_doc.meta.status,
+        mode.task_doc.info.status,
         crate::runtime::TaskStatus::Running
     );
 
@@ -171,7 +171,7 @@ async fn test_tool_approval_updates_task_status_until_turn_resumes() {
         &mut ctx,
     );
     assert_eq!(
-        mode.task_doc.meta.status,
+        mode.task_doc.info.status,
         crate::runtime::TaskStatus::AwaitingApproval
     );
 
@@ -183,7 +183,7 @@ async fn test_tool_approval_updates_task_status_until_turn_resumes() {
         &mut ctx,
     );
     assert_eq!(
-        mode.task_doc.meta.status,
+        mode.task_doc.info.status,
         crate::runtime::TaskStatus::Running
     );
 }
@@ -209,7 +209,7 @@ async fn test_tool_approval_request_persists_awaiting_approval_status_in_task_st
     );
 
     let saved =
-        crate::runtime::TaskState::load(temp.path(), &mode.task_doc.meta.id).expect("saved task");
+        crate::runtime::TaskState::load(temp.path(), &mode.task_doc.info.id).expect("saved task");
     assert_eq!(saved.status, crate::runtime::TaskStatus::AwaitingApproval);
 
     std::env::remove_var("VEX_STATE_DIR");

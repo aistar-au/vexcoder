@@ -6,7 +6,7 @@ use crate::state::ToolStatus;
 use crate::turn_evidence::{ToolInvocationSummary, TurnEvidenceState};
 
 use super::{
-    AssistantBlockEntry, AssistantPhase, TaskDocument, TaskDocumentCondenser, TaskMeta,
+    AssistantBlockEntry, AssistantPhase, TaskDocument, TaskDocumentCondenser, TaskInfo,
     TurnDocument, TurnEntry, TurnOutcome,
 };
 
@@ -29,16 +29,16 @@ impl TaskDocumentCondenser {
             .collect();
 
         TaskState {
-            id: doc.meta.id.clone(),
-            status: doc.meta.status.clone(),
-            parent_task_id: doc.meta.parent_task_id.clone(),
-            agent_id: doc.meta.agent_id.clone(),
-            worktree_path: doc.meta.worktree_path.clone(),
-            started_at: doc.meta.started_at_ms,
-            updated_at: doc.meta.updated_at_ms,
-            last_heartbeat: doc.meta.last_heartbeat_ms,
+            id: doc.info.id.clone(),
+            status: doc.info.status.clone(),
+            parent_task_id: doc.info.parent_task_id.clone(),
+            agent_id: doc.info.agent_id.clone(),
+            worktree_path: doc.info.worktree_path.clone(),
+            started_at: doc.info.started_at_ms,
+            updated_at: doc.info.updated_at_ms,
+            last_heartbeat: doc.info.last_heartbeat_ms,
             handoff_summary: None,
-            active_grants: doc.meta.active_grants.clone(),
+            active_grants: doc.info.active_grants.clone(),
             changed_files: doc
                 .completed_turns
                 .iter()
@@ -54,8 +54,8 @@ impl TaskDocumentCondenser {
                 summary: String::new(),
             },
             interrupted_sessions: Vec::new(),
-            branch_name: doc.meta.branch_name.clone(),
-            instructions_path: doc.meta.instructions_path.clone(),
+            branch_name: doc.info.branch_name.clone(),
+            instructions_path: doc.info.instructions_path.clone(),
             turns,
             plan: None,
             session_notes: doc.session_notes.clone(),
@@ -97,7 +97,7 @@ impl TaskDocumentCondenser {
             .saturating_add(1);
 
         TaskDocument {
-            meta: TaskMeta {
+            info: TaskInfo {
                 id: snapshot.id,
                 status: snapshot.status,
                 parent_task_id: snapshot.parent_task_id,

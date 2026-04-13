@@ -6,7 +6,7 @@
 - **Deciders:** Core maintainer
 - **Depends on:** ADR-038 (all batches A–H merged), ADR-034, ADR-045 (proposed)
 - **Cross-reference:** ADR-045 (Replay-First Task Document) — if ADR-045 lands
-  first, `TaskMetadataHeader` field names must be verified against whatever
+  first, `TaskStateHeader` field names must be verified against whatever
   `RuntimeEventLog`-driven JSON schema it adopts for session-task state.
 
 ---
@@ -74,12 +74,12 @@ path. The following sub-decisions are adopted:
 
 1. All startup enumeration of `.vex/state/` must respect a configurable cap
    (`VEX_MAX_STARTUP_TASK_SCANS`, default 200).
-2. Session-check and UI-list paths must operate on a **metadata projection**
-   (`TaskMetadataHeader`) rather than the full `TaskState` graph.
+2. Session-check and UI-list paths must operate on a **header projection**
+   (`TaskStateHeader`) rather than the full `TaskState` graph.
 3. `TaskState::load()` must never be called speculatively during
    cold-start discovery. It is called only when the caller has already
    identified the specific task it needs.
-4. Metadata projections for repeated TUI restarts within the same process
+4. Header projections for repeated TUI restarts within the same process
    lifetime must be served from a bounded in-memory cache, following the
    same manual LRU pattern established in `src/runtime/context_cache.rs`.
 5. The `startup-tracing` feature gate must expose optional allocation
@@ -96,13 +96,13 @@ here as the canonical pre-implementation record.
 ### Error 1 — `serde_json` early-stop claim
 
 **Original claim:** *"serde_json will stop deserializing once all named
-fields in `TaskMetadataHeader` are satisfied, ignoring the rest of the JSON."*
+fields in `TaskStateHeader` are satisfied, ignoring the rest of the JSON."*
 
 **This is false.** `serde_json::from_reader` and `from_str` process the
 entire JSON stream regardless of field coverage. There is no built-in
 early-exit for derived `Deserialize` impls.
 
-**Correct description:** Projecting a small struct (`TaskMetadataHeader`)
+**Correct description:** Projecting a small struct (`TaskStateHeader`)
 avoids allocating the large sub-graphs (`Vec<TurnEvidenceState>`,
 `BTreeMap<Capability, ApprovalScope>`, `Vec<InterruptedCommand>`, etc.)
 into the Rust heap. The stream still parses fully, but ~95% of
@@ -111,22 +111,22 @@ those sub-graphs are simply ignored by serde and never materialised.
 
 All code comments and documentation must use this accurate description.
 
-### Error 2 — `TaskMetadataRef.state` field undeclared
+### Error 2 — `LazyTaskHandle.state` field undeclared
 
-The spec's `TaskMetadataRef` struct definition was missing the `state`
+The spec's `LazyTaskHandle` struct definition was missing the `state`
 field, yet the `resolve()` body wrote `self.state = Some(Box::new(state))`.
 
 The correct struct definition includes `state: Option<Box<TaskState>>` as
-declared in `src/runtime/task_state/meta_ref.rs`.
+declared in `src/runtime/task_state/lazy_task_handle.rs`.
 
 ### Error 3 — `assert_durable_access()` bypass
 
 ADR-038 Batch G wired `assert_durable_access()` into every `TaskState`
-disk read/write path. The spec's `TaskMetadataHeader::from_path()` used a
+disk read/write path. The spec's `TaskStateHeader::from_path()` used a
 raw `std::fs::File::open()` call with no policy layer. This would be caught
 by `make check-disk-policy`.
 
-The correct implementation in `meta_projection.rs` calls
+The correct implementation in `task_header.rs` calls
 `crate::tools::operator::policy::assert_durable_access(path)?` before
 opening the file.
 
@@ -137,13 +137,13 @@ opening the file.
 `persist.rs` already contains a private `TaskStateLiveSummary` +
 `SessionTaskLiveSummary` pair used by `load_live_summary()`. This is
 effectively the same projection this amendment formalises as
-`TaskMetadataHeader`. The implementation must **promote and replace** that
+`TaskStateHeader`. The implementation must **promote and replace** that
 private pair rather than introduce a parallel pattern alongside it.
 
 After this amendment:
 - `TaskStateLiveSummary`, `SessionTaskLiveSummary`, and `load_live_summary()`
   are **deleted** from `persist.rs`.
-- `TaskMetadataHeader` and `SessionTaskSummary` in `meta_projection.rs`
+- `TaskStateHeader` and `SessionTaskSummary` in `task_header.rs`
   are the single projection source for all scan paths.
 
 ---
@@ -152,11 +152,11 @@ After this amendment:
 
 ### New files
 
-- `src/runtime/task_state/meta_projection.rs` — `TaskMetadataHeader` and
+- `src/runtime/task_state/task_header.rs` — `TaskStateHeader` and
   `SessionTaskSummary` projection structs with `from_path()`.
-- `src/runtime/task_state/meta_index.rs` — bounded LRU metadata cache
+- `src/runtime/task_state/header_cache.rs` — bounded LRU header cache
   (process-global, `HashMap` + u64 tick pattern from `context_cache.rs`).
-- `src/runtime/task_state/meta_ref.rs` — lazy-load `TaskMetadataRef` handle.
+- `src/runtime/task_state/lazy_task_handle.rs` — lazy-load `LazyTaskHandle` handle.
 - `src/config/startup.rs` — `StartupBudget` with `VEX_MAX_STARTUP_TASK_SCANS`
   (default 200), `VEX_STARTUP_CACHE_TTL_MS`, `VEX_TRACE_STARTUP_ALLOC`.
 
@@ -167,8 +167,8 @@ After this amendment:
 - `src/runtime/task_state/persist.rs`:
   - Delete `TaskStateLiveSummary`, `SessionTaskLiveSummary`, `load_live_summary`.
   - Add `state_files_from_with_limit()` bounded variant.
-  - Replace `live_session_task_counts_from()` body with metadata-projection scan.
-  - Replace `find_session_task_in_saved_states()` body with metadata-first scan.
+  - Replace `live_session_task_counts_from()` body with header-projection scan.
+  - Replace `find_session_task_in_saved_states()` body with header-first scan.
 
 ### session_task_id format contract
 
@@ -184,7 +184,7 @@ If ADR-045 changes the ID format, this predicate must be updated.
 
 ### Positive
 
-- Cold-start RSS peak drops from O(N × TaskState) to O(min(N, 200) × TaskMetadataHeader).
+- Cold-start RSS peak drops from O(N × TaskState) to O(min(N, 200) × TaskStateHeader).
   For a state dir with 10k task files and average 50 kB JSON, peak heap during
   scan falls from ~500 MB to under 10 MB.
 - OS paging on startup is eliminated for all workloads within the default cap.
@@ -204,7 +204,7 @@ If ADR-045 changes the ID format, this predicate must be updated.
   depends on the `"{parent_task_id}-{agent_id}-{uuid}"` format from
   `SessionTask::new`. If ADR-045 changes the ID format, the `is_candidate`
   predicate must be updated.
-- Metadata header `modified_millis` maps to `TaskState.updated_at` (u64, JSON
+- Task-state header `modified_millis` maps to `TaskState.updated_at` (u64, JSON
   epoch millis), not to the filesystem mtime used by `TaskStateFile.modified_millis`
   (u128). Files edited externally may have stale `updated_at` values. This is
   acceptable: the sort is best-effort for UI ordering, not a correctness guarantee.
@@ -215,13 +215,13 @@ ADR-045 (Proposed) introduces `RuntimeEventLog` as the canonical persisted
 truth and reclassifies `persistable_snapshot` as a compatibility export. If
 ADR-045 lands before this amendment is implemented:
 
-- Verify that `TaskMetadataHeader` field names (`id`, `updated_at`,
+- Verify that `TaskStateHeader` field names (`id`, `updated_at`,
   `session_tasks`) remain valid in whatever JSON schema ADR-045 adopts.
 - If ADR-045 adds new session-task identity fields that change the composite
   ID format, update the `is_candidate` predicate in
   `find_session_task_in_saved_states` before merging.
 - Nothing in this amendment conflicts with ADR-045's single-writer invariant:
-  `TaskMetadataHeader::from_path` is a read-only projection and does not
+  `TaskStateHeader::from_path` is a read-only projection and does not
   write to any `TaskDocument` field.
 
 ---
@@ -229,20 +229,20 @@ ADR-045 lands before this amendment is implemented:
 ## Validation
 
 ```
-# meta_projection.rs
+# task_header.rs
 test_parses_id_and_updated_at
 test_defaults_updated_at_to_zero_for_legacy_json
 test_parses_session_tasks_liveness
 test_ignores_large_fields_without_allocating_them
 
-# meta_index.rs
+# header_cache.rs
 test_cache_hit_after_first_read
 test_cache_invalidates_when_file_changes
 test_cache_evicts_lru_entry_at_cap
 
-# meta_ref.rs
+# lazy_task_handle.rs
 test_resolve_is_idempotent
-test_metadata_accessible_before_resolve
+test_header_accessible_before_resolve
 
 # persist.rs (new tests)
 test_state_files_from_with_limit_returns_newest_n
