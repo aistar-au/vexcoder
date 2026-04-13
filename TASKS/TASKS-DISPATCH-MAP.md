@@ -26,8 +26,8 @@ Source of truth: `adr/ADR-README.md`.
 | :--- | :--- | :--- |
 | `adr/ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md` | Accepted | 0 items remaining; all P1/P2/P3 items complete (Tiers 4/6/7 all cleared) |
 | `adr/ADR-022-amendment-2026-03-13.md` | Amended | Amendment only |
-| `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed (milestone-1 passed) | Post-milestone G/H |
-| `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-milestone complete) | 1 external item in the next batch (PG-03 auto-dispatch after tap repo exists); all in-tree G/H work complete 2026-03-28 |
+| `adr/ADR-022-free-open-coding-agent-roadmap.md` | Proposed (phase-1 validation passed) | Post-phase-1 G/H |
+| `adr/ADR-024-zero-licensing-cost-agent-parity-gaps.md` | Proposed (pre-phase-1 complete) | 1 external item in the next batch (PG-03 auto-dispatch after tap repo exists); all in-tree G/H work complete 2026-03-28 |
 | `adr/ADR-028-application-facade-and-transport-boundaries.md` | Active | Ongoing boundary alignment; Phase 1, 2, and transport extraction committed; boundary tests now cover grouped, multiline, and `super::`-relative `server`/`bin` imports |
 | `adr/ADR-029-stream-parser-completeness-and-session-persistence.md` | Accepted | 0 items remaining; all 8 decision items verified in Tier 5 (PR #249) |
 | `adr/ADR-030-runtime-task-state-and-orchestrator-control-flow.md` | Accepted | 0 items remaining; all 6 coverage requirements verified in Tier 5 (PR #249) |
@@ -79,7 +79,7 @@ ADR-024 Phases (Tier 2-3, after open PRs merge):
   PR 232 -> PF-01, PF-02 -> PI-06, PI-07
   PP-01, PM-02, PI-08 (independent)
 
-Milestone-1 gate (passed 2026-03-15):
+Phase-1 validation gate (passed 2026-03-15):
   ADR-022 phases 1-8 validated end-to-end
   ADR-023 EL-01 through EL-13 (all complete)
   ADR-025 PI-09 through PI-12 (all complete)
