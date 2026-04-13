@@ -1,5 +1,5 @@
 use super::{StreamParser, MAX_SSE_BUFFER_BYTES};
-use crate::types::StreamEvent;
+use crate::types::{ContentBlock, StreamEvent};
 
 #[test]
 fn test_process_emits_ping_for_ping_frame() {
@@ -194,6 +194,47 @@ fn test_process_emits_error_event_on_buffer_overflow() {
             assert_eq!(error.error_type, "sse_buffer_overflow");
         }
         other => panic!("expected StreamEvent::Error on overflow, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_process_clamps_chat_compat_tool_call_index() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(
+            br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":999999,"id":"call_1","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"src/main.rs\"}"}}]},"finish_reason":null}]}
+
+"#,
+        )
+        .unwrap();
+
+    assert_eq!(events.len(), 3);
+    match &events[1] {
+        StreamEvent::ContentBlockStart {
+            index,
+            content_block,
+        } => {
+            assert_eq!(*index, 1025);
+            match content_block {
+                ContentBlock::ToolUse { id, name, .. } => {
+                    assert_eq!(id, "call_1");
+                    assert_eq!(name, "read_file");
+                }
+                other => panic!("expected tool-use block, got {other:?}"),
+            }
+        }
+        other => panic!("expected ContentBlockStart, got {other:?}"),
+    }
+
+    match &events[2] {
+        StreamEvent::ContentBlockDelta { index, delta } => {
+            assert_eq!(*index, 1025);
+            assert_eq!(
+                delta.partial_json.as_deref(),
+                Some("{\"path\":\"src/main.rs\"}")
+            );
+        }
+        other => panic!("expected ContentBlockDelta, got {other:?}"),
     }
 }
 

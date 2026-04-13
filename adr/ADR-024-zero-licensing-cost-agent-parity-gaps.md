@@ -975,7 +975,7 @@ vex export <task-id> [--format jsonl|markdown] [--output <path>] [--force]
 | Format | Content |
 | :--- | :--- |
 | `jsonl` (default) | One JSON object per line: task metadata, changed files, command history, turn evidence. Schema is identical to `BatchMode` JSONL output so tooling built for `vex exec` works for `vex export` without modification. |
-| `markdown` | Human-readable document: task metadata header, changed files table, command history, and per-turn summaries (tool names and outcomes only — not full model response text). |
+| `markdown` | Human-readable document: task-state header, changed files table, command history, and per-turn summaries (tool names and outcomes only — not full model response text). |
 
 **Rules:**
 
@@ -2185,7 +2185,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Files changed:
   - `src/app/commands/mod.rs` — `handle_mcp_command` handles `list` subcommand
 - Validation:
-  - `cargo nextest run -j 2` : pass (anchor tests in slash_commands.rs)
+  - `cargo nextest run` : pass (anchor tests in slash_commands.rs)
 - Notes:
   - `/mcp` and `/mcp list` both trigger the list path; renders server count, tool count, and per-server summary.
 
@@ -2195,7 +2195,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Files changed:
   - `src/app/commands/mod.rs` — `handle_mcp_command` handles `show <server>` subcommand
 - Validation:
-  - `cargo nextest run -j 2` : pass
+  - `cargo nextest run` : pass
 - Notes:
   - `/mcp show <name>` renders transport, tool count, and full-namespace tool list for named server.
   - Unknown server name returns `[mcp] unknown server '<name>'`.
@@ -2215,7 +2215,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - `src/mcp.rs` — `resolve_mcp_header_env` expands `${VAR}` in header values; fails on unset or empty var
   - `src/config.rs` — STDIO server with non-empty `headers` rejected at config validation time
 - Validation:
-  - `cargo nextest run -j 2` : pass
+  - `cargo nextest run` : pass
   - `bash scripts/check_forbidden_names.sh` : pass
 - Notes:
   - Mixed literal + env segments supported (`Bearer ${TOKEN}`).

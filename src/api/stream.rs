@@ -17,6 +17,11 @@ pub use self::text_normaliser::{NormalisedChunk, StreamTextNormaliser};
 /// real SSE frame.  ADR-021 Item 26.
 const MAX_SSE_BUFFER_BYTES: usize = 1_048_576;
 
+/// Hard ceiling on the tool-call index accepted from a chat-compat stream.
+/// Indices beyond this cap are clamped to prevent unbounded Vec allocation
+/// from untrusted server data.
+const MAX_TOOL_CALL_INDEX: usize = 1_024;
+
 #[derive(Default)]
 pub struct StreamParser {
     buffer: Vec<u8>,
@@ -110,7 +115,7 @@ impl StreamParser {
     }
 
     pub fn process(&mut self, chunk: &[u8]) -> Result<Vec<StreamEvent>> {
-        if self.buffer.len() + chunk.len() > MAX_SSE_BUFFER_BYTES {
+        if self.buffer.len().saturating_add(chunk.len()) > MAX_SSE_BUFFER_BYTES {
             return Ok(vec![StreamEvent::Error {
                 error: ApiStreamError {
                     error_type: "sse_buffer_overflow".to_string(),
@@ -303,7 +308,7 @@ impl StreamParser {
             let metadata = metadata_for_choice(choice_index, logprobs);
             let has_server_progress = metadata
                 .as_ref()
-                .is_some_and(|meta| meta.prompt_progress.is_some() || meta.timings.is_some());
+                .is_some_and(|md| md.prompt_progress.is_some() || md.timings.is_some());
 
             if refusal.is_some() || finish_reason.is_some() || has_logprobs || has_server_progress {
                 events.push(StreamEvent::MessageDelta {
@@ -395,7 +400,8 @@ impl StreamParser {
         tool_call: ChatCompatToolCallDelta,
         events: &mut Vec<StreamEvent>,
     ) {
-        let block_index = tool_call.index.unwrap_or(0) + 1;
+        let raw_index = tool_call.index.unwrap_or(0).min(MAX_TOOL_CALL_INDEX);
+        let block_index = raw_index.saturating_add(1);
         self.ensure_chat_compat_tool_state(block_index);
         let state = &mut self.chat_compat_tools[block_index];
         let call_type = tool_call.call_type.clone();
@@ -458,9 +464,10 @@ impl StreamParser {
     }
 
     fn ensure_chat_compat_tool_state(&mut self, index: usize) {
-        if self.chat_compat_tools.len() <= index {
+        let required = index.saturating_add(1);
+        if self.chat_compat_tools.len() < required {
             self.chat_compat_tools
-                .resize_with(index + 1, ChatCompatToolState::default);
+                .resize_with(required, ChatCompatToolState::default);
         }
     }
 

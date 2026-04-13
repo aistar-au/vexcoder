@@ -5,7 +5,7 @@
 In progress — PR #349 (`work/vexcoder-task-document-pr1`) introduces the
 canonical `TaskDocument` runtime module rooted at `src/runtime/task_document.rs`
 with focused submodules in `src/runtime/task_document/{model,condenser,task_state_bridge,tests}.rs`.
-All core types (`TaskDocument`, `TaskMeta`, `ActiveTurnDocument`,
+All core types (`TaskDocument`, `TaskInfo`, `ActiveTurnDocument`,
 `TurnDocument`, `TurnEntry`, `TaskDocumentReducer`, `TaskMutationSummary`) and
 the snapshot round-trip adapter (`persistable_snapshot` /
 `restore_from_snapshot`) are now implemented and exported from
@@ -168,7 +168,7 @@ After all items:
 
 ```sh
 cargo fmt --check
-cargo nextest run -j 2
+cargo nextest run
 cargo test --all-targets
 bash scripts/check_forbidden_names.sh
 make gate-fast

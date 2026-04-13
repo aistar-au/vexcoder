@@ -96,8 +96,11 @@ impl StreamTextNormaliser {
         }
 
         if flush_tail_line && !self.pending.is_empty() {
-            let tail = std::mem::take(&mut self.pending);
-            self.process_line(tail.strip_suffix('\r').unwrap_or(&tail), output);
+            let pending_suffix = std::mem::take(&mut self.pending);
+            self.process_line(
+                pending_suffix.strip_suffix('\r').unwrap_or(&pending_suffix),
+                output,
+            );
         }
     }
 

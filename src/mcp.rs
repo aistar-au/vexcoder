@@ -391,14 +391,14 @@ pub fn resolve_mcp_header_env(value: &str) -> Result<String> {
 
     while let Some(start) = rest.find("${") {
         rendered.push_str(&rest[..start]);
-        let tail = &rest[start + 2..];
-        let end = tail.find('}').ok_or_else(|| {
+        let suffix = &rest[start + 2..];
+        let end = suffix.find('}').ok_or_else(|| {
             anyhow!(
                 "unterminated environment variable reference in MCP headers: '{}'",
                 trimmed
             )
         })?;
-        let name = &tail[..end];
+        let name = &suffix[..end];
         if name.is_empty() {
             bail!("empty environment variable reference in MCP headers");
         }
@@ -416,7 +416,7 @@ pub fn resolve_mcp_header_env(value: &str) -> Result<String> {
             );
         }
         rendered.push_str(&resolved);
-        rest = &tail[end + 1..];
+        rest = &suffix[end + 1..];
     }
     rendered.push_str(rest);
     Ok(rendered)

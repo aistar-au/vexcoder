@@ -10,11 +10,11 @@ impl TuiMode {
     fn grant_task_capabilities(&mut self, capabilities: &[Capability], source: &str) {
         let mut granted = Vec::new();
         for &capability in capabilities {
-            match self.task_doc.meta.active_grants.get(&capability).copied() {
+            match self.task_doc.info.active_grants.get(&capability).copied() {
                 Some(ApprovalScope::Task) | Some(ApprovalScope::Session) => continue,
                 Some(ApprovalScope::Once) | None => {
                     self.task_doc
-                        .meta
+                        .info
                         .active_grants
                         .insert(capability, ApprovalScope::Task);
                     granted.push(capability_to_kebab(capability));

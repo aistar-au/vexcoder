@@ -192,7 +192,7 @@ jobs:
           name: dist-${{ matrix.target }}
           path: dist-input
 
-      - name: Extract vex binary
+      - name: Unpack vex binary
         shell: bash
         env:
           TARGET: ${{ matrix.target }}

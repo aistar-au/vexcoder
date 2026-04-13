@@ -61,7 +61,7 @@ impl ToolCallParser for TaggedParser {
 pub(crate) struct XmlFallbackParser;
 
 impl XmlFallbackParser {
-    /// Try to extract tool calls from generic XML patterns:
+    /// Try to parse tool calls from generic XML patterns:
     ///   `<tool_call>…</tool_call>`  or  `<invoke name="…">…</invoke>`
     ///
     /// Returns an empty vec when no recognisable XML tool pattern is found.

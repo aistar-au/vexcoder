@@ -103,7 +103,7 @@ fn test_tui_resume_restores_active_grants() {
     assert_eq!(mode.current_task_id(), "task-resume-001");
     assert!(mode
         .task_doc
-        .meta
+        .info
         .active_grants
         .contains_key(&crate::runtime::Capability::ApplyPatch));
     assert_eq!(
@@ -115,7 +115,7 @@ fn test_tui_resume_restores_active_grants() {
         vec![PathBuf::from("src/app.rs")]
     );
     assert_eq!(
-        mode.task_doc.meta.status,
+        mode.task_doc.info.status,
         crate::runtime::TaskStatus::Completed
     );
     assert!(

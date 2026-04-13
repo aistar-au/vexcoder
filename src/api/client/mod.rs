@@ -618,7 +618,7 @@ impl ApiClient {
 
         let status = response.status();
         if status.is_client_error() || status.is_server_error() {
-            // Extract Retry-After header before consuming the response body.
+            // Read the Retry-After header before consuming the response body.
             let retry_after_header = response
                 .headers()
                 .get("retry-after")
@@ -831,11 +831,20 @@ fn resolve_max_tokens(default_max_tokens: u32, server_n_ctx: u32) -> u32 {
     // When server context is known, cap at 75% of n_ctx to leave room for
     // the prompt. When unknown (0), use a generous default ceiling.
     let ceiling = if server_n_ctx > 0 {
-        (server_n_ctx as f64 * 0.75) as u32
+        // Multiply in u64 to keep the calculation in integer arithmetic and
+        // avoid an unnecessary float conversion for the 75% ceiling.
+        ((server_n_ctx as u64 * 3) / 4).min(u32::MAX as u64) as u32
     } else {
         16384
     };
-    base.clamp(128, ceiling)
+    // Guard against ceiling < 128 (server reports n_ctx < 171) which would
+    // panic in clamp because min > max is not permitted. Preserve `base` as
+    // the upper bound even in this small-ceiling fallback.
+    if ceiling < 128 {
+        base.min(ceiling)
+    } else {
+        base.clamp(128, ceiling)
+    }
 }
 
 fn infer_api_protocol(api_url: &str) -> ApiProtocol {
@@ -902,7 +911,7 @@ fn adapt_to_messages_v1_url(api_url: &str) -> String {
 }
 
 fn chat_compat_messages(messages: &[ApiMessage], system_prompt: &str) -> Vec<Value> {
-    let mut out = Vec::with_capacity(messages.len() + 1);
+    let mut out = Vec::with_capacity(messages.len().saturating_add(1));
     out.push(json!({
         "role": "system",
         "content": system_prompt

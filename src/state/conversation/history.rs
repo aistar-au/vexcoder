@@ -503,11 +503,14 @@ pub(super) fn truncate_for_history(text: &str, max_chars: usize) -> String {
 
     let available = max_chars - indicator_len;
     let keep_head = available / 2;
-    let keep_tail = available - keep_head;
+    let keep_suffix = available - keep_head;
 
     let head: String = chars.iter().take(keep_head).collect();
-    let tail: String = chars.iter().skip(total.saturating_sub(keep_tail)).collect();
-    format!("{head}{indicator}{tail}")
+    let suffix: String = chars
+        .iter()
+        .skip(total.saturating_sub(keep_suffix))
+        .collect();
+    format!("{head}{indicator}{suffix}")
 }
 
 /// Condense text-protocol tool results. Each result block starts with a

@@ -375,8 +375,8 @@ fn test_regression_progress_updates_across_multiple_chunks() {
         let events = parser.process(chunk).expect("chunk should parse");
         for event in &events {
             if let StreamEvent::MessageDelta { delta, .. } = event {
-                if let Some(meta) = &delta.metadata {
-                    if let Some(pp) = &meta.prompt_progress {
+                if let Some(md) = &delta.metadata {
+                    if let Some(pp) = &md.prompt_progress {
                         progress_values.push(pp.processed.unwrap_or(0));
                     }
                 }

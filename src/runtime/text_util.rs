@@ -18,7 +18,7 @@ pub fn truncate_head_bytes(text: &str, max_bytes: usize) -> (String, bool) {
 /// respecting UTF-8 char boundaries. Returns the possibly shortened
 /// string and a flag indicating whether any bytes were omitted.
 ///
-/// Used by `ValidationSuite` for stdout/stderr tail capture.
+/// Used by `ValidationSuite` for stdout/stderr trailing-output capture.
 pub fn truncate_tail_bytes(text: &str, max_bytes: usize) -> (String, bool) {
     if text.len() <= max_bytes {
         return (text.to_string(), false);

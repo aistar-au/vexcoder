@@ -50,7 +50,10 @@ pub fn truncate_lines(text: &str, max_lines: usize) -> (String, bool) {
 }
 
 pub fn record_branch_on_active_task(cwd: &Path, branch_name: &str) -> Result<Option<String>> {
-    let Some(file) = TaskState::state_files_from(cwd).into_iter().next() else {
+    let Some(file) = TaskState::state_files_from_with_limit(cwd, Some(1))
+        .into_iter()
+        .next()
+    else {
         return Ok(None);
     };
 

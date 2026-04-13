@@ -63,7 +63,7 @@ pub use session_task::{SessionTask, SessionTaskId, SessionTaskStatus};
 pub use task_document::{
     ActiveTurnDocument, ApprovalDocument, AssistantBlockEntry, AssistantPhase,
     CommandSessionDocument, NoticeSeverity, TaskDocument, TaskDocumentCondenser, TaskErrorState,
-    TaskMeta, TaskMutationSummary, TurnDocument, TurnEntry, TurnOutcome,
+    TaskInfo, TaskMutationSummary, TurnDocument, TurnEntry, TurnOutcome,
 };
 pub use task_state::{
     CacheUsageStats, CommandEvidence, ContextCompactionRecord, ConversationCheckpoint,

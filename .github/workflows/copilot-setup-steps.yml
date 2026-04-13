@@ -144,7 +144,7 @@ jobs:
 
           for file in "${log_tail_files[@]}"; do
             has_match "gh agent-task view <session-id> --log --follow" "$file" || {
-              echo "Missing mandatory session log tail command in $file"
+              echo "Missing mandatory session log follow command in $file"
               exit 1
             }
           done

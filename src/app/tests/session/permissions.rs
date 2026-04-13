@@ -27,11 +27,11 @@ fn test_permissions_empty_grants() {
 fn test_permissions_lists_active_grants() {
     let mut mode = TuiMode::new();
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::RunCommand, ApprovalScope::Session);
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::Network, ApprovalScope::Once);
     let mut ctx = setup_ctx();
@@ -64,7 +64,7 @@ fn test_allow_inserts_grant() {
     mode.on_user_input("/allow run-command session".to_string(), &mut ctx);
     assert_eq!(
         mode.task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::RunCommand),
         Some(&ApprovalScope::Session),
@@ -85,7 +85,7 @@ fn test_allow_defaults_to_once_scope() {
     let mut ctx = setup_ctx();
     mode.on_user_input("/allow write-file".to_string(), &mut ctx);
     assert_eq!(
-        mode.task_doc.meta.active_grants.get(&Capability::WriteFile),
+        mode.task_doc.info.active_grants.get(&Capability::WriteFile),
         Some(&ApprovalScope::Once),
         "allow without scope must default to once"
     );
@@ -102,7 +102,7 @@ fn test_allow_unknown_capability_emits_error() {
             .any(|l| l.contains("[allow: unknown capability 'bogus-cap']")),
         "expected unknown-capability error"
     );
-    assert!(mode.task_doc.meta.active_grants.is_empty());
+    assert!(mode.task_doc.info.active_grants.is_empty());
     assert!(!mode.is_turn_in_progress());
 }
 
@@ -117,7 +117,7 @@ fn test_allow_task_scope_emits_error() {
             .any(|l| l.contains("[allow: unknown scope 'task'; valid: once | session]")),
         "expected task scope rejection"
     );
-    assert!(mode.task_doc.meta.active_grants.is_empty());
+    assert!(mode.task_doc.info.active_grants.is_empty());
     assert!(!mode.is_turn_in_progress());
 }
 
@@ -132,7 +132,7 @@ fn test_allow_unknown_scope_emits_error() {
             .any(|l| l.contains("[allow: unknown scope 'forever'; valid: once | session]")),
         "expected unknown-scope error"
     );
-    assert!(mode.task_doc.meta.active_grants.is_empty());
+    assert!(mode.task_doc.info.active_grants.is_empty());
     assert!(!mode.is_turn_in_progress());
 }
 
@@ -140,7 +140,7 @@ fn test_allow_unknown_scope_emits_error() {
 fn test_deny_removes_grant() {
     let mut mode = TuiMode::new();
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::ApplyPatch, ApprovalScope::Task);
     let mut ctx = setup_ctx();
@@ -148,7 +148,7 @@ fn test_deny_removes_grant() {
     assert!(
         !mode
             .task_doc
-            .meta
+            .info
             .active_grants
             .contains_key(&Capability::ApplyPatch),
         "deny must remove the grant"

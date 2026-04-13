@@ -8,19 +8,19 @@ fn test_edit_command_grants_task_permissions() {
     mode.on_user_input("/edit refactor src/app.rs".to_string(), &mut ctx);
 
     assert_eq!(
-        mode.task_doc.meta.active_grants.get(&Capability::WriteFile),
+        mode.task_doc.info.active_grants.get(&Capability::WriteFile),
         Some(&ApprovalScope::Task)
     );
     assert_eq!(
         mode.task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::ApplyPatch),
         Some(&ApprovalScope::Task)
     );
     assert_eq!(
         mode.task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::RunCommand),
         Some(&ApprovalScope::Task)
@@ -31,15 +31,15 @@ fn test_edit_command_grants_task_permissions() {
 fn test_edit_command_preserves_session_permissions() {
     let mut mode = TuiMode::new();
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::WriteFile, ApprovalScope::Session);
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::ApplyPatch, ApprovalScope::Session);
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::RunCommand, ApprovalScope::Session);
     let mut ctx = setup_ctx();
@@ -47,19 +47,19 @@ fn test_edit_command_preserves_session_permissions() {
     mode.on_user_input("/edit refactor src/app.rs".to_string(), &mut ctx);
 
     assert_eq!(
-        mode.task_doc.meta.active_grants.get(&Capability::WriteFile),
+        mode.task_doc.info.active_grants.get(&Capability::WriteFile),
         Some(&ApprovalScope::Session)
     );
     assert_eq!(
         mode.task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::ApplyPatch),
         Some(&ApprovalScope::Session)
     );
     assert_eq!(
         mode.task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::RunCommand),
         Some(&ApprovalScope::Session)
@@ -93,19 +93,19 @@ fn test_fix_command_grants_task_permissions() {
     mode.on_user_input("/fix".to_string(), &mut ctx);
 
     assert_eq!(
-        mode.task_doc.meta.active_grants.get(&Capability::WriteFile),
+        mode.task_doc.info.active_grants.get(&Capability::WriteFile),
         Some(&ApprovalScope::Task)
     );
     assert_eq!(
         mode.task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::ApplyPatch),
         Some(&ApprovalScope::Task)
     );
     assert_eq!(
         mode.task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::RunCommand),
         Some(&ApprovalScope::Task)
@@ -116,15 +116,15 @@ fn test_fix_command_grants_task_permissions() {
 fn test_fix_command_preserves_session_permissions() {
     let mut mode = TuiMode::new();
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::WriteFile, ApprovalScope::Session);
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::ApplyPatch, ApprovalScope::Session);
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::RunCommand, ApprovalScope::Session);
     let mut edit_loop = EditLoop::new("task-1".to_string());
@@ -145,19 +145,19 @@ fn test_fix_command_preserves_session_permissions() {
     mode.on_user_input("/fix".to_string(), &mut ctx);
 
     assert_eq!(
-        mode.task_doc.meta.active_grants.get(&Capability::WriteFile),
+        mode.task_doc.info.active_grants.get(&Capability::WriteFile),
         Some(&ApprovalScope::Session)
     );
     assert_eq!(
         mode.task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::ApplyPatch),
         Some(&ApprovalScope::Session)
     );
     assert_eq!(
         mode.task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::RunCommand),
         Some(&ApprovalScope::Session)

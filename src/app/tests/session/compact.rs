@@ -72,7 +72,7 @@ fn test_tui_compact_persists_cleared_turns() {
 fn test_tui_compact_preserves_task_id_and_grants() {
     let mut mode = TuiMode::new();
     let original_id = mode.current_task_id();
-    mode.task_doc.meta.active_grants.insert(
+    mode.task_doc.info.active_grants.insert(
         crate::runtime::Capability::RunCommand,
         crate::runtime::ApprovalScope::Session,
     );
@@ -87,7 +87,7 @@ fn test_tui_compact_preserves_task_id_and_grants() {
     );
     assert!(
         mode.task_doc
-            .meta
+            .info
             .active_grants
             .contains_key(&crate::runtime::Capability::RunCommand),
         "/compact must preserve active grants"

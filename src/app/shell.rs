@@ -16,14 +16,14 @@ impl TuiMode {
 
         if let Some(scope) = self
             .task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::RunCommand)
             .copied()
         {
             if matches!(scope, ApprovalScope::Once) {
                 self.task_doc
-                    .meta
+                    .info
                     .active_grants
                     .remove(&Capability::RunCommand);
             }

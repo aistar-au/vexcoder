@@ -356,7 +356,7 @@ pub fn facade_release_session_task(working_dir: &Path, session_task_id: &str) ->
 // Phase C facade entrypoints — subtask orchestration
 // ---------------------------------------------------------------------------
 
-/// Extract a parent task into session tasks for a named team.
+/// Split a parent task into session tasks for a named team.
 ///
 /// `team_name` must match a `[[teams]]` entry in `.vex/agents.toml`.
 /// Returns `Err` with `agents_config_missing` when no config is found,
@@ -459,10 +459,14 @@ pub fn facade_poll_join(
 // ---------------------------------------------------------------------------
 
 /// Return a summary for every persisted parent-task state file.
+///
+/// Results are bounded by `StartupBudget::max_scans` to prevent unbounded
+/// allocation from large state directories.
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_tasks(working_dir: &Path) -> Result<Vec<FacadeTaskSummary>> {
-    let mut out = Vec::new();
-    for file in TaskState::state_files_from(working_dir) {
+    let files = TaskState::state_files_from(working_dir);
+    let mut out = Vec::with_capacity(files.len());
+    for file in files {
         let state = TaskState::load(&file.dir, &file.id)?;
         let live = state
             .session_tasks
@@ -482,10 +486,13 @@ pub fn facade_list_tasks(working_dir: &Path) -> Result<Vec<FacadeTaskSummary>> {
 }
 
 /// Return a snapshot for every session task across all persisted parent states.
+///
+/// Bounded by `StartupBudget::max_scans`.
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_session_tasks(working_dir: &Path) -> Result<Vec<FacadeSessionTaskRollup>> {
-    let mut out = Vec::new();
-    for file in TaskState::state_files_from(working_dir) {
+    let files = TaskState::state_files_from(working_dir);
+    let mut out = Vec::with_capacity(files.len());
+    for file in files {
         let state = TaskState::load(&file.dir, &file.id)?;
         for task in state.session_tasks {
             out.push(session_task_to_rollup(task));
@@ -554,10 +561,13 @@ pub fn facade_update_session_task_status(
 }
 
 /// Return the full task graph: every parent task with its session tasks.
+///
+/// Bounded by `StartupBudget::max_scans`.
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_task_graph(working_dir: &Path) -> Result<FacadeTaskGraph> {
-    let mut nodes = Vec::new();
-    for file in TaskState::state_files_from(working_dir) {
+    let files = TaskState::state_files_from(working_dir);
+    let mut nodes = Vec::with_capacity(files.len());
+    for file in files {
         let state = TaskState::load(&file.dir, &file.id)?;
         let session_tasks = state
             .session_tasks
@@ -575,10 +585,13 @@ pub fn facade_task_graph(working_dir: &Path) -> Result<FacadeTaskGraph> {
 }
 
 /// Return all active (non-final) session tasks as todo items.
+///
+/// Bounded by `StartupBudget::max_scans`.
 #[tracing::instrument(skip(working_dir), fields(working_dir = %working_dir.display()))]
 pub fn facade_list_todos(working_dir: &Path) -> Result<Vec<FacadeTodoItem>> {
-    let mut out = Vec::new();
-    for file in TaskState::state_files_from(working_dir) {
+    let files = TaskState::state_files_from(working_dir);
+    let mut out = Vec::with_capacity(files.len());
+    for file in files {
         let state = TaskState::load(&file.dir, &file.id)?;
         for task in state.session_tasks {
             if task.lifecycle_state.is_live() {

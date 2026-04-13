@@ -348,7 +348,7 @@ impl TuiMode {
         let changed_files = self.visible_changed_files();
 
         Some(TaskLayoutState {
-            task_id: self.task_doc.meta.id.clone(),
+            task_id: self.task_doc.info.id.clone(),
             status_line: self.status_line(),
             telemetry: TaskTelemetryState {
                 mode: self.mode_status_label().to_string(),

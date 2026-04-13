@@ -6,10 +6,10 @@ use crate::runtime::{ApprovalScope, Capability, ModelBackendKind};
 use crate::state::{ToolStatus, TurnToolPolicy};
 use crate::usage::TurnTokens;
 
-use super::{TaskDocumentCondenser, TaskMeta, TurnEntry, TurnOutcome};
+use super::{TaskDocumentCondenser, TaskInfo, TurnEntry, TurnOutcome};
 
-fn test_meta() -> TaskMeta {
-    TaskMeta {
+fn test_meta() -> TaskInfo {
+    TaskInfo {
         id: "test-task-01".to_string(),
         status: TaskStatus::Ready,
         parent_task_id: None,
@@ -34,7 +34,7 @@ fn begin_task_produces_empty_document() {
     let doc = condenser.begin_task(test_meta());
     assert!(doc.completed_turns.is_empty());
     assert!(doc.active_turn.is_none());
-    assert_eq!(doc.meta.id, "test-task-01");
+    assert_eq!(doc.info.id, "test-task-01");
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn finish_turn_moves_active_turn_to_completed() {
     assert_eq!(doc.completed_turns.len(), 1);
     assert!(summary.active_turn_changed);
     assert!(summary.task_status_changed);
-    assert_eq!(doc.meta.status, TaskStatus::Ready);
+    assert_eq!(doc.info.status, TaskStatus::Ready);
 }
 
 #[test]
@@ -187,7 +187,7 @@ fn error_event_sets_error_state_and_status() {
     );
 
     assert!(doc.last_error.is_some());
-    assert_eq!(doc.meta.status, TaskStatus::Failed);
+    assert_eq!(doc.info.status, TaskStatus::Failed);
     assert!(summary.task_status_changed);
 }
 
@@ -220,7 +220,7 @@ fn approval_resolution_updates_grants_by_scope() {
         },
     );
     assert_eq!(
-        doc.meta.active_grants.get(&Capability::ApplyPatch),
+        doc.info.active_grants.get(&Capability::ApplyPatch),
         Some(&ApprovalScope::Session)
     );
 
@@ -232,7 +232,7 @@ fn approval_resolution_updates_grants_by_scope() {
             approved: true,
         },
     );
-    assert_eq!(doc.meta.active_grants.get(&Capability::RunCommand), None);
+    assert_eq!(doc.info.active_grants.get(&Capability::RunCommand), None);
 }
 
 #[test]

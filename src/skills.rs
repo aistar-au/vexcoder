@@ -262,7 +262,7 @@ fn fetch_source(source: &str, source_kind: InstallSourceKind, staging: &Path) ->
                     .args(["-C"])
                     .arg(&extract_dir)
                     .status()
-                    .with_context(|| format!("failed to extract {source}"))?;
+                    .with_context(|| format!("failed to unpack {source}"))?;
                 if !status.success() {
                     bail!("tar extraction failed for {source}");
                 }

@@ -798,7 +798,7 @@ impl ConversationManager {
     }
 }
 
-/// Centralizes the repeated guard-error tail pattern (ADR-021 Item 9).
+/// Centralizes the repeated guard-error trailing-segment pattern (ADR-021 Item 9).
 ///
 /// After a tool-guard fires, this helper emits the clarification text to the
 /// stream and appends the history payload for the active protocol. The caller

@@ -271,7 +271,7 @@ fn test_turn_complete_waits_for_last_command_session_to_finish() {
         .is_none_or(|t| t.command_sessions.is_empty()));
     assert!(!mode.is_turn_in_progress());
     assert!(!mode.turn_completion_pending);
-    assert_eq!(mode.task_doc.meta.status, crate::runtime::TaskStatus::Ready);
+    assert_eq!(mode.task_doc.info.status, crate::runtime::TaskStatus::Ready);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -316,7 +316,7 @@ data: {"type":"message_stop"}"#.to_string(),
 
     let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
     mode.task_doc
-        .meta
+        .info
         .active_grants
         .insert(Capability::RunCommand, ApprovalScope::Session);
     let (mut ctx, mut rx) = setup_ctx_with_responses_and_updates(responses);

@@ -260,7 +260,7 @@ pub struct JoinSummaryEntry {
     pub summary: String,
 }
 
-/// Extract a parent task into session tasks for a named team.
+/// Split a parent task into session tasks for a named team.
 ///
 /// `POST /v1/teams/{team_name}/schedule` with body `{ parent_task_id, prompt }`
 #[tracing::instrument(skip_all, fields(team_name = %team_name))]

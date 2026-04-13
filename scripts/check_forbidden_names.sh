@@ -205,6 +205,7 @@ brand_words=(
   $'\x6f\x6c\x6c\x61\x6d\x61'
   $'\x6c\x6c\x61\x6d\x61'
   $'\x76\x6c\x6c\x6d'
+  $'\x6d\x65\x74\x61'
 )
 brand_regex="$(printf '%s|' "${brand_words[@]}")"
 brand_regex="${brand_regex%|}"
@@ -238,6 +239,26 @@ failed=0
 
 # Pass 1: full pattern — .github/workflows/** excluded (.github non-workflow files still scanned)
 if scan_targets "$PATTERN" "${TARGETS[@]}"; then
+  failed=1
+fi
+
+# Pass 1b: catch the banned Rust suppression attribute explicitly so
+# test-only helpers stay on cfg gates rather than allow-attribute escapes.
+RUST_SUPPRESSION_PATTERN="\\b[d]ead_code\\b"
+RUST_SUPPRESSION_TARGETS=(
+  AGENTS.md
+  CONTRIBUTING.md
+  TASKS
+  adr
+  docs/src
+  src
+  tests
+  scripts
+  .github
+  Makefile
+)
+
+if scan_targets "$RUST_SUPPRESSION_PATTERN" "${RUST_SUPPRESSION_TARGETS[@]}"; then
   failed=1
 fi
 

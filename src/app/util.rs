@@ -281,9 +281,8 @@ pub(super) fn sanitize_task_label(label: &str) -> String {
 }
 
 pub(super) fn list_recent_task_entries(working_dir: &Path, limit: usize) -> Vec<ResumeTaskEntry> {
-    TaskState::state_files_from(working_dir)
+    TaskState::state_files_from_with_limit(working_dir, Some(limit))
         .into_iter()
-        .take(limit)
         .map(|file| match TaskState::load(&file.dir, &file.id) {
             Ok(state) => ResumeTaskEntry {
                 dir: file.dir,

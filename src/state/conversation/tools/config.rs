@@ -52,7 +52,7 @@ pub(super) fn write_file_max_lines() -> usize {
         .unwrap_or(500)
 }
 
-/// Append `text` to `buf`, keeping only the tail when the cap is exceeded.
+/// Append `text` to `buf`, keeping only the trailing segment when the cap is exceeded.
 pub(super) fn append_capped(buf: &mut String, text: &str, cap: usize) {
     buf.push_str(text);
     if buf.len() > cap {

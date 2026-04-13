@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser};
 use serde::Serialize;
 use std::io::IsTerminal;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use vexcoder::app::{
     run_tui_session, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
@@ -44,7 +44,11 @@ fn emit_migrate_config_output(output_path: Option<&Path>) -> Result<()> {
 /// Returns `None` only when no tasks exist yet (empty-id path).
 fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
     if task_id.is_empty() {
-        match TaskState::state_files().into_iter().next() {
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        match TaskState::state_files_from_with_limit(&working_dir, Some(1))
+            .into_iter()
+            .next()
+        {
             Some(file) => Ok(Some(TaskState::load(&file.dir, &file.id)?)),
             None => Ok(None),
         }

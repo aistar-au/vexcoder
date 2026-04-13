@@ -149,7 +149,7 @@ fn test_task_layout_state_shows_approved_pending_tool_after_acceptance() {
     assert_eq!(approved.lifecycle, StepLifecycle::Approved);
     assert_eq!(approved.label, "read_file: approved");
     assert_eq!(
-        mode.task_doc.meta.status,
+        mode.task_doc.info.status,
         crate::runtime::TaskStatus::Running
     );
 }
@@ -793,7 +793,7 @@ fn test_follow_mode_auto_advances_selected_step_when_new_entries_arrive() {
 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(state.total_steps, 2);
-    // follow_mode is true by default — selected_step must be at the tail.
+    // follow_mode is true by default — selected_step must stay on the newest row.
     assert!(state.follow_mode);
     assert_eq!(state.selected_step, 1);
 

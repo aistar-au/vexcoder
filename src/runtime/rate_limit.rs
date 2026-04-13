@@ -57,7 +57,7 @@ fn re_retry_body() -> &'static regex_lite::Regex {
 // Public API
 // ---------------------------------------------------------------------------
 
-/// Extract a retry delay from a `Retry-After` header value.
+/// Parse a retry delay from a `Retry-After` header value.
 ///
 /// Handles the simple numeric-seconds form.  Does not handle HTTP-date
 /// values (RFC 7231 §7.1.3).
@@ -71,7 +71,7 @@ pub fn parse_retry_after_header(value: &str) -> Option<RetryHint> {
     })
 }
 
-/// Extract a retry delay from an error response body.
+/// Parse a retry delay from an error response body.
 ///
 /// Scans for natural-language phrases like "try again in 5 seconds",
 /// "retry in 500ms", "wait 30 sec", etc.

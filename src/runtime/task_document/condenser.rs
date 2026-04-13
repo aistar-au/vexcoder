@@ -7,7 +7,7 @@ use crate::usage::TurnTokens;
 
 use super::{
     ActiveTurnDocument, ApprovalDocument, AssistantBlockEntry, AssistantPhase, NoticeSeverity,
-    TaskDocument, TaskErrorState, TaskMeta, TurnDocument, TurnEntry, TurnOutcome,
+    TaskDocument, TaskErrorState, TaskInfo, TurnDocument, TurnEntry, TurnOutcome,
 };
 
 /// Stateless condenser that applies [`RuntimeEvent`] mutations to a
@@ -35,9 +35,9 @@ impl TaskDocumentCondenser {
     }
 
     /// Construct an empty document for a newly-created task.
-    pub fn begin_task(&self, meta: TaskMeta) -> TaskDocument {
+    pub fn begin_task(&self, info: TaskInfo) -> TaskDocument {
         TaskDocument {
-            meta,
+            info,
             completed_turns: Vec::new(),
             active_turn: None,
             session_notes: Vec::new(),
@@ -62,10 +62,10 @@ impl TaskDocumentCondenser {
         );
 
         let turn_index = doc.completed_turns.len();
-        let step_id = Self::alloc_step(&mut doc.meta.next_step_id);
+        let step_id = Self::alloc_step(&mut doc.info.next_step_id);
 
-        doc.meta.status = TaskStatus::Running;
-        doc.meta.updated_at_ms = started_at_ms;
+        doc.info.status = TaskStatus::Running;
+        doc.info.updated_at_ms = started_at_ms;
         doc.active_turn = Some(ActiveTurnDocument {
             turn_index,
             input: input.clone(),
@@ -102,7 +102,7 @@ impl TaskDocumentCondenser {
             RuntimeEvent::TurnStart { .. } => {}
             RuntimeEvent::TranscriptLine { line } => {
                 if let Some(active) = doc.active_turn.as_mut() {
-                    let step_id = Self::alloc_step(&mut doc.meta.next_step_id);
+                    let step_id = Self::alloc_step(&mut doc.info.next_step_id);
                     active.entries.push(TurnEntry::SystemNotice {
                         step_id,
                         message: line,
@@ -123,7 +123,7 @@ impl TaskDocumentCondenser {
                         }
                         _ => return summary,
                     };
-                    let step_id = Self::alloc_step(&mut doc.meta.next_step_id);
+                    let step_id = Self::alloc_step(&mut doc.info.next_step_id);
                     active.entries.push(TurnEntry::AssistantBlock {
                         step_id,
                         block: AssistantBlockEntry {
@@ -197,7 +197,7 @@ impl TaskDocumentCondenser {
                 arguments,
             } => {
                 if let Some(active) = doc.active_turn.as_mut() {
-                    let step_id = Self::alloc_step(&mut doc.meta.next_step_id);
+                    let step_id = Self::alloc_step(&mut doc.info.next_step_id);
                     active.entries.push(TurnEntry::ToolCall {
                         step_id,
                         id,
@@ -230,7 +230,7 @@ impl TaskDocumentCondenser {
                         }
                     }
 
-                    let step_id = Self::alloc_step(&mut doc.meta.next_step_id);
+                    let step_id = Self::alloc_step(&mut doc.info.next_step_id);
                     active.entries.push(TurnEntry::ToolResult {
                         step_id,
                         tool_call_id,
@@ -252,7 +252,7 @@ impl TaskDocumentCondenser {
                         capability.parse::<Capability>(),
                         scope.parse::<ApprovalScope>(),
                     ) {
-                        let step_id = Self::alloc_step(&mut doc.meta.next_step_id);
+                        let step_id = Self::alloc_step(&mut doc.info.next_step_id);
                         let approval = ApprovalDocument {
                             step_id,
                             capability,
@@ -264,7 +264,7 @@ impl TaskDocumentCondenser {
                         active
                             .entries
                             .push(TurnEntry::ApprovalRequest { step_id, approval });
-                        doc.meta.status = TaskStatus::AwaitingApproval;
+                        doc.info.status = TaskStatus::AwaitingApproval;
                         summary.active_turn_changed = true;
                         summary.approval_changed = true;
                         summary.task_status_changed = true;
@@ -282,7 +282,7 @@ impl TaskDocumentCondenser {
                         scope.parse::<ApprovalScope>(),
                     ) {
                         active.pending_approval = None;
-                        let step_id = Self::alloc_step(&mut doc.meta.next_step_id);
+                        let step_id = Self::alloc_step(&mut doc.info.next_step_id);
                         active.entries.push(TurnEntry::ApprovalResolved {
                             step_id,
                             capability,
@@ -294,14 +294,14 @@ impl TaskDocumentCondenser {
                             match scope {
                                 ApprovalScope::Once => {}
                                 ApprovalScope::Task | ApprovalScope::Session => {
-                                    doc.meta.active_grants.insert(capability, scope);
+                                    doc.info.active_grants.insert(capability, scope);
                                 }
                             }
                         } else {
-                            doc.meta.active_grants.remove(&capability);
+                            doc.info.active_grants.remove(&capability);
                         }
 
-                        doc.meta.status = TaskStatus::Running;
+                        doc.info.status = TaskStatus::Running;
                         summary.active_turn_changed = true;
                         summary.approval_changed = true;
                         summary.task_status_changed = true;
@@ -332,17 +332,17 @@ impl TaskDocumentCondenser {
                     recoverable,
                 });
                 if !recoverable {
-                    doc.meta.status = TaskStatus::Failed;
+                    doc.info.status = TaskStatus::Failed;
                     summary.task_status_changed = true;
                 }
             }
             RuntimeEvent::MaxTurnsReached { .. } => {
-                doc.meta.status = TaskStatus::MaxTurnsReached;
+                doc.info.status = TaskStatus::MaxTurnsReached;
                 summary.task_status_changed = true;
             }
         }
 
-        doc.meta.updated_at_ms = now_millis();
+        doc.info.updated_at_ms = now_millis();
         summary
     }
 
@@ -367,13 +367,13 @@ impl TaskDocumentCondenser {
             }
         }
 
-        doc.meta.status = match &outcome {
+        doc.info.status = match &outcome {
             TurnOutcome::Completed => TaskStatus::Ready,
             TurnOutcome::Failed { .. } => TaskStatus::Failed,
             TurnOutcome::Cancelled => TaskStatus::Cancelled,
             TurnOutcome::MaxTurnsReached => TaskStatus::MaxTurnsReached,
         };
-        doc.meta.updated_at_ms = completed_at_ms;
+        doc.info.updated_at_ms = completed_at_ms;
 
         summary.task_status_changed = true;
         summary.active_turn_changed = true;

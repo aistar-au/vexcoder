@@ -11,4 +11,5 @@
 - [Quick Start](quick-start.md)
 - [Configuration](configuration.md)
 - [CLI and TUI Commands](commands.md)
+- [Performance](performance.md)
 - [Legacy Config Note](migration.md)

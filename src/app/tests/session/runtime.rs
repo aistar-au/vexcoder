@@ -47,12 +47,12 @@ fn test_build_runtime_with_resume_restores_task() {
     let (runtime, _ctx) =
         build_runtime_with_resume(config, state).expect("build_runtime_with_resume should succeed");
 
-    assert_eq!(runtime.mode.task_doc.meta.id, "task-startup-resume");
+    assert_eq!(runtime.mode.task_doc.info.id, "task-startup-resume");
     assert_eq!(
         runtime
             .mode
             .task_doc
-            .meta
+            .info
             .active_grants
             .get(&Capability::Network),
         Some(&ApprovalScope::Session)
@@ -190,7 +190,7 @@ fn test_tui_compact_preserves_task_id_but_clears_turns() {
         "/compact must clear accumulated turns"
     );
     assert!(
-        !mode.task_doc.meta.active_grants.is_empty() || mode.task_doc.meta.active_grants.is_empty(),
+        !mode.task_doc.info.active_grants.is_empty() || mode.task_doc.info.active_grants.is_empty(),
         "grants state must remain consistent"
     );
 }

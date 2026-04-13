@@ -352,8 +352,8 @@ pub(crate) fn diff_style(line: &str) -> Option<(Color, bool)> {
 
 pub(crate) fn parse_command_session_started(line: &str) -> Option<(String, Option<String>)> {
     let rest = line.strip_prefix("[command session started")?;
-    let (meta, command) = rest.split_once("] ")?;
-    let pid = meta
+    let (prefix, command) = rest.split_once("] ")?;
+    let pid = prefix
         .strip_prefix(" pid=")
         .map(str::trim)
         .filter(|value| !value.is_empty())

@@ -170,7 +170,7 @@ pub fn render_file_picker_hint(
     lines.join("\n")
 }
 
-/// Extract the slash prefix token from input (e.g. "/ed" from "/ed something").
+/// Parse the slash-prefix token from input (e.g. "/ed" from "/ed something").
 /// Returns `None` if the trimmed input does not start with `/`.
 pub fn slash_prefix_token(input: &str) -> Option<&str> {
     let trimmed = input.trim_start();

@@ -196,9 +196,9 @@ fn infer_js_import_path(line: &str) -> Option<PathBuf> {
 fn extract_quoted_specifier(line: &str) -> Option<&str> {
     for quote in ['"', '\''] {
         if let Some(start) = line.find(quote) {
-            let tail = &line[start + 1..];
-            if let Some(end) = tail.find(quote) {
-                return Some(&tail[..end]);
+            let suffix = &line[start + 1..];
+            if let Some(end) = suffix.find(quote) {
+                return Some(&suffix[..end]);
             }
         }
     }
