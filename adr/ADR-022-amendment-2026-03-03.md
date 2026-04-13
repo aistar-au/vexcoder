@@ -18,7 +18,7 @@
 
 ### Decision item 11 — added
 
-> Native application packaging and additional runtime surfaces are reserved for post-phase-1 work. When introduced, they must be implemented in one of two forms: (a) a *packaging layer* — wraps the compiled binary, adds OS-native credential storage and chrome, contains no agent logic; or (b) a *new `RuntimeMode` implementation* — implements `RuntimeMode + FrontendAdapter` against the shared runtime core, is placed in `src/` like `TuiMode` and `BatchMode`, and extends rather than replaces the existing dispatch architecture. A local HTTP or Unix socket API server (`LocalApiServer: RuntimeMode + FrontendAdapter`) is a canonical example of form (b): it is not a packaging layer, it is a new surface implementation, and it belongs in `src/` by design. The prohibited case is an *architectural fork*: a surface that requires changes to `src/runtime/`, `src/api/`, or `src/state/` to function, modifies the shared runtime core to serve its own needs, or duplicates runtime logic in a second language rather than sharing it through the trait interface.
+> Native application packaging and additional runtime surfaces are reserved for work beyond the initial delivery phase. When introduced, they must be implemented in one of two forms: (a) a *packaging layer* — wraps the compiled binary, adds OS-native credential storage and chrome, contains no agent logic; or (b) a *new `RuntimeMode` implementation* — implements `RuntimeMode + FrontendAdapter` against the shared runtime core, is placed in `src/` like `TuiMode` and `BatchMode`, and extends rather than replaces the existing dispatch architecture. A local HTTP or Unix socket API server (`LocalApiServer: RuntimeMode + FrontendAdapter`) is a canonical example of form (b): it is not a packaging layer, it is a new surface implementation, and it belongs in `src/` by design. The prohibited case is an *architectural fork*: a surface that requires changes to `src/runtime/`, `src/api/`, or `src/state/` to function, modifies the shared runtime core to serve its own needs, or duplicates runtime logic in a second language rather than sharing it through the internal runtime API surface.
 
 ### Final Compliance note — amended
 
@@ -26,7 +26,7 @@
 > Do not convert the product into an editor-first application under this ADR.
 
 **After:**
-> Do not introduce native application packaging or new runtime surface implementations in phase-1 work. Any future phase that introduces these must do so via a dedicated ADR. Packaging layers must not contain agent logic. New `RuntimeMode` implementations must call into the shared runtime core unchanged — they must not modify `src/runtime/`, `src/api/`, or `src/state/` to serve surface-specific needs.
+> Do not introduce native application packaging or new runtime surface implementations in the initial delivery phase. Any subsequent phase that introduces these must do so via a dedicated ADR. Packaging layers must not contain agent logic. New `RuntimeMode` implementations must call into the shared runtime core unchanged — they must not modify `src/runtime/`, `src/api/`, or `src/state/` to serve surface-specific needs.
 
 ---
 
@@ -44,13 +44,13 @@ This amendment preserves the sequencing intent (cli core first, packaging layers
 
 The critical architectural constraint preserved by this amendment:
 
-> **The shared runtime core — `src/runtime/`, `src/api/`, `src/state/` — must remain the single canonical implementation across all surfaces. A new surface that requires *modifications* to these modules to function is an architectural fork and must be treated as such. A new surface that adds a new `RuntimeMode + FrontendAdapter` implementation and calls into the existing core unchanged is an intended use of the trait architecture — `TuiMode`, `BatchMode`, and any future `LocalApiServer` are parallel implementations of the same shared engine, not forks of it.**
+> **The shared runtime core — `src/runtime/`, `src/api/`, `src/state/` — must remain the single canonical implementation across all surfaces. A new surface that requires *modifications* to these modules to function is an architectural fork and must be treated as such. A new surface that adds a new `RuntimeMode + FrontendAdapter` implementation and calls into the existing core unchanged is an intended use of the runtime module API — `TuiMode`, `BatchMode`, and `LocalApiServer` are parallel implementations of the same shared engine, not forks of it.**
 
 ---
 
 ## What does not change
 
-- The phase-1 scope is unchanged. No packaging or editor work in phase 1.
+- The initial delivery scope is unchanged. No packaging or editor work in the initial phase.
 - `vex exec` headless mode (ADR-024 Gap 2 / `BatchMode`) is the designated integration point for any future editor surface. It must be stable before an editor extension is designed.
 - `RuntimeCorePolicy` and `ApprovalPolicy` remain separate concerns.
 - All other ADR-022 Decision items (2–10) are unchanged.

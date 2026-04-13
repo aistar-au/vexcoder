@@ -61,7 +61,7 @@ This ADR locks the following decisions:
 8. Existing-file mutations become diff-native and approval-gated.
 9. Command execution becomes a first-class built-in capability.
 10. Approval is capability-based and remains separate from `RuntimeCorePolicy`.
-11. Native application packaging and additional runtime surfaces are reserved for post-phase-1 work. When introduced, they must be implemented in one of two forms: (a) a *packaging layer* — wraps the compiled binary, adds OS-native credential storage and chrome, contains no agent logic; or (b) a *new `RuntimeMode` implementation* — implements `RuntimeMode + FrontendAdapter` against the shared runtime core, is placed in `src/` like `TuiMode` and `BatchMode`, and extends rather than replaces the existing dispatch architecture. A local HTTP or Unix socket API server (`LocalApiServer: RuntimeMode + FrontendAdapter`) is a canonical example of form (b): it is not a packaging layer, it is a new surface implementation, and it belongs in `src/` by design. The prohibited case is an *architectural fork*: a surface that requires changes to `src/runtime/`, `src/api/`, or `src/state/` to function, modifies the shared runtime core to serve its own needs, or duplicates runtime logic in a second language rather than sharing it through the trait interface.
+11. Native application packaging and additional runtime surfaces are reserved for post-phase-1 work. When introduced, they must be implemented in one of two forms: (a) a *packaging layer* — wraps the compiled binary, adds OS-native credential storage and chrome, contains no agent logic; or (b) a *new `RuntimeMode` implementation* — implements `RuntimeMode + FrontendAdapter` against the shared runtime core, is placed in `src/` like `TuiMode` and `BatchMode`, and extends rather than replaces the existing dispatch architecture. A local HTTP or Unix socket API server (`LocalApiServer: RuntimeMode + FrontendAdapter`) is a canonical example of form (b): it is not a packaging layer, it is a new surface implementation, and it belongs in `src/` by design. The prohibited case is an *architectural fork*: a surface that requires changes to `src/runtime/`, `src/api/`, or `src/state/` to function, modifies the shared runtime core to serve its own needs, or duplicates runtime logic in a second language rather than sharing it through the internal runtime API surface.
 
 ## Normative Config and Interface Changes
 
@@ -441,7 +441,7 @@ fn approval_policy_is_capability_scoped() {
 | Phase 5 — Add durable task state and resume | resume, task-state, memory-note, and persisted-grant regressions remained green in `cargo test --all-targets`. | pass |
 | Phase 6 — Rework the TUI around task execution | `make gate-fast` and the targeted `/review`, `/plan`, `/context`, `/commands`, and `/help` anchors kept the task-first TUI path green. | pass |
 | Phase 7 — Improve repo-navigation tooling | context-assembly, `@path`, `/review --files`, `/plan`, and diff-context coverage remained green in `cargo test --all-targets`. | pass |
-| Phase 8 — Defer browser automation | no browser surface was introduced; the gate remained green without widening the phase-1 capability set. | pass |
+| Phase 8 — Defer browser automation | no browser surface was introduced; the gate remained green without widening the initial capability set. | pass |
 
 Phase-1 therefore closes as the ADR-022 validation gate for phases 1
 through 8 together with the completed ADR-023 command surface.
@@ -492,6 +492,6 @@ In other words:
 - Do not bypass capability-based approval for mutating operations.
 - Do not perform hidden file rewrites where a diff preview is required.
 - Do not add browser automation to phase 1.
-- Do not introduce native application packaging or new runtime surface implementations in phase-1 work. Any future phase that introduces these must do so via a dedicated ADR. Packaging layers must not contain agent logic. New `RuntimeMode` implementations must call into the shared runtime core unchanged — they must not modify `src/runtime/`, `src/api/`, or `src/state/` to serve surface-specific needs.
+- Do not introduce native application packaging or new runtime surface implementations in the initial delivery phase. Any subsequent phase that introduces these must do so via a dedicated ADR. Packaging layers must not contain agent logic. New `RuntimeMode` implementations must call into the shared runtime core unchanged — they must not modify `src/runtime/`, `src/api/`, or `src/state/` to serve surface-specific needs.
 - Do not conflate `RuntimeCorePolicy` (prompt-shaping) with `ApprovalPolicy`
   (capability gating); they are separate concerns and both must be maintained.
