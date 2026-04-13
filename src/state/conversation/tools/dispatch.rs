@@ -316,7 +316,7 @@ pub(crate) fn execute_tool_dispatch_with_search_config(
     }
 }
 
-/// Extract a required non-empty string field from tool input by a single key.
+/// Read a required non-empty string field from tool input by a single key.
 ///
 /// Delegates to [`required_tool_string_any`] with a single-key slice.
 pub(crate) fn required_tool_string<'a>(

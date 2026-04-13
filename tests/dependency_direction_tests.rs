@@ -32,7 +32,7 @@ fn collect_rs_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// Extract tracked imports from a Rust source file.
+/// Collect tracked imports from a Rust source file.
 ///
 /// `super::...` imports are resolved back to crate-root paths so the boundary
 /// scan still catches forbidden cross-layer references that bypass `crate::`.
@@ -171,7 +171,9 @@ fn module_path_components(path: &Path) -> Vec<String> {
             modules.clear();
         }
         _ => {
-            let last = modules.last_mut().expect("module path must have a tail");
+            let last = modules
+                .last_mut()
+                .expect("module path must have a final segment");
             *last = stem.to_string();
         }
     }

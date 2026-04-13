@@ -618,7 +618,7 @@ impl ApiClient {
 
         let status = response.status();
         if status.is_client_error() || status.is_server_error() {
-            // Extract Retry-After header before consuming the response body.
+            // Read the Retry-After header before consuming the response body.
             let retry_after_header = response
                 .headers()
                 .get("retry-after")

@@ -274,7 +274,7 @@ pub struct TaskViewProjection {
 }
 
 impl TaskLayoutState {
-    /// Extract the renderer-facing subset into a `TaskViewProjection`.
+    /// Build the renderer-facing subset into a `TaskViewProjection`.
     pub fn into_view_projection(self) -> TaskViewProjection {
         TaskViewProjection {
             status_line: self.status_line,
@@ -457,7 +457,7 @@ pub struct TuiMode {
     auto_memory_enabled: bool,
     #[cfg(test)]
     pub auto_memory_enabled: bool,
-    /// Maximum notes to extract per turn (from config).
+    /// Maximum notes to collect per turn (from config).
     auto_memory_max_notes: usize,
     #[cfg(test)]
     pub last_turn_input: Option<String>,

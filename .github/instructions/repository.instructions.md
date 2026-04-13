@@ -86,7 +86,7 @@ gh agent-task list
 ```
 
 - After every `gh agent-task create`, capture the new unique session id from
-  the launch output and immediately tail background-session logs with:
+  the launch output and immediately follow background-session logs with:
 
 ```sh
 gh agent-task view <session-id> --log --follow
@@ -111,7 +111,7 @@ gh pr checks <pr> --watch
   invocation time. If the hosting surface ignores the profile pin, report that
   behavior explicitly instead of silently changing the command.
 - Do not move on to PR inspection, review, promotion, or merge work until the
-  paired launch-log tail has completed and any violation has been triaged.
+  paired launch-log follow has completed and any violation has been triaged.
 - In agent-authored prose, explicitly avoid every assistant-brand term,
   provider-name term, model-family term, and editor-brand term matched by
   `scripts/check_forbidden_names.sh` unless a literal path, URL, command, or

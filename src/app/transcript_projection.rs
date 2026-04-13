@@ -461,7 +461,7 @@ fn first_pathish_token(text: &str) -> Option<String> {
     })
 }
 
-/// Extract the concatenated `FinalText` assistant response from a completed
+/// Assemble the concatenated `FinalText` assistant response from a completed
 /// turn's entry list (used for auto-memory extraction).
 pub(super) fn extract_assistant_response(entries: &[TurnEntry]) -> String {
     let mut parts = Vec::new();

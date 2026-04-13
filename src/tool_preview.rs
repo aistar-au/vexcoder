@@ -93,7 +93,7 @@ pub fn content_stats(content: &str) -> (usize, usize) {
     )
 }
 
-/// Extract the `path` field from a read_file tool input.
+/// Read the `path` field from a read_file tool input.
 /// Returns `None` if the key is absent or not a string — callers supply the fallback.
 pub fn read_file_path(input: &Value) -> Option<String> {
     input

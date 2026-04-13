@@ -78,7 +78,7 @@ impl SubtaskOrchestrator {
     // Extraction
     // -----------------------------------------------------------------------
 
-    /// Extract a parent task into session tasks following the team scheduler.
+    /// Split a parent task into session tasks following the team scheduler.
     ///
     /// `FanOutJoin`: session tasks are created for every team member in
     /// declaration order.

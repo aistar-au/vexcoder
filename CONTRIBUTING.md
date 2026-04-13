@@ -255,11 +255,11 @@ instructions file under `.github/`.
   authoritative for commit-debug, CI watch, PR body updates, review cleanup,
   and merge readiness.
 - Every `gh agent-task create` invocation must be followed immediately by an
-  explicit log tail with `gh agent-task view <session-id> --log --follow`.
+  explicit log follow with `gh agent-task view <session-id> --log --follow`.
   Treat log tailing and violation triage as part of launch, not as an optional
   post-launch observation step.
 - Do not continue to `gh pr view`, `gh pr checks`, promotion, or merge work
-  until that paired launch-log tail has completed and any contract violation
+  until that paired launch-log follow has completed and any contract violation
   has been handled.
 
 Authoritative launch suffix for hosted prompts:
@@ -354,7 +354,7 @@ gh agent-task create \
 gh agent-task view <session-id-from-create-output> --log --follow
 ```
 
-Tail an existing session with:
+Follow an existing session with:
 
 ```bash
 gh agent-task view <session-id> --log --follow
@@ -392,7 +392,7 @@ gh agent-task view <session-id-from-create-output> --log --follow
 After an agent session completes, the operator must follow these steps in
 order.
 
-1. **A — Tail and debug logs**: identify each concurrent session by its unique
+1. **A — Follow and debug logs**: identify each concurrent session by its unique
    session ID immediately after launch and use
    `gh agent-task view <session-id> --log --follow`. If the logs show private
    skill bootstrap attempts, `SKILL.md` reads, non-English output, screenshot

@@ -975,7 +975,7 @@ vex export <task-id> [--format jsonl|markdown] [--output <path>] [--force]
 | Format | Content |
 | :--- | :--- |
 | `jsonl` (default) | One JSON object per line: task metadata, changed files, command history, turn evidence. Schema is identical to `BatchMode` JSONL output so tooling built for `vex exec` works for `vex export` without modification. |
-| `markdown` | Human-readable document: task metadata header, changed files table, command history, and per-turn summaries (tool names and outcomes only — not full model response text). |
+| `markdown` | Human-readable document: task-state header, changed files table, command history, and per-turn summaries (tool names and outcomes only — not full model response text). |
 
 **Rules:**
 

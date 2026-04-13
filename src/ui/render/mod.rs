@@ -107,7 +107,7 @@ pub fn render_messages(frame: &mut Frame<'_>, area: Rect, messages: &[String]) {
         }
     }
 
-    // Always pin to the tail — the idle-mode history pane shows the most
+    // Always pin to the newest transcript lines — the idle-mode history pane shows the most
     // recent lines at the bottom.  All interactive scrolling is handled by
     // the task-surface draw path via transcript_scroll_offset.
     let total_lines = body.len();
@@ -579,7 +579,7 @@ fn centered_modal_area(size: Rect, preferred_height: u16) -> Rect {
 ///   `[!]`   → red     (failed/error step)
 ///   `[->]`  → violet  (in-progress orchestration step)
 ///   `[?]`   → yellow  (approval request)
-///   `> …`   → dim gray (user prompt echo)
+///   `> …`   → subdued gray (user prompt echo)
 mod markdown;
 mod transcript;
 pub(crate) use markdown::markdown_to_inline_line;

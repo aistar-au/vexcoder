@@ -52,12 +52,12 @@ fn test_truncate_for_history() {
     assert!(shortened_with_marker.contains("chars omitted"));
 }
 #[test]
-fn test_truncate_for_history_preserves_tail_context() {
-    let text = "head-aaaa-bbbb-cccc-dddd-eeee-ffff-gggg-tail";
+fn test_truncate_for_history_preserves_suffix_context() {
+    let text = "head-aaaa-bbbb-cccc-dddd-eeee-ffff-gggg-suffix";
     let shortened = truncate_for_history(text, 40);
     assert!(shortened.contains("chars omitted"));
     assert!(shortened.contains("head"));
-    assert!(shortened.contains("tail"));
+    assert!(shortened.contains("suffix"));
 }
 #[test]
 fn test_required_tool_string_validation() {

@@ -272,7 +272,7 @@ async fn diff_overlay_scrolls() {
         " context line".to_string(),
         "-old value".to_string(),
         "+new value".to_string(),
-        " context tail".to_string(),
+        " context suffix".to_string(),
         "-removed again".to_string(),
         "+added again".to_string(),
     ]

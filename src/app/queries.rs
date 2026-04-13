@@ -329,7 +329,7 @@ impl TuiMode {
                 continue;
             }
 
-            // Extract the immediate child: first path segment after the prefix.
+            // Read the immediate child: first path segment after the prefix.
             let child_end = if let Some(slash_pos) = rest.find('/') {
                 dir_prefix.len() + slash_pos + 1 // include trailing /
             } else {

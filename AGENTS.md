@@ -141,14 +141,14 @@ A–H post-session checklist.
 - Do not create ad hoc temporary projects or files whose only purpose is to
   simulate, capture, or restyle the UI for visual verification.
 - After every `gh agent-task create`, identify the new unique session id and
-  immediately tail logs with:
+  immediately follow logs with:
   `gh agent-task view <session-id> --log --follow`
-- Treat the launch as incomplete until the tailed log confirms the session is
+- Treat the launch as incomplete until the followed log confirms the session is
   staying inside this repository, avoiding `SKILL.md`, staying in English, and
   using text-only verification.
 - List hosted sessions first when the identifier is unknown:
   `gh agent-task list`
-- If the tailed logs show private-skill bootstrap attempts, `SKILL.md` reads,
+- If the followed logs show private-skill bootstrap attempts, `SKILL.md` reads,
   non-English output, screenshot or pseudo-screenshot plans, temporary visual
   artifacts, or ad hoc tool installation, stop the run, correct the prompt or
   profile, and relaunch before treating the session as valid.
@@ -156,7 +156,7 @@ A–H post-session checklist.
   `gh pr view <pr> --json headRefName,commits,statusCheckRollup`
   `gh pr checks <pr> --watch`
 - Do not move on to PR inspection, review, promotion, or merge work until the
-  paired launch-log tail has completed and any violation has been triaged.
+  paired launch-log follow has completed and any violation has been triaged.
 - If `rg` is unavailable, fall back to `git grep -n`, `grep -RIn`, or direct
   file reads and continue.
 - Promote remote agent output onto a `work/<topic>` branch before
