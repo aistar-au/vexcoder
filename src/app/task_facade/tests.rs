@@ -17,6 +17,25 @@ fn env_lock() -> tokio::sync::MutexGuard<'static, ()> {
     crate::test_support::ENV_LOCK.blocking_lock()
 }
 
+fn seed_parent_task(dir: &std::path::Path, parent_id: &str, agent_ids: &[&str]) -> TaskState {
+    std::fs::create_dir_all(dir.join(".git")).unwrap();
+
+    let state_dir = TaskState::state_dir_from(dir);
+    std::fs::create_dir_all(&state_dir).unwrap();
+
+    let mut parent = TaskState::new(parent_id.to_string());
+    for agent_id in agent_ids {
+        parent.add_session_task(SessionTask::new(
+            parent_id,
+            *agent_id,
+            format!("prompt for {agent_id}"),
+            None,
+        ));
+    }
+    parent.save(&state_dir).unwrap();
+    parent
+}
+
 #[test]
 fn delegate_rejects_prompt_exceeding_max_bytes() {
     let _env_lock = env_lock();
@@ -384,4 +403,215 @@ fn schedule_team_returns_internal_for_unknown_member_reference() {
         }
         other => panic!("expected Internal error, got: {other:?}"),
     }
+}
+
+#[test]
+fn post_peer_message_rejects_unknown_sender() {
+    let _env_lock = env_lock();
+    let dir = tempfile::tempdir().unwrap();
+    seed_parent_task(dir.path(), "parent-peer", &["reviewer"]);
+
+    let result = facade_post_peer_message(
+        dir.path(),
+        "parent-peer",
+        "missing-session-task",
+        "reviewer",
+        "*",
+        "observation",
+        "message",
+    );
+
+    assert!(matches!(result, Err(PeerChannelError::SenderNotInTask)));
+}
+
+#[test]
+fn post_peer_message_rejects_content_too_long() {
+    let _env_lock = env_lock();
+    let dir = tempfile::tempdir().unwrap();
+    let parent = seed_parent_task(dir.path(), "parent-peer", &["reviewer"]);
+    let sender_id = parent.session_tasks[0].id.clone();
+    let long_content = "x".repeat(peer_channel::MAX_PEER_MESSAGE_BYTES + 1);
+
+    let result = facade_post_peer_message(
+        dir.path(),
+        "parent-peer",
+        &sender_id,
+        "reviewer",
+        "*",
+        "observation",
+        &long_content,
+    );
+
+    assert!(matches!(result, Err(PeerChannelError::ContentTooLong)));
+}
+
+#[test]
+fn post_peer_message_rejects_invalid_kind() {
+    let _env_lock = env_lock();
+    let dir = tempfile::tempdir().unwrap();
+    let parent = seed_parent_task(dir.path(), "parent-peer", &["reviewer"]);
+    let sender_id = parent.session_tasks[0].id.clone();
+
+    let result = facade_post_peer_message(
+        dir.path(),
+        "parent-peer",
+        &sender_id,
+        "reviewer",
+        "*",
+        "invalid",
+        "message",
+    );
+
+    assert!(matches!(result, Err(PeerChannelError::InvalidKind)));
+}
+
+#[test]
+fn post_peer_message_uses_saved_sender_agent_id() {
+    let _env_lock = env_lock();
+    let dir = tempfile::tempdir().unwrap();
+    let parent = seed_parent_task(dir.path(), "parent-peer", &["reviewer"]);
+    let sender_task = &parent.session_tasks[0];
+
+    let message = facade_post_peer_message(
+        dir.path(),
+        "parent-peer",
+        &sender_task.id,
+        "spoofed-agent",
+        "*",
+        "observation",
+        "message",
+    )
+    .unwrap();
+
+    assert_eq!(message.sender_agent_id, "reviewer");
+}
+
+#[test]
+fn read_peer_messages_returns_empty_before_first_post() {
+    let _env_lock = env_lock();
+    let dir = tempfile::tempdir().unwrap();
+    seed_parent_task(dir.path(), "parent-peer", &["reviewer"]);
+
+    let messages =
+        facade_read_peer_messages(dir.path(), "parent-peer", 0, Some("reviewer")).unwrap();
+
+    assert!(messages.is_empty());
+}
+
+#[test]
+fn post_peer_message_delivers_to_broadcast_and_targeted_reader() {
+    let _env_lock = env_lock();
+    let dir = tempfile::tempdir().unwrap();
+    let parent = seed_parent_task(dir.path(), "parent-peer", &["reviewer", "fixer"]);
+    let reviewer_id = parent.session_tasks[0].id.clone();
+
+    facade_post_peer_message(
+        dir.path(),
+        "parent-peer",
+        &reviewer_id,
+        "reviewer",
+        "*",
+        "observation",
+        "broadcast",
+    )
+    .unwrap();
+    facade_post_peer_message(
+        dir.path(),
+        "parent-peer",
+        &reviewer_id,
+        "reviewer",
+        "reviewer",
+        "correction",
+        "targeted",
+    )
+    .unwrap();
+    facade_post_peer_message(
+        dir.path(),
+        "parent-peer",
+        &reviewer_id,
+        "reviewer",
+        "fixer",
+        "question",
+        "other-agent",
+    )
+    .unwrap();
+
+    let reviewer_messages =
+        facade_read_peer_messages(dir.path(), "parent-peer", 0, Some("reviewer")).unwrap();
+
+    assert_eq!(reviewer_messages.len(), 2);
+    assert_eq!(reviewer_messages[0].content, "broadcast");
+    assert_eq!(reviewer_messages[1].content, "targeted");
+}
+
+#[test]
+fn read_peer_messages_respects_after_ms_cursor() {
+    let _env_lock = env_lock();
+    let dir = tempfile::tempdir().unwrap();
+    let parent = seed_parent_task(dir.path(), "parent-peer", &["reviewer"]);
+    let sender_id = parent.session_tasks[0].id.clone();
+
+    let first = facade_post_peer_message(
+        dir.path(),
+        "parent-peer",
+        &sender_id,
+        "reviewer",
+        "*",
+        "observation",
+        "first",
+    )
+    .unwrap();
+    thread::sleep(Duration::from_millis(2));
+    let second = facade_post_peer_message(
+        dir.path(),
+        "parent-peer",
+        &sender_id,
+        "reviewer",
+        "*",
+        "observation",
+        "second",
+    )
+    .unwrap();
+
+    assert!(second.sent_at > first.sent_at);
+
+    let messages =
+        facade_read_peer_messages(dir.path(), "parent-peer", first.sent_at, Some("reviewer"))
+            .unwrap();
+
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages[0].content, "second");
+}
+
+#[test]
+fn post_peer_message_returns_channel_full_at_depth_cap() {
+    let _env_lock = env_lock();
+    let dir = tempfile::tempdir().unwrap();
+    let parent = seed_parent_task(dir.path(), "parent-peer", &["reviewer"]);
+    let sender_id = parent.session_tasks[0].id.clone();
+
+    for index in 0..peer_channel::MAX_CHANNEL_DEPTH {
+        let result = facade_post_peer_message(
+            dir.path(),
+            "parent-peer",
+            &sender_id,
+            "reviewer",
+            "*",
+            "observation",
+            &format!("message-{index}"),
+        );
+        assert!(result.is_ok(), "expected capacity slot {index} to succeed");
+    }
+
+    let result = facade_post_peer_message(
+        dir.path(),
+        "parent-peer",
+        &sender_id,
+        "reviewer",
+        "*",
+        "observation",
+        "overflow",
+    );
+
+    assert!(matches!(result, Err(PeerChannelError::ChannelFull)));
 }
