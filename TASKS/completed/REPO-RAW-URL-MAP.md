@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 351
+- Total tracked files: 352
 
 | # | Path | Approx. lines | Raw URL |
 | ---: | :--- | ---: | :--- |
@@ -68,6 +68,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 56 | `docs/src/configuration.md` | ~507 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/configuration.md> |
 | 57 | `docs/src/introduction.md` | ~16 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/introduction.md> |
 | 58 | `docs/src/migration.md` | ~14 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/migration.md> |
+| 58a | `docs/src/performance.md` | ~57 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/performance.md> |
 | 59 | `docs/src/quick-start.md` | ~101 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/quick-start.md> |
 | 60 | `docs/src/SUMMARY.md` | ~14 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/SUMMARY.md> |
 | 61 | `docs/src/tool-call-cutover.md` | ~119 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/tool-call-cutover.md> |
@@ -334,7 +335,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 318 | `src/workspace.rs` | ~51 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/workspace.rs> |
 | 319 | `TASKS/ACTIVE-ROADMAP.md` | ~349 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/ACTIVE-ROADMAP.md> |
 | 320 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | ~177 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/PL-01-pre-post-tool-hooks.md> |
-| 321 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~351 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
+| 321 | `TASKS/completed/REPO-RAW-URL-MAP.md` | ~363 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/completed/REPO-RAW-URL-MAP.md> |
 | 322 | `TASKS/PE-01-batch-mode.md` | ~239 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PE-01-batch-mode.md> |
 | 323 | `TASKS/PI-10-PI-12-adr025-phase1-continuation.md` | ~192 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PI-10-PI-12-adr025-phase1-continuation.md> |
 | 324 | `TASKS/PJ-03-memory-notes-injection.md` | ~165 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/TASKS/PJ-03-memory-notes-injection.md> |
