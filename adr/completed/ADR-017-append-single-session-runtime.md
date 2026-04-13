@@ -9,7 +9,7 @@
 
 The runtime had accumulated multiple UI execution paths (`App`, `TuiFrontend`,
 `TtyApp`, and direct cli execution behavior), creating duplicate
-state/render plumbing and inconsistent prompt behavior.
+state/render wiring and inconsistent prompt behavior.
 
 ## Decision
 

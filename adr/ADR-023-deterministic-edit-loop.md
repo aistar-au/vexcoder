@@ -826,7 +826,7 @@ When checking a box above, append an evidence block under this section:
 - Historical branch name: omitted
 - Base: `origin/main` @ `feb8d4db161a0a72bf5134a6d88e187a576190d5`
 - Scope:
-    - validate the completed ADR-023 command surface against the ADR-022 phase-1 gate
+    - validate the completed ADR-023 command surface against the ADR-022 first-release gate
     - confirm `/review` and `/plan` stay single-turn, read-only commands
     - confirm `/context`, `/commands`, and `/help` remain zero-turn paths
 - Validation:
@@ -844,7 +844,7 @@ When checking a box above, append an evidence block under this section:
 - Notes:
     - `/review` continues to assemble diff or file context, silently drops any `PendingPatch`, and never starts an `EditLoop`.
     - `/plan` continues to assemble scope context, produce a single read-only planning turn, and silently drops any `PendingPatch`.
-    - `/context`, `/commands`, and `/help` all remain non-model-turn transcript renders, so the phase-1 gate found no zero-turn regressions after the EL-12/EL-13 closeout and stream-parser follow-up merges.
+    - `/context`, `/commands`, and `/help` all remain non-model-turn transcript renders, so the initial validation gate found no zero-turn regressions after the EL-12/EL-13 closeout and stream-parser follow-up merges.
 
 ---
 

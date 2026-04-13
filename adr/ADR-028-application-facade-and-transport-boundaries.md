@@ -14,7 +14,7 @@
 - **Application facade** — a transport-agnostic application API that accepts high-level commands and exposes runtime-facing results and events to outer layers.
 - **Transport** — the network or IPC layer that binds sockets, frames messages, and forwards facade output over concrete protocols such as HTTP, SSE, or line-delimited local socket streams.
 - **Orchestration / agent loop** — the iterative runtime loop that reads model output, detects tool calls, executes tools, merges results, and emits structured engine events.
-- **Runtime core engine** — deterministic state transitions, validation, policy checks, and tool plumbing; no transport or UI concerns.
+- **Runtime core engine** — deterministic state transitions, validation, policy checks, and tool dispatch; no transport or UI concerns.
 
 ---
 
@@ -168,7 +168,7 @@ When machine-readable event streaming is needed, the facade emits ADR-025 `Runti
 
 - deterministic state transitions;
 - validation and policy checks;
-- tool execution plumbing;
+- tool execution dispatch;
 - context assembly inputs and outputs;
 - core state management.
 

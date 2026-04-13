@@ -18,7 +18,7 @@ operators. Without a strict fix order, this can cause:
    logic remains test-only,
 4. post-cutover unused branches and duplicate rendering logic.
 
-This ADR defines the follow-up execution contract for ADR-018 delivery.
+This ADR defines the follow-up execution contract for ADR-018 implementation.
 
 ## Decision
 

@@ -69,7 +69,7 @@ within a token budget.
 
 ## Implementation Addendum
 
-- The merged implementation required bounded plumbing in `src/api/client/mod.rs`
+- The merged implementation required bounded wiring in `src/api/client/mod.rs`
   and `src/runtime/context.rs` so session-start notes injection could be shared
   across TUI and batch runtime entry points. `src/state/` was not modified.
 - The operator branch also carries PE-01/PE-02 work (`src/batch_mode.rs`,

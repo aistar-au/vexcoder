@@ -10,7 +10,7 @@
 ## Context
 
 ADR-024 explicitly deferred multi-agent / parallel task execution until after
-phase 1. That deferral covered four distinct concerns that are now
+the first release. That deferral covered four distinct concerns that are now
 too important to leave implicit:
 
 1. per-agent git worktree isolation for concurrent code-bearing work;
@@ -45,7 +45,7 @@ management commands inventing contracts outside ADR-025 and ADR-030.
 ## Decision
 
 Multi-agent / parallel task execution SHALL be introduced as a dedicated,
-post-phase-1 orchestration lane that extends the existing runtime rather than
+second-stage orchestration lane that extends the existing runtime rather than
 creating a second execution model.
 
 ### 1. Orchestrator ownership remains absolute
@@ -219,7 +219,7 @@ was added to gate future regressions of the ADR-028 boundary.
 
 ## Consequences
 
-- ADR-024's multi-agent deferral becomes a defined post-phase-1 lane instead
+- ADR-024's multi-agent deferral becomes a defined second-stage lane instead
   of an open-ended note.
 - The repository gains a normative configuration format for pluggable agents
   and teams.

@@ -256,13 +256,13 @@ instructions file under `.github/`.
   and merge readiness.
 - Every `gh agent-task create` invocation must be followed immediately by an
   explicit log follow with `gh agent-task view <session-id> --log --follow`.
-  Treat log tailing and violation triage as part of launch, not as an optional
-  post-launch observation step.
+  Treat log tailing and violation triage as part of session start, not as an optional
+  post-merge observation step.
 - Do not continue to `gh pr view`, `gh pr checks`, promotion, or merge work
-  until that paired launch-log follow has completed and any contract violation
+  until that paired start-log follow has completed and any contract violation
   has been handled.
 
-Authoritative launch suffix for hosted prompts:
+Authoritative start suffix for hosted prompts:
 
 - Use English only.
 - Do not read any `SKILL.md` file.
@@ -318,7 +318,7 @@ Recommended shard ownership for UI-overhaul work:
   `src/ui/layout.rs`,
   `tests/layout_underflow_tests.rs`, and related layout/timeline helpers.
 
-Example launch sequence:
+Example start sequence:
 
 ```bash
 git fetch origin --prune
@@ -393,7 +393,7 @@ After an agent session completes, the operator must follow these steps in
 order.
 
 1. **A — Follow and debug logs**: identify each concurrent session by its unique
-   session ID immediately after launch and use
+  session ID immediately after session start and use
    `gh agent-task view <session-id> --log --follow`. If the logs show private
    skill bootstrap attempts, `SKILL.md` reads, non-English output, screenshot
    or pseudo-screenshot plans, temporary visual artifacts, or ad hoc tool

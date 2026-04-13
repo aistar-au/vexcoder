@@ -208,7 +208,7 @@ Development-only escape hatch for HTTPS model endpoints with self-signed or
 otherwise non-system-trusted certificates.
 
 - Accepts `true`, `false`, `1`, or `0`.
-- Emits a startup warning on every launch when enabled.
+- Emits a startup warning on every start when enabled.
 - Must not be committed in repo-local `.vex/config.toml`.
 
 For any model endpoint outside local and private networks, HTTPS is mandatory.
@@ -455,7 +455,7 @@ sections for future expansion.
   `VEX_API_*` environment variables (transport, host, port, socket, key,
   protocol, TLS paths) are active and functional for API server configuration.
 - `[[mcp_servers]]` is rejected in repo-local and system config layers to avoid
-  committed or machine-global auto-launch of arbitrary MCP processes.
+  committed or machine-global auto-start of arbitrary MCP processes.
 
 ## MCP servers
 

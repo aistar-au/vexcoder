@@ -1,6 +1,6 @@
 //! ADR-028 transport layer.
 //!
-//! This module owns the network and IPC plumbing for the LocalApiServer
+//! This module owns the network and IPC transport wiring for the LocalApiServer
 //! surface authorized by ADR-026.  It consumes the application facade
 //! (`crate::app`) and frames ADR-025 `RuntimeEnvelope` events for
 //! concrete transports (HTTP/SSE, Unix-domain socket).
