@@ -16,7 +16,9 @@ the fields needed for recent-task discovery and live session-task counts while
 skipping the large turn-history, approval, and command-evidence collections.
 
 Production cold-start paths currently use header-only scans plus direct
-candidate loads. `LazyTaskHandle` remains test-only scaffolding rather than a
+candidate loads. The process-global header cache is keyed by full path so the
+workspace directory and legacy fallback directory do not alias when they carry
+the same task id. `LazyTaskHandle` remains test-only scaffolding rather than a
 shipped runtime abstraction.
 
 ## Why the projection helps
@@ -40,7 +42,7 @@ by the selected `TaskStateFile` set.
 Two concerns often come up during cold-start investigations and are not the
 root cause here:
 
-- Memory stack overflow is not part of this path. Task-state discovery is iterative and
+- Stack overflow is not part of this path. Task-state discovery is iterative and
   heap-driven; it does not recurse over task files.
 - Address-space layout randomisation does not change the total bytes allocated.
   If startup memory grows, the cause is allocation volume rather than address

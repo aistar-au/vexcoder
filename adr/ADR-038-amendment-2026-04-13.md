@@ -155,8 +155,10 @@ After this amendment:
 - `src/runtime/task_state/task_header.rs` — `TaskStateHeader` and
   `SessionTaskSummary` projection structs with `from_path()`.
 - `src/runtime/task_state/header_cache.rs` — bounded LRU header cache
-  (process-global, `HashMap` + u64 tick pattern from `context_cache.rs`).
-- `src/runtime/task_state/lazy_task_handle.rs` — lazy-load `LazyTaskHandle` handle.
+  keyed by full path (process-global, `HashMap` + u64 tick pattern from
+  `context_cache.rs`).
+- `src/runtime/task_state/lazy_task_handle.rs` — test-only `LazyTaskHandle`
+  scaffolding for the lazy-load API shape used by the cold-start tests.
 - `src/config/startup.rs` — `StartupBudget` with `VEX_MAX_STARTUP_TASK_SCANS`
   (default 200), `VEX_STARTUP_CACHE_TTL_MS`, `VEX_TRACE_STARTUP_ALLOC`.
 

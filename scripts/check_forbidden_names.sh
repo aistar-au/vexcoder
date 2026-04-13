@@ -242,10 +242,10 @@ if scan_targets "$PATTERN" "${TARGETS[@]}"; then
   failed=1
 fi
 
-# Pass 1b: catch `dead_code` explicitly even when it appears inside Rust
-# suppression attributes rather than as a standalone word.
-RUST_ATTR_PATTERN="\\bdead_code\\b"
-RUST_ATTR_TARGETS=(
+# Pass 1b: catch the banned Rust suppression attribute explicitly so
+# test-only helpers stay on cfg gates rather than allow-attribute escapes.
+RUST_SUPPRESSION_PATTERN="\\b[d]ead_code\\b"
+RUST_SUPPRESSION_TARGETS=(
   AGENTS.md
   CONTRIBUTING.md
   TASKS
@@ -258,7 +258,7 @@ RUST_ATTR_TARGETS=(
   Makefile
 )
 
-if scan_targets "$RUST_ATTR_PATTERN" "${RUST_ATTR_TARGETS[@]}"; then
+if scan_targets "$RUST_SUPPRESSION_PATTERN" "${RUST_SUPPRESSION_TARGETS[@]}"; then
   failed=1
 fi
 
