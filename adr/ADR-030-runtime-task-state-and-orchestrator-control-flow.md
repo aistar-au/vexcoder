@@ -306,7 +306,7 @@ Invalid completion signals include:
 - provider-native stream end
 - provider-native stop reason alone
 - a single tool return without orchestrator evaluation
-- command launch without command completion handling
+- command start without command completion handling
 - UI inactivity
 
 ## Consequences

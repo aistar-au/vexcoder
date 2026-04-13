@@ -31,8 +31,8 @@ This aligns with common open-source Rust TUI patterns (`ratatui`,
    shell history. Managed TUI rendering therefore targets the primary cli
    session rather than treating the cli as a disposable full-screen
    surface. Operators must be able to inspect shell output that existed before
-   `vex` launched using ordinary cli scrollback, while the runtime-owned
-   transcript begins at the launch boundary.
+   `vex` started using ordinary cli scrollback, while the runtime-owned
+   transcript begins at the start boundary.
 7. Overlay prompts are the canonical operator-input surface for bounded
    mid-task decisions. Approval, confirmation, resume-selection, credential
    retry, and similar handoff prompts must render in-cli without tearing

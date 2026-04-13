@@ -4,7 +4,7 @@
 //! `LocalApiFrontend` (FrontendAdapter) implementations that bridge
 //! the ADR-026 local API surface to the runtime engine.
 //!
-//! Transport plumbing (HTTP routing, TLS, SSE framing, Unix sockets)
+//! Transport wiring (HTTP routing, TLS, SSE framing, Unix sockets)
 //! is found in `crate::server` per ADR-028.
 
 #[cfg(test)]

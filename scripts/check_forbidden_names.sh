@@ -90,7 +90,7 @@ PY
 
 scan_workflows() {
   if [[ "$SCAN_BACKEND" == "rg" ]]; then
-    "$RG_BIN" -n --hidden -i --glob '!.git' --glob '!.github/workflows/copilot-setup-steps.yml' "$BRAND_PATTERN" .github/workflows/ | sed 's#\\#/#g'
+    "$RG_BIN" -n --hidden -i --glob '!.git' "$BRAND_PATTERN" .github/workflows/ | sed 's#\\#/#g'
     return
   fi
 
@@ -107,8 +107,6 @@ for path in root.rglob("*"):
     if not path.is_file():
         continue
     rel = path.as_posix()
-    if rel == ".github/workflows/copilot-setup-steps.yml":
-        continue
     try:
         lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
     except OSError as exc:

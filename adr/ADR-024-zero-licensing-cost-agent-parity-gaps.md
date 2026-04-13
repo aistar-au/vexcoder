@@ -232,7 +232,7 @@ Resolution errors (malformed TOML, unknown keys) are hard failures at startup wi
 
 - `model_url` resolving to `127.0.0.1`, `::1`, `localhost`, or `0.0.0.0` may use `http://`.
 - `model_url` resolving to RFC 1918 private addresses (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) or link-local addresses (`169.254.0.0/16`) may use `http://`. Local inference servers commonly expose only plain HTTP, and operators commonly reach them via LAN IP when the server binds on `0.0.0.0`.
-- `model_url_skip_tls_check = true` / `VEX_MODEL_URL_SKIP_TLS_CHECK=true` is a development-only escape hatch for self-signed or otherwise non-system-trusted HTTPS model endpoints. It must emit a startup warning on every launch and must not be allowed in repo-local config.
+- `model_url_skip_tls_check = true` / `VEX_MODEL_URL_SKIP_TLS_CHECK=true` is a development-only escape hatch for self-signed or otherwise non-system-trusted HTTPS model endpoints. It must emit a startup warning on every start and must not be allowed in repo-local config.
 
 **Reserved VPN carve-out:** a future VPN-specific relaxation for outbound model connections requires the same dedicated ADR as `api.vpn_trust`. Until that ADR exists, VPN virtual IP model endpoints still require `https://`.
 
@@ -250,7 +250,7 @@ At session start, `RuntimeContext::start_session` searches for a project instruc
 
 Introduce `McpRegistry` loaded from the **user config file only** (`~/.config/vex/config.toml`) under a `[[mcp_servers]]` table. STDIO servers are launched as managed processes at session start and terminated at session end. HTTP servers are connected by URL, with optional authentication headers (see Gap 31). Tools advertised by MCP servers are merged into the tool dispatch table with `mcp.<server_name>.<tool_name>` namespace prefixing to prevent collisions with built-in tools. A new `Capability::McpTool` variant is added with a default approval scope of `once`.
 
-`[[mcp_servers]]` must not be permitted in repo-local config (`.vex/config.toml`). Allowing committed repo config to auto-launch arbitrary processes is a supply-chain risk. Reject with a diagnostic at config load time.
+`[[mcp_servers]]` must not be permitted in repo-local config (`.vex/config.toml`). Allowing committed repo config to auto-start arbitrary processes is a supply-chain risk. Reject with a diagnostic at config load time.
 
 ```toml
 # ~/.config/vex/config.toml — user config layer only
@@ -316,10 +316,10 @@ A package-manager tap formula (`homebrew-vex`) is maintained as a separate repos
 
 A native macOS application under `packaging/macos/` that:
 
-- Launches and manages the `vex` binary as a managed process.
+- Starts and manages the `vex` binary as a managed process.
 - Embeds the compiled `vex` binary in the app bundle at `Contents/MacOS/vex`.
-- Reads `VEX_MODEL_TOKEN` from the system keychain via `Security.framework` and injects it as an environment variable into the managed process at launch. It must not write the token to disk.
-- Presents a cli surface (initially: launches the system cli with the embedded binary; an embedded `NSTextView`-based cli surface is a separately-scoped follow-up and not required for Phase H correctness).
+- Reads `VEX_MODEL_TOKEN` from the system keychain via `Security.framework` and injects it as an environment variable into the managed process at start. It must not write the token to disk.
+- Presents a cli surface (initially: starts the system cli with the embedded binary; an embedded `NSTextView`-based cli surface is a separately-scoped follow-up and not required for Phase H correctness).
 - Distributes via a `.dmg` attached to the hosted release entry.
 
 **Code signing and notarisation (required for distribution):** the macOS wrapper must be signed with a Developer ID Application certificate and notarised via `xcrun notarytool` before distribution. An unsigned `.dmg` will be blocked by Gatekeeper on every supported macOS version. The release workflow must include a signing and notarisation step. The certificate and notary API key must be stored as CI secrets (`APPLE_DEVELOPER_ID_CERT`, `APPLE_NOTARYTOOL_KEY`). If these secrets are absent, the workflow must skip signing and attach a clearly labelled "unsigned development build" to the release rather than failing silently.
@@ -1684,7 +1684,7 @@ When checking a box above, append an evidence block under this section:
 | Do not add agent logic, model calls, or conversation state to `packaging/macos/` | Phase H constraint: packaging and credential layer only. A future `LocalApiServer: RuntimeMode + FrontendAdapter` in `src/` is the correct expansion path for a full native client — it is not a violation of this rule |
 | Do not infer browser-specific origin policy or in-tree web-UI behavior from `LocalApiServer` | Phase I defines a JSON transport seam for the runtime core; browser behavior requires a dedicated later ADR |
 | `model_url` must use `https://` when the host is non-loopback | Reject non-loopback `http://` URLs at config load time; applies the same sensitive-payload rule as ADR-026 §3.1 to the outbound model connection |
-| `VEX_MODEL_URL_SKIP_TLS_CHECK = true` must emit a startup warning on every launch | Development escape hatch only; never silently bypassed; must not appear in repo-local config |
+| `VEX_MODEL_URL_SKIP_TLS_CHECK = true` must emit a startup warning on every start | Development escape hatch only; never silently bypassed; must not appear in repo-local config |
 | Gap 12 (code search / indexing) complete via ADR-033 | `src/tools/index.rs` + `src/tools/search.rs` fulfil this gap |
 | Do not use `std::process::Command` in `src/tools/workspace_explore.rs` | `search_files` must use `str::contains` from the Rust standard library; no subprocess permitted; no `regex` crate or external pattern-matching dependency |
 | `search_files`, `list_dir`, and `glob_files` must skip `.gitignore`-excluded paths | Apply at minimum `.gitignore` rules before returning results; extend to any workspace ignore mechanism once available |
