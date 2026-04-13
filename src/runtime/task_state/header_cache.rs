@@ -19,10 +19,10 @@ struct FileFingerprint {
 }
 
 impl FileFingerprint {
-    fn from_path(path: &Path) -> Option<Self> {
-        let info = std::fs::metadata(path).ok()?;
-        let modified = info.modified().ok()?;
-        Some(Self {
+    fn from_path(path: &Path) -> std::io::Result<Self> {
+        let info = std::fs::metadata(path)?;
+        let modified = info.modified()?;
+        Ok(Self {
             len: info.len(),
             modified,
         })
@@ -81,7 +81,17 @@ fn global_header_cache() -> &'static Mutex<HeaderLruCache> {
 /// log a tracing::debug and skip the file, matching existing persist.rs
 /// error-handling conventions.
 pub(crate) fn cached_task_header(path: &Path) -> Option<TaskStateHeader> {
-    let fingerprint = FileFingerprint::from_path(path)?;
+    let fingerprint = match FileFingerprint::from_path(path) {
+        Ok(fingerprint) => fingerprint,
+        Err(err) => {
+            tracing::debug!(
+                path = %path.display(),
+                %err,
+                "skipping task state file: failed to fingerprint task-state header"
+            );
+            return None;
+        }
+    };
     let cache_key = path.to_path_buf();
 
     // --- cache probe ---

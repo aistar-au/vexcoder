@@ -127,8 +127,8 @@ fn validate(config: &AgentsConfig, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Agent names must be non-empty, within filesystem-safe length, and unique.
-const MAX_AGENT_NAME_LEN: usize = 64;
+/// Agent and team names must be non-empty, within filesystem-safe length, and unique.
+const MAX_CONFIG_NAME_LEN: usize = 64;
 const WINDOWS_RESERVED_DEVICE_NAMES: &[&str] = &[
     "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
     "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
@@ -162,9 +162,9 @@ fn validate_agent_names(config: &AgentsConfig, path: &Path) -> Result<()> {
         if agent.name.is_empty() {
             bail!("agent name must not be empty in '{}'", path.display());
         }
-        if agent.name.len() > MAX_AGENT_NAME_LEN {
+        if agent.name.len() > MAX_CONFIG_NAME_LEN {
             bail!(
-                "agent name '{}' exceeds {MAX_AGENT_NAME_LEN}-byte limit in '{}'",
+                "agent name '{}' exceeds {MAX_CONFIG_NAME_LEN}-byte limit in '{}'",
                 escaped_name(&agent.name),
                 path.display()
             );
@@ -201,6 +201,13 @@ fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
     for team in &config.team_definitions {
         if team.name.is_empty() {
             bail!("team name must not be empty in '{}'", path.display());
+        }
+        if team.name.len() > MAX_CONFIG_NAME_LEN {
+            bail!(
+                "team name '{}' exceeds {MAX_CONFIG_NAME_LEN}-byte limit in '{}'",
+                escaped_name(&team.name),
+                path.display()
+            );
         }
         if !is_filesystem_safe(&team.name) {
             bail!(
@@ -508,7 +515,7 @@ bogus_field = true
     #[test]
     fn rejects_overly_long_agent_name() {
         let dir = tempfile::tempdir().unwrap();
-        let long_name = "a".repeat(MAX_AGENT_NAME_LEN + 1);
+        let long_name = "a".repeat(MAX_CONFIG_NAME_LEN + 1);
         let path = write_config(
             dir.path(),
             &format!(
@@ -519,6 +526,27 @@ name = "{long_name}"
             ),
         );
         let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("exceeds"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
+    fn rejects_overly_long_team_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let long_name = "a".repeat(MAX_CONFIG_NAME_LEN + 1);
+        let path = write_config(
+            dir.path(),
+            &format!(
+                "[[agents]]\nname = \"a\"\n\n[[teams]]\nname = \"{long_name}\"\nmembers = [\"a\"]\n",
+            ),
+        );
+        let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("team name"),
+            "unexpected error: {err}",
+        );
         assert!(
             err.to_string().contains("exceeds"),
             "unexpected error: {err}",

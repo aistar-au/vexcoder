@@ -1,7 +1,7 @@
 //! Lazy-load handle for task-state headers.
 //!
-//! `LazyTaskHandle` is test-only scaffolding that validates the lazy-load
-//! pattern for the TUI recent-task list. The type is gated behind
+//! `LazyTaskHandle` is test-only scaffolding that exercises the lazy-load
+//! API shape a future recent-task surface could adopt. The type is gated behind
 //! `#[cfg(test)]` and is not available in production builds.
 
 #[cfg(test)]
@@ -14,12 +14,12 @@ use super::task_header::TaskStateHeader;
 #[cfg(test)]
 use super::{TaskId, TaskState};
 
-/// Opaque reference to a task-state header.
+/// Test-only opaque reference to a task-state header.
 ///
-/// Holds only the projected `TaskStateHeader` until the caller
-/// explicitly resolves to the full `TaskState` via `.resolve()`.
-/// Safe to hold in the UI recent-task list without triggering a full
-/// disk read beyond the header projection.
+/// Holds only the projected `TaskStateHeader` until the caller explicitly
+/// resolves to the full `TaskState` via `.resolve()`.
+/// Mirrors the API a production recent-task list would use, but this type
+/// itself is compiled only in test builds.
 #[cfg(test)]
 pub(crate) struct LazyTaskHandle {
     pub id: TaskId,

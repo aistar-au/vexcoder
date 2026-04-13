@@ -69,6 +69,38 @@ fn emit_startup_scan_trace(scanned_files: usize, cap: usize, selected: &[TaskSta
 #[cfg(not(feature = "startup-tracing"))]
 fn emit_startup_scan_trace(_scanned_files: usize, _cap: usize, _selected: &[TaskStateFile]) {}
 
+fn visit_state_files_in_dir(dir: &Path, mut visit: impl FnMut(TaskStateFile)) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        let Some(id) = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .map(|stem| stem.to_string())
+        else {
+            continue;
+        };
+        let modified_millis = entry
+            .metadata()
+            .ok()
+            .and_then(|info| info.modified().ok())
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|duration| duration.as_millis())
+            .unwrap_or(0);
+        visit(TaskStateFile {
+            dir: dir.to_path_buf(),
+            id,
+            modified_millis,
+        });
+    }
+}
+
 /// Delegates to [`crate::util::write_json_safe`].
 fn write_pretty_json_safe(path: &Path, value: &TaskState, label: &str) -> Result<()> {
     crate::util::write_json_safe(path, value, label)
@@ -157,6 +189,9 @@ impl TaskState {
     ///
     /// All startup paths should call this variant with
     /// `Some(StartupBudget::default().max_scans)` to bound allocation.
+    /// Bounded scans stream directory entries directly into the in-memory top-k
+    /// selector instead of materialising a full per-directory TaskStateFile
+    /// buffer first.
     pub fn state_files_from_with_limit(
         working_dir: &Path,
         limit: Option<usize>,
@@ -165,10 +200,10 @@ impl TaskState {
             let mut files = Vec::with_capacity(cap);
             let mut scanned_files = 0usize;
             for dir in Self::state_search_dirs_from(working_dir) {
-                for file in Self::state_files_in_dir(&dir) {
+                visit_state_files_in_dir(&dir, |file| {
                     scanned_files = scanned_files.saturating_add(1);
                     insert_bounded_state_file(&mut files, file, cap);
-                }
+                });
             }
             files.sort_by(|left, right| right.modified_millis.cmp(&left.modified_millis));
             emit_startup_scan_trace(scanned_files, cap, &files);
@@ -221,6 +256,7 @@ impl TaskState {
                 None => {
                     tracing::debug!(
                         task_id = %file.id,
+                        path = %path.display(),
                         "skipping unreadable task state during session task search"
                     );
                     continue;
@@ -270,6 +306,7 @@ impl TaskState {
                 }
                 None => tracing::debug!(
                     task_id = %file.id,
+                    path = %path.display(),
                     "skipping unreadable task state during inline active agent scan"
                 ),
             }
@@ -278,32 +315,9 @@ impl TaskState {
     }
 
     fn state_files_in_dir(dir: &Path) -> Vec<TaskStateFile> {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return Vec::new();
-        };
-
-        entries
-            .filter_map(|entry| entry.ok())
-            .filter_map(|entry| {
-                let path = entry.path();
-                if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
-                    return None;
-                }
-                let id = path.file_stem()?.to_str()?.to_string();
-                let modified_millis = entry
-                    .metadata()
-                    .ok()
-                    .and_then(|info| info.modified().ok())
-                    .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-                    .map(|duration| duration.as_millis())
-                    .unwrap_or(0);
-                Some(TaskStateFile {
-                    dir: dir.to_path_buf(),
-                    id,
-                    modified_millis,
-                })
-            })
-            .collect()
+        let mut files = Vec::new();
+        visit_state_files_in_dir(dir, |file| files.push(file));
+        files
     }
 }
 

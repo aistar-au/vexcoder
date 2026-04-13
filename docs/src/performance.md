@@ -3,14 +3,21 @@
 ## Task-state cold start
 
 The CLI app keeps recent-task discovery on a bounded cold-start path.
-Startup scans inspect at most `VEX_MAX_STARTUP_TASK_SCANS` task-state files by
-default and prefer the newest copies when the same task id exists in both the
-workspace state directory and a legacy fallback directory.
+Startup scans keep an in-memory top-k buffer of at most
+`VEX_MAX_STARTUP_TASK_SCANS` task-state files by default and prefer the newest
+copies when the same task id exists in both the workspace state directory and a
+legacy fallback directory. Directory entries are streamed directly into that
+selector so bounded startup paths do not materialise a full per-directory
+`Vec<TaskStateFile>` before truncation.
 
 Cold-start scans read a small header projection from each selected task-state
 file instead of deserialising the full `TaskState` graph. The projection keeps
 the fields needed for recent-task discovery and live session-task counts while
 skipping the large turn-history, approval, and command-evidence collections.
+
+Production cold-start paths currently use header-only scans plus direct
+candidate loads. `LazyTaskHandle` remains test-only scaffolding rather than a
+shipped runtime abstraction.
 
 ## Why the projection helps
 
@@ -41,17 +48,25 @@ root cause here:
 
 ## Alternative designs
 
-The current implementation keeps the existing JSON file format and removes the
-largest avoidable allocations first. Other approaches remain possible when the
-task-state surface needs a different latency or scale profile:
+The current implementation keeps the existing JSON file format, streams
+directory entries into a bounded top-k selector, and removes the largest
+avoidable allocation inside each selected file with a typed header projection.
+Other approaches remain possible when the task-state surface needs a different
+latency or scale profile:
 
 - A manual streaming extractor built on `serde_json::Deserializer` can skip
   more work than a derived projection, but it also adds schema-coupled parsing
   code that is harder to evolve and test than the current typed header.
 - A dedicated sidecar index could persist the header projection separately and
-  avoid parsing the full JSON document during cold start.
-- A single-writer event log can make discovery replay-oriented rather than
-  document-oriented.
+  avoid parsing the full JSON document during cold start, but it must also
+  solve invalidation and crash-consistency so the sidecar cannot drift from the
+  task-state JSON.
+- Directory sharding by time bucket or prefix can reduce `read_dir` and
+  metadata pressure when the task-state surface grows large enough that one
+  flat directory dominates cold-start cost.
+- A single-writer event log paired with periodic summary checkpoints can make
+  discovery replay-oriented rather than document-oriented without replaying the
+  full history on every cold start.
 - A database-backed index can support richer queries, but it also raises schema,
   migration, and operator-portability costs that the current file-based design
   avoids.
