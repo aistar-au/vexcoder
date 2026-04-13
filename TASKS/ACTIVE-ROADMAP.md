@@ -31,6 +31,7 @@ Last updated: 2026-04-05 (PR #342 Tier 4 debug: full git parsing stack, expanded
 | ADR-042 | Proposed (Batch A merged) | ToolPolicy wiring, config-file support | Batch A: tool registration behind approval layer + ToolPolicy enum (PR #358); remaining: config-file `tool_policy` deserialization, system-prompt policy annotation |
 | ADR-043 | Proposed | 3 adoption gates | Future structured parser lane remains optional until live runtime wiring, parity coverage, and defect-reduction gates land |
 | ADR-045 | Proposed (Batch 1 merged) | Batches 2+ pending | Batch 1: sole-writer enforcement in streaming.rs, tool-call dedup in projection, messages-v1 default (PR #359); remaining: promote_thinking_blocks phase events, model_update.rs TUI-layer violations, full RuntimeEvent coverage, checkpoints, rollback markers |
+| ADR-046 | Accepted (PR #378 merged) | 0 items remaining | Peer message channel: append-only JSONL sidecar per parent task, two-layer locking, facade validation, POST/GET /v1/tasks/{id}/messages routes; PeerMessagePosted RuntimeEvent stub reserved for ADR-045 follow-up |
 
 ## Implementation-Complete ADRs (moved to completed/)
 
