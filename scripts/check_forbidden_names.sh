@@ -241,6 +241,26 @@ if scan_targets "$PATTERN" "${TARGETS[@]}"; then
   failed=1
 fi
 
+# Pass 1b: catch `dead_code` explicitly even when it appears inside Rust
+# suppression attributes rather than as a standalone word.
+RUST_ATTR_PATTERN="\\bdead_code\\b"
+RUST_ATTR_TARGETS=(
+  AGENTS.md
+  CONTRIBUTING.md
+  TASKS
+  adr
+  docs/src
+  src
+  tests
+  scripts
+  .github
+  Makefile
+)
+
+if scan_targets "$RUST_ATTR_PATTERN" "${RUST_ATTR_TARGETS[@]}"; then
+  failed=1
+fi
+
 # Pass 2: brand names only — also covers .github/workflows/ (no AI brand names in CI YAML)
 if [[ -d .github/workflows ]] && \
    scan_workflows; then

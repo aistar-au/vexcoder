@@ -5,6 +5,10 @@ edition = "2021"
 license = "MIT"
 autobins = false
 
+[features]
+default = []
+startup-tracing = []
+
 [[bin]]
 name = "vex"
 path = "src/bin/vex.rs"

@@ -1,6 +1,7 @@
 use super::*;
 use crate::config::CompactionConfig;
 use crate::runtime::backend::{ModelBackendKind, ModelProtocol, ToolCallMode};
+use crate::test_support::ENV_LOCK;
 use std::collections::BTreeSet;
 
 #[test]
@@ -252,6 +253,17 @@ fn test_resolve_max_tokens_n_ctx_one_returns_zero() {
     // server_n_ctx=1 → ceiling=0; boundary case for very small context
     let tokens = resolve_max_tokens(4096, 1);
     assert_eq!(tokens, 0);
+}
+
+#[test]
+fn test_resolve_max_tokens_keeps_env_override_as_upper_bound_for_small_n_ctx() {
+    let _env_lock = ENV_LOCK.blocking_lock();
+    std::env::set_var("VEX_MAX_TOKENS", "50");
+
+    let tokens = resolve_max_tokens(4096, 100);
+
+    std::env::remove_var("VEX_MAX_TOKENS");
+    assert_eq!(tokens, 50);
 }
 
 #[test]

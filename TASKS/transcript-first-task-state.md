@@ -168,7 +168,7 @@ After all items:
 
 ```sh
 cargo fmt --check
-cargo nextest run -j 2
+cargo nextest run
 cargo test --all-targets
 bash scripts/check_forbidden_names.sh
 make gate-fast

@@ -831,15 +831,17 @@ fn resolve_max_tokens(default_max_tokens: u32, server_n_ctx: u32) -> u32 {
     // When server context is known, cap at 75% of n_ctx to leave room for
     // the prompt. When unknown (0), use a generous default ceiling.
     let ceiling = if server_n_ctx > 0 {
-        // Multiply in u64 to avoid f64 rounding issues on large context windows.
+        // Multiply in u64 to keep the calculation in integer arithmetic and
+        // avoid an unnecessary float conversion for the 75% ceiling.
         ((server_n_ctx as u64 * 3) / 4).min(u32::MAX as u64) as u32
     } else {
         16384
     };
     // Guard against ceiling < 128 (server reports n_ctx < 171) which would
-    // panic in clamp because min > max is not permitted.
+    // panic in clamp because min > max is not permitted. Preserve `base` as
+    // the upper bound even in this small-ceiling fallback.
     if ceiling < 128 {
-        ceiling
+        base.min(ceiling)
     } else {
         base.clamp(128, ceiling)
     }

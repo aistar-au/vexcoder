@@ -129,16 +129,31 @@ fn validate(config: &AgentsConfig, path: &Path) -> Result<()> {
 
 /// Agent names must be non-empty, within filesystem-safe length, and unique.
 const MAX_AGENT_NAME_LEN: usize = 64;
+const WINDOWS_RESERVED_DEVICE_NAMES: &[&str] = &[
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+];
 
 /// Returns `true` when `name` is safe for use as a single filesystem path
 /// component. Rejects path separators, control characters (including NUL),
-/// and the reserved relative-directory names `.` and `..`.
+/// reserved relative-directory names, Windows-invalid suffixes, and portable
+/// filesystem device names.
 fn is_filesystem_safe(name: &str) -> bool {
-    if name == "." || name == ".." {
+    if name.is_empty() || name == "." || name == ".." || name.ends_with([' ', '.']) {
         return false;
     }
-    name.bytes()
-        .all(|b| b > 0x1F && b != b'/' && b != b'\\' && b != b'\0')
+    if name.chars().any(|ch| {
+        ch.is_control() || matches!(ch, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')
+    }) {
+        return false;
+    }
+
+    let stem = name.split('.').next().unwrap_or(name);
+    !WINDOWS_RESERVED_DEVICE_NAMES.contains(&stem.to_ascii_uppercase().as_str())
+}
+
+fn escaped_name(name: &str) -> String {
+    name.escape_default().collect()
 }
 
 fn validate_agent_names(config: &AgentsConfig, path: &Path) -> Result<()> {
@@ -150,21 +165,21 @@ fn validate_agent_names(config: &AgentsConfig, path: &Path) -> Result<()> {
         if agent.name.len() > MAX_AGENT_NAME_LEN {
             bail!(
                 "agent name '{}' exceeds {MAX_AGENT_NAME_LEN}-byte limit in '{}'",
-                agent.name,
+                escaped_name(&agent.name),
                 path.display()
             );
         }
         if !is_filesystem_safe(&agent.name) {
             bail!(
                 "agent name '{}' contains characters unsafe for filesystem paths in '{}'",
-                agent.name,
+                escaped_name(&agent.name),
                 path.display()
             );
         }
         if !seen.insert(&agent.name) {
             bail!(
                 "duplicate agent name '{}' in '{}'",
-                agent.name,
+                escaped_name(&agent.name),
                 path.display()
             );
         }
@@ -190,21 +205,21 @@ fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
         if !is_filesystem_safe(&team.name) {
             bail!(
                 "team name '{}' contains characters unsafe for filesystem paths in '{}'",
-                team.name,
+                escaped_name(&team.name),
                 path.display()
             );
         }
         if !team_names.insert(&team.name) {
             bail!(
                 "duplicate team name '{}' in '{}'",
-                team.name,
+                escaped_name(&team.name),
                 path.display()
             );
         }
         if team.members.is_empty() {
             bail!(
                 "team '{}' must have at least one member in '{}'",
-                team.name,
+                escaped_name(&team.name),
                 path.display()
             );
         }
@@ -213,8 +228,8 @@ fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
             if !seen_members.insert(member.as_str()) {
                 bail!(
                     "team '{}' contains duplicate member '{}' in '{}'",
-                    team.name,
-                    member,
+                    escaped_name(&team.name),
+                    escaped_name(member),
                     path.display()
                 );
             }
@@ -222,13 +237,13 @@ fn validate_team_members(config: &AgentsConfig, path: &Path) -> Result<()> {
                 bail!(
                     "team '{}' references unknown agent '{}' in '{}'; \
                      known agents: [{}]",
-                    team.name,
-                    member,
+                    escaped_name(&team.name),
+                    escaped_name(member),
                     path.display(),
                     config
                         .agent_profiles
                         .iter()
-                        .map(|a| a.name.as_str())
+                        .map(|a| escaped_name(&a.name))
                         .collect::<Vec<_>>()
                         .join(", "),
                 );
@@ -600,6 +615,17 @@ scheduler = "sequential"
     }
 
     #[test]
+    fn rejects_agent_name_with_unicode_control_char() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(dir.path(), "[[agents]]\nname = \"bad\\u0085name\"\n");
+        let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("unsafe for filesystem"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
     fn rejects_dot_dot_agent_name() {
         let dir = tempfile::tempdir().unwrap();
         let path = write_config(dir.path(), "[[agents]]\nname = \"..\"\n");
@@ -636,6 +662,29 @@ scheduler = "sequential"
     }
 
     #[test]
+    fn rejects_windows_reserved_device_name() {
+        assert!(!super::is_filesystem_safe("COM1"));
+        assert!(!super::is_filesystem_safe("nul.txt"));
+    }
+
+    #[test]
+    fn rejects_windows_invalid_suffixes() {
+        assert!(!super::is_filesystem_safe("trailing."));
+        assert!(!super::is_filesystem_safe("trailing "));
+    }
+
+    #[test]
+    fn error_messages_escape_control_characters() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(dir.path(), "[[agents]]\nname = \"bad\\u0001name\"\n");
+        let err = load_agents_config_from_path(&path).unwrap_err();
+        assert!(
+            err.to_string().contains("bad\\u{1}name"),
+            "unexpected error: {err}",
+        );
+    }
+
+    #[test]
     fn is_filesystem_safe_accepts_valid_names() {
         assert!(super::is_filesystem_safe("fixer"));
         assert!(super::is_filesystem_safe("rust-fixer-01"));
@@ -650,5 +699,7 @@ scheduler = "sequential"
         assert!(!super::is_filesystem_safe("a\\b"));
         assert!(!super::is_filesystem_safe("a\0b"));
         assert!(!super::is_filesystem_safe("a\x01b"));
+        assert!(!super::is_filesystem_safe("a:b"));
+        assert!(!super::is_filesystem_safe("a?b"));
     }
 }

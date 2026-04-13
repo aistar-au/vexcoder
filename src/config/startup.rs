@@ -54,14 +54,16 @@ impl Default for StartupBudget {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::ENV_LOCK;
 
     #[test]
     fn defaults_to_200_when_env_unset() {
-        let budget = StartupBudget {
-            max_scans: 200,
-            cache_ttl_ms: 300_000,
-            trace_allocations: false,
-        };
+        let _env_lock = ENV_LOCK.blocking_lock();
+        std::env::remove_var("VEX_MAX_STARTUP_TASK_SCANS");
+        std::env::remove_var("VEX_STARTUP_CACHE_TTL_MS");
+        std::env::remove_var("VEX_TRACE_STARTUP_ALLOC");
+
+        let budget = StartupBudget::default();
         assert_eq!(budget.max_scans, 200);
         assert_eq!(budget.cache_ttl_ms, 300_000);
         assert!(!budget.trace_allocations);
@@ -69,9 +71,12 @@ mod tests {
 
     #[test]
     fn rejects_zero_max_scans_and_falls_back_to_default() {
-        // VEX_MAX_STARTUP_TASK_SCANS=0 must fall back to 200, not produce a
-        // cap of zero that silently returns no tasks.
-        let parsed: Option<usize> = Some("0").and_then(|s| s.parse().ok()).filter(|&n| n > 0);
-        assert!(parsed.is_none(), "zero must be rejected");
+        let _env_lock = ENV_LOCK.blocking_lock();
+        std::env::set_var("VEX_MAX_STARTUP_TASK_SCANS", "0");
+
+        let budget = StartupBudget::default();
+
+        std::env::remove_var("VEX_MAX_STARTUP_TASK_SCANS");
+        assert_eq!(budget.max_scans, 200);
     }
 }

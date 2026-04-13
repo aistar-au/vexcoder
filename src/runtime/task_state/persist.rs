@@ -17,6 +17,58 @@ fn state_file_path(dir: &Path, id: &str) -> PathBuf {
     dir.join(format!("{id}.json"))
 }
 
+fn insert_bounded_state_file(selected: &mut Vec<TaskStateFile>, file: TaskStateFile, cap: usize) {
+    if cap == 0 {
+        return;
+    }
+
+    if let Some(existing) = selected.iter_mut().find(|existing| existing.id == file.id) {
+        if file.modified_millis > existing.modified_millis {
+            *existing = file;
+        }
+        return;
+    }
+
+    if selected.len() < cap {
+        selected.push(file);
+        return;
+    }
+
+    let Some((oldest_index, oldest)) = selected
+        .iter()
+        .enumerate()
+        .min_by_key(|(_, existing)| existing.modified_millis)
+    else {
+        return;
+    };
+
+    if file.modified_millis > oldest.modified_millis {
+        selected[oldest_index] = file;
+    }
+}
+
+#[cfg(feature = "startup-tracing")]
+fn emit_startup_scan_trace(scanned_files: usize, cap: usize, selected: &[TaskStateFile]) {
+    if !crate::config::StartupBudget::default().trace_allocations {
+        return;
+    }
+
+    let approx_bytes = selected
+        .iter()
+        .map(|file| {
+            std::mem::size_of::<TaskStateFile>() + file.id.len() + file.dir.as_os_str().len()
+        })
+        .sum::<usize>();
+
+    eprintln!(
+        "[startup-alloc] scanned_files={scanned_files} selected_files={} scan_cap={cap} approx_task_state_file_bytes={approx_bytes}",
+        selected.len()
+    );
+}
+
+#[cfg(not(feature = "startup-tracing"))]
+fn emit_startup_scan_trace(_scanned_files: usize, _cap: usize, _selected: &[TaskStateFile]) {}
+
 /// Delegates to [`crate::util::write_json_safe`].
 fn write_pretty_json_safe(path: &Path, value: &TaskState, label: &str) -> Result<()> {
     crate::util::write_json_safe(path, value, label)
@@ -109,6 +161,20 @@ impl TaskState {
         working_dir: &Path,
         limit: Option<usize>,
     ) -> Vec<TaskStateFile> {
+        if let Some(cap) = limit {
+            let mut files = Vec::with_capacity(cap);
+            let mut scanned_files = 0usize;
+            for dir in Self::state_search_dirs_from(working_dir) {
+                for file in Self::state_files_in_dir(&dir) {
+                    scanned_files = scanned_files.saturating_add(1);
+                    insert_bounded_state_file(&mut files, file, cap);
+                }
+            }
+            files.sort_by(|left, right| right.modified_millis.cmp(&left.modified_millis));
+            emit_startup_scan_trace(scanned_files, cap, &files);
+            return files;
+        }
+
         let mut files = Self::state_search_dirs_from(working_dir)
             .into_iter()
             .flat_map(|dir| Self::state_files_in_dir(&dir))
@@ -117,10 +183,6 @@ impl TaskState {
         files.sort_by(|left, right| right.modified_millis.cmp(&left.modified_millis));
         let mut seen = std::collections::HashSet::new();
         files.retain(|file| seen.insert(file.id.clone()));
-
-        if let Some(cap) = limit {
-            files.truncate(cap);
-        }
         files
     }
 
@@ -154,7 +216,7 @@ impl TaskState {
 
             // Metadata pass: check whether this file could contain the target
             // session task before paying the cost of a full TaskState::load().
-            let header = match cached_metadata(&file.id, &path, &file) {
+            let header = match cached_metadata(&path) {
                 Some(h) => h,
                 None => {
                     tracing::debug!(
@@ -198,7 +260,7 @@ impl TaskState {
 
         for file in Self::state_files_from_with_limit(working_dir, Some(budget.max_scans)) {
             let path = file.dir.join(format!("{}.json", file.id));
-            match cached_metadata(&file.id, &path, &file) {
+            match cached_metadata(&path) {
                 Some(header) => {
                     for task in header.session_tasks.unwrap_or_default() {
                         if task.status.is_live() {
@@ -711,5 +773,40 @@ mod tests {
         std::env::remove_var("VEX_STATE_DIR");
 
         assert_eq!(counts.get("analyst"), Some(&1));
+    }
+
+    #[test]
+    fn state_files_from_with_limit_prefers_newest_duplicate_copy() {
+        use filetime::{set_file_mtime, FileTime};
+
+        let _guard = ENV_LOCK.blocking_lock();
+        let temp = TempDir::new().unwrap();
+        std::fs::create_dir_all(temp.path().join(".git")).unwrap();
+        let nested = temp.path().join("src/nested");
+        let repo_state_dir = temp.path().join(".vex/state");
+        let legacy_state_dir = nested.join(".vex/state");
+        std::fs::create_dir_all(&legacy_state_dir).unwrap();
+
+        let legacy = TaskState::new("task-dup".to_string());
+        legacy.save(&legacy_state_dir).unwrap();
+        set_file_mtime(
+            legacy_state_dir.join("task-dup.json"),
+            FileTime::from_unix_time(1_700_000_002, 0),
+        )
+        .unwrap();
+
+        std::fs::create_dir_all(&repo_state_dir).unwrap();
+        TaskState::new("task-dup".to_string())
+            .save(&repo_state_dir)
+            .unwrap();
+        set_file_mtime(
+            repo_state_dir.join("task-dup.json"),
+            FileTime::from_unix_time(1_700_000_001, 0),
+        )
+        .unwrap();
+
+        let files = TaskState::state_files_from_with_limit(&nested, Some(1));
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].dir, legacy_state_dir);
     }
 }

@@ -124,7 +124,7 @@ hoc helpers:
 - [x] `cargo nextest run --no-fail-fast` passes (count must not regress below
   1301).
 - [x] `make check-arch` clean.
-- [x] `make check-names` clean (no `#[allow(dead_code)]` in `src/` or
+- [x] `make check-names` clean (no `#[cfg(test)]` workaround needed in `src/` or
   `tests/`).
 - [x] `cargo clippy --all-targets --all-features -- -D warnings` clean.
 - [x] `cargo fmt --check` clean.
