@@ -5,7 +5,7 @@
 - **Date:** 2026-04-13
 - **Deciders:** Core maintainer
 - **Depends on:** ADR-038 (all batches A–H merged), ADR-034, ADR-045 (proposed)
-- **Cross-reference:** ADR-045 (Replay-First Task Document) — if ADR-045 lands
+- **Cross-reference:** ADR-045 (Replay-First Task Document) — if ADR-045 implements
   first, `TaskStateHeader` field names must be verified against whatever
   `RuntimeEventLog`-driven JSON schema it adopts for session-task state.
 
