@@ -33,7 +33,7 @@ by the selected `TaskStateFile` set.
 Two concerns often come up during cold-start investigations and are not the
 root cause here:
 
-- Stack overflow is not part of this path. Task-state discovery is iterative and
+- Memory stack overflow is not part of this path. Task-state discovery is iterative and
   heap-driven; it does not recurse over task files.
 - Address-space layout randomisation does not change the total bytes allocated.
   If startup memory grows, the cause is allocation volume rather than address
