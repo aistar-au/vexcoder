@@ -180,44 +180,33 @@ impl TaskState {
     }
 
     pub fn state_files_from(working_dir: &Path) -> Vec<TaskStateFile> {
-        Self::state_files_from_with_limit(working_dir, None)
+        Self::state_files_from_with_limit(
+            working_dir,
+            Some(crate::config::StartupBudget::default().max_scans),
+        )
     }
 
-    /// Like `state_files_from` but caps the result at `limit` files
-    /// (the newest by filesystem mtime). When `limit` is `None` the
-    /// behaviour is identical to the unbounded form.
+    /// Return up to `limit` task-state files (newest by filesystem mtime).
     ///
-    /// All startup paths should call this variant with
-    /// `Some(StartupBudget::default().max_scans)` to bound allocation.
-    /// Bounded scans stream directory entries directly into the in-memory top-k
-    /// selector instead of materialising a full per-directory TaskStateFile
-    /// buffer first.
+    /// When `limit` is `None`, falls back to `StartupBudget::default().max_scans`
+    /// so no call site can accidentally materialise an unbounded directory buffer.
+    /// All paths stream directory entries directly into the in-memory top-k
+    /// selector via `insert_bounded_state_file`.
     pub fn state_files_from_with_limit(
         working_dir: &Path,
         limit: Option<usize>,
     ) -> Vec<TaskStateFile> {
-        if let Some(cap) = limit {
-            let mut files = Vec::with_capacity(cap);
-            let mut scanned_files = 0usize;
-            for dir in Self::state_search_dirs_from(working_dir) {
-                visit_state_files_in_dir(&dir, |file| {
-                    scanned_files = scanned_files.saturating_add(1);
-                    insert_bounded_state_file(&mut files, file, cap);
-                });
-            }
-            files.sort_by(|left, right| right.modified_millis.cmp(&left.modified_millis));
-            emit_startup_scan_trace(scanned_files, cap, &files);
-            return files;
+        let cap = limit.unwrap_or_else(|| crate::config::StartupBudget::default().max_scans);
+        let mut files = Vec::with_capacity(cap);
+        let mut scanned_files = 0usize;
+        for dir in Self::state_search_dirs_from(working_dir) {
+            visit_state_files_in_dir(&dir, |file| {
+                scanned_files = scanned_files.saturating_add(1);
+                insert_bounded_state_file(&mut files, file, cap);
+            });
         }
-
-        let mut files = Self::state_search_dirs_from(working_dir)
-            .into_iter()
-            .flat_map(|dir| Self::state_files_in_dir(&dir))
-            .collect::<Vec<_>>();
-
         files.sort_by(|left, right| right.modified_millis.cmp(&left.modified_millis));
-        let mut seen = std::collections::HashSet::new();
-        files.retain(|file| seen.insert(file.id.clone()));
+        emit_startup_scan_trace(scanned_files, cap, &files);
         files
     }
 
@@ -312,12 +301,6 @@ impl TaskState {
             }
         }
         Ok(counts)
-    }
-
-    fn state_files_in_dir(dir: &Path) -> Vec<TaskStateFile> {
-        let mut files = Vec::new();
-        visit_state_files_in_dir(dir, |file| files.push(file));
-        files
     }
 }
 
@@ -727,7 +710,7 @@ mod tests {
     }
 
     #[test]
-    fn state_files_from_compat_unchanged_with_no_limit() {
+    fn state_files_from_with_none_limit_applies_default_cap() {
         let _guard = ENV_LOCK.blocking_lock();
         let dir = TempDir::new().unwrap();
         let state_dir = dir.path().join(".vex/state");
@@ -741,10 +724,12 @@ mod tests {
 
         std::env::set_var("VEX_STATE_DIR", state_dir.to_str().unwrap());
         let with_none = TaskState::state_files_from_with_limit(dir.path(), None);
-        let without = TaskState::state_files_from(dir.path());
+        let with_explicit = TaskState::state_files_from(dir.path());
         std::env::remove_var("VEX_STATE_DIR");
 
-        assert_eq!(with_none.len(), without.len());
+        // Both paths now use the same bounded selector; results must match.
+        assert_eq!(with_none.len(), with_explicit.len());
+        assert_eq!(with_none.len(), 4);
     }
 
     #[test]

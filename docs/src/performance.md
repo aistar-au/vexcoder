@@ -2,13 +2,14 @@
 
 ## Task-state cold start
 
-The CLI app keeps recent-task discovery on a bounded cold-start path.
-Startup scans keep an in-memory top-k buffer of at most
-`VEX_MAX_STARTUP_TASK_SCANS` task-state files by default and prefer the newest
-copies when the same task id exists in both the workspace state directory and a
-legacy fallback directory. Directory entries are streamed directly into that
-selector so bounded startup paths do not materialise a full per-directory
-`Vec<TaskStateFile>` before truncation.
+The CLI app keeps all task-state discovery on a bounded path.
+`state_files_from()` always routes through the top-k selector capped at
+`VEX_MAX_STARTUP_TASK_SCANS` (default 200). There is no unbounded fallback:
+passing `None` as the limit applies the budget default automatically. Directory
+entries are streamed directly into the selector so no call site materialises a
+full per-directory `Vec<TaskStateFile>` before truncation. Newest copies win
+when the same task id exists in both the workspace and legacy fallback
+directories.
 
 Cold-start scans read a small header projection from each selected task-state
 file instead of deserialising the full `TaskState` graph. The projection keeps

@@ -168,9 +168,17 @@ After this amendment:
 - `src/config.rs` — add `mod startup; pub use startup::StartupBudget;`.
 - `src/runtime/task_state/persist.rs`:
   - Delete `TaskStateLiveSummary`, `SessionTaskLiveSummary`, `load_live_summary`.
-  - Add `state_files_from_with_limit()` bounded variant.
+  - Hard cutover: `state_files_from()` now always routes through the bounded
+    top-k selector via `state_files_from_with_limit()`. The unbounded
+    collect-then-truncate path and the private `state_files_in_dir` helper
+    are removed entirely. When `limit` is `None`, the budget default
+    (`StartupBudget::default().max_scans`) is applied automatically.
   - Replace `live_session_task_counts_from()` body with header-projection scan.
   - Replace `find_session_task_in_saved_states()` body with header-first scan.
+- `src/app/task_facade.rs`:
+  - All facade list operations (`facade_list_tasks`, `facade_list_session_tasks`,
+    `facade_task_graph`, `facade_list_todos`) pre-allocate `Vec::with_capacity`
+    from the bounded file set to prevent incremental reallocation.
 
 ### session_task_id format contract
 
@@ -249,7 +257,7 @@ test_header_accessible_before_resolve
 # persist.rs (new tests)
 test_state_files_from_with_limit_returns_newest_n
 test_state_files_from_with_limit_zero_is_rejected_at_budget_level
-test_state_files_from_compat_unchanged_with_no_limit
+test_state_files_from_with_none_limit_applies_default_cap
 test_live_session_task_counts_respects_scan_cap
 test_live_session_task_counts_uses_header_only
 test_find_session_task_skips_full_load_on_non_matching_files
