@@ -24,6 +24,7 @@
 use anyhow::{Context, Result};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
+use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
@@ -46,6 +47,14 @@ const MAX_LINE_BYTES: usize = 8_192;
 /// Lock file suffix for the channel write lock.
 const CHANNEL_LOCK_SUFFIX: &str = ".channel.lock";
 
+#[derive(Debug, thiserror::Error)]
+pub enum AppendMessageError {
+    #[error("channel_full")]
+    ChannelFull,
+    #[error(transparent)]
+    Internal(#[from] anyhow::Error),
+}
+
 // ---------------------------------------------------------------------------
 // Two-layer locking
 // ---------------------------------------------------------------------------
@@ -57,34 +66,68 @@ fn channel_serialization_lock() -> &'static Mutex<()> {
     LOCK.get_or_init(|| Mutex::new(()))
 }
 
-/// Acquire both the in-process mutex and the cross-process flock, then
-/// run `operation` under exclusive access to the channel file.
-fn with_channel_lock<T>(
-    state_dir: &Path,
-    parent_task_id: &str,
-    operation: impl FnOnce() -> Result<T>,
-) -> Result<T> {
+fn channel_lock_path(state_dir: &Path, parent_task_id: &str) -> PathBuf {
+    state_dir.join(format!("{parent_task_id}{CHANNEL_LOCK_SUFFIX}"))
+}
+
+fn open_channel_lock_file(state_dir: &Path, parent_task_id: &str) -> Result<File> {
+    crate::tools::operator::policy::assert_durable_access(state_dir)?;
+
+    let lock_path = channel_lock_path(state_dir, parent_task_id);
+    crate::tools::operator::policy::assert_durable_access(&lock_path)?;
+
     std::fs::create_dir_all(state_dir)
         .with_context(|| format!("failed to create state dir: {}", state_dir.display()))?;
 
-    let _in_process_guard = channel_serialization_lock()
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-
-    let lock_path = state_dir.join(format!("{parent_task_id}{CHANNEL_LOCK_SUFFIX}"));
-    let lock_file = std::fs::OpenOptions::new()
+    OpenOptions::new()
         .create(true)
         .truncate(false)
         .read(true)
         .write(true)
         .open(&lock_path)
-        .with_context(|| format!("failed to open channel lock: {}", lock_path.display()))?;
+        .with_context(|| format!("failed to open channel lock: {}", lock_path.display()))
+}
+
+/// Acquire both the in-process mutex and the cross-process flock, then
+/// run `operation` under exclusive access to the channel file.
+fn with_channel_lock<T, E>(
+    state_dir: &Path,
+    parent_task_id: &str,
+    operation: impl FnOnce() -> std::result::Result<T, E>,
+) -> std::result::Result<T, E>
+where
+    E: From<anyhow::Error>,
+{
+    let _in_process_guard = channel_serialization_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    let lock_path = channel_lock_path(state_dir, parent_task_id);
+    let lock_file = open_channel_lock_file(state_dir, parent_task_id).map_err(E::from)?;
     lock_file
         .lock_exclusive()
-        .with_context(|| format!("failed to acquire channel lock: {}", lock_path.display()))?;
+        .with_context(|| format!("failed to acquire channel lock: {}", lock_path.display()))
+        .map_err(E::from)?;
 
     operation()
     // lock released on drop of lock_file + _in_process_guard
+}
+
+fn with_channel_shared_lock<T>(
+    state_dir: &Path,
+    parent_task_id: &str,
+    operation: impl FnOnce() -> Result<T>,
+) -> Result<T> {
+    let lock_path = channel_lock_path(state_dir, parent_task_id);
+    let lock_file = open_channel_lock_file(state_dir, parent_task_id)?;
+    lock_file.lock_shared().with_context(|| {
+        format!(
+            "failed to acquire shared channel lock: {}",
+            lock_path.display()
+        )
+    })?;
+
+    operation()
 }
 
 // ---------------------------------------------------------------------------
@@ -184,35 +227,33 @@ pub fn channel_path(state_dir: &Path, parent_task_id: &str) -> PathBuf {
 ///
 /// Does NOT call `assert_durable_access` — callers must validate the path
 /// through the facade (ADR-028 boundary).
-pub fn append_message(state_dir: &Path, message: &PeerMessage) -> Result<()> {
+pub fn append_message(
+    state_dir: &Path,
+    message: &PeerMessage,
+) -> std::result::Result<(), AppendMessageError> {
     with_channel_lock(state_dir, &message.parent_task_id, || {
         append_message_inner(state_dir, message)
     })
 }
 
 /// Inner append — called while holding both locks.
-fn append_message_inner(state_dir: &Path, message: &PeerMessage) -> Result<()> {
+fn append_message_inner(
+    state_dir: &Path,
+    message: &PeerMessage,
+) -> std::result::Result<(), AppendMessageError> {
     let path = channel_path(state_dir, &message.parent_task_id);
+    crate::tools::operator::policy::assert_durable_access(&path)?;
 
     // Depth guard: line count
     let existing = count_lines(&path)?;
     if existing >= MAX_CHANNEL_DEPTH {
-        anyhow::bail!(
-            "channel for task '{}' is full ({} messages); \
-             wait for the orchestrator to archive before posting",
-            message.parent_task_id,
-            existing
-        );
+        return Err(AppendMessageError::ChannelFull);
     }
 
     // Size safety valve
     if let Ok(file_info) = std::fs::metadata(&path) {
         if file_info.len() >= MAX_CHANNEL_FILE_BYTES {
-            anyhow::bail!(
-                "channel file for task '{}' exceeds {} byte limit",
-                message.parent_task_id,
-                MAX_CHANNEL_FILE_BYTES
-            );
+            return Err(AppendMessageError::ChannelFull);
         }
     }
 
@@ -250,67 +291,63 @@ pub fn read_messages(
     recipient_filter: Option<&str>,
 ) -> Result<Vec<PeerMessage>> {
     let path = channel_path(state_dir, parent_task_id);
+    crate::tools::operator::policy::assert_durable_access(&path)?;
     if !path.exists() {
         return Ok(Vec::new());
     }
 
-    crate::tools::operator::policy::assert_durable_access(&path)?;
+    with_channel_shared_lock(state_dir, parent_task_id, || {
+        let file = File::open(&path)
+            .with_context(|| format!("failed to open channel file: {}", path.display()))?;
 
-    let file = std::fs::File::open(&path)
-        .with_context(|| format!("failed to open channel file: {}", path.display()))?;
+        let mut results = Vec::with_capacity(MAX_CHANNEL_READ_BATCH.min(32));
+        let mut line_buf = String::new();
+        let mut buf_reader = BufReader::new(&file);
 
-    // Shared lock: prevents reading a file mid-write.
-    file.lock_shared()
-        .with_context(|| format!("failed to acquire shared lock on: {}", path.display()))?;
+        loop {
+            line_buf.clear();
+            let bytes_read = buf_reader
+                .read_line(&mut line_buf)
+                .with_context(|| format!("failed to read channel file line: {}", path.display()))?;
+            if bytes_read == 0 {
+                break;
+            }
 
-    let mut results = Vec::with_capacity(MAX_CHANNEL_READ_BATCH.min(32));
-    let mut line_buf = String::new();
-    let mut buf_reader = BufReader::new(&file);
-
-    loop {
-        line_buf.clear();
-        let bytes_read = buf_reader
-            .read_line(&mut line_buf)
-            .with_context(|| format!("failed to read channel file line: {}", path.display()))?;
-        if bytes_read == 0 {
-            break;
-        }
-
-        // Skip oversized or empty lines
-        if line_buf.len() > MAX_LINE_BYTES || line_buf.trim().is_empty() {
-            continue;
-        }
-
-        let msg: PeerMessage = match serde_json::from_str(line_buf.trim()) {
-            Ok(m) => m,
-            Err(e) => {
-                tracing::debug!(
-                    path = %path.display(),
-                    error = %e,
-                    "skipping malformed line in channel file"
-                );
+            // Skip oversized or empty lines.
+            if line_buf.len() > MAX_LINE_BYTES || line_buf.trim().is_empty() {
                 continue;
             }
-        };
 
-        if msg.sent_at <= after_ms {
-            continue;
-        }
+            let msg: PeerMessage = match serde_json::from_str(line_buf.trim()) {
+                Ok(m) => m,
+                Err(e) => {
+                    tracing::debug!(
+                        path = %path.display(),
+                        error = %e,
+                        "skipping malformed line in channel file"
+                    );
+                    continue;
+                }
+            };
 
-        if let Some(agent_id) = recipient_filter {
-            if msg.recipient != "*" && msg.recipient != agent_id {
+            if msg.sent_at <= after_ms {
                 continue;
+            }
+
+            if let Some(agent_id) = recipient_filter {
+                if msg.recipient != "*" && msg.recipient != agent_id {
+                    continue;
+                }
+            }
+
+            results.push(msg);
+            if results.len() >= MAX_CHANNEL_READ_BATCH {
+                break;
             }
         }
 
-        results.push(msg);
-        if results.len() >= MAX_CHANNEL_READ_BATCH {
-            break;
-        }
-    }
-
-    // Shared lock released on drop of `file`
-    Ok(results)
+        Ok(results)
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -422,11 +459,9 @@ mod tests {
 
         let for_reviewer = read_messages(dir.path(), "p", 0, Some("reviewer")).unwrap();
         assert_eq!(for_reviewer.len(), 2, "should receive broadcast + targeted");
-        assert!(
-            for_reviewer
-                .iter()
-                .all(|m| m.recipient == "*" || m.recipient == "reviewer")
-        );
+        assert!(for_reviewer
+            .iter()
+            .all(|m| m.recipient == "*" || m.recipient == "reviewer"));
     }
 
     #[test]
@@ -439,10 +474,7 @@ mod tests {
         }
         let overflow = make_msg("p", "a1", PeerMessageKind::Observation, "*", "overflow");
         let err = append_message(dir.path(), &overflow).unwrap_err();
-        assert!(
-            err.to_string().contains("full"),
-            "expected full error, got: {err}"
-        );
+        assert!(matches!(err, AppendMessageError::ChannelFull));
     }
 
     #[test]
@@ -511,10 +543,7 @@ mod tests {
 
         let msg = make_msg("p", "a1", PeerMessageKind::Observation, "*", "rejected");
         let err = append_message(dir.path(), &msg).unwrap_err();
-        assert!(
-            err.to_string().contains("byte limit"),
-            "expected byte limit error, got: {err}"
-        );
+        assert!(matches!(err, AppendMessageError::ChannelFull));
     }
 
     #[test]

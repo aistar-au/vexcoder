@@ -637,7 +637,7 @@ fn parse_session_task_status(s: &str) -> Option<SessionTaskStatus> {
 // ---------------------------------------------------------------------------
 
 use crate::runtime::task_state::peer_channel::{
-    self, parse_peer_message_kind, PeerMessage, MAX_PEER_MESSAGE_BYTES,
+    self, parse_peer_message_kind, AppendMessageError, PeerMessage, MAX_PEER_MESSAGE_BYTES,
 };
 
 /// Post a message to the peer channel for a parent task.
@@ -667,45 +667,37 @@ pub fn facade_post_peer_message(
 
     let state_dir = TaskState::state_dir_from(working_dir);
 
-    // Validate parent task exists and sender belongs to it
-    let files = TaskState::state_files_from(working_dir);
-    let mut parent_found = false;
-    let mut sender_valid = false;
+    let parent_state = load_parent_task_state(working_dir, parent_task_id)?;
+    let sender_task = parent_state
+        .session_tasks
+        .iter()
+        .find(|task| task.id == sender_id)
+        .ok_or(PeerChannelError::SenderNotInTask)?;
 
-    for file in &files {
-        let state = TaskState::load(&file.dir, &file.id).map_err(PeerChannelError::Internal)?;
-        if state.id == parent_task_id {
-            parent_found = true;
-            sender_valid = state.session_tasks.iter().any(|t| {
-                t.id == sender_id || t.agent_id == sender_id
-            });
-            break;
-        }
-    }
-
-    if !parent_found {
-        return Err(PeerChannelError::ParentTaskNotFound);
-    }
-    if !sender_valid {
-        return Err(PeerChannelError::SenderNotInTask);
+    if sender_task.agent_id != sender_agent_id {
+        tracing::warn!(
+            parent_task_id,
+            sender_id,
+            provided_sender_agent_id = sender_agent_id,
+            expected_sender_agent_id = %sender_task.agent_id,
+            "peer message sender_agent_id mismatch; using persisted session task agent id"
+        );
     }
 
     let message = PeerMessage::new(
         sender_id,
-        sender_agent_id,
+        sender_task.agent_id.clone(),
         parent_task_id,
         recipient,
         kind,
         content,
     );
 
-    peer_channel::append_message(&state_dir, &message).map_err(|e| {
-        if e.to_string().contains("full") || e.to_string().contains("byte limit") {
-            PeerChannelError::ChannelFull
-        } else {
-            PeerChannelError::Internal(e)
-        }
-    })?;
+    match peer_channel::append_message(&state_dir, &message) {
+        Ok(()) => {}
+        Err(AppendMessageError::ChannelFull) => return Err(PeerChannelError::ChannelFull),
+        Err(AppendMessageError::Internal(err)) => return Err(PeerChannelError::Internal(err)),
+    }
 
     Ok(message)
 }
@@ -722,4 +714,20 @@ pub fn facade_read_peer_messages(
 ) -> Result<Vec<PeerMessage>> {
     let state_dir = TaskState::state_dir_from(working_dir);
     peer_channel::read_messages(&state_dir, parent_task_id, after_ms, recipient_filter)
+}
+
+fn load_parent_task_state(
+    working_dir: &Path,
+    parent_task_id: &str,
+) -> std::result::Result<TaskState, PeerChannelError> {
+    for dir in TaskState::state_search_dirs_from(working_dir) {
+        let state_path = dir.join(format!("{parent_task_id}.json"));
+        if !state_path.is_file() {
+            continue;
+        }
+
+        return TaskState::load(&dir, parent_task_id).map_err(PeerChannelError::Internal);
+    }
+
+    Err(PeerChannelError::ParentTaskNotFound)
 }
