@@ -85,13 +85,13 @@ pub use self::subtask_orchestrator::{JoinOutcome, SubtaskOrchestrator, TeamDecom
 pub use self::task_facade::{
     facade_delegate_session_task, facade_get_session_task, facade_list_agents,
     facade_list_session_tasks, facade_list_tasks, facade_list_todos, facade_poll_join,
-    facade_release_session_task, facade_schedule_team, facade_task_graph,
-    facade_update_session_task_status, facade_watch_rollup, task_graph_rollup_path,
-    todos_rollup_path, write_projection_rollup, DelegateError, FacadeAgentDescriptor,
-    FacadeAgentsListing, FacadeDelegateResult, FacadeJoinOutcome, FacadeScheduleTeamResult,
-    FacadeSessionTaskRollup, FacadeTaskGraph, FacadeTaskGraphNode, FacadeTaskSummary,
-    FacadeTeamDescriptor, FacadeTodoItem, FacadeWatchRollup, ScheduleTeamError,
-    SessionTaskStatusError,
+    facade_post_peer_message, facade_read_peer_messages, facade_release_session_task,
+    facade_schedule_team, facade_task_graph, facade_update_session_task_status,
+    facade_watch_rollup, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
+    DelegateError, FacadeAgentDescriptor, FacadeAgentsListing, FacadeDelegateResult,
+    FacadeJoinOutcome, FacadeScheduleTeamResult, FacadeSessionTaskRollup, FacadeTaskGraph,
+    FacadeTaskGraphNode, FacadeTaskSummary, FacadeTeamDescriptor, FacadeTodoItem,
+    FacadeWatchRollup, PeerChannelError, ScheduleTeamError, SessionTaskStatusError,
 };
 
 use self::overlay::summarize_tool_approval_context;

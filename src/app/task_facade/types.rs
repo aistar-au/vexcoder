@@ -142,3 +142,20 @@ pub struct FacadeTodoItem {
     pub agent_id: String,
     pub lifecycle_state: String,
 }
+
+/// Typed error for `facade_post_peer_message`.
+#[derive(Debug, Error)]
+pub enum PeerChannelError {
+    #[error("parent_task_not_found")]
+    ParentTaskNotFound,
+    #[error("sender_not_in_task")]
+    SenderNotInTask,
+    #[error("content_too_long")]
+    ContentTooLong,
+    #[error("channel_full")]
+    ChannelFull,
+    #[error("invalid_kind")]
+    InvalidKind,
+    #[error(transparent)]
+    Internal(#[from] anyhow::Error),
+}

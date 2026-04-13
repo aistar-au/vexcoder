@@ -17,7 +17,8 @@ use tower_http::trace::TraceLayer;
 use super::handlers::{
     agents_handler, approve_handler, delegate_handler, get_session_task_handler, health_handler,
     interrupt_handler, join_status_handler, list_session_tasks_handler, list_tasks_handler,
-    list_todos_handler, projection_handler, release_session_task_handler, schedule_team_handler,
+    list_todos_handler, post_peer_message_handler, projection_handler,
+    read_peer_messages_handler, release_session_task_handler, schedule_team_handler,
     schema_handler, task_graph_handler, turns_handler, update_session_task_status_handler,
     watch_handler, watch_session_task_handler,
 };
@@ -64,6 +65,10 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
         .route("/v1/task-graph", get(task_graph_handler))
         .route("/v1/todos", get(list_todos_handler))
         .route("/v1/projection", get(projection_handler))
+        .route(
+            "/v1/tasks/{parent_task_id}/messages",
+            post(post_peer_message_handler).get(read_peer_messages_handler),
+        )
         .with_state(state)
 }
 

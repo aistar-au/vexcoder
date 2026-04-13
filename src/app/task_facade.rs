@@ -18,8 +18,8 @@ pub use self::projection::{task_graph_rollup_path, todos_rollup_path, write_proj
 pub use self::types::{
     FacadeAgentDescriptor, FacadeAgentsListing, FacadeDelegateResult, FacadeJoinOutcome,
     FacadeScheduleTeamResult, FacadeSessionTaskRollup, FacadeTaskGraph, FacadeTaskGraphNode,
-    FacadeTaskSummary, FacadeTeamDescriptor, FacadeTodoItem, FacadeWatchRollup, ScheduleTeamError,
-    SessionTaskStatusError,
+    FacadeTaskSummary, FacadeTeamDescriptor, FacadeTodoItem, FacadeWatchRollup, PeerChannelError,
+    ScheduleTeamError, SessionTaskStatusError,
 };
 
 // ---------------------------------------------------------------------------
@@ -630,4 +630,96 @@ fn parse_session_task_status(s: &str) -> Option<SessionTaskStatus> {
         "completed" => Some(SessionTaskStatus::Completed),
         _ => None,
     }
+}
+
+// ---------------------------------------------------------------------------
+// ADR-046: Peer message channel facade
+// ---------------------------------------------------------------------------
+
+use crate::runtime::task_state::peer_channel::{
+    self, parse_peer_message_kind, PeerMessage, MAX_PEER_MESSAGE_BYTES,
+};
+
+/// Post a message to the peer channel for a parent task.
+///
+/// Validates:
+/// 1. The parent task exists in the state directory.
+/// 2. The sender is a session task belonging to that parent task.
+/// 3. The message content does not exceed `MAX_PEER_MESSAGE_BYTES`.
+/// 4. The message kind is a recognised `PeerMessageKind` variant.
+#[tracing::instrument(skip_all, fields(parent_task_id = %parent_task_id, sender_id = %sender_id))]
+pub fn facade_post_peer_message(
+    working_dir: &Path,
+    parent_task_id: &str,
+    sender_id: &str,
+    sender_agent_id: &str,
+    recipient: &str,
+    kind: &str,
+    content: &str,
+) -> std::result::Result<PeerMessage, PeerChannelError> {
+    // Validate kind
+    let kind = parse_peer_message_kind(kind).ok_or(PeerChannelError::InvalidKind)?;
+
+    // Validate content size
+    if content.len() > MAX_PEER_MESSAGE_BYTES {
+        return Err(PeerChannelError::ContentTooLong);
+    }
+
+    let state_dir = TaskState::state_dir_from(working_dir);
+
+    // Validate parent task exists and sender belongs to it
+    let files = TaskState::state_files_from(working_dir);
+    let mut parent_found = false;
+    let mut sender_valid = false;
+
+    for file in &files {
+        let state = TaskState::load(&file.dir, &file.id).map_err(PeerChannelError::Internal)?;
+        if state.id == parent_task_id {
+            parent_found = true;
+            sender_valid = state.session_tasks.iter().any(|t| {
+                t.id == sender_id || t.agent_id == sender_id
+            });
+            break;
+        }
+    }
+
+    if !parent_found {
+        return Err(PeerChannelError::ParentTaskNotFound);
+    }
+    if !sender_valid {
+        return Err(PeerChannelError::SenderNotInTask);
+    }
+
+    let message = PeerMessage::new(
+        sender_id,
+        sender_agent_id,
+        parent_task_id,
+        recipient,
+        kind,
+        content,
+    );
+
+    peer_channel::append_message(&state_dir, &message).map_err(|e| {
+        if e.to_string().contains("full") || e.to_string().contains("byte limit") {
+            PeerChannelError::ChannelFull
+        } else {
+            PeerChannelError::Internal(e)
+        }
+    })?;
+
+    Ok(message)
+}
+
+/// Read messages from a parent task's peer channel.
+///
+/// Returns up to `MAX_CHANNEL_READ_BATCH` messages after the given cursor.
+#[tracing::instrument(skip_all, fields(parent_task_id = %parent_task_id, after_ms = after_ms))]
+pub fn facade_read_peer_messages(
+    working_dir: &Path,
+    parent_task_id: &str,
+    after_ms: u64,
+    recipient_filter: Option<&str>,
+) -> Result<Vec<PeerMessage>> {
+    let state_dir = TaskState::state_dir_from(working_dir);
+    peer_channel::read_messages(&state_dir, parent_task_id, after_ms, recipient_filter)
 }

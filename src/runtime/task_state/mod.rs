@@ -10,6 +10,7 @@ use crate::turn_evidence::TurnEvidenceState;
 pub(crate) mod header_cache;
 #[cfg(test)]
 pub(crate) mod lazy_task_handle;
+pub mod peer_channel;
 mod persist;
 pub(crate) mod task_header;
 

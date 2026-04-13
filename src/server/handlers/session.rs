@@ -1,8 +1,9 @@
 use super::internal_anyhow;
 use crate::app::{
     facade_get_session_task, facade_list_session_tasks, facade_list_tasks, facade_list_todos,
-    facade_task_graph, facade_update_session_task_status, task_graph_rollup_path,
-    todos_rollup_path, write_projection_rollup, SessionTaskStatusError,
+    facade_post_peer_message, facade_read_peer_messages, facade_task_graph,
+    facade_update_session_task_status, task_graph_rollup_path, todos_rollup_path,
+    write_projection_rollup, PeerChannelError, SessionTaskStatusError,
 };
 use crate::local_api::LocalApiState;
 use crate::server::util::{bad_request, conflict, not_found};
@@ -351,4 +352,97 @@ pub async fn projection_handler(
         task_graph_written_ms: graph_written,
         todos_written_ms: todos_written,
     }))
+}
+
+// ---------------------------------------------------------------------------
+// ADR-046: Peer message channel
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct PostPeerMessageRequest {
+    pub sender_id: String,
+    pub sender_agent_id: String,
+    pub recipient: String,
+    pub kind: String,
+    pub content: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PeerMessageResponse {
+    pub id: String,
+    pub sent_at: u64,
+    pub sender_id: String,
+    pub sender_agent_id: String,
+    pub recipient: String,
+    pub kind: String,
+    pub content: String,
+    pub parent_task_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReadPeerMessagesQuery {
+    #[serde(default)]
+    pub after_ms: u64,
+    pub recipient: Option<String>,
+}
+
+/// `POST /v1/tasks/{parent_task_id}/messages`
+#[tracing::instrument(skip_all, fields(parent_task_id = %parent_task_id))]
+pub async fn post_peer_message_handler(
+    State(state): State<LocalApiState>,
+    Path(parent_task_id): Path<String>,
+    Json(body): Json<PostPeerMessageRequest>,
+) -> Result<Json<PeerMessageResponse>, (StatusCode, Json<ControlResponse>)> {
+    match facade_post_peer_message(
+        &state.config.working_dir,
+        &parent_task_id,
+        &body.sender_id,
+        &body.sender_agent_id,
+        &body.recipient,
+        &body.kind,
+        &body.content,
+    ) {
+        Ok(msg) => Ok(Json(peer_message_to_response(msg))),
+        Err(PeerChannelError::ParentTaskNotFound) => Err(not_found("parent_task_not_found")),
+        Err(PeerChannelError::SenderNotInTask) => Err(bad_request("sender_not_in_task")),
+        Err(PeerChannelError::ContentTooLong) => Err(bad_request("content_too_long")),
+        Err(PeerChannelError::ChannelFull) => Err(conflict("channel_full")),
+        Err(PeerChannelError::InvalidKind) => Err(bad_request("invalid_kind")),
+        Err(PeerChannelError::Internal(err)) => Err(internal_anyhow(err)),
+    }
+}
+
+/// `GET /v1/tasks/{parent_task_id}/messages`
+#[tracing::instrument(skip_all, fields(parent_task_id = %parent_task_id))]
+pub async fn read_peer_messages_handler(
+    State(state): State<LocalApiState>,
+    Path(parent_task_id): Path<String>,
+    axum::extract::Query(query): axum::extract::Query<ReadPeerMessagesQuery>,
+) -> Result<Json<Vec<PeerMessageResponse>>, (StatusCode, Json<ControlResponse>)> {
+    let messages = facade_read_peer_messages(
+        &state.config.working_dir,
+        &parent_task_id,
+        query.after_ms,
+        query.recipient.as_deref(),
+    )
+    .map_err(internal_anyhow)?;
+
+    Ok(Json(
+        messages.into_iter().map(peer_message_to_response).collect(),
+    ))
+}
+
+fn peer_message_to_response(
+    msg: crate::runtime::task_state::peer_channel::PeerMessage,
+) -> PeerMessageResponse {
+    PeerMessageResponse {
+        id: msg.id,
+        sent_at: msg.sent_at,
+        sender_id: msg.sender_id,
+        sender_agent_id: msg.sender_agent_id,
+        recipient: msg.recipient,
+        kind: msg.kind.to_string(),
+        content: msg.content,
+        parent_task_id: msg.parent_task_id,
+    }
 }
