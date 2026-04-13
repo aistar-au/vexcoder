@@ -7,7 +7,7 @@ The next dependency-sequenced batch is ADR-026 Phase I transport binding (`PI-13
 
 ## Context
 
-Milestone-1 validation passed on 2026-03-15 and is recorded in
+Phase-1 validation passed on 2026-03-15 and is recorded in
 `adr/ADR-022-free-open-coding-agent-roadmap.md`. The ADR-025 Phase I kickoff
 (PI-09 and PI-11) merged in PR #99 and established the canonical runtime
 handoff types, normative tool-call grammar, and versioned schema assets.
@@ -142,7 +142,7 @@ PI-09 (complete) + PI-11 (complete)
 
 ## Constraints
 
-- Treat milestone-1 gate as already passed. Do not re-run validation gate work.
+- Treat the phase-1 gate as already passed. Do not re-run validation gate work.
 - Do not re-open ADR-022 validation except to cite it as completed dependency.
 - Keep ADR-026 sequenced after ADR-025 closeout and ADR-024 reconciliation.
 - Treat ADR-028 as boundary ADR for post-gate implementation.
@@ -164,7 +164,7 @@ Add targeted ADR-025 tests as part of PI-12. Run verification after each item.
 
 ## PR motivation framing
 
-- Milestone-1 validation has already passed and is recorded in ADR-022.
+- Phase-1 validation has already passed and is recorded in ADR-022.
 - With this branch, roadmap and dispatch map advance to ADR-026 Phase I
   transport binding (`PI-13` and `PI-14` in parallel) after ADR-024
   reconciliation.

@@ -129,7 +129,7 @@ When three or more tests share the same assertion structure and differ only
 in input values or setup flags, they must be collapsed into a single
 `#[test_case]` parameterised test. This applies immediately to new tests.
 A retroactive cleanup of existing repeated scenarios is
-deferred to the split milestone for the relevant file.
+deferred to the split phase for the relevant file.
 
 ### Rule 6 — Async test runtime declaration
 

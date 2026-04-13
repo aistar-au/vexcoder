@@ -29,7 +29,7 @@ The missing decision is therefore not "SSE first" or "JSONL first." The missing 
 
 > what JSON contract exists between runtime traits so the same runtime can later be projected as a local API without duplicating logic or inventing a second event model.
 
-That seam is broader than a future HTTP server. In milestone 1 it must already support CLI/TUI execution and BatchMode evidence output, and later it must support `LocalApiServer`, task handoff, and other JSON-capable adapters without introducing a second contract. Browser-specific origin policy, web-UI behavior, and multi-agent queue ownership rules remain separate concerns; this ADR defines only the canonical request/event seam they would consume.
+That seam is broader than a future HTTP server. In phase 1 it must already support CLI/TUI execution and BatchMode evidence output, and later it must support `LocalApiServer`, task handoff, and other JSON-capable adapters without introducing a second contract. Browser-specific origin policy, web-UI behavior, and multi-agent queue ownership rules remain separate concerns; this ADR defines only the canonical request/event seam they would consume.
 
 **Checklist continuation note:** ADR-024 Phase I checklist items PI-01 through PI-08 cover session lifecycle and command-surface work (`/permissions`, `/allow`, `/deny`, `/new`, `/resume`, `/mcp list`, `/mcp show`, `/plan`/`/context`). **Note:** PI-08 (`/plan` and `/context`) is tracked in ADR-023 EL-11/EL-12 and is only listed in ADR-024 for cross-reference. This ADR extends the Phase I checklist from PI-09 through PI-12. ADR-026 continues from PI-13 through PI-16. ADR-028 defines the application-facade and transport-boundary rule that later CLI and server work must respect. A reconciliation change must keep ADR-024's Phase I checklist and config-key section aligned with ADR-025 and ADR-026 before transport work is treated as merge-ready.
 
@@ -42,7 +42,7 @@ That seam is broader than a future HTTP server. In milestone 1 it must already s
 This ADR satisfies ADR-024's Phase I specification requirement, but implementation must not begin until:
 
 1. Phase H (macOS packaging and distribution) is complete, and
-2. milestone-1 correctness work (ADR-022 phases 1–8 plus ADR-023 deterministic edit loop) is validated end-to-end.
+2. phase-1 correctness work (ADR-022 phases 1–8 plus ADR-023 deterministic edit loop) is validated end-to-end.
 
 No implementation lane may begin canonical JSON handoff implementation before that gate is green.
 

@@ -15,9 +15,9 @@ Last updated: 2026-04-05 (PR #342 Tier 4 debug: full git parsing stack, expanded
 | ADR | Status | Remaining items | Dependency note |
 | :--- | :--- | :--- | :--- |
 | ADR-021 | Accepted | 0 (all items complete) | All P1/P2/P3 items complete; see Tier 6 section |
-| ADR-022 amendment | Amended | Amendment only | Tightens milestone-1 command-execution rules relative to ADR-022 |
-| ADR-022 | Proposed (milestone-1 passed) | Post-milestone G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
-| ADR-024 | Proposed (pre-milestone complete) | 1 item (PG-03 tap auto-dispatch -- next batch planned) | PA–PM and PP done; PG-01/PG-02/PG-03 template complete; PH-01/PH-02/PH-03 complete; PL-01 (pre/post-tool hooks, Gap 26) complete |
+| ADR-022 amendment | Amended | Amendment only | Tightens phase-1 command-execution rules relative to ADR-022 |
+| ADR-022 | Proposed (phase-1 validation passed) | Post-phase-1 G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
+| ADR-024 | Proposed (pre-phase-1 complete) | 1 item (PG-03 tap auto-dispatch -- next batch planned) | PA–PM and PP done; PG-01/PG-02/PG-03 template complete; PH-01/PH-02/PH-03 complete; PL-01 (pre/post-tool hooks, Gap 26) complete |
 | ADR-028 | Active | Ongoing boundary alignment | Phase 1, 2, and transport extraction committed 2026-03-25; boundary tests now cover direct, grouped, multiline, and `super::`-relative `server`/`bin` imports for all inner layers |
 | ADR-029 | Accepted (amended 2026-04-01) | 0 items remaining | All 8 decision items verified in Tier 5 (PR #249); Amendment adds StreamTextNormaliser boundary for embedded tool call markup (PR #305) |
 | ADR-030 | Accepted | 0 items remaining | All 6 coverage requirements verified in Tier 5 (PR #249) |
@@ -139,13 +139,13 @@ All 13 tracked items complete.
 
 - ~~Item 33: IDLE_LOOP_BACKOFF tuning~~ (done 2026-03-28; tuning comment added noting 62Hz practical cap)
 
-### ~~Tier 8 -- Post-Milestone (ADR-024 G/H + ADR-022)~~ (cleared 2026-03-28) -- 0 items
+### ~~Tier 8 -- Post-Phase-1 (ADR-024 G/H + ADR-022)~~ (cleared 2026-03-28) -- 0 items
 
 PG-01 and PG-02 are complete (2026-03-28). PG-03, PH-01, PH-02, PH-03 complete 2026-03-28.
 ADR-022 Decision 11 maps to PH-01/PH-02/PH-03 and is satisfied by the Phase H implementation.
 The tap auto-dispatch update (sending a repository-dispatch to homebrew-vex on tag push) is
 next batch planned per ADR-024 §PG-03 — it requires the homebrew-vex tap repo to be created
-first and is not a blocker for the Phase H distribution milestone.
+first and is not a blocker for the Phase H distribution gate.
 
 - ~~PG-01: Release workflow -- Linux/macOS targets~~ (done 2026-03-28; existing release.yml targets verified; ADR-024 PG-01 checked)
 - ~~PG-02: Release workflow -- Windows (gnu) target~~ (done 2026-03-28; x86_64-pc-windows-gnu added to release matrix via cross on ubuntu-24.04)
@@ -153,7 +153,7 @@ first and is not a blocker for the Phase H distribution milestone.
 - ~~PH-01: macOS app layer -- process management~~ (done 2026-03-28; packaging/macos/src/main.rs + bundle.rs added; vex-launcher opens the macOS CLI host app with bundled vex binary)
 - ~~PH-02: macOS app layer -- keychain credential storage~~ (done 2026-03-28; packaging/macos/src/keychain.rs added; Security.framework FFI reads VEX_MODEL_TOKEN from system keychain)
 - ~~PH-03: macOS code signing + notarisation + .dmg~~ (done 2026-03-28; packaging/macos/build-app.sh + release.yml macos-pkg job added; codesign + xcrun notarytool + hdiutil .dmg; signing conditional on APPLE_DEVELOPER_ID_CERT secret)
-- ~~ADR-022 Decision 11: Native packaging (post-milestone-1)~~ (satisfied by PH-01/PH-02/PH-03 above)
+- ~~ADR-022 Decision 11: Native packaging (post-phase-1)~~ (satisfied by PH-01/PH-02/PH-03 above)
 
 ### ~~Tier 9 -- Housekeeping~~ (cleared 2026-03-28) -- 0 items (all 8 cleared)
 
@@ -316,7 +316,7 @@ Each branch had a task manifest in `TASKS/` defining scope, constraints, and anc
 ## Dependency Graph
 
 ```
-ADR-022 (Roadmap, milestone-1 passed)
+ADR-022 (Roadmap, phase-1 validation passed)
   +-- ADR-023 (Edit Loop) -- COMPLETE (EL-01 through EL-13)
   +-- ADR-024 (Parity Gaps) -- 1/56 item remaining (tap auto-dispatch next batch planned, pending tap repo creation)
   |     +-- ADR-025 (Handoff Contract) -- COMPLETE

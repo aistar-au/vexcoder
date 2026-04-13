@@ -4,7 +4,7 @@
 **Status:** Proposed
 **Deciders:** Core maintainer
 **ADR chain:** ADR-014, ADR-018, ADR-020, ADR-021
-**Amendment:** 2026-03-03 — Decision item 1 and the final Compliance note scoped to first milestone; Decision item 11 added to reserve native packaging and editor surfaces for post-first-milestone ADRs. See ADR-024 §Gap 9 for the binary distribution and macOS packaging decision.
+**Amendment:** 2026-03-03 — Decision item 1 and the final Compliance note scoped to phase 1; Decision item 11 added to reserve native packaging and editor surfaces for post-phase-1 ADRs. See ADR-024 §Gap 9 for the binary distribution and macOS packaging decision.
 
 ## Context
 
@@ -49,19 +49,19 @@ agent loop is stable.
 
 This ADR locks the following decisions:
 
-1. `vexcoder` is cli-agent-first for the first milestone. The cli runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the first milestone and must not be allowed to drive architectural changes to the runtime core.
+1. `vexcoder` is cli-agent-first for phase 1. The cli runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for phase 1 and must not be allowed to drive architectural changes to the runtime core.
 2. The default operating posture is approval-first.
-3. The first milestone supports both local model runtimes and self-hosted,
+3. Phase 1 supports both local model runtimes and self-hosted,
    neutral-compatible model servers.
-4. The first milestone is interactive and resumable.
-5. Background queueing is out of scope for the first milestone.
-6. Browser automation is out of scope for the first milestone.
+4. Phase 1 is interactive and resumable.
+5. Background queueing is out of scope for phase 1.
+6. Browser automation is out of scope for phase 1.
 7. Legacy provider-branded configuration names, branded defaults, and
    vendor-specific validation rules are removed immediately.
 8. Existing-file mutations become diff-native and approval-gated.
 9. Command execution becomes a first-class built-in capability.
 10. Approval is capability-based and remains separate from `RuntimeCorePolicy`.
-11. Native application packaging and additional runtime surfaces are reserved for post-first-milestone work. When introduced, they must be implemented in one of two forms: (a) a *packaging layer* — wraps the compiled binary, adds OS-native credential storage and chrome, contains no agent logic; or (b) a *new `RuntimeMode` implementation* — implements `RuntimeMode + FrontendAdapter` against the shared runtime core, is placed in `src/` like `TuiMode` and `BatchMode`, and extends rather than replaces the existing dispatch architecture. A local HTTP or Unix socket API server (`LocalApiServer: RuntimeMode + FrontendAdapter`) is a canonical example of form (b): it is not a packaging layer, it is a new surface implementation, and it belongs in `src/` by design. The prohibited case is an *architectural fork*: a surface that requires changes to `src/runtime/`, `src/api/`, or `src/state/` to function, modifies the shared runtime core to serve its own needs, or duplicates runtime logic in a second language rather than sharing it through the trait interface.
+11. Native application packaging and additional runtime surfaces are reserved for post-phase-1 work. When introduced, they must be implemented in one of two forms: (a) a *packaging layer* — wraps the compiled binary, adds OS-native credential storage and chrome, contains no agent logic; or (b) a *new `RuntimeMode` implementation* — implements `RuntimeMode + FrontendAdapter` against the shared runtime core, is placed in `src/` like `TuiMode` and `BatchMode`, and extends rather than replaces the existing dispatch architecture. A local HTTP or Unix socket API server (`LocalApiServer: RuntimeMode + FrontendAdapter`) is a canonical example of form (b): it is not a packaging layer, it is a new surface implementation, and it belongs in `src/` by design. The prohibited case is an *architectural fork*: a surface that requires changes to `src/runtime/`, `src/api/`, or `src/state/` to function, modifies the shared runtime core to serve its own needs, or duplicates runtime logic in a second language rather than sharing it through the trait interface.
 
 ## Normative Config and Interface Changes
 
@@ -227,7 +227,7 @@ Browser    = "deny"
 
 ## Task State and Resume Model
 
-Task state is durable on disk. The first milestone supports exactly one active
+Task state is durable on disk. Phase 1 supports exactly one active
 interactive task at a time.
 
 Resume is explicit, not automatic. On restart, interrupted commands are marked
@@ -351,14 +351,14 @@ requiring operator intervention for routine inspection.
 
 ### Phase 8 — Defer browser automation to a later optional phase
 
-**Objective:** preserve future extension space without widening first-milestone
+**Objective:** preserve future extension space without widening phase-1
 scope.
 
 **Implementation direction:** reserve `Capability::Browser` in the type system
-and policy model, but do not ship browser automation in the first milestone.
+and policy model, but do not ship browser automation in phase 1.
 
 **Completion condition:** browser capability exists only as reserved future
-surface, not as shipped first-milestone behavior.
+surface, not as shipped phase-1 behavior.
 
 ## Validation and Acceptance
 
@@ -416,7 +416,7 @@ fn approval_policy_is_capability_scoped() {
 }
 ```
 
-### Milestone-1 validation log (2026-03-15)
+### Phase-1 validation log (2026-03-15)
 
 - Historical branch name: omitted
 - Base: `origin/main` @ `feb8d4db161a0a72bf5134a6d88e187a576190d5`
@@ -441,9 +441,9 @@ fn approval_policy_is_capability_scoped() {
 | Phase 5 — Add durable task state and resume | resume, task-state, memory-note, and persisted-grant regressions remained green in `cargo test --all-targets`. | pass |
 | Phase 6 — Rework the TUI around task execution | `make gate-fast` and the targeted `/review`, `/plan`, `/context`, `/commands`, and `/help` anchors kept the task-first TUI path green. | pass |
 | Phase 7 — Improve repo-navigation tooling | context-assembly, `@path`, `/review --files`, `/plan`, and diff-context coverage remained green in `cargo test --all-targets`. | pass |
-| Phase 8 — Defer browser automation | no browser surface was introduced; the gate remained green without widening the first-milestone capability set. | pass |
+| Phase 8 — Defer browser automation | no browser surface was introduced; the gate remained green without widening the phase-1 capability set. | pass |
 
-Milestone-1 therefore closes as the ADR-022 validation gate for phases 1
+Phase-1 therefore closes as the ADR-022 validation gate for phases 1
 through 8 together with the completed ADR-023 command surface.
 
 ## Dispatch and merge policy
@@ -491,7 +491,7 @@ In other words:
 - Do not add paid-service assumptions.
 - Do not bypass capability-based approval for mutating operations.
 - Do not perform hidden file rewrites where a diff preview is required.
-- Do not add browser automation to the first milestone.
-- Do not introduce native application packaging or new runtime surface implementations in first-milestone work. Any future milestone that introduces these must do so via a dedicated ADR. Packaging layers must not contain agent logic. New `RuntimeMode` implementations must call into the shared runtime core unchanged — they must not modify `src/runtime/`, `src/api/`, or `src/state/` to serve surface-specific needs.
+- Do not add browser automation to phase 1.
+- Do not introduce native application packaging or new runtime surface implementations in phase-1 work. Any future phase that introduces these must do so via a dedicated ADR. Packaging layers must not contain agent logic. New `RuntimeMode` implementations must call into the shared runtime core unchanged — they must not modify `src/runtime/`, `src/api/`, or `src/state/` to serve surface-specific needs.
 - Do not conflate `RuntimeCorePolicy` (prompt-shaping) with `ApprovalPolicy`
   (capability gating); they are separate concerns and both must be maintained.

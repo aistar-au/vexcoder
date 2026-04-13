@@ -24,8 +24,8 @@ All ADR files are stored under `adr/`.
 | :--- | :--- | :--- | :--- |
 | [ADR-021](ADR-021-codebase-audit-unused-code-duplication-shared-code-opportunities.md) | Codebase audit (unused code) | Accepted | 0 items remaining; all P1/P2/P3 items complete |
 | [ADR-022 amendment](ADR-022-amendment-2026-03-13.md) | Command-execution amendment | Amended | Amendment only |
-| [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed (milestone-1 passed 2026-03-15) | Post-milestone phases G/H |
-| [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps | Proposed (pre-milestone complete) | 1 external item in the next batch: PG-03 tap auto-dispatch after the tap repo exists |
+| [ADR-022](ADR-022-free-open-coding-agent-roadmap.md) | Free/Open coding agent roadmap | Proposed (phase-1 validation passed 2026-03-15) | Post-phase-1 phases G/H |
+| [ADR-024](ADR-024-zero-licensing-cost-agent-parity-gaps.md) | Zero-licensing-cost agent parity gaps | Proposed (pre-phase-1 complete) | 1 external item in the next batch: PG-03 tap auto-dispatch after the tap repo exists |
 | [ADR-028](ADR-028-application-facade-and-transport-boundaries.md) | Application facade and transport boundaries | Active | Phase 1+2 merged; boundary tests now cover grouped, multiline, and `super::`-relative imports |
 | [ADR-029](ADR-029-stream-parser-completeness-and-session-persistence.md) | Stream parser completeness | Accepted | All 8 decision items verified (2026-03-28) |
 | [ADR-030](ADR-030-runtime-task-state-and-orchestrator-control-flow.md) | Runtime task state and orchestrator control flow | Accepted | All 6 coverage requirements verified (2026-03-28) |

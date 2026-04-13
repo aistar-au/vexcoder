@@ -4,6 +4,33 @@ use crate::runtime::backend::{ModelBackendKind, ModelProtocol, ToolCallMode};
 use crate::test_support::ENV_LOCK;
 use std::collections::BTreeSet;
 
+struct MaxTokensEnvGuard {
+    previous: Option<String>,
+}
+
+impl Drop for MaxTokensEnvGuard {
+    fn drop(&mut self) {
+        match &self.previous {
+            Some(value) => std::env::set_var("VEX_MAX_TOKENS", value),
+            None => std::env::remove_var("VEX_MAX_TOKENS"),
+        }
+    }
+}
+
+fn with_vex_max_tokens_env<T>(value: Option<&str>, run: impl FnOnce() -> T) -> T {
+    let _env_lock = ENV_LOCK.blocking_lock();
+    let _guard = MaxTokensEnvGuard {
+        previous: std::env::var("VEX_MAX_TOKENS").ok(),
+    };
+
+    match value {
+        Some(value) => std::env::set_var("VEX_MAX_TOKENS", value),
+        None => std::env::remove_var("VEX_MAX_TOKENS"),
+    }
+
+    run()
+}
+
 #[test]
 fn test_protocol_inference_defaults_to_messages_v1() {
     let protocol = infer_api_protocol("http://localhost:8000/v1/messages");
@@ -216,53 +243,48 @@ fn test_chat_compat_url_adapter_from_v1_base_endpoint() {
 #[test]
 fn test_resolve_max_tokens_defaults_to_profile_budget() {
     // server_n_ctx=0 → ceiling=16384; default 4096 < 16384 → 4096
-    let tokens = resolve_max_tokens(4096, 0);
+    let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 0));
     assert_eq!(tokens, 4096);
 }
 
 #[test]
 fn test_resolve_max_tokens_uses_server_n_ctx() {
     // 75% of 65536 = 49152; default 4096 < 49152 → 4096
-    let tokens = resolve_max_tokens(4096, 65536);
+    let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 65536));
     assert_eq!(tokens, 4096);
 }
 
 #[test]
 fn test_resolve_max_tokens_caps_at_seventy_five_percent_of_server_n_ctx() {
     // 75% of 65536 = 49152; default 60000 > 49152 → capped at 49152
-    let tokens = resolve_max_tokens(60000, 65536);
+    let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(60000, 65536));
     assert_eq!(tokens, 49152);
 }
 
 #[test]
 fn test_resolve_max_tokens_unknown_server_caps_at_ceiling() {
     // server_n_ctx=0 → ceiling=16384; default 40000 > 16384 → capped at 16384
-    let tokens = resolve_max_tokens(40000, 0);
+    let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(40000, 0));
     assert_eq!(tokens, 16384);
 }
 
 #[test]
 fn test_resolve_max_tokens_small_n_ctx_does_not_panic() {
     // server_n_ctx=100 → ceiling=75 (< 128); must not panic in clamp
-    let tokens = resolve_max_tokens(4096, 100);
+    let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 100));
     assert_eq!(tokens, 75);
 }
 
 #[test]
 fn test_resolve_max_tokens_n_ctx_one_returns_zero() {
     // server_n_ctx=1 → ceiling=0; boundary case for very small context
-    let tokens = resolve_max_tokens(4096, 1);
+    let tokens = with_vex_max_tokens_env(None, || resolve_max_tokens(4096, 1));
     assert_eq!(tokens, 0);
 }
 
 #[test]
 fn test_resolve_max_tokens_keeps_env_override_as_upper_bound_for_small_n_ctx() {
-    let _env_lock = ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_MAX_TOKENS", "50");
-
-    let tokens = resolve_max_tokens(4096, 100);
-
-    std::env::remove_var("VEX_MAX_TOKENS");
+    let tokens = with_vex_max_tokens_env(Some("50"), || resolve_max_tokens(4096, 100));
     assert_eq!(tokens, 50);
 }
 
