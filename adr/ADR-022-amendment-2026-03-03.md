@@ -2,7 +2,7 @@
 
 **Amendment status:** Proposed
 **Amends:** ADR-022 Decision item 1 and the final Compliance note; adds Decision item 11
-**Reason:** ADR-022 as written frames cli-agent-first and no-editor-integration as permanent identity statements. This amendment re-scopes them as phase-1 sequencing constraints, preserving architectural priority without permanently prohibiting native application packaging or future editor surfaces.
+**Reason:** ADR-022 as written frames cli-agent-first and no-editor-integration as permanent identity statements. This amendment re-scopes them as initial-delivery sequencing constraints, preserving architectural priority without permanently prohibiting native application packaging or future editor surfaces.
 
 ---
 
@@ -36,7 +36,7 @@ The original wording was written to prevent scope creep during phase 1, which wa
 
 This amendment preserves the sequencing intent (cli core first, packaging layers second) while leaving room for:
 
-1. **A macOS application wrapper (Phase H).** A wrapper that launches and manages the `vex` binary, provides OS-native credential storage, and presents a cli surface in an application window is a *packaging layer*. The Rust runtime runs unchanged inside it. This is a post-phase-1 macOS surface; it must not begin before the edit loop, approval system, and task state persistence are validated end-to-end.
+1. **A macOS application wrapper (Phase H).** A wrapper that launches and manages the `vex` binary, provides OS-native credential storage, and presents a cli surface in an application window is a *packaging layer*. The Rust runtime runs unchanged inside it. This is a post-launch macOS surface; it must not begin before the edit loop, approval system, and task state persistence are validated end-to-end.
 
 2. **A full native macOS client (post-Phase H).** A native macOS application that communicates with a `LocalApiServer: RuntimeMode + FrontendAdapter` running in-process or as a local daemon is a *new surface implementation* over the shared runtime core. It is architecturally equivalent to how cloud API servers work — the transport may stay on private IPC or extend to TLS-protected TCP, but the interface contract is identical. This path enables a full-featured native macOS application without duplicating any Rust logic in the native layer. It requires a dedicated ADR and must not begin before `BatchMode` and the core correctness gate are validated end-to-end.
 
@@ -69,7 +69,7 @@ Apply by editing `adr/ADR-022-free-open-coding-agent-roadmap.md` in place:
 
 ```
 **Amendment:** 2026-03-03 — Decision item 1 and the final Compliance note
-scoped to phase 1; Decision item 11 added to reserve native packaging
-and editor surfaces for post-phase-1 ADRs. See ADR-024 §Gap 9 for
+scoped to the initial delivery; Decision item 11 added to reserve native packaging
+and editor surfaces for post-launch ADRs. See ADR-024 §Gap 9 for
 the binary distribution and macOS packaging decision.
 ```

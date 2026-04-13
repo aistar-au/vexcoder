@@ -4,7 +4,7 @@
 **Status:** Proposed
 **Deciders:** Core maintainer
 **ADR chain:** ADR-014, ADR-018, ADR-020, ADR-021
-**Amendment:** 2026-03-03 — Decision item 1 and the final Compliance note scoped to phase 1; Decision item 11 added to reserve native packaging and editor surfaces for post-phase-1 ADRs. See ADR-024 §Gap 9 for the binary distribution and macOS packaging decision.
+**Amendment:** 2026-03-03 — Decision item 1 and the final Compliance note scoped to the initial delivery; Decision item 11 added to reserve native packaging and editor surfaces for post-launch ADRs. See ADR-024 §Gap 9 for the binary distribution and macOS packaging decision.
 
 ## Context
 
@@ -49,19 +49,19 @@ agent loop is stable.
 
 This ADR locks the following decisions:
 
-1. `vexcoder` is cli-agent-first for phase 1. The cli runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for phase 1 and must not be allowed to drive architectural changes to the runtime core.
+1. `vexcoder` is cli-agent-first for the initial delivery. The cli runtime is the canonical execution surface and must remain so at every packaging layer. Native application packaging (e.g. a macOS wrapper) and editor-surface integration (e.g. a general editor extension) are not in scope for the opening stage and must not be allowed to drive architectural changes to the runtime core.
 2. The default operating posture is approval-first.
-3. Phase 1 supports both local model runtimes and self-hosted,
+3. The first iteration supports both local model runtimes and self-hosted,
    neutral-compatible model servers.
-4. Phase 1 is interactive and resumable.
-5. Background queueing is out of scope for phase 1.
-6. Browser automation is out of scope for phase 1.
+4. The inaugural release is interactive and resumable.
+5. Background queueing is out of scope for the opening stage.
+6. Browser automation is out of scope for the first iteration.
 7. Legacy provider-branded configuration names, branded defaults, and
    vendor-specific validation rules are removed immediately.
 8. Existing-file mutations become diff-native and approval-gated.
 9. Command execution becomes a first-class built-in capability.
 10. Approval is capability-based and remains separate from `RuntimeCorePolicy`.
-11. Native application packaging and additional runtime surfaces are reserved for post-phase-1 work. When introduced, they must be implemented in one of two forms: (a) a *packaging layer* — wraps the compiled binary, adds OS-native credential storage and chrome, contains no agent logic; or (b) a *new `RuntimeMode` implementation* — implements `RuntimeMode + FrontendAdapter` against the shared runtime core, is placed in `src/` like `TuiMode` and `BatchMode`, and extends rather than replaces the existing dispatch architecture. A local HTTP or Unix socket API server (`LocalApiServer: RuntimeMode + FrontendAdapter`) is a canonical example of form (b): it is not a packaging layer, it is a new surface implementation, and it belongs in `src/` by design. The prohibited case is an *architectural fork*: a surface that requires changes to `src/runtime/`, `src/api/`, or `src/state/` to function, modifies the shared runtime core to serve its own needs, or duplicates runtime logic in a second language rather than sharing it through the internal runtime API surface.
+11. Native application packaging and additional runtime surfaces are reserved for post-launch work. When introduced, they must be implemented in one of two forms: (a) a *packaging layer* — wraps the compiled binary, adds OS-native credential storage and chrome, contains no agent logic; or (b) a *new `RuntimeMode` implementation* — implements `RuntimeMode + FrontendAdapter` against the shared runtime core, is placed in `src/` like `TuiMode` and `BatchMode`, and extends rather than replaces the existing dispatch architecture. A local HTTP or Unix socket API server (`LocalApiServer: RuntimeMode + FrontendAdapter`) is a canonical example of form (b): it is not a packaging layer, it is a new surface implementation, and it belongs in `src/` by design. The prohibited case is an *architectural fork*: a surface that requires changes to `src/runtime/`, `src/api/`, or `src/state/` to function, modifies the shared runtime core to serve its own needs, or duplicates runtime logic in a second language rather than sharing it through the internal runtime API surface.
 
 ## Normative Config and Interface Changes
 
@@ -227,7 +227,7 @@ Browser    = "deny"
 
 ## Task State and Resume Model
 
-Task state is durable on disk. Phase 1 supports exactly one active
+Task state is durable on disk. The initial delivery supports exactly one active
 interactive task at a time.
 
 Resume is explicit, not automatic. On restart, interrupted commands are marked
@@ -351,14 +351,14 @@ requiring operator intervention for routine inspection.
 
 ### Phase 8 — Defer browser automation to a later optional phase
 
-**Objective:** preserve future extension space without widening phase-1
+**Objective:** preserve future extension space without widening the initial
 scope.
 
 **Implementation direction:** reserve `Capability::Browser` in the type system
-and policy model, but do not ship browser automation in phase 1.
+and policy model, but do not ship browser automation in the first iteration.
 
 **Completion condition:** browser capability exists only as reserved future
-surface, not as shipped phase-1 behavior.
+surface, not as shipped opening-stage behavior.
 
 ## Validation and Acceptance
 

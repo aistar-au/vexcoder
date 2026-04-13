@@ -7,7 +7,7 @@ The next dependency-sequenced batch is ADR-026 Phase I transport binding (`PI-13
 
 ## Context
 
-Phase-1 validation passed on 2026-03-15 and is recorded in
+The initial validation passed on 2026-03-15 and is recorded in
 `adr/ADR-022-free-open-coding-agent-roadmap.md`. The ADR-025 Phase I kickoff
 (PI-09 and PI-11) merged in PR #99 and established the canonical runtime
 handoff types, normative tool-call grammar, and versioned schema assets.
@@ -164,7 +164,7 @@ Add targeted ADR-025 tests as part of PI-12. Run verification after each item.
 
 ## PR motivation framing
 
-- Phase-1 validation has already passed and is recorded in ADR-022.
+- The initial validation has already passed and is recorded in ADR-022.
 - With this branch, roadmap and dispatch map advance to ADR-026 Phase I
   transport binding (`PI-13` and `PI-14` in parallel) after ADR-024
   reconciliation.
