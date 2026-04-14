@@ -68,10 +68,10 @@ pub(crate) fn system_config_path() -> Option<PathBuf> {
 
 pub(crate) fn expand_home(path: PathBuf) -> PathBuf {
     let s = path.to_string_lossy();
-    if let Some(rest) = s.strip_prefix("~/")
-        && let Some(home) = preferred_home_dir()
-    {
-        return home.join(rest);
+    if let Some(rest) = s.strip_prefix("~/") {
+        if let Some(home) = preferred_home_dir() {
+            return home.join(rest);
+        }
     }
     path
 }

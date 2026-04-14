@@ -4,9 +4,9 @@ use crossterm::{
     cursor::Show,
     event::{DisableBracketedPaste, EnableBracketedPaste},
     execute,
-    terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode, size as host_display_size},
+    terminal::{disable_raw_mode, enable_raw_mode, size as host_display_size, Clear, ClearType},
 };
-use ratatui::{Terminal, TerminalOptions, Viewport, backend::CrosstermBackend};
+use ratatui::{backend::CrosstermBackend, Terminal, TerminalOptions, Viewport};
 use std::io::{self, IsTerminal, Stdout};
 use std::sync::Once;
 
@@ -118,7 +118,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn preferred_inline_viewport_rows_autofits_to_terminal() {
+    fn preferred_inline_viewport_rows_defaults_to_terminal_height() {
         assert_eq!(preferred_inline_viewport_rows_with_override(40, None), 40);
         assert_eq!(preferred_inline_viewport_rows_with_override(24, None), 24);
     }

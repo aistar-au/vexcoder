@@ -96,22 +96,22 @@ pub(super) fn infer_related_path_candidates(content: &str) -> Vec<PathBuf> {
     for line in content.lines() {
         let trimmed = line.trim();
 
-        if let Some(path) = infer_rust_use_path(trimmed)
-            && seen.insert(path.clone())
-        {
-            out.push(path);
+        if let Some(path) = infer_rust_use_path(trimmed) {
+            if seen.insert(path.clone()) {
+                out.push(path);
+            }
         }
 
-        if let Some(path) = infer_python_import_path(trimmed)
-            && seen.insert(path.clone())
-        {
-            out.push(path);
+        if let Some(path) = infer_python_import_path(trimmed) {
+            if seen.insert(path.clone()) {
+                out.push(path);
+            }
         }
 
-        if let Some(path) = infer_js_import_path(trimmed)
-            && seen.insert(path.clone())
-        {
-            out.push(path);
+        if let Some(path) = infer_js_import_path(trimmed) {
+            if seen.insert(path.clone()) {
+                out.push(path);
+            }
         }
     }
 

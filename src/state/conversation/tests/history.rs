@@ -867,12 +867,10 @@ fn test_compaction_summary_preserves_user_assistant_role_order() {
     let removed = manager.compact_with_summary(2, "Earlier discussion summary.");
     assert!(removed > 0);
     assert_eq!(manager.api_messages[0].role, "user");
-    assert!(
-        manager
-            .api_messages
-            .windows(2)
-            .all(|pair| pair[0].role != pair[1].role)
-    );
+    assert!(manager
+        .api_messages
+        .windows(2)
+        .all(|pair| pair[0].role != pair[1].role));
 }
 
 #[test]

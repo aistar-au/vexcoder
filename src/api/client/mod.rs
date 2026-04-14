@@ -5,12 +5,12 @@ use crate::runtime::backend::{
 };
 use crate::types::{ApiMessage, Content, ContentBlock};
 use crate::util::{is_local_endpoint_url, preferred_plain_http_url_for_local_endpoint};
-use anyhow::Result;
 use anyhow::anyhow;
+use anyhow::Result;
 use futures::StreamExt;
 use serde::Deserialize;
-use serde_json::Value;
 use serde_json::json;
+use serde_json::Value;
 use std::sync::{Arc, RwLock};
 
 /// Server capabilities discovered from a local inference server.
@@ -67,44 +67,51 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
         .timeout(std::time::Duration::from_secs(3))
         .send()
         .await
-        && resp.status().is_success()
-        && let Ok(props) = resp.json::<LocalServerProps>().await
-        && let Some(gs) = props.default_generation_settings
-        && gs.n_ctx > 0
     {
-        info = Some(ServerInfo {
-            n_ctx: gs.n_ctx,
-            n_batch: gs.n_batch,
-            model: gs.model,
-            native_protocol: None,
-        });
+        if resp.status().is_success() {
+            if let Ok(props) = resp.json::<LocalServerProps>().await {
+                if let Some(gen) = props.default_generation_settings {
+                    if gen.n_ctx > 0 {
+                        info = Some(ServerInfo {
+                            n_ctx: gen.n_ctx,
+                            n_batch: gen.n_batch,
+                            model: gen.model,
+                            native_protocol: None,
+                        });
+                    }
+                }
+            }
+        }
     }
 
     // Fallback: try /v1/models for other servers.
-    if info.is_none()
-        && let Ok(resp) = http
+    if info.is_none() {
+        if let Ok(resp) = http
             .get(format!("{base}/v1/models"))
             .timeout(std::time::Duration::from_secs(3))
             .send()
             .await
-        && resp.status().is_success()
-        && let Ok(body) = resp.json::<Value>().await
-    {
-        let model = body
-            .get("data")
-            .and_then(|d| d.as_array())
-            .and_then(|arr| arr.first())
-            .and_then(|m| m.get("id"))
-            .and_then(|id| id.as_str())
-            .unwrap_or("")
-            .to_string();
-        if !model.is_empty() {
-            info = Some(ServerInfo {
-                n_ctx: 0,
-                n_batch: 0,
-                model,
-                native_protocol: None,
-            });
+        {
+            if resp.status().is_success() {
+                if let Ok(body) = resp.json::<Value>().await {
+                    let model = body
+                        .get("data")
+                        .and_then(|d| d.as_array())
+                        .and_then(|arr| arr.first())
+                        .and_then(|m| m.get("id"))
+                        .and_then(|id| id.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    if !model.is_empty() {
+                        info = Some(ServerInfo {
+                            n_ctx: 0,
+                            n_batch: 0,
+                            model,
+                            native_protocol: None,
+                        });
+                    }
+                }
+            }
         }
     }
 

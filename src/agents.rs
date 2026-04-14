@@ -3,7 +3,7 @@
 //! ADR-034 Phase A: parsing, validation, team composition rules, and
 //! repo-local discovery.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};

@@ -1,33 +1,32 @@
 use crate::api::client::builtin_tool_summaries;
 use crate::config::Config;
-use crate::custom_commands::{CustomCommand, load_custom_commands};
+use crate::custom_commands::{load_custom_commands, CustomCommand};
 use crate::mcp::McpRegistryRollup;
 use crate::prompts::{
-    CODER_SYSTEM_PROMPT, render_custom_command_instruction, render_edit_prompt,
-    render_explain_prompt, render_generate_tests_prompt, render_plan_prompt, render_review_prompt,
+    render_custom_command_instruction, render_edit_prompt, render_explain_prompt,
+    render_generate_tests_prompt, render_plan_prompt, render_review_prompt, CODER_SYSTEM_PROMPT,
 };
+use crate::runtime::context::RuntimeContext;
+use crate::runtime::edit_loop::EditLoop;
+use crate::runtime::frontend::{ScrollAction, ScrollTarget, UserInputEvent};
+use crate::runtime::mode::RuntimeMode;
+use crate::runtime::project_instructions::{load_project_instructions, LoadResult};
+use crate::runtime::r#loop::Runtime;
+use crate::runtime::task_state::SessionNote;
+use crate::runtime::validation::ValidationSuite;
 #[cfg(test)]
 use crate::runtime::CommandResult;
 #[cfg(test)]
 use crate::runtime::TurnEntry;
-use crate::runtime::context::RuntimeContext;
-use crate::runtime::edit_loop::EditLoop;
-use crate::runtime::frontend::{ScrollAction, ScrollTarget, UserInputEvent};
-use crate::runtime::r#loop::Runtime;
-use crate::runtime::mode::RuntimeMode;
-use crate::runtime::project_instructions::{LoadResult, load_project_instructions};
-use crate::runtime::task_state::SessionNote;
-use crate::runtime::validation::ValidationSuite;
 use crate::runtime::{
-    ApprovalScope, Capability, CommandRequest, CommandRunner, ConfiguredSandbox,
-    DefaultCommandRunner, EditLoopOutcome, SandboxDriver, TaskDocument, TaskDocumentCondenser,
-    TaskState, TaskStatus, TurnOutcome, UiUpdate, format_command_session_cancelled,
-    format_command_session_exit, format_command_session_output, format_command_session_started,
-    truncate_head_bytes,
+    block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout, AssembledContext,
+    ContextAssembler,
 };
 use crate::runtime::{
-    AssembledContext, ContextAssembler, block_on_context_task, resolve_git_timeout_ms,
-    run_git_command_with_timeout,
+    format_command_session_cancelled, format_command_session_exit, format_command_session_output,
+    format_command_session_started, truncate_head_bytes, ApprovalScope, Capability, CommandRequest,
+    CommandRunner, ConfiguredSandbox, DefaultCommandRunner, EditLoopOutcome, SandboxDriver,
+    TaskDocument, TaskDocumentCondenser, TaskState, TaskStatus, TurnOutcome, UiUpdate,
 };
 #[cfg(test)]
 use crate::session_notes::resolve_notes_for_injection;
@@ -38,9 +37,9 @@ use crate::session_notes::{
 use crate::state::StreamBlock;
 use crate::state::{ConversationManager, ToolApprovalRequest, TurnToolPolicy};
 use crate::tools::ToolOperator;
+use crate::turn_evidence::note_changed_files_from_tool_call;
 #[cfg(test)]
 use crate::turn_evidence::ToolInvocationSummary;
-use crate::turn_evidence::note_changed_files_from_tool_call;
 use crate::types::ModelProfile;
 use anyhow::Result;
 #[cfg(test)]
@@ -78,30 +77,30 @@ mod turn_start;
 pub(crate) mod util;
 pub use self::errors::{AppError, AppResult};
 pub use self::facade::{
-    FacadeBootstrap, build_facade_client, build_facade_runtime, execute_facade_runtime,
-    run_tui_session,
+    build_facade_client, build_facade_runtime, execute_facade_runtime, run_tui_session,
+    FacadeBootstrap,
 };
 pub use self::runtime_build::{build_runtime, build_runtime_with_resume};
 pub use self::subtask_orchestrator::{JoinOutcome, SubtaskOrchestrator, TeamDecomposition};
 pub use self::task_facade::{
-    DelegateError, FacadeAgentDescriptor, FacadeAgentsListing, FacadeDelegateResult,
-    FacadeJoinOutcome, FacadeScheduleTeamResult, FacadeSessionTaskRollup, FacadeTaskGraph,
-    FacadeTaskGraphNode, FacadeTaskSummary, FacadeTeamDescriptor, FacadeTodoItem,
-    FacadeWatchRollup, PeerChannelError, ScheduleTeamError, SessionTaskStatusError,
     facade_delegate_session_task, facade_get_session_task, facade_list_agents,
     facade_list_session_tasks, facade_list_tasks, facade_list_todos, facade_poll_join,
     facade_post_peer_message, facade_read_peer_messages, facade_release_session_task,
     facade_schedule_team, facade_task_graph, facade_update_session_task_status,
     facade_watch_rollup, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
+    DelegateError, FacadeAgentDescriptor, FacadeAgentsListing, FacadeDelegateResult,
+    FacadeJoinOutcome, FacadeScheduleTeamResult, FacadeSessionTaskRollup, FacadeTaskGraph,
+    FacadeTaskGraphNode, FacadeTaskSummary, FacadeTeamDescriptor, FacadeTodoItem,
+    FacadeWatchRollup, PeerChannelError, ScheduleTeamError, SessionTaskStatusError,
 };
 
 use self::overlay::summarize_tool_approval_context;
 #[cfg(test)]
 use self::overlay::{
-    RenderPass, overlay_event_to_user_input, parse_approval_selection, render_pass_order,
+    overlay_event_to_user_input, parse_approval_selection, render_pass_order, RenderPass,
 };
 #[cfg(test)]
-use self::scroll::{RenderGuard, input_rows_for_buffer};
+use self::scroll::{input_rows_for_buffer, RenderGuard};
 use self::util::{
     builtin_slash_command_names, capability_for_tool_name, format_inline_block, kebab_to_scope,
     list_recent_task_entries, new_task_id, parse_generate_tests_args, parse_review_args,

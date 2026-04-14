@@ -1,7 +1,7 @@
-use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use axum::Json;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9,13 +9,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
-use super::SSE_KEEPALIVE_INTERVAL;
 use super::sse::runtime_sse_response;
 use super::util::{bad_request, conflict, internal_error, not_found};
+use super::SSE_KEEPALIVE_INTERVAL;
 use crate::app::{
-    DelegateError, ScheduleTeamError, execute_facade_runtime, facade_delegate_session_task,
-    facade_get_session_task, facade_list_agents, facade_poll_join, facade_release_session_task,
-    facade_schedule_team, facade_watch_rollup,
+    execute_facade_runtime, facade_delegate_session_task, facade_get_session_task,
+    facade_list_agents, facade_poll_join, facade_release_session_task, facade_schedule_team,
+    facade_watch_rollup, DelegateError, ScheduleTeamError,
 };
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
@@ -425,11 +425,11 @@ pub async fn approve_handler(
         return Err(conflict("no_pending_approval"));
     }
 
-    if let RuntimeRequest::ApproveCapability { scope, .. } = &request
-        && pending.scope != *scope
-    {
-        shared.pending_approval = Some(pending);
-        return Err(conflict("no_pending_approval"));
+    if let RuntimeRequest::ApproveCapability { scope, .. } = &request {
+        if pending.scope != *scope {
+            shared.pending_approval = Some(pending);
+            return Err(conflict("no_pending_approval"));
+        }
     }
 
     let approved = matches!(request, RuntimeRequest::ApproveCapability { .. });

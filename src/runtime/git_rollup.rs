@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use gix;
 use gix_config;
 use gix_discover;
@@ -6,14 +6,14 @@ use gix_index;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Handle;
 use tokio::task;
 use tokio::time;
 
-use super::git_parse::{ParsedGitStatus, parse_git_status};
+use super::git_parse::{parse_git_status, ParsedGitStatus};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct GitRollup {

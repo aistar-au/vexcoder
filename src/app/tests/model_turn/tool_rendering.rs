@@ -277,10 +277,10 @@ fn test_stream_block_delta_updates_pending_tool_call_input() {
     // Input should remain the initial empty object while the JSON is incomplete.
     let tc1_input_partial = mode.task_doc.active_turn.as_ref().and_then(|t| {
         t.entries.iter().rev().find_map(|e| {
-            if let crate::runtime::TurnEntry::ToolCall { id, input, .. } = e
-                && id == "tc1"
-            {
-                return Some(input.clone());
+            if let crate::runtime::TurnEntry::ToolCall { id, input, .. } = e {
+                if id == "tc1" {
+                    return Some(input.clone());
+                }
             }
             None
         })
@@ -301,10 +301,10 @@ fn test_stream_block_delta_updates_pending_tool_call_input() {
     );
     let tc1_input_complete = mode.task_doc.active_turn.as_ref().and_then(|t| {
         t.entries.iter().rev().find_map(|e| {
-            if let crate::runtime::TurnEntry::ToolCall { id, input, .. } = e
-                && id == "tc1"
-            {
-                return Some(input.clone());
+            if let crate::runtime::TurnEntry::ToolCall { id, input, .. } = e {
+                if id == "tc1" {
+                    return Some(input.clone());
+                }
             }
             None
         })

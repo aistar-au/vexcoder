@@ -77,12 +77,16 @@ impl SessionTokens {
 
 pub fn estimate_tokens(text: &str) -> u64 {
     let chars = text.chars().count() as u64;
-    if chars == 0 { 0 } else { chars.div_ceil(4) }
+    if chars == 0 {
+        0
+    } else {
+        chars.div_ceil(4)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{SessionTokens, TurnTokens, estimate_tokens};
+    use super::{estimate_tokens, SessionTokens, TurnTokens};
 
     #[test]
     fn estimate_tokens_uses_char_quarters() {

@@ -16,10 +16,10 @@ fn compact_preview_text(text: &str) -> String {
     }
 
     let mut end = compact.floor_char_boundary(MAX_SUMMARY_WIDTH);
-    if let Some(space_pos) = compact[..end].rfind(' ')
-        && space_pos > MAX_SUMMARY_WIDTH / 2
-    {
-        end = space_pos;
+    if let Some(space_pos) = compact[..end].rfind(' ') {
+        if space_pos > MAX_SUMMARY_WIDTH / 2 {
+            end = space_pos;
+        }
     }
     format!("{}\u{2026}", &compact[..end])
 }
@@ -94,23 +94,22 @@ impl TuiMode {
                 if self.task_doc.active_turn.is_some() {
                     self.task_doc.info.status = TaskStatus::Running;
                 }
-                if self.ttft.is_none()
-                    && let Some(started) = self.turn_started_at
-                {
-                    self.ttft = Some(started.elapsed());
-                    if let Some(active) = self.task_doc.active_turn.as_mut() {
-                        active.ttft_ms =
-                            Some(started.elapsed().as_millis().try_into().unwrap_or(u64::MAX));
+                if self.ttft.is_none() {
+                    if let Some(started) = self.turn_started_at {
+                        self.ttft = Some(started.elapsed());
+                        if let Some(active) = self.task_doc.active_turn.as_mut() {
+                            active.ttft_ms =
+                                Some(started.elapsed().as_millis().try_into().unwrap_or(u64::MAX));
+                        }
                     }
                 }
                 let appended = if let Some(active) = self.task_doc.active_turn.as_mut() {
                     active.entries.iter_mut().rev().any(|e| {
-                        if let TurnEntry::AssistantBlock { block, .. } = e
-                            && block.streaming
-                            && block.phase == AssistantPhase::Final
-                        {
-                            block.content.push_str(&text);
-                            return true;
+                        if let TurnEntry::AssistantBlock { block, .. } = e {
+                            if block.streaming && block.phase == AssistantPhase::Final {
+                                block.content.push_str(&text);
+                                return true;
+                            }
                         }
                         false
                     })
@@ -161,14 +160,18 @@ impl TuiMode {
                 let previous_output_len = self.expanded_output_row_count();
                 match block {
                     StreamBlock::FinalText { content } => {
-                        if self.ttft.is_none()
-                            && let Some(started) = self.turn_started_at
-                        {
-                            self.ttft = Some(started.elapsed());
-                            if let Some(active) = self.task_doc.active_turn.as_mut() {
-                                active.ttft_ms = Some(
-                                    started.elapsed().as_millis().try_into().unwrap_or(u64::MAX),
-                                );
+                        if self.ttft.is_none() {
+                            if let Some(started) = self.turn_started_at {
+                                self.ttft = Some(started.elapsed());
+                                if let Some(active) = self.task_doc.active_turn.as_mut() {
+                                    active.ttft_ms = Some(
+                                        started
+                                            .elapsed()
+                                            .as_millis()
+                                            .try_into()
+                                            .unwrap_or(u64::MAX),
+                                    );
+                                }
                             }
                         }
                         let step_id = self.alloc_step_id();
@@ -212,10 +215,11 @@ impl TuiMode {
                                     status: existing_status,
                                     ..
                                 } = e
-                                    && *existing_id == id
                                 {
-                                    *existing_status = status.clone();
-                                    return true;
+                                    if *existing_id == id {
+                                        *existing_status = status.clone();
+                                        return true;
+                                    }
                                 }
                                 false
                             })
@@ -248,15 +252,15 @@ impl TuiMode {
                         // Update matching ToolCall status and record changed files.
                         if let Some(active) = self.task_doc.active_turn.as_mut() {
                             for entry in &mut active.entries {
-                                if let TurnEntry::ToolCall { id, status, .. } = entry
-                                    && *id == tool_call_id
-                                {
-                                    *status = if is_error {
-                                        crate::state::ToolStatus::Error
-                                    } else {
-                                        crate::state::ToolStatus::Complete
-                                    };
-                                    break;
+                                if let TurnEntry::ToolCall { id, status, .. } = entry {
+                                    if *id == tool_call_id {
+                                        *status = if is_error {
+                                            crate::state::ToolStatus::Error
+                                        } else {
+                                            crate::state::ToolStatus::Complete
+                                        };
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -266,9 +270,10 @@ impl TuiMode {
                                     if let TurnEntry::ToolCall {
                                         id, name, input, ..
                                     } = e
-                                        && *id == tool_call_id
                                     {
-                                        return Some((name.clone(), input.clone()));
+                                        if *id == tool_call_id {
+                                            return Some((name.clone(), input.clone()));
+                                        }
                                     }
                                     None
                                 })
@@ -301,30 +306,30 @@ impl TuiMode {
             UiUpdate::StreamBlockDelta { index, delta } => {
                 let updated_text = if let Some(active) = self.task_doc.active_turn.as_mut() {
                     active.entries.iter_mut().rev().any(|e| {
-                        if let TurnEntry::AssistantBlock { block, .. } = e
-                            && block.block_index == index
-                        {
-                            block.content.push_str(&delta);
-                            self.stream_uses_block_deltas = true;
-                            return true;
+                        if let TurnEntry::AssistantBlock { block, .. } = e {
+                            if block.block_index == index {
+                                block.content.push_str(&delta);
+                                self.stream_uses_block_deltas = true;
+                                return true;
+                            }
                         }
                         false
                     })
                 } else {
                     false
                 };
-                if !updated_text
-                    && let Some(raw) = self.streaming_tool_input_buffers.get_mut(&index)
-                {
-                    raw.push_str(&delta);
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(raw)
-                        && let Some(active) = self.task_doc.active_turn.as_mut()
-                    {
-                        // Update the last ToolCall entry's input.
-                        for entry in active.entries.iter_mut().rev() {
-                            if let TurnEntry::ToolCall { input, .. } = entry {
-                                *input = parsed;
-                                break;
+                if !updated_text {
+                    if let Some(raw) = self.streaming_tool_input_buffers.get_mut(&index) {
+                        raw.push_str(&delta);
+                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(raw) {
+                            if let Some(active) = self.task_doc.active_turn.as_mut() {
+                                // Update the last ToolCall entry's input.
+                                for entry in active.entries.iter_mut().rev() {
+                                    if let TurnEntry::ToolCall { input, .. } = entry {
+                                        *input = parsed;
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
@@ -335,11 +340,11 @@ impl TuiMode {
             UiUpdate::StreamBlockComplete { index } => {
                 if let Some(active) = self.task_doc.active_turn.as_mut() {
                     for entry in active.entries.iter_mut().rev() {
-                        if let TurnEntry::AssistantBlock { block, .. } = entry
-                            && block.block_index == index
-                        {
-                            block.streaming = false;
-                            break;
+                        if let TurnEntry::AssistantBlock { block, .. } = entry {
+                            if block.block_index == index {
+                                block.streaming = false;
+                                break;
+                            }
                         }
                     }
                 }
@@ -435,10 +440,10 @@ impl TuiMode {
                     t.command_sessions.clear();
                 }
                 self.last_error_message = None;
-                if let Some(result) = last_validation_result
-                    && let Some(edit_loop) = self.active_edit_loop.as_mut()
-                {
-                    edit_loop.set_last_validation_result(result);
+                if let Some(result) = last_validation_result {
+                    if let Some(edit_loop) = self.active_edit_loop.as_mut() {
+                        edit_loop.set_last_validation_result(result);
+                    }
                 }
                 self.resolve_pending_approval(false, ctx);
                 self.resolve_pending_patch_approval(false);

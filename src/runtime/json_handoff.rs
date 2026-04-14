@@ -2,8 +2,8 @@ use super::UiUpdate;
 use crate::runtime::AssistantPhase;
 use crate::state::{StreamBlock, ToolStatus};
 use crate::turn_evidence::{
-    SummaryRecord, TurnEvidenceRecord, command_evidence_from_tool_result,
-    note_changed_files_from_tool_call,
+    command_evidence_from_tool_result, note_changed_files_from_tool_call, SummaryRecord,
+    TurnEvidenceRecord,
 };
 use crate::types::ContentBlock;
 use crate::usage::TurnTokens;
@@ -14,7 +14,7 @@ use std::collections::BTreeSet;
 
 mod derived;
 
-use self::derived::{DerivedTurnState, empty_json_object, turn_tokens_from_usage};
+use self::derived::{empty_json_object, turn_tokens_from_usage, DerivedTurnState};
 pub use self::derived::{runtime_approval_request_event, token_usage_from_turn_tokens};
 
 const SYNTHETIC_FINAL_TEXT_BLOCK_START: usize = 1_000_000;
@@ -564,10 +564,10 @@ pub fn derive_batch_records(
                 });
             }
             RuntimeEvent::TranscriptBlockStart { index, block } => {
-                if let Some(state) = current_turn.as_mut()
-                    && let StreamBlock::FinalText { content } = block
-                {
-                    state.start_final_text_block(*index, content.clone());
+                if let Some(state) = current_turn.as_mut() {
+                    if let StreamBlock::FinalText { content } = block {
+                        state.start_final_text_block(*index, content.clone());
+                    }
                 }
             }
             RuntimeEvent::TranscriptBlockDelta { index, delta } => {
@@ -585,11 +585,12 @@ pub fn derive_batch_records(
                 is_error,
                 ..
             } => {
-                if let Some(state) = current_turn.as_mut()
-                    && let Some(name) = tool_name
-                    && let Some(evidence) = command_evidence_from_tool_result(name, *is_error)
-                {
-                    state.command_history.push(evidence);
+                if let Some(state) = current_turn.as_mut() {
+                    if let Some(name) = tool_name {
+                        if let Some(evidence) = command_evidence_from_tool_result(name, *is_error) {
+                            state.command_history.push(evidence);
+                        }
+                    }
                 }
             }
             RuntimeEvent::TurnEnd {

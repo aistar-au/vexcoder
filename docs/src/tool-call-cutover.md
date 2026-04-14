@@ -7,8 +7,10 @@ and the remaining architecture work after that cutover.
 ## Current constraints
 
 The ratatui task surface keeps the composer immediately below the visible
-transcript content. Any surplus rows in the bounded inline viewport accumulate
-below the composer rather than between the content and the input pane.
+transcript content. Any surplus rows in the inline viewport accumulate below
+the composer rather than between the content and the input pane. By default
+the viewport height follows the current display height; `VEX_INLINE_VIEWPORT_ROWS`
+can clamp it to a smaller fixed line count when local tuning is needed.
 The remaining complexity is no longer the pane split; it is the live
 transcript state.
 
@@ -61,8 +63,11 @@ choices so the UI, parser, and API route all move in the same direction.
 ### 1. Viewport contract
 
 - The composer sits immediately below the visible transcript content.
-  Surplus rows in the bounded inline viewport accumulate below the composer
-  so blank space never appears between content and the input pane.
+  Surplus rows in the inline viewport accumulate below the composer so blank
+  space never appears between content and the input pane.
+- `Viewport::Inline` keeps a fixed line count. In the current CLI surface that
+  count defaults to the host display height and can be overridden with
+  `VEX_INLINE_VIEWPORT_ROWS` for a smaller reservation.
 - Short transcript bodies start directly below the status row and grow
   downward; the output pane is sized to exactly the visible content rows.
 - As new rows arrive, the transcript grows downward until it fills the body.

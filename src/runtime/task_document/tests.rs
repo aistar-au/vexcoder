@@ -92,12 +92,10 @@ fn apply_tool_call_event_appends_entry() {
     );
 
     let active = doc.active_turn.as_ref().expect("active turn");
-    assert!(
-        active
-            .entries
-            .iter()
-            .any(|entry| matches!(entry, TurnEntry::ToolCall { .. }))
-    );
+    assert!(active
+        .entries
+        .iter()
+        .any(|entry| matches!(entry, TurnEntry::ToolCall { .. })));
     assert!(summary.active_turn_changed);
 }
 
@@ -127,10 +125,10 @@ fn tool_result_advances_tool_call_status() {
 
     let active = doc.active_turn.as_ref().expect("active turn");
     let call_status = active.entries.iter().find_map(|entry| {
-        if let TurnEntry::ToolCall { id, status, .. } = entry
-            && id == "tc-01"
-        {
-            return Some(status.clone());
+        if let TurnEntry::ToolCall { id, status, .. } = entry {
+            if id == "tc-01" {
+                return Some(status.clone());
+            }
         }
         None
     });

@@ -3,7 +3,7 @@ use crate::tools::semantic::SemanticChunkScore;
 use bm25::{Document as Bm25Document, Language, SearchEngineBuilder};
 use bstr::ByteSlice;
 use grep_regex::RegexMatcher;
-use grep_searcher::{SearcherBuilder, sinks::UTF8};
+use grep_searcher::{sinks::UTF8, SearcherBuilder};
 use memmap2::Mmap;
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -72,7 +72,11 @@ pub fn codebase_search(
         .enumerate()
         .filter_map(|(i, chunk)| {
             let score = score_chunk(chunk, &query_lower, &query_words);
-            if score > 0.0 { Some((score, i)) } else { None }
+            if score > 0.0 {
+                Some((score, i))
+            } else {
+                None
+            }
         })
         .collect();
 

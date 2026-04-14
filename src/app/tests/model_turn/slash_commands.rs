@@ -21,11 +21,10 @@ async fn test_model_switches_name() {
     mode.on_user_input("/model local/coder-8b".to_string(), &mut ctx);
     assert_eq!(mode.model_name, "local/coder-8b");
     assert_eq!(ctx.test_model_name().await, "local/coder-8b");
-    assert!(
-        mode.history_lines()
-            .iter()
-            .any(|l| l.contains(&old) && l.contains("local/coder-8b"))
-    );
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|l| l.contains(&old) && l.contains("local/coder-8b")));
 }
 
 #[tokio::test]
@@ -128,11 +127,10 @@ async fn test_tui_diff_non_git_repo() {
     mode.working_dir = temp.path().to_path_buf();
     mode.on_user_input("/diff".to_string(), &mut ctx);
 
-    assert!(
-        mode.history_lines()
-            .iter()
-            .any(|l| l == "[diff] not a git repository")
-    );
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|l| l == "[diff] not a git repository"));
 }
 
 #[tokio::test]
@@ -148,11 +146,10 @@ async fn test_tui_diff_clean_working_tree() {
     mode.working_dir = temp.path().to_path_buf();
     mode.on_user_input("/diff".to_string(), &mut ctx);
 
-    assert!(
-        mode.history_lines()
-            .iter()
-            .any(|l| l == "[diff] working tree is clean")
-    );
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|l| l == "[diff] working tree is clean"));
 }
 
 #[tokio::test]
@@ -176,11 +173,10 @@ async fn test_tui_diff_limits_output_at_max_lines() {
     mode.working_dir = temp.path().to_path_buf();
     mode.on_user_input("/diff".to_string(), &mut ctx);
 
-    assert!(
-        mode.history_lines()
-            .iter()
-            .any(|line| line == "[diff limited to first 200 lines]")
-    );
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line == "[diff limited to first 200 lines]"));
 }
 
 #[tokio::test]
@@ -313,7 +309,7 @@ fn test_tui_edit_loop_completion_clears_busy_state() {
 fn test_tui_edit_loop_completion_persists_max_turn_status_in_task_state() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    crate::test_support::test_set_var("VEX_STATE_DIR", temp.path());
+    std::env::set_var("VEX_STATE_DIR", temp.path());
 
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
@@ -334,7 +330,7 @@ fn test_tui_edit_loop_completion_persists_max_turn_status_in_task_state() {
     );
     assert_eq!(saved.status, crate::runtime::TaskStatus::MaxTurnsReached);
 
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
+    std::env::remove_var("VEX_STATE_DIR");
 }
 
 // -- /explain -------------------------------------------------------------
@@ -520,11 +516,10 @@ async fn test_tui_review_invalid_ref_emits_error_no_turn() {
     let initial_messages = ctx.test_message_count().await;
     mode.on_user_input("/review --base missing-ref".to_string(), &mut ctx);
 
-    assert!(
-        mode.history_lines()
-            .iter()
-            .any(|line| line == "[review: invalid base ref 'missing-ref']")
-    );
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line == "[review: invalid base ref 'missing-ref']"));
     assert!(
         !mode.is_turn_in_progress(),
         "invalid /review base refs must not start a turn"
@@ -543,11 +538,10 @@ async fn test_tui_review_mutual_exclusion_base_and_files() {
         &mut ctx,
     );
 
-    assert!(
-        mode.history_lines()
-            .iter()
-            .any(|line| line == "[review: --base and --files are mutually exclusive]")
-    );
+    assert!(mode
+        .history_lines()
+        .iter()
+        .any(|line| line == "[review: --base and --files are mutually exclusive]"));
     assert!(!mode.is_turn_in_progress());
     assert_eq!(ctx.test_message_count().await, initial_messages);
 }
@@ -613,12 +607,10 @@ async fn test_tui_review_files_flag_uses_context_assembler() {
         .last_assembled_context
         .as_ref()
         .expect("/review --files must capture assembled context");
-    assert!(
-        assembled
-            .file_rollups
-            .iter()
-            .any(|snapshot| snapshot.path == std::path::Path::new("src/lib.rs"))
-    );
+    assert!(assembled
+        .file_rollups
+        .iter()
+        .any(|snapshot| snapshot.path == std::path::Path::new("src/lib.rs")));
     assert!(
         mode.last_turn_input.as_deref().is_some_and(|prompt| {
             prompt.contains("[review files] pattern: src/*.rs")

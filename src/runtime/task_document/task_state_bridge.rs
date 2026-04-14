@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::runtime::ModelBackendKind;
 use crate::runtime::task_state::{CacheUsageStats, ConversationCheckpoint, TaskState};
+use crate::runtime::ModelBackendKind;
 use crate::state::ToolStatus;
 use crate::turn_evidence::{ToolInvocationSummary, TurnEvidenceState};
 
@@ -128,10 +128,10 @@ fn extract_final_text(entries: &[TurnEntry]) -> String {
     entries
         .iter()
         .filter_map(|entry| {
-            if let TurnEntry::AssistantBlock { block, .. } = entry
-                && block.phase == AssistantPhase::Final
-            {
-                return Some(block.content.as_str());
+            if let TurnEntry::AssistantBlock { block, .. } = entry {
+                if block.phase == AssistantPhase::Final {
+                    return Some(block.content.as_str());
+                }
             }
             None
         })

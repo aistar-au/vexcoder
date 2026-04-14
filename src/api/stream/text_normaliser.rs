@@ -184,23 +184,23 @@ impl StreamTextNormaliser {
         }
 
         if self.in_tool_block {
-            if self.current_param_name.is_some()
-                && let Some(index) = function_open_transition_index(line).filter(|idx| *idx > 0)
-            {
-                let prefix = &line[..index];
-                if !prefix.is_empty() {
-                    self.current_param_value.push_str(prefix);
+            if self.current_param_name.is_some() {
+                if let Some(index) = function_open_transition_index(line).filter(|idx| *idx > 0) {
+                    let prefix = &line[..index];
+                    if !prefix.is_empty() {
+                        self.current_param_value.push_str(prefix);
+                    }
+                    if let Some(param_name) = self.current_param_name.take() {
+                        let value = std::mem::take(&mut self.current_param_value);
+                        let compact = compact_param_value(&value);
+                        output.push(NormalisedChunk::TranscriptLine(format!(
+                            "[detail] {param_name}: {compact}"
+                        )));
+                    }
+                    self.flush_stale_tool_block(output);
+                    self.process_line(&line[index..], output);
+                    return;
                 }
-                if let Some(param_name) = self.current_param_name.take() {
-                    let value = std::mem::take(&mut self.current_param_value);
-                    let compact = compact_param_value(&value);
-                    output.push(NormalisedChunk::TranscriptLine(format!(
-                        "[detail] {param_name}: {compact}"
-                    )));
-                }
-                self.flush_stale_tool_block(output);
-                self.process_line(&line[index..], output);
-                return;
             }
             if let Some(param_name) = parse_embedded_parameter_open(trimmed) {
                 if let Some(prev_name) = self.current_param_name.take() {

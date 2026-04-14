@@ -1,5 +1,5 @@
 use reqwest::header::HeaderMap;
-use vexcoder::batch_mode::{AutoApproveScope, BatchRunOpts, OutputFormat, build_batch_runtime};
+use vexcoder::batch_mode::{build_batch_runtime, AutoApproveScope, BatchRunOpts, OutputFormat};
 use vexcoder::config::Config;
 use vexcoder::runtime::{ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy};
 use vexcoder::types::ModelProfile;
@@ -56,14 +56,16 @@ fn windows_ripgrep_binary() -> Option<std::path::PathBuf> {
         return None;
     }
 
-    if let Ok(output) = std::process::Command::new("where").arg("rg.exe").output()
-        && output.status.success()
-        && let Some(path) = String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .map(str::trim)
-            .find(|line| !line.is_empty())
-    {
-        return Some(std::path::PathBuf::from(path));
+    if let Ok(output) = std::process::Command::new("where").arg("rg.exe").output() {
+        if output.status.success() {
+            if let Some(path) = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty())
+            {
+                return Some(std::path::PathBuf::from(path));
+            }
+        }
     }
 
     [
@@ -217,18 +219,18 @@ fn test_config_prefers_env_over_repo_user_system_and_defaults() {
     .unwrap();
     std::fs::write(&user_cfg, "model_name = \"user-model\"\n").unwrap();
     std::fs::write(&system_cfg, "model_name = \"system-model\"\n").unwrap();
-    unsafe { std::env::set_var("VEX_MODEL_NAME", "env-model") };
+    std::env::set_var("VEX_MODEL_NAME", "env-model");
     let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), Some(&system_cfg)).unwrap();
     assert_eq!(cfg.model_name, "env-model");
     assert_eq!(cfg.model_url, "http://repo.example/v1");
-    unsafe { std::env::remove_var("VEX_MODEL_NAME") };
+    std::env::remove_var("VEX_MODEL_NAME");
 }
 
 #[test]
 fn test_config_repo_overrides_user_system_and_defaults() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    unsafe { std::env::remove_var("VEX_MODEL_NAME") };
-    unsafe { std::env::remove_var("VEX_MODEL_URL") };
+    std::env::remove_var("VEX_MODEL_NAME");
+    std::env::remove_var("VEX_MODEL_URL");
     let temp = tempfile::tempdir().unwrap();
     let repo_root = temp.path().join("repo");
     let cwd = repo_root.join("sub");
@@ -245,15 +247,15 @@ fn test_config_repo_overrides_user_system_and_defaults() {
     std::fs::write(&system_cfg, "model_name = \"system-model\"\n").unwrap();
     let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), Some(&system_cfg)).unwrap();
     assert_eq!(cfg.model_name, "repo-model");
-    unsafe { std::env::remove_var("VEX_MODEL_NAME") };
-    unsafe { std::env::remove_var("VEX_MODEL_URL") };
+    std::env::remove_var("VEX_MODEL_NAME");
+    std::env::remove_var("VEX_MODEL_URL");
 }
 
 #[test]
 fn test_config_user_overrides_system_and_defaults() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    unsafe { std::env::remove_var("VEX_MODEL_NAME") };
-    unsafe { std::env::remove_var("VEX_MODEL_URL") };
+    std::env::remove_var("VEX_MODEL_NAME");
+    std::env::remove_var("VEX_MODEL_URL");
     let temp = tempfile::tempdir().unwrap();
     let cwd = temp.path().join("project");
     let user_cfg = temp.path().join("user.toml");
@@ -264,8 +266,8 @@ fn test_config_user_overrides_system_and_defaults() {
     // No repo-local config in cwd ancestry.
     let cfg = Config::load_for_tests(&cwd, Some(&user_cfg), Some(&system_cfg)).unwrap();
     assert_eq!(cfg.model_name, "user-model");
-    unsafe { std::env::remove_var("VEX_MODEL_NAME") };
-    unsafe { std::env::remove_var("VEX_MODEL_URL") };
+    std::env::remove_var("VEX_MODEL_NAME");
+    std::env::remove_var("VEX_MODEL_URL");
 }
 
 #[test]

@@ -73,7 +73,7 @@ fn test_build_runtime_with_resume_restores_task() {
 fn test_tui_new_clears_active_edit_loop_field() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    crate::test_support::test_set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
 
     let mut mode = TuiMode::new();
     mode.active_edit_loop = Some(EditLoop::new("task-before-new".to_string()));
@@ -84,7 +84,7 @@ fn test_tui_new_clears_active_edit_loop_field() {
         mode.active_edit_loop.is_none(),
         "/new must clear active_edit_loop field"
     );
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
+    std::env::remove_var("VEX_STATE_DIR");
 }
 
 #[test]

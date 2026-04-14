@@ -289,7 +289,7 @@ fn resolve_include_git_context(default_enabled: bool) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{ContextAssembler, extract_candidate_paths};
+    use super::{extract_candidate_paths, ContextAssembler};
     use crate::tools::ToolOperator;
     use std::fs;
     use std::path::Path;
@@ -401,7 +401,7 @@ mod tests {
         let workspace = tempfile::tempdir().expect("tempdir");
         init_git_repo(workspace.path());
         fs::write(workspace.path().join("note.txt"), "note\n").expect("write note");
-        crate::test_support::test_remove_var("VEX_CONTEXT_INCLUDE_GIT");
+        std::env::remove_var("VEX_CONTEXT_INCLUDE_GIT");
 
         let operator = ToolOperator::new(workspace.path().to_path_buf());
         let assembler = ContextAssembler::default();
@@ -455,7 +455,7 @@ mod tests {
         fs::write(workspace.path().join("note.txt"), "note").expect("write");
 
         let ceiling = workspace.path().to_string_lossy().to_string();
-        crate::test_support::test_set_var("GIT_CEILING_DIRECTORIES", &ceiling);
+        std::env::set_var("GIT_CEILING_DIRECTORIES", &ceiling);
 
         let operator = ToolOperator::new(workspace.path().to_path_buf());
         let assembler = ContextAssembler::default().with_git_context(true);
@@ -463,7 +463,7 @@ mod tests {
             .assemble("read note.txt", &operator)
             .expect("assemble failed");
 
-        crate::test_support::test_remove_var("GIT_CEILING_DIRECTORIES");
+        std::env::remove_var("GIT_CEILING_DIRECTORIES");
 
         assert!(ctx.git_status_summary.is_none());
         assert!(ctx.recent_diff.is_none());
@@ -494,14 +494,14 @@ mod tests {
         let changed = "different line to force large diff\n".repeat(80_000);
         fs::write(&file_path, changed).expect("write changed");
 
-        crate::test_support::test_set_var("VEX_CONTEXT_GIT_TIMEOUT_MS", "1");
+        std::env::set_var("VEX_CONTEXT_GIT_TIMEOUT_MS", "1");
         let operator = ToolOperator::new(workspace.path().to_path_buf());
         let assembler = ContextAssembler::default().with_git_context(true);
         let ctx = assembler
             .assemble("inspect slow.txt", &operator)
             .expect("assemble failed");
         let rendered = assembler.render(&ctx);
-        crate::test_support::test_remove_var("VEX_CONTEXT_GIT_TIMEOUT_MS");
+        std::env::remove_var("VEX_CONTEXT_GIT_TIMEOUT_MS");
 
         assert!(ctx.recent_diff.is_none());
         assert!(

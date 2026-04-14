@@ -1,6 +1,6 @@
 use super::{
-    ValidationCommand, ValidationOutput, ValidationResult, ValidationSuite, load_validate_toml,
-    makefile_has_test_target,
+    load_validate_toml, makefile_has_test_target, ValidationCommand, ValidationOutput,
+    ValidationResult, ValidationSuite,
 };
 use crate::runtime::PassthroughSandbox;
 use std::fs;

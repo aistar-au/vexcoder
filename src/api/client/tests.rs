@@ -11,8 +11,8 @@ struct MaxTokensEnvGuard {
 impl Drop for MaxTokensEnvGuard {
     fn drop(&mut self) {
         match &self.previous {
-            Some(value) => crate::test_support::test_set_var("VEX_MAX_TOKENS", value),
-            None => crate::test_support::test_remove_var("VEX_MAX_TOKENS"),
+            Some(value) => std::env::set_var("VEX_MAX_TOKENS", value),
+            None => std::env::remove_var("VEX_MAX_TOKENS"),
         }
     }
 }
@@ -24,8 +24,8 @@ fn with_vex_max_tokens_env<T>(value: Option<&str>, run: impl FnOnce() -> T) -> T
     };
 
     match value {
-        Some(value) => crate::test_support::test_set_var("VEX_MAX_TOKENS", value),
-        None => crate::test_support::test_remove_var("VEX_MAX_TOKENS"),
+        Some(value) => std::env::set_var("VEX_MAX_TOKENS", value),
+        None => std::env::remove_var("VEX_MAX_TOKENS"),
     }
 
     run()
@@ -329,7 +329,7 @@ fn test_tool_definitions_cover_execute_tool_dispatch_names() {
 #[test]
 fn test_structured_tool_protocol_env_off_disables_protocol() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_set_var("VEX_STRUCTURED_TOOL_PROTOCOL", "off");
+    std::env::set_var("VEX_STRUCTURED_TOOL_PROTOCOL", "off");
     let config = crate::config::Config {
         model_token: None,
         model_name: "mock-model".to_string(),
@@ -360,13 +360,13 @@ fn test_structured_tool_protocol_env_off_disables_protocol() {
 
     let client = ApiClient::new(&config).expect("client should build");
     assert!(!client.supports_structured_tool_protocol());
-    crate::test_support::test_remove_var("VEX_STRUCTURED_TOOL_PROTOCOL");
+    std::env::remove_var("VEX_STRUCTURED_TOOL_PROTOCOL");
 }
 
 #[test]
 fn test_structured_tool_protocol_defaults_off_for_local_endpoint() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_remove_var("VEX_STRUCTURED_TOOL_PROTOCOL");
+    std::env::remove_var("VEX_STRUCTURED_TOOL_PROTOCOL");
     let config = crate::config::Config {
         model_token: None,
         model_name: "local/test-model".to_string(),
@@ -402,7 +402,7 @@ fn test_structured_tool_protocol_defaults_off_for_local_endpoint() {
 #[test]
 fn test_structured_tool_protocol_defaults_on_for_remote_endpoint() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_remove_var("VEX_STRUCTURED_TOOL_PROTOCOL");
+    std::env::remove_var("VEX_STRUCTURED_TOOL_PROTOCOL");
     let config = crate::config::Config {
         model_token: Some("test-key".to_string()),
         model_name: "mistral-7b-instruct".to_string(),
@@ -503,14 +503,10 @@ fn test_system_prompt_includes_large_file_edit_guidance() {
     assert!(BASE_SYSTEM_PROMPT.contains(
             "use write_file only for smaller full-file rewrites that stay under the write-file guard thresholds"
         ));
-    assert!(
-        BASE_SYSTEM_PROMPT
-            .contains("For large files, prefer apply_patch or edit_file over write_file")
-    );
-    assert!(
-        BASE_SYSTEM_PROMPT
-            .contains("escalating to apply_patch when the change is too broad for edit_file")
-    );
+    assert!(BASE_SYSTEM_PROMPT
+        .contains("For large files, prefer apply_patch or edit_file over write_file"));
+    assert!(BASE_SYSTEM_PROMPT
+        .contains("escalating to apply_patch when the change is too broad for edit_file"));
 }
 
 #[test]

@@ -221,11 +221,9 @@ async fn test_schedule_team_handler_enforces_max_parallel_tasks_under_parallel_r
         ok,
         "expected one active task per successful schedule"
     );
-    assert!(
-        arr.iter().all(|task| {
-            task.get("parent_task_id") == Some(&Value::String("sched-race".into()))
-        })
-    );
+    assert!(arr
+        .iter()
+        .all(|task| { task.get("parent_task_id") == Some(&Value::String("sched-race".into())) }));
 }
 
 // ---------------------------------------------------------------------------

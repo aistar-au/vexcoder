@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -9,7 +9,7 @@ use crate::types::ModelProfile;
 use crate::util::is_local_endpoint_url;
 
 pub mod hooks;
-pub use hooks::{HookConfig, HookEvent, HookOnFail, HttpHookConfig, default_hook_on_fail};
+pub use hooks::{default_hook_on_fail, HookConfig, HookEvent, HookOnFail, HttpHookConfig};
 
 mod cache;
 mod load;
@@ -466,10 +466,10 @@ impl Config {
         let backend_changed = previous_backend != next_backend;
 
         self.model_url = next_url;
-        if let Some(model_name) = model_name.map(|value| value.trim().to_string())
-            && !model_name.is_empty()
-        {
-            self.model_name = model_name;
+        if let Some(model_name) = model_name.map(|value| value.trim().to_string()) {
+            if !model_name.is_empty() {
+                self.model_name = model_name;
+            }
         }
         self.model_backend = next_backend;
         self.model_protocol = if preserve_protocol {

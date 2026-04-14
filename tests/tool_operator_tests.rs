@@ -72,12 +72,10 @@ fn test_edit_file_ambiguous() {
 
     let result = executor.edit_file("test.txt", "foo", "bar");
     assert!(result.is_err());
-    assert!(
-        result
-            .expect_err("should reject ambiguous edits")
-            .to_string()
-            .contains("appears 2 times")
-    );
+    assert!(result
+        .expect_err("should reject ambiguous edits")
+        .to_string()
+        .contains("appears 2 times"));
 }
 
 #[test]
@@ -92,12 +90,10 @@ fn test_edit_file_rejects_whole_file_replacement() {
 
     let result = executor.edit_file("test.txt", original, "replaced\n");
     assert!(result.is_err());
-    assert!(
-        result
-            .expect_err("full-file replacement should be rejected")
-            .to_string()
-            .contains("refuses full-file replacement")
-    );
+    assert!(result
+        .expect_err("full-file replacement should be rejected")
+        .to_string()
+        .contains("refuses full-file replacement"));
 }
 
 #[test]
@@ -115,12 +111,10 @@ fn test_edit_file_rejects_oversized_snippets() {
 
     let result = executor.edit_file("test.txt", &original, "replacement\n");
     assert!(result.is_err());
-    assert!(
-        result
-            .expect_err("oversized edit snippets should be rejected")
-            .to_string()
-            .contains("requires focused snippets")
-    );
+    assert!(result
+        .expect_err("oversized edit snippets should be rejected")
+        .to_string()
+        .contains("requires focused snippets"));
 }
 
 #[cfg(unix)]

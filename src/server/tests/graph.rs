@@ -1,9 +1,9 @@
 use crate::app::{task_graph_rollup_path, todos_rollup_path};
-use crate::test_support::{ENV_LOCK, EnvRestore};
+use crate::test_support::{EnvRestore, ENV_LOCK};
 
 use super::phase_e::{delegate_one, setup_phase_e_router};
 use super::*;
-use filetime::{FileTime, set_file_mtime};
+use filetime::{set_file_mtime, FileTime};
 use serde_json::json;
 
 const LARGE_SCAN_REPO_TASKS: usize = 70;
@@ -258,8 +258,8 @@ async fn test_task_graph_endpoint_scans_large_state_dirs_and_prefers_newest_dupl
     let _env_lock = ENV_LOCK.lock().await;
     let _state_dir = EnvRestore::capture("VEX_STATE_DIR");
     let _startup_task_scans = EnvRestore::capture("VEX_MAX_STARTUP_TASK_SCANS");
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
-    crate::test_support::test_remove_var("VEX_MAX_STARTUP_TASK_SCANS");
+    std::env::remove_var("VEX_STATE_DIR");
+    std::env::remove_var("VEX_MAX_STARTUP_TASK_SCANS");
 
     let (_temp, nested) = setup_large_scan_fixture();
 
@@ -318,8 +318,8 @@ async fn test_list_todos_endpoint_scans_large_state_dirs_and_ignores_older_dupli
     let _env_lock = ENV_LOCK.lock().await;
     let _state_dir = EnvRestore::capture("VEX_STATE_DIR");
     let _startup_task_scans = EnvRestore::capture("VEX_MAX_STARTUP_TASK_SCANS");
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
-    crate::test_support::test_remove_var("VEX_MAX_STARTUP_TASK_SCANS");
+    std::env::remove_var("VEX_STATE_DIR");
+    std::env::remove_var("VEX_MAX_STARTUP_TASK_SCANS");
 
     let (_temp, nested) = setup_large_scan_fixture();
 

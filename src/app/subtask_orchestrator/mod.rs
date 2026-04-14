@@ -14,7 +14,7 @@
 //! and does not hold in-memory state across calls, so it is safe to
 //! instantiate per request and discard.
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{anyhow, bail, Result};
 use std::path::PathBuf;
 
 use crate::agents::{AgentProfile, IsolationPolicy, TeamDefinition, TeamScheduler};

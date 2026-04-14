@@ -406,16 +406,16 @@ impl StreamParser {
         let state = &mut self.chat_compat_tools[block_index];
         let call_type = tool_call.call_type.clone();
 
-        if let Some(id) = tool_call.id
-            && !id.is_empty()
-        {
-            state.id = id;
+        if let Some(id) = tool_call.id {
+            if !id.is_empty() {
+                state.id = id;
+            }
         }
         if let Some(function) = tool_call.function {
-            if let Some(name) = function.name
-                && !name.is_empty()
-            {
-                state.name = name;
+            if let Some(name) = function.name {
+                if !name.is_empty() {
+                    state.name = name;
+                }
             }
             if let Some(arguments) = function.arguments {
                 state.pending_arguments.push_str(&arguments);

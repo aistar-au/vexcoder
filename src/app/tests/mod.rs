@@ -1,11 +1,11 @@
 pub(super) use super::*;
-pub(super) use crate::api::{ApiClient, mock_client::MockApiClient};
+pub(super) use crate::api::{mock_client::MockApiClient, ApiClient};
 pub(super) use crate::ui::editor::{InputAction, InputEditor};
 pub(super) use crossterm::event::KeyEvent;
 pub(super) use futures::FutureExt;
 pub(super) use std::collections::HashMap;
-pub(super) use std::sync::Arc;
 pub(super) use std::sync::atomic::{AtomicBool, Ordering};
+pub(super) use std::sync::Arc;
 
 mod input;
 mod memory;

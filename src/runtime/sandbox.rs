@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -486,8 +486,8 @@ pub fn resolve_configured_sandbox(
 #[cfg(test)]
 mod tests {
     use super::{
-        ConfiguredSandbox, PassthroughSandbox, SandboxConfig, SandboxDriver, SandboxKind,
-        resolve_configured_sandbox,
+        resolve_configured_sandbox, ConfiguredSandbox, PassthroughSandbox, SandboxConfig,
+        SandboxDriver, SandboxKind,
     };
     use crate::runtime::CommandRequest;
     use std::{
@@ -737,9 +737,9 @@ mod tests {
         fs::create_dir_all(&rustup_home).expect("rustup home");
         fs::create_dir_all(&custom_bin).expect("custom bin");
 
-        crate::test_support::test_set_var("CARGO_HOME", &cargo_home);
-        crate::test_support::test_set_var("RUSTUP_HOME", &rustup_home);
-        crate::test_support::test_set_var(
+        std::env::set_var("CARGO_HOME", &cargo_home);
+        std::env::set_var("RUSTUP_HOME", &rustup_home);
+        std::env::set_var(
             "PATH",
             std::env::join_paths([cargo_bin.as_path(), custom_bin.as_path()]).expect("PATH"),
         );

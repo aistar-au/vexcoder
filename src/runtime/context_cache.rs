@@ -178,9 +178,9 @@ pub(crate) fn reset_context_cache_for_tests() {
 
 #[cfg(test)]
 mod tests {
-    use super::{MAX_CACHE_ENTRIES, read_cached_file, reset_context_cache_for_tests};
+    use super::{read_cached_file, reset_context_cache_for_tests, MAX_CACHE_ENTRIES};
     use crate::tools::ToolOperator;
-    use filetime::{FileTime, set_file_mtime};
+    use filetime::{set_file_mtime, FileTime};
     use std::fs;
 
     #[test]

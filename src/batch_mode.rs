@@ -6,21 +6,21 @@ use tokio_util::sync::CancellationToken;
 use crate::config::Config;
 use crate::mcp::McpRegistry;
 use crate::runtime::{
-    TaskState, UiUpdate,
     context::RuntimeContext,
     frontend::{FrontendAdapter, UserInputEvent},
-    r#loop::Runtime,
     mode::RuntimeMode,
-    project_instructions::{LoadResult, load_project_instructions},
+    project_instructions::{load_project_instructions, LoadResult},
+    r#loop::Runtime,
     resolve_configured_sandbox,
     task_state::{CommandEvidence, TaskId, TaskStatus},
+    TaskState, UiUpdate,
 };
 use crate::session_notes::{build_api_client_with_notes, clear_notes_file};
 use crate::state::{ConversationManager, StreamBlock, ToolApprovalRequest};
 use crate::tools::ToolOperator;
 use crate::turn_evidence::{
-    SummaryRecord, TurnEvidenceRecord, command_evidence_from_tool_result,
-    note_changed_files_from_tool_call,
+    command_evidence_from_tool_result, note_changed_files_from_tool_call, SummaryRecord,
+    TurnEvidenceRecord,
 };
 use crate::usage::TurnTokens;
 use std::path::PathBuf;
@@ -623,7 +623,7 @@ pub async fn run_batch(task: String, opts: BatchRunOpts, config: &Config) -> Res
 
 #[cfg(test)]
 pub async fn run_batch_mode(task: &str, _max_turns: usize) -> Result<BatchResult> {
-    use crate::api::{ApiClient, mock_client::MockApiClient};
+    use crate::api::{mock_client::MockApiClient, ApiClient};
     use crate::state::ConversationManager;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -669,7 +669,7 @@ pub async fn run_batch_mode(task: &str, _max_turns: usize) -> Result<BatchResult
 
 #[cfg(test)]
 pub async fn run_batch_mode_with_opts(task: &str, opts: BatchRunOpts) -> Result<BatchResult> {
-    use crate::api::{ApiClient, mock_client::MockApiClient};
+    use crate::api::{mock_client::MockApiClient, ApiClient};
     use crate::state::ConversationManager;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -717,7 +717,7 @@ pub async fn capture_batch_jsonl(task: &str, max_turns: usize) -> Result<String>
 
 #[cfg(test)]
 pub async fn capture_batch_text(task: &str, max_turns: usize) -> Result<String> {
-    use crate::api::{ApiClient, mock_client::MockApiClient};
+    use crate::api::{mock_client::MockApiClient, ApiClient};
     use crate::state::ConversationManager;
     use std::collections::HashMap;
     use std::sync::Arc;

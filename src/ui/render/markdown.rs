@@ -17,7 +17,11 @@ pub fn markdown_to_inline_line(input: &str) -> Option<Line<'static>> {
         .into_iter()
         .filter(|line| line.spans.iter().any(|span| !span.content.is_empty()))
         .collect::<Vec<_>>();
-    if lines.len() == 1 { lines.pop() } else { None }
+    if lines.len() == 1 {
+        lines.pop()
+    } else {
+        None
+    }
 }
 
 /// Parse a markdown string into styled ratatui `Line`s for transcript rendering.

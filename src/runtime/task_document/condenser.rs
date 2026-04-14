@@ -168,11 +168,12 @@ impl TaskDocumentCondenser {
                             status: current_status,
                             ..
                         } = entry
-                            && *id == tool_call_id
                         {
-                            *current_status = status;
-                            summary.active_turn_changed = true;
-                            break;
+                            if *id == tool_call_id {
+                                *current_status = status;
+                                summary.active_turn_changed = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -217,15 +218,15 @@ impl TaskDocumentCondenser {
             } => {
                 if let Some(active) = doc.active_turn.as_mut() {
                     for entry in &mut active.entries {
-                        if let TurnEntry::ToolCall { id, status, .. } = entry
-                            && *id == tool_call_id
-                        {
-                            *status = if is_error {
-                                ToolStatus::Error
-                            } else {
-                                ToolStatus::Complete
-                            };
-                            break;
+                        if let TurnEntry::ToolCall { id, status, .. } = entry {
+                            if *id == tool_call_id {
+                                *status = if is_error {
+                                    ToolStatus::Error
+                                } else {
+                                    ToolStatus::Complete
+                                };
+                                break;
+                            }
                         }
                     }
 
@@ -246,28 +247,28 @@ impl TaskDocumentCondenser {
                 scope,
                 tool_name,
             } => {
-                if let Some(active) = doc.active_turn.as_mut()
-                    && let (Ok(capability), Ok(scope)) = (
+                if let Some(active) = doc.active_turn.as_mut() {
+                    if let (Ok(capability), Ok(scope)) = (
                         capability.parse::<Capability>(),
                         scope.parse::<ApprovalScope>(),
-                    )
-                {
-                    let step_id = Self::alloc_step(&mut doc.info.next_step_id);
-                    let approval = ApprovalDocument {
-                        step_id,
-                        capability,
-                        scope,
-                        tool_name,
-                        input_preview: String::new(),
-                    };
-                    active.pending_approval = Some(approval.clone());
-                    active
-                        .entries
-                        .push(TurnEntry::ApprovalRequest { step_id, approval });
-                    doc.info.status = TaskStatus::AwaitingApproval;
-                    summary.active_turn_changed = true;
-                    summary.approval_changed = true;
-                    summary.task_status_changed = true;
+                    ) {
+                        let step_id = Self::alloc_step(&mut doc.info.next_step_id);
+                        let approval = ApprovalDocument {
+                            step_id,
+                            capability,
+                            scope,
+                            tool_name,
+                            input_preview: String::new(),
+                        };
+                        active.pending_approval = Some(approval.clone());
+                        active
+                            .entries
+                            .push(TurnEntry::ApprovalRequest { step_id, approval });
+                        doc.info.status = TaskStatus::AwaitingApproval;
+                        summary.active_turn_changed = true;
+                        summary.approval_changed = true;
+                        summary.task_status_changed = true;
+                    }
                 }
             }
             RuntimeEvent::ApprovalResolved {
@@ -275,36 +276,36 @@ impl TaskDocumentCondenser {
                 scope,
                 approved,
             } => {
-                if let Some(active) = doc.active_turn.as_mut()
-                    && let (Ok(capability), Ok(scope)) = (
+                if let Some(active) = doc.active_turn.as_mut() {
+                    if let (Ok(capability), Ok(scope)) = (
                         capability.parse::<Capability>(),
                         scope.parse::<ApprovalScope>(),
-                    )
-                {
-                    active.pending_approval = None;
-                    let step_id = Self::alloc_step(&mut doc.info.next_step_id);
-                    active.entries.push(TurnEntry::ApprovalResolved {
-                        step_id,
-                        capability,
-                        scope,
-                        approved,
-                    });
+                    ) {
+                        active.pending_approval = None;
+                        let step_id = Self::alloc_step(&mut doc.info.next_step_id);
+                        active.entries.push(TurnEntry::ApprovalResolved {
+                            step_id,
+                            capability,
+                            scope,
+                            approved,
+                        });
 
-                    if approved {
-                        match scope {
-                            ApprovalScope::Once => {}
-                            ApprovalScope::Task | ApprovalScope::Session => {
-                                doc.info.active_grants.insert(capability, scope);
+                        if approved {
+                            match scope {
+                                ApprovalScope::Once => {}
+                                ApprovalScope::Task | ApprovalScope::Session => {
+                                    doc.info.active_grants.insert(capability, scope);
+                                }
                             }
+                        } else {
+                            doc.info.active_grants.remove(&capability);
                         }
-                    } else {
-                        doc.info.active_grants.remove(&capability);
-                    }
 
-                    doc.info.status = TaskStatus::Running;
-                    summary.active_turn_changed = true;
-                    summary.approval_changed = true;
-                    summary.task_status_changed = true;
+                        doc.info.status = TaskStatus::Running;
+                        summary.active_turn_changed = true;
+                        summary.approval_changed = true;
+                        summary.task_status_changed = true;
+                    }
                 }
             }
             RuntimeEvent::ValidationResult { .. } => {}
@@ -404,11 +405,11 @@ impl TaskDocumentCondenser {
         mutate: impl Fn(&mut AssistantBlockEntry),
     ) {
         for entry in active.entries.iter_mut().rev() {
-            if let TurnEntry::AssistantBlock { block, .. } = entry
-                && block.block_index == block_index
-            {
-                mutate(block);
-                return;
+            if let TurnEntry::AssistantBlock { block, .. } = entry {
+                if block.block_index == block_index {
+                    mutate(block);
+                    return;
+                }
             }
         }
     }

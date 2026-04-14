@@ -21,7 +21,7 @@ use super::handlers::{
     release_session_task_handler, schedule_team_handler, schema_handler, task_graph_handler,
     turns_handler, update_session_task_status_handler, watch_handler, watch_session_task_handler,
 };
-use super::{ControlResponse, HSTS_HEADER_VALUE, HttpSurfaceSettings, ResolvedHttpSurface};
+use super::{ControlResponse, HttpSurfaceSettings, ResolvedHttpSurface, HSTS_HEADER_VALUE};
 #[cfg(test)]
 use crate::config::Config;
 use crate::local_api::LocalApiState;

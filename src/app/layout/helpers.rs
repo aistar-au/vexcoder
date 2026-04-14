@@ -79,10 +79,10 @@ pub(super) fn compact_outcome_summary(line: &str) -> String {
         return trimmed.to_string();
     }
     let mut end = trimmed.floor_char_boundary(MAX_SUMMARY_WIDTH);
-    if let Some(space_pos) = trimmed[..end].rfind(' ')
-        && space_pos > MAX_SUMMARY_WIDTH / 2
-    {
-        end = space_pos;
+    if let Some(space_pos) = trimmed[..end].rfind(' ') {
+        if space_pos > MAX_SUMMARY_WIDTH / 2 {
+            end = space_pos;
+        }
     }
     format!("{}\u{2026}", &trimmed[..end])
 }
@@ -115,10 +115,10 @@ pub(super) fn tool_target_summary(line: &str) -> Option<String> {
 
     let lowered = trimmed.to_ascii_lowercase();
     for marker in [" from ", " to ", " in ", " at ", " into ", " on "] {
-        if let Some(index) = lowered.find(marker)
-            && let Some(candidate) = first_pathish_token(&trimmed[index + marker.len()..])
-        {
-            return Some(candidate);
+        if let Some(index) = lowered.find(marker) {
+            if let Some(candidate) = first_pathish_token(&trimmed[index + marker.len()..]) {
+                return Some(candidate);
+            }
         }
     }
 

@@ -2,14 +2,10 @@
 members = [".", "crates/*"]
 resolver = "2"
 
-[workspace.package]
-edition = "2024"
-
 [package]
 name = "vexcoder"
 version = "0.1.0-rc.9"
-edition = "2024"
-rust-version = "1.91"
+edition = "2021"
 license = "MIT"
 autobins = false
 
@@ -29,7 +25,7 @@ axum = { version = "0.8", features = ["http1", "json", "tokio"] }
 clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4" }
 bytes = "1"
-crossterm = { version = "0.28", features = ["bracketed-paste", "event-stream"] }
+crossterm = { version = "0.29", features = ["bracketed-paste", "event-stream"] }
 fs2 = "0.4"
 futures = "0.3"
 hyper = { version = "1", features = ["http1", "server"] }
@@ -45,7 +41,7 @@ ratatui = { version = "0.30", features = [
   "unstable-backend-writer",
   "unstable-rendered-line-info",
   "unstable-widget-ref",
-  "crossterm_0_28",
+  "crossterm_0_29",
 ] }
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
@@ -227,6 +223,3 @@ strip-ansi-escapes = "0.2"
 tower = "0.5"
 pretty_assertions = "1"
 assert_cmd = "2"
-
-[workspace.lints.clippy]
-incompatible_msrv = "allow"

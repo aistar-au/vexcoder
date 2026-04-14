@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
 
-use crate::runtime::session_task::{SessionTask, SessionTaskStatus, now_millis};
+use crate::runtime::session_task::{now_millis, SessionTask, SessionTaskStatus};
 use crate::runtime::{ApprovalScope, Capability};
 use crate::turn_evidence::TurnEvidenceState;
 

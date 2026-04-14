@@ -174,7 +174,7 @@ mod tests {
         let _env_lock = ENV_LOCK.lock().await;
         let project = tempfile::tempdir().unwrap();
         let xdg = tempfile::tempdir().unwrap();
-        crate::test_support::test_set_var("XDG_CONFIG_HOME", xdg.path());
+        std::env::set_var("XDG_CONFIG_HOME", xdg.path());
 
         let project_commands = project.path().join(".vex/commands");
         let user_commands = xdg.path().join("vex/commands");
@@ -192,7 +192,7 @@ mod tests {
         .unwrap();
 
         let commands = load_custom_commands(project.path(), &[]);
-        crate::test_support::test_remove_var("XDG_CONFIG_HOME");
+        std::env::remove_var("XDG_CONFIG_HOME");
 
         assert_eq!(commands.len(), 1);
         assert_eq!(commands[0].description, "project");

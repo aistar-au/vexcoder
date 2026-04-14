@@ -1,8 +1,8 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use std::path::PathBuf;
 use std::process::Command;
 
-use super::{ToolOperator, non_empty_trimmed, path_to_repo_relative_string};
+use super::{non_empty_trimmed, path_to_repo_relative_string, ToolOperator};
 
 impl ToolOperator {
     pub fn git_status(&self, short: bool, path: Option<&str>) -> Result<String> {

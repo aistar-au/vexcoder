@@ -1,6 +1,6 @@
-use crate::runtime::{UiUpdate, frontend::FrontendAdapter, mode::RuntimeMode};
+use crate::runtime::{frontend::FrontendAdapter, mode::RuntimeMode, UiUpdate};
 use tokio::sync::mpsc;
-use tokio::time::{Duration, Instant, sleep};
+use tokio::time::{sleep, Duration, Instant};
 
 use super::context::RuntimeContext;
 
@@ -64,7 +64,7 @@ impl<M: RuntimeMode> Runtime<M> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::{ApiClient, mock_client::MockApiClient};
+    use crate::api::{mock_client::MockApiClient, ApiClient};
     use crate::runtime::frontend::UserInputEvent;
     use crate::state::ConversationManager;
     use std::collections::{HashMap, VecDeque};

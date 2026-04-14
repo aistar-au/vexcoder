@@ -9,9 +9,9 @@ use crate::runtime::task_document::{
 };
 use crate::state::ToolStatus;
 use crate::status_contract::{
-    WAITING_FOR_RESPONSE_LINE, completed_status_label, pending_status_label,
+    completed_status_label, pending_status_label, WAITING_FOR_RESPONSE_LINE,
 };
-use crate::tool_preview::{ToolPreviewStyle, preview_tool_input};
+use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
 
 use super::{StepLifecycle, TranscriptRow};
 
@@ -127,14 +127,15 @@ fn append_turn_rows(rows: &mut Vec<TranscriptRow>, entries: &[TurnEntry]) {
                         streaming: false,
                     });
                 }
-                if block.streaming
-                    && !block.content.is_empty()
-                    && !block.content.ends_with('\n')
-                    && let Some(last) = rows.get_mut(row_before..)
-                    && let Some(TranscriptRow::AssistantText { text, streaming }) = last.last_mut()
-                {
-                    text.push('▌');
-                    *streaming = true;
+                if block.streaming && !block.content.is_empty() && !block.content.ends_with('\n') {
+                    if let Some(last) = rows.get_mut(row_before..) {
+                        if let Some(TranscriptRow::AssistantText { text, streaming }) =
+                            last.last_mut()
+                        {
+                            text.push('▌');
+                            *streaming = true;
+                        }
+                    }
                 }
                 // Only reset the dedup tracker when this block contains
                 // non-whitespace content — empty or whitespace-only
@@ -288,10 +289,10 @@ fn append_active_turn_rows(rows: &mut Vec<TranscriptRow>, active: &ActiveTurnDoc
 
     if !has_streamed_content {
         let mut line = WAITING_FOR_RESPONSE_LINE.to_string();
-        if let Some(ref progress) = active.prompt_progress
-            && let (Some(processed), Some(total)) = (progress.processed, progress.total)
-        {
-            line.push_str(&format!(" \u{2191}:{processed}/{total}"));
+        if let Some(ref progress) = active.prompt_progress {
+            if let (Some(processed), Some(total)) = (progress.processed, progress.total) {
+                line.push_str(&format!(" \u{2191}:{processed}/{total}"));
+            }
         }
         rows.push(TranscriptRow::WaitingPlaceholder(line));
     }
@@ -415,10 +416,10 @@ fn compact_outcome_summary(line: &str) -> String {
         return trimmed.to_string();
     }
     let mut end = trimmed.floor_char_boundary(MAX_SUMMARY_WIDTH);
-    if let Some(space_pos) = trimmed[..end].rfind(' ')
-        && space_pos > MAX_SUMMARY_WIDTH / 2
-    {
-        end = space_pos;
+    if let Some(space_pos) = trimmed[..end].rfind(' ') {
+        if space_pos > MAX_SUMMARY_WIDTH / 2 {
+            end = space_pos;
+        }
     }
     format!("{}\u{2026}", &trimmed[..end])
 }
@@ -430,10 +431,10 @@ fn tool_target_summary(line: &str) -> Option<String> {
     }
     let lowered = trimmed.to_ascii_lowercase();
     for marker in [" from ", " to ", " in ", " at ", " into ", " on "] {
-        if let Some(index) = lowered.find(marker)
-            && let Some(candidate) = first_pathish_token(&trimmed[index + marker.len()..])
-        {
-            return Some(candidate);
+        if let Some(index) = lowered.find(marker) {
+            if let Some(candidate) = first_pathish_token(&trimmed[index + marker.len()..]) {
+                return Some(candidate);
+            }
         }
     }
     first_pathish_token(trimmed)
@@ -465,10 +466,10 @@ fn first_pathish_token(text: &str) -> Option<String> {
 pub(super) fn extract_assistant_response(entries: &[TurnEntry]) -> String {
     let mut parts = Vec::new();
     for entry in entries {
-        if let TurnEntry::AssistantBlock { block, .. } = entry
-            && block.phase == AssistantPhase::Final
-        {
-            parts.push(block.content.as_str());
+        if let TurnEntry::AssistantBlock { block, .. } = entry {
+            if block.phase == AssistantPhase::Final {
+                parts.push(block.content.as_str());
+            }
         }
     }
     parts.join("\n")

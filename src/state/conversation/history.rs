@@ -3,8 +3,8 @@ use crate::config::CompactionConfig;
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
 use crate::state::conversation::tools::dispatch::missing_read_only_location_prompt;
 use crate::tool_preview::{
-    ReadFileRollupSummary, ReadFileSummaryMessageStyle, ToolPreviewStyle,
-    format_read_file_rollup_message, preview_tool_input, read_file_path,
+    format_read_file_rollup_message, preview_tool_input, read_file_path, ReadFileRollupSummary,
+    ReadFileSummaryMessageStyle, ToolPreviewStyle,
 };
 use crate::types::{ApiMessage, Content, ContentBlock};
 use anyhow::Result;
@@ -217,13 +217,14 @@ impl ConversationManager {
         // Fold the summary into the first preserved user message so the
         // compacted history still starts with a plain user message and does
         // not create consecutive user-role entries.
-        if !summary_text.is_empty()
-            && let Some(first_message) = self.api_messages.first_mut()
-            && first_message.role == "user"
-            && !message_contains_tool_result(first_message)
-            && let Content::Text(text) = &mut first_message.content
-        {
-            *text = format!("[conversation summary] {summary_text}\n\n{text}");
+        if !summary_text.is_empty() {
+            if let Some(first_message) = self.api_messages.first_mut() {
+                if first_message.role == "user" && !message_contains_tool_result(first_message) {
+                    if let Content::Text(text) = &mut first_message.content {
+                        *text = format!("[conversation summary] {summary_text}\n\n{text}");
+                    }
+                }
+            }
         }
 
         removed
@@ -674,9 +675,9 @@ fn tool_error_hint(name: &str) -> Option<&'static str> {
         "search_files" | "search" | "search_content" | "codebase_search" => Some(
             "Retry with a narrower query or a concrete path scope so the next search result is easier to use.",
         ),
-        "write_file" | "apply_patch" | "edit_file" | "rename_file" => {
-            Some("Re-read the target path and retry with a narrower file edit or patch.")
-        }
+        "write_file" | "apply_patch" | "edit_file" | "rename_file" => Some(
+            "Re-read the target path and retry with a narrower file edit or patch.",
+        ),
         "git_status" | "git_diff" | "git_log" | "git_show" => Some(
             "Retry with a narrower git target if the repository state is larger than expected.",
         ),

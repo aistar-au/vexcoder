@@ -1,6 +1,6 @@
 use crate::runtime::TaskState;
 use crate::turn_evidence::{SummaryRecord, TurnEvidenceRecord};
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use base64::Engine as _;
 use std::path::Path;
 
@@ -161,7 +161,7 @@ fn render_markdown(state: &TaskState) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{ExportFormat, render_task_export, write_export_output};
+    use super::{render_task_export, write_export_output, ExportFormat};
     use crate::runtime::{TaskState, TaskStatus};
     use crate::turn_evidence::{ToolInvocationSummary, TurnEvidenceState};
     use crate::usage::TurnTokens;

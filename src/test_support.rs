@@ -24,27 +24,8 @@ impl EnvRestore {
 impl Drop for EnvRestore {
     fn drop(&mut self) {
         match &self.value {
-            // SAFETY: all call sites hold ENV_LOCK, preventing concurrent env access.
-            Some(value) => unsafe { std::env::set_var(self.key, value) },
-            None => unsafe { std::env::remove_var(self.key) },
+            Some(value) => std::env::set_var(self.key, value),
+            None => std::env::remove_var(self.key),
         }
     }
-}
-
-/// Set an environment variable in test code.
-///
-/// # Safety contract
-/// All callers must hold `ENV_LOCK` to prevent data races.
-pub fn test_set_var(key: &str, value: impl AsRef<std::ffi::OsStr>) {
-    // SAFETY: callers serialize via ENV_LOCK.
-    unsafe { std::env::set_var(key, value) }
-}
-
-/// Remove an environment variable in test code.
-///
-/// # Safety contract
-/// All callers must hold `ENV_LOCK` to prevent data races.
-pub fn test_remove_var(key: &str) {
-    // SAFETY: callers serialize via ENV_LOCK.
-    unsafe { std::env::remove_var(key) }
 }

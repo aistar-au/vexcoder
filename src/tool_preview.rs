@@ -108,16 +108,10 @@ pub fn format_read_file_rollup_message(
     style: ReadFileSummaryMessageStyle,
 ) -> String {
     match (style, summary) {
-        (
-            ReadFileSummaryMessageStyle::History,
-            ReadFileRollupSummary::FirstRead { chars, lines },
-        ) => format!(
+        (ReadFileSummaryMessageStyle::History, ReadFileRollupSummary::FirstRead { chars, lines }) => format!(
             "Read {path}: {chars} chars, {lines} lines. Full content omitted; use search_files for targeted string matches."
         ),
-        (
-            ReadFileSummaryMessageStyle::History,
-            ReadFileRollupSummary::Unchanged { chars, lines },
-        ) => {
+        (ReadFileSummaryMessageStyle::History, ReadFileRollupSummary::Unchanged { chars, lines }) => {
             format!("No changes since last read of {path} ({chars} chars, {lines} lines).")
         }
         (

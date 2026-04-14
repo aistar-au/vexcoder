@@ -64,7 +64,6 @@ mod tool_tests {
 
     #[test]
     fn test_vex_force_mutating_turn_overrides_heuristic() {
-        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         // Without the env var, "show me the files" is read-only.
         assert!(
             is_read_only_user_request("show me the files"),
@@ -72,9 +71,9 @@ mod tool_tests {
         );
 
         // With VEX_FORCE_MUTATING_TURN=1, every turn is treated as mutating.
-        crate::test_support::test_set_var("VEX_FORCE_MUTATING_TURN", "1");
+        std::env::set_var("VEX_FORCE_MUTATING_TURN", "1");
         let result = is_read_only_user_request("show me the files");
-        crate::test_support::test_remove_var("VEX_FORCE_MUTATING_TURN");
+        std::env::remove_var("VEX_FORCE_MUTATING_TURN");
         assert!(
             !result,
             "VEX_FORCE_MUTATING_TURN=1 should force mutating classification"

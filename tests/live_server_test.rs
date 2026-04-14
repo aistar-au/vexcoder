@@ -36,8 +36,8 @@ async fn probe_server(base_url: &str) -> Option<String> {
     }
     let body: serde_json::Value = resp.json().await.ok()?;
     // Support both standard {"data":[{"id":"..."}]} and local-runtime {"models":[{"model":"..."}]} formats
-
-    body.get("data")
+    let model_name = body
+        .get("data")
         .and_then(|d| d.as_array())
         .and_then(|arr| arr.first())
         .and_then(|m| m.get("id"))
@@ -49,7 +49,8 @@ async fn probe_server(base_url: &str) -> Option<String> {
                 .and_then(|m| m.get("model"))
                 .and_then(|v| v.as_str())
         })
-        .map(|s| s.to_string())
+        .map(|s| s.to_string());
+    model_name
 }
 
 /// Helper macro: skip the test with an overlay-style notice when no server

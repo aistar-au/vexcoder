@@ -471,7 +471,8 @@ mod tests {
 
     #[test]
     fn test_parse_git_apply_mixed() {
-        let output = "Applying: first patch\nCONFLICT (content): Merge conflict in src/main.rs\nerror: patch rejected hunk for src/lib.rs";
+        let output =
+            "Applying: first patch\nCONFLICT (content): Merge conflict in src/main.rs\nerror: patch rejected hunk for src/lib.rs";
         let parsed = parse_git_apply(output);
         assert_eq!(parsed.outcomes.len(), 3);
         assert!(parsed.has_errors);

@@ -1,12 +1,12 @@
 use super::super::stream_block::{StreamBlock, ToolStatus};
-use super::core::{CompletedToolCall, emit_server_metadata_update};
-use super::tool_call_parser::{ToolCallParser, ToolParserMode, parser_for_mode};
+use super::core::{emit_server_metadata_update, CompletedToolCall};
+use super::tool_call_parser::{parser_for_mode, ToolCallParser, ToolParserMode};
 use super::{
-    ConversationManager, ConversationStreamUpdate, TurnToolPolicy, history::*, streaming::*,
-    tools::*,
+    history::*, streaming::*, tools::*, ConversationManager, ConversationStreamUpdate,
+    TurnToolPolicy,
 };
 use crate::api::stream::StreamParser;
-use crate::runtime::policy::{RuntimeCorePolicy, default_runtime_policy};
+use crate::runtime::policy::{default_runtime_policy, RuntimeCorePolicy};
 use crate::runtime::task_document::TurnOutcome;
 use crate::types::{ApiMessage, ApiUsage, Content, ContentBlock, StreamEvent};
 use crate::usage::TurnTokens;
@@ -248,22 +248,23 @@ impl ConversationManager {
                                 Some(Some(json_str)),
                                 Some(Some(ContentBlock::ToolUse { input, .. })),
                             ) = (maybe_json, maybe_tool)
-                                && !json_str.is_empty()
                             {
-                                let parse_result: Result<serde_json::Value, _> =
-                                    serde_json::from_str(json_str)
-                                        .or_else(|_| serde_json::from_str(json_str.trim()));
-                                match parse_result {
-                                    Ok(parsed_input) => {
-                                        *input = parsed_input;
-                                    }
-                                    Err(err) => {
-                                        tracing::warn!(
-                                            index,
-                                            json_len = json_str.len(),
-                                            err = %err,
-                                            "tool input JSON parse failed; tool will run with empty input"
-                                        );
+                                if !json_str.is_empty() {
+                                    let parse_result: Result<serde_json::Value, _> =
+                                        serde_json::from_str(json_str)
+                                            .or_else(|_| serde_json::from_str(json_str.trim()));
+                                    match parse_result {
+                                        Ok(parsed_input) => {
+                                            *input = parsed_input;
+                                        }
+                                        Err(err) => {
+                                            tracing::warn!(
+                                                index,
+                                                json_len = json_str.len(),
+                                                err = %err,
+                                                "tool input JSON parse failed; tool will run with empty input"
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -733,10 +734,10 @@ impl ConversationManager {
                             .await;
 
                         // Push checkpoint only on success.
-                        if result.is_ok()
-                            && let Some(cp) = undo_snapshot
-                        {
-                            self.push_undo_checkpoint(cp);
+                        if result.is_ok() {
+                            if let Some(cp) = undo_snapshot {
+                                self.push_undo_checkpoint(cp);
+                            }
                         }
 
                         let final_status = if result.is_err() {

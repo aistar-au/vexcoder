@@ -1,11 +1,11 @@
 use crate::api::ApiClient;
 use crate::config::{CompactionConfig, HookConfig, HttpHookConfig, SearchConfig};
 use crate::mcp::McpRegistry;
-use crate::runtime::ConfiguredSandbox;
 use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::session_task::now_millis;
 use crate::runtime::task_document::{TaskDocument, TaskDocumentCondenser, TaskInfo, TurnOutcome};
 use crate::runtime::task_state::TaskStatus;
+use crate::runtime::ConfiguredSandbox;
 use crate::runtime::{ModelBackendKind, TaskMutationSummary};
 use crate::tool_preview::ReadFileRollupCache;
 use crate::tools::ToolOperator;
@@ -294,10 +294,10 @@ impl ConversationManager {
         };
         let mut mutating_tool_ids = std::collections::BTreeSet::new();
         for entry in entries {
-            if let TurnEntry::ToolCall { id, name, .. } = entry
-                && is_turn_mutation_tool(name)
-            {
-                mutating_tool_ids.insert(id.as_str());
+            if let TurnEntry::ToolCall { id, name, .. } = entry {
+                if is_turn_mutation_tool(name) {
+                    mutating_tool_ids.insert(id.as_str());
+                }
             }
         }
         if mutating_tool_ids.is_empty() {

@@ -1,4 +1,4 @@
-use super::{InputEditor, MAX_INPUT_BYTES, file_mention_range, prev_char_boundary_in};
+use super::{file_mention_range, prev_char_boundary_in, InputEditor, MAX_INPUT_BYTES};
 use crate::ui::input_metrics::{cursor_row_col, visual_layout, visual_row_bounds};
 
 #[test]

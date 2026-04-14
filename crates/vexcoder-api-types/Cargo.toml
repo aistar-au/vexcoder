@@ -1,7 +1,7 @@
 [package]
 name = "vexcoder-api-types"
 version = "0.1.0-rc.9"
-edition.workspace = true
+edition = "2021"
 license = "MIT"
 description = "API wire types for the vexcoder coding agent"
 

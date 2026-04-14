@@ -2,7 +2,7 @@
 
 use std::io::Write;
 use std::path::Path;
-use vexcoder::agents::{IsolationPolicy, TeamScheduler, load_agents_config};
+use vexcoder::agents::{load_agents_config, IsolationPolicy, TeamScheduler};
 
 fn write_agents_toml(root: &Path, content: &str) {
     let vex_dir = root.join(".vex");

@@ -251,10 +251,10 @@ fn append_message_inner(
     }
 
     // Size safety valve
-    if let Ok(file_info) = std::fs::metadata(&path)
-        && file_info.len() >= MAX_CHANNEL_FILE_BYTES
-    {
-        return Err(AppendMessageError::ChannelFull);
+    if let Ok(file_info) = std::fs::metadata(&path) {
+        if file_info.len() >= MAX_CHANNEL_FILE_BYTES {
+            return Err(AppendMessageError::ChannelFull);
+        }
     }
 
     let line = serde_json::to_string(message).context("failed to serialise peer message")?;
@@ -334,11 +334,10 @@ pub fn read_messages(
                 continue;
             }
 
-            if let Some(agent_id) = recipient_filter
-                && msg.recipient != "*"
-                && msg.recipient != agent_id
-            {
-                continue;
+            if let Some(agent_id) = recipient_filter {
+                if msg.recipient != "*" && msg.recipient != agent_id {
+                    continue;
+                }
             }
 
             results.push(msg);
@@ -460,11 +459,9 @@ mod tests {
 
         let for_reviewer = read_messages(dir.path(), "p", 0, Some("reviewer")).unwrap();
         assert_eq!(for_reviewer.len(), 2, "should receive broadcast + targeted");
-        assert!(
-            for_reviewer
-                .iter()
-                .all(|m| m.recipient == "*" || m.recipient == "reviewer")
-        );
+        assert!(for_reviewer
+            .iter()
+            .all(|m| m.recipient == "*" || m.recipient == "reviewer"));
     }
 
     #[test]
