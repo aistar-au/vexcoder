@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 354
+- Total tracked files: 355
 
 | # | Path | Approx. lines | Raw URL |
 | :--- | :--- | :--- | :--- |
@@ -212,7 +212,8 @@ Canonical raw URL index for every tracked file in this repository.
 | 201 | `src/config/startup.rs` | ~82 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config/startup.rs> |
 | 202 | `src/config/tests.rs` | ~1410 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/config/tests.rs> |
 | 203 | `src/custom_commands.rs` | ~216 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/custom_commands.rs> |
-| 204 | `src/disk_policy.rs` | ~213 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/disk_policy.rs> |
+| 204 | `src/credentials.rs` | ~187 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/credentials.rs> |
+| 205 | `src/disk_policy.rs` | ~213 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/disk_policy.rs> |
 | 205 | `src/doctor.rs` | ~416 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/doctor.rs> |
 | 206 | `src/edit_diff.rs` | ~157 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/edit_diff.rs> |
 | 207 | `src/exec.rs` | ~81 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/exec.rs> |
