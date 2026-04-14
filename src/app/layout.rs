@@ -427,8 +427,8 @@ impl TuiMode {
 #[cfg(test)]
 mod tests {
     use super::{
-        compact_outcome_summary, timeline_label_for_invocation, tool_outcome_is_error,
-        tool_scope_detail, tool_target_summary, TuiMode,
+        TuiMode, compact_outcome_summary, timeline_label_for_invocation, tool_outcome_is_error,
+        tool_scope_detail, tool_target_summary,
     };
     use crate::app::ToolInvocationSummary;
 

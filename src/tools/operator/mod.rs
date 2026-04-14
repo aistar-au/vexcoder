@@ -70,9 +70,10 @@ mod tests {
         let err = executor
             .edit_file(".", "old", "new")
             .expect_err("directory path should fail");
-        assert!(err
-            .to_string()
-            .contains("edit_file expected a file path, got a directory"));
+        assert!(
+            err.to_string()
+                .contains("edit_file expected a file path, got a directory")
+        );
     }
 
     #[cfg(unix)]
@@ -121,9 +122,11 @@ mod tests {
 
         // Apply the patch
         op.apply_patch(pending).expect("apply failed");
-        assert!(fs::read_to_string(dir.path().join("target.rs"))
-            .unwrap()
-            .contains("fn new()"));
+        assert!(
+            fs::read_to_string(dir.path().join("target.rs"))
+                .unwrap()
+                .contains("fn new()")
+        );
     }
 
     #[test]

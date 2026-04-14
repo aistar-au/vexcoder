@@ -2,7 +2,7 @@ use super::*;
 use crate::api::ApiClient;
 use crate::mcp::{McpRegistry, McpRegistryRollup};
 use crate::runtime::frontend::FrontendAdapter;
-use crate::runtime::{resolve_configured_sandbox, ConfiguredSandbox};
+use crate::runtime::{ConfiguredSandbox, resolve_configured_sandbox};
 
 #[derive(Clone, Debug, Default)]
 pub struct FacadeBootstrap {

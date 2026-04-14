@@ -19,7 +19,7 @@ pub mod util;
 
 #[cfg(not(unix))]
 use anyhow::bail;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Arc;

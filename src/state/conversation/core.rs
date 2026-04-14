@@ -1,10 +1,10 @@
 use super::super::stream_block::ToolStatus;
 use super::{
-    streaming::*, tools::*, ConversationManager, ConversationStreamUpdate, TurnToolPolicy,
-    UndoCheckpoint,
+    ConversationManager, ConversationStreamUpdate, TurnToolPolicy, UndoCheckpoint, streaming::*,
+    tools::*,
 };
 use crate::types::{ContentBlock, StreamChunkMetadata};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use futures::future::join_all;
 use tokio::sync::mpsc;
 
@@ -56,10 +56,9 @@ impl ConversationManager {
                 if let ContentBlock::ToolUse {
                     id, name, input, ..
                 } = block
+                    && let Some(checkpoint) = self.capture_undo_snapshot(name, input)
                 {
-                    if let Some(checkpoint) = self.capture_undo_snapshot(name, input) {
-                        undo_snapshots.insert(id.clone(), checkpoint);
-                    }
+                    undo_snapshots.insert(id.clone(), checkpoint);
                 }
             }
         }
@@ -109,10 +108,10 @@ impl ConversationManager {
 
         // Push undo checkpoints for tools that succeeded.
         for call in &completed {
-            if call.result.is_ok() {
-                if let Some(cp) = undo_snapshots.remove(&call.id) {
-                    self.push_undo_checkpoint(cp);
-                }
+            if call.result.is_ok()
+                && let Some(cp) = undo_snapshots.remove(&call.id)
+            {
+                self.push_undo_checkpoint(cp);
             }
         }
 

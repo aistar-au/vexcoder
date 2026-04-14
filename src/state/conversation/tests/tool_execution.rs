@@ -174,10 +174,10 @@ data: {"type":"message_stop"}"#.to_string(),
             block: StreamBlock::ToolCall { id, status, .. },
             ..
         } = update
+            && id == "toolu_error_01"
+            && status == ToolStatus::Error
         {
-            if id == "toolu_error_01" && status == ToolStatus::Error {
-                saw_error_status = true;
-            }
+            saw_error_status = true;
         }
     }
     assert!(
@@ -189,7 +189,7 @@ data: {"type":"message_stop"}"#.to_string(),
 #[tokio::test]
 async fn test_multi_tool_round_collects_results_after_approval_denial() -> Result<()> {
     let _env_lock = crate::test_support::ENV_LOCK.lock().await;
-    std::env::set_var("VEX_TOOL_CONFIRM", "off");
+    crate::test_support::test_set_var("VEX_TOOL_CONFIRM", "off");
 
     let first_response_sse = vec![
         r#"event: message_start
@@ -233,7 +233,7 @@ data: {"type":"message_stop"}"#.to_string(),
         .await?;
     drop(tx);
     let saw_approval_request = approval_task.await?;
-    std::env::remove_var("VEX_TOOL_CONFIRM");
+    crate::test_support::test_remove_var("VEX_TOOL_CONFIRM");
 
     assert!(
         saw_approval_request,

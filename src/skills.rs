@@ -3,7 +3,7 @@
 //! Skills are directories containing a `SKILL.md` entrypoint. The registry is
 //! a flat TOML manifest at `.agents/skills/registry.toml`.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -205,10 +205,10 @@ fn derive_skill_name(
             .ok_or_else(|| anyhow::anyhow!("--subdir must end with a skill directory name"));
     }
 
-    if source_kind == InstallSourceKind::Tarball {
-        if let Some(name) = skill_root.file_name().and_then(|name| name.to_str()) {
-            return Ok(name.to_string());
-        }
+    if source_kind == InstallSourceKind::Tarball
+        && let Some(name) = skill_root.file_name().and_then(|name| name.to_str())
+    {
+        return Ok(name.to_string());
     }
 
     source_basename(source)
@@ -374,10 +374,12 @@ mod tests {
 
     #[test]
     fn test_skills_install_rejects_raw_or_blob_url() {
-        assert!(SkillsRegistry::validate_source(
-            "https://raw.githubusercontent.com/x/y/main/skills/edit-loop/SKILL.md"
-        )
-        .is_err());
+        assert!(
+            SkillsRegistry::validate_source(
+                "https://raw.githubusercontent.com/x/y/main/skills/edit-loop/SKILL.md"
+            )
+            .is_err()
+        );
         assert!(
             SkillsRegistry::validate_source("https://github.com/x/y/blob/main/SKILL.md").is_err()
         );

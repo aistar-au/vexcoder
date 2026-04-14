@@ -1,6 +1,6 @@
 use super::*;
 
-use ratatui::{backend::TestBackend, Terminal};
+use ratatui::{Terminal, backend::TestBackend};
 
 #[test]
 fn all_modals_use_unified_renderer() {
@@ -36,9 +36,10 @@ fn patch_modal_uses_body_viewport_for_visible_range() {
         5,
     );
 
-    assert!(body
-        .iter()
-        .any(|line| line.to_string().contains("showing 1-1 of 6")));
+    assert!(
+        body.iter()
+            .any(|line| line.to_string().contains("showing 1-1 of 6"))
+    );
 }
 
 #[test]
@@ -440,9 +441,11 @@ fn expand_rows_for_display_leaves_structural_rows_intact() {
     let expanded = expand_rows_for_display(&rows, 80);
     assert_eq!(expanded[0].as_display_str(), "[tool:thinking]");
     assert_eq!(expanded[1].as_display_str(), "    disclosure detail");
-    assert!(expanded
-        .iter()
-        .any(|r| r.as_display_str() == "normal short line"));
+    assert!(
+        expanded
+            .iter()
+            .any(|r| r.as_display_str() == "normal short line")
+    );
 }
 
 #[test]

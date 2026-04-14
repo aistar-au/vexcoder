@@ -1,5 +1,5 @@
 use super::*;
-use crate::api::{mock_client::MockApiClient, ApiClient};
+use crate::api::{ApiClient, mock_client::MockApiClient};
 use crate::runtime::UiUpdate;
 use crate::state::ConversationManager;
 use crate::tools::ToolOperator;

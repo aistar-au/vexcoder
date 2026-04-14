@@ -12,17 +12,16 @@ pub fn emit_model_endpoint_warnings(config: &Config) {
             config.model_url
         );
     }
-    if let Some(plain_url) = preferred_plain_http_url_for_local_endpoint(&config.model_url) {
-        if config
+    if let Some(plain_url) = preferred_plain_http_url_for_local_endpoint(&config.model_url)
+        && config
             .model_url
             .to_ascii_lowercase()
             .starts_with("https://")
-        {
-            eprintln!(
-                "[warning] local endpoint '{}' uses HTTPS; plain HTTP is required for local servers. Consider '{}'.",
-                config.model_url, plain_url
-            );
-        }
+    {
+        eprintln!(
+            "[warning] local endpoint '{}' uses HTTPS; plain HTTP is required for local servers. Consider '{}'.",
+            config.model_url, plain_url
+        );
     }
 }
 

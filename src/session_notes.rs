@@ -110,8 +110,8 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let home = temp.path().join("home");
         std::fs::create_dir_all(&home).unwrap();
-        std::env::set_var("HOME", &home);
-        std::env::remove_var("XDG_CONFIG_HOME");
+        crate::test_support::test_set_var("HOME", &home);
+        crate::test_support::test_remove_var("XDG_CONFIG_HOME");
         std::env::set_current_dir(temp.path()).unwrap();
         std::fs::write(temp.path().join(".vex-memory.md"), "repo local note\n").unwrap();
 
@@ -119,12 +119,12 @@ mod tests {
 
         std::env::set_current_dir(old_cwd).unwrap();
         match old_home {
-            Some(value) => std::env::set_var("HOME", value),
-            None => std::env::remove_var("HOME"),
+            Some(value) => crate::test_support::test_set_var("HOME", value),
+            None => crate::test_support::test_remove_var("HOME"),
         }
         match old_xdg {
-            Some(value) => std::env::set_var("XDG_CONFIG_HOME", value),
-            None => std::env::remove_var("XDG_CONFIG_HOME"),
+            Some(value) => crate::test_support::test_set_var("XDG_CONFIG_HOME", value),
+            None => crate::test_support::test_remove_var("XDG_CONFIG_HOME"),
         }
 
         assert_eq!(resolved, None);
@@ -139,8 +139,10 @@ mod tests {
         let (content, warning) = resolve_notes_for_injection(Some(notes_path.as_path()), 1);
 
         assert!(content.is_none());
-        assert!(warning
-            .as_deref()
-            .is_some_and(|message| message.contains("notes exceed token budget")));
+        assert!(
+            warning
+                .as_deref()
+                .is_some_and(|message| message.contains("notes exceed token budget"))
+        );
     }
 }

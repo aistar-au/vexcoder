@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use vexcoder::disk_policy::{
-    check_path, enforce, enforce_runtime, resolve_policy_mode, DiskPermission, DiskPolicyMode,
+    DiskPermission, DiskPolicyMode, check_path, enforce, enforce_runtime, resolve_policy_mode,
 };
 
 mod test_support {
@@ -52,7 +52,7 @@ fn warn_mode_keeps_running_for_forbidden_paths() {
 #[test]
 fn runtime_mode_defaults_to_off_when_env_missing() {
     let _lock = test_support::ENV_LOCK.blocking_lock();
-    std::env::remove_var("VEX_DISK_POLICY");
+    unsafe { std::env::remove_var("VEX_DISK_POLICY") };
 
     assert_eq!(resolve_policy_mode(), DiskPolicyMode::Off);
     let permission = enforce_runtime(Path::new("src/lib.rs"))
@@ -63,25 +63,25 @@ fn runtime_mode_defaults_to_off_when_env_missing() {
 #[test]
 fn runtime_mode_uses_strict_env() {
     let _lock = test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_DISK_POLICY", "strict");
+    unsafe { std::env::set_var("VEX_DISK_POLICY", "strict") };
 
     let error = enforce_runtime(Path::new("src/lib.rs"))
         .expect_err("strict env mode must reject forbidden paths");
     assert!(error.to_string().contains("forbidden disk access"));
 
-    std::env::remove_var("VEX_DISK_POLICY");
+    unsafe { std::env::remove_var("VEX_DISK_POLICY") };
 }
 
 #[test]
 fn runtime_mode_uses_warn_env() {
     let _lock = test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_DISK_POLICY", "warn");
+    unsafe { std::env::set_var("VEX_DISK_POLICY", "warn") };
 
     let permission = enforce_runtime(Path::new("src/lib.rs"))
         .expect("warn env mode should not hard-fail on forbidden paths");
     assert_eq!(permission, DiskPermission::Forbidden);
 
-    std::env::remove_var("VEX_DISK_POLICY");
+    unsafe { std::env::remove_var("VEX_DISK_POLICY") };
 }
 
 #[test]

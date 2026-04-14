@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -155,7 +155,7 @@ pub trait CommandRunner: Send + Sync {
         tx: tokio::sync::mpsc::Sender<OutputChunk>,
     ) -> impl std::future::Future<Output = Result<CommandHandle>> + Send;
     fn cancel(&self, handle: CommandHandle)
-        -> impl std::future::Future<Output = Result<()>> + Send;
+    -> impl std::future::Future<Output = Result<()>> + Send;
     fn attach_pty(&self, req: CommandRequest) -> Result<PtySession>;
 }
 

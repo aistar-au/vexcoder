@@ -2,7 +2,7 @@ mod merge;
 mod parse;
 mod paths;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 
 use crate::util::parse_bool_flag;
@@ -499,55 +499,55 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
         .with_context(|| format!("unknown or invalid key in config file '{}'", path.display()))?;
 
     // Validate enum string values here so errors carry file-path context.
-    if let Some(ref s) = layer.model_backend {
-        if parse_model_backend(s.clone()).is_none() {
-            bail!(
-                "config file '{}': invalid model_backend '{}': expected one of \
+    if let Some(ref s) = layer.model_backend
+        && parse_model_backend(s.clone()).is_none()
+    {
+        bail!(
+            "config file '{}': invalid model_backend '{}': expected one of \
                  local-runtime, local_runtime, local, api-server, api_server, api, remote",
-                path.display(),
-                s
-            );
-        }
+            path.display(),
+            s
+        );
     }
-    if let Some(ref s) = layer.model_protocol {
-        if parse_model_protocol(s.clone()).is_none() {
-            bail!(
-                "config file '{}': invalid model_protocol '{}': expected one of \
+    if let Some(ref s) = layer.model_protocol
+        && parse_model_protocol(s.clone()).is_none()
+    {
+        bail!(
+            "config file '{}': invalid model_protocol '{}': expected one of \
                  messages-v1, messages_v1, messages, v1, chat-compat, chat_compat, chat",
-                path.display(),
-                s
-            );
-        }
+            path.display(),
+            s
+        );
     }
-    if let Some(ref s) = layer.tool_call_mode {
-        if parse_tool_call_mode(s.clone()).is_none() {
-            bail!(
-                "config file '{}': invalid tool_call_mode '{}': expected one of \
+    if let Some(ref s) = layer.tool_call_mode
+        && parse_tool_call_mode(s.clone()).is_none()
+    {
+        bail!(
+            "config file '{}': invalid tool_call_mode '{}': expected one of \
                  structured, structured-tool-calls, structured_tool_calls, \
                  tagged-fallback, tagged_fallback, fallback, tagged",
-                path.display(),
-                s
-            );
-        }
+            path.display(),
+            s
+        );
     }
-    if let Some(ref s) = layer.sandbox {
-        if parse_sandbox_kind(s.clone()).is_none() {
-            bail!(
-                "config file '{}': invalid sandbox '{}': expected one of passthrough, macos-exec, macos_exec, container, bubblewrap, bwrap, linux-bwrap",
-                path.display(),
-                s
-            );
-        }
+    if let Some(ref s) = layer.sandbox
+        && parse_sandbox_kind(s.clone()).is_none()
+    {
+        bail!(
+            "config file '{}': invalid sandbox '{}': expected one of passthrough, macos-exec, macos_exec, container, bubblewrap, bwrap, linux-bwrap",
+            path.display(),
+            s
+        );
     }
     if let Some(ref api) = layer.api {
-        if let Some(ref transport) = api.transport {
-            if parse_api_transport(transport.clone()).is_none() {
-                bail!(
-                    "config file '{}': invalid api.transport '{}': expected one of http, unix, both",
-                    path.display(),
-                    transport
-                );
-            }
+        if let Some(ref transport) = api.transport
+            && parse_api_transport(transport.clone()).is_none()
+        {
+            bail!(
+                "config file '{}': invalid api.transport '{}': expected one of http, unix, both",
+                path.display(),
+                transport
+            );
         }
         if api.tls_skip_verify.unwrap_or(false) {
             bail!(

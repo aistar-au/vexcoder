@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::path::Path;
 
 /// Categorizes filesystem access per ADR-038 Memory-First Architecture.
@@ -159,16 +159,16 @@ mod tests {
     #[test]
     fn policy_mode_defaults_to_off() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        std::env::remove_var("VEX_DISK_POLICY");
+        crate::test_support::test_remove_var("VEX_DISK_POLICY");
         assert_eq!(resolve_policy_mode(), DiskPolicyMode::Off);
     }
 
     #[test]
     fn unknown_policy_mode_defaults_to_off() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        std::env::set_var("VEX_DISK_POLICY", "mystery");
+        crate::test_support::test_set_var("VEX_DISK_POLICY", "mystery");
         assert_eq!(resolve_policy_mode(), DiskPolicyMode::Off);
-        std::env::remove_var("VEX_DISK_POLICY");
+        crate::test_support::test_remove_var("VEX_DISK_POLICY");
     }
 
     #[test]

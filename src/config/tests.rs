@@ -11,9 +11,9 @@ fn test_config_rejects_non_loopback_http_model_url() {
     let _name = EnvRestore::capture("VEX_MODEL_NAME");
     let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
 
-    std::env::set_var("VEX_MODEL_URL", "http://api.example.internal/v1/messages");
-    std::env::set_var("VEX_MODEL_NAME", "remote-model");
-    std::env::set_var("VEX_MODEL_TOKEN", "token");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "http://api.example.internal/v1/messages");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "remote-model");
+    crate::test_support::test_set_var("VEX_MODEL_TOKEN", "token");
 
     let cfg = Config::load().expect("load failed");
     let error = cfg
@@ -29,9 +29,9 @@ fn test_config_allows_loopback_http_model_url() {
     let _name = EnvRestore::capture("VEX_MODEL_NAME");
     let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
 
-    std::env::set_var("VEX_MODEL_URL", "http://127.0.0.1:8080/v1/messages");
-    std::env::set_var("VEX_MODEL_NAME", "local-model");
-    std::env::remove_var("VEX_MODEL_TOKEN");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "http://127.0.0.1:8080/v1/messages");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "local-model");
+    crate::test_support::test_remove_var("VEX_MODEL_TOKEN");
 
     let cfg = Config::load().expect("load failed");
     assert!(cfg.validate().is_ok(), "loopback http must remain valid");
@@ -45,9 +45,9 @@ fn test_config_allows_private_network_http_model_url() {
     let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
 
     // LAN-reachable model server on a private RFC 1918 address
-    std::env::set_var("VEX_MODEL_URL", "http://192.168.1.100:11434/v1");
-    std::env::set_var("VEX_MODEL_NAME", "local-model");
-    std::env::remove_var("VEX_MODEL_TOKEN");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "http://192.168.1.100:11434/v1");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "local-model");
+    crate::test_support::test_remove_var("VEX_MODEL_TOKEN");
 
     let cfg = Config::load().expect("load failed");
     assert!(
@@ -59,45 +59,45 @@ fn test_config_allows_private_network_http_model_url() {
 #[test]
 fn test_config_loads_vex_model_name_without_legacy_prefix() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
-    std::env::set_var("VEX_MODEL_NAME", "local-model-70b");
-    std::env::remove_var("VEX_MODEL_TOKEN");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "local-model-70b");
+    crate::test_support::test_remove_var("VEX_MODEL_TOKEN");
 
     let cfg = Config::load().expect("load failed");
     assert!(
         cfg.validate().is_ok(),
         "neutral model name must pass validation"
     );
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
 }
 
 #[test]
 fn test_model_backend_kind_parses_from_env_var() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_MODEL_BACKEND", "local-runtime");
-    std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
-    std::env::set_var("VEX_MODEL_NAME", "local-model");
+    crate::test_support::test_set_var("VEX_MODEL_BACKEND", "local-runtime");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "local-model");
     let cfg = Config::load().expect("load failed");
     assert!(cfg.validate().is_ok());
     assert_eq!(cfg.model_backend, ModelBackendKind::LocalRuntime);
-    std::env::remove_var("VEX_MODEL_BACKEND");
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MODEL_BACKEND");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
 }
 
 #[test]
 fn test_invalid_model_protocol_env_var_is_rejected() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
-    std::env::set_var("VEX_MODEL_NAME", "mock-model");
-    std::env::set_var("VEX_MODEL_PROTOCOL", "legacy-value");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "mock-model");
+    crate::test_support::test_set_var("VEX_MODEL_PROTOCOL", "legacy-value");
 
     assert!(Config::load().is_err());
 
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
-    std::env::remove_var("VEX_MODEL_PROTOCOL");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MODEL_PROTOCOL");
 }
 
 #[test]
@@ -148,7 +148,7 @@ fn test_repo_local_model_url_skip_tls_check_is_rejected() {
 fn test_user_api_key_env_reference_resolves() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _api_key = EnvRestore::capture("VEX_API_KEY");
-    std::env::set_var("VEX_API_KEY", "resolved-secret");
+    crate::test_support::test_set_var("VEX_API_KEY", "resolved-secret");
 
     let temp = tempfile::tempdir().unwrap();
     let cwd = temp.path().join("repo");
@@ -208,7 +208,7 @@ fn test_api_vpn_trust_true_is_rejected() {
 #[test]
 fn test_invalid_model_backend_error_lists_remote_alias() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_MODEL_BACKEND", "legacy-value");
+    crate::test_support::test_set_var("VEX_MODEL_BACKEND", "legacy-value");
 
     let err = super::read_env_layer().unwrap_err();
     let msg = format!("{err:#}");
@@ -217,13 +217,13 @@ fn test_invalid_model_backend_error_lists_remote_alias() {
         msg.contains("remote"),
         "expected remote alias in error: {msg}"
     );
-    std::env::remove_var("VEX_MODEL_BACKEND");
+    crate::test_support::test_remove_var("VEX_MODEL_BACKEND");
 }
 
 #[test]
 fn test_invalid_tool_call_mode_error_lists_fallback_alias() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_TOOL_CALL_MODE", "legacy-value");
+    crate::test_support::test_set_var("VEX_TOOL_CALL_MODE", "legacy-value");
 
     let err = super::read_env_layer().unwrap_err();
     let msg = format!("{err:#}");
@@ -232,7 +232,7 @@ fn test_invalid_tool_call_mode_error_lists_fallback_alias() {
         msg.contains("fallback"),
         "expected fallback alias in error: {msg}"
     );
-    std::env::remove_var("VEX_TOOL_CALL_MODE");
+    crate::test_support::test_remove_var("VEX_TOOL_CALL_MODE");
 }
 
 #[test]
@@ -250,8 +250,8 @@ fn test_user_config_path_prefers_xdg_config_home() {
     std::fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
     std::fs::write(&xdg_path, "model_name = \"xdg\"\n").unwrap();
     std::fs::write(&legacy_path, "model_name = \"legacy\"\n").unwrap();
-    std::env::set_var("HOME", &legacy_home);
-    std::env::set_var("XDG_CONFIG_HOME", &xdg_root);
+    crate::test_support::test_set_var("HOME", &legacy_home);
+    crate::test_support::test_set_var("XDG_CONFIG_HOME", &xdg_root);
 
     assert_eq!(super::user_config_path(), Some(xdg_path));
 }
@@ -267,8 +267,8 @@ fn test_user_config_path_falls_back_to_legacy_home_config() {
 
     std::fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
     std::fs::write(&legacy_path, "model_name = \"legacy\"\n").unwrap();
-    std::env::set_var("HOME", &home);
-    std::env::remove_var("XDG_CONFIG_HOME");
+    crate::test_support::test_set_var("HOME", &home);
+    crate::test_support::test_remove_var("XDG_CONFIG_HOME");
 
     assert_eq!(super::user_config_path(), Some(legacy_path));
 }
@@ -278,14 +278,14 @@ fn test_doctor_rollup_matches_runtime_working_dir_resolution() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _workdir = EnvRestore::capture("VEX_WORKDIR");
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_WORKDIR", "~/doctor-workdir");
+    crate::test_support::test_set_var("VEX_WORKDIR", "~/doctor-workdir");
 
     let config = Config::load_for_tests(temp.path(), None, None).unwrap();
     let snapshot = super::doctor_rollup(temp.path()).unwrap();
 
     assert_eq!(config.working_dir, PathBuf::from("~/doctor-workdir"));
     assert_eq!(snapshot.working_dir, config.working_dir);
-    std::env::remove_var("VEX_WORKDIR");
+    crate::test_support::test_remove_var("VEX_WORKDIR");
 }
 
 #[test]
@@ -299,46 +299,46 @@ fn test_doctor_rollup_respects_env_sandbox_require_override() {
     std::fs::create_dir_all(cwd.join(".git")).unwrap();
     std::fs::create_dir_all(&cwd).unwrap();
     std::fs::write(&user_cfg, "sandbox_require = false\n").unwrap();
-    std::env::set_var("VEX_SANDBOX_REQUIRE", "true");
+    crate::test_support::test_set_var("VEX_SANDBOX_REQUIRE", "true");
 
     let snapshot = super::doctor_rollup(&cwd).unwrap();
     assert!(snapshot.sandbox_require);
 
-    std::env::remove_var("VEX_SANDBOX_REQUIRE");
+    crate::test_support::test_remove_var("VEX_SANDBOX_REQUIRE");
 }
 
 #[test]
 fn test_parse_model_headers_json_valid() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var(
+    crate::test_support::test_set_var(
         "VEX_MODEL_HEADERS_JSON",
         r#"{"x-custom-header": "value1", "x-other": "value2"}"#,
     );
     let headers = super::parse_model_headers_json().unwrap();
     assert_eq!(headers.len(), 2);
-    std::env::remove_var("VEX_MODEL_HEADERS_JSON");
+    crate::test_support::test_remove_var("VEX_MODEL_HEADERS_JSON");
 }
 
 #[test]
 fn test_parse_model_headers_json_invalid_name_rejected() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_MODEL_HEADERS_JSON", r#"{"invalid header!": "v"}"#);
+    crate::test_support::test_set_var("VEX_MODEL_HEADERS_JSON", r#"{"invalid header!": "v"}"#);
     assert!(super::parse_model_headers_json().is_err());
-    std::env::remove_var("VEX_MODEL_HEADERS_JSON");
+    crate::test_support::test_remove_var("VEX_MODEL_HEADERS_JSON");
 }
 
 #[test]
 fn test_parse_model_headers_json_non_string_value_rejected() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_MODEL_HEADERS_JSON", r#"{"x-count": 42}"#);
+    crate::test_support::test_set_var("VEX_MODEL_HEADERS_JSON", r#"{"x-count": 42}"#);
     assert!(super::parse_model_headers_json().is_err());
-    std::env::remove_var("VEX_MODEL_HEADERS_JSON");
+    crate::test_support::test_remove_var("VEX_MODEL_HEADERS_JSON");
 }
 
 #[test]
 fn test_parse_model_headers_json_empty_env_returns_empty_map() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::remove_var("VEX_MODEL_HEADERS_JSON");
+    crate::test_support::test_remove_var("VEX_MODEL_HEADERS_JSON");
     let headers = super::parse_model_headers_json().unwrap();
     assert!(headers.is_empty());
 }
@@ -346,64 +346,64 @@ fn test_parse_model_headers_json_empty_env_returns_empty_map() {
 #[test]
 fn test_max_project_instructions_tokens_env_sets_field() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS", "2048");
-    std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
-    std::env::set_var("VEX_MODEL_NAME", "test-model");
+    crate::test_support::test_set_var("VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS", "2048");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "test-model");
     let cfg = Config::load().expect("load failed");
     assert_eq!(cfg.max_project_instructions_tokens, 2048);
-    std::env::remove_var("VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS");
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
 }
 
 #[test]
 fn test_max_project_instructions_tokens_defaults_to_4096() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::remove_var("VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS");
-    std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
-    std::env::set_var("VEX_MODEL_NAME", "test-model");
+    crate::test_support::test_remove_var("VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "test-model");
     let cfg = Config::load().expect("load failed");
     assert_eq!(cfg.max_project_instructions_tokens, 4096);
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
 }
 
 #[test]
 fn test_max_project_instructions_tokens_zero_uses_default() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS", "0");
-    std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
-    std::env::set_var("VEX_MODEL_NAME", "test-model");
+    crate::test_support::test_set_var("VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS", "0");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "test-model");
     let cfg = Config::load().expect("load failed");
     assert_eq!(cfg.max_project_instructions_tokens, 4096);
-    std::env::remove_var("VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS");
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MAX_PROJECT_INSTRUCTIONS_TOKENS");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
 }
 
 #[test]
 fn test_max_memory_tokens_env_sets_field() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_MAX_MEMORY_TOKENS", "1024");
-    std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
-    std::env::set_var("VEX_MODEL_NAME", "test-model");
+    crate::test_support::test_set_var("VEX_MAX_MEMORY_TOKENS", "1024");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "test-model");
     let cfg = Config::load().expect("load failed");
     assert_eq!(cfg.max_memory_tokens, 1024);
-    std::env::remove_var("VEX_MAX_MEMORY_TOKENS");
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MAX_MEMORY_TOKENS");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
 }
 
 #[test]
 fn test_max_memory_tokens_defaults_to_2048() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::remove_var("VEX_MAX_MEMORY_TOKENS");
-    std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
-    std::env::set_var("VEX_MODEL_NAME", "test-model");
+    crate::test_support::test_remove_var("VEX_MAX_MEMORY_TOKENS");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "test-model");
     let cfg = Config::load().expect("load failed");
     assert_eq!(cfg.max_memory_tokens, 2048);
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
 }
 
 #[test]
@@ -426,9 +426,9 @@ fn test_model_url_skip_tls_check_warns() {
     let _skip = EnvRestore::capture("VEX_MODEL_URL_SKIP_TLS_CHECK");
     let _url = EnvRestore::capture("VEX_MODEL_URL");
     let _name = EnvRestore::capture("VEX_MODEL_NAME");
-    std::env::set_var("VEX_MODEL_URL_SKIP_TLS_CHECK", "true");
-    std::env::set_var("VEX_MODEL_URL", "https://localhost:8443/v1/messages");
-    std::env::set_var("VEX_MODEL_NAME", "test-model");
+    crate::test_support::test_set_var("VEX_MODEL_URL_SKIP_TLS_CHECK", "true");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "https://localhost:8443/v1/messages");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "test-model");
 
     let cfg = Config::load().expect("load failed");
     assert!(cfg.model_url_skip_tls_check);
@@ -462,14 +462,14 @@ fn test_interactive_selection_preserves_non_default_runtime_shape() {
 #[test]
 fn test_max_memory_tokens_zero_uses_default() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_MAX_MEMORY_TOKENS", "0");
-    std::env::set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
-    std::env::set_var("VEX_MODEL_NAME", "test-model");
+    crate::test_support::test_set_var("VEX_MAX_MEMORY_TOKENS", "0");
+    crate::test_support::test_set_var("VEX_MODEL_URL", "http://localhost:8080/v1");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "test-model");
     let cfg = Config::load().expect("load failed");
     assert_eq!(cfg.max_memory_tokens, 2048);
-    std::env::remove_var("VEX_MAX_MEMORY_TOKENS");
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MAX_MEMORY_TOKENS");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
 }
 
 #[test]
@@ -555,9 +555,9 @@ fn test_migrate_empty_env_produces_only_header_comments() {
     let _api_protocol = EnvRestore::capture("VEX_API_PROTOCOL");
     let _structured_tool_protocol = EnvRestore::capture("VEX_STRUCTURED_TOOL_PROTOCOL");
     let _model_url = EnvRestore::capture("VEX_MODEL_URL");
-    std::env::remove_var("VEX_API_PROTOCOL");
-    std::env::remove_var("VEX_STRUCTURED_TOOL_PROTOCOL");
-    std::env::remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_API_PROTOCOL");
+    crate::test_support::test_remove_var("VEX_STRUCTURED_TOOL_PROTOCOL");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
 
     let out = super::migrate_config_from_env(&[]);
     assert!(
@@ -714,8 +714,8 @@ fn test_user_layer_overrides_system_layer() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _url = EnvRestore::capture("VEX_MODEL_URL");
     let _name = EnvRestore::capture("VEX_MODEL_NAME");
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
 
     let temp = tempfile::tempdir().unwrap();
     let cwd = temp.path().join("repo");
@@ -734,8 +734,8 @@ fn test_repo_layer_overrides_user_layer() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _url = EnvRestore::capture("VEX_MODEL_URL");
     let _name = EnvRestore::capture("VEX_MODEL_NAME");
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
 
     let temp = tempfile::tempdir().unwrap();
     let cwd = temp.path().join("repo");
@@ -758,8 +758,8 @@ fn test_env_layer_overrides_repo_layer() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _url = EnvRestore::capture("VEX_MODEL_URL");
     let _name = EnvRestore::capture("VEX_MODEL_NAME");
-    std::env::set_var("VEX_MODEL_NAME", "env-model");
-    std::env::remove_var("VEX_MODEL_URL");
+    crate::test_support::test_set_var("VEX_MODEL_NAME", "env-model");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
 
     let temp = tempfile::tempdir().unwrap();
     let cwd = temp.path().join("repo");
@@ -1171,9 +1171,9 @@ fn test_empty_config_resolves_compiled_defaults() {
     let _url = EnvRestore::capture("VEX_MODEL_URL");
     let _name = EnvRestore::capture("VEX_MODEL_NAME");
     let _backend = EnvRestore::capture("VEX_MODEL_BACKEND");
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
-    std::env::remove_var("VEX_MODEL_BACKEND");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MODEL_BACKEND");
 
     let temp = tempfile::tempdir().unwrap();
     let cwd = temp.path().join("repo");
@@ -1192,7 +1192,7 @@ fn test_empty_config_resolves_compiled_defaults() {
 fn test_working_dir_defaults_to_cwd() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _workdir = EnvRestore::capture("VEX_WORKDIR");
-    std::env::remove_var("VEX_WORKDIR");
+    crate::test_support::test_remove_var("VEX_WORKDIR");
 
     let temp = tempfile::tempdir().unwrap();
     let cwd = temp.path().join("repo");
@@ -1211,8 +1211,8 @@ fn test_find_repo_local_config_walks_ancestors() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _url = EnvRestore::capture("VEX_MODEL_URL");
     let _name = EnvRestore::capture("VEX_MODEL_NAME");
-    std::env::remove_var("VEX_MODEL_URL");
-    std::env::remove_var("VEX_MODEL_NAME");
+    crate::test_support::test_remove_var("VEX_MODEL_URL");
+    crate::test_support::test_remove_var("VEX_MODEL_NAME");
 
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("project");
@@ -1238,7 +1238,7 @@ fn test_find_repo_local_config_walks_ancestors() {
 fn test_empty_env_model_token_is_treated_as_absent() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
-    std::env::set_var("VEX_MODEL_TOKEN", "   ");
+    crate::test_support::test_set_var("VEX_MODEL_TOKEN", "   ");
 
     let (_, token) = super::read_env_layer().unwrap();
     assert!(token.is_none(), "whitespace-only token should be None");
@@ -1248,7 +1248,7 @@ fn test_empty_env_model_token_is_treated_as_absent() {
 fn test_model_token_falls_back_to_keyring_reader_when_env_missing() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
-    std::env::remove_var("VEX_MODEL_TOKEN");
+    crate::test_support::test_remove_var("VEX_MODEL_TOKEN");
 
     let token = super::model_token_from_env_or_keyring_with(|_| Ok(Some("keyring-token".into())));
     assert_eq!(token.as_deref(), Some("keyring-token"));
@@ -1258,7 +1258,7 @@ fn test_model_token_falls_back_to_keyring_reader_when_env_missing() {
 fn test_model_token_prefers_non_empty_env_over_keyring_reader() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
-    std::env::set_var("VEX_MODEL_TOKEN", "env-token");
+    crate::test_support::test_set_var("VEX_MODEL_TOKEN", "env-token");
 
     let token = super::model_token_from_env_or_keyring_with(|_| Ok(Some("keyring-token".into())));
     assert_eq!(token.as_deref(), Some("env-token"));
@@ -1268,7 +1268,7 @@ fn test_model_token_prefers_non_empty_env_over_keyring_reader() {
 fn test_invalid_bool_flag_is_rejected() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _skip = EnvRestore::capture("VEX_MODEL_URL_SKIP_TLS_CHECK");
-    std::env::set_var("VEX_MODEL_URL_SKIP_TLS_CHECK", "maybe");
+    crate::test_support::test_set_var("VEX_MODEL_URL_SKIP_TLS_CHECK", "maybe");
 
     let error = super::read_env_layer().unwrap_err();
     let msg = format!("{error:#}");
@@ -1282,7 +1282,7 @@ fn test_invalid_bool_flag_is_rejected() {
 fn test_invalid_api_port_is_rejected() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _port = EnvRestore::capture("VEX_API_PORT");
-    std::env::set_var("VEX_API_PORT", "not-a-number");
+    crate::test_support::test_set_var("VEX_API_PORT", "not-a-number");
 
     let error = super::read_env_layer().unwrap_err();
     let msg = format!("{error:#}");

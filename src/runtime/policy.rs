@@ -16,8 +16,7 @@ answering. If structured tool calls are unavailable, use tagged syntax:
 <parameter=arg>value</parameter>
 </function>";
 
-const REPEATED_TOOL_ROUND_INSTRUCTION: &str =
-    "You repeated the same read/search tool call with unchanged arguments. \
+const REPEATED_TOOL_ROUND_INSTRUCTION: &str = "You repeated the same read/search tool call with unchanged arguments. \
 Do not repeat identical tool calls. Use existing tool results to answer now. \
 Only call a different tool if new evidence is required.";
 
@@ -140,7 +139,7 @@ fn collapse_blank_runs(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{default_runtime_policy, sanitize_assistant_text, RuntimeCorePolicy};
+    use super::{RuntimeCorePolicy, default_runtime_policy, sanitize_assistant_text};
 
     #[test]
     fn test_sanitize_assistant_text_removes_tool_block() {

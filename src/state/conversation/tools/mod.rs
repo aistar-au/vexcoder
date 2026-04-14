@@ -3,26 +3,26 @@ use crate::api::client::is_readonly_tool;
 use crate::config::{HookEvent, HookOnFail, SearchConfig};
 use crate::mcp::McpRegistry;
 use crate::runtime::{
-    format_command_session_cancelled, format_command_session_exit, format_command_session_output,
-    format_command_session_started, CommandRequest, CommandRunner, ConfiguredSandbox,
-    DefaultCommandRunner, SandboxDriver, ToolPolicy,
+    CommandRequest, CommandRunner, ConfiguredSandbox, DefaultCommandRunner, SandboxDriver,
+    ToolPolicy, format_command_session_cancelled, format_command_session_exit,
+    format_command_session_output, format_command_session_started,
 };
+use crate::tools::ToolOperator;
 use crate::tools::embed::EmbeddingConfig;
 use crate::tools::search;
 use crate::tools::semantic;
-use crate::tools::ToolOperator;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use reqwest;
-use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(all(test, not(windows)))]
 use std::sync::LazyLock;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
 // Imports from extracted submodules
 use self::config::{append_capped, max_command_output_bytes};
-use self::index::{build_codebase_index, refresh_codebase_index, CODEBASE_INDEX};
+use self::index::{CODEBASE_INDEX, build_codebase_index, refresh_codebase_index};
 
 #[cfg(all(test, not(windows)))]
 static HOOK_WARNINGS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(Vec::new()));
@@ -232,8 +232,7 @@ impl ConversationManager {
             if !approved {
                 emit_hook_warning(format!(
                     "[hooks] warning: skipping hook '{}' for tool '{}' due to missing RunCommand approval",
-                    hook.command,
-                    tool_name
+                    hook.command, tool_name
                 ));
                 continue;
             }

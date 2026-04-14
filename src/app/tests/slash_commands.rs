@@ -92,10 +92,11 @@ fn test_init_slash_command_scaffolds_workspace() {
     assert!(temp.path().join(".vex/config.toml").exists());
     assert!(temp.path().join(".vex/validate.toml").exists());
     assert!(temp.path().join("AGENTS.md").exists());
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line.contains("selected environment: local-test")));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("selected environment: local-test"))
+    );
 }
 #[tokio::test]
 async fn test_tui_context_renders_without_model_turn() {
@@ -211,7 +212,7 @@ fn test_tui_commands_renders_all_registered_commands() {
 #[test]
 fn test_agents_and_delegate_commands_manage_session_tasks() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var("VEX_STATE_DIR");
     let temp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(temp.path().join(".vex")).unwrap();
     std::fs::write(
@@ -233,23 +234,25 @@ members = ["reviewer"]
     let mut ctx = setup_ctx();
 
     mode.on_user_input("/agents".to_string(), &mut ctx);
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line.contains("reviewer profile=")));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("reviewer profile="))
+    );
 
     mode.on_user_input("/delegate reviewer inspect docs".to_string(), &mut ctx);
     assert_eq!(mode.task_doc.session_tasks.len(), 1);
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line.contains("[delegate] session task")));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("[delegate] session task"))
+    );
 }
 
 #[test]
 fn test_agents_command_counts_live_assignments_from_saved_task_state() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var("VEX_STATE_DIR");
     let temp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(temp.path().join(".vex")).unwrap();
     std::fs::write(
@@ -288,7 +291,7 @@ allowed_capabilities = ["read-file"]
 #[test]
 fn test_watch_command_reports_saved_session_task() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var("VEX_STATE_DIR");
     let temp = tempfile::tempdir().unwrap();
     let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
     let mut ctx = setup_ctx();
@@ -304,16 +307,17 @@ fn test_watch_command_reports_saved_session_task() {
     mode.persist_task_document();
 
     mode.on_user_input(format!("/watch {session_task_id}"), &mut ctx);
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line.contains("[watch]")));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("[watch]"))
+    );
 }
 
 #[test]
 fn test_watch_command_finds_saved_session_task_by_agent_id() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var("VEX_STATE_DIR");
     let temp = tempfile::tempdir().unwrap();
     let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
     let mut ctx = setup_ctx();
@@ -388,14 +392,16 @@ fn test_custom_command_appears_in_commands_list() {
     let mut ctx = setup_ctx();
     mode.on_user_input("/commands".to_string(), &mut ctx);
 
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line == "[custom commands]"));
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line.contains("/standup [input]") && line.contains("summarise changes")));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[custom commands]")
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("/standup [input]") && line.contains("summarise changes"))
+    );
 }
 #[test]
 fn test_custom_command_invokes_single_turn() {
@@ -454,7 +460,7 @@ fn test_custom_command_project_scoped_takes_precedence() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
     let xdg = tempfile::tempdir().unwrap();
-    std::env::set_var("XDG_CONFIG_HOME", xdg.path());
+    crate::test_support::test_set_var("XDG_CONFIG_HOME", xdg.path());
 
     write_custom_command(
         &xdg.path().join("vex/commands"),
@@ -474,7 +480,7 @@ fn test_custom_command_project_scoped_takes_precedence() {
     let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
     let mut ctx = setup_ctx();
     mode.on_user_input("/standup".to_string(), &mut ctx);
-    std::env::remove_var("XDG_CONFIG_HOME");
+    crate::test_support::test_remove_var("XDG_CONFIG_HOME");
 
     let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
     assert!(turn_input.contains("PROJECT TEMPLATE"));
@@ -504,17 +510,19 @@ fn test_tui_tools_renders_builtin_tools() {
     mode.on_user_input("/tools".to_string(), &mut ctx);
 
     assert!(mode.history_lines().iter().any(|line| line == "[tools]"));
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line.contains("active registry: built-in tools only")));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("active registry: built-in tools only"))
+    );
     assert!(mode.history_lines().iter().any(|line| line.contains(
         "discovery flow: list_files/find_files -> search_content/codebase_search -> read_file"
     )));
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line == "[tools:retrieve]"));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[tools:retrieve]")
+    );
     for tool in builtin_tool_summaries() {
         assert!(
             mode.history_lines()
@@ -545,14 +553,16 @@ fn test_tui_tools_lists_loaded_mcp_tools() {
 
     mode.on_user_input("/tools desc".to_string(), &mut ctx);
 
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line == "[tools:mcp]"));
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line.contains("mcp.docs.search") && line.contains("Search documentation")));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "[tools:mcp]")
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("mcp.docs.search") && line.contains("Search documentation"))
+    );
 }
 
 #[test]
@@ -576,15 +586,17 @@ fn test_tui_mcp_list_and_show_commands() {
     mode.on_user_input("/mcp show docs".to_string(), &mut ctx);
 
     assert!(mode.history_lines().iter().any(|line| line == "[mcp]"));
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line.contains("1 server(s), 1 tool(s) loaded")));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("1 server(s), 1 tool(s) loaded"))
+    );
     assert!(mode.history_lines().iter().any(|line| line == "[mcp:docs]"));
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line.contains("mcp.docs.search") && line.contains("Search documentation")));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line.contains("mcp.docs.search") && line.contains("Search documentation"))
+    );
 }
 #[test]
 fn test_tui_tools_desc_includes_descriptions() {
@@ -624,14 +636,16 @@ fn test_usage_command_uses_last_turn_estimate_flag() {
     mode.on_user_input("/usage".to_string(), &mut ctx);
 
     assert!(mode.history_lines().iter().any(|line| line == "[usage]"));
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line == "  this turn   : 4 in / 3 out"));
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| line == "  session     : 14 in / 8 out (estimated)"));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "  this turn   : 4 in / 3 out")
+    );
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| line == "  session     : 14 in / 8 out (estimated)")
+    );
 }
 #[tokio::test]
 async fn test_tui_tools_does_not_start_model_turn() {

@@ -3,11 +3,11 @@ use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::runtime::session_task::now_millis;
 use crate::runtime::TaskState;
+use crate::runtime::session_task::now_millis;
 use crate::util::write_json_safe;
 
-use super::{session_task_to_rollup, FacadeSessionTaskRollup, FacadeTaskGraphNode};
+use super::{FacadeSessionTaskRollup, FacadeTaskGraphNode, session_task_to_rollup};
 
 // ---------------------------------------------------------------------------
 // File names written inside the projections subdirectory.

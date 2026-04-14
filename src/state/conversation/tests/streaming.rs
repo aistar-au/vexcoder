@@ -400,10 +400,10 @@ data: {"type":"message_stop"}"#.to_string(),
 
     drop(tx);
     while let Ok(update) = rx.try_recv() {
-        if let ConversationStreamUpdate::BlockStart { block, .. } = update {
-            if matches!(block, StreamBlock::ToolCall { ref name, .. } if name == "read_file") {
-                saw_tool_call_block = true;
-            }
+        if let ConversationStreamUpdate::BlockStart { block, .. } = update
+            && matches!(block, StreamBlock::ToolCall { ref name, .. } if name == "read_file")
+        {
+            saw_tool_call_block = true;
         }
     }
 

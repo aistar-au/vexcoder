@@ -1,6 +1,6 @@
 use super::*;
 use crate::app::scroll::apply_bounded_scroll;
-use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
+use crate::tool_preview::{ToolPreviewStyle, preview_tool_input};
 
 #[cfg(test)]
 use crossterm::event::{Event, KeyCode, KeyModifiers};
@@ -19,17 +19,16 @@ impl TuiMode {
                 input,
                 ..
             } = e
+                && name == tool_name
             {
-                if name == tool_name {
-                    let entry_preview = preview_tool_input(
-                        name,
-                        input,
-                        ToolPreviewStyle::Structured,
-                        crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
-                    );
-                    if entry_preview == input_preview {
-                        return Some(*step_id);
-                    }
+                let entry_preview = preview_tool_input(
+                    name,
+                    input,
+                    ToolPreviewStyle::Structured,
+                    crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES,
+                );
+                if entry_preview == input_preview {
+                    return Some(*step_id);
                 }
             }
             None
@@ -41,10 +40,10 @@ impl TuiMode {
             entries
                 .iter()
                 .filter_map(|e| {
-                    if let crate::runtime::TurnEntry::ToolCall { step_id, name, .. } = e {
-                        if name == tool_name {
-                            return Some(*step_id);
-                        }
+                    if let crate::runtime::TurnEntry::ToolCall { step_id, name, .. } = e
+                        && name == tool_name
+                    {
+                        return Some(*step_id);
                     }
                     None
                 })

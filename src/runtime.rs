@@ -25,24 +25,24 @@ pub mod validation;
 pub mod worktree_lease;
 
 pub use approval::{
-    load_policy_from_env, ApprovalPolicy, ApprovalScope, Capability, FileApprovalPolicy,
-    PolicyAction,
+    ApprovalPolicy, ApprovalScope, Capability, FileApprovalPolicy, PolicyAction,
+    load_policy_from_env,
 };
 pub use backend::{ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy};
-pub(crate) use command::{
-    format_command_session_cancelled, format_command_session_exit, format_command_session_output,
-    format_command_session_started,
-};
 pub use command::{
     CommandHandle, CommandRequest, CommandResult, CommandRunner, DefaultCommandRunner, OutputChunk,
     StreamKind,
 };
+pub(crate) use command::{
+    format_command_session_cancelled, format_command_session_exit, format_command_session_output,
+    format_command_session_started,
+};
 pub use context_assembler::{AssembledContext, ContextAssembler, FileRollup};
 pub use edit_loop::{EditLoop, EditLoopOutcome};
 pub use git_parse::{
-    parse_diff_stat, parse_git_apply, parse_git_log_oneline, parse_git_status, parse_name_status,
     ApplyOutcome, DiffStatEntry, LogEntry, NameStatusEntry, ParsedDiffStat, ParsedGitApply,
-    ParsedGitLog, ParsedGitStatus, ParsedNameStatus, StatusEntry,
+    ParsedGitLog, ParsedGitStatus, ParsedNameStatus, StatusEntry, parse_diff_stat, parse_git_apply,
+    parse_git_log_oneline, parse_git_status, parse_name_status,
 };
 pub(crate) use git_rollup::{
     block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout,
@@ -51,12 +51,12 @@ pub use json_handoff::{
     RuntimeEnvelope, RuntimeEvent, RuntimeRequest, TokenUsageEnvelope, ValidationOutputEnvelope,
 };
 pub use rate_limit::{
-    looks_like_rate_limit, parse_retry_after_header, parse_retry_from_body, RetryHint,
-    RetryHintSource,
+    RetryHint, RetryHintSource, looks_like_rate_limit, parse_retry_after_header,
+    parse_retry_from_body,
 };
 pub use sandbox::{
-    resolve_configured_sandbox, ConfiguredSandbox, PassthroughSandbox, SandboxConfig,
-    SandboxDriver, SandboxKind,
+    ConfiguredSandbox, PassthroughSandbox, SandboxConfig, SandboxDriver, SandboxKind,
+    resolve_configured_sandbox,
 };
 pub use secrets::{contains_secret, redact_secrets};
 pub use session_task::{SessionTask, SessionTaskId, SessionTaskStatus};
