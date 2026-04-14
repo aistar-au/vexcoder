@@ -1,30 +1,8 @@
 use super::{Config, ModelBackendKind};
 use std::path::PathBuf;
 
+use crate::test_support::EnvRestore;
 use crate::types::ModelProfile;
-
-struct EnvRestore {
-    key: &'static str,
-    value: Option<String>,
-}
-
-impl EnvRestore {
-    fn capture(key: &'static str) -> Self {
-        Self {
-            key,
-            value: std::env::var(key).ok(),
-        }
-    }
-}
-
-impl Drop for EnvRestore {
-    fn drop(&mut self) {
-        match &self.value {
-            Some(value) => std::env::set_var(self.key, value),
-            None => std::env::remove_var(self.key),
-        }
-    }
-}
 
 #[test]
 fn test_config_rejects_non_loopback_http_model_url() {
@@ -1264,6 +1242,26 @@ fn test_empty_env_model_token_is_treated_as_absent() {
 
     let (_, token) = super::read_env_layer().unwrap();
     assert!(token.is_none(), "whitespace-only token should be None");
+}
+
+#[test]
+fn test_model_token_falls_back_to_keyring_reader_when_env_missing() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
+    std::env::remove_var("VEX_MODEL_TOKEN");
+
+    let token = super::model_token_from_env_or_keyring_with(|_| Ok(Some("keyring-token".into())));
+    assert_eq!(token.as_deref(), Some("keyring-token"));
+}
+
+#[test]
+fn test_model_token_prefers_non_empty_env_over_keyring_reader() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
+    std::env::set_var("VEX_MODEL_TOKEN", "env-token");
+
+    let token = super::model_token_from_env_or_keyring_with(|_| Ok(Some("keyring-token".into())));
+    assert_eq!(token.as_deref(), Some("env-token"));
 }
 
 #[test]

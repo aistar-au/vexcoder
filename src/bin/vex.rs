@@ -1,7 +1,7 @@
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use clap::{CommandFactory, Parser};
 use serde::Serialize;
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use vexcoder::app::{
@@ -25,7 +25,9 @@ mod cli;
 #[path = "vex/tests.rs"]
 mod tests;
 
-use self::cli::{Cli, Commands, MigrateCommands, SkillsCommands, TaskCommands};
+use self::cli::{
+    Cli, Commands, CredentialsCommands, MigrateCommands, SkillsCommands, TaskCommands,
+};
 
 fn emit_migrate_config_output(output_path: Option<&Path>) -> Result<()> {
     let fragment = vexcoder::config::migrate_config_from_env(&[]);
@@ -62,7 +64,6 @@ fn resolve_resume_state(task_id: &str) -> Result<Option<TaskState>> {
 /// Collect stdin when it is not a TTY (pipe / redirect) and prepend it to the
 /// prompt so that `vex -p "summarise" < file.txt` works naturally.
 fn read_stdin_if_piped() -> Option<String> {
-    use std::io::Read;
     if std::io::stdin().is_terminal() {
         return None;
     }
@@ -72,6 +73,67 @@ fn read_stdin_if_piped() -> Option<String> {
         None
     } else {
         Some(buf)
+    }
+}
+
+fn trim_single_trailing_line_ending(secret: &mut String) {
+    if secret.ends_with('\n') {
+        secret.pop();
+        if secret.ends_with('\r') {
+            secret.pop();
+        }
+    } else if secret.ends_with('\r') {
+        secret.pop();
+    }
+}
+
+fn read_secret_from_reader(mut reader: impl Read) -> Result<String> {
+    let mut secret = String::new();
+    reader
+        .read_to_string(&mut secret)
+        .context("failed to read credential secret")?;
+    trim_single_trailing_line_ending(&mut secret);
+    Ok(secret)
+}
+
+fn read_secret_from_stdin() -> Result<String> {
+    let stdin = std::io::stdin();
+    if stdin.is_terminal() {
+        bail!("--stdin requires piped or redirected stdin");
+    }
+    read_secret_from_reader(stdin.lock())
+}
+
+fn read_secret_from_env_var(name: &str) -> Result<String> {
+    std::env::var(name)
+        .with_context(|| format!("environment variable '{name}' is not set or is not valid UTF-8"))
+}
+
+fn credentials_action_from_cli(
+    sub: CredentialsCommands,
+) -> Result<vexcoder::credentials::CredentialsAction> {
+    use vexcoder::credentials::CredentialsAction;
+
+    match sub {
+        CredentialsCommands::Set {
+            account,
+            stdin,
+            from_env,
+        } => {
+            let secret = if stdin {
+                read_secret_from_stdin()?
+            } else if let Some(var_name) = from_env {
+                read_secret_from_env_var(&var_name)?
+            } else {
+                bail!(
+                    "refusing to read a credential secret from argv; use --stdin or --from-env VAR"
+                );
+            };
+            Ok(CredentialsAction::Set { account, secret })
+        }
+        CredentialsCommands::Get { account } => Ok(CredentialsAction::Get { account }),
+        CredentialsCommands::Delete { account } => Ok(CredentialsAction::Delete { account }),
+        CredentialsCommands::List => Ok(CredentialsAction::List),
     }
 }
 
@@ -366,6 +428,12 @@ async fn main() -> Result<ExitCode> {
             apply_cli_overrides(chat_compat, tool_policy, &mut config);
             config.validate()?;
             serve_local_api(config, host, port).await?;
+            return Ok(ExitCode::SUCCESS);
+        }
+        Some(Commands::Credentials { sub }) => {
+            use vexcoder::credentials::run_credentials;
+            let action = credentials_action_from_cli(sub)?;
+            run_credentials(action)?;
             return Ok(ExitCode::SUCCESS);
         }
         None => {}

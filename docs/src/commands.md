@@ -66,6 +66,20 @@ verifies that any present policy file parses cleanly.
 Exit code is non-zero only when one or more checks fail. `--json` emits a JSON
 array of `{check,status,message}` objects.
 
+### `vex credentials <set|get|delete|list>`
+
+Manages the OS credential-store entries used by the runtime token fallback.
+
+- `vex credentials set <account> --stdin` reads the secret from piped or redirected stdin.
+- `vex credentials set <account> --from-env VAR` reads the secret from environment variable `VAR`.
+- `vex credentials get <account>` prints the stored secret.
+- `vex credentials delete <account>` removes the stored secret.
+- `vex credentials list` prints the known account identifiers for the `vexcoder` service.
+
+The current build uses macOS Keychain on macOS, Windows Credential Manager on
+Windows, and Linux keyutils on Linux. `set` intentionally refuses to read the
+secret from argv so the value does not leak into shell history or process lists.
+
 ### `vex export <task-id> [--format jsonl|markdown] [--output PATH] [--force]`
 
 Exports a saved task from `.vex/state` (or `VEX_STATE_DIR`).

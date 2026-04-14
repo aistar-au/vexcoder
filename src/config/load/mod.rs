@@ -203,9 +203,7 @@ pub(super) fn doctor_rollup(cwd: &Path) -> Result<DoctorConfigRollup> {
         }
         _ => None,
     };
-    let model_token_present = std::env::var("VEX_MODEL_TOKEN")
-        .ok()
-        .is_some_and(|value| !value.trim().is_empty());
+    let model_token_present = model_token_from_env_or_keyring().is_some();
 
     let model_url = env_model_url
         .or(repo_layer.model_url)
@@ -238,18 +236,56 @@ pub(super) fn doctor_rollup(cwd: &Path) -> Result<DoctorConfigRollup> {
     })
 }
 
+fn model_token_from_env_or_keyring() -> Option<String> {
+    model_token_from_env_or_keyring_with(crate::credentials::read)
+}
+
+#[cfg(test)]
+pub(super) fn model_token_from_env_or_keyring_with<F>(keyring_read: F) -> Option<String>
+where
+    F: FnOnce(&str) -> Result<Option<String>>,
+{
+    model_token_from_env_or_keyring_with_impl(keyring_read)
+}
+
+#[cfg(not(test))]
+fn model_token_from_env_or_keyring_with<F>(keyring_read: F) -> Option<String>
+where
+    F: FnOnce(&str) -> Result<Option<String>>,
+{
+    model_token_from_env_or_keyring_with_impl(keyring_read)
+}
+
+fn model_token_from_env_or_keyring_with_impl<F>(keyring_read: F) -> Option<String>
+where
+    F: FnOnce(&str) -> Result<Option<String>>,
+{
+    std::env::var("VEX_MODEL_TOKEN")
+        .ok()
+        .and_then(|value| {
+            if value.trim().is_empty() {
+                None
+            } else {
+                Some(value)
+            }
+        })
+        .or_else(
+            || match keyring_read(crate::credentials::ACCOUNT_MODEL_TOKEN) {
+                Ok(value) => value,
+                Err(err) => {
+                    tracing::debug!(error = %err, "keyring read failed; token remains absent");
+                    None
+                }
+            },
+        )
+}
+
 /// Read environment variables into a ConfigLayer and return the env token
 /// separately (token is forbidden in file layers).
 ///
 /// VEX_MODEL_PROTOCOL is validated here so the error message names the env var.
 pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
-    let env_token = std::env::var("VEX_MODEL_TOKEN").ok().and_then(|v| {
-        if v.trim().is_empty() {
-            None
-        } else {
-            Some(v)
-        }
-    });
+    let env_token = model_token_from_env_or_keyring();
 
     let model_protocol = match std::env::var("VEX_MODEL_PROTOCOL") {
         Ok(v) if !v.trim().is_empty() => {
@@ -497,7 +533,7 @@ fn load_config_layer(path: &Path) -> Result<Option<ConfigLayer>> {
     if let Some(ref s) = layer.sandbox {
         if parse_sandbox_kind(s.clone()).is_none() {
             bail!(
-                "config file '{}': invalid sandbox '{}': expected one of passthrough, macos-exec, macos_exec, container",
+                "config file '{}': invalid sandbox '{}': expected one of passthrough, macos-exec, macos_exec, container, bubblewrap, bwrap, linux-bwrap",
                 path.display(),
                 s
             );
