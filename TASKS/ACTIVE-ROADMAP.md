@@ -6,7 +6,7 @@ and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate i
 Updated by the merge workflow after each ADR-scoped PR lands on main.
 Do not edit manually except via the standard exact-diff workflow.
 
-Last updated: 2026-04-05 (PR #342 Tier 4 debug: full git parsing stack, expanded secret redaction, Retry-After header wiring, crate boundary docs)
+Last updated: 2026-04-14 (gap-closure-docs: ADR-024 extended with Gaps 36–39 from comparative architecture review — cross-platform sandbox, MCP server mode, OS-native credential store, workspace crate extraction)
 
 ---
 
@@ -17,7 +17,7 @@ Last updated: 2026-04-05 (PR #342 Tier 4 debug: full git parsing stack, expanded
 | ADR-021 | Accepted | 0 (all items complete) | All P1/P2/P3 items complete; see Tier 6 section |
 | ADR-022 amendment | Amended | Amendment only | Tightens opening-stage command-execution rules relative to ADR-022 |
 | ADR-022 | Proposed (initial validation passed) | Second-stage G/H | Roadmap; spawns ADR-023, ADR-024, ADR-027, ADR-031 |
-| ADR-024 | Proposed (pre-release complete) | 1 item (PG-03 tap auto-dispatch -- next batch planned) | PA–PM and PP done; PG-01/PG-02/PG-03 template complete; PH-01/PH-02/PH-03 complete; PL-01 (pre/post-tool hooks, Gap 26) complete |
+| ADR-024 | Proposed (pre-release complete) | Gaps 36–39 added (comparative research follow-up); PG-03 tap auto-dispatch still pending | PA–PM and PP done; PG-01/PG-02/PG-03 template complete; PH-01/PH-02/PH-03 complete; PL-01 (pre/post-tool hooks, Gap 26) complete; Gaps 36–39 registered: cross-platform sandbox (36), MCP server exposure (37), OS-native credential store (38), workspace crate extraction (39) — each requires a dedicated ADR before implementation |
 | ADR-028 | Active | Ongoing boundary alignment | Phase 1, 2, and transport extraction committed 2026-03-25; boundary tests now cover direct, grouped, multiline, and `super::`-relative `server`/`bin` imports for all inner layers |
 | ADR-029 | Accepted (amended 2026-04-01) | 0 items remaining | All 8 decision items verified in Tier 5 (PR #249); Amendment adds StreamTextNormaliser boundary for embedded tool call markup (PR #305) |
 | ADR-030 | Accepted | 0 items remaining | All 6 coverage requirements verified in Tier 5 (PR #249) |

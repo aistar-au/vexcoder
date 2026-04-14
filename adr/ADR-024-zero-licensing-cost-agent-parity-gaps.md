@@ -67,6 +67,10 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 31 | No MCP HTTP server authentication headers | Active (extends Gap 5) |
 | 32 | No `-p`/`--print` one-shot plain-text flag | Proposed |
 | 35 | No model-callable workspace exploration tools (`search_files`, `list_dir`, `glob_files`) | Complete |
+| 36 | No cross-platform sandbox backend (Linux Landlock + seccomp; Windows restricted-token) | Proposed (extends Gap 1; requires dedicated ADR) |
+| 37 | No MCP server exposure (`vex mcp-server` subcommand) | Proposed (extends Gap 5; requires dedicated ADR) |
+| 38 | No OS-native credential storage (keyring integration) | Proposed (requires dedicated ADR) |
+| 39 | Incremental workspace crate extraction (`vexcoder-core`, `vexcoder-tui`, `vexcoder-tools`, `vexcoder-api`) | Proposed (scaffold merged PR #377; requires dedicated ADR) |
 
 ### Gaps intentionally deferred by this ADR
 
@@ -104,7 +108,7 @@ boundaries) is the boundary ADR that Phase I CLI and LocalApiServer work must re
 
 ## Decision
 
-This ADR locks decisions for gaps 1–11, gaps 13–32, and gap 35. Gap 12 is complete: ADR-033 introduced the hybrid retrieval context architecture with tree-sitter structural indexing and `codebase_search`.
+This ADR locks decisions for gaps 1–11, gaps 13–32, gap 35, and gaps 36–39. Gap 12 is complete: ADR-033 introduced the hybrid retrieval context architecture with tree-sitter structural indexing and `codebase_search`.
 
 ### External parity research and IP-safe implementation
 
@@ -156,6 +160,60 @@ behavior specifications and repository-local tests only.
    describing scroll ownership, use: host-owned scrollback, committed
    history flush, live bottom viewport, history sink, scroll-region insertion,
    newline fallback, detail overlay, and owned-transcript fallback.
+
+### Comparative architecture research — implementation status (2026-04)
+
+Structured review of three independently maintained CLI coding agent
+implementations informed the gap additions in this revision. References are
+anonymized as Ref-A (Rust, Apache-2.0), Ref-B (TypeScript/Node.js), and
+Ref-C (closed-source Go binary). Implementation category comparisons use only
+neutral technical descriptors per the IP enforcement rules above.
+
+**Gaps confirmed implemented in vexcoder (no further action required):**
+
+- **Structural code index (Gap 12):** Completed via ADR-033.
+  `src/tools/index.rs` (791 lines) and `src/tools/search.rs` provide
+  tree-sitter AST parsing for Rust, Python, TypeScript, TSX, and JavaScript
+  grammars plus BM25 ranking. Gap 12 is closed.
+- **PTY-backed command execution:** The `portable-pty` crate is integrated.
+  `src/runtime/command.rs::attach_pty()` provides synchronous PTY session
+  attachment for tools that require a terminal emulator. Full async PTY
+  integration remains deferred per ADR-027 §constraints; the sync form covers
+  interactive one-shot commands. No new gap entry is required.
+
+**Gaps confirmed absent; now tracked as Gaps 36–39:**
+
+- **Gap 36 — Cross-platform sandbox backend:** The runtime supports
+  `PassthroughSandbox` and `MacosExec` (macOS `sandbox-exec`) only.
+  Linux and Windows enforcement require Landlock + seccomp (or bubblewrap)
+  and a restricted-token approach respectively. Tracked in Gap 36.
+- **Gap 37 — MCP server exposure:** The runtime operates as an MCP client
+  only. Bidirectional MCP capability requires a `vex mcp-server` subcommand
+  that reuses the ADR-025 envelope format over an MCP transport layer.
+  Tracked in Gap 37.
+- **Gap 38 — OS-native credential storage:** API secrets are read from
+  environment variables only. The `keyring` crate (MIT/Apache-2.0) provides
+  macOS Keychain, Linux Secret Service, and Windows Credential Store access
+  without a licensing cost. Tracked in Gap 38.
+- **Gap 39 — Workspace crate extraction:** PR #377 converted `Cargo.toml` to
+  a Cargo workspace and extracted `crates/vexcoder-api-types/`. The single
+  remaining crate forces full recompilation on every change. Incremental
+  extraction of `vexcoder-core`, `vexcoder-tui`, `vexcoder-tools`, and
+  `vexcoder-api` requires a dedicated ADR. Tracked in Gap 39.
+
+**Where vexcoder leads relative to the reviewed implementations (summary):**
+
+- Zero licensing cost across the entire dependency graph (MIT / Apache-2.0
+  throughout).
+- Formal ADR governance with sequencing gates (45+ ADRs at time of review).
+- Architecture boundary CI enforcement (`check-arch`, `check-boundary`,
+  `check-routing`, `check-module-names`, `check-forbidden-names`).
+- Crash-safe persistence (`write_json_safe`: temp + fsync + rename) without
+  SQLite overhead.
+- `DiskPolicy` classification layer with CI gate; no equivalent in reviewed
+  implementations.
+- Deterministic edit loop with template-based prompt assembly (ADR-023).
+- Single-binary deployment across TUI, Batch, and LocalAPI modes.
 
 ---
 
@@ -1669,6 +1727,109 @@ When checking a box above, append an evidence block under this section:
 
 ---
 
+### Gap 36 — Cross-platform Sandbox Backend (Linux and Windows)
+
+**Status:** Proposed. Requires a dedicated ADR before implementation.
+
+Gap 1 introduced `SandboxDriver` with `PassthroughSandbox` and `MacosExec`
+(`sandbox-exec`) drivers. Linux deployments — including Docker and CI
+containers — run in `PassthroughSandbox` mode with no kernel-level enforcement.
+Windows deployments have no sandbox driver at all.
+
+**Required drivers (specification deferred to dedicated ADR):**
+
+- **Linux:** Landlock LSM (filesystem restriction) + seccomp BPF (syscall
+  filtering) as a combined backend. Alternatively, bubblewrap as a
+  subprocess-wrapper approach. The dedicated ADR must decide which kernel
+  interface is used, the minimum kernel version requirement, and the fallback
+  when Landlock is unavailable (kernel < 5.13).
+- **Windows:** Restricted-token job object approach to constrain filesystem
+  access in a manner analogous to `sandbox-exec`. The dedicated ADR must
+  decide the token restriction set and the fallback path.
+
+**Constraint:** Do not implement Gap 36 before the dedicated ADR is
+accepted. The `SandboxDriver` trait is in `src/runtime/sandbox.rs`; add new
+driver variants only after the ADR defines their exact syscall/FS permission
+sets and platform detection logic.
+
+---
+
+### Gap 37 — MCP Server Exposure (`vex mcp-server`)
+
+**Status:** Proposed. Requires a dedicated ADR before implementation.
+
+Gap 5 introduced the MCP client (`rmcp` crate; `src/mcp.rs`) so `vexcoder`
+can consume external tool servers. The runtime has no MCP server capability:
+other agents cannot call `vexcoder` tools over the MCP protocol.
+
+The dedicated ADR must decide:
+
+- Which transport (stdio JSON-RPC vs HTTP SSE) to expose as the primary server
+  surface. Reuse of the ADR-025 `RuntimeEnvelope` format over an MCP transport
+  layer is the recommended starting point.
+- Whether the server uses the existing `LocalApiServer` HTTP stack or a
+  dedicated `rmcp` server loop.
+- Authentication model for inbound MCP connections.
+- Subcommand name (`vex mcp-server`) and startup flags.
+
+**Constraint:** Do not implement `vex mcp-server` without the dedicated ADR.
+The `src/server/` transport layer (ADR-028 boundary) must not be modified to
+serve MCP traffic until the ADR defines the boundary and authentication rules.
+
+---
+
+### Gap 38 — OS-native Credential Storage
+
+**Status:** Proposed. Requires a dedicated ADR before implementation.
+
+Secrets (`VEX_MODEL_TOKEN`, MCP server authentication tokens) are read from
+environment variables only. There is no OS-native credential store integration.
+
+The `keyring` crate (MIT/Apache-2.0) provides a unified API over macOS
+Keychain, Linux Secret Service (via D-Bus), and Windows Credential Manager.
+It satisfies the zero-licensing-cost constraint.
+
+The dedicated ADR must decide:
+
+- Which credential keys to store (model token, MCP auth tokens, or both).
+- The fallback path when the OS credential store is unavailable (headless CI,
+  Docker containers without a D-Bus session).
+- Whether `VEX_MODEL_TOKEN` remains the primary path with the keyring as
+  optional, or the keyring becomes the primary path with env-var override.
+- Config key (`[credentials]` table or an extension of Gap 3's layered config).
+
+**Constraint:** Do not add the `keyring` crate or read OS credential stores
+without the dedicated ADR. The existing `VEX_MODEL_TOKEN` env-var path must
+remain functional as a fallback regardless of the chosen design.
+
+---
+
+### Gap 39 — Incremental Workspace Crate Extraction
+
+**Status:** Proposed. Requires a dedicated ADR before implementation.
+
+PR #377 converted `Cargo.toml` to a Cargo workspace (`members = [".", "crates/*"]`)
+and extracted `src/types/api_types.rs` (517 lines, 17 tests) to
+`crates/vexcoder-api-types/`. The main crate re-exports through `src/types.rs`
+so all 25 importing files are unaffected.
+
+The dedicated ADR must decide:
+
+- Which crates to extract and in what order: `vexcoder-core` (runtime
+  contracts and policy), `vexcoder-tui` (ratatui/crossterm rendering),
+  `vexcoder-tools` (tool operator, index, search), and `vexcoder-api`
+  (server transport) are the natural candidates.
+- Re-export strategy to preserve existing import paths during extraction.
+- Whether to gate each extraction on a passing `cargo nextest` run in the
+  extracted crate before committing.
+- Compilation-time impact measurement after each step.
+
+**Constraint:** Do not extract additional crates without the dedicated ADR.
+The workspace scaffold is in place; extraction must proceed in ADR-defined
+batches to avoid breaking build and test isolation.
+
+---
+
 ## Compliance notes for agents
 
 | Rule | Enforcement |
@@ -1720,6 +1881,10 @@ When checking a box above, append an evidence block under this section:
 | `-p`/`--print` must not be implemented before Gap 2 (`BatchMode`) is complete | `--print` is a routing flag over `BatchMode`; implementing it without `BatchMode` requires duplicating runtime logic, which is prohibited |
 | Do not implement a minimal/simple execution mode env var (`VEX_SIMPLE` or equivalent) without a dedicated ADR | The exact feature-disable set must be decided deliberately; disabling MCP, hooks, or skills piecemeal without a specification creates inconsistent operator expectations |
 | Do not implement `vex remote-control` or any remote environment serving surface without a dedicated ADR | This is distinct from `LocalApiServer` (Phase I) and requires its own network exposure, authentication, and security boundary decisions |
+| Do not add a Linux or Windows `SandboxDriver` variant without a dedicated ADR (Gap 36) | Syscall and filesystem permission sets must be specified before implementation; `src/runtime/sandbox.rs` is the extension point |
+| Do not implement `vex mcp-server` or expose vexcoder as an MCP server without a dedicated ADR (Gap 37) | ADR-028 transport boundary applies; the ADR must define the MCP transport surface and authentication model |
+| Do not add the `keyring` crate or read OS credential stores without a dedicated ADR (Gap 38) | Fallback path, config key, and D-Bus/headless behavior must be decided before integration |
+| Do not extract additional workspace crates without a dedicated ADR (Gap 39) | The workspace scaffold is in place; each extraction requires ADR-defined batches and re-export strategy |
 
 ---
 
