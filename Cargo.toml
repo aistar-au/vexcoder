@@ -29,7 +29,7 @@ axum = { version = "0.8", features = ["http1", "json", "tokio"] }
 clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4" }
 bytes = "1"
-crossterm = { version = "0.28", features = ["bracketed-paste", "event-stream"] }
+crossterm = { version = "0.29", features = ["bracketed-paste", "event-stream"] }
 fs2 = "0.4"
 futures = "0.3"
 hyper = { version = "1", features = ["http1", "server"] }
@@ -45,7 +45,7 @@ ratatui = { version = "0.30", features = [
   "unstable-backend-writer",
   "unstable-rendered-line-info",
   "unstable-widget-ref",
-  "crossterm_0_28",
+  "crossterm_0_29",
 ] }
 reqwest = { version = "0.13", default-features = false, features = [
   "json",

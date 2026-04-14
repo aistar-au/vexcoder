@@ -149,9 +149,9 @@ Adopt a neutral spatial voice for operator-facing CLI text.
 - Render the orchestrator lane as a continuous enriched paragraph while
    keeping code and diff text visually dominant in phosphor white / green / red.
 - Keep the code / diff surface visually dominant over status text.
-- This batch does not require the app to own a full-history scroll surface.
-  Committed progress paragraphs become host-owned scrollback; only the live
-  tail remains app-rendered.
+- This batch does not require a second full-history scroll surface.
+   Committed progress paragraphs stay on the owned transcript surface, and the
+   live tail remains on that same app-rendered task layout.
 
 ## Consequences
 

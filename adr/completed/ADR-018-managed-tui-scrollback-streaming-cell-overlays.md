@@ -59,7 +59,7 @@ not overlap existing `StreamBlock*` streaming semantics.
 
 `CustomTerminal` may use ratatui insertion APIs for inline viewport behavior.
 Implementation must be validated against the pinned ratatui version in this
-repo (`ratatui = 0.29`) before task dispatch is considered complete.
+repo (`ratatui = 0.30`) before task dispatch is considered complete.
 
 The managed TUI is not permitted to rely on a rendering strategy that makes
 pre-session shell history unreachable until process exit. Primary-cli

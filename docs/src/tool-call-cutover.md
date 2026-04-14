@@ -6,11 +6,16 @@ and the remaining architecture work after that cutover.
 
 ## Current constraints
 
-The ratatui task surface keeps the composer immediately below the visible
-transcript content. Any surplus rows in the bounded inline viewport accumulate
-below the composer rather than between the content and the input pane.
-The remaining complexity is no longer the pane split; it is the live
-transcript state.
+The live CLI now has one ratatui-owned task surface and one ratatui 0.30
+CLI bootstrap path. TTY startup uses
+`ratatui::try_init_with_options(TerminalOptions { viewport: Viewport::Inline(..) })`
+in `src/tui_handle.rs`, with application-owned bracketed-paste enable/disable
+wrapped around that init and restore flow. The composer stays immediately
+below the visible transcript content, and any surplus reserved rows stay below
+the composer rather than opening a gap between the content and the input pane.
+
+The remaining complexity is no longer CLI-surface ownership or renderer choice.
+It is the live transcript state.
 
 Today the transcript is assembled from three mutable sources:
 
@@ -53,15 +58,15 @@ source of truth for:
 The viewport then consumes one ordered document instead of reconstructing rows
 from multiple mutable sources.
 
-## PR 348 cutover choices
+## Current contracts
 
-PR 348 keeps the ratatui-native transcript surface and makes four explicit
-choices so the UI, parser, and API route all move in the same direction.
+The current tree keeps one ratatui transcript surface and one active inline
+viewport path so the UI, parser, and API route move in the same direction.
 
 ### 1. Viewport contract
 
 - The composer sits immediately below the visible transcript content.
-  Surplus rows in the bounded inline viewport accumulate below the composer
+  Surplus rows in the reserved inline viewport accumulate below the composer
   so blank space never appears between content and the input pane.
 - Short transcript bodies start directly below the status row and grow
   downward; the output pane is sized to exactly the visible content rows.
@@ -69,7 +74,16 @@ choices so the UI, parser, and API route all move in the same direction.
   Once the body is full, the live window follows the bottom and older rows
   scroll upward out of view.
 
-### 2. Transcript rendering contract
+### 2. CLI lifecycle contract
+
+- TTY bootstrap uses ratatui 0.30's `try_init_with_options` path instead of a
+  manual inline bootstrap path.
+- The CLI still owns bracketed-paste enable/disable because ratatui's init
+  helpers do not manage that part of the event contract.
+- Non-TTY output keeps the plain non-interactive path so pipes and other
+  non-interactive executions do not attempt raw-mode startup.
+
+### 3. Transcript rendering contract
 
 - Pending tool paragraphs still render directly into the transcript body
   instead of a separate timeline strip.
@@ -81,7 +95,7 @@ choices so the UI, parser, and API route all move in the same direction.
   identity and cursor metadata, but they do not form a second display-text
   stream.
 
-### 3. API-route contract
+### 4. API-route contract
 
 - The local API/runtime envelope is now transcript-first.
 - Plain `StreamDelta` text is normalized into synthetic
@@ -91,7 +105,7 @@ choices so the UI, parser, and API route all move in the same direction.
 - The `assistant_delta` and `assistant_message` events are removed. All
   downstream consumers must read transcript block events only.
 
-### 4. Parser contract
+### 5. Parser contract
 
 - Local text-protocol turns default to the hybrid parser chain.
 - Tagged `<function=...>` parsing stays the fast path.
@@ -119,5 +133,6 @@ That cutover should:
   `current_turn_stream_segments`, and `active_stream_blocks` so the renderer
   and the runtime both consume one ordered document.
 
-Until that larger cutover lands, the ratatui transcript path should continue
-to prefer paragraph-preserving repairs over additional side buffers.
+Until that larger cutover lands, the live CLI keeps one ratatui-owned
+transcript path and should continue to prefer paragraph-preserving repairs
+over revived alternate renderer or host-scrollback paths.

@@ -101,12 +101,11 @@ surface.
      changes, observes failures, then uses index to pull just the broken
      part for the next turn rather than re-scanning files.
 
-### Bottom-anchored prompt over host-owned scrollback
+### Bottom-anchored prompt over the owned transcript surface
 
-10. Under the host-owned scrollback model (ADR-031 amendment 2026-04-08),
-    the prompt stays in a reserved bottom viewport. Committed transcript
-    history scrolls into the host's scrollback above the live
-    viewport.
+10. Under the owned-transcript model corrected on 2026-04-09, the prompt
+  stays in a reserved bottom viewport. Committed transcript history remains
+  on the app-owned transcript surface above the live viewport.
 
 11. Up and Down keys in the multiline composer continue to mean cursor
     motion, input history recall, or picker navigation within the composer.

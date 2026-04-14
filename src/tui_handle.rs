@@ -4,14 +4,14 @@ use crossterm::{
     cursor::Show,
     event::{DisableBracketedPaste, EnableBracketedPaste},
     execute,
-    terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode, size as host_display_size},
+    terminal::{Clear, ClearType, size as host_display_size},
 };
-use ratatui::{Terminal, TerminalOptions, Viewport, backend::CrosstermBackend};
-use std::io::{self, IsTerminal, Stdout};
+use ratatui::{DefaultTerminal, Terminal, TerminalOptions, Viewport, backend::CrosstermBackend};
+use std::io::{self, IsTerminal};
 use std::sync::Once;
 
 pub struct TuiHandle {
-    inner: Terminal<CrosstermBackend<Stdout>>,
+    inner: DefaultTerminal,
 }
 
 impl TuiHandle {
@@ -37,7 +37,7 @@ pub fn install_panic_hook_once() {
     PANIC_HOOK_INSTALLED.call_once(|| {
         let original_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
-            let _ = restore();
+            let _ = disable_bracketed_paste();
             original_hook(panic_info);
         }));
     });
@@ -45,17 +45,6 @@ pub fn install_panic_hook_once() {
 
 fn host_has_tty() -> bool {
     io::stdin().is_terminal() && io::stdout().is_terminal()
-}
-
-fn enter_raw_mode() -> Result<()> {
-    install_panic_hook_once();
-    if !host_has_tty() {
-        return Ok(());
-    }
-
-    enable_raw_mode()?;
-    execute!(io::stdout(), EnableBracketedPaste)?;
-    Ok(())
 }
 
 fn preferred_inline_viewport_rows_with_override(host_rows: u16, override_rows: Option<u16>) -> u16 {
@@ -73,20 +62,32 @@ fn preferred_inline_viewport_rows(host_rows: u16) -> u16 {
     preferred_inline_viewport_rows_with_override(host_rows, override_rows)
 }
 
+fn enable_bracketed_paste() -> io::Result<()> {
+    if !host_has_tty() {
+        return Ok(());
+    }
+    execute!(io::stdout(), EnableBracketedPaste)
+}
+
+fn disable_bracketed_paste() -> io::Result<()> {
+    if !host_has_tty() {
+        return Ok(());
+    }
+    execute!(io::stdout(), DisableBracketedPaste)
+}
+
 pub fn setup() -> Result<TuiHandle> {
-    enter_raw_mode()?;
-    let backend = CrosstermBackend::new(io::stdout());
     let mut tui = if host_has_tty() {
+        install_panic_hook_once();
         let (_, rows) = host_display_size()?;
         let inline_rows = preferred_inline_viewport_rows(rows);
-        let inner = Terminal::with_options(
-            backend,
-            TerminalOptions {
-                viewport: Viewport::Inline(inline_rows),
-            },
-        )?;
+        let inner = ratatui::try_init_with_options(TerminalOptions {
+            viewport: Viewport::Inline(inline_rows),
+        })?;
+        enable_bracketed_paste()?;
         TuiHandle { inner }
     } else {
+        let backend = CrosstermBackend::new(io::stdout());
         let inner = Terminal::new(backend)?;
         TuiHandle { inner }
     };
@@ -101,10 +102,10 @@ pub fn restore() -> Result<()> {
         return Ok(());
     }
 
-    let _ = disable_raw_mode();
+    let _ = disable_bracketed_paste();
+    let _ = ratatui::try_restore();
     let _ = execute!(
         io::stdout(),
-        DisableBracketedPaste,
         Show,
         MoveToColumn(0),
         Clear(ClearType::CurrentLine)
