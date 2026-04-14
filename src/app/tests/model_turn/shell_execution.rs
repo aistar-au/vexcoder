@@ -165,11 +165,12 @@ fn test_command_session_updates_track_matching_session() {
     );
     mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
 
-    assert!(mode
-        .task_doc
-        .active_turn
-        .as_ref()
-        .is_none_or(|t| t.command_sessions.is_empty()));
+    assert!(
+        mode.task_doc
+            .active_turn
+            .as_ref()
+            .is_none_or(|t| t.command_sessions.is_empty())
+    );
     assert!(!mode.is_turn_in_progress());
 }
 
@@ -264,11 +265,12 @@ fn test_turn_complete_waits_for_last_command_session_to_finish() {
 
     mode.on_model_update(UiUpdate::CommandSessionFinished { session_id }, &mut ctx);
 
-    assert!(mode
-        .task_doc
-        .active_turn
-        .as_ref()
-        .is_none_or(|t| t.command_sessions.is_empty()));
+    assert!(
+        mode.task_doc
+            .active_turn
+            .as_ref()
+            .is_none_or(|t| t.command_sessions.is_empty())
+    );
     assert!(!mode.is_turn_in_progress());
     assert!(!mode.turn_completion_pending);
     assert_eq!(mode.task_doc.info.status, crate::runtime::TaskStatus::Ready);

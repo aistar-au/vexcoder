@@ -1,7 +1,7 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 
-use crate::batch_mode::{run_batch, BatchResult, BatchRunOpts, OutputFormat};
+use crate::batch_mode::{BatchResult, BatchRunOpts, OutputFormat, run_batch};
 use crate::config::Config;
 use crate::prompts::render_pr_summary_prompt;
 use crate::runtime::{ContextAssembler, TaskState};

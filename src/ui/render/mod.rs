@@ -3,11 +3,11 @@ use crate::ui::input_metrics::{
 };
 use crate::ui::layout::{preferred_four_region_input_rows_for_content, split_compact_task_layout};
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    Frame,
+    layout::{Constraint, Direction, HorizontalAlignment, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
-    Frame,
 };
 
 pub use crate::ui::layout::MAX_INPUT_PANE_ROWS;
@@ -435,14 +435,14 @@ pub fn render_overlay_modal_in_area(frame: &mut Frame<'_>, anchor: Rect, modal: 
 
     frame.render_widget(
         Paragraph::new(Text::from(body))
-            .alignment(Alignment::Left)
+            .alignment(HorizontalAlignment::Left)
             .wrap(Wrap { trim: false }),
         body_inner,
     );
 
     frame.render_widget(
         Paragraph::new(shortcuts)
-            .alignment(Alignment::Center)
+            .alignment(HorizontalAlignment::Center)
             .style(Style::default().fg(Color::DarkGray)),
         shortcuts_area,
     );

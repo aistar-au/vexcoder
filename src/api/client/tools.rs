@@ -1,5 +1,5 @@
 use crate::runtime::backend::ToolPolicy;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::OnceLock;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

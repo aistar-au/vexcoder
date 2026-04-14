@@ -39,13 +39,14 @@ impl TuiMode {
                 );
             } else {
                 let trimmed = input.trim();
-                if let Some(command) = trimmed.strip_prefix('!') {
-                    if self.command_session_active() && !command.trim().is_empty() {
-                        self.push_history_line(format!("> {input}"));
-                        self.push_history_line(String::new());
-                        self.handle_bang_command(command, ctx);
-                        return;
-                    }
+                if let Some(command) = trimmed.strip_prefix('!')
+                    && self.command_session_active()
+                    && !command.trim().is_empty()
+                {
+                    self.push_history_line(format!("> {input}"));
+                    self.push_history_line(String::new());
+                    self.handle_bang_command(command, ctx);
+                    return;
                 }
                 self.push_history_line("[busy - turn in progress, input ignored]".to_string());
             }

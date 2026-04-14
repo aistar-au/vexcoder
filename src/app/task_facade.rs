@@ -5,7 +5,7 @@ use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use thiserror::Error;
 
-use crate::agents::{load_agents_config, IsolationPolicy, TeamScheduler};
+use crate::agents::{IsolationPolicy, TeamScheduler, load_agents_config};
 use crate::app::subtask_orchestrator::SubtaskOrchestrator;
 use crate::runtime::{SessionTask, SessionTaskStatus, TaskState, WorktreeLeaseManager};
 
@@ -637,7 +637,7 @@ fn parse_session_task_status(s: &str) -> Option<SessionTaskStatus> {
 // ---------------------------------------------------------------------------
 
 use crate::runtime::task_state::peer_channel::{
-    self, parse_peer_message_kind, AppendMessageError, PeerMessage, MAX_PEER_MESSAGE_BYTES,
+    self, AppendMessageError, MAX_PEER_MESSAGE_BYTES, PeerMessage, parse_peer_message_kind,
 };
 
 /// Post a message to the peer channel for a parent task.

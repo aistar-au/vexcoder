@@ -47,10 +47,10 @@ async fn test_rename_file_refreshes_codebase_search_index() -> Result<()> {
 #[tokio::test]
 async fn test_execute_tool_codebase_search_works_without_embeddings() -> Result<()> {
     let _env_lock = crate::test_support::ENV_LOCK.lock().await;
-    std::env::remove_var("VEX_EMBEDDING_PROVIDER");
-    std::env::remove_var("VEX_EMBEDDING_MODEL");
-    std::env::remove_var("VEX_EMBEDDING_URL");
-    std::env::remove_var("VEX_EMBEDDING_API_KEY");
+    crate::test_support::test_remove_var("VEX_EMBEDDING_PROVIDER");
+    crate::test_support::test_remove_var("VEX_EMBEDDING_MODEL");
+    crate::test_support::test_remove_var("VEX_EMBEDDING_URL");
+    crate::test_support::test_remove_var("VEX_EMBEDDING_API_KEY");
 
     let temp = TempDir::new()?;
     let src_dir = temp.path().join("src");
@@ -118,9 +118,11 @@ async fn test_execute_tool_codebase_search_rejects_disabled_search_config() -> R
         .await
         .expect_err("disabled search must reject codebase_search");
 
-    assert!(error
-        .to_string()
-        .contains("codebase_search is disabled by [search].enabled=false"));
+    assert!(
+        error
+            .to_string()
+            .contains("codebase_search is disabled by [search].enabled=false")
+    );
     Ok(())
 }
 
@@ -195,16 +197,16 @@ fn test_default_tool_approval_enabled_prefers_remote_only() {
 #[test]
 fn test_env_bool_off_is_false_across_state_paths() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_TOOL_CONFIRM", "off");
+    crate::test_support::test_set_var("VEX_TOOL_CONFIRM", "off");
 
     assert!(!tool_approval_enabled(false));
 
-    std::env::remove_var("VEX_TOOL_CONFIRM");
+    crate::test_support::test_remove_var("VEX_TOOL_CONFIRM");
 }
 #[tokio::test]
 async fn test_mutating_tool_prompts_approval_when_tool_confirm_env_is_off() -> Result<()> {
     let _env_lock = crate::test_support::ENV_LOCK.lock().await;
-    std::env::set_var("VEX_TOOL_CONFIRM", "off");
+    crate::test_support::test_set_var("VEX_TOOL_CONFIRM", "off");
 
     let first_response_sse = vec![
         r#"event: message_start
@@ -244,7 +246,7 @@ data: {"type":"message_stop"}"#.to_string(),
     drop(tx);
     let saw_approval_request = approval_task.await?;
 
-    std::env::remove_var("VEX_TOOL_CONFIRM");
+    crate::test_support::test_remove_var("VEX_TOOL_CONFIRM");
     assert!(saw_approval_request);
     assert!(final_text.contains("No changes were applied."));
     let tool_result_message = manager

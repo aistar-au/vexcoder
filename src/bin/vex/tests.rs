@@ -1,7 +1,7 @@
 use super::{
+    Cli, Commands, CredentialsCommands, MigrateCommands, SkillsCommands,
     credentials_action_from_cli, emit_migrate_config_output, read_secret_from_env_var,
-    read_secret_from_reader, resolve_resume_state, Cli, Commands, CredentialsCommands,
-    MigrateCommands, SkillsCommands,
+    read_secret_from_reader, resolve_resume_state,
 };
 use clap::Parser;
 use clap_complete::Shell;
@@ -12,7 +12,7 @@ use vexcoder::app::TuiMode;
 use vexcoder::batch_mode::{BatchResult, OutputFormat};
 use vexcoder::config::Config;
 use vexcoder::init::{
-    extract_init_template_keys, run_init, INIT_CONFIG_NORMATIVE_KEYS, INIT_CONFIG_TEMPLATE,
+    INIT_CONFIG_NORMATIVE_KEYS, INIT_CONFIG_TEMPLATE, extract_init_template_keys, run_init,
 };
 use vexcoder::pr_summary::{prepare_pr_summary_prompt, run_branch, run_pr_summary_with_batch};
 use vexcoder::runtime::{TaskState, TaskStatus};
@@ -23,8 +23,8 @@ use vexcoder::tui_frontend::{
     file_picker_is_dismissed, render_file_picker_hint, render_slash_picker_hint,
     slash_prefix_token,
 };
-use vexcoder::ui::editor::file_mention_range;
 use vexcoder::ui::editor::InputEditor;
+use vexcoder::ui::editor::file_mention_range;
 
 mod test_support {
     pub static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -155,8 +155,7 @@ fn transcript_detection_matches_following_view_dump() {
 
 #[test]
 fn transcript_detection_matches_cargo_test_noise() {
-    let input =
-        "Running tests/integration_test.rs (target/debug/deps/integration_test-b458ef4801b11438)\n\
+    let input = "Running tests/integration_test.rs (target/debug/deps/integration_test-b458ef4801b11438)\n\
                      test result: ok. 2 passed; 0 failed; 0 ignored;\n\
                      Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s";
     assert!(looks_like_session_output(input));
@@ -847,33 +846,33 @@ fn test_resume_flag_can_be_combined_with_print() {
 fn test_resolve_resume_state_unknown_id_errors() {
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    unsafe { std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str()) };
 
     let result = resolve_resume_state("does-not-exist");
     assert!(result.is_err(), "unknown task id must produce an error");
 
-    std::env::remove_var("VEX_STATE_DIR");
+    unsafe { std::env::remove_var("VEX_STATE_DIR") };
 }
 
 #[test]
 fn test_resolve_resume_state_empty_dir_returns_none() {
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    unsafe { std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str()) };
 
     let result = resolve_resume_state("").expect("empty-dir must not error");
     assert!(result.is_none(), "empty state dir must return None");
 
-    std::env::remove_var("VEX_STATE_DIR");
+    unsafe { std::env::remove_var("VEX_STATE_DIR") };
 }
 
 #[test]
 fn test_resolve_resume_state_most_recent() {
-    use filetime::{set_file_mtime, FileTime};
+    use filetime::{FileTime, set_file_mtime};
     use vexcoder::runtime::TaskState;
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    unsafe { std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str()) };
 
     let older = TaskState::new("task-older".to_string());
     older.save(temp.path()).unwrap();
@@ -898,7 +897,7 @@ fn test_resolve_resume_state_most_recent() {
         "must pick the most recently modified task"
     );
 
-    std::env::remove_var("VEX_STATE_DIR");
+    unsafe { std::env::remove_var("VEX_STATE_DIR") };
 }
 
 #[test]
@@ -906,7 +905,7 @@ fn test_resolve_resume_state_explicit_id() {
     use vexcoder::runtime::TaskState;
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    unsafe { std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str()) };
 
     let state = TaskState::new("task-explicit".to_string());
     state.save(temp.path()).unwrap();
@@ -916,7 +915,7 @@ fn test_resolve_resume_state_explicit_id() {
         .expect("must find the task");
     assert_eq!(loaded.id, "task-explicit");
 
-    std::env::remove_var("VEX_STATE_DIR");
+    unsafe { std::env::remove_var("VEX_STATE_DIR") };
 }
 
 #[test]
@@ -934,7 +933,7 @@ fn test_resolve_resume_state_explicit_id_falls_back_to_legacy_subdir() {
     let state = TaskState::new("task-legacy".to_string());
     state.save(&legacy_state_dir).unwrap();
 
-    std::env::remove_var("VEX_STATE_DIR");
+    unsafe { std::env::remove_var("VEX_STATE_DIR") };
     std::env::set_current_dir(&nested).unwrap();
 
     let loaded = resolve_resume_state("task-legacy")
@@ -1093,10 +1092,10 @@ fn test_read_secret_from_reader_strips_one_trailing_newline() {
 #[test]
 fn test_read_secret_from_env_var_reads_named_value() {
     let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
-    std::env::set_var("VEX_TEST_SECRET", "secret-value");
+    unsafe { std::env::set_var("VEX_TEST_SECRET", "secret-value") };
     let secret = read_secret_from_env_var("VEX_TEST_SECRET").expect("env secret");
     assert_eq!(secret, "secret-value");
-    std::env::remove_var("VEX_TEST_SECRET");
+    unsafe { std::env::remove_var("VEX_TEST_SECRET") };
 }
 
 #[test]
@@ -1276,9 +1275,11 @@ fn test_vex_init_skips_existing_files() {
         temp.path().join("AGENTS.md").exists(),
         "missing files must still be created"
     );
-    assert!(summary
-        .iter()
-        .any(|line| line == "[init] skip (exists): .vex/config.toml"));
+    assert!(
+        summary
+            .iter()
+            .any(|line| line == "[init] skip (exists): .vex/config.toml")
+    );
 }
 
 #[test]
@@ -1318,17 +1319,19 @@ async fn test_vex_branch_creates_git_branch() {
     let _env_lock = crate::tests::test_support::ENV_LOCK.lock().await;
     let repo = init_git_repo();
     let state_dir = repo.path().join("state");
-    std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str());
+    unsafe { std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str()) };
 
     let summary = run_branch(repo.path(), "feature/demo").await.unwrap();
     let branch = git_stdout(repo.path(), &["rev-parse", "--abbrev-ref", "HEAD"]);
 
     assert_eq!(branch, "feature/demo");
-    assert!(summary
-        .iter()
-        .any(|line| line == "[branch] created: feature/demo"));
+    assert!(
+        summary
+            .iter()
+            .any(|line| line == "[branch] created: feature/demo")
+    );
 
-    std::env::remove_var("VEX_STATE_DIR");
+    unsafe { std::env::remove_var("VEX_STATE_DIR") };
 }
 
 #[tokio::test]
@@ -1336,7 +1339,7 @@ async fn test_vex_branch_records_in_task_state() {
     let _env_lock = crate::tests::test_support::ENV_LOCK.lock().await;
     let repo = init_git_repo();
     let state_dir = repo.path().join("state");
-    std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str());
+    unsafe { std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str()) };
 
     let state = TaskState::new("task-branch".to_string());
     state.save(&state_dir).unwrap();
@@ -1346,7 +1349,7 @@ async fn test_vex_branch_records_in_task_state() {
     let loaded = TaskState::load(&state_dir, "task-branch").unwrap();
     assert_eq!(loaded.branch_name.as_deref(), Some("feature/task-state"));
 
-    std::env::remove_var("VEX_STATE_DIR");
+    unsafe { std::env::remove_var("VEX_STATE_DIR") };
 }
 
 #[tokio::test]

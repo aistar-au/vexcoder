@@ -52,7 +52,7 @@ fn test_tui_memory_add_appends_to_file() {
     let temp = tempfile::tempdir().unwrap();
     let notes_path = temp.path().join("memory.md");
     let state_dir = temp.path().join("state");
-    std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str());
+    crate::test_support::test_set_var("VEX_STATE_DIR", state_dir.as_os_str());
     let mut ctx = setup_ctx();
     let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
     mode.on_user_input(
@@ -75,7 +75,7 @@ fn test_tui_memory_add_appends_to_file() {
     let saved = TaskState::load(&state_dir, &mode.current_task_id()).unwrap();
     assert_eq!(saved.session_notes, mode.task_doc.session_notes);
     assert!(!mode.is_turn_in_progress());
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var("VEX_STATE_DIR");
 }
 #[test]
 fn test_tui_memory_clear_requires_confirmation() {
@@ -130,7 +130,7 @@ fn test_tui_memory_clear_persists_empty_session_notes() {
     let temp = tempfile::tempdir().unwrap();
     let notes_path = temp.path().join("memory.md");
     let state_dir = temp.path().join("state");
-    std::env::set_var("VEX_STATE_DIR", state_dir.as_os_str());
+    crate::test_support::test_set_var("VEX_STATE_DIR", state_dir.as_os_str());
 
     let mut ctx = setup_ctx();
     let mut mode = TuiMode::new_with_notes(Some(notes_path.clone()));
@@ -147,7 +147,7 @@ fn test_tui_memory_clear_persists_empty_session_notes() {
         "/memory clear must clear file contents"
     );
 
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var("VEX_STATE_DIR");
 }
 #[test]
 fn test_tui_memory_does_not_call_start_turn() {
@@ -187,20 +187,20 @@ fn test_tui_memory_reads_legacy_fallback_notes() {
 
     let old_home = std::env::var("HOME").ok();
     let old_xdg = std::env::var("XDG_CONFIG_HOME").ok();
-    std::env::set_var("HOME", home.as_os_str());
-    std::env::remove_var("XDG_CONFIG_HOME");
+    crate::test_support::test_set_var("HOME", home.as_os_str());
+    crate::test_support::test_remove_var("XDG_CONFIG_HOME");
 
     let mut ctx = setup_ctx();
     let mut mode = TuiMode::new_with_notes(None);
     mode.on_user_input("/memory".to_string(), &mut ctx);
 
     match old_home {
-        Some(value) => std::env::set_var("HOME", value),
-        None => std::env::remove_var("HOME"),
+        Some(value) => crate::test_support::test_set_var("HOME", value),
+        None => crate::test_support::test_remove_var("HOME"),
     }
     match old_xdg {
-        Some(value) => std::env::set_var("XDG_CONFIG_HOME", value),
-        None => std::env::remove_var("XDG_CONFIG_HOME"),
+        Some(value) => crate::test_support::test_set_var("XDG_CONFIG_HOME", value),
+        None => crate::test_support::test_remove_var("XDG_CONFIG_HOME"),
     }
 
     assert!(
@@ -297,10 +297,11 @@ fn test_auto_memory_on_command_enables_flag() {
         mode.auto_memory_enabled,
         "/memory auto on should set auto_memory_enabled"
     );
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|l| l.contains("auto extraction enabled")));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|l| l.contains("auto extraction enabled"))
+    );
 }
 
 #[test]
@@ -313,10 +314,11 @@ fn test_auto_memory_off_command_disables_flag() {
         !mode.auto_memory_enabled,
         "/memory auto off should clear auto_memory_enabled"
     );
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|l| l.contains("auto extraction disabled")));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|l| l.contains("auto extraction disabled"))
+    );
 }
 
 #[test]

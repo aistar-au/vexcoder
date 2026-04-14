@@ -222,31 +222,31 @@ impl TuiMode {
             return "Prompt\nmode: slash".to_string();
         }
 
-        if let Some(range) = file_mention_range(input, cursor) {
-            if let Some(prefix) = input[range].strip_prefix('@') {
-                let mut lines = vec!["Prompt".to_string(), "mode: file mention".to_string()];
-                let (suggestions, total_matches) = self.file_prompt_matches_with_total(prefix);
-                if suggestions.is_empty() {
-                    if prefix.is_empty() {
-                        lines.push("[file] no files available".to_string());
-                    } else {
-                        lines.push(file_picker_no_match_summary(prefix, total_matches));
-                    }
+        if let Some(range) = file_mention_range(input, cursor)
+            && let Some(prefix) = input[range].strip_prefix('@')
+        {
+            let mut lines = vec!["Prompt".to_string(), "mode: file mention".to_string()];
+            let (suggestions, total_matches) = self.file_prompt_matches_with_total(prefix);
+            if suggestions.is_empty() {
+                if prefix.is_empty() {
+                    lines.push("[file] no files available".to_string());
                 } else {
-                    lines.push(file_picker_match_summary(
-                        prefix,
-                        suggestions.len(),
-                        total_matches,
-                    ));
-                    lines.extend(
-                        suggestions
-                            .into_iter()
-                            .take(MAX_PROMPT_HINT_FILE_MATCHES)
-                            .map(|path| format!("[file] {path}")),
-                    );
+                    lines.push(file_picker_no_match_summary(prefix, total_matches));
                 }
-                return lines.join("\n");
+            } else {
+                lines.push(file_picker_match_summary(
+                    prefix,
+                    suggestions.len(),
+                    total_matches,
+                ));
+                lines.extend(
+                    suggestions
+                        .into_iter()
+                        .take(MAX_PROMPT_HINT_FILE_MATCHES)
+                        .map(|path| format!("[file] {path}")),
+                );
             }
+            return lines.join("\n");
         }
 
         base

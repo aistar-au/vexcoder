@@ -2,10 +2,14 @@
 members = [".", "crates/*"]
 resolver = "2"
 
+[workspace.package]
+edition = "2024"
+
 [package]
 name = "vexcoder"
 version = "0.1.0-rc.9"
-edition = "2021"
+edition = "2024"
+rust-version = "1.91"
 license = "MIT"
 autobins = false
 
@@ -36,11 +40,12 @@ hyper-util = { version = "0.1", features = [
   "service",
   "tokio",
 ] }
-ratatui = { version = "0.29", features = [
+ratatui = { version = "0.30", features = [
   "scrolling-regions",
   "unstable-backend-writer",
   "unstable-rendered-line-info",
   "unstable-widget-ref",
+  "crossterm_0_28",
 ] }
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
@@ -82,7 +87,7 @@ textwrap = "0.16"
 tree-sitter = "0.24"
 tree-sitter-rust = "0.23"
 x509-parser = "0.17"
-ansi-to-tui = "7"
+ansi-to-tui = "8"
 # arboard: used by the /copy slash command (src/app/commands/session.rs) for
 # system clipboard access. default-features = false avoids pulling in the
 # image feature and its heavy transitive deps.
@@ -95,7 +100,7 @@ tracing-appender = "0.2"
 similar = "2"
 
 # --- rich terminal rendering ---
-ratatui-macros = "0.6"
+ratatui-macros = "0.7"
 pulldown-cmark = { version = "0.12", default-features = false }
 syntect = { version = "5", default-features = false, features = [
   "default-fancy",
@@ -222,3 +227,6 @@ strip-ansi-escapes = "0.2"
 tower = "0.5"
 pretty_assertions = "1"
 assert_cmd = "2"
+
+[workspace.lints.clippy]
+incompatible_msrv = "allow"

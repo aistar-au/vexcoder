@@ -312,10 +312,11 @@ fn test_bang_prefix_requires_run_command_approval() {
 
     assert!(mode.overlay_state.pending_approval.is_some());
     assert!(!mode.is_turn_in_progress());
-    assert!(mode
-        .history_lines()
-        .iter()
-        .any(|line| { line.contains("[tool approval requested:") }));
+    assert!(
+        mode.history_lines()
+            .iter()
+            .any(|line| { line.contains("[tool approval requested:") })
+    );
 }
 
 // -- @ mention prompt interactivity tests -------------------------------------

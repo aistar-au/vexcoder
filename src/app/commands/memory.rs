@@ -64,11 +64,11 @@ impl TuiMode {
                     self.push_history_line("[memory] error resolving notes path".to_string());
                     return;
                 };
-                if path.exists() {
-                    if let Err(e) = std::fs::write(&path, "") {
-                        self.push_history_line(format!("[memory] error clearing: {e}"));
-                        return;
-                    }
+                if path.exists()
+                    && let Err(e) = std::fs::write(&path, "")
+                {
+                    self.push_history_line(format!("[memory] error clearing: {e}"));
+                    return;
                 }
                 self.task_doc.session_notes.clear();
                 self.persist_task_document();

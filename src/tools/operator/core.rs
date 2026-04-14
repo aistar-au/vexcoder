@@ -1,9 +1,9 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use super::super::workspace_ignore::WorkspaceIgnore;
-use super::{non_empty_trimmed, path_to_repo_relative_string, ToolOperator};
+use super::{ToolOperator, non_empty_trimmed, path_to_repo_relative_string};
 
 impl ToolOperator {
     pub fn new(working_dir: PathBuf) -> Self {

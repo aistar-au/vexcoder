@@ -59,9 +59,9 @@ mod tests {
     #[test]
     fn defaults_to_200_when_env_unset() {
         let _env_lock = ENV_LOCK.blocking_lock();
-        std::env::remove_var("VEX_MAX_STARTUP_TASK_SCANS");
-        std::env::remove_var("VEX_STARTUP_CACHE_TTL_MS");
-        std::env::remove_var("VEX_TRACE_STARTUP_ALLOC");
+        crate::test_support::test_remove_var("VEX_MAX_STARTUP_TASK_SCANS");
+        crate::test_support::test_remove_var("VEX_STARTUP_CACHE_TTL_MS");
+        crate::test_support::test_remove_var("VEX_TRACE_STARTUP_ALLOC");
 
         let budget = StartupBudget::default();
         assert_eq!(budget.max_scans, 200);
@@ -72,11 +72,11 @@ mod tests {
     #[test]
     fn rejects_zero_max_scans_and_falls_back_to_default() {
         let _env_lock = ENV_LOCK.blocking_lock();
-        std::env::set_var("VEX_MAX_STARTUP_TASK_SCANS", "0");
+        crate::test_support::test_set_var("VEX_MAX_STARTUP_TASK_SCANS", "0");
 
         let budget = StartupBudget::default();
 
-        std::env::remove_var("VEX_MAX_STARTUP_TASK_SCANS");
+        crate::test_support::test_remove_var("VEX_MAX_STARTUP_TASK_SCANS");
         assert_eq!(budget.max_scans, 200);
     }
 }

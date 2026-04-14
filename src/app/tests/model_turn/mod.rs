@@ -48,11 +48,12 @@ fn tool_call_only_marks_changed_files_after_successful_result() {
         },
         &mut ctx,
     );
-    assert!(mode
-        .task_doc
-        .active_turn
-        .as_ref()
-        .is_some_and(|t| t.changed_files.contains("src/main.rs")));
+    assert!(
+        mode.task_doc
+            .active_turn
+            .as_ref()
+            .is_some_and(|t| t.changed_files.contains("src/main.rs"))
+    );
 
     let state = mode.task_layout_state().expect("task layout state");
     assert_eq!(state.changed_files, vec!["src/main.rs".to_string()]);
@@ -224,9 +225,11 @@ async fn test_interrupt_is_typed_event_not_magic_string_collision() {
 
     mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
     assert!(mode.task_doc.active_turn.is_none());
-    assert!(!mode
-        .task_doc
-        .active_turn
-        .as_ref()
-        .is_some_and(|t| t.cancel_pending));
+    assert!(
+        !mode
+            .task_doc
+            .active_turn
+            .as_ref()
+            .is_some_and(|t| t.cancel_pending)
+    );
 }

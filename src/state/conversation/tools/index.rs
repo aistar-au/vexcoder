@@ -26,17 +26,17 @@ pub(super) fn refresh_codebase_index(
         return;
     }
 
-    if let Some(idx_mutex) = CODEBASE_INDEX.get() {
-        if let Ok(mut idx) = idx_mutex.lock() {
-            let abs_path = workspace_root.join(rel_path);
-            index::update_index_filtered(
-                &mut idx,
-                &abs_path,
-                workspace_root,
-                &search_config.exclude,
-                search_config.max_file_size,
-            );
-        }
+    if let Some(idx_mutex) = CODEBASE_INDEX.get()
+        && let Ok(mut idx) = idx_mutex.lock()
+    {
+        let abs_path = workspace_root.join(rel_path);
+        index::update_index_filtered(
+            &mut idx,
+            &abs_path,
+            workspace_root,
+            &search_config.exclude,
+            search_config.max_file_size,
+        );
     }
 }
 

@@ -1,5 +1,5 @@
 #[cfg(unix)]
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 #[cfg(unix)]
 use axum::Router;
 #[cfg(unix)]

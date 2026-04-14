@@ -71,9 +71,9 @@ mod tool_tests {
         );
 
         // With VEX_FORCE_MUTATING_TURN=1, every turn is treated as mutating.
-        std::env::set_var("VEX_FORCE_MUTATING_TURN", "1");
+        crate::test_support::test_set_var("VEX_FORCE_MUTATING_TURN", "1");
         let result = is_read_only_user_request("show me the files");
-        std::env::remove_var("VEX_FORCE_MUTATING_TURN");
+        crate::test_support::test_remove_var("VEX_FORCE_MUTATING_TURN");
         assert!(
             !result,
             "VEX_FORCE_MUTATING_TURN=1 should force mutating classification"

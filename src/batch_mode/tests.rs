@@ -293,10 +293,12 @@ async fn test_batch_mode_jsonl_output_captures_streamed_tool_evidence() {
     let changed_files = turn_json["changed_files"]
         .as_array()
         .expect("changed_files must be present");
-    assert!(changed_files
-        .iter()
-        .filter_map(|value| value.as_str())
-        .any(|path| path == "src/main.rs"));
+    assert!(
+        changed_files
+            .iter()
+            .filter_map(|value| value.as_str())
+            .any(|path| path == "src/main.rs")
+    );
     let command_history = turn_json["command_history"]
         .as_array()
         .expect("command_history must be present");
@@ -638,7 +640,7 @@ fn test_batch_mode_summary_keeps_changed_files_from_prior_turns() {
 }
 
 fn setup_batch_ctx() -> RuntimeContext {
-    use crate::api::{mock_client::MockApiClient, ApiClient};
+    use crate::api::{ApiClient, mock_client::MockApiClient};
     use crate::state::ConversationManager;
     use std::collections::HashMap;
     use std::sync::Arc;

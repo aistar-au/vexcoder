@@ -1,6 +1,6 @@
 use anyhow::Result;
 use tokio::sync::mpsc;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 use tokio_util::sync::CancellationToken;
 use vexcoder::api::ApiClient;
 use vexcoder::config::Config;

@@ -1,4 +1,4 @@
-use super::{StreamParser, MAX_SSE_BUFFER_BYTES};
+use super::{MAX_SSE_BUFFER_BYTES, StreamParser};
 use crate::types::{ContentBlock, StreamEvent};
 
 #[test]

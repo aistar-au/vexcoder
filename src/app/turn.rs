@@ -192,27 +192,26 @@ impl TuiMode {
                     .any(|e| !matches!(e, crate::runtime::TurnEntry::SystemNotice { .. }))
         });
 
-        if self.plan_turn_active {
-            if let Some(active) = self.task_doc.active_turn.as_ref() {
-                let plan_text = active.entries.iter().rev().find_map(|e| {
-                    if let crate::runtime::TurnEntry::AssistantBlock { block, .. } = e {
-                        if block.phase == crate::runtime::AssistantPhase::Final
-                            && !block.content.trim().is_empty()
-                        {
-                            return Some(block.content.clone());
-                        }
-                    }
-                    None
-                });
-                if let Some(plan) = plan_text {
-                    // Store plan in session notes as a system entry.
-                    self.task_doc
-                        .session_notes
-                        .push(crate::runtime::task_state::SessionNote {
-                            content: format!("[plan] {plan}"),
-                            created_at_turn: self.task_doc.completed_turns.len(),
-                        });
+        if self.plan_turn_active
+            && let Some(active) = self.task_doc.active_turn.as_ref()
+        {
+            let plan_text = active.entries.iter().rev().find_map(|e| {
+                if let crate::runtime::TurnEntry::AssistantBlock { block, .. } = e
+                    && block.phase == crate::runtime::AssistantPhase::Final
+                    && !block.content.trim().is_empty()
+                {
+                    return Some(block.content.clone());
                 }
+                None
+            });
+            if let Some(plan) = plan_text {
+                // Store plan in session notes as a system entry.
+                self.task_doc
+                    .session_notes
+                    .push(crate::runtime::task_state::SessionNote {
+                        content: format!("[plan] {plan}"),
+                        created_at_turn: self.task_doc.completed_turns.len(),
+                    });
             }
         }
 
@@ -243,11 +242,7 @@ impl TuiMode {
     }
 
     pub(super) fn summarize_usage_line_suffix(estimated: bool) -> &'static str {
-        if estimated {
-            " (estimated)"
-        } else {
-            ""
-        }
+        if estimated { " (estimated)" } else { "" }
     }
 
     fn maybe_extract_auto_memory(&mut self) {

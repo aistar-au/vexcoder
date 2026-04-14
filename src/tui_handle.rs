@@ -4,9 +4,9 @@ use crossterm::{
     cursor::Show,
     event::{DisableBracketedPaste, EnableBracketedPaste},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, size as host_display_size, Clear, ClearType},
+    terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode, size as host_display_size},
 };
-use ratatui::{backend::CrosstermBackend, Terminal, TerminalOptions, Viewport};
+use ratatui::{Terminal, TerminalOptions, Viewport, backend::CrosstermBackend};
 use std::io::{self, IsTerminal, Stdout};
 use std::sync::Once;
 

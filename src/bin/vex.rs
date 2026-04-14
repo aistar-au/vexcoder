@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::{CommandFactory, Parser};
 use serde::Serialize;
 use std::io::{IsTerminal, Read};
@@ -7,11 +7,11 @@ use std::process::ExitCode;
 use vexcoder::app::{
     run_tui_session, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
 };
-use vexcoder::batch_mode::{run_batch, BatchRunOpts, OutputFormat};
+use vexcoder::batch_mode::{BatchRunOpts, OutputFormat, run_batch};
 use vexcoder::config::Config;
 use vexcoder::doctor::run_doctor;
 use vexcoder::exec::{parse_exec_command, run_exec};
-use vexcoder::export::{render_task_export, write_export_output, ExportFormat};
+use vexcoder::export::{ExportFormat, render_task_export, write_export_output};
 use vexcoder::init::run_init;
 use vexcoder::pr_summary::{run_branch, run_pr_summary};
 use vexcoder::runtime::{ModelProtocol, TaskState, TaskStatus, ToolPolicy};

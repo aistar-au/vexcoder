@@ -10,13 +10,13 @@ use crate::app::{
 use crate::runtime::frontend::{FrontendAdapter, ScrollAction, ScrollTarget, UserInputEvent};
 use crate::runtime::mode::RuntimeMode;
 use crate::startup::{
-    looks_like_session_output, should_ignore_startup_paste_text, STARTUP_NOISE_GUARD,
+    STARTUP_NOISE_GUARD, looks_like_session_output, should_ignore_startup_paste_text,
 };
-use crate::ui::editor::{file_mention_range, InputAction, InputEditor};
+use crate::ui::editor::{InputAction, InputEditor, file_mention_range};
 use crate::ui::layout::split_three_pane_layout;
 use crate::ui::render::{
-    history_content_width_for_area, input_visual_rows, render_input, render_messages,
-    render_overlay_modal_in_area, render_status_line, render_task_layout, OverlayModal,
+    OverlayModal, history_content_width_for_area, input_visual_rows, render_input, render_messages,
+    render_overlay_modal_in_area, render_status_line, render_task_layout,
 };
 
 pub struct ManagedTuiFrontend {
@@ -60,10 +60,11 @@ impl ManagedTuiFrontend {
         if file_picker_is_dismissed(self.dismissed_file_picker.as_ref(), input, cursor) {
             return None;
         }
-        if let Some((cached_input, cached_cursor, cached_picker)) = &self.cached_file_picker {
-            if cached_input == input && *cached_cursor == cursor {
-                return cached_picker.clone();
-            }
+        if let Some((cached_input, cached_cursor, cached_picker)) = &self.cached_file_picker
+            && cached_input == input
+            && *cached_cursor == cursor
+        {
+            return cached_picker.clone();
         }
 
         let picker = active_file_picker(mode, input, cursor);
@@ -85,10 +86,11 @@ impl ManagedTuiFrontend {
         if self.dismissed_slash_picker && slash_prefix_token(input).is_some() {
             return None;
         }
-        if let Some((cached_input, cached_cursor, cached_picker)) = &self.cached_slash_picker {
-            if cached_input == input && *cached_cursor == cursor {
-                return cached_picker.clone();
-            }
+        if let Some((cached_input, cached_cursor, cached_picker)) = &self.cached_slash_picker
+            && cached_input == input
+            && *cached_cursor == cursor
+        {
+            return cached_picker.clone();
         }
         let picker = active_slash_picker(mode, input);
         self.cached_slash_picker = Some((input.to_string(), cursor, picker.clone()));
