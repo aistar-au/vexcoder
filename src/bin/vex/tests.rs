@@ -1,9 +1,11 @@
 use super::{
-    emit_migrate_config_output, resolve_resume_state, Cli, Commands, MigrateCommands,
-    SkillsCommands,
+    credentials_action_from_cli, emit_migrate_config_output, read_secret_from_env_var,
+    read_secret_from_reader, resolve_resume_state, Cli, Commands, CredentialsCommands,
+    MigrateCommands, SkillsCommands,
 };
 use clap::Parser;
 use clap_complete::Shell;
+use std::io::Cursor;
 use std::path::PathBuf;
 use std::process::Command;
 use vexcoder::app::TuiMode;
@@ -1017,6 +1019,84 @@ fn test_install_hooks_cli_parses() {
 fn test_doctor_cli_parses_json_flag() {
     let cli = Cli::parse_from(["vex", "doctor", "--json"]);
     assert!(matches!(cli.command, Some(Commands::Doctor { json: true })));
+}
+
+#[test]
+fn test_credentials_set_cli_parses_stdin_flag() {
+    let cli = Cli::parse_from(["vex", "credentials", "set", "model-token", "--stdin"]);
+    match cli.command {
+        Some(Commands::Credentials {
+            sub:
+                CredentialsCommands::Set {
+                    account,
+                    stdin,
+                    from_env,
+                },
+        }) => {
+            assert_eq!(account, "model-token");
+            assert!(stdin);
+            assert!(from_env.is_none());
+        }
+        _ => panic!("expected credentials set --stdin"),
+    }
+}
+
+#[test]
+fn test_credentials_set_cli_parses_from_env_flag() {
+    let cli = Cli::parse_from([
+        "vex",
+        "credentials",
+        "set",
+        "model-token",
+        "--from-env",
+        "VEX_MODEL_TOKEN",
+    ]);
+    match cli.command {
+        Some(Commands::Credentials {
+            sub:
+                CredentialsCommands::Set {
+                    account,
+                    stdin,
+                    from_env,
+                },
+        }) => {
+            assert_eq!(account, "model-token");
+            assert!(!stdin);
+            assert_eq!(from_env.as_deref(), Some("VEX_MODEL_TOKEN"));
+        }
+        _ => panic!("expected credentials set --from-env"),
+    }
+}
+
+#[test]
+fn test_credentials_set_cli_rejects_positional_secret() {
+    assert!(Cli::try_parse_from(["vex", "credentials", "set", "model-token", "secret"]).is_err());
+}
+
+#[test]
+fn test_credentials_action_from_cli_requires_non_argv_secret_source() {
+    let err = credentials_action_from_cli(CredentialsCommands::Set {
+        account: "model-token".to_string(),
+        stdin: false,
+        from_env: None,
+    })
+    .unwrap_err();
+    assert!(err.to_string().contains("--stdin") || err.to_string().contains("--from-env"));
+}
+
+#[test]
+fn test_read_secret_from_reader_strips_one_trailing_newline() {
+    let secret = read_secret_from_reader(Cursor::new("token-value\n")).expect("secret");
+    assert_eq!(secret, "token-value");
+}
+
+#[test]
+fn test_read_secret_from_env_var_reads_named_value() {
+    let _env_lock = crate::tests::test_support::ENV_LOCK.blocking_lock();
+    std::env::set_var("VEX_TEST_SECRET", "secret-value");
+    let secret = read_secret_from_env_var("VEX_TEST_SECRET").expect("env secret");
+    assert_eq!(secret, "secret-value");
+    std::env::remove_var("VEX_TEST_SECRET");
 }
 
 #[test]

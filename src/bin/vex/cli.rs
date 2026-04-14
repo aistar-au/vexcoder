@@ -117,8 +117,9 @@ pub(super) enum Commands {
     },
     /// Manage OS-native credential store entries (ADR-024 Gap 38).
     ///
-    /// Credentials are stored in the OS keyring (macOS Keychain, Linux Secret
-    /// Service, Windows Credential Manager) under the service name "vexcoder".
+    /// Credentials are stored in the OS keyring (macOS Keychain, Linux
+    /// keyutils, Windows Credential Manager) under the service name
+    /// "vexcoder".
     /// Set VEX_KEYRING_DISABLED=1 to bypass the keyring and use only
     /// VEX_MODEL_TOKEN for token lookup.
     Credentials {
@@ -131,12 +132,17 @@ pub(super) enum Commands {
 pub(super) enum CredentialsCommands {
     /// Store a credential in the OS keyring.
     ///
-    /// Example: `vex credentials set model-token <your-api-key>`
+    /// Example:
+    /// `printf '%s' "$VEX_MODEL_TOKEN" | vex credentials set model-token --stdin`
     Set {
         /// Account identifier (e.g., `model-token`).
         account: String,
-        /// Secret value to store.
-        secret: String,
+        /// Read the secret from piped or redirected stdin instead of argv.
+        #[arg(long, conflicts_with = "from_env")]
+        stdin: bool,
+        /// Read the secret from the named environment variable.
+        #[arg(long = "from-env", value_name = "VAR", conflicts_with = "stdin")]
+        from_env: Option<String>,
     },
     /// Read a credential from the OS keyring and print it to stdout.
     Get {

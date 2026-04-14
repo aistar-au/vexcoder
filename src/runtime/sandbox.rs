@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::runtime::CommandRequest;
 
@@ -211,7 +211,10 @@ impl SandboxDriver for ContainerSandbox {
 /// a minimal bind-mount layout. The working directory is bind-mounted
 /// read-write; `/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc` are
 /// bind-mounted read-only; `/proc`, `/dev`, and `/tmp` are mounted as
-/// pseudo-filesystems so that standard toolchains can function.
+/// pseudo-filesystems so that standard toolchains can function. Common host
+/// toolchain roots derived from `CARGO_HOME`, `RUSTUP_HOME`, `/nix/store`,
+/// and absolute `PATH` entries are also bind-mounted read-only so Rustup- and
+/// Nix-managed toolchains stay available inside the sandbox.
 ///
 /// `profile` is an optional whitespace-separated list of additional `bwrap`
 /// arguments. The string is split with `split_whitespace()` (no shell quoting
@@ -225,6 +228,9 @@ pub struct BubblewrapSandbox {
 }
 
 impl BubblewrapSandbox {
+    const SYSTEM_READ_ONLY_ROOTS: [&'static str; 6] =
+        ["/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc"];
+
     pub fn new(profile: Option<String>) -> Self {
         let extra_args = profile
             .unwrap_or_default()
@@ -232,6 +238,76 @@ impl BubblewrapSandbox {
             .map(String::from)
             .collect();
         Self { extra_args }
+    }
+
+    fn push_ro_bind_try(args: &mut Vec<String>, path: &Path) {
+        let path = path.to_string_lossy().into_owned();
+        args.push("--ro-bind-try".to_string());
+        args.push(path.clone());
+        args.push(path);
+    }
+
+    fn extra_read_only_bind_roots(working_dir: &Path) -> Vec<PathBuf> {
+        fn maybe_add(
+            extra_roots: &mut Vec<PathBuf>,
+            working_dir: &Path,
+            candidate: Option<PathBuf>,
+        ) {
+            let Some(path) = candidate else {
+                return;
+            };
+            if !path.is_absolute() || !path.is_dir() {
+                return;
+            }
+            if path == working_dir || path.starts_with(working_dir) {
+                return;
+            }
+            if BubblewrapSandbox::SYSTEM_READ_ONLY_ROOTS
+                .iter()
+                .map(Path::new)
+                .any(|root| path == root || path.starts_with(root))
+            {
+                return;
+            }
+            if extra_roots
+                .iter()
+                .any(|existing| path == *existing || path.starts_with(existing))
+            {
+                return;
+            }
+            extra_roots.push(path);
+        }
+
+        let mut extra_roots = Vec::new();
+        let home_dir = dirs::home_dir();
+
+        maybe_add(
+            &mut extra_roots,
+            working_dir,
+            std::env::var_os("CARGO_HOME")
+                .map(PathBuf::from)
+                .or_else(|| home_dir.as_ref().map(|home| home.join(".cargo"))),
+        );
+        maybe_add(
+            &mut extra_roots,
+            working_dir,
+            std::env::var_os("RUSTUP_HOME")
+                .map(PathBuf::from)
+                .or_else(|| home_dir.as_ref().map(|home| home.join(".rustup"))),
+        );
+        maybe_add(
+            &mut extra_roots,
+            working_dir,
+            Some(PathBuf::from("/nix/store")),
+        );
+
+        if let Some(path_var) = std::env::var_os("PATH") {
+            for path_entry in std::env::split_paths(&path_var) {
+                maybe_add(&mut extra_roots, working_dir, Some(path_entry));
+            }
+        }
+
+        extra_roots
     }
 
     /// Build the fixed bind-mount argument list that establishes a usable
@@ -244,24 +320,17 @@ impl BubblewrapSandbox {
             wd.clone(),
             wd,
             // Read-only system directories required by most toolchains.
-            "--ro-bind-try".to_string(),
-            "/usr".to_string(),
-            "/usr".to_string(),
-            "--ro-bind-try".to_string(),
-            "/lib".to_string(),
-            "/lib".to_string(),
-            "--ro-bind-try".to_string(),
-            "/lib64".to_string(),
-            "/lib64".to_string(),
-            "--ro-bind-try".to_string(),
-            "/bin".to_string(),
-            "/bin".to_string(),
-            "--ro-bind-try".to_string(),
-            "/sbin".to_string(),
-            "/sbin".to_string(),
-            "--ro-bind-try".to_string(),
-            "/etc".to_string(),
-            "/etc".to_string(),
+            // Set working directory inside the sandbox.
+            "--chdir".to_string(),
+            working_dir.to_string_lossy().into_owned(),
+        ];
+        for root in Self::SYSTEM_READ_ONLY_ROOTS.iter().map(Path::new) {
+            Self::push_ro_bind_try(&mut args, root);
+        }
+        for root in Self::extra_read_only_bind_roots(working_dir) {
+            Self::push_ro_bind_try(&mut args, &root);
+        }
+        args.extend([
             // Pseudo-filesystems that tools expect to exist.
             "--proc".to_string(),
             "/proc".to_string(),
@@ -269,10 +338,7 @@ impl BubblewrapSandbox {
             "/dev".to_string(),
             "--tmpfs".to_string(),
             "/tmp".to_string(),
-            // Set working directory inside the sandbox.
-            "--chdir".to_string(),
-            working_dir.to_string_lossy().into_owned(),
-        ];
+        ]);
         // Unshare network by default for tighter containment.  Operators who
         // need network access should pass `--share-net` via `profile`.
         args.push("--unshare-net".to_string());
@@ -430,7 +496,20 @@ mod tests {
         SandboxDriver, SandboxKind,
     };
     use crate::runtime::CommandRequest;
-    use std::path::PathBuf;
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
+
+    fn assert_ro_bind_present(args: &[String], path: &Path) {
+        let needle = path.to_string_lossy().into_owned();
+        assert!(
+            args.windows(3).any(|window| window[0] == "--ro-bind-try"
+                && window[1] == needle
+                && window[2] == needle),
+            "missing ro-bind for {needle}: {args:?}"
+        );
+    }
 
     #[test]
     fn passthrough_sandbox_is_identity() {
@@ -643,6 +722,45 @@ mod tests {
             share_net_pos < sep_pos,
             "--share-net must come before --, share_net={share_net_pos}, sep={sep_pos}"
         );
+    }
+
+    #[test]
+    fn bubblewrap_mounts_common_toolchain_roots_and_path_entries() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _path = crate::test_support::EnvRestore::capture("PATH");
+        let _cargo_home = crate::test_support::EnvRestore::capture("CARGO_HOME");
+        let _rustup_home = crate::test_support::EnvRestore::capture("RUSTUP_HOME");
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let workspace = temp.path().join("workspace");
+        let cargo_home = temp.path().join("cargo-home");
+        let cargo_bin = cargo_home.join("bin");
+        let rustup_home = temp.path().join("rustup-home");
+        let custom_bin = temp.path().join("custom-bin");
+
+        fs::create_dir_all(&workspace).expect("workspace");
+        fs::create_dir_all(&cargo_bin).expect("cargo bin");
+        fs::create_dir_all(&rustup_home).expect("rustup home");
+        fs::create_dir_all(&custom_bin).expect("custom bin");
+
+        std::env::set_var("CARGO_HOME", &cargo_home);
+        std::env::set_var("RUSTUP_HOME", &rustup_home);
+        std::env::set_var(
+            "PATH",
+            std::env::join_paths([cargo_bin.as_path(), custom_bin.as_path()]).expect("PATH"),
+        );
+
+        let wrapped = super::BubblewrapSandbox::new(None)
+            .wrap(CommandRequest {
+                program: "cargo".into(),
+                args: vec!["test".into()],
+                working_dir: Some(workspace),
+            })
+            .expect("wrap request");
+
+        assert_ro_bind_present(&wrapped.args, &cargo_home);
+        assert_ro_bind_present(&wrapped.args, &rustup_home);
+        assert_ro_bind_present(&wrapped.args, &custom_bin);
     }
 
     #[test]

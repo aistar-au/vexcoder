@@ -17,7 +17,9 @@ Highest priority wins:
 4. System config: `/etc/vex/config.toml`
 5. Built-in defaults
 
-`VEX_MODEL_TOKEN` is environment-only. It is never read from config files.
+`VEX_MODEL_TOKEN` is still forbidden in config files. At runtime, token lookup
+prefers `VEX_MODEL_TOKEN` from the environment and then falls back to the OS
+credential store unless `VEX_KEYRING_DISABLED` is set.
 
 Automatic context assembly now keeps small file rollups in a process-local
 memory cache. Search indexes under `.vex/index/` and task-state JSON under
@@ -40,8 +42,8 @@ These keys are read by the current runtime from config files:
 | `model_profile` | Path to a repo-tracked profile under `models/` | backend default profile |
 | `max_project_instructions_tokens` | Project instructions token budget | `4096` |
 | `max_memory_tokens` | Notes token budget | `2048` |
-| `sandbox` | Command sandbox driver: `passthrough`, `macos-exec`, or `container` | `passthrough` |
-| `sandbox_profile` | Sandbox profile path or container image name | unset |
+| `sandbox` | Command sandbox driver: `passthrough`, `macos-exec`, `container`, or `bubblewrap` | `passthrough` |
+| `sandbox_profile` | Sandbox profile path, container image name, or extra bubblewrap arguments | unset |
 | `sandbox_require` | Abort startup instead of falling back to passthrough when the sandbox probe fails | `false` |
 | `notes_path` | Notes file used by `/memory` | unset |
 
@@ -202,6 +204,30 @@ The full model endpoint URL.
 
 Bearer token for authenticated endpoints.
 
+Lookup order for authenticated endpoints:
+
+1. `VEX_MODEL_TOKEN` when it is set and non-empty
+2. OS credential store entry `service = "vexcoder"`, `account = "model-token"`
+
+The credential-store fallback is disabled when `VEX_KEYRING_DISABLED=1`.
+The current build uses macOS Keychain on macOS, Windows Credential Manager on
+Windows, and Linux keyutils on Linux.
+
+Store the token without placing it on argv:
+
+```bash
+printf '%s' "$VEX_MODEL_TOKEN" | vex credentials set model-token --stdin
+```
+
+### `VEX_KEYRING_DISABLED`
+
+Disable OS credential-store reads and writes.
+
+- Accepts any non-empty value.
+- When set, the runtime ignores the credential-store fallback and only honors
+  `VEX_MODEL_TOKEN`.
+- Useful for CI or debugging a credential-store issue.
+
 ### `VEX_MODEL_URL_SKIP_TLS_CHECK`
 
 Development-only escape hatch for HTTPS model endpoints with self-signed or
@@ -314,12 +340,16 @@ Controls the disk-policy enforcement mode (ADR-038).
 ### `VEX_SANDBOX`
 
 Selects the command sandbox driver. Accepted values: `passthrough`,
-`macos-exec`, `container`.
+`macos-exec`, `container`, `bubblewrap`, `bwrap`, `linux-bwrap`.
 
 - `passthrough` preserves the current process-spawn behavior.
 - `macos-exec` wraps commands with `sandbox-exec` on macOS.
 - `container` wraps commands with the installed container runtime and requires
   `VEX_SANDBOX_PROFILE` to name the container image.
+- `bubblewrap` wraps commands with `bwrap`, mounts the workspace read-write,
+  mounts core system directories read-only, adds read-only mounts for common
+  host toolchain roots derived from `PATH`, `CARGO_HOME`, `RUSTUP_HOME`, and
+  `/nix/store`, and disables network by default.
 - The built-in `macos-exec` default is intentionally compatibility-first: it
   allows broad file access, network access, process spawning, IPC lookups, and
   signals so common development tools continue to work. Use a custom profile if
@@ -334,6 +364,9 @@ Optional sandbox driver parameter.
 - For `container`, this is the image name passed to the container runtime.
   Startup runs a short `run --rm <image> true` probe through that runtime so
   the selected image is validated before the first wrapped command.
+- For `bubblewrap`, this is an optional whitespace-separated list of extra
+  `bwrap` arguments appended before the `--` command separator. Quoting and
+  escaping are not preserved.
 
 ### `VEX_SANDBOX_REQUIRE`
 

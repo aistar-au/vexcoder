@@ -1245,6 +1245,26 @@ fn test_empty_env_model_token_is_treated_as_absent() {
 }
 
 #[test]
+fn test_model_token_falls_back_to_keyring_reader_when_env_missing() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
+    std::env::remove_var("VEX_MODEL_TOKEN");
+
+    let token = super::model_token_from_env_or_keyring_with(|_| Ok(Some("keyring-token".into())));
+    assert_eq!(token.as_deref(), Some("keyring-token"));
+}
+
+#[test]
+fn test_model_token_prefers_non_empty_env_over_keyring_reader() {
+    let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+    let _token = EnvRestore::capture("VEX_MODEL_TOKEN");
+    std::env::set_var("VEX_MODEL_TOKEN", "env-token");
+
+    let token = super::model_token_from_env_or_keyring_with(|_| Ok(Some("keyring-token".into())));
+    assert_eq!(token.as_deref(), Some("env-token"));
+}
+
+#[test]
 fn test_invalid_bool_flag_is_rejected() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     let _skip = EnvRestore::capture("VEX_MODEL_URL_SKIP_TLS_CHECK");

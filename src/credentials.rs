@@ -1,10 +1,9 @@
 //! OS-native credential store access (ADR-024 Gap 38).
 //!
 //! Wraps the `keyring` crate to provide a uniform read/write/delete surface
-//! over macOS Keychain, Linux Secret Service (D-Bus), and Windows Credential
-//! Manager.  All operations are fallible: callers must handle errors and fall
-//! back to environment variables when the OS credential store is unavailable
-//! (headless CI, Docker containers without a D-Bus session).
+//! over macOS Keychain, Linux keyutils, and Windows Credential Manager.
+//! All operations are fallible: callers must handle errors and fall back to
+//! environment variables when the OS credential store is unavailable.
 //!
 //! # Service and account identifiers
 //!
@@ -19,8 +18,8 @@
 //! # Environment override
 //!
 //! Set `VEX_KEYRING_DISABLED=1` (or any non-empty value) to skip all keyring
-//! reads and writes.  Useful for CI environments where D-Bus is unavailable
-//! or where storing credentials in the keyring is not desired.
+//! reads and writes. Useful for CI environments or when storing credentials
+//! in the OS credential store is not desired.
 
 use anyhow::{bail, Context, Result};
 
@@ -43,7 +42,7 @@ pub fn is_disabled() -> bool {
 /// - The keyring is disabled via `VEX_KEYRING_DISABLED`.
 /// - No entry exists for `(SERVICE, account)`.
 /// - The stored value is empty or whitespace-only.
-/// - The OS credential store is unavailable (no D-Bus session, etc.).
+/// - The OS credential store is unavailable.
 ///
 /// Returns `Err` only for unexpected entry access errors that are not
 /// "entry not found" (e.g., corrupted keychain data).
@@ -138,6 +137,7 @@ pub fn run_credentials(sub: CredentialsAction) -> Result<()> {
 
 /// Parsed credential subcommand action, mirroring `CredentialsCommands` from
 /// `cli.rs` but without the clap dependency so the logic lives in the library.
+#[derive(Debug)]
 pub enum CredentialsAction {
     Set { account: String, secret: String },
     Get { account: String },
