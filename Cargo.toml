@@ -158,6 +158,16 @@ gix-index = "0.49"
 #             Wire point: src/edit_diff.rs.
 imara-diff = { version = "0.2", features = ["unified_diff"] }
 
+# --- OS-native credential storage (Gap 38) ---
+# keyring: read/write/delete secrets in the OS-native credential store
+# (macOS Keychain, Linux Secret Service via D-Bus, Windows Credential
+# Manager). MIT/Apache-2.0; satisfies the zero-licensing-cost constraint.
+# Gracefully returns an error when no credential store is available (headless
+# CI, Docker without a D-Bus session), so callers must treat absence as a
+# soft failure and fall back to environment variables.
+# Wire point: src/config/load/mod.rs (model token fallback), src/credentials.rs.
+keyring = "3"
+
 # --- high-performance code search ---
 # grep-matcher: trait for pluggable regex backends used by grep-searcher.
 #               Wire point: src/tools/search.rs.

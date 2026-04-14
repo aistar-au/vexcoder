@@ -243,13 +243,21 @@ pub(super) fn doctor_rollup(cwd: &Path) -> Result<DoctorConfigRollup> {
 ///
 /// VEX_MODEL_PROTOCOL is validated here so the error message names the env var.
 pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
-    let env_token = std::env::var("VEX_MODEL_TOKEN").ok().and_then(|v| {
-        if v.trim().is_empty() {
-            None
-        } else {
-            Some(v)
-        }
-    });
+    // Primary token source: VEX_MODEL_TOKEN environment variable.
+    // Fallback: OS-native credential store (Gap 38) when the env var is
+    // absent or empty and VEX_KEYRING_DISABLED is not set.
+    let env_token = std::env::var("VEX_MODEL_TOKEN")
+        .ok()
+        .and_then(|v| if v.trim().is_empty() { None } else { Some(v) })
+        .or_else(
+            || match crate::credentials::read(crate::credentials::ACCOUNT_MODEL_TOKEN) {
+                Ok(value) => value,
+                Err(err) => {
+                    tracing::debug!(error = %err, "keyring read failed; token remains absent");
+                    None
+                }
+            },
+        );
 
     let model_protocol = match std::env::var("VEX_MODEL_PROTOCOL") {
         Ok(v) if !v.trim().is_empty() => {

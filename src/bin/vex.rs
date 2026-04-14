@@ -25,7 +25,9 @@ mod cli;
 #[path = "vex/tests.rs"]
 mod tests;
 
-use self::cli::{Cli, Commands, MigrateCommands, SkillsCommands, TaskCommands};
+use self::cli::{
+    Cli, Commands, CredentialsCommands, MigrateCommands, SkillsCommands, TaskCommands,
+};
 
 fn emit_migrate_config_output(output_path: Option<&Path>) -> Result<()> {
     let fragment = vexcoder::config::migrate_config_from_env(&[]);
@@ -366,6 +368,19 @@ async fn main() -> Result<ExitCode> {
             apply_cli_overrides(chat_compat, tool_policy, &mut config);
             config.validate()?;
             serve_local_api(config, host, port).await?;
+            return Ok(ExitCode::SUCCESS);
+        }
+        Some(Commands::Credentials { sub }) => {
+            use vexcoder::credentials::{run_credentials, CredentialsAction};
+            let action = match sub {
+                CredentialsCommands::Set { account, secret } => {
+                    CredentialsAction::Set { account, secret }
+                }
+                CredentialsCommands::Get { account } => CredentialsAction::Get { account },
+                CredentialsCommands::Delete { account } => CredentialsAction::Delete { account },
+                CredentialsCommands::List => CredentialsAction::List,
+            };
+            run_credentials(action)?;
             return Ok(ExitCode::SUCCESS);
         }
         None => {}

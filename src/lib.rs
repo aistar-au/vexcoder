@@ -4,6 +4,7 @@ pub mod app;
 pub mod auto_memory;
 pub mod batch_mode;
 pub mod config;
+pub mod credentials;
 pub(crate) mod custom_commands;
 pub mod disk_policy;
 pub mod doctor;

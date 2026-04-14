@@ -27,6 +27,12 @@ pub enum SandboxKind {
     Passthrough,
     MacosExec,
     Container,
+    /// Linux userspace sandbox via bubblewrap (`bwrap`).
+    ///
+    /// Requires the `bwrap` binary on `PATH`. Falls back to passthrough on
+    /// non-Linux platforms or when `bwrap` is not installed (unless
+    /// `sandbox_require = true`).
+    Bubblewrap,
 }
 
 impl SandboxKind {
@@ -35,6 +41,7 @@ impl SandboxKind {
             Self::Passthrough => "passthrough",
             Self::MacosExec => "macos-exec",
             Self::Container => "container",
+            Self::Bubblewrap => "bubblewrap",
         }
     }
 }
@@ -198,11 +205,141 @@ impl SandboxDriver for ContainerSandbox {
     }
 }
 
+/// Linux userspace sandbox using `bwrap` (bubblewrap).
+///
+/// Wraps the target command so that it runs inside a `bwrap` invocation with
+/// a minimal bind-mount layout. The working directory is bind-mounted
+/// read-write; `/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`, `/proc`,
+/// `/dev`, `/tmp`, and `/run` are bind-mounted read-only or with their usual
+/// semantics so that standard toolchains can function.
+///
+/// `profile` is an optional space-separated list of additional `bwrap`
+/// arguments that are appended verbatim after the fixed bind mounts and
+/// before the command. Operators can use this to add extra mounts, set env
+/// vars (`--setenv`), or restrict capabilities further.
+#[derive(Debug, Clone, Default)]
+pub struct BubblewrapSandbox {
+    /// Optional extra bwrap arguments (space-separated string from config).
+    extra_args: Vec<String>,
+}
+
+impl BubblewrapSandbox {
+    pub fn new(profile: Option<String>) -> Self {
+        let extra_args = profile
+            .unwrap_or_default()
+            .split_whitespace()
+            .map(String::from)
+            .collect();
+        Self { extra_args }
+    }
+
+    /// Build the fixed bind-mount argument list that establishes a usable
+    /// root filesystem inside the sandbox.
+    fn fixed_bwrap_args(working_dir: &std::path::Path) -> Vec<String> {
+        let wd = working_dir.to_string_lossy().into_owned();
+        let mut args = vec![
+            // Bind the working directory read-write so the command can mutate it.
+            "--bind".to_string(),
+            wd.clone(),
+            wd,
+            // Read-only system directories required by most toolchains.
+            "--ro-bind-try".to_string(),
+            "/usr".to_string(),
+            "/usr".to_string(),
+            "--ro-bind-try".to_string(),
+            "/lib".to_string(),
+            "/lib".to_string(),
+            "--ro-bind-try".to_string(),
+            "/lib64".to_string(),
+            "/lib64".to_string(),
+            "--ro-bind-try".to_string(),
+            "/bin".to_string(),
+            "/bin".to_string(),
+            "--ro-bind-try".to_string(),
+            "/sbin".to_string(),
+            "/sbin".to_string(),
+            "--ro-bind-try".to_string(),
+            "/etc".to_string(),
+            "/etc".to_string(),
+            // Pseudo-filesystems that tools expect to exist.
+            "--proc".to_string(),
+            "/proc".to_string(),
+            "--dev".to_string(),
+            "/dev".to_string(),
+            "--tmpfs".to_string(),
+            "/tmp".to_string(),
+            // Set working directory inside the sandbox.
+            "--chdir".to_string(),
+            working_dir.to_string_lossy().into_owned(),
+        ];
+        // Unshare network by default for tighter containment.  Operators who
+        // need network access should pass `--share-net` via `profile`.
+        args.push("--unshare-net".to_string());
+        args
+    }
+}
+
+impl SandboxDriver for BubblewrapSandbox {
+    fn wrap(&self, req: CommandRequest) -> Result<CommandRequest> {
+        let working_dir = req
+            .working_dir
+            .clone()
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+        let mut args = Self::fixed_bwrap_args(&working_dir);
+        args.extend(self.extra_args.clone());
+        args.push("--".to_string());
+        args.push(req.program);
+        args.extend(req.args);
+
+        Ok(CommandRequest {
+            program: "bwrap".to_string(),
+            args,
+            working_dir: None,
+        })
+    }
+
+    fn probe(&self) -> Result<()> {
+        #[cfg(target_os = "linux")]
+        {
+            let status = std::process::Command::new("bwrap")
+                .args([
+                    "--ro-bind",
+                    "/usr",
+                    "/usr",
+                    "--proc",
+                    "/proc",
+                    "--dev",
+                    "/dev",
+                    "--tmpfs",
+                    "/tmp",
+                    "--unshare-net",
+                    "--",
+                    "true",
+                ])
+                .status()
+                .context("failed to execute bwrap probe")?;
+            if status.success() {
+                Ok(())
+            } else {
+                bail!("bwrap probe exited with status {status}")
+            }
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            Err(anyhow::anyhow!(
+                "bubblewrap (bwrap) is only available on Linux"
+            ))
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ConfiguredSandbox {
     Passthrough(PassthroughSandbox),
     MacosExec(MacosSandboxExec),
     Container(ContainerSandbox),
+    Bubblewrap(BubblewrapSandbox),
 }
 
 impl Default for ConfiguredSandbox {
@@ -217,6 +354,7 @@ impl ConfiguredSandbox {
             Self::Passthrough(_) => SandboxKind::Passthrough,
             Self::MacosExec(_) => SandboxKind::MacosExec,
             Self::Container(_) => SandboxKind::Container,
+            Self::Bubblewrap(_) => SandboxKind::Bubblewrap,
         }
     }
 }
@@ -227,6 +365,7 @@ impl SandboxDriver for ConfiguredSandbox {
             Self::Passthrough(driver) => driver.wrap(req),
             Self::MacosExec(driver) => driver.wrap(req),
             Self::Container(driver) => driver.wrap(req),
+            Self::Bubblewrap(driver) => driver.wrap(req),
         }
     }
 
@@ -235,6 +374,7 @@ impl SandboxDriver for ConfiguredSandbox {
             Self::Passthrough(driver) => driver.probe(),
             Self::MacosExec(driver) => driver.probe(),
             Self::Container(driver) => driver.probe(),
+            Self::Bubblewrap(driver) => driver.probe(),
         }
     }
 }
@@ -254,6 +394,9 @@ pub fn resolve_configured_sandbox(
         SandboxKind::Container => ConfiguredSandbox::Container(ContainerSandbox::new(
             config.profile.clone().unwrap_or_default(),
         )?),
+        SandboxKind::Bubblewrap => {
+            ConfiguredSandbox::Bubblewrap(BubblewrapSandbox::new(config.profile.clone()))
+        }
     };
 
     match preferred.probe() {
@@ -267,10 +410,12 @@ pub fn resolve_configured_sandbox(
             Some(format!(
                 "[sandbox] {} unavailable{}: {error}; falling back to passthrough",
                 config.kind.as_str(),
-                if config.kind == SandboxKind::MacosExec {
-                    " (sandbox-exec is deprecated on modern macOS releases)"
-                } else {
-                    ""
+                match config.kind {
+                    SandboxKind::MacosExec => {
+                        " (sandbox-exec is deprecated on modern macOS releases)"
+                    }
+                    SandboxKind::Bubblewrap => " (bwrap not found or not usable on this platform)",
+                    _ => "",
                 }
             )),
         )),
@@ -417,5 +562,91 @@ mod tests {
     fn container_constructor_rejects_empty_image() {
         let error = super::ContainerSandbox::new("   ".to_string()).unwrap_err();
         assert!(error.to_string().contains("sandbox_profile"));
+    }
+
+    #[test]
+    fn bubblewrap_wraps_command_with_bwrap() {
+        let sandbox = super::BubblewrapSandbox::new(None);
+        let wrapped = sandbox
+            .wrap(CommandRequest {
+                program: "echo".into(),
+                args: vec!["hello".into()],
+                working_dir: Some(PathBuf::from("/tmp")),
+            })
+            .expect("wrap request");
+        assert_eq!(wrapped.program, "bwrap");
+        assert!(
+            wrapped.args.iter().any(|a| a == "echo"),
+            "original program missing: {:?}",
+            wrapped.args
+        );
+        assert!(
+            wrapped.args.iter().any(|a| a == "hello"),
+            "original arg missing: {:?}",
+            wrapped.args
+        );
+        // working_dir is expressed via --chdir inside the bwrap args, not as a
+        // field on CommandRequest.
+        assert!(wrapped.working_dir.is_none());
+    }
+
+    #[test]
+    fn bubblewrap_places_separator_before_command() {
+        // `--` must separate bwrap flags from the sandboxed command.
+        let sandbox = super::BubblewrapSandbox::new(None);
+        let wrapped = sandbox
+            .wrap(CommandRequest {
+                program: "ls".into(),
+                args: vec![],
+                working_dir: Some(PathBuf::from("/tmp")),
+            })
+            .expect("wrap request");
+        let sep_pos = wrapped
+            .args
+            .iter()
+            .position(|a| a == "--")
+            .expect("-- separator missing");
+        let cmd_pos = wrapped
+            .args
+            .iter()
+            .position(|a| a == "ls")
+            .expect("command missing");
+        assert!(
+            cmd_pos > sep_pos,
+            "command must come after --, sep={sep_pos}, cmd={cmd_pos}"
+        );
+    }
+
+    #[test]
+    fn bubblewrap_extra_profile_args_are_included() {
+        // profile args are injected before `--` and the sandboxed command.
+        let sandbox = super::BubblewrapSandbox::new(Some("--share-net --setenv FOO bar".into()));
+        let wrapped = sandbox
+            .wrap(CommandRequest {
+                program: "env".into(),
+                args: vec![],
+                working_dir: Some(PathBuf::from("/tmp")),
+            })
+            .expect("wrap request");
+        let sep_pos = wrapped
+            .args
+            .iter()
+            .position(|a| a == "--")
+            .expect("-- separator missing");
+        let share_net_pos = wrapped
+            .args
+            .iter()
+            .position(|a| a == "--share-net")
+            .expect("--share-net missing");
+        assert!(
+            share_net_pos < sep_pos,
+            "--share-net must come before --, share_net={share_net_pos}, sep={sep_pos}"
+        );
+    }
+
+    #[test]
+    fn bubblewrap_kind_returns_bubblewrap() {
+        let sandbox = ConfiguredSandbox::Bubblewrap(super::BubblewrapSandbox::new(None));
+        assert_eq!(sandbox.kind(), SandboxKind::Bubblewrap);
     }
 }

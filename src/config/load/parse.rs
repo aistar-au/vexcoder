@@ -44,6 +44,8 @@ pub(crate) fn parse_sandbox_kind(value: String) -> Option<SandboxKind> {
         "passthrough" => Some(SandboxKind::Passthrough),
         "macos-exec" | "macos_exec" => Some(SandboxKind::MacosExec),
         "container" => Some(SandboxKind::Container),
+        // Gap 36: Linux userspace sandbox via bubblewrap.
+        "bubblewrap" | "bwrap" | "linux-bwrap" => Some(SandboxKind::Bubblewrap),
         _ => None,
     }
 }

@@ -115,6 +115,41 @@ pub(super) enum Commands {
         #[arg(long)]
         port: Option<u16>,
     },
+    /// Manage OS-native credential store entries (ADR-024 Gap 38).
+    ///
+    /// Credentials are stored in the OS keyring (macOS Keychain, Linux Secret
+    /// Service, Windows Credential Manager) under the service name "vexcoder".
+    /// Set VEX_KEYRING_DISABLED=1 to bypass the keyring and use only
+    /// VEX_MODEL_TOKEN for token lookup.
+    Credentials {
+        #[command(subcommand)]
+        sub: CredentialsCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub(super) enum CredentialsCommands {
+    /// Store a credential in the OS keyring.
+    ///
+    /// Example: `vex credentials set model-token <your-api-key>`
+    Set {
+        /// Account identifier (e.g., `model-token`).
+        account: String,
+        /// Secret value to store.
+        secret: String,
+    },
+    /// Read a credential from the OS keyring and print it to stdout.
+    Get {
+        /// Account identifier (e.g., `model-token`).
+        account: String,
+    },
+    /// Delete a credential from the OS keyring.
+    Delete {
+        /// Account identifier (e.g., `model-token`).
+        account: String,
+    },
+    /// List known credential account identifiers for this service.
+    List,
 }
 
 #[derive(Subcommand)]
