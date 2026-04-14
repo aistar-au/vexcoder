@@ -37,7 +37,7 @@ command line, but config-layer resolution must already be stable for the
    `crossterm` imports anywhere in the file or any module reachable only through
    `vex exec`.
 
-2. Add a `vex exec` subcommand to `src/bin/vex.rs` with the following flags:
+2. Add a `vex exec` subcommand to `src/bin/vex.rs` with the following options:
    - `--task <TEXT>` — task prompt (mutually exclusive with `--task-file`)
    - `--task-file <PATH>` — read task prompt from file
    - `--auto-approve <SCOPE>` — optional; accepted values: `once`, `task`

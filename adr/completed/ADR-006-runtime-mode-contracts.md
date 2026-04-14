@@ -200,9 +200,9 @@ CORE-09 Decision Record (2026-02-18): *"Do not add a new global `src/state.rs`; 
 
 ## Alternatives considered
 
-### Keep everything in `App`, add `--mode` flag when needed
+### Keep everything in `App`, add `--mode` option when needed
 
-Deferred by ADR-004. Adding a flag without the seam requires duplicating or wrapping the entire event loop. The blast radius of a mistake during that rewrite is the full application.
+Deferred by ADR-004. Adding an option without the seam requires duplicating or wrapping the entire event loop. The blast radius of a mistake during that rewrite is the full application.
 
 ### Use `tokio::sync::watch` instead of `mpsc` for `update_rx`
 
@@ -251,6 +251,6 @@ to depend on runtime-layer update signaling.
 
 1. Do not implement `run()` on `Runtime<M>` until REF-05. The stub in `loop.rs` is intentional.
 2. Do not move the `ratatui` draw loop out of `App` until REF-06. That is REF-06's job.
-3. Do not add CLI flags, environment variables, or new tool definitions during the REF track.
+3. Do not add CLI options, environment variables, or new tool definitions during the REF track.
 4. `cargo test --all-targets` must pass after every task. Anchor tests from completed tasks must stay green.
 5. The only files in scope per task are listed in that task's manifest. Do not edit adjacent files to make a test compile.

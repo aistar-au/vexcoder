@@ -63,9 +63,9 @@ Every direct dependency of `vexcoder` must be licensed under a permissive, royal
 | 27 | No environment health check sub-command (`vex doctor`) | Proposed |
 | 28 | No session-level token counter | Proposed |
 | 29 | No conversation and task export sub-command (`vex export`) | Proposed |
-| 30 | No `--resume` CLI startup flag | Proposed |
+| 30 | No `--resume` CLI startup option | Proposed |
 | 31 | No MCP HTTP server authentication headers | Active (extends Gap 5) |
-| 32 | No `-p`/`--print` one-shot plain-text flag | Proposed |
+| 32 | No `-p`/`--print` one-shot plain-text option | Proposed |
 | 35 | No model-callable workspace exploration tools (`search_files`, `list_dir`, `glob_files`) | Complete |
 
 ### Gaps intentionally deferred by this ADR
@@ -989,20 +989,20 @@ vex export <task-id> [--format jsonl|markdown] [--output <path>] [--force]
 
 ---
 
-### Gap 30 — `--resume` CLI Startup Flag
+### Gap 30 — `--resume` CLI Startup Option
 
-Gap 14 adds `/resume` as a TUI slash command for resuming a saved task from within a running session. This gap is distinct: `--resume [<task-id>]` is a CLI startup flag that loads a `TaskState` before `TuiMode` initialises, so operators who exited entirely can resume their last task without first landing in a blank session.
+Gap 14 adds `/resume` as a TUI slash command for resuming a saved task from within a running session. This gap is distinct: `--resume [<task-id>]` is a CLI startup option that loads a `TaskState` before `TuiMode` initialises, so operators who exited entirely can resume their last task without first landing in a blank session.
 
 ```bash
 vex --resume                 # loads the most recently modified TaskState in VEX_STATE_DIR
 vex --resume <task-id>       # loads the named TaskState
 ```
 
-**Behaviour:** The flag is handled in `src/bin/vex.rs` before `TuiMode` starts. `TaskState::load` is called for the specified or most-recent task-id. On success, `TuiMode` is initialised with `active_grants` and `changed_files` restored from the saved state, and an informational line `[resumed: <task-id> status=<status>]` is prepended to the transcript. On failure (task-id not found, state file unreadable), the process exits non-zero with a clear diagnostic before any TUI initialisation occurs. Conversation history is not restored — this matches the behaviour of `/resume` (Gap 14): `TaskState` does not persist message content.
+**Behaviour:** The option is handled in `src/bin/vex.rs` before `TuiMode` starts. `TaskState::load` is called for the specified or most-recent task-id. On success, `TuiMode` is initialised with `active_grants` and `changed_files` restored from the saved state, and an informational line `[resumed: <task-id> status=<status>]` is prepended to the transcript. On failure (task-id not found, state file unreadable), the process exits non-zero with a clear diagnostic before any TUI initialisation occurs. Conversation history is not restored — this matches the behaviour of `/resume` (Gap 14): `TaskState` does not persist message content.
 
 **Implementation scope:** `src/bin/vex.rs` only. No changes to `src/runtime/`, `src/state/`, or `src/tools/`. `TaskState::load` already exists; this is routing only.
 
-**Relationship to `-p`/`--print` (Gap 32):** `--resume` and `--print` are independent startup flags. `--resume --print "continue"` is a valid combination: load the saved task context, run one turn non-interactively, and print the result to stdout.
+**Relationship to `-p`/`--print` (Gap 32):** `--resume` and `--print` are independent startup options. `--resume --print "continue"` is a valid combination: load the saved task context, run one turn non-interactively, and print the result to stdout.
 
 **Anchor tests:** `test_cli_resume_flag_loads_task_state`; `test_cli_resume_flag_restores_active_grants`; `test_cli_resume_flag_unknown_task_id_exits_nonzero`; `test_cli_resume_flag_most_recent_when_no_id_given`.
 
@@ -1037,9 +1037,9 @@ X-Client-Id   = "vexcoder"
 
 ---
 
-### Gap 32 — `-p`/`--print` One-Shot Plain-Text Flag
+### Gap 32 — `-p`/`--print` One-Shot Plain-Text Option
 
-Reference CLI agents expose a `-p`/`--print` flag for pipe-friendly one-shot queries: the agent runs a single turn, prints the plain assistant response to stdout, and exits. This is distinct from `vex exec` (`BatchMode`): `BatchMode` is designed for multi-turn automation with full JSONL evidence output; `--print` is designed for scripting that needs only a plain text answer. Both are headless; their output formats and use cases do not overlap.
+Reference CLI agents expose a `-p`/`--print` option for pipe-friendly one-shot queries: the agent runs a single turn, prints the plain assistant response to stdout, and exits. This is distinct from `vex exec` (`BatchMode`): `BatchMode` is designed for multi-turn automation with full JSONL evidence output; `--print` is designed for scripting that needs only a plain text answer. Both are headless; their output formats and use cases do not overlap.
 
 ```bash
 # pipe input
@@ -1055,7 +1055,7 @@ vex --resume <task-id> --print "what files did you change?"
 
 **Behaviour:** `-p`/`--print` is a `BatchMode` invocation with the following fixed parameters: `--max-turns 1`, `--format text`, no JSONL evidence output, no changed-file tracking appended to `TaskState`. Stdin is read and prepended to the prompt if stdin is not a TTY (pipe mode). Output is the assistant's final response text only, written to stdout. Exit code: 0 on a completed turn; non-zero on model error or approval denial.
 
-**Implementation:** `-p`/`--print <prompt>` is a `clap` flag pair (short `-p`, long `--print`) in `src/bin/vex.rs` that routes to `BatchMode` with the parameters above. It does not introduce a new runtime mode. `BatchMode` must already exist (Gap 2) for this flag to be implemented; Gap 32 is therefore gated on Gap 2 completion.
+**Implementation:** `-p`/`--print <prompt>` is a `clap` option pair (short `-p`, long `--print`) in `src/bin/vex.rs` that routes to `BatchMode` with the parameters above. It does not introduce a new runtime mode. `BatchMode` must already exist (Gap 2) for this option to be implemented; Gap 32 is therefore gated on Gap 2 completion.
 
 **No `ratatui` or `crossterm` in the execution path.** The existing `BatchMode` CI check covers this.
 
@@ -1597,7 +1597,7 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PB-03** | `vex skills list\|install\|remove` + `registry.toml` | [x] |
 | **PC-01** | `/model <name>` runtime model switching | [x] |
 | **PD-01** | `SandboxDriver` trait + `PassthroughSandbox` | [x] |
-| **PD-02** | `MacosSandboxExec` driver (best-effort + require flag) | [x] |
+| **PD-02** | `MacosSandboxExec` driver (best-effort + require option) | [x] |
 | **PD-03** | `ContainerSandbox` driver | [x] |
 | **PE-01** | `BatchMode: RuntimeMode + FrontendAdapter` | [x] |
 | **PE-02** | `vex exec` sub-command with JSONL/text output | [x] |
@@ -1639,14 +1639,14 @@ Rejected. The migration command exists for operators running vexcoder before ADR
 | **PK-06** | `/tools [desc]` — current dispatch table enumeration; MCP-namespaced tools | [x] |
 | **PK-07** | `/diff [--staged]` — spawn_blocking git diff; truncation; no model turn | [x] |
 | **PK-08** | `vex branch` and `vex pr-summary` — thin git wrappers; stdout output; no platform API | [x] |
-| **PK-09** | `/generate-tests` — generate_tests_template.txt; non-test patch filter; framework flag | [x] |
+| **PK-09** | `/generate-tests` — generate_tests_template.txt; non-test patch filter; framework option | [x] |
 | **PL-01** | Pre/post-tool-call hooks — `[[hooks]]` config; `Capability`-triggered; `SandboxDriver`-wrapped; user-layer only | [x] |
 | **PL-02** | `vex doctor` — config probe, endpoint reachability, sandbox probe, MCP connectivity, `--json` output | [x] |
 | **PL-03** | Session token counter — turn accumulator; `/usage` command; `BatchMode` JSONL `tokens` field | [x] |
-| **PL-04** | `vex export <task-id>` — JSONL and Markdown formats; read-only; `--output`/`--force` flags | [x] |
-| **PM-01** | `--resume [<task-id>]` startup flag — `TaskState::load` before TUI init; non-zero exit on failure | [x] |
+| **PL-04** | `vex export <task-id>` — JSONL and Markdown formats; read-only; `--output`/`--force` options | [x] |
+| **PM-01** | `--resume [<task-id>]` startup option — `TaskState::load` before TUI init; non-zero exit on failure | [x] |
 | **PM-02** | MCP HTTP `[mcp_servers.headers]` — env-var substitution; STDIO rejection; startup failure on unset var | [x] |
-| **PM-03** | `-p`/`--print` flag — `BatchMode` single-turn; stdin pipe; plain-text stdout; gated on Gap 2 | [x] |
+| **PM-03** | `-p`/`--print` option — `BatchMode` single-turn; stdin pipe; plain-text stdout; gated on Gap 2 | [x] |
 | **PP-01** | `search_files`, `list_dir`, `glob_files` — workspace-confined; `.gitignore`-aware; bounded results; registered in dispatch table; gated on workspace ignore mechanism being available | [x] |
 
 ## Implementation reporting contract (mandatory per checklist item)
@@ -1717,7 +1717,7 @@ When checking a box above, append an evidence block under this section:
 | Do not add a dependency licensed under a commercial, copyleft, or conditionally-paid license | All direct dependencies must carry MIT, Apache 2.0, or dual MIT/Apache 2.0 licensing; exceptions require a dedicated ADR with explicit legal basis |
 | Do not use provider-branded names or proprietary product references in runtime code, config keys, or default values | Documentation may reference external tools by name for operator clarity; runtime behaviour must remain neutral. **Migration tooling exception (Gap 11):** `vex migrate config` is the sole permitted context in which pre-ADR-022 branded variable values (for example, the legacy messages token behind `VEX_API_PROTOCOL`) may be read at runtime — exclusively to map them to neutral equivalents. No other code path may read or emit branded values. |
 | MCP HTTP header values containing secrets must use `${ENV_VAR_NAME}` substitution; literal secrets must never appear in config files | Enforced at config load time: values without `${}` syntax are used verbatim and are assumed non-secret; values with `${}` are resolved from environment only |
-| `-p`/`--print` must not be implemented before Gap 2 (`BatchMode`) is complete | `--print` is a routing flag over `BatchMode`; implementing it without `BatchMode` requires duplicating runtime logic, which is prohibited |
+| `-p`/`--print` must not be implemented before Gap 2 (`BatchMode`) is complete | `--print` is a routing option over `BatchMode`; implementing it without `BatchMode` requires duplicating runtime logic, which is prohibited |
 | Do not implement a minimal/simple execution mode env var (`VEX_SIMPLE` or equivalent) without a dedicated ADR | The exact feature-disable set must be decided deliberately; disabling MCP, hooks, or skills piecemeal without a specification creates inconsistent operator expectations |
 | Do not implement `vex remote-control` or any remote environment serving surface without a dedicated ADR | This is distinct from `LocalApiServer` (Phase I) and requires its own network exposure, authentication, and security boundary decisions |
 
@@ -1898,7 +1898,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
   - Trait and default driver scaffolded during PL-01 hooks work.
   - PD-02 (`MacosSandboxExec`) and PD-03 (`ContainerSandbox`) merged in this branch.
 
-### [PD-02] - MacosSandboxExec driver (best-effort + require flag)
+### [PD-02] - MacosSandboxExec driver (best-effort + require option)
 - Operator: this branch (`work/vexcoder-adr024-sandbox-drivers`)
 - Commit: `3090d1c8202cce785ddc765284154cfd97fabd45`
 - Files:
@@ -1929,7 +1929,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Notes:
   - `sandbox.sandbox_profile` must name the container image; driver rejects empty values.
   - A short `run --rm <image> true` probe is executed at session open to validate image availability.
-  - Network isolation depends on the container image and host configuration; no additional flags are injected.
+  - Network isolation depends on the container image and host configuration; no additional options are injected.
 
 ### [PA-03 / PA-04] - vex migrate config + migration doc
 - Operator: reconciliation on a prior integration branch; implementation merged earlier

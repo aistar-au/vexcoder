@@ -359,7 +359,7 @@ impl TaskDocumentCondenser {
             return summary;
         };
 
-        // Clear streaming flags so completed turn entries render without a
+        // Clear streaming markers so completed turn entries render without a
         // live-typing cursor.
         for entry in &mut active.entries {
             if let TurnEntry::AssistantBlock { block, .. } = entry {

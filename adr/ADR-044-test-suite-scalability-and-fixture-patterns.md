@@ -126,7 +126,7 @@ migrated to `TempEnv` before the `slash_commands.rs` file is split
 ### Rule 5 — Parameterised scenarios via `#[test_case]`
 
 When three or more tests share the same assertion structure and differ only
-in input values or setup flags, they must be collapsed into a single
+in input values or setup options, they must be collapsed into a single
 `#[test_case]` parameterised test. This applies immediately to new tests.
 A retroactive cleanup of existing repeated scenarios is
 deferred to the split phase for the relevant file.

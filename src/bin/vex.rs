@@ -463,7 +463,7 @@ async fn main() -> Result<ExitCode> {
     config.validate()?;
     emit_model_endpoint_warnings(&config);
 
-    // PM-01: --resume startup flag.
+    // PM-01: --resume startup option.
     if let Some(state) = resume_state {
         let mut frontend = ManagedTuiFrontend::new()?;
         run_tui_session(config, Some(state), &mut frontend).await?;
@@ -476,9 +476,9 @@ async fn main() -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// Apply top-level CLI flag overrides to a loaded config.
+/// Apply top-level CLI option overrides to a loaded config.
 ///
-/// This is called once per code path after `Config::load()` so that flags such
+/// This is called once per code path after `Config::load()` so that options such
 /// as `--chat-compat`, `--plan`, and `--chat` take effect regardless of which
 /// subcommand is active.
 fn apply_cli_overrides(chat_compat: bool, tool_policy: ToolPolicy, config: &mut Config) {

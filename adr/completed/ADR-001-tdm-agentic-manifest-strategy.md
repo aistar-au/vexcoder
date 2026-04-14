@@ -109,5 +109,5 @@ When executing any task in this repository:
 1. Read `CONTRIBUTING.md` first. It is the TDM law, not a suggestion.
 2. Your success criterion is `cargo test <anchor_name>`, not the absence of compiler errors.
 3. Do not modify files outside the `Target File` specified in the task manifest unless the task explicitly lists additional files.
-4. Do not add new CLI flags, modes, or environment variables unless the task manifest explicitly calls for them.
+4. Do not add new CLI options, modes, or environment variables unless the task manifest explicitly calls for them.
 5. Run `cargo test --all` before declaring the task complete to verify no regressions.

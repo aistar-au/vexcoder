@@ -15,7 +15,7 @@ applyTo: "**"
   This covers PR bodies, review text, commit messages, inline comments,
   plan text, log messages, and findings. Use plain ASCII and standard Markdown.
 - Banned vocabulary: use "unused code", "unreferenced code", or "code that is
-  never called" instead of any phrasing flagged by
+  never called" instead of any phrasing matched by
   ``scripts/check_forbidden_names.sh``. The Rust compiler lint name may appear
   only when quoting compiler output verbatim.
 
@@ -107,7 +107,7 @@ gh pr view <pr> --json headRefName,commits,statusCheckRollup
 gh pr checks <pr> --watch
 ```
 
-- Keep the model pinned in the agent profile rather than adding model flags at
+- Keep the model pinned in the agent profile rather than adding model options at
   invocation time. If the hosting surface ignores the profile pin, report that
   behavior explicitly instead of silently changing the command.
 - Do not move on to PR inspection, review, promotion, or merge work until the

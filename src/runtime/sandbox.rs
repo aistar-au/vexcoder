@@ -558,10 +558,10 @@ mod tests {
             .expect("wrap request");
         assert_eq!(wrapped.program, "sandbox-exec");
         let args = &wrapped.args;
-        // First flag must be -p (inline profile), not -f (profile file).
+        // First option must be -p (inline profile), not -f (profile file).
         assert_eq!(
             args[0], "-p",
-            "expected -p flag for inline profile, got: {args:?}"
+            "expected -p option for inline profile, got: {args:?}"
         );
         // The original command and its argument must follow the profile value.
         assert!(
@@ -590,7 +590,7 @@ mod tests {
         let args = &wrapped.args;
         assert_eq!(
             args[0], "-f",
-            "expected -f flag for profile file, got: {args:?}"
+            "expected -f option for profile file, got: {args:?}"
         );
         assert_eq!(args[1], profile_path, "expected profile path as second arg");
         assert!(
@@ -666,7 +666,7 @@ mod tests {
 
     #[test]
     fn bubblewrap_places_separator_before_command() {
-        // `--` must separate bwrap flags from the sandboxed command.
+        // `--` must separate bwrap options from the sandboxed command.
         let sandbox = super::BubblewrapSandbox::new(None);
         let wrapped = sandbox
             .wrap(CommandRequest {

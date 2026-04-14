@@ -11,6 +11,6 @@ This book focuses on the public user surface:
 - understanding the current runtime, application, and transport layout
 - creating a workspace with `vex init`
 - configuring the model endpoint and token
-- using the current CLI flags and interactive commands
+- using the current CLI options and interactive commands
 
 The shortest path to a running session is in [Quick Start](quick-start.md). For the current code layout, see [Architecture Overview](architecture.md).

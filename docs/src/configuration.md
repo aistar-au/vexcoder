@@ -79,7 +79,7 @@ for live tool-call parsing.
 
 `tool_policy` controls which tools are exposed to the model for a session.
 
-| Policy | Tools exposed | CLI flag |
+| Policy | Tools exposed | CLI option |
 | :--- | :--- | :--- |
 | `full` | All registered tools including mutating and shell tools | (default) |
 | `plan` | Read-only tools only: `read_file`, `list_files`, `list_directory`, `list_dir`, `glob_files`, `search_files`, `search`, `git_status`, `git_diff`, `git_log`, `git_show`, `search_content`, `find_files`, `codebase_search`, plus any configured MCP tools | `--plan` |
@@ -315,7 +315,7 @@ Opt in to automatic git status and diff injection during context assembly.
 
 - Accepts `true`, `false`, `1`, `0`, `yes`, `no`, `on`, or `off`.
 - Default: `false`.
-- Explicit git tools and review flows still call git directly; this flag only
+- Explicit git tools and review flows still call git directly; this option only
   controls the automatic context path used before a normal model turn.
 
 ### `VEX_CONTEXT_GIT_TIMEOUT_MS`

@@ -428,7 +428,7 @@ pub struct TuiMode {
     /// assistant block, so that flat `StreamDelta` events are skipped to
     /// avoid double-counting the same content.
     stream_uses_block_deltas: bool,
-    // ── Turn lifecycle flags ───────────────────────────────────────────────
+    // ── Turn lifecycle settings ────────────────────────────────────────────
     read_only_turn_active: bool,
     active_edit_loop: Option<EditLoop>,
     // ── Timeline viewport ─────────────────────────────────────────────────
