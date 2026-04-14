@@ -3,7 +3,7 @@
 VexCoder is a local coding assistant you run as a binary. It connects to the
 model endpoint you configure, supports interactive CLI sessions and
 non-interactive batch runs, and keeps its setup lightweight enough to build
-from source on macOS, Linux, and Windows.
+from source on supported platforms.
 
 This book focuses on the public user surface:
 

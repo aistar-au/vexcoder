@@ -210,8 +210,7 @@ Lookup order for authenticated endpoints:
 2. OS credential store entry `service = "vexcoder"`, `account = "model-token"`
 
 The credential-store fallback is disabled when `VEX_KEYRING_DISABLED=1`.
-The current build uses macOS Keychain on macOS, Windows Credential Manager on
-Windows, and Linux keyutils on Linux.
+The current build uses platform-native credential stores.
 
 Store the token without placing it on argv:
 
@@ -348,8 +347,8 @@ Selects the command sandbox driver. Accepted values: `passthrough`,
   `VEX_SANDBOX_PROFILE` to name the container image.
 - `bubblewrap` wraps commands with `bwrap`, mounts the workspace read-write,
   mounts core system directories read-only, adds read-only mounts for common
-  host toolchain roots derived from `PATH`, `CARGO_HOME`, `RUSTUP_HOME`, and
-  `/nix/store`, and disables network by default.
+  host toolchain roots derived from `PATH`, `CARGO_HOME`, and `RUSTUP_HOME`,
+  and disables network by default.
 - The built-in `macos-exec` default is intentionally compatibility-first: it
   allows broad file access, network access, process spawning, IPC lookups, and
   signals so common development tools continue to work. Use a custom profile if

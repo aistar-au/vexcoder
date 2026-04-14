@@ -212,9 +212,9 @@ impl SandboxDriver for ContainerSandbox {
 /// read-write; `/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc` are
 /// bind-mounted read-only; `/proc`, `/dev`, and `/tmp` are mounted as
 /// pseudo-filesystems so that standard toolchains can function. Common host
-/// toolchain roots derived from `CARGO_HOME`, `RUSTUP_HOME`, `/nix/store`,
-/// and absolute `PATH` entries are also bind-mounted read-only so Rustup- and
-/// Nix-managed toolchains stay available inside the sandbox.
+/// toolchain roots derived from `CARGO_HOME`, `RUSTUP_HOME`, and absolute
+/// `PATH` entries are also bind-mounted read-only so installed toolchains stay
+/// available inside the sandbox.
 ///
 /// `profile` is an optional whitespace-separated list of additional `bwrap`
 /// arguments. The string is split with `split_whitespace()` (no shell quoting
@@ -295,12 +295,6 @@ impl BubblewrapSandbox {
                 .map(PathBuf::from)
                 .or_else(|| home_dir.as_ref().map(|home| home.join(".rustup"))),
         );
-        maybe_add(
-            &mut extra_roots,
-            working_dir,
-            Some(PathBuf::from("/nix/store")),
-        );
-
         if let Some(path_var) = std::env::var_os("PATH") {
             for path_entry in std::env::split_paths(&path_var) {
                 maybe_add(&mut extra_roots, working_dir, Some(path_entry));

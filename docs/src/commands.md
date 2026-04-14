@@ -76,9 +76,9 @@ Manages the OS credential-store entries used by the runtime token fallback.
 - `vex credentials delete <account>` removes the stored secret.
 - `vex credentials list` prints the known account identifiers for the `vexcoder` service.
 
-The current build uses macOS Keychain on macOS, Windows Credential Manager on
-Windows, and Linux keyutils on Linux. `set` intentionally refuses to read the
-secret from argv so the value does not leak into shell history or process lists.
+The current build uses platform-native credential stores. `set` intentionally
+refuses to read the secret from argv so the value does not leak into shell
+history or process lists.
 
 ### `vex export <task-id> [--format jsonl|markdown] [--output PATH] [--force]`
 

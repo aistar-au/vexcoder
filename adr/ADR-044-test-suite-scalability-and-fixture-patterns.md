@@ -36,7 +36,7 @@ fixtures and builder helpers, and a standard async runtime declaration for
 streaming-heavy tests. The current branch carries roughly 50-70 focused tests
 across `src/app/tests/`, `src/state/conversation/tests/`, and `tests/`; the
 series target is to grow past 100 focused tests without reintroducing fixture
-duplication or oversized generic test buckets.
+duplication or oversized generic test groups.
 
 As the `TaskDocumentCondenser` expands its event coverage (ADR-045), the
 number of scenarios exercised in each of these files will grow. Without a
@@ -72,7 +72,7 @@ The shared support surface owns reusable SSE fixtures, tagged tool-call
 round-trip helpers, and any future builder types needed by renderer and
 runtime tests. New helper modules must use descriptive domain names such as
 `tool_rendering.rs`, `session_runtime.rs`, or `transcript_projection.rs`.
-Generic buckets such as `misc.rs`, `helpers2.rs`, or `more_tests.rs` are not
+Generic groups such as `misc.rs`, `helpers2.rs`, or `more_tests.rs` are not
 permitted.
 
 ### Rule 3 — Single builder for RuntimeContext fixtures

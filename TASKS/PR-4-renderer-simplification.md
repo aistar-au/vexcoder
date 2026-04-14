@@ -182,4 +182,4 @@ are added. Suggested split boundaries:
   replacement.
 - Keep naming explicit in both production and test modules. Prefer file names
   like `transcript_projection.rs` or `task_view_projection.rs` over generic
-  buckets such as `helpers2.rs` or `misc.rs`.
+  groups such as `helpers2.rs` or `misc.rs`.

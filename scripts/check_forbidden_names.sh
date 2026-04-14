@@ -204,6 +204,7 @@ brand_words=(
   $'\x6c\x6c\x61\x6d\x61'
   $'\x76\x6c\x6c\x6d'
   $'\x6d\x65\x74\x61'
+  $'\x6e\x69\x78'
 )
 brand_regex="$(printf '%s|' "${brand_words[@]}")"
 brand_regex="${brand_regex%|}"
