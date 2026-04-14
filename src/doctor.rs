@@ -305,31 +305,8 @@ fn status_label(status: DoctorStatus) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{run_doctor, DoctorStatus};
-    use crate::test_support::ENV_LOCK;
+    use crate::test_support::{EnvRestore, ENV_LOCK};
     use std::fs;
-
-    struct EnvRestore {
-        key: &'static str,
-        value: Option<String>,
-    }
-
-    impl EnvRestore {
-        fn capture(key: &'static str) -> Self {
-            Self {
-                key,
-                value: std::env::var(key).ok(),
-            }
-        }
-    }
-
-    impl Drop for EnvRestore {
-        fn drop(&mut self) {
-            match &self.value {
-                Some(value) => std::env::set_var(self.key, value),
-                None => std::env::remove_var(self.key),
-            }
-        }
-    }
 
     #[tokio::test]
     async fn test_vex_doctor_fails_on_missing_model_url() {

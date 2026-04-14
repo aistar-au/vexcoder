@@ -209,17 +209,18 @@ impl SandboxDriver for ContainerSandbox {
 ///
 /// Wraps the target command so that it runs inside a `bwrap` invocation with
 /// a minimal bind-mount layout. The working directory is bind-mounted
-/// read-write; `/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`, `/proc`,
-/// `/dev`, `/tmp`, and `/run` are bind-mounted read-only or with their usual
-/// semantics so that standard toolchains can function.
+/// read-write; `/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc` are
+/// bind-mounted read-only; `/proc`, `/dev`, and `/tmp` are mounted as
+/// pseudo-filesystems so that standard toolchains can function.
 ///
-/// `profile` is an optional space-separated list of additional `bwrap`
-/// arguments that are appended verbatim after the fixed bind mounts and
-/// before the command. Operators can use this to add extra mounts, set env
-/// vars (`--setenv`), or restrict capabilities further.
+/// `profile` is an optional whitespace-separated list of additional `bwrap`
+/// arguments. The string is split with `split_whitespace()` (no shell quoting
+/// or escaping) and injected after the fixed bind mounts and before the `--`
+/// separator. Operators can use this to add extra mounts, set env vars
+/// (`--setenv`), or opt back in to network access (`--share-net`).
 #[derive(Debug, Clone, Default)]
 pub struct BubblewrapSandbox {
-    /// Optional extra bwrap arguments (space-separated string from config).
+    /// Extra bwrap arguments parsed from the whitespace-split `profile` string.
     extra_args: Vec<String>,
 }
 

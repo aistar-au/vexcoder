@@ -73,10 +73,16 @@ pub fn read(account: &str) -> Result<Option<String>> {
 
 /// Write a secret to the OS credential store.
 ///
-/// Returns `Err` when the keyring is disabled or the write fails.
+/// Returns `Err` when the keyring is disabled, the secret is empty or
+/// whitespace-only, or the write fails.  An empty secret is rejected because
+/// `read()` treats whitespace-only stored values as absent, which would cause
+/// a confusing round-trip where `set` succeeds but `get` reports no credential.
 pub fn write(account: &str, secret: &str) -> Result<()> {
     if is_disabled() {
         bail!("keyring is disabled via VEX_KEYRING_DISABLED; cannot store credential");
+    }
+    if secret.trim().is_empty() {
+        bail!("secret must not be empty or whitespace-only");
     }
     let entry =
         keyring::Entry::new(SERVICE, account).context("failed to create keyring entry handle")?;
@@ -145,6 +151,7 @@ mod tests {
 
     #[test]
     fn is_disabled_respects_env_var() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         let _guard = crate::test_support::EnvRestore::capture("VEX_KEYRING_DISABLED");
 
         std::env::remove_var("VEX_KEYRING_DISABLED");
@@ -165,6 +172,7 @@ mod tests {
 
     #[test]
     fn read_returns_none_when_disabled() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         let _guard = crate::test_support::EnvRestore::capture("VEX_KEYRING_DISABLED");
         std::env::set_var("VEX_KEYRING_DISABLED", "1");
         assert!(read(ACCOUNT_MODEL_TOKEN).unwrap().is_none());
@@ -172,13 +180,27 @@ mod tests {
 
     #[test]
     fn write_errors_when_disabled() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         let _guard = crate::test_support::EnvRestore::capture("VEX_KEYRING_DISABLED");
         std::env::set_var("VEX_KEYRING_DISABLED", "1");
         assert!(write(ACCOUNT_MODEL_TOKEN, "secret").is_err());
     }
 
     #[test]
+    fn write_errors_on_empty_secret() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
+        let _guard = crate::test_support::EnvRestore::capture("VEX_KEYRING_DISABLED");
+        std::env::remove_var("VEX_KEYRING_DISABLED");
+        let err = write(ACCOUNT_MODEL_TOKEN, "   ").unwrap_err();
+        assert!(
+            err.to_string().contains("empty"),
+            "expected empty-secret error, got: {err}"
+        );
+    }
+
+    #[test]
     fn delete_errors_when_disabled() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         let _guard = crate::test_support::EnvRestore::capture("VEX_KEYRING_DISABLED");
         std::env::set_var("VEX_KEYRING_DISABLED", "1");
         assert!(delete(ACCOUNT_MODEL_TOKEN).is_err());

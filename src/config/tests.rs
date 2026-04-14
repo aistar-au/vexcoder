@@ -1,30 +1,8 @@
 use super::{Config, ModelBackendKind};
 use std::path::PathBuf;
 
+use crate::test_support::EnvRestore;
 use crate::types::ModelProfile;
-
-struct EnvRestore {
-    key: &'static str,
-    value: Option<String>,
-}
-
-impl EnvRestore {
-    fn capture(key: &'static str) -> Self {
-        Self {
-            key,
-            value: std::env::var(key).ok(),
-        }
-    }
-}
-
-impl Drop for EnvRestore {
-    fn drop(&mut self) {
-        match &self.value {
-            Some(value) => std::env::set_var(self.key, value),
-            None => std::env::remove_var(self.key),
-        }
-    }
-}
 
 #[test]
 fn test_config_rejects_non_loopback_http_model_url() {
