@@ -64,6 +64,7 @@ mod tool_tests {
 
     #[test]
     fn test_vex_force_mutating_turn_overrides_heuristic() {
+        let _lock = crate::test_support::ENV_LOCK.blocking_lock();
         // Without the env var, "show me the files" is read-only.
         assert!(
             is_read_only_user_request("show me the files"),
