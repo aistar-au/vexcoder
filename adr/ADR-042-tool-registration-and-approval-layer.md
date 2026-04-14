@@ -176,8 +176,8 @@ exposed to the model for a session:
   the dispatch layer as a defense-in-depth guard.
 - **Chat**: no tools. The model operates in plain conversation mode.
 
-The policy is set via `--plan` or `--chat` CLI flags (mutually exclusive), or
-via `tool_policy` in `config.toml`. The CLI flags override the config value.
+The policy is set via `--plan` or `--chat` CLI options (mutually exclusive), or
+via `tool_policy` in `config.toml`. The CLI options override the config value.
 
 The policy flows through `Config.tool_policy` → `ApiClient.tool_policy` →
 `tool_definitions_for_policy()` which filters the tool schema, and a
@@ -188,7 +188,7 @@ rejects mutating tools even if the model hallucinates them.
 
 - Local sessions automatically adapt `max_tokens` to the server's context
   window, preventing wasted generation budget on servers with large contexts.
-- The operator can tune batch size and context via server flags
+- The operator can tune batch size and context via server options
   (`--ctx-size`, `--batch-size`) and the client respects those settings
   without per-session env-var overrides.
 - The telemetry line provides actionable capacity data for tuning.
@@ -205,7 +205,7 @@ rejects mutating tools even if the model hallucinates them.
 - Registering `run_command` in the schema increases the likelihood that
   local models attempt shell calls in contexts where they are not needed.
   Mitigated: the approval gate requires explicit user confirmation at the
-  `once` scope by default; auto-approve requires an explicit operator flag
+  `once` scope by default; auto-approve requires an explicit operator option
   (`--auto-approve task`).
 - Dispatch aliases for unregistered names (`bash`, `run_shell_command`,
   etc.) broaden the execution surface beyond what the schema alone implies.

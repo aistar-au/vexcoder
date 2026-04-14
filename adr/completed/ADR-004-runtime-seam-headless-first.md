@@ -87,7 +87,7 @@ pub trait RuntimeMode {
 ### Scope discipline
 
 During the REF track (REF-02 through REF-06):
-- No new CLI flags or environment variables.
+- No new CLI options or environment variables.
 - No new tools.
 - No changes to the `messages-v1` or chat-completions protocol paths.
 - `cargo test --all` must pass after every task.

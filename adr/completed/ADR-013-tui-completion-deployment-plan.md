@@ -125,7 +125,7 @@ in code review and CI:
    field after CORE-09) MUST NOT exceed `MAX_HISTORY_LINES` at the end of any
    `on_model_update` or `on_user_input` call.
 
-4. **Dirty flag:** `TuiFrontend::render` MUST NOT call `terminal.draw(...)` when
+4. **Dirty indicator:** `TuiFrontend::render` MUST NOT call `terminal.draw(...)` when
    `dirty` is false and the tick interval has not elapsed.
 
 5. **Panic hook:** `crate::terminal::restore()` MUST be registered in the panic hook

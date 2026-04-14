@@ -187,7 +187,7 @@ async fn test_batch_mode_memory_clear_with_max_turns_emits_single_summary() {
         .filter(|line| {
             serde_json::from_str::<serde_json::Value>(line)
                 .ok()
-                .and_then(|value| value.get("summary").and_then(|flag| flag.as_bool()))
+                .and_then(|value| value.get("summary").and_then(|entry| entry.as_bool()))
                 == Some(true)
         })
         .count();
@@ -207,7 +207,7 @@ async fn test_batch_mode_jsonl_output_includes_required_fields() {
         .find(|value| {
             !value
                 .get("summary")
-                .and_then(|flag| flag.as_bool())
+                .and_then(|entry| entry.as_bool())
                 .unwrap_or(false)
         })
         .expect("expected a turn record before the final summary");
@@ -219,7 +219,7 @@ async fn test_batch_mode_jsonl_output_includes_required_fields() {
 
     let summary = records
         .iter()
-        .find(|value| value.get("summary").and_then(|flag| flag.as_bool()) == Some(true))
+        .find(|value| value.get("summary").and_then(|entry| entry.as_bool()) == Some(true))
         .expect("expected a final summary record");
     assert_eq!(summary["status"], "Completed");
 }

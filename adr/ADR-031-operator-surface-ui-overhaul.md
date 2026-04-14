@@ -186,7 +186,7 @@ assumptions that have not been merged into `main`, such as:
 - temporary event names
 - temporary pending-step trackers
 - temporary output buffers
-- temporary command lifecycle flags
+- temporary command lifecycle settings
 - temporary approval state derived only in the UI layer
 
 If such state is required for the UI, it must first exist in the runtime or

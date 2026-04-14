@@ -22,7 +22,7 @@ emit useful stream metadata such as:
 2. `timings` snapshots that distinguish prompt-eval time from generation time.
 
 On endpoints that support the messages/v1 protocol, the same telemetry is
-carried natively inside event metadata without requiring opt-in request flags.
+carried natively inside event metadata without requiring opt-in request options.
 
 The operator-facing problem was not one bug but one broken feedback loop:
 
@@ -64,7 +64,7 @@ streaming protocols.
 
 ### Request contract — messages/v1 protocol
 
-8. Messages/v1 streaming requests do not require opt-in flags for telemetry.
+8. Messages/v1 streaming requests do not require opt-in options for telemetry.
    Prompt progress and timing data arrive as metadata on standard stream
    events when the backend supports them.
 9. The system prompt is passed as a top-level `system` field, not embedded in
@@ -165,7 +165,7 @@ streaming protocols.
 ### Negative
 
 - The local chat-compatible path now knowingly depends on backend-specific
-  progress fields and opt-in request flags.
+  progress fields and opt-in request options.
 - The messages/v1 path carries telemetry natively but depends on per-backend
   support for populating `prompt_progress` and `timings` metadata.
 - Tests must cover metadata-only chunks because they are now semantically
@@ -178,7 +178,7 @@ streaming protocols.
 Candidate implementation areas:
 
 - `src/api/client/mod.rs` — request payload construction for both protocols;
-  `apply_local_chat_compat_stream_flags()` inserts telemetry opt-in flags.
+  `apply_local_chat_compat_stream_flags()` inserts telemetry opt-in options.
 - `src/api/stream.rs` — `StreamParser` with messages/v1-first fallback chain;
   `ChatCompatChunk` intermediate struct for chat-compatible conversion.
 - `src/types/api_types.rs` — shared `StreamEvent` enum, `StreamChunkMetadata`,

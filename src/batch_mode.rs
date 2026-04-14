@@ -425,7 +425,7 @@ impl FrontendAdapter<BatchMode> for BatchFrontend {
 }
 
 /// Wraps `BatchFrontend` and quits once the mode signals done via a shared
-/// flag. In practice `run_batch` drives the update loop directly, so this
+/// option. In practice `run_batch` drives the update loop directly, so this
 /// wrapper is provided for callers that want to use `Runtime::run`.
 pub struct BatchFrontendQuit {
     inner: BatchFrontend,

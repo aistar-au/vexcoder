@@ -1,6 +1,6 @@
 # CLI and TUI Commands
 
-This page documents the commands and flags implemented in the current binary.
+This page documents the commands and options implemented in the current binary.
 
 ## CLI
 
@@ -23,9 +23,9 @@ repo-overview prompts, the runtime now steers the model
 toward `list_files` at the workspace root or `codebase_search` before any
 targeted `read_file`; `read_file` itself requires an explicit non-empty path.
 
-#### Top-level flags
+#### Top-level options
 
-| Flag | Effect |
+| Option | Effect |
 |------|--------|
 | `--chat-compat` | Use the `chat/completions` API format instead of the default `messages/v1` format. Required for endpoints that only expose the chat completions schema. |
 | `--plan` | Restrict tools to read-only operations (search, read, list, git read ops, `codebase_search`, MCP). Mutating and shell tools are excluded from the model schema and rejected at dispatch. Cannot be combined with `--chat`. |
@@ -45,7 +45,7 @@ stdin content is prepended to the prompt.
 
 Runs a non-interactive batch task.
 
-Useful flags:
+Useful options:
 
 - `--task-file PATH`
 - `--max-turns N`
@@ -76,9 +76,9 @@ Manages the OS credential-store entries used by the runtime token fallback.
 - `vex credentials delete <account>` removes the stored secret.
 - `vex credentials list` prints the known account identifiers for the `vexcoder` service.
 
-The current build uses macOS Keychain on macOS, Windows Credential Manager on
-Windows, and Linux keyutils on Linux. `set` intentionally refuses to read the
-secret from argv so the value does not leak into shell history or process lists.
+The current build uses platform-native credential stores. `set` intentionally
+refuses to read the secret from argv so the value does not leak into shell
+history or process lists.
 
 ### `vex export <task-id> [--format jsonl|markdown] [--output PATH] [--force]`
 
@@ -185,7 +185,7 @@ Commands entered inside the interactive UI start with `/`.
   - Accepts either a plain workspace-relative path or `@path`; `@path` is normalized to the requested file target before context assembly runs.
 - `/review [--base <git-ref>] [--files <glob>] [<instruction>]`
   - Starts a single review turn without entering the edit loop.
-  - With no flags, reviews `git diff HEAD`.
+  - With no options, reviews `git diff HEAD`.
   - `--base <git-ref>` reviews `git diff <git-ref>` after validating the ref.
   - `--files <glob>` assembles matching workspace files instead of a diff and cannot be combined with `--base`.
   - Expands `@path` mentions inside the free-form review instruction before the review turn starts. When `--files` receives `@glob`, the leading `@` is stripped before file matching.

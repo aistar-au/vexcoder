@@ -344,7 +344,7 @@ reading state files written before this ADR, preserving backward compatibility.
 
 State files written after this ADR include all four new fields.
 
-The `--resume` flag path in `src/bin/vex.rs` is unchanged. It calls
+The `--resume` option path in `src/bin/vex.rs` is unchanged. It calls
 `TaskState::load()` which reads the JSON document and populates all fields
 including the new ones. The resumed session has access to the plan, notes,
 compaction history, and cache stats immediately after load.

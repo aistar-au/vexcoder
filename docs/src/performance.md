@@ -64,7 +64,7 @@ latency or scale profile:
   avoid parsing the full JSON document during cold start, but it must also
   solve invalidation and crash-consistency so the sidecar cannot drift from the
   task-state JSON.
-- Directory sharding by time bucket or prefix can reduce `read_dir` and
+- Directory sharding by time slice or prefix can reduce `read_dir` and
   metadata pressure when the task-state surface grows large enough that one
   flat directory dominates cold-start cost.
 - A single-writer event log paired with periodic summary checkpoints can make

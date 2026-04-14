@@ -117,8 +117,7 @@ pub(super) enum Commands {
     },
     /// Manage OS-native credential store entries (ADR-024 Gap 38).
     ///
-    /// Credentials are stored in the OS keyring (macOS Keychain, Linux
-    /// keyutils, Windows Credential Manager) under the service name
+    /// Credentials are stored in the platform keyring under the service name
     /// "vexcoder".
     /// Set VEX_KEYRING_DISABLED=1 to bypass the keyring and use only
     /// VEX_MODEL_TOKEN for token lookup.

@@ -1026,7 +1026,7 @@ fn test_mcp_http_with_args_is_rejected() {
     std::fs::create_dir_all(cwd.join(".git")).unwrap();
     std::fs::write(
         &user_cfg,
-        "[[mcp_servers]]\nname = \"badhttp\"\ntransport = \"http\"\nurl = \"http://example.com\"\nargs = [\"--flag\"]\n",
+        "[[mcp_servers]]\nname = \"badhttp\"\ntransport = \"http\"\nurl = \"http://example.com\"\nargs = [\"--option\"]\n",
     )
     .unwrap();
 

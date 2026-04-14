@@ -308,7 +308,7 @@ However, ADR-025 imposes a new internal rule:
 - command-history evidence recorded in BatchMode must be traceable to the canonical tool/validation event stream for that turn; PI-12 tests must prove that replaying canonical envelopes reconstructs the existing summarized JSONL shape.
 - When `MaxTurnsReached` is emitted, `SummaryRecord.status` is `"failed"` and a `max_turns_reached: true` field is added to the summary record. This is additive and does not break existing tooling that reads only `status`.
 
-A future additive format such as `--format json-events` may emit one `RuntimeEnvelope` per line, but this ADR does not require that flag to exist now.
+A future additive format such as `--format json-events` may emit one `RuntimeEnvelope` per line, but this ADR does not require that option to exist now.
 
 ### 7. Schema v1 is required
 

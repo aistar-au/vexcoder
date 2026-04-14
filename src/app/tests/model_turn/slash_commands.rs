@@ -407,7 +407,7 @@ async fn test_read_only_turn_flag_clears_after_turn_completion() {
     mode.on_model_update(UiUpdate::TurnComplete, &mut ctx);
     assert!(
         !mode.read_only_turn_active,
-        "turn completion must clear the read-only turn flag"
+        "turn completion must clear the read-only turn indicator"
     );
 
     let (response_tx, response_rx) = tokio::sync::oneshot::channel::<bool>();

@@ -1,7 +1,7 @@
 //! OS-native credential store access (ADR-024 Gap 38).
 //!
 //! Wraps the `keyring` crate to provide a uniform read/write/delete surface
-//! over macOS Keychain, Linux keyutils, and Windows Credential Manager.
+//! over platform-native credential stores.
 //! All operations are fallible: callers must handle errors and fall back to
 //! environment variables when the OS credential store is unavailable.
 //!

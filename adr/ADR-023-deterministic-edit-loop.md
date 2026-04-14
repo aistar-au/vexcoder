@@ -261,7 +261,7 @@ Constraints:
 - `EditLoop` must not call `ToolOperator` directly. File mutations flow through the conversation tool dispatch layer only.
 - `EditLoop` must not exceed `max_turns` under any circumstance. The counter is checked *before* `ctx.start_turn()`, not after.
 - **Reentrancy is prohibited.** `TuiMode::try_handle_slash_command` must check whether `active_edit_loop` is already `Some` before spawning a new loop. If a loop is in progress, the `/edit` and `/fix` commands must emit `[edit loop already active — cancel with Ctrl+C before starting a new task]` and return without spawning. Nested or concurrent loop invocations are not supported and must not be possible through any code path.
-- On `MaxTurnsReached`, the loop outcome and last error string are surfaced to the operator via `push_history_line` in the TUI transcript. `TaskState::command_history` records the `CommandEvidence` entries (program, exit code, interrupted flag) for each validation command that ran — it does not hold a structured error string, and the loop must not attempt to write one there. `[source: task_state.rs CommandEvidence struct — fields: program, exit_code, interrupted]`. If the operator wants to resume, they use `/fix` in the same session (sourced from `last_validation_result`) or `vex exec` with the task file and JSONL output for offline inspection.
+- On `MaxTurnsReached`, the loop outcome and last error string are surfaced to the operator via `push_history_line` in the TUI transcript. `TaskState::command_history` records the `CommandEvidence` entries (program, exit code, interrupted boolean) for each validation command that ran — it does not hold a structured error string, and the loop must not attempt to write one there. `[source: task_state.rs CommandEvidence struct — fields: program, exit_code, interrupted]`. If the operator wants to resume, they use `/fix` in the same session (sourced from `last_validation_result`) or `vex exec` with the task file and JSONL output for offline inspection.
 - `EditLoop` is not a `RuntimeMode`.
 
 ---
@@ -326,7 +326,7 @@ The dispatch is introduced at the top of `on_user_input` after the overlay and b
 if let Some(outcome) = self.try_handle_slash_command(&input, ctx) {
     self.push_history_line(format!("> {input}"));
     self.push_history_line(String::new());
-    // slash commands that do not start a turn skip the turn_in_progress flag
+    // slash commands that do not start a turn skip the turn_in_progress marker
     match outcome {
         SlashCommandOutcome::Handled => {}
         SlashCommandOutcome::StartTurn(rendered) => {
@@ -494,7 +494,7 @@ active_edit_loop: Option<EditLoop>,  // carries last_validation_result between /
                          is used in place of a diff. Incompatible with --base;
                          providing both emits "[review: --base and --files are
                          mutually exclusive]" and returns.
-      (neither flag)     Equivalent to --base HEAD: assembles `git diff HEAD`
+    (neither option)   Equivalent to --base HEAD: assembles `git diff HEAD`
                          (staged + unstaged changes in the working tree).
       <instruction>      Optional free-text appended to the {{instruction}}
                          substitution site in review_template.txt. If absent,
@@ -563,7 +563,7 @@ The validation infrastructure is useful independently of model turns. Making the
 
 ### Why does `/fix` not fall back to `TaskState::command_history`?
 
-`command_history` records `CommandEvidence` (program name, exit code, interrupted flag) — not structured validation output. `[source: task_state.rs CommandEvidence struct]`. Reconstructing a useful error context from those fields would require heuristics. The `ValidationResult` held in `last_validation_result` already contains `stdout_tail`, `stderr_tail`, and `passed`, which is exactly what `fix_template.txt` needs.
+`command_history` records `CommandEvidence` (program name, exit code, interrupted boolean) — not structured validation output. `[source: task_state.rs CommandEvidence struct]`. Reconstructing a useful error context from those fields would require heuristics. The `ValidationResult` held in `last_validation_result` already contains `stdout_tail`, `stderr_tail`, and `passed`, which is exactly what `fix_template.txt` needs.
 
 ---
 
@@ -651,7 +651,7 @@ Rejected. `TaskState`'s `CommandEvidence` struct records execution facts, not st
 | **EL-07** | `ModelProfile` struct; `models/*.toml` files; `default_for_backend` fallback | Must be green; EL-08 gated separately | [x] |
 | **EL-08** | `ModelProfile` config integration via layered config | **Gated: ADR-022 Phase 1 must be complete** | [x] |
 | **EL-09** | `scripts/check_forbidden_names.sh` — covers `src/prompts/` and `models/`; added to CI | Must pass for all items EL-06 onward | [x] |
-| **EL-10** | `/review` — `review_template.txt`; `--base`/`--files` flag parsing; ref validation; PendingPatch drop; diff assembly via `spawn_blocking` | Must be green after EL-05; gated on EL-06 for template | [x] |
+| **EL-10** | `/review` — `review_template.txt`; `--base`/`--files` option parsing; ref validation; PendingPatch drop; diff assembly via `spawn_blocking` | Must be green after EL-05; gated on EL-06 for template | [x] |
 | **EL-11** | `/plan` — `plan_template.txt`; `{{scope}}` assembly via `ContextAssembler`; PendingPatch drop; no EditLoop invocation | Must be green after EL-05; gated on EL-06 for template | [x] |
 | **EL-12** | `/context` — zero-turn status render; token estimate; `active_grants` count; git summary; no model turn | Must be green after EL-05 | [x] |
 | **EL-13** | `/commands` and `/help` alias — runtime-generated from dispatch table; description registration; compile-error for missing descriptions | Must be green after EL-04 | [x] |
@@ -861,7 +861,7 @@ When checking a box above, append an evidence block under this section:
 | EL-07 | `ModelProfile` struct; `models/*.toml`; `default_for_backend`; `structured_tools` fallback | `test_model_profile_loads_from_toml`; `test_model_profile_invalid_path_is_hard_failure`; `test_model_profile_structured_tools_false_uses_tagged_fallback`; `test_context_assembler_invalid_git_timeout_env_falls_back_to_default` | Must be green; EL-08 gated separately |
 | EL-08 | `ModelProfile` config integration via layered config | `test_model_profile_loaded_from_layered_config` | **Gated: ADR-022 Phase 1 must be complete** |
 | EL-09 | `scripts/check_forbidden_names.sh` — CI coverage of `src/prompts/` and `models/` | `check_forbidden_names_sh_blocks_proprietary_name_in_prompts_dir` | Must pass for EL-06 onward |
-| EL-10 | `/review` — flag parsing, ref validation error paths, PendingPatch drop, diff assembly | `test_tui_review_default_assembles_head_diff`; `test_tui_review_base_flag_validates_ref`; `test_tui_review_invalid_ref_emits_error_no_turn`; `test_tui_review_mutual_exclusion_base_and_files`; `test_tui_review_drops_pending_patch_silently`; `test_tui_review_files_flag_uses_context_assembler` | Must be green after EL-05; template requires EL-06 |
+| EL-10 | `/review` — option parsing, ref validation error paths, PendingPatch drop, diff assembly | `test_tui_review_default_assembles_head_diff`; `test_tui_review_base_flag_validates_ref`; `test_tui_review_invalid_ref_emits_error_no_turn`; `test_tui_review_mutual_exclusion_base_and_files`; `test_tui_review_drops_pending_patch_silently`; `test_tui_review_files_flag_uses_context_assembler` | Must be green after EL-05; template requires EL-06 |
 | EL-11 | `/plan` — `plan_template.txt`; `{{scope}}` via `ContextAssembler`; PendingPatch drop; no EditLoop | `test_tui_plan_starts_single_turn_no_loop`; `test_tui_plan_drops_pending_patch_silently`; `test_tui_plan_scope_populated_from_assembler` | Must be green after EL-05; template requires EL-06 |
 | EL-12 | `/context` — zero-turn status output; token estimate annotation; no `ctx.start_turn` call | `test_tui_context_renders_without_model_turn`; `test_tui_context_shows_tilde_token_estimate`; `test_tui_context_shows_active_grants_count` | Must be green after EL-05 |
 | EL-13 | `/commands` and `/help` — runtime-generated from dispatch table; description per entry; compile error for missing description | `test_tui_commands_renders_all_registered_commands`; `test_tui_help_is_alias_for_commands`; `test_commands_output_does_not_call_start_turn`; `test_missing_command_description_is_compile_error` | Must be green after EL-04 |
