@@ -364,6 +364,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_context_assembler_reuses_cached_rollups_between_calls() {
+        let _lock = crate::runtime::context_cache::lock_context_cache_for_tests();
         crate::runtime::context_cache::reset_context_cache_for_tests();
         let workspace = tempfile::tempdir().expect("tempdir");
         fs::write(workspace.path().join("note.txt"), "cache me\n").expect("write note");
