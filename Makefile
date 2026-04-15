@@ -8,17 +8,19 @@
 #   make gate          full gate (matches ci.yml + arch-contracts.yml combined)
 #   make gate-fast     full gate (identical to gate)
 #   make deps-deny     security advisory + license + graph check via cargo-deny
-#   make deps-audit    report stale direct workspace dependencies
+#   make deps-audit    detect unused deps (cargo-machete) + stale versions (cargo-outdated)
 #   make deps-plan     dry-run a manifest upgrade via cargo upgrade
-#   make deps-upgrade  apply a manifest upgrade via cargo upgrade
+#   make deps-upgrade  apply a manifest upgrade + semver-check library APIs
 #   make release       package one target to dist/ for local smoke testing
 #   make fix           apply fmt + taplo + line-ending renorm
 #   make help          list all targets
 #
 # Tool prerequisites:
-#   cargo-deny     cargo install cargo-deny --locked
-#   cargo-upgrade  cargo install cargo-edit --locked --no-default-features --features upgrade
-#   cargo-outdated cargo install cargo-outdated --locked
+#   cargo-deny          cargo install cargo-deny --locked
+#   cargo-upgrade       cargo install cargo-edit --locked --no-default-features --features upgrade
+#   cargo-outdated      cargo install cargo-outdated --locked
+#   cargo-machete       cargo install cargo-machete --locked
+#   cargo-semver-checks cargo install cargo-semver-checks --locked
 #   taplo   cargo install taplo-cli --version 0.8.1  (CI pins this version in workflow)
 #   rg      cargo install ripgrep  OR  apt install ripgrep  (check_forbidden_names.sh only)
 #   rust    rustup (stable toolchain)
@@ -32,7 +34,7 @@ endif
 .SHELLFLAGS := -euo pipefail -c
 
 .PHONY: help \
-	_require-taplo _require-rg _require-nextest _require-cargo-upgrade _require-cargo-outdated _require-cargo-deny \
+	_require-taplo _require-rg _require-nextest _require-cargo-upgrade _require-cargo-outdated _require-cargo-deny _require-cargo-machete _require-cargo-semver-checks \
 	build check deps-deny deps-audit deps-plan deps-upgrade \
   fmt fmt-check \
   lint \
@@ -56,9 +58,9 @@ help:
 	  "  build              cargo build --all-targets" \
 	  "  check              cargo check --all-targets" \
 	  "  deps-deny          security advisory + license + graph check (cargo-deny)" \
-          "  deps-audit         report stale direct workspace dependencies" \
+          "  deps-audit         detect unused deps (cargo-machete) + stale versions (cargo-outdated)" \
 	  "  deps-plan          dry-run a manifest upgrade: make deps-plan ARGS='-p quick-xml@0.40'" \
-	  "  deps-upgrade       apply a manifest upgrade: make deps-upgrade ARGS='-p quick-xml@0.40'" \
+	  "  deps-upgrade       apply a manifest upgrade + semver-check: make deps-upgrade ARGS='-p quick-xml@0.40'" \
 	  "  fmt                cargo fmt + taplo fmt (write)" \
 	  "  fmt-check          cargo fmt --check + taplo fmt --check + taplo lint" \
 	  "  lint               cargo clippy --all-targets -- -D warnings" \
@@ -152,6 +154,24 @@ _require-cargo-deny:
 	  exit 1; \
 	}
 
+_require-cargo-machete:
+	@command -v cargo-machete >/dev/null 2>&1 || { \
+	  echo ""; \
+	  echo "MISSING TOOL: cargo-machete"; \
+	  echo "  Install: cargo install cargo-machete --locked"; \
+	  echo ""; \
+	  exit 1; \
+	}
+
+_require-cargo-semver-checks:
+	@command -v cargo-semver-checks >/dev/null 2>&1 || { \
+	  echo ""; \
+	  echo "MISSING TOOL: cargo-semver-checks"; \
+	  echo "  Install: cargo install cargo-semver-checks --locked"; \
+	  echo ""; \
+	  exit 1; \
+	}
+
 
 # ------------------------------------------------------------------------------
 # Build
@@ -165,13 +185,13 @@ check:
 deps-deny: _require-cargo-deny
 	@bash scripts/upgrade-deps.sh deny $(ARGS)
 
-deps-audit: _require-cargo-outdated
+deps-audit: _require-cargo-machete _require-cargo-outdated
 	@bash scripts/upgrade-deps.sh audit
 
 deps-plan: _require-cargo-upgrade
 	@bash scripts/upgrade-deps.sh plan $(ARGS)
 
-deps-upgrade: _require-cargo-upgrade
+deps-upgrade: _require-cargo-upgrade _require-cargo-semver-checks
 	@bash scripts/upgrade-deps.sh apply $(ARGS)
 
 

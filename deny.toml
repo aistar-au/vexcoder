@@ -28,9 +28,9 @@
 #   the same discovery benefit while keeping the source edit in the same PR.
 #
 #   cargo-machete — detects dependencies declared in Cargo.toml but not
-#   imported anywhere. Noted as a useful complementary tool for future
-#   periodic dead-dependency sweeps; not enforced in CI today because
-#   build-dep and dev-dep false positives require triage per crate.
+#   imported anywhere. Integrated in `make deps-audit` (scripts/upgrade-deps.sh).
+#   Not enforced in CI because build-dep and dev-dep false positives require
+#   per-crate triage.
 #
 #   cargo-audit — RustSec advisory scanner. cargo-deny's [advisories] check
 #   subsumes cargo-audit for CI purposes; cargo-audit is still useful locally
@@ -53,11 +53,10 @@ version = 2
 db-path = "$CARGO_HOME/advisory-dbs"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 
-# Only fail for unmaintained crates that are direct workspace dependencies,
-# not for every transitive crate in the ecosystem (many third-party ecosystems
-# carry legitimately unmaintained transitives with no known replacement).
-# codex-rs uses the same "workspace" scope for this check.
-unmaintained = "workspace"
+# Fail on unmaintained crates across the full dependency graph. Add entries to
+# the ignore list below for any transitive crates that have no upstream fix and
+# pose no realistic exploitation risk; every ignore entry must include a reason.
+unmaintained = "all"
 
 # Yanked versions are a post-publish retraction signal; always block on them.
 yanked = "deny"
@@ -70,7 +69,22 @@ unused-ignored-advisory = "warn"
 # records the dependency path, why the advisory does not affect this codebase,
 # and the expected resolution condition (upgrade path or upstream fix).
 # Pattern follows codex-rs: keep in sync with any .cargo/audit.toml if added.
-ignore = []
+
+[[advisories.ignore]]
+id = "RUSTSEC-2025-0141"
+reason = "bincode 1.3.3 is unmaintained (team ceased development after harassment incident); pulled in transitively via syntect v5.3.0 for syntax highlighting. No security vulnerability; team considers 1.3.3 a complete and stable release. Resolution: remove when syntect upgrades to bincode 2.x or an alternative."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2025-0057"
+reason = "fxhash 0.2.1 is unmaintained; pulled in transitively via bm25 v2.3.2. No security vulnerability; fxhash is a pure-algorithmic hash utility with no external inputs. Resolution: remove when bm25 switches to rustc-hash or an equivalent maintained crate."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2025-0119"
+reason = "number_prefix 0.4.0 is unmaintained; pulled in transitively via indicatif v0.17.11 for human-readable progress display. No security vulnerability; number_prefix is a display-only formatting utility. Resolution: remove when indicatif upgrades its dependency."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2024-0320"
+reason = "yaml-rust 0.4.5 is unmaintained; pulled in transitively via syntect v5.3.0 for TextMate grammar parsing. No security vulnerability; syntect uses it to parse read-only bundled grammar files, not user-supplied YAML. Resolution: remove when syntect switches to yaml-rust2."
 
 # ---------------------------------------------------------------------------
 # 2. Dependency graph quality

@@ -28,9 +28,9 @@ Usage:
 
 Commands:
   deny    Run cargo-deny: advisories, bans, licenses, and source checks.
-  audit   Report stale direct workspace dependencies with cargo outdated.
+  audit   Detect unused deps (cargo-machete) and stale versions (cargo-outdated).
   plan    Dry-run a manifest update with cargo upgrade.
-  apply   Update Cargo.toml with cargo upgrade, refresh Cargo.lock, and run cargo check.
+  apply   Upgrade manifest, refresh lock, check, and semver-check library APIs.
 
 Examples:
   bash scripts/upgrade-deps.sh deny
@@ -110,7 +110,13 @@ case "$MODE" in
       usage
       exit 1
     fi
+    require_tool cargo-machete "cargo install cargo-machete --locked"
     require_tool cargo-outdated "cargo install cargo-outdated --locked"
+    echo "==> Unused-dependency audit (cargo-machete)"
+    # cargo-machete exits non-zero when unused deps are found; capture as advisory.
+    cargo machete --skip-target-dir 2>&1 || echo "(cargo-machete found potentially unused dependencies — see output above)"
+    echo ""
+    echo "==> Stale-version audit (cargo-outdated)"
     cargo outdated --workspace --root-deps-only --manifest-path Cargo.toml
     ;;
   plan)
@@ -120,9 +126,15 @@ case "$MODE" in
     ;;
   apply)
     require_tool cargo-upgrade "cargo install cargo-edit --locked --no-default-features --features upgrade"
+    require_tool cargo-semver-checks "cargo install cargo-semver-checks --locked"
     cargo upgrade --manifest-path Cargo.toml "$@"
     cargo update
     cargo check --all-targets
+    echo ""
+    echo "==> Semver-compatibility check (cargo-semver-checks)"
+    # Compares library crate APIs against origin/main. Advisory: exits non-zero on breakage.
+    cargo semver-checks check --workspace --baseline-rev origin/main 2>&1 \
+      || echo "(cargo-semver-checks: potential API regression detected — review before merging)"
     print_review_seams
     cat <<'EOF'
 
