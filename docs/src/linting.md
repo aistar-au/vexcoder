@@ -50,6 +50,8 @@ before CI.
    | `src/test_support.rs` `EnvLockGuard::set_var/remove_var` | `ENV_LOCK` serialises all callers. |
    | `src/test_support.rs` `EnvRestore::drop` | `EnvRestore` cannot outlive its `EnvLockGuard`. |
    | `src/bin/vex/tests.rs` (module level) | All `unsafe` env-var calls in this test module go through `ENV_LOCK`. |
+   | `tests/integration_test.rs` (module level) | All `unsafe` env-var calls go through a module-local `ENV_LOCK`. |
+   | `tests/disk_policy_tests.rs` (module level) | All `unsafe` env-var calls go through a module-local `ENV_LOCK`. |
 
 ## Progressive adoption guide
 
