@@ -41,10 +41,15 @@ applyTo: "**/*.rs,**/Cargo.toml,**/Cargo.lock"
 ### Dependencies
 
 - Prefer existing workspace dependencies over adding new crates.
+- Keep direct dependency version requirements centralized in the root
+  `[workspace.dependencies]` table and inherit them with `workspace = true`
+  where possible.
 - When adding a dependency, justify it in the pull request and prefer crates
   with minimal transitive dependency trees.
 - Follow the workspace's existing version convention (semver ranges such as
   `"1"` or `"0.8"`). Rely on `Cargo.lock` and CI to detect breakage.
+- Use `cargo upgrade` to change manifest requirements and `cargo update` to
+  refresh `Cargo.lock`; they solve different parts of an upgrade.
 
 ### Review checklist
 

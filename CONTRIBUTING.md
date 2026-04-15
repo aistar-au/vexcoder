@@ -61,6 +61,44 @@ Every PR body uses five sections in this order: `Summary`, `Motivation`,
 `Approach`, `Validation`, and `Risks`. Do not omit `Risks`, even for docs-only
 or small cleanup lanes.
 
+## Dependency upgrades
+
+Direct crate version requirements live in the root `Cargo.toml`
+`[workspace.dependencies]` table. Workspace members inherit those entries with
+`workspace = true` so most dependency upgrades stay confined to one manifest
+section plus any version-sensitive seam file.
+
+Use the repository wrappers instead of ad hoc manifest edits:
+
+```bash
+# Install the maintenance tools once.
+cargo install cargo-edit --locked --no-default-features --features upgrade
+cargo install cargo-outdated --locked
+
+# Audit stale direct dependencies across the workspace.
+make deps-audit
+
+# Preview a manifest change without writing files.
+make deps-plan ARGS='-p quick-xml@0.40 -p tree-sitter@0.27'
+
+# Apply the manifest change, refresh Cargo.lock, and run cargo check.
+make deps-upgrade ARGS='-p quick-xml@0.40 -p tree-sitter@0.27'
+```
+
+Cargo's default semver requirements are the repository default. Prefer entries
+such as `"1"` or `"0.39"` over manually constrained upper bounds unless a
+documented compatibility reason requires something narrower. `cargo upgrade`
+updates `Cargo.toml`; `cargo update` refreshes `Cargo.lock`.
+
+When an upgraded crate needs source changes, keep that wiring localized to the
+existing seam files instead of spreading version-specific code through the tree:
+
+- TUI stack (`ratatui`, `crossterm`, `ansi-to-tui`, `ratatui-macros`): `src/ui/tui.rs`, `src/tui_handle.rs`
+- XML tool-call parsing (`quick-xml`): `src/state/conversation/tool_call_parser.rs`
+- Structural indexing (`tree-sitter` and grammar crates): `src/tools/index.rs`
+- Markdown rendering (`pulldown-cmark`, `syntect`): `src/ui/render/markdown.rs`
+- HTTP and MCP stack (`reqwest`, `rustls`, `rmcp`): `src/api/client/mod.rs`, `src/mcp.rs`, `src/server/`
+
 ---
 
 ## Task Naming Convention

@@ -23,6 +23,12 @@ not `rc.01`.
 The canonical version lives in `Cargo.toml` under `[package] version`. All
 tags, archive names, and release artifacts derive from this single source.
 
+Dependency maintenance is separate from the release version bump. Direct crate
+requirements live in the root `Cargo.toml` `[workspace.dependencies]` table;
+use `make deps-audit`, `make deps-plan`, and `make deps-upgrade` (documented in
+`docs/src/dependency-upgrades.md`) for dependency work. `make bump` changes the
+package version only.
+
 ### Pre-release progression
 
 ```

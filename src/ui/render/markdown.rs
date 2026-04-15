@@ -3,6 +3,9 @@ use std::sync::OnceLock;
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
 
+// Keep markdown parser and syntax-highlighting crates localized to this file so
+// future renderer upgrades land here instead of across the UI surface.
+
 use crate::ui::tui::{
     line, span,
     style::{Color, Modifier, Style},

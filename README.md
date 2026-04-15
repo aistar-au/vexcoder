@@ -16,13 +16,17 @@ mdbook serve docs
 - [Quick Start](docs/src/quick-start.md)
 - [Configuration](docs/src/configuration.md)
 - [CLI and TUI Commands](docs/src/commands.md)
+- [Dependency Upgrades](docs/src/dependency-upgrades.md)
 
 Architecture records are stored under [`adr/`](adr/ADR-README.md). They are kept in
 the repository for design history, but are not part of the published user
 guide. The current runtime, application, transport, and renderer dependency
 layout is summarized in [`docs/src/architecture.md`](docs/src/architecture.md),
 with the ADR set under [`adr/`](adr/ADR-README.md) carrying the detailed design
-history.
+history. Direct crate version requirements are centralized in the root
+[`Cargo.toml`](Cargo.toml) `workspace.dependencies` table, and the maintainer
+workflow for stale-version audits and manifest upgrades is documented in
+[`docs/src/dependency-upgrades.md`](docs/src/dependency-upgrades.md).
 
 ## Contributing
 

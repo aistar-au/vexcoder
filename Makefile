@@ -7,11 +7,16 @@
 # Usage:
 #   make gate          full gate (matches ci.yml + arch-contracts.yml combined)
 #   make gate-fast     full gate (identical to gate)
+#   make deps-audit    report stale direct workspace dependencies
+#   make deps-plan     dry-run a manifest upgrade via cargo upgrade
+#   make deps-upgrade  apply a manifest upgrade via cargo upgrade
 #   make release       package one target to dist/ for local smoke testing
 #   make fix           apply fmt + taplo + line-ending renorm
 #   make help          list all targets
 #
 # Tool prerequisites:
+#   cargo-upgrade  cargo install cargo-edit --locked --no-default-features --features upgrade
+#   cargo-outdated cargo install cargo-outdated --locked
 #   taplo   cargo install taplo-cli --version 0.8.1  (CI pins this version in workflow)
 #   rg      cargo install ripgrep  OR  apt install ripgrep  (check_forbidden_names.sh only)
 #   rust    rustup (stable toolchain)
@@ -25,8 +30,8 @@ endif
 .SHELLFLAGS := -euo pipefail -c
 
 .PHONY: help \
-  _require-taplo _require-rg _require-nextest \
-  build check \
+	_require-taplo _require-rg _require-nextest _require-cargo-upgrade _require-cargo-outdated \
+	build check deps-audit deps-plan deps-upgrade \
   fmt fmt-check \
   lint \
   commit-debug-gate \
@@ -48,6 +53,9 @@ help:
 	  "  help               show this help" \
 	  "  build              cargo build --all-targets" \
 	  "  check              cargo check --all-targets" \
+	  "  deps-audit         report stale direct workspace dependencies" \
+	  "  deps-plan          dry-run a manifest upgrade: make deps-plan ARGS='-p quick-xml@0.40'" \
+	  "  deps-upgrade       apply a manifest upgrade: make deps-upgrade ARGS='-p quick-xml@0.40'" \
 	  "  fmt                cargo fmt + taplo fmt (write)" \
 	  "  fmt-check          cargo fmt --check + taplo fmt --check + taplo lint" \
 	  "  lint               cargo clippy --all-targets -- -D warnings" \
@@ -113,6 +121,25 @@ _require-nextest:
 	  exit 1; \
 	}
 
+_require-cargo-upgrade:
+	@command -v cargo-upgrade >/dev/null 2>&1 || { \
+	  echo ""; \
+	  echo "MISSING TOOL: cargo upgrade"; \
+	  echo "  Install cargo-edit upgrade support:"; \
+	  echo "    cargo install cargo-edit --locked --no-default-features --features upgrade"; \
+	  echo ""; \
+	  exit 1; \
+	}
+
+_require-cargo-outdated:
+	@command -v cargo-outdated >/dev/null 2>&1 || { \
+	  echo ""; \
+	  echo "MISSING TOOL: cargo outdated"; \
+	  echo "  Install: cargo install cargo-outdated --locked"; \
+	  echo ""; \
+	  exit 1; \
+	}
+
 
 # ------------------------------------------------------------------------------
 # Build
@@ -122,6 +149,15 @@ build:
 
 check:
 	cargo check --all-targets
+
+deps-audit: _require-cargo-outdated
+	@bash scripts/upgrade-deps.sh audit
+
+deps-plan: _require-cargo-upgrade
+	@bash scripts/upgrade-deps.sh plan $(ARGS)
+
+deps-upgrade: _require-cargo-upgrade
+	@bash scripts/upgrade-deps.sh apply $(ARGS)
 
 
 # ------------------------------------------------------------------------------

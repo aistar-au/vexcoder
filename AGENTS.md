@@ -61,6 +61,9 @@ Ignore this section in repository-hosted background sessions.
   continue from unpublished local-only commits or diffs.
 - No proprietary brand names in code, comments, commits, or PR text.
 - Every new dependency must be MIT or Apache 2.0 licensed.
+- Keep direct crate version requirements in the root `Cargo.toml`
+  `[workspace.dependencies]` table and inherit them with `workspace = true`
+  from workspace members instead of duplicating version strings across crates.
 - Prefer explicit state over stringly typed control flow.
 - Reuse existing helpers. Avoid speculative refactors.
 - When behavior changes, add or update focused tests.
@@ -98,6 +101,10 @@ Commit and push only after these checks pass.
 
 Run `make gate-fast` when the branch touches layout, renderers, tests,
 workflows, or documentation tied to the same feature lane.
+
+For dependency maintenance, use `make deps-audit`, `make deps-plan`, and
+`make deps-upgrade` so stale-version discovery and manifest edits follow the
+repository's centralized workflow.
 
 ## Language and review hygiene
 

@@ -6,6 +6,9 @@ resolver = "2"
 edition = "2024"
 
 [workspace.dependencies]
+# Direct third-party version requirements live here so `cargo upgrade` only
+# needs to touch one manifest section. Member crates inherit these entries with
+# `workspace = true`, following Cargo's workspace dependency guidance.
 crossterm = { version = "0.29", features = ["bracketed-paste", "event-stream"] }
 ratatui = { version = "0.30", features = [
   "scrolling-regions",
@@ -16,32 +19,12 @@ ratatui = { version = "0.30", features = [
 ] }
 ansi-to-tui = "8"
 ratatui-macros = "0.7"
-
-[package]
-name = "vexcoder"
-version = "0.1.0-rc.9"
-edition = "2024"
-rust-version = "1.91"
-license = "MIT"
-autobins = false
-
-[features]
-default = []
-startup-tracing = []
-
-[[bin]]
-name = "vex"
-path = "src/bin/vex.rs"
-
-[dependencies]
-vexcoder-api-types = { path = "crates/vexcoder-api-types" }
 aho-corasick = "1"
 anyhow = "1"
 axum = { version = "0.8", features = ["http1", "json", "tokio"] }
 clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4" }
 bytes = "1"
-crossterm.workspace = true
 fs2 = "0.4"
 futures = "0.3"
 hyper = { version = "1", features = ["http1", "server"] }
@@ -52,7 +35,6 @@ hyper-util = { version = "0.1", features = [
   "service",
   "tokio",
 ] }
-ratatui.workspace = true
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
   "stream",
@@ -93,81 +75,185 @@ textwrap = "0.16"
 tree-sitter = "0.26"
 tree-sitter-rust = "0.24"
 x509-parser = "0.18"
-ansi-to-tui.workspace = true
-# arboard: used by the /copy slash command (src/app/commands/session.rs) for
-# system clipboard access. default-features = false avoids pulling in the
-# image feature and its heavy transitive deps.
 arboard = { version = "3", default-features = false }
-
-# --- diagnostics, path utilities, diff rendering ---
 color-eyre = "0.6"
 dirs = "6"
 tracing-appender = "0.2"
 similar = "2"
-
-# --- rich terminal rendering ---
-ratatui-macros.workspace = true
 pulldown-cmark = { version = "0.13", default-features = false }
 syntect = { version = "5", default-features = false, features = [
   "default-fancy",
 ] }
 indicatif = "0.17"
 console = "0.15"
-
-# --- workspace navigation and path normalization ---
 ignore = "0.4"
 globset = "0.4"
 pathdiff = "0.2"
 dunce = "1"
 base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
-
-# --- collections, HTTP middleware, text matching ---
 indexmap = { version = "2", features = ["serde"] }
 tower-http = { version = "0.6", default-features = false, features = ["trace"] }
 regex-lite = "0.1"
+which = { version = "7", default-features = false }
+bm25 = "2"
+notify = { version = "8", default-features = false, features = [
+  "macos_kqueue",
+] }
+git2 = { version = "0.20", default-features = false, features = [
+  "vendored-libgit2",
+] }
+gix = { version = "0.81", default-features = false, features = ["sha1"] }
+gix-discover = "0.49"
+gix-config = "0.54"
+gix-index = "0.49"
+imara-diff = { version = "0.2", features = ["unified_diff"] }
+keyring = { version = "3", features = [
+  "apple-native",
+  "windows-native",
+  "linux-native",
+] }
+grep-matcher = "0.1"
+grep-regex = "0.1"
+grep-searcher = "0.1"
+memmap2 = "0.9"
+bstr = "1"
+rayon = "1"
+crossbeam-channel = "0.5"
+tree-sitter-python = "0.25"
+tree-sitter-typescript = "0.23.2"
+tree-sitter-javascript = "0.25"
+filetime = "0.2"
+insta = "1.38"
+strip-ansi-escapes = "0.2"
+tower = "0.5"
+pretty_assertions = "1"
+assert_cmd = "2"
+
+[package]
+name = "vexcoder"
+version = "0.1.0-rc.9"
+edition = "2024"
+rust-version = "1.91"
+license = "MIT"
+autobins = false
+
+[features]
+default = []
+startup-tracing = []
+
+[[bin]]
+name = "vex"
+path = "src/bin/vex.rs"
+
+[dependencies]
+vexcoder-api-types = { path = "crates/vexcoder-api-types" }
+aho-corasick.workspace = true
+anyhow.workspace = true
+axum.workspace = true
+clap.workspace = true
+clap_complete.workspace = true
+bytes.workspace = true
+crossterm.workspace = true
+fs2.workspace = true
+futures.workspace = true
+hyper.workspace = true
+http.workspace = true
+hyper-util.workspace = true
+ratatui.workspace = true
+reqwest.workspace = true
+rmcp.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-rustls.workspace = true
+tokio-stream.workspace = true
+tokio-util.workspace = true
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+unicode-segmentation.workspace = true
+unicode-width.workspace = true
+uuid.workspace = true
+portable-pty.workspace = true
+tempfile.workspace = true
+quick-xml.workspace = true
+textwrap.workspace = true
+tree-sitter.workspace = true
+tree-sitter-rust.workspace = true
+x509-parser.workspace = true
+ansi-to-tui.workspace = true
+# arboard: used by the /copy slash command (src/app/commands/session.rs) for
+# system clipboard access. default-features = false avoids pulling in the
+# image feature and its heavy transitive deps.
+arboard.workspace = true
+
+# --- diagnostics, path utilities, diff rendering ---
+color-eyre.workspace = true
+dirs.workspace = true
+tracing-appender.workspace = true
+similar.workspace = true
+
+# --- rich terminal rendering ---
+ratatui-macros.workspace = true
+pulldown-cmark.workspace = true
+syntect.workspace = true
+indicatif.workspace = true
+console.workspace = true
+
+# --- workspace navigation and path normalization ---
+ignore.workspace = true
+globset.workspace = true
+pathdiff.workspace = true
+dunce.workspace = true
+base64.workspace = true
+chrono.workspace = true
+
+# --- collections, HTTP middleware, text matching ---
+indexmap.workspace = true
+tower-http.workspace = true
+regex-lite.workspace = true
 
 # --- filesystem events, executable location, binary search ranking ---
 # which: locates executables on PATH; used by git_rollup.rs for a clear error
 #        when the `git` binary is absent.
-which = { version = "7", default-features = false }
+which.workspace = true
 # bm25: text-ranking layer for codebase_search; sits behind the aho-corasick
 #       literal-match scoring to add term-frequency weighting.
-bm25 = "2"
+bm25.workspace = true
 # notify: filesystem event watching; used by git_rollup.rs watch mode to
 #         detect working-tree changes without polling.
-notify = { version = "8", default-features = false, features = [
-  "macos_kqueue",
-] }
+notify.workspace = true
 
 # --- native git operations ---
 # git2: libgit2 bindings; primary crate for low-level git tasks (repo
 #       discovery, commit-graph inspection) without spawning a subprocess.
 #       vendored-libgit2 bundles libgit2 so no system install is required.
 #       Wire point: src/tools/operator/git_ops.rs.
-git2 = { version = "0.20", default-features = false, features = [
-  "vendored-libgit2",
-] }
+git2.workspace = true
 # gix: pure-Rust gitoxide implementation; provides fast, thread-safe
 #      repository access as a complement to git2.
 #      Wire point: src/runtime/git_rollup.rs.
-gix = { version = "0.81", default-features = false, features = ["sha1"] }
+gix.workspace = true
 # gix-discover: locates the .git directory when the CLI is launched from a
 #               repository subfolder using pure-Rust walk-up discovery.
 #               Wire point: src/runtime/git_rollup.rs.
-gix-discover = "0.49"
+gix-discover.workspace = true
 # gix-config: reads local/global git config (user.name, user.email) so
 #             AI-generated commits are correctly attributed.
 #             Wire point: src/runtime/git_rollup.rs.
-gix-config = "0.54"
+gix-config.workspace = true
 # gix-index: reads the git staging area (.git/index) to enumerate tracked
 #            and staged files without spawning a subprocess.
 #            Wire point: src/runtime/git_rollup.rs.
-gix-index = "0.49"
+gix-index.workspace = true
 # imara-diff: high-speed backend for generating unified patches compatible
 #             with standard git diff formats.
 #             Wire point: src/edit_diff.rs.
-imara-diff = { version = "0.2", features = ["unified_diff"] }
+imara-diff.workspace = true
 
 # --- OS-native credential storage (Gap 38) ---
 # keyring: read/write/delete secrets in the platform-native credential store.
@@ -177,62 +263,58 @@ imara-diff = { version = "0.2", features = ["unified_diff"] }
 # Credential Manager. MIT/Apache-2.0; satisfies the zero-licensing-cost
 # constraint. Wire point: src/config/load/mod.rs (model token fallback),
 # src/credentials.rs.
-keyring = { version = "3", features = [
-  "apple-native",
-  "windows-native",
-  "linux-native",
-] }
+keyring.workspace = true
 
 # --- high-performance code search ---
 # grep-matcher: trait for pluggable regex backends used by grep-searcher.
 #               Wire point: src/tools/search.rs.
-grep-matcher = "0.1"
+grep-matcher.workspace = true
 # grep-regex: implements grep-matcher using Rust's regex engine; SIMD-
 #             accelerated literal searching.
 #             Wire point: src/tools/search.rs.
-grep-regex = "0.1"
+grep-regex.workspace = true
 # grep-searcher: streaming line-oriented file search; integrates with the
 #                ignore-based file walker and grep-regex matcher.
 #                Wire point: src/tools/search.rs.
-grep-searcher = "0.1"
+grep-searcher.workspace = true
 # memmap2: memory-mapped file I/O; enables zero-copy reads of large source
 #          files during search.
 #          Wire point: src/tools/search.rs.
-memmap2 = "0.9"
+memmap2.workspace = true
 # bstr: byte-string type for non-UTF-8 source files; required by
 #       grep-searcher when files contain arbitrary bytes.
 #       Wire point: src/tools/search.rs.
-bstr = "1"
+bstr.workspace = true
 
 # --- parallelism and inter-thread communication ---
 # rayon: work-stealing parallelism; used to search multiple files
 #        concurrently in codebase_search.
 #        Wire point: src/tools/search.rs.
-rayon = "1"
+rayon.workspace = true
 # crossbeam-channel: bounded MPMC channels for passing search results
 #                    between the file-walk and result-collection threads.
 #                    Wire point: src/tools/search.rs.
-crossbeam-channel = "0.5"
+crossbeam-channel.workspace = true
 
 # --- syntax-aware code parsing ---
 # tree-sitter-python: Python grammar for tree-sitter; enables symbol
 #                     extraction and structural search in Python files.
 #                     Wire point: src/tools/index.rs.
-tree-sitter-python = "0.25"
+tree-sitter-python.workspace = true
 # tree-sitter-typescript: TypeScript and TSX grammars for tree-sitter.
 #                         Wire point: src/tools/index.rs.
-tree-sitter-typescript = "0.23.2"
+tree-sitter-typescript.workspace = true
 # tree-sitter-javascript: JavaScript grammar for tree-sitter.
 #                         Wire point: src/tools/index.rs.
-tree-sitter-javascript = "0.25"
+tree-sitter-javascript.workspace = true
 
 [dev-dependencies]
-filetime = "0.2"
-insta = "1.38"
-strip-ansi-escapes = "0.2"
-tower = "0.5"
-pretty_assertions = "1"
-assert_cmd = "2"
+filetime.workspace = true
+insta.workspace = true
+strip-ansi-escapes.workspace = true
+tower.workspace = true
+pretty_assertions.workspace = true
+assert_cmd.workspace = true
 
 [workspace.lints.clippy]
 incompatible_msrv = "allow"
