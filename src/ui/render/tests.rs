@@ -1,11 +1,11 @@
 use super::*;
 
-use ratatui::{Terminal, backend::TestBackend};
+use crate::ui::tui::{Terminal, backend::TestBackend};
 
 #[test]
 fn all_modals_use_unified_renderer() {
     let backend = TestBackend::new(100, 30);
-    let mut tui = ratatui::Terminal::new(backend).expect("test backend");
+    let mut tui = Terminal::new(backend).expect("test backend");
 
     let modals = [
         OverlayModal::PatchApprove {
@@ -371,7 +371,7 @@ fn task_output_render_area_top_aligns_content() {
         composer_focused: true,
         picker_overlay: vec![],
     };
-    let area = ratatui::layout::Rect::new(0, 5, 80, 20);
+    let area = crate::ui::tui::layout::Rect::new(0, 5, 80, 20);
     // When visible_rows < area.height, the render rect should start at the top
     // of the output pane and grow downward (y == area.y for any non-zero y).
     let render_area = task_output_render_area(&state, area, 5);

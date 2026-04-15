@@ -1,12 +1,13 @@
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
-use ratatui::{
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-};
-use ratatui_macros::{line, span};
 use std::sync::OnceLock;
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
+
+use crate::ui::tui::{
+    line, span,
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+};
 
 static MARKDOWN_SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
 static MARKDOWN_THEME_SET: OnceLock<ThemeSet> = OnceLock::new();

@@ -5,6 +5,18 @@ resolver = "2"
 [workspace.package]
 edition = "2024"
 
+[workspace.dependencies]
+crossterm = { version = "0.29", features = ["bracketed-paste", "event-stream"] }
+ratatui = { version = "0.30", features = [
+  "scrolling-regions",
+  "unstable-backend-writer",
+  "unstable-rendered-line-info",
+  "unstable-widget-ref",
+  "crossterm_0_29",
+] }
+ansi-to-tui = "8"
+ratatui-macros = "0.7"
+
 [package]
 name = "vexcoder"
 version = "0.1.0-rc.9"
@@ -29,7 +41,7 @@ axum = { version = "0.8", features = ["http1", "json", "tokio"] }
 clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4" }
 bytes = "1"
-crossterm = { version = "0.29", features = ["bracketed-paste", "event-stream"] }
+crossterm.workspace = true
 fs2 = "0.4"
 futures = "0.3"
 hyper = { version = "1", features = ["http1", "server"] }
@@ -40,13 +52,7 @@ hyper-util = { version = "0.1", features = [
   "service",
   "tokio",
 ] }
-ratatui = { version = "0.30", features = [
-  "scrolling-regions",
-  "unstable-backend-writer",
-  "unstable-rendered-line-info",
-  "unstable-widget-ref",
-  "crossterm_0_29",
-] }
+ratatui.workspace = true
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
   "stream",
@@ -87,7 +93,7 @@ textwrap = "0.16"
 tree-sitter = "0.24"
 tree-sitter-rust = "0.23"
 x509-parser = "0.17"
-ansi-to-tui = "8"
+ansi-to-tui.workspace = true
 # arboard: used by the /copy slash command (src/app/commands/session.rs) for
 # system clipboard access. default-features = false avoids pulling in the
 # image feature and its heavy transitive deps.
@@ -100,7 +106,7 @@ tracing-appender = "0.2"
 similar = "2"
 
 # --- rich terminal rendering ---
-ratatui-macros = "0.7"
+ratatui-macros.workspace = true
 pulldown-cmark = { version = "0.12", default-features = false }
 syntect = { version = "5", default-features = false, features = [
   "default-fancy",

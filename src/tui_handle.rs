@@ -6,9 +6,13 @@ use crossterm::{
     execute,
     terminal::{Clear, ClearType, size as host_display_size},
 };
-use ratatui::{DefaultTerminal, Terminal, TerminalOptions, Viewport, backend::CrosstermBackend};
 use std::io::{self, IsTerminal};
 use std::sync::Once;
+
+use crate::ui::tui::{
+    DefaultTerminal, Frame, Terminal, TerminalOptions, Viewport, backend::CrosstermBackend,
+    layout::Size, try_init_with_options, try_restore,
+};
 
 pub struct TuiHandle {
     inner: DefaultTerminal,
@@ -17,12 +21,12 @@ pub struct TuiHandle {
 impl TuiHandle {
     pub fn draw<F>(&mut self, render_callback: F) -> io::Result<()>
     where
-        F: FnOnce(&mut ratatui::Frame),
+        F: FnOnce(&mut Frame<'_>),
     {
         self.inner.draw(render_callback).map(|_| ())
     }
 
-    pub fn size(&self) -> io::Result<ratatui::layout::Size> {
+    pub fn size(&self) -> io::Result<Size> {
         self.inner.size()
     }
 
@@ -80,7 +84,7 @@ pub fn setup() -> Result<TuiHandle> {
     let mut tui = if host_has_tty() {
         let (_, rows) = host_display_size()?;
         let inline_rows = preferred_inline_viewport_rows(rows);
-        let inner = ratatui::try_init_with_options(TerminalOptions {
+        let inner = try_init_with_options(TerminalOptions {
             viewport: Viewport::Inline(inline_rows),
         })?;
         install_panic_hook_once();
@@ -103,7 +107,7 @@ pub fn restore() -> Result<()> {
     }
 
     let _ = disable_bracketed_paste();
-    let _ = ratatui::try_restore();
+    let _ = try_restore();
     let _ = execute!(
         io::stdout(),
         Show,

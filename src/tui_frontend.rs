@@ -1,6 +1,5 @@
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use ratatui::widgets::Clear;
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
@@ -18,6 +17,7 @@ use crate::ui::render::{
     OverlayModal, history_content_width_for_area, input_visual_rows, render_input, render_messages,
     render_overlay_modal_in_area, render_status_line, render_task_layout,
 };
+use crate::ui::tui::widgets::Clear;
 
 pub struct ManagedTuiFrontend {
     tui: crate::tui_handle::TuiHandle,
