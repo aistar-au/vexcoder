@@ -65,7 +65,7 @@ achieves the same stale-version discovery benefit while keeping the source edit
 co-authored in the same PR.
 
 **`cargo-machete`** — scans for dependencies declared in `Cargo.toml` but
-never imported by any source file. Useful as a periodic dead-dependency sweep.
+unused by source files. Useful as a periodic cleanup sweep.
 Not enforced in the main CI gate today because build-dependency and
 dev-dependency false positives require per-crate triage. Can be run locally:
 `cargo install cargo-machete && cargo machete`.
@@ -77,15 +77,15 @@ that do not require pulling in the full deny config.
 
 **Pin all versions exactly** — rejected because exact pins cause every minor
 crate release to generate diff noise. Rust's semver model and the single shared
-`Cargo.lock` already provide reproducible builds without exact pins. The
-codex-rs project (openai/codex) follows the same convention: semver ranges in
+`Cargo.lock` already provide reproducible builds without exact pins. A public
+Rust coding-assistant repository uses the same convention: semver ranges in
 `Cargo.toml`, reproducibility from `Cargo.lock`.
 
-codex-rs is also a useful example of what not to over-abstract: it centralizes
-manifest versions, but still keeps `serde` derives and many Tokio attribute
-macro call sites direct in source. That matches the approach here: add seams
-where they materially reduce churn, and leave compile-time annotations where
-they are already explicit and local.
+That same reference repository is also a useful example of what not to
+over-abstract: it centralizes manifest versions, but still keeps `serde`
+derives and many Tokio attribute macro call sites direct in source. That
+matches the approach here: add seams where they materially reduce churn, and
+leave compile-time annotations where they are already explicit and local.
 
 **`cargo tree -d` as a hard gate** — rejected because the transitive dependency
 graph legitimately carries some parallel versions (tree-sitter grammar crates,
@@ -165,7 +165,7 @@ MUST include a `reason` field that records:
 - Why the advisory does not affect this codebase
 - The expected resolution (upstream fix / replacement crate / version bump)
 
-Pattern (from codex-rs `deny.toml`):
+Suggested pattern:
 
 ```toml
 [[advisories.ignore]]

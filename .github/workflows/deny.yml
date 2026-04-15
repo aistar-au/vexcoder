@@ -48,16 +48,8 @@ jobs:
           git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
           git checkout --detach FETCH_HEAD
 
-      # EmbarkStudios/cargo-deny-action downloads a prebuilt cargo-deny binary
-      # and the RustSec advisory database in a single step, keeping this job
-      # under 30 seconds. Pinned to a specific tag for supply-chain safety.
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+
       - name: cargo deny check
-        uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check
-          # Advisories, bans, licences, and sources are all checked in one pass.
-          # Adjust here if an individual check needs to be temporarily silenced
-          # with a top-level `deny.toml` config change instead.
-          arguments: advisories bans licenses sources
-          log-level: warn
-          manifest-path: Cargo.toml
+        run: cargo deny check advisories bans licenses sources
