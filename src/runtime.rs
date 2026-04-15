@@ -20,6 +20,7 @@ pub mod session_task;
 pub mod task_document;
 pub mod task_state;
 pub mod text_util;
+pub mod tokio;
 pub mod update;
 pub mod validation;
 pub mod worktree_lease;

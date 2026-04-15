@@ -27,6 +27,9 @@ Dependency maintenance is separate from the release version bump. Direct crate
 requirements live in the root `Cargo.toml` `[workspace.dependencies]` table;
 use `make deps-deny`, `make deps-audit`, `make deps-plan`, and `make deps-upgrade`
 (documented in `docs/src/dependency-upgrades.md`) for dependency work.
+If a release-prep change also includes a dependency bump, consult
+`workspace.metadata.upgrade-seams` in the same manifest and keep any API fallout
+inside those seam files.
 `make bump` changes the package version only.
 
 ### Pre-release progression
@@ -254,7 +257,7 @@ The workflow:
   The tag workflow packages both Windows variants from the already-validated
   commit and does not re-run the full Windows gate inside the packaging step.
   It also assembles per-architecture macOS `.dmg` bundles from the reviewed
-  binaries. When Apple signing credentials are absent, the packaging lane still
+  binaries. When Apple signing credentials are absent, the packaging step still
   publishes clearly labelled unsigned development builds rather than skipping
   the macOS artifacts silently.
 2. Signs archives with Sigstore cosign (keyless OIDC-backed bundles).

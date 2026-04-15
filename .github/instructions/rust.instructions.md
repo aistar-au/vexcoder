@@ -45,6 +45,10 @@ applyTo: "**/*.rs,**/Cargo.toml,**/Cargo.lock"
   `[workspace.dependencies]` table and inherit them with `workspace = true`
   where possible. This is the single source of truth for every version
   requirement; future bumps touch one line, not N crate manifests.
+- When a dependency bump needs Rust source edits, consult
+  `[workspace.metadata.upgrade-seams]` and `[workspace.metadata.upgrade-notes]`
+  in the root `Cargo.toml` first. Those tables are the reviewed map of which
+  files are intended to absorb API churn.
 - When adding a dependency, justify it in the pull request and prefer crates
   with minimal transitive dependency trees. Run `make deps-deny` after adding
   to confirm the new crate's license is on the allow-list in `deny.toml`.
@@ -59,6 +63,9 @@ applyTo: "**/*.rs,**/Cargo.toml,**/Cargo.lock"
 - When an API seam needs source changes for a version bump, confine them to the
   designated seam files documented in `docs/src/dependency-upgrades.md` rather
   than scattering workarounds through unrelated modules.
+- Do not add facade layers for `serde` derives or Tokio attribute macros just
+  to hide them. Those are compile-time annotations; keep them direct unless a
+  specific maintenance problem justifies a different pattern.
 
 ### Dependency upgrade workflow (summary)
 

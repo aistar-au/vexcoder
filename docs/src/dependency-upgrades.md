@@ -11,6 +11,12 @@ centralization path: one manifest section owns every version requirement, and
 member crates inherit with `workspace = true`. Future version bumps require
 touching exactly one line in `Cargo.toml`, not N lines across N crates.
 
+That central manifest is necessary, but it does not create a runtime "crate
+version variable" inside Rust source. Versions are resolved at compile time.
+When an upgrade needs source edits, start from the root `Cargo.toml`
+`[workspace.metadata.upgrade-seams]` and `[workspace.metadata.upgrade-notes]`
+tables and keep the fallout inside those local seam files.
+
 [cargo-ws-deps]: https://doc.rust-lang.org/cargo/reference/workspaces.html#the-dependencies-table
 
 ## Policy
@@ -22,9 +28,13 @@ touching exactly one line in `Cargo.toml`, not N lines across N crates.
   refresh `Cargo.lock`. They solve different parts of an upgrade.
 - Avoid hard-coding crate versions in docs unless behavior truly depends on a
   specific release. Point readers to the root `Cargo.toml` instead.
+- Start every source-impacting upgrade by checking
+  `[workspace.metadata.upgrade-seams]` and `[workspace.metadata.upgrade-notes]`
+  in the root `Cargo.toml`. Those tables are the repository-maintained map of
+  which files are supposed to absorb API churn.
 - Keep version-sensitive APIs behind local seam files rather than scattering
   crate-specific workarounds through unrelated modules.
-- Run `make deps-deny` before starting any upgrade batch to establish a clean
+- Run `make deps-deny` before starting any upgrade pass to establish a clean
   baseline from the RustSec advisory database and license graph.
 
 ## Tool overview
@@ -41,7 +51,7 @@ distinct problem:
 
 These tools are not alternatives — they are complementary layers. `cargo deny`
 and `cargo outdated` are read-only audits; `cargo upgrade` and `cargo update`
-are the two write operations that an upgrade lane actually needs.
+are the two write operations that an upgrade pass actually needs.
 
 ## Approach comparison and alternatives considered
 
@@ -70,6 +80,12 @@ crate release to generate diff noise. Rust's semver model and the single shared
 `Cargo.lock` already provide reproducible builds without exact pins. The
 codex-rs project (openai/codex) follows the same convention: semver ranges in
 `Cargo.toml`, reproducibility from `Cargo.lock`.
+
+codex-rs is also a useful example of what not to over-abstract: it centralizes
+manifest versions, but still keeps `serde` derives and many Tokio attribute
+macro call sites direct in source. That matches the approach here: add seams
+where they materially reduce churn, and leave compile-time annotations where
+they are already explicit and local.
 
 **`cargo tree -d` as a hard gate** — rejected because the transitive dependency
 graph legitimately carries some parallel versions (tree-sitter grammar crates,
@@ -124,8 +140,8 @@ make deps-plan
 make deps-upgrade
 ```
 
-For a deliberate semver-major review lane, pass the `--incompatible allow` flag
-through the `ARGS` variable:
+For a deliberate semver-major review pass, pass the `--incompatible allow`
+option through `ARGS`:
 
 ```bash
 make deps-plan ARGS='--incompatible allow'
@@ -159,17 +175,34 @@ reason = "fxhash is unmaintained; pulled in via starlark; no fixed release yet"
 
 ## Upgrade seams
 
-When a crate bump needs source changes, keep them localized to these files:
+The source of truth is the root `Cargo.toml`
+`[workspace.metadata.upgrade-seams]` and `[workspace.metadata.upgrade-notes]`
+tables. Cargo ignores those entries; they exist for maintainers and automation
+so future bumps start from one manifest and one reviewed file map.
 
-- TUI stack (`ratatui`, `crossterm`, `ansi-to-tui`, `ratatui-macros`): `src/ui/tui.rs`, `src/tui_handle.rs`
-- XML tool-call parsing (`quick-xml`): `src/state/conversation/tool_call_parser.rs`
-- Structural indexing (`tree-sitter` and grammar crates): `src/tools/index.rs`
-- Markdown rendering (`pulldown-cmark`, `syntect`): `src/ui/render/markdown.rs`
-- HTTP and MCP stack (`reqwest`, `rustls`, `rmcp`): `src/api/client/mod.rs`, `src/mcp.rs`, `src/server/`
+- `ratatui` and `crossterm`: start in `src/ui/tui.rs`, then adjust the small
+  TUI adapter set listed in the metadata table (`src/tui_handle.rs`,
+  `src/tui_frontend.rs`, `src/ui/editor/mod.rs`, and nearby UI call sites).
+- `rmcp`: stays localized in `src/mcp.rs`.
+- `http`: start in `src/http_facade.rs`, then adjust the server and MCP files
+  listed in the metadata table.
+- `tokio`: start in `src/runtime/tokio.rs` for production runtime helpers. Do
+  not try to wrap `#[tokio::test]` or similar proc-macro sites; leaving those
+  direct is clearer and matches common Rust practice.
+- `arboard`: stays localized in `src/clipboard.rs` and its single command
+  handler call site.
+- `serde`: do not add a facade. `derive` and `#[serde(...)]` attributes are
+  compile-time annotations tied to the types that own them, so keeping them
+  local is the lower-churn choice.
+- `rust`: when the MSRV moves, update `package.rust-version` and CI toolchain
+  declarations together.
+- `quick-xml`, `tree-sitter`, and Markdown rendering crates keep using the
+  existing focused seams: `src/state/conversation/tool_call_parser.rs`,
+  `src/tools/index.rs`, and `src/ui/render/markdown.rs`.
 
-Those seams are the intended review points for future API churn. The goal is to
-keep most upgrades to a handful of manifest lines plus one localized source fix
-instead of many scattered call-site edits.
+The goal is not zero source edits. The goal is to keep upgrade work inside a
+declared set of seam files instead of re-touching unrelated call sites across
+the tree.
 
 ## Investigating impact
 

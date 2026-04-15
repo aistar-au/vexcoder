@@ -1,6 +1,6 @@
+use crate::runtime::tokio::sync::mpsc;
 use anyhow::Result;
 use std::collections::{BTreeSet, HashMap, VecDeque};
-use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::Config;

@@ -130,6 +130,52 @@ tower = "0.5"
 pretty_assertions = "1"
 assert_cmd = "2"
 
+[workspace.metadata.upgrade-seams]
+# Rust crate versions are resolved at compile time, not through runtime
+# variables. To avoid broad source sweeps on upgrades, keep each crate's API
+# surface behind the local seam files listed here and update those first.
+ratatui = ["src/ui/tui.rs", "src/tui_handle.rs"]
+crossterm = [
+  "src/ui/tui.rs",
+  "src/tui_frontend.rs",
+  "src/ui/editor/mod.rs",
+  "src/app.rs",
+  "src/app/overlay.rs",
+  "src/app/tests/mod.rs",
+]
+rmcp = ["src/mcp.rs"]
+http = [
+  "src/http_facade.rs",
+  "src/mcp.rs",
+  "src/server/http.rs",
+  "src/server/util.rs",
+  "src/server/handlers/mod.rs",
+  "src/server/handlers/session.rs",
+  "src/server/tests.rs",
+]
+tokio = [
+  "src/runtime/tokio.rs",
+  "src/app.rs",
+  "src/local_api.rs",
+  "src/mcp.rs",
+  "src/server.rs",
+  "src/server/http.rs",
+  "src/server/handlers/mod.rs",
+  "src/server/handlers/session.rs",
+  "src/test_support.rs",
+  "src/pr_summary.rs",
+  "src/batch_mode.rs",
+  "src/state/conversation/streaming.rs",
+  "src/app/turn_start.rs",
+]
+serde = ["derive and #[serde(...)] attributes stay next to their types in src/** and crates/vexcoder-api-types/src/lib.rs"]
+arboard = ["src/clipboard.rs", "src/app/commands/session.rs"]
+
+[workspace.metadata.upgrade-notes]
+rust = "Update package.rust-version and the CI toolchain declarations together when the MSRV changes."
+serde = "Derive and field/container attributes are compile-time only; a facade does not reduce churn here."
+tokio = "Runtime helpers are localized in src/runtime/tokio.rs; attribute macros like #[tokio::test] remain direct in tests and binaries."
+
 [package]
 name = "vexcoder"
 version = "0.1.0-rc.9"

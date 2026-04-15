@@ -27,6 +27,9 @@ history. Direct crate version requirements are centralized in the root
 [`Cargo.toml`](Cargo.toml) `workspace.dependencies` table, and the maintainer
 workflow for stale-version audits, security checks, and manifest upgrades is
 documented in [`docs/src/dependency-upgrades.md`](docs/src/dependency-upgrades.md).
+The same manifest also carries `workspace.metadata.upgrade-seams` and
+`workspace.metadata.upgrade-notes`, which are the maintainer map for the small
+set of Rust files that should absorb dependency API churn.
 Use `make deps-deny`, `make deps-audit`, `make deps-plan`, and `make deps-upgrade`
 (backed by `cargo-deny`, `cargo-outdated`, and `cargo-upgrade`) for all
 dependency work. `make bump` changes the version.

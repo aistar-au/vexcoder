@@ -1,17 +1,15 @@
 use anyhow::Result;
-use crossterm::{
-    cursor::MoveToColumn,
-    cursor::Show,
-    event::{DisableBracketedPaste, EnableBracketedPaste},
-    execute,
-    terminal::{Clear, ClearType, size as host_display_size},
-};
 use std::io::{self, IsTerminal};
 use std::sync::Once;
 
 use crate::ui::tui::{
-    DefaultTerminal, Frame, Terminal, TerminalOptions, Viewport, backend::CrosstermBackend,
-    layout::Size, try_init_with_options, try_restore,
+    DefaultTerminal, Frame, Terminal, TerminalOptions, Viewport,
+    backend::CrosstermBackend,
+    event::{DisableBracketedPaste, EnableBracketedPaste},
+    execute,
+    layout::Size,
+    terminal::{Clear, ClearType, MoveToColumn, Show, host_display_size},
+    try_init_with_options, try_restore,
 };
 
 pub struct TuiHandle {

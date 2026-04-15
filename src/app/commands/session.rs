@@ -444,7 +444,7 @@ impl TuiMode {
             return;
         }
 
-        match arboard::Clipboard::new().and_then(|mut cb| cb.set_text(&text)) {
+        match crate::clipboard::copy_text(&text) {
             Ok(()) => {
                 self.push_history_line("[copy] last output copied to clipboard".to_string());
             }

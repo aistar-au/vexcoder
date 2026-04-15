@@ -10,6 +10,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::config::{McpServerConfig, McpTransport};
+use crate::http_facade::{HeaderName, HeaderValue};
+use crate::runtime::tokio::{
+    process::Command as TokioCommand,
+    runtime::{Builder as RuntimeBuilder, Handle, Runtime},
+    sync::Mutex,
+    time::timeout,
+};
 
 /// Default MCP server connection timeout in seconds.
 const DEFAULT_MCP_TIMEOUT_SECS: u64 = 30;
@@ -71,7 +78,7 @@ pub struct McpRegistry {
 }
 
 struct McpConnectedServer {
-    runtime: tokio::sync::Mutex<Option<RunningService<RoleClient, ()>>>,
+    runtime: Mutex<Option<RunningService<RoleClient, ()>>>,
 }
 
 impl McpConnectedServer {
@@ -81,13 +88,13 @@ impl McpConnectedServer {
             // The cancel path may fail if the underlying STDIO process has
             // already exited (crash, signal, etc.).  A 5-second grace period
             // prevents a hung server from blocking session teardown.
-            let _ = tokio::time::timeout(Duration::from_secs(5), service.cancel()).await;
+            let _ = timeout(Duration::from_secs(5), service.cancel()).await;
         }
     }
 
     async fn shutdown_owned(self) {
         if let Some(service) = self.runtime.into_inner() {
-            let _ = tokio::time::timeout(Duration::from_secs(5), service.cancel()).await;
+            let _ = timeout(Duration::from_secs(5), service.cancel()).await;
         }
     }
 }
@@ -104,14 +111,14 @@ impl McpRegistry {
         let mut tool_lookup = HashMap::new();
 
         for (server_index, config) in configs.iter().enumerate() {
-            let timeout = resolve_mcp_timeout(config.timeout_secs);
-            let connect_result = tokio::time::timeout(timeout, connect_server(config))
+            let connect_timeout = resolve_mcp_timeout(config.timeout_secs);
+            let connect_result = timeout(connect_timeout, connect_server(config))
                 .await
                 .map_err(|_| {
                     anyhow!(
                         "MCP server '{}' connection timed out after {}s",
                         config.name,
-                        timeout.as_secs()
+                        connect_timeout.as_secs()
                     )
                 })
                 .and_then(|inner| {
@@ -169,7 +176,7 @@ impl McpRegistry {
                 tools: server_tools,
             });
             servers.push(McpConnectedServer {
-                runtime: tokio::sync::Mutex::new(Some(runtime)),
+                runtime: Mutex::new(Some(runtime)),
             });
         }
 
@@ -188,10 +195,10 @@ impl McpRegistry {
             return Ok(None);
         }
 
-        if tokio::runtime::Handle::try_current().is_ok() {
+        if Handle::try_current().is_ok() {
             let configs = configs.to_vec();
             return std::thread::spawn(move || -> Result<Option<Arc<Self>>> {
-                let runtime = tokio::runtime::Builder::new_current_thread()
+                let runtime = RuntimeBuilder::new_current_thread()
                     .enable_all()
                     .build()
                     .context("failed to create Tokio runtime for MCP startup")?;
@@ -201,8 +208,7 @@ impl McpRegistry {
             .map_err(|_| anyhow!("MCP startup thread panicked"))?;
         }
 
-        let runtime = tokio::runtime::Runtime::new()
-            .context("failed to create Tokio runtime for MCP startup")?;
+        let runtime = Runtime::new().context("failed to create Tokio runtime for MCP startup")?;
         runtime.block_on(Self::connect_all(configs))
     }
 
@@ -245,20 +251,16 @@ impl McpRegistry {
         } else {
             CallToolRequestParams::new(short_name).with_arguments(arguments)
         };
-        let result =
-            match tokio::time::timeout(Duration::from_secs(300), runtime.peer().call_tool(params))
-                .await
-            {
-                Ok(Ok(r)) => r,
-                Ok(Err(err)) => {
-                    bail!(
-                        "MCP tool '{full_name}' failed (server process may have exited): {err:#}"
-                    );
-                }
-                Err(_) => {
-                    bail!("MCP tool '{full_name}' timed out after 300s");
-                }
-            };
+        let result = match timeout(Duration::from_secs(300), runtime.peer().call_tool(params)).await
+        {
+            Ok(Ok(r)) => r,
+            Ok(Err(err)) => {
+                bail!("MCP tool '{full_name}' failed (server process may have exited): {err:#}");
+            }
+            Err(_) => {
+                bail!("MCP tool '{full_name}' timed out after 300s");
+            }
+        };
         format_tool_result(full_name, &result)
     }
 }
@@ -283,10 +285,7 @@ fn spawn_shutdown_thread(servers: Arc<Vec<McpConnectedServer>>) {
     let _ = std::thread::Builder::new()
         .name("vex-mcp-shutdown".to_string())
         .spawn(move || {
-            let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-            else {
+            let Ok(runtime) = RuntimeBuilder::new_current_thread().enable_all().build() else {
                 return;
             };
             runtime.block_on(async move {
@@ -305,11 +304,10 @@ async fn connect_server(config: &McpServerConfig) -> Result<RunningService<RoleC
                 .as_ref()
                 .filter(|value| !value.trim().is_empty())
                 .ok_or_else(|| anyhow!("stdio MCP server '{}' requires 'command'", config.name))?;
-            let transport =
-                TokioChildProcess::new(tokio::process::Command::new(command).configure(|cmd| {
-                    cmd.args(&config.args);
-                }))
-                .with_context(|| format!("failed to spawn MCP stdio server '{}'", config.name))?;
+            let transport = TokioChildProcess::new(TokioCommand::new(command).configure(|cmd| {
+                cmd.args(&config.args);
+            }))
+            .with_context(|| format!("failed to spawn MCP stdio server '{}'", config.name))?;
             ().serve(transport)
                 .await
                 .with_context(|| format!("failed to initialize MCP stdio server '{}'", config.name))
@@ -322,14 +320,13 @@ async fn connect_server(config: &McpServerConfig) -> Result<RunningService<RoleC
                 .ok_or_else(|| anyhow!("http MCP server '{}' requires 'url'", config.name))?;
             let mut headers = HashMap::new();
             for (name, value) in &config.headers {
-                let header_name =
-                    http::HeaderName::from_bytes(name.as_bytes()).with_context(|| {
-                        format!(
-                            "invalid header name '{}' for MCP server '{}'",
-                            name, config.name
-                        )
-                    })?;
-                let header_value = http::HeaderValue::from_str(value).with_context(|| {
+                let header_name = HeaderName::from_bytes(name.as_bytes()).with_context(|| {
+                    format!(
+                        "invalid header name '{}' for MCP server '{}'",
+                        name, config.name
+                    )
+                })?;
+                let header_value = HeaderValue::from_str(value).with_context(|| {
                     format!(
                         "invalid header value for '{}' on MCP server '{}'",
                         name, config.name

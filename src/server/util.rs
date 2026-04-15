@@ -1,6 +1,5 @@
 use anyhow::{Context, Result, anyhow, bail};
 use axum::Json;
-use axum::http::StatusCode;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::io::BufReader;
 use std::net::ToSocketAddrs;
@@ -11,6 +10,7 @@ use std::sync::Arc;
 use super::ResolvedUnixSurface;
 use super::{ControlResponse, HttpSurfaceSettings, ResolvedHttpSurface, ResolvedServeConfig};
 use crate::config::Config;
+use crate::http_facade::StatusCode;
 
 pub fn resolve_serve_config(
     config: &Config,
