@@ -1,0 +1,11 @@
+# clippy.toml — workspace-wide Clippy configuration
+#
+# This file is picked up by `cargo clippy` (and `make lint`) automatically.
+# See docs/src/linting.md for the workspace lint policy and progressive
+# adoption guide.
+#
+# msrv: tells Clippy which stable APIs are in scope for this codebase.
+# Any API introduced after this version will trigger clippy::msrv lints
+# locally before CI has a chance to catch them.  Keep this in sync with
+# package.rust-version in the root Cargo.toml (workspace.package.rust-version).
+msrv = "1.91"

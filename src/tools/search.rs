@@ -331,6 +331,7 @@ pub fn grep_search_file(path: &Path, pattern: &str) -> Vec<(u64, String)> {
 /// Faster than buffered I/O for large files because the OS page cache is
 /// reused without copying.  Returns `None` when the file cannot be opened or
 /// mapped.
+#[allow(unsafe_code)] // memory-mapped read: no mutable alias during Mmap lifetime; see SAFETY below
 pub fn mmap_read_file(path: &Path) -> Option<Mmap> {
     let file = File::open(path).ok()?;
     // SAFETY: the file is opened read-only; no mutable alias to these pages

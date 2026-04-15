@@ -26,7 +26,10 @@ applyTo: "**/*.rs,**/Cargo.toml,**/Cargo.lock"
 ### Safety and correctness
 
 - Avoid `unsafe` unless the task explicitly requires it. When `unsafe` is
-  necessary, document the safety invariant in a `// SAFETY:` comment.
+  necessary, document the safety invariant in a `// SAFETY:` comment **and**
+  annotate the enclosing item with `#[allow(unsafe_code)]` plus a one-line
+  rationale. The workspace lint `unsafe_code = "warn"` (enforced as an error by
+  `make lint`) requires this annotation for any new unsafe block.
 - Validate all indices, lengths, and type conversions at trust boundaries.
 - Prefer `TryFrom`/`TryInto` over `as` casts for numeric conversions that may
   lose precision or sign.
@@ -37,6 +40,13 @@ applyTo: "**/*.rs,**/Cargo.toml,**/Cargo.lock"
 - Prefer deterministic tests. Avoid timing-dependent assertions without
   explicit tolerance or retry logic.
 - Keep test helpers minimal and co-located with the tests that use them.
+
+### Lints
+
+Workspace lint rules live in `[workspace.lints]` in the root `Cargo.toml`
+(stable since Rust 1.74). Every member crate opts in via `[lints] workspace = true`.
+Reproduce the CI lint gate locally with `make lint`.
+Full policy and progressive-adoption guide: `docs/src/linting.md`.
 
 ### Dependencies
 
@@ -89,5 +99,7 @@ Before submitting Rust changes, verify:
 - [ ] Error propagation — errors surface with enough context to diagnose
 - [ ] Lifetimes and ownership — no unnecessary cloning or leaking
 - [ ] Test coverage — changed behavior has at least one covering test
-- [ ] Formatting and lint cleanliness — `cargo fmt` and `cargo clippy` pass
+- [ ] Formatting and lint cleanliness — `make fmt-check` and `make lint` pass
+- [ ] Unsafe code — any new `unsafe` block carries `// SAFETY:` + `#[allow(unsafe_code)]`
 - [ ] Dependency changes — new crates justified, `make deps-deny` passes
+- [ ] MSRV — no API used that was stabilised after `rust-version` in `Cargo.toml`

@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 363
+- Total tracked files: 366
 
 | # | Path | Approx. lines | Raw URL |
 | :--- | :--- | :--- | :--- |
@@ -369,3 +369,6 @@ Canonical raw URL index for every tracked file in this repository.
 | 358 | `tests/tool_operator_tests.rs` | ~382 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |
 | 359 | `.github/workflows/deny.yml` | ~63 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/deny.yml> |
 | 360 | `deny.toml` | ~154 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/deny.toml> |
+| 361 | `clippy.toml` | ~12 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/clippy.toml> |
+| 362 | `docs/src/linting.md` | ~95 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/linting.md> |
+| 363 | `docs/src/msrv.md` | ~70 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/msrv.md> |

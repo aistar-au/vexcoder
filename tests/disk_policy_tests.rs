@@ -1,3 +1,7 @@
+// Tests in this file use std::env::set_var/remove_var (unsafe in Rust 2024
+// edition). A module-local ENV_LOCK serialises all callers in this binary.
+#![allow(unsafe_code)]
+
 use std::path::Path;
 
 use vexcoder::disk_policy::{

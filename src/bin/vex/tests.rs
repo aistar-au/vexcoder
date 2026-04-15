@@ -1,3 +1,7 @@
+// Tests in this module use std::env::set_var/remove_var (unsafe in Rust 2024
+// edition) via EnvLockGuard, which serialises access with ENV_LOCK.
+#![allow(unsafe_code)]
+
 use super::{
     Cli, Commands, CredentialsCommands, MigrateCommands, SkillsCommands,
     credentials_action_from_cli, emit_migrate_config_output, read_secret_from_env_var,
