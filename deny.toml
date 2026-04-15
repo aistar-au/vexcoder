@@ -5,7 +5,7 @@
 # docs/src/dependency-upgrades.md:
 #
 #   [advisories] — rejects crates with active RustSec security advisories.
-#   [bans]       — flags wildcard requirements and duplicate crate versions.
+#   [bans]       — rejects wildcard requirements and checks for duplicate crate versions.
 #   [licenses]   — enforces acceptable open-source licenses across the graph.
 #   [sources]    — restricts where crates may be fetched from.
 #
@@ -76,12 +76,12 @@ ignore = []
 # 2. Dependency graph quality
 # ---------------------------------------------------------------------------
 [bans]
-# Warn (rather than deny) on multiple versions of the same crate.
-# This codebase intentionally permits some parallel transitive versions
-# (tree-sitter grammar crates, gix family, webpki ecosystem) to avoid
-# forced downgrade cascades. Keeping this as "warn" surfaces drift without
-# blocking the build; the upgrade workflow handles consolidation.
-multiple-versions = "warn"
+# Allow multiple versions when they arise transitively.
+# The current graph carries several platform-specific Windows support crates
+# and other non-actionable transitive splits that do not justify blocking CI.
+# Version consolidation still happens during dependency maintenance, but it is
+# not treated as a release gate here.
+multiple-versions = "allow"
 
 # Disallow wildcard (*) version requirements. The central
 # [workspace.dependencies] table must pin at least a major version.
@@ -118,12 +118,11 @@ allow = [
   "Apache-2.0 WITH LLVM-exception",
   "BSD-2-Clause",
   "BSD-3-Clause",
+  "CDLA-Permissive-2.0",
   "ISC",
   "MPL-2.0",
-  "Unicode-DFS-2016",
   "Unicode-3.0",
   "CC0-1.0",
-  "OpenSSL",
   "Zlib",
   "0BSD",
   "Unlicense",

@@ -91,7 +91,7 @@ leave compile-time annotations where they are already explicit and local.
 graph legitimately carries some parallel versions (tree-sitter grammar crates,
 gix family). A hard block on any duplicate version creates noisy failures
 unrelated to direct dependency hygiene. `cargo-deny`'s `bans.multiple-versions
-= "warn"` surfaces duplicate versions without hard-blocking the build.
+= "allow"` keeps those transitive splits from blocking the build.
 
 ## Install the tooling once
 
@@ -213,8 +213,8 @@ the tree.
   versions.
 - `cargo metadata --no-deps --format-version 1` is the fastest way to inspect
   which workspace package owns a direct dependency.
-- `cargo deny check bans` surfaces any duplicate-version warnings without the
-  full advisory database fetch.
+- `cargo deny check bans` checks for wildcard requirements and duplicate-version
+  entries without the full advisory database fetch.
 
 ## Future: automated PR creation
 

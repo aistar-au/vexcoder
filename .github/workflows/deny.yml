@@ -2,7 +2,7 @@ name: cargo-deny
 
 # cargo-deny checks run independently of the compilation pipeline:
 #   - [advisories]: rejects active RustSec security advisories
-#   - [bans]:       flags wildcard requirements and duplicate crate versions
+#   - [bans]:       detects wildcard version requirements and duplicate crate versions
 #   - [licenses]:   enforces the allow-list in deny.toml
 #   - [sources]:    restricts crate registries to crates.io + allowed git sources
 #

@@ -51,7 +51,6 @@ rustls = { version = "0.23", default-features = false, features = [
   "std",
   "tls12",
 ] }
-rustls-pemfile = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
@@ -195,7 +194,7 @@ name = "vex"
 path = "src/bin/vex.rs"
 
 [dependencies]
-vexcoder-api-types = { path = "crates/vexcoder-api-types" }
+vexcoder-api-types = { version = "0.1.0-rc.9", path = "crates/vexcoder-api-types" }
 aho-corasick.workspace = true
 anyhow.workspace = true
 axum.workspace = true
@@ -212,7 +211,6 @@ ratatui.workspace = true
 reqwest.workspace = true
 rmcp.workspace = true
 rustls.workspace = true
-rustls-pemfile.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
