@@ -69,7 +69,22 @@ unused-ignored-advisory = "warn"
 # records the dependency path, why the advisory does not affect this codebase,
 # and the expected resolution condition (upgrade path or upstream fix).
 # Pattern follows codex-rs: keep in sync with any .cargo/audit.toml if added.
-ignore = []
+
+[[advisories.ignore]]
+id = "RUSTSEC-2025-0141"
+reason = "bincode 1.3.3 is unmaintained (team ceased development after harassment incident); pulled in transitively via syntect v5.3.0 for syntax highlighting. No security vulnerability; team considers 1.3.3 a complete and stable release. Resolution: remove when syntect upgrades to bincode 2.x or an alternative."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2025-0057"
+reason = "fxhash 0.2.1 is unmaintained; pulled in transitively via bm25 v2.3.2. No security vulnerability; fxhash is a pure-algorithmic hash utility with no external inputs. Resolution: remove when bm25 switches to rustc-hash or an equivalent maintained crate."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2025-0119"
+reason = "number_prefix 0.4.0 is unmaintained; pulled in transitively via indicatif v0.17.11 for human-readable progress display. No security vulnerability; number_prefix is a display-only formatting utility. Resolution: remove when indicatif upgrades its dependency."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2024-0320"
+reason = "yaml-rust 0.4.5 is unmaintained; pulled in transitively via syntect v5.3.0 for TextMate grammar parsing. No security vulnerability; syntect uses it to parse read-only bundled grammar files, not user-supplied YAML. Resolution: remove when syntect switches to yaml-rust2."
 
 # ---------------------------------------------------------------------------
 # 2. Dependency graph quality
