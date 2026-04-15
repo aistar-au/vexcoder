@@ -13,7 +13,7 @@ fn write_agents_toml(dir: &std::path::Path, content: &str) {
 
 // TaskState::state_dir_from consults VEX_STATE_DIR, so these tests must
 // not run concurrently with env-mutating tests elsewhere in the crate.
-fn env_lock() -> tokio::sync::MutexGuard<'static, ()> {
+fn env_lock() -> crate::test_support::EnvLockGuard<'static> {
     crate::test_support::ENV_LOCK.blocking_lock()
 }
 

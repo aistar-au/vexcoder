@@ -380,8 +380,8 @@ rows and writes them above the reserved live viewport using the active
 `HostInsertMode`:
 
 The preferred implementation path is ratatui-native. The current tree already
-pins `ratatui = 0.29`, whose `Viewport::Inline(..)`,
-`with_options(..)`, and `insert_before(..)` APIs map
+pins `ratatui = 0.30`, whose `Viewport::Inline(..)`,
+`try_init_with_options(..)`, and `insert_before(..)` APIs map
 directly onto this contract. `HostScrollbackSink` should therefore be a thin
 app-local wrapper over the ratatui API, not a parallel bespoke
 renderer.

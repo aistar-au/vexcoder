@@ -1,5 +1,5 @@
 use crate::edit_diff::DEFAULT_EDIT_DIFF_CONTEXT_LINES;
-use crate::tool_preview::{preview_tool_input, ToolPreviewStyle};
+use crate::tool_preview::{ToolPreviewStyle, preview_tool_input};
 use crate::types::ContentBlock;
 use crate::util::parse_bool_flag;
 

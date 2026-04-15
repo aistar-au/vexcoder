@@ -100,10 +100,10 @@ impl ConversationManager {
             match doc_opt.and_then(|d| d.active_turn.as_ref()) {
                 Some(active) => {
                     let maybe_block = active.entries.iter().rev().find_map(|entry| {
-                        if let TurnEntry::AssistantBlock { block, .. } = entry {
-                            if block.block_index == index {
-                                return Some(block);
-                            }
+                        if let TurnEntry::AssistantBlock { block, .. } = entry
+                            && block.block_index == index
+                        {
+                            return Some(block);
                         }
                         None
                     });
@@ -183,18 +183,17 @@ impl ConversationManager {
                             if let TurnEntry::ToolCall {
                                 id, name, input, ..
                             } = entry
+                                && id == tool_call_id
                             {
-                                if id == tool_call_id {
-                                    return Some((
-                                        entry_idx,
-                                        StreamBlock::ToolCall {
-                                            id: id.clone(),
-                                            name: name.clone(),
-                                            input: input.clone(),
-                                            status: status.clone(),
-                                        },
-                                    ));
-                                }
+                                return Some((
+                                    entry_idx,
+                                    StreamBlock::ToolCall {
+                                        id: id.clone(),
+                                        name: name.clone(),
+                                        input: input.clone(),
+                                        status: status.clone(),
+                                    },
+                                ));
                             }
                             None
                         })
@@ -233,10 +232,10 @@ impl ConversationManager {
                 .and_then(|d| d.active_turn.as_ref())
                 .and_then(|a| {
                     a.entries.iter().rev().find_map(|e| {
-                        if let TurnEntry::ToolCall { id, name, .. } = e {
-                            if id == tool_call_id {
-                                return Some(name.clone());
-                            }
+                        if let TurnEntry::ToolCall { id, name, .. } = e
+                            && id == tool_call_id
+                        {
+                            return Some(name.clone());
                         }
                         None
                     })
@@ -286,10 +285,10 @@ impl ConversationManager {
                 continue;
             };
             let Some(block_entry) = active.entries.iter().rev().find_map(|e| {
-                if let TurnEntry::AssistantBlock { block, .. } = e {
-                    if block.block_index == index {
-                        return Some(block);
-                    }
+                if let TurnEntry::AssistantBlock { block, .. } = e
+                    && block.block_index == index
+                {
+                    return Some(block);
                 }
                 None
             }) else {
@@ -344,16 +343,16 @@ impl ConversationManager {
             active.entries[round_start..]
                 .iter()
                 .filter_map(|entry| {
-                    if let TurnEntry::AssistantBlock { block, .. } = entry {
-                        if block.phase == AssistantPhase::Thinking {
-                            let emit_content =
-                                if deferred_text_block_indices.contains(&block.block_index) {
-                                    block.content.clone()
-                                } else {
-                                    String::new()
-                                };
-                            return Some((block.block_index, emit_content));
-                        }
+                    if let TurnEntry::AssistantBlock { block, .. } = entry
+                        && block.phase == AssistantPhase::Thinking
+                    {
+                        let emit_content =
+                            if deferred_text_block_indices.contains(&block.block_index) {
+                                block.content.clone()
+                            } else {
+                                String::new()
+                            };
+                        return Some((block.block_index, emit_content));
                     }
                     None
                 })

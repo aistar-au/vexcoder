@@ -125,8 +125,8 @@ pub fn command_evidence_from_tool_result(name: &str, is_error: bool) -> Option<C
 #[cfg(test)]
 mod tests {
     use super::{
-        command_evidence_from_tool_result, normalize_tool_invocation_step_ids,
-        note_changed_files_from_tool_call, ToolInvocationSummary, TurnEvidenceState,
+        ToolInvocationSummary, TurnEvidenceState, command_evidence_from_tool_result,
+        normalize_tool_invocation_step_ids, note_changed_files_from_tool_call,
     };
     use std::collections::BTreeSet;
 

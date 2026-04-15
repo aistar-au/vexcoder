@@ -65,6 +65,9 @@ fn global_context_cache() -> &'static Mutex<ContextCache> {
     CONTEXT_CACHE.get_or_init(|| Mutex::new(ContextCache::default()))
 }
 
+#[cfg(test)]
+static CONTEXT_CACHE_TEST_LOCK: Mutex<()> = Mutex::new(());
+
 pub(crate) fn read_cached_file(operator: &ToolOperator, path: &str) -> Result<CachedFileRead> {
     let Some(resolved) = operator.existing_path(path)? else {
         return Ok(CachedFileRead {
@@ -177,14 +180,25 @@ pub(crate) fn reset_context_cache_for_tests() {
 }
 
 #[cfg(test)]
+pub(crate) fn lock_context_cache_for_tests() -> std::sync::MutexGuard<'static, ()> {
+    CONTEXT_CACHE_TEST_LOCK
+        .lock()
+        .expect("context cache test mutex poisoned")
+}
+
+#[cfg(test)]
 mod tests {
-    use super::{read_cached_file, reset_context_cache_for_tests, MAX_CACHE_ENTRIES};
+    use super::{
+        MAX_CACHE_ENTRIES, lock_context_cache_for_tests, read_cached_file,
+        reset_context_cache_for_tests,
+    };
     use crate::tools::ToolOperator;
-    use filetime::{set_file_mtime, FileTime};
+    use filetime::{FileTime, set_file_mtime};
     use std::fs;
 
     #[test]
     fn test_read_cached_file_hits_after_first_read() {
+        let _lock = lock_context_cache_for_tests();
         reset_context_cache_for_tests();
         let workspace = tempfile::tempdir().expect("tempdir");
         fs::write(workspace.path().join("note.txt"), "alpha\n").expect("write file");
@@ -200,6 +214,7 @@ mod tests {
 
     #[test]
     fn test_read_cached_file_invalidates_when_file_changes() {
+        let _lock = lock_context_cache_for_tests();
         reset_context_cache_for_tests();
         let workspace = tempfile::tempdir().expect("tempdir");
         let path = workspace.path().join("note.txt");
@@ -224,6 +239,7 @@ mod tests {
 
     #[test]
     fn test_read_cached_file_evicts_least_recently_used_entry() {
+        let _lock = lock_context_cache_for_tests();
         reset_context_cache_for_tests();
         let workspace = tempfile::tempdir().expect("tempdir");
         let operator = ToolOperator::new(workspace.path().to_path_buf());

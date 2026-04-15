@@ -1,12 +1,13 @@
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
-use ratatui::{
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-};
-use ratatui_macros::{line, span};
 use std::sync::OnceLock;
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
+
+use crate::ui::tui::{
+    line, span,
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+};
 
 static MARKDOWN_SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
 static MARKDOWN_THEME_SET: OnceLock<ThemeSet> = OnceLock::new();
@@ -17,11 +18,7 @@ pub fn markdown_to_inline_line(input: &str) -> Option<Line<'static>> {
         .into_iter()
         .filter(|line| line.spans.iter().any(|span| !span.content.is_empty()))
         .collect::<Vec<_>>();
-    if lines.len() == 1 {
-        lines.pop()
-    } else {
-        None
-    }
+    if lines.len() == 1 { lines.pop() } else { None }
 }
 
 /// Parse a markdown string into styled ratatui `Line`s for transcript rendering.

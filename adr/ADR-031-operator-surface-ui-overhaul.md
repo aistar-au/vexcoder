@@ -419,8 +419,8 @@ transcript insertion target owned by the application.
 The rejected 2026-04-08 target was:
 
 The preferred implementation path is ratatui-native. The current tree already
-pins `ratatui = 0.29`, which provides `Viewport::Inline(..)`,
-`with_options(..)`, and `insert_before(..)` for an inline
+pins `ratatui = 0.30`, which provides `Viewport::Inline(..)`,
+`try_init_with_options(..)`, and `insert_before(..)` for an inline
 reserved viewport with committed lines inserted above it. Any app-local
 `HostScrollbackSink` should therefore be a thin wrapper over the ratatui
 ratatui API rather than a bespoke escape-sequence subsystem.

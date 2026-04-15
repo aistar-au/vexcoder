@@ -21,7 +21,7 @@
 //! reads and writes. Useful for CI environments or when storing credentials
 //! in the OS credential store is not desired.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 /// Service name used for all vexcoder keyring entries.
 pub const SERVICE: &str = "vexcoder";
@@ -152,18 +152,18 @@ mod tests {
     #[test]
     fn is_disabled_respects_env_var() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        let _guard = crate::test_support::EnvRestore::capture("VEX_KEYRING_DISABLED");
+        let _guard = crate::test_support::EnvRestore::capture(&_lock, "VEX_KEYRING_DISABLED");
 
-        std::env::remove_var("VEX_KEYRING_DISABLED");
+        crate::test_support::test_remove_var(&_lock, "VEX_KEYRING_DISABLED");
         assert!(!is_disabled(), "should not be disabled when var is unset");
 
-        std::env::set_var("VEX_KEYRING_DISABLED", "1");
+        crate::test_support::test_set_var(&_lock, "VEX_KEYRING_DISABLED", "1");
         assert!(is_disabled(), "should be disabled when var is '1'");
 
-        std::env::set_var("VEX_KEYRING_DISABLED", "true");
+        crate::test_support::test_set_var(&_lock, "VEX_KEYRING_DISABLED", "true");
         assert!(is_disabled(), "should be disabled when var is 'true'");
 
-        std::env::set_var("VEX_KEYRING_DISABLED", "");
+        crate::test_support::test_set_var(&_lock, "VEX_KEYRING_DISABLED", "");
         assert!(
             !is_disabled(),
             "should not be disabled when var is empty string"
@@ -173,24 +173,24 @@ mod tests {
     #[test]
     fn read_returns_none_when_disabled() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        let _guard = crate::test_support::EnvRestore::capture("VEX_KEYRING_DISABLED");
-        std::env::set_var("VEX_KEYRING_DISABLED", "1");
+        let _guard = crate::test_support::EnvRestore::capture(&_lock, "VEX_KEYRING_DISABLED");
+        crate::test_support::test_set_var(&_lock, "VEX_KEYRING_DISABLED", "1");
         assert!(read(ACCOUNT_MODEL_TOKEN).unwrap().is_none());
     }
 
     #[test]
     fn write_errors_when_disabled() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        let _guard = crate::test_support::EnvRestore::capture("VEX_KEYRING_DISABLED");
-        std::env::set_var("VEX_KEYRING_DISABLED", "1");
+        let _guard = crate::test_support::EnvRestore::capture(&_lock, "VEX_KEYRING_DISABLED");
+        crate::test_support::test_set_var(&_lock, "VEX_KEYRING_DISABLED", "1");
         assert!(write(ACCOUNT_MODEL_TOKEN, "secret").is_err());
     }
 
     #[test]
     fn write_errors_on_empty_secret() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        let _guard = crate::test_support::EnvRestore::capture("VEX_KEYRING_DISABLED");
-        std::env::remove_var("VEX_KEYRING_DISABLED");
+        let _guard = crate::test_support::EnvRestore::capture(&_lock, "VEX_KEYRING_DISABLED");
+        crate::test_support::test_remove_var(&_lock, "VEX_KEYRING_DISABLED");
         let err = write(ACCOUNT_MODEL_TOKEN, "   ").unwrap_err();
         assert!(
             err.to_string().contains("empty"),
@@ -201,8 +201,8 @@ mod tests {
     #[test]
     fn delete_errors_when_disabled() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        let _guard = crate::test_support::EnvRestore::capture("VEX_KEYRING_DISABLED");
-        std::env::set_var("VEX_KEYRING_DISABLED", "1");
+        let _guard = crate::test_support::EnvRestore::capture(&_lock, "VEX_KEYRING_DISABLED");
+        crate::test_support::test_set_var(&_lock, "VEX_KEYRING_DISABLED", "1");
         assert!(delete(ACCOUNT_MODEL_TOKEN).is_err());
     }
 }

@@ -289,7 +289,7 @@ fn resolve_include_git_context(default_enabled: bool) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_candidate_paths, ContextAssembler};
+    use super::{ContextAssembler, extract_candidate_paths};
     use crate::tools::ToolOperator;
     use std::fs;
     use std::path::Path;
@@ -364,6 +364,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_context_assembler_reuses_cached_rollups_between_calls() {
+        let _lock = crate::runtime::context_cache::lock_context_cache_for_tests();
         crate::runtime::context_cache::reset_context_cache_for_tests();
         let workspace = tempfile::tempdir().expect("tempdir");
         fs::write(workspace.path().join("note.txt"), "cache me\n").expect("write note");
@@ -401,7 +402,7 @@ mod tests {
         let workspace = tempfile::tempdir().expect("tempdir");
         init_git_repo(workspace.path());
         fs::write(workspace.path().join("note.txt"), "note\n").expect("write note");
-        std::env::remove_var("VEX_CONTEXT_INCLUDE_GIT");
+        crate::test_support::test_remove_var(&_lock, "VEX_CONTEXT_INCLUDE_GIT");
 
         let operator = ToolOperator::new(workspace.path().to_path_buf());
         let assembler = ContextAssembler::default();
@@ -455,7 +456,7 @@ mod tests {
         fs::write(workspace.path().join("note.txt"), "note").expect("write");
 
         let ceiling = workspace.path().to_string_lossy().to_string();
-        std::env::set_var("GIT_CEILING_DIRECTORIES", &ceiling);
+        crate::test_support::test_set_var(&_lock, "GIT_CEILING_DIRECTORIES", &ceiling);
 
         let operator = ToolOperator::new(workspace.path().to_path_buf());
         let assembler = ContextAssembler::default().with_git_context(true);
@@ -463,7 +464,7 @@ mod tests {
             .assemble("read note.txt", &operator)
             .expect("assemble failed");
 
-        std::env::remove_var("GIT_CEILING_DIRECTORIES");
+        crate::test_support::test_remove_var(&_lock, "GIT_CEILING_DIRECTORIES");
 
         assert!(ctx.git_status_summary.is_none());
         assert!(ctx.recent_diff.is_none());
@@ -494,14 +495,14 @@ mod tests {
         let changed = "different line to force large diff\n".repeat(80_000);
         fs::write(&file_path, changed).expect("write changed");
 
-        std::env::set_var("VEX_CONTEXT_GIT_TIMEOUT_MS", "1");
+        crate::test_support::test_set_var(&_lock, "VEX_CONTEXT_GIT_TIMEOUT_MS", "1");
         let operator = ToolOperator::new(workspace.path().to_path_buf());
         let assembler = ContextAssembler::default().with_git_context(true);
         let ctx = assembler
             .assemble("inspect slow.txt", &operator)
             .expect("assemble failed");
         let rendered = assembler.render(&ctx);
-        std::env::remove_var("VEX_CONTEXT_GIT_TIMEOUT_MS");
+        crate::test_support::test_remove_var(&_lock, "VEX_CONTEXT_GIT_TIMEOUT_MS");
 
         assert!(ctx.recent_diff.is_none());
         assert!(

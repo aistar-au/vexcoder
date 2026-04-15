@@ -1,4 +1,4 @@
-use crate::config::{doctor_rollup, Config, DoctorConfigRollup, DoctorMcpServer};
+use crate::config::{Config, DoctorConfigRollup, DoctorMcpServer, doctor_rollup};
 use crate::runtime::{
     ApprovalPolicy, FileApprovalPolicy, PassthroughSandbox, SandboxDriver, TaskState,
 };
@@ -304,25 +304,25 @@ fn status_label(status: DoctorStatus) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{run_doctor, DoctorStatus};
-    use crate::test_support::{EnvRestore, ENV_LOCK};
+    use super::{DoctorStatus, run_doctor};
+    use crate::test_support::{ENV_LOCK, EnvRestore};
     use std::fs;
 
     #[tokio::test]
     async fn test_vex_doctor_fails_on_missing_model_url() {
         let _env_lock = ENV_LOCK.lock().await;
         let workspace = tempfile::tempdir().expect("tempdir");
-        let _home = EnvRestore::capture("HOME");
-        let _xdg = EnvRestore::capture("XDG_CONFIG_HOME");
+        let _home = EnvRestore::capture(&_env_lock, "HOME");
+        let _xdg = EnvRestore::capture(&_env_lock, "XDG_CONFIG_HOME");
         let home = workspace.path().join("home");
         let xdg = workspace.path().join("xdg");
         fs::create_dir_all(&home).expect("home dir");
         fs::create_dir_all(&xdg).expect("xdg dir");
-        std::env::set_var("HOME", &home);
-        std::env::set_var("XDG_CONFIG_HOME", &xdg);
-        std::env::remove_var("VEX_MODEL_URL");
-        std::env::remove_var("VEX_MODEL_TOKEN");
-        std::env::remove_var("VEX_WORKDIR");
+        crate::test_support::test_set_var(&_env_lock, "HOME", &home);
+        crate::test_support::test_set_var(&_env_lock, "XDG_CONFIG_HOME", &xdg);
+        crate::test_support::test_remove_var(&_env_lock, "VEX_MODEL_URL");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_MODEL_TOKEN");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_WORKDIR");
 
         let report = run_doctor(workspace.path()).await;
         let check = report
@@ -337,46 +337,48 @@ mod tests {
     async fn test_vex_doctor_json_output_structure() {
         let _env_lock = ENV_LOCK.lock().await;
         let workspace = tempfile::tempdir().expect("tempdir");
-        let _home = EnvRestore::capture("HOME");
-        let _xdg = EnvRestore::capture("XDG_CONFIG_HOME");
+        let _home = EnvRestore::capture(&_env_lock, "HOME");
+        let _xdg = EnvRestore::capture(&_env_lock, "XDG_CONFIG_HOME");
         let home = workspace.path().join("home");
         let xdg = workspace.path().join("xdg");
         fs::create_dir_all(&home).expect("home dir");
         fs::create_dir_all(&xdg).expect("xdg dir");
-        std::env::set_var("HOME", &home);
-        std::env::set_var("XDG_CONFIG_HOME", &xdg);
-        std::env::set_var("VEX_MODEL_URL", "http://127.0.0.1:9/v1");
+        crate::test_support::test_set_var(&_env_lock, "HOME", &home);
+        crate::test_support::test_set_var(&_env_lock, "XDG_CONFIG_HOME", &xdg);
+        crate::test_support::test_set_var(&_env_lock, "VEX_MODEL_URL", "http://127.0.0.1:9/v1");
 
         let report = run_doctor(workspace.path()).await;
         let rendered = report.render_json().expect("json");
         let parsed: serde_json::Value = serde_json::from_str(&rendered).expect("valid json");
         assert!(parsed.is_array());
-        assert!(parsed
-            .as_array()
-            .expect("array")
-            .iter()
-            .all(|entry| entry.get("check").is_some() && entry.get("status").is_some()));
+        assert!(
+            parsed
+                .as_array()
+                .expect("array")
+                .iter()
+                .all(|entry| entry.get("check").is_some() && entry.get("status").is_some())
+        );
     }
 
     #[tokio::test]
     async fn test_vex_doctor_sandbox_probe_warns_on_fallback() {
         let _env_lock = ENV_LOCK.lock().await;
         let workspace = tempfile::tempdir().expect("tempdir");
-        let _home = EnvRestore::capture("HOME");
-        let _xdg = EnvRestore::capture("XDG_CONFIG_HOME");
+        let _home = EnvRestore::capture(&_env_lock, "HOME");
+        let _xdg = EnvRestore::capture(&_env_lock, "XDG_CONFIG_HOME");
         let home = workspace.path().join("home");
         let xdg = workspace.path().join("xdg");
         fs::create_dir_all(&home).expect("home dir");
         fs::create_dir_all(&xdg).expect("xdg dir");
-        std::env::set_var("HOME", &home);
-        std::env::set_var("XDG_CONFIG_HOME", &xdg);
+        crate::test_support::test_set_var(&_env_lock, "HOME", &home);
+        crate::test_support::test_set_var(&_env_lock, "XDG_CONFIG_HOME", &xdg);
         fs::create_dir_all(workspace.path().join(".vex")).expect("config dir");
         fs::write(
             workspace.path().join(".vex/config.toml"),
             "model_url = \"http://127.0.0.1:9/v1\"\nsandbox_require = false\n",
         )
         .expect("write config");
-        std::env::remove_var("VEX_MODEL_URL");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_MODEL_URL");
 
         let old_cwd = std::env::current_dir().expect("cwd");
         std::env::set_current_dir(workspace.path()).expect("set cwd");

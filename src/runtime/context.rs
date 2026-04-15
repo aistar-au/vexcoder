@@ -1,9 +1,9 @@
 use crate::runtime::{EditLoop, UiUpdate};
 use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock, TurnToolPolicy};
 use crate::types::{Content, ContentBlock};
-use crate::usage::{estimate_tokens, SessionTokens, TurnTokens};
+use crate::usage::{SessionTokens, TurnTokens, estimate_tokens};
 use std::sync::{Arc, Mutex as StdMutex};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 use tokio_util::sync::CancellationToken;
 
 pub struct RuntimeContext {
@@ -502,10 +502,10 @@ fn forward_conversation_update(
                         collapsed,
                     },
                 });
-                if !content.is_empty() {
-                    if let Some(block_normaliser) = textual_block_by_index.get_mut(&index) {
-                        emit_normalised_block_text(block_normaliser, index, &content, tx);
-                    }
+                if !content.is_empty()
+                    && let Some(block_normaliser) = textual_block_by_index.get_mut(&index)
+                {
+                    emit_normalised_block_text(block_normaliser, index, &content, tx);
                 }
             }
             StreamBlock::FinalText { content } => {
@@ -521,10 +521,10 @@ fn forward_conversation_update(
                         content: String::new(),
                     },
                 });
-                if !content.is_empty() {
-                    if let Some(block_normaliser) = textual_block_by_index.get_mut(&index) {
-                        emit_normalised_block_text(block_normaliser, index, &content, tx);
-                    }
+                if !content.is_empty()
+                    && let Some(block_normaliser) = textual_block_by_index.get_mut(&index)
+                {
+                    emit_normalised_block_text(block_normaliser, index, &content, tx);
                 }
             }
             other => {

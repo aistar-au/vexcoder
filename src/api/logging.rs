@@ -33,10 +33,10 @@ pub fn emit_sse_parse_error(
 }
 
 fn emit_log_message(message: &str) {
-    if let Some(path) = resolve_log_path() {
-        if append_log_file(&path, message).is_ok() {
-            return;
-        }
+    if let Some(path) = resolve_log_path()
+        && append_log_file(&path, message).is_ok()
+    {
+        return;
     }
 
     eprintln!("{message}");
@@ -68,18 +68,18 @@ mod tests {
     #[test]
     fn test_debug_payload_enabled_accepts_true_variants() {
         let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-        std::env::set_var(DEBUG_PAYLOAD_ENV, "1");
+        crate::test_support::test_set_var(&_env_lock, DEBUG_PAYLOAD_ENV, "1");
         assert!(debug_payload_enabled());
-        std::env::set_var(DEBUG_PAYLOAD_ENV, "TRUE");
+        crate::test_support::test_set_var(&_env_lock, DEBUG_PAYLOAD_ENV, "TRUE");
         assert!(debug_payload_enabled());
-        std::env::remove_var(DEBUG_PAYLOAD_ENV);
+        crate::test_support::test_remove_var(&_env_lock, DEBUG_PAYLOAD_ENV);
     }
 
     #[test]
     fn test_resolve_log_path_uses_api_log_path() {
         let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-        std::env::set_var(API_LOG_PATH_ENV, "/tmp/test-api.log");
+        crate::test_support::test_set_var(&_env_lock, API_LOG_PATH_ENV, "/tmp/test-api.log");
         assert_eq!(resolve_log_path().as_deref(), Some("/tmp/test-api.log"));
-        std::env::remove_var(API_LOG_PATH_ENV);
+        crate::test_support::test_remove_var(&_env_lock, API_LOG_PATH_ENV);
     }
 }

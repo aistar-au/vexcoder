@@ -1,4 +1,4 @@
-use crate::tools::embed::{embed_texts, EmbeddingConfig};
+use crate::tools::embed::{EmbeddingConfig, embed_texts};
 use crate::tools::index::IndexChunk;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn test_eligible_chunks_respects_file_limit() {
         let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-        std::env::set_var("VEX_INDEX_MAX_FILES", "1");
+        crate::test_support::test_set_var(&_env_lock, "VEX_INDEX_MAX_FILES", "1");
 
         let chunks = vec![
             make_chunk("src/one.rs", "one", "fn one() {}"),
@@ -329,7 +329,7 @@ mod tests {
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].path, "src/one.rs");
 
-        std::env::remove_var("VEX_INDEX_MAX_FILES");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_INDEX_MAX_FILES");
     }
 
     #[test]

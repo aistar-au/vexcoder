@@ -1,12 +1,12 @@
 use crate::app::{TaskViewProjection, TranscriptRow};
-use crate::status_contract::{pending_status_label, status_tone, StatusTone};
+use crate::status_contract::{StatusTone, pending_status_label, status_tone};
 use crate::ui::input_metrics::{char_display_width, display_width, truncate_to_display_width};
-use ansi_to_tui::IntoText;
-use ratatui::{
+use crate::ui::tui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
 };
+use ansi_to_tui::IntoText;
 
 pub(crate) fn transcript_output_line(row: &TranscriptRow) -> Line<'static> {
     match row {

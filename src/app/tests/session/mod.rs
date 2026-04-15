@@ -11,7 +11,7 @@ mod runtime;
 fn test_tui_new_saves_current_state_before_reset() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
 
     let mut mode = TuiMode::new();
     mode.push_history_line("stale transcript".to_string());
@@ -32,14 +32,14 @@ fn test_tui_new_saves_current_state_before_reset() {
         "expected new-session marker, got: {:?}",
         mode.history_lines()
     );
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
 #[test]
 fn test_tui_new_creates_fresh_task_id() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
 
     let mut mode = TuiMode::new();
     let original_id = mode.current_task_id();
@@ -55,14 +55,14 @@ fn test_tui_new_creates_fresh_task_id() {
         !mode.is_turn_in_progress(),
         "/new must not leave a stale turn active"
     );
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
 #[test]
 fn test_tui_new_clears_active_edit_loop() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
 
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
@@ -72,14 +72,14 @@ fn test_tui_new_clears_active_edit_loop() {
         !mode.is_turn_in_progress(),
         "/new must clear active edit-loop state"
     );
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
 #[test]
 fn test_tui_resume_restores_active_grants() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
 
     let mut saved = TaskState::new("task-resume-001".to_string());
     saved.active_grants.insert(
@@ -101,11 +101,12 @@ fn test_tui_resume_restores_active_grants() {
     mode.on_user_input("/resume task-resume-001".to_string(), &mut ctx);
 
     assert_eq!(mode.current_task_id(), "task-resume-001");
-    assert!(mode
-        .task_doc
-        .info
-        .active_grants
-        .contains_key(&crate::runtime::Capability::ApplyPatch));
+    assert!(
+        mode.task_doc
+            .info
+            .active_grants
+            .contains_key(&crate::runtime::Capability::ApplyPatch)
+    );
     assert_eq!(
         mode.task_doc
             .completed_turns
@@ -128,14 +129,14 @@ fn test_tui_resume_restores_active_grants() {
             .any(|l| l.contains("[resumed: task-resume-001 status=Completed]")),
         "expected resume confirmation in history"
     );
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
 #[test]
 fn test_tui_resume_without_id_offers_recent_task_selection() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
 
     let older = TaskState::new("task-resume-older".to_string());
     older.save(temp.path()).unwrap();
@@ -180,14 +181,14 @@ fn test_tui_resume_without_id_offers_recent_task_selection() {
         1,
         "resume selection must reset transcript"
     );
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
 #[test]
 fn test_tui_resume_does_not_restore_conversation() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
 
     let saved = TaskState::new("task-resume-002".to_string());
     saved.save(temp.path()).unwrap();
@@ -206,14 +207,14 @@ fn test_tui_resume_does_not_restore_conversation() {
         !mode.is_turn_in_progress(),
         "/resume must not start a model turn"
     );
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
 #[test]
 fn test_tui_resume_unknown_id_emits_error() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
 
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
@@ -225,7 +226,7 @@ fn test_tui_resume_unknown_id_emits_error() {
             .any(|l| l.contains("[resume: task 'task-does-not-exist' not found]")),
         "expected not-found message in history"
     );
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
 #[test]
@@ -242,7 +243,7 @@ fn test_tui_resume_restores_legacy_subdir_state() {
     saved.status = crate::runtime::TaskStatus::Completed;
     saved.save(&legacy_state_dir).unwrap();
 
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
     std::env::set_current_dir(&nested).unwrap();
 
     let mut mode = TuiMode::new();

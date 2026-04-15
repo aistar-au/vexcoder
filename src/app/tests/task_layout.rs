@@ -41,9 +41,11 @@ fn test_task_layout_state_shows_server_read_progress_in_waiting_row() {
     );
 
     let state = mode.task_layout_state().expect("task layout state");
-    assert!(state.output_rows[1]
-        .as_display_str()
-        .contains("\u{2191}:2048/2641"));
+    assert!(
+        state.output_rows[1]
+            .as_display_str()
+            .contains("\u{2191}:2048/2641")
+    );
     assert_eq!(state.telemetry.mode, "streaming");
     assert_eq!(state.telemetry.approval, "none");
     assert!(

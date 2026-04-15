@@ -1,5 +1,5 @@
-use super::{estimate_token_count, forward_conversation_update, RuntimeContext};
-use crate::api::{mock_client::MockApiClient, ApiClient};
+use super::{RuntimeContext, estimate_token_count, forward_conversation_update};
+use crate::api::{ApiClient, mock_client::MockApiClient};
 use crate::prompts::CODER_SYSTEM_PROMPT;
 use crate::runtime::{EditLoop, EditLoopOutcome, UiUpdate};
 use crate::state::{ConversationManager, ConversationStreamUpdate, StreamBlock};
@@ -227,7 +227,7 @@ async fn test_ref_08_start_turn_full_protocol_parity() {
 #[tokio::test(flavor = "current_thread")]
 async fn test_ref_08_tool_approval_forwarding_no_hang() {
     let _env_lock = crate::test_support::ENV_LOCK.lock().await;
-    std::env::set_var("VEX_TOOL_CONFIRM", "true");
+    crate::test_support::test_set_var(&_env_lock, "VEX_TOOL_CONFIRM", "true");
     let first_response_sse = vec![
         r#"event: message_start
 data: {"type":"message_start","message":{"id":"msg_tool_then_final_1","type":"message","role":"assistant","model":"mock-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}"#.to_string(),
@@ -288,7 +288,7 @@ data: {"type":"message_stop"}"#.to_string(),
 
     assert!(saw_request, "must forward tool approval request");
     assert!(saw_complete, "must finish turn after approval response");
-    std::env::remove_var("VEX_TOOL_CONFIRM");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_TOOL_CONFIRM");
 }
 
 #[tokio::test]

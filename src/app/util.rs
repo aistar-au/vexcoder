@@ -1,6 +1,6 @@
 use super::{
     ApprovalScope, Capability, CommandRequest, DefaultCommandRunner, GenerateTestsArgs,
-    ResumeTaskEntry, ReviewArgs, TaskState, ValidationSuite, SLASH_COMMANDS,
+    ResumeTaskEntry, ReviewArgs, SLASH_COMMANDS, TaskState, ValidationSuite,
 };
 use anyhow::Result;
 use std::path::{Path, PathBuf};

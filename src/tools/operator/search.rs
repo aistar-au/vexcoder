@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::{non_empty_trimmed, path_to_repo_relative_string, SearchMatch, ToolOperator};
+use super::{SearchMatch, ToolOperator, non_empty_trimmed, path_to_repo_relative_string};
 use crate::tools::search::parallel_search_files;
 use crate::tools::workspace_explore::compile_workspace_glob;
 

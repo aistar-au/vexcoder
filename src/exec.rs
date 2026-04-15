@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::process::ExitCode;
 
-use crate::batch_mode::{run_batch, AutoApproveScope, BatchRunOpts, OutputFormat};
+use crate::batch_mode::{AutoApproveScope, BatchRunOpts, OutputFormat, run_batch};
 use crate::config::Config;
 use crate::runtime::TaskStatus;
 

@@ -1,7 +1,7 @@
 use super::*;
 
 #[cfg(test)]
-use crate::ui::render::{input_visual_rows, MAX_INPUT_PANE_ROWS};
+use crate::ui::render::{MAX_INPUT_PANE_ROWS, input_visual_rows};
 #[cfg(test)]
 use std::time::{Duration, Instant};
 

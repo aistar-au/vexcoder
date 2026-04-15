@@ -1,3 +1,4 @@
+use quick_xml::Reader as XmlReader;
 /// Pluggable tool-call parsers for normalizing model output into
 /// [`TaggedToolCall`] before the orchestrator processes them.
 ///
@@ -8,9 +9,8 @@
 /// the tagged scan finds nothing.  Hybrid mode is off by default and must
 /// be opted into via model profile or environment variable.
 use quick_xml::events::Event as XmlEvent;
-use quick_xml::Reader as XmlReader;
 
-use super::tools::{parse_tagged_tool_calls, TaggedToolCall};
+use super::tools::{TaggedToolCall, parse_tagged_tool_calls};
 
 // ── Configuration ────────────────────────────────────────────────────
 
@@ -156,15 +156,15 @@ impl XmlFallbackParser {
                 Ok(XmlEvent::End(ref e)) => match e.name().as_ref() {
                     b"invoke" | b"tool_use" if depth > 0 => {
                         depth -= 1;
-                        if let Some(name) = current_name.take() {
-                            if !name.is_empty() {
-                                calls.push(TaggedToolCall {
-                                    name,
-                                    input: serde_json::Value::Object(std::mem::take(
-                                        &mut current_params,
-                                    )),
-                                });
-                            }
+                        if let Some(name) = current_name.take()
+                            && !name.is_empty()
+                        {
+                            calls.push(TaggedToolCall {
+                                name,
+                                input: serde_json::Value::Object(std::mem::take(
+                                    &mut current_params,
+                                )),
+                            });
                         }
                     }
                     _ => {

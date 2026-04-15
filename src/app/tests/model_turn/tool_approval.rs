@@ -192,7 +192,7 @@ async fn test_tool_approval_updates_task_status_until_turn_resumes() {
 async fn test_tool_approval_request_persists_awaiting_approval_status_in_task_state() {
     let _env_lock = crate::test_support::ENV_LOCK.lock().await;
     let temp = tempfile::tempdir().unwrap();
-    std::env::set_var("VEX_STATE_DIR", temp.path());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path());
 
     let mut ctx = setup_ctx();
     let mut mode = TuiMode::new();
@@ -212,5 +212,5 @@ async fn test_tool_approval_request_persists_awaiting_approval_status_in_task_st
         crate::runtime::TaskState::load(temp.path(), &mode.task_doc.info.id).expect("saved task");
     assert_eq!(saved.status, crate::runtime::TaskStatus::AwaitingApproval);
 
-    std::env::remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }

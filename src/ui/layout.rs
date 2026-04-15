@@ -1,4 +1,6 @@
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use crate::ui::tui::layout::{Constraint, Direction, Layout};
+
+pub use crate::ui::tui::layout::Rect;
 
 pub const MAX_INPUT_PANE_ROWS: usize = 6;
 pub(crate) const MIN_FULLSCREEN_INPUT_ROWS: u16 = 3;

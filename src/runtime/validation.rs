@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::fs;
 use std::path::Path;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 use crate::runtime::text_util::truncate_tail_bytes;
 use crate::runtime::{CommandRequest, CommandRunner, SandboxDriver};

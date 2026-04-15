@@ -1,12 +1,12 @@
 use super::config::{
     read_file_max_lines, write_file_diff_preferred_above_lines, write_file_max_lines,
 };
-use super::index::{build_codebase_index, CODEBASE_INDEX};
+use super::index::{CODEBASE_INDEX, build_codebase_index};
 use super::*;
 use crate::config::SearchConfig;
 use crate::tools::search;
-use crate::tools::{glob_files, list_dir, ToolOperator, WriteFileOutcome};
-use anyhow::{bail, Result};
+use crate::tools::{ToolOperator, WriteFileOutcome, glob_files, list_dir};
+use anyhow::{Result, bail};
 #[cfg(test)]
 use std::collections::HashMap;
 #[cfg(test)]

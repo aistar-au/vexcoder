@@ -1,11 +1,11 @@
 use super::*;
 
-use ratatui::{backend::TestBackend, Terminal};
+use crate::ui::tui::{Terminal, backend::TestBackend};
 
 #[test]
 fn all_modals_use_unified_renderer() {
     let backend = TestBackend::new(100, 30);
-    let mut tui = ratatui::Terminal::new(backend).expect("test backend");
+    let mut tui = Terminal::new(backend).expect("test backend");
 
     let modals = [
         OverlayModal::PatchApprove {
@@ -36,9 +36,10 @@ fn patch_modal_uses_body_viewport_for_visible_range() {
         5,
     );
 
-    assert!(body
-        .iter()
-        .any(|line| line.to_string().contains("showing 1-1 of 6")));
+    assert!(
+        body.iter()
+            .any(|line| line.to_string().contains("showing 1-1 of 6"))
+    );
 }
 
 #[test]
@@ -370,7 +371,7 @@ fn task_output_render_area_top_aligns_content() {
         composer_focused: true,
         picker_overlay: vec![],
     };
-    let area = ratatui::layout::Rect::new(0, 5, 80, 20);
+    let area = crate::ui::tui::layout::Rect::new(0, 5, 80, 20);
     // When visible_rows < area.height, the render rect should start at the top
     // of the output pane and grow downward (y == area.y for any non-zero y).
     let render_area = task_output_render_area(&state, area, 5);
@@ -440,9 +441,11 @@ fn expand_rows_for_display_leaves_structural_rows_intact() {
     let expanded = expand_rows_for_display(&rows, 80);
     assert_eq!(expanded[0].as_display_str(), "[tool:thinking]");
     assert_eq!(expanded[1].as_display_str(), "    disclosure detail");
-    assert!(expanded
-        .iter()
-        .any(|r| r.as_display_str() == "normal short line"));
+    assert!(
+        expanded
+            .iter()
+            .any(|r| r.as_display_str() == "normal short line")
+    );
 }
 
 #[test]
