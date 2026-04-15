@@ -168,7 +168,9 @@ tokio = [
   "src/state/conversation/streaming.rs",
   "src/app/turn_start.rs",
 ]
-serde = ["derive and #[serde(...)] attributes stay next to their types in src/** and crates/vexcoder-api-types/src/lib.rs"]
+serde = [
+  "derive and #[serde(...)] attributes stay next to their types in src/** and crates/vexcoder-api-types/src/lib.rs",
+]
 arboard = ["src/clipboard.rs", "src/app/commands/session.rs"]
 
 [workspace.metadata.upgrade-notes]

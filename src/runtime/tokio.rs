@@ -3,7 +3,7 @@
 // binaries because proc-macro call sites are already explicit and stable.
 
 pub mod net {
-    pub use tokio::net::{TcpListener, UnixListener};
+    pub use tokio::net::TcpListener;
 }
 
 pub mod process {
