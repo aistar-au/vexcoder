@@ -74,16 +74,28 @@ Use the repository wrappers instead of ad hoc manifest edits:
 # Install the maintenance tools once.
 cargo install cargo-edit --locked --no-default-features --features upgrade
 cargo install cargo-outdated --locked
+cargo install cargo-deny --locked
 
-# Audit stale direct dependencies across the workspace.
+# 0. Security and license gate — always run first.
+make deps-deny
+
+# 1. Audit stale direct dependencies across the workspace.
 make deps-audit
 
-# Preview a manifest change without writing files.
+# 2. Preview a manifest change without writing files.
 make deps-plan ARGS='-p quick-xml@0.40 -p tree-sitter@0.27'
 
-# Apply the manifest change, refresh Cargo.lock, and run cargo check.
+# 3. Apply the manifest change, refresh Cargo.lock, and run cargo check.
 make deps-upgrade ARGS='-p quick-xml@0.40 -p tree-sitter@0.27'
+
+# 4. Re-run the security gate after the upgrade.
+make deps-deny
 ```
+
+`make deps-deny` runs `cargo-deny`: it checks the RustSec advisory database for
+known vulnerabilities, verifies all crate licenses against the allow-list in
+`deny.toml`, flags wildcard version requirements, and restricts crate sources to
+crates.io. Run it before and after every upgrade batch.
 
 Cargo's default semver requirements are the repository default. Prefer entries
 such as `"1"` or `"0.39"` over manually constrained upper bounds unless a
@@ -98,6 +110,8 @@ existing seam files instead of spreading version-specific code through the tree:
 - Structural indexing (`tree-sitter` and grammar crates): `src/tools/index.rs`
 - Markdown rendering (`pulldown-cmark`, `syntect`): `src/ui/render/markdown.rs`
 - HTTP and MCP stack (`reqwest`, `rustls`, `rmcp`): `src/api/client/mod.rs`, `src/mcp.rs`, `src/server/`
+
+Full workflow documentation: `docs/src/dependency-upgrades.md`
 
 ---
 

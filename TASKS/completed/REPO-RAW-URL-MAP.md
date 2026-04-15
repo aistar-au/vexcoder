@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 358
+- Total tracked files: 360
 
 | # | Path | Approx. lines | Raw URL |
 | :--- | :--- | :--- | :--- |
@@ -134,7 +134,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 123 | `scripts/release.sh` | ~192 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/release.sh> |
 | 124 | `scripts/taplo_safe.sh` | ~72 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/taplo_safe.sh> |
 | 125 | `scripts/update_homebrew_formula.py` | ~124 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/update_homebrew_formula.py> |
-| 126 | `scripts/upgrade-deps.sh` | ~106 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/upgrade-deps.sh> |
+| 126 | `scripts/upgrade-deps.sh` | ~132 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/scripts/upgrade-deps.sh> |
 | 127 | `src/agents.rs` | ~733 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/agents.rs> |
 | 128 | `src/api.rs` | ~6 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api.rs> |
 | 129 | `src/api/client/mod.rs` | ~1030 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client/mod.rs> |
@@ -367,3 +367,5 @@ Canonical raw URL index for every tracked file in this repository.
 | 356 | `tests/signal_handling_tests.rs` | ~79 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/signal_handling_tests.rs> |
 | 357 | `tests/stream_parser_tests.rs` | ~391 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/stream_parser_tests.rs> |
 | 358 | `tests/tool_operator_tests.rs` | ~382 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/tests/tool_operator_tests.rs> |
+| 359 | `.github/workflows/deny.yml` | ~63 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/.github/workflows/deny.yml> |
+| 360 | `deny.toml` | ~154 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/deny.toml> |

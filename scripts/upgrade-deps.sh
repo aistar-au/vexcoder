@@ -1,25 +1,40 @@
 #!/usr/bin/env bash
-# upgrade-deps.sh — stale-dependency audit and manifest-upgrade helper.
+# upgrade-deps.sh — stale-dependency audit, security check, and manifest-upgrade helper.
 #
 # This repository keeps direct dependency requirements in the root
 # [workspace.dependencies] table. `cargo upgrade` edits those requirements,
 # while `cargo update` refreshes Cargo.lock after a manifest change.
+#
+# Three complementary tools cover the dependency lifecycle:
+#   cargo outdated  — reports which direct requirements have newer versions
+#   cargo upgrade   — edits Cargo.toml requirement strings (audit lane)
+#   cargo deny      — checks RustSec advisories, licenses, and graph quality
+#
+# Standard upgrade flow:
+#   1. bash scripts/upgrade-deps.sh deny     # security + license gate first
+#   2. bash scripts/upgrade-deps.sh audit    # find stale direct deps
+#   3. bash scripts/upgrade-deps.sh plan ... # preview manifest edit
+#   4. bash scripts/upgrade-deps.sh apply ...# write manifest, update lock, check
 
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
 Usage:
+  bash scripts/upgrade-deps.sh deny  [cargo-deny args...]
   bash scripts/upgrade-deps.sh audit
-  bash scripts/upgrade-deps.sh plan [cargo-upgrade args...]
+  bash scripts/upgrade-deps.sh plan  [cargo-upgrade args...]
   bash scripts/upgrade-deps.sh apply [cargo-upgrade args...]
 
 Commands:
+  deny    Run cargo-deny: advisories, bans, licenses, and source checks.
   audit   Report stale direct workspace dependencies with cargo outdated.
   plan    Dry-run a manifest update with cargo upgrade.
   apply   Update Cargo.toml with cargo upgrade, refresh Cargo.lock, and run cargo check.
 
 Examples:
+  bash scripts/upgrade-deps.sh deny
+  bash scripts/upgrade-deps.sh deny advisories
   bash scripts/upgrade-deps.sh audit
   bash scripts/upgrade-deps.sh plan -p quick-xml@0.40 -p tree-sitter@0.27
   bash scripts/upgrade-deps.sh apply -p quick-xml@0.40 -p tree-sitter@0.27
@@ -66,6 +81,16 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 case "$MODE" in
+  deny)
+    require_tool cargo-deny "cargo install cargo-deny --locked"
+    # Default: check all four categories. Pass explicit categories to scope
+    # the check: e.g. 'bash scripts/upgrade-deps.sh deny advisories'
+    if [ "$#" -eq 0 ]; then
+      cargo deny check advisories bans licenses sources
+    else
+      cargo deny check "$@"
+    fi
+    ;;
   audit)
     if [ "$#" -ne 0 ]; then
       usage
@@ -88,6 +113,7 @@ case "$MODE" in
     cat <<'EOF'
 
 Next steps:
+  bash scripts/upgrade-deps.sh deny   # re-run security + license gate
   cargo fmt --check
   cargo clippy --all-targets -- -D warnings
   cargo nextest run -j 2

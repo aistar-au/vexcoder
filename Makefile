@@ -7,6 +7,7 @@
 # Usage:
 #   make gate          full gate (matches ci.yml + arch-contracts.yml combined)
 #   make gate-fast     full gate (identical to gate)
+#   make deps-deny     security advisory + license + graph check via cargo-deny
 #   make deps-audit    report stale direct workspace dependencies
 #   make deps-plan     dry-run a manifest upgrade via cargo upgrade
 #   make deps-upgrade  apply a manifest upgrade via cargo upgrade
@@ -15,6 +16,7 @@
 #   make help          list all targets
 #
 # Tool prerequisites:
+#   cargo-deny     cargo install cargo-deny --locked
 #   cargo-upgrade  cargo install cargo-edit --locked --no-default-features --features upgrade
 #   cargo-outdated cargo install cargo-outdated --locked
 #   taplo   cargo install taplo-cli --version 0.8.1  (CI pins this version in workflow)
@@ -30,8 +32,8 @@ endif
 .SHELLFLAGS := -euo pipefail -c
 
 .PHONY: help \
-	_require-taplo _require-rg _require-nextest _require-cargo-upgrade _require-cargo-outdated \
-	build check deps-audit deps-plan deps-upgrade \
+	_require-taplo _require-rg _require-nextest _require-cargo-upgrade _require-cargo-outdated _require-cargo-deny \
+	build check deps-deny deps-audit deps-plan deps-upgrade \
   fmt fmt-check \
   lint \
   commit-debug-gate \
@@ -53,7 +55,8 @@ help:
 	  "  help               show this help" \
 	  "  build              cargo build --all-targets" \
 	  "  check              cargo check --all-targets" \
-	  "  deps-audit         report stale direct workspace dependencies" \
+	  "  deps-deny          security advisory + license + graph check (cargo-deny)" \
+          "  deps-audit         report stale direct workspace dependencies" \
 	  "  deps-plan          dry-run a manifest upgrade: make deps-plan ARGS='-p quick-xml@0.40'" \
 	  "  deps-upgrade       apply a manifest upgrade: make deps-upgrade ARGS='-p quick-xml@0.40'" \
 	  "  fmt                cargo fmt + taplo fmt (write)" \
@@ -140,6 +143,15 @@ _require-cargo-outdated:
 	  exit 1; \
 	}
 
+_require-cargo-deny:
+	@command -v cargo-deny >/dev/null 2>&1 || { \
+	  echo ""; \
+	  echo "MISSING TOOL: cargo deny"; \
+	  echo "  Install: cargo install cargo-deny --locked"; \
+	  echo ""; \
+	  exit 1; \
+	}
+
 
 # ------------------------------------------------------------------------------
 # Build
@@ -149,6 +161,9 @@ build:
 
 check:
 	cargo check --all-targets
+
+deps-deny: _require-cargo-deny
+	@bash scripts/upgrade-deps.sh deny $(ARGS)
 
 deps-audit: _require-cargo-outdated
 	@bash scripts/upgrade-deps.sh audit
