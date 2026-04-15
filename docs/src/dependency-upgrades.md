@@ -172,7 +172,7 @@ make deps-deny ARGS="licenses"
 
 ## Unmaintained crate policy
 
-`deny.toml` uses `unmaintained = "deny"` to check the full dependency graph,
+`deny.toml` uses `unmaintained = "all"` to check the full dependency graph,
 not just direct workspace dependencies. If `cargo deny check` fails on an
 unmaintained transitive crate, add an entry to `[advisories].ignore` with a
 `reason` field before merging (see the exception format below).

@@ -56,7 +56,7 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 # Fail on unmaintained crates across the full dependency graph. Add entries to
 # the ignore list below for any transitive crates that have no upstream fix and
 # pose no realistic exploitation risk; every ignore entry must include a reason.
-unmaintained = "deny"
+unmaintained = "all"
 
 # Yanked versions are a post-publish retraction signal; always block on them.
 yanked = "deny"
