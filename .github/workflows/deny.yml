@@ -1,0 +1,55 @@
+name: cargo-deny
+
+# cargo-deny checks run independently of the compilation pipeline:
+#   - [advisories]: rejects active RustSec security advisories
+#   - [bans]:       detects wildcard version requirements and duplicate crate versions
+#   - [licenses]:   enforces the allow-list in deny.toml
+#   - [sources]:    restricts crate registries to crates.io + allowed git sources
+#
+# The check is kept in a dedicated workflow so it can be bypassed by
+# maintainers with a label if a triage window is needed, without touching
+# the main CI gate.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**/Cargo.toml"
+      - "deny.toml"
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**/Cargo.toml"
+      - "deny.toml"
+
+concurrency:
+  group: deny-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deny:
+    name: cargo deny check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          git init .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --depth=1 origin "$SHA"
+          git checkout --detach FETCH_HEAD
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: cargo deny check
+        run: cargo deny check advisories bans licenses sources

@@ -1,0 +1,153 @@
+# deny.toml — cargo-deny configuration for vexcoder
+#
+# cargo-deny provides three orthogonal safety layers on top of the
+# cargo-upgrade / cargo-outdated workflow documented in
+# docs/src/dependency-upgrades.md:
+#
+#   [advisories] — rejects crates with active RustSec security advisories.
+#   [bans]       — rejects wildcard requirements and checks for duplicate crate versions.
+#   [licenses]   — enforces acceptable open-source licenses across the graph.
+#   [sources]    — restricts where crates may be fetched from.
+#
+# Run locally:
+#   cargo deny check                   # all four categories
+#   cargo deny check advisories        # security gate only
+#   cargo deny check licenses          # license gate only
+#
+# Or via the Makefile wrapper:
+#   make deps-deny
+#   make deps-deny ARGS="advisories"
+#
+# Design choices vs. alternatives considered:
+#
+#   Dependabot / Renovate Bot — auto-PR services that open version-bump PRs
+#   automatically. Rejected for this repo because: version bumps frequently
+#   require coordinated source changes at seam files, which can only be
+#   authored in context; an automated PR with only a manifest line change
+#   would fail CI if an API changes. The audit/plan/apply workflow achieves
+#   the same discovery benefit while keeping the source edit in the same PR.
+#
+#   cargo-machete — detects dependencies declared in Cargo.toml but not
+#   imported anywhere. Noted as a useful complementary tool for future
+#   periodic dead-dependency sweeps; not enforced in CI today because
+#   build-dep and dev-dep false positives require triage per crate.
+#
+#   cargo-audit — RustSec advisory scanner. cargo-deny's [advisories] check
+#   subsumes cargo-audit for CI purposes; cargo-audit is still useful locally
+#   for advisory-only scans without the full deny config.
+#
+# See: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# Evaluate the full workspace graph. Set targets for cross-compilation checks.
+all-features = false
+no-default-features = false
+
+# ---------------------------------------------------------------------------
+# 1. Security advisory checks
+# ---------------------------------------------------------------------------
+[advisories]
+version = 2
+# The advisory database is fetched from the RustSec Advisory DB.
+# cargo-deny-action pins the fetch in CI; local runs clone/update on demand.
+db-path = "$CARGO_HOME/advisory-dbs"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+
+# Only fail for unmaintained crates that are direct workspace dependencies,
+# not for every transitive crate in the ecosystem (many third-party ecosystems
+# carry legitimately unmaintained transitives with no known replacement).
+# codex-rs uses the same "workspace" scope for this check.
+unmaintained = "workspace"
+
+# Yanked versions are a post-publish retraction signal; always block on them.
+yanked = "deny"
+
+# Emit a warning when an entry in this list is no longer encountered,
+# so stale exception entries get cleaned up.
+unused-ignored-advisory = "warn"
+
+# Explicit advisory exceptions. Each entry MUST include a `reason` field that
+# records the dependency path, why the advisory does not affect this codebase,
+# and the expected resolution condition (upgrade path or upstream fix).
+# Pattern follows codex-rs: keep in sync with any .cargo/audit.toml if added.
+ignore = []
+
+# ---------------------------------------------------------------------------
+# 2. Dependency graph quality
+# ---------------------------------------------------------------------------
+[bans]
+# Allow multiple versions when they arise transitively.
+# The current graph carries several platform-specific Windows support crates
+# and other non-actionable transitive splits that do not justify blocking CI.
+# Version consolidation still happens during dependency maintenance, but it is
+# not treated as a release gate here.
+multiple-versions = "allow"
+
+# Disallow wildcard (*) version requirements. The central
+# [workspace.dependencies] table must pin at least a major version.
+wildcards = "deny"
+
+# Allow wildcard requirements in path-only (local) crates — these never
+# reach crates.io, so the wildcard only affects the local resolution.
+allow-wildcard-paths = true
+
+# Crates explicitly allowed despite appearing in the bans config.
+allow = []
+
+# Crates to deny. Add entries here for crates with known security or
+# licensing issues that have safe alternatives already available.
+deny = []
+
+# Per-version skip entries for crates where a duplicate version is known
+# and triaged. Each entry must include a reason comment.
+skip = []
+
+# ---------------------------------------------------------------------------
+# 3. License compliance
+# ---------------------------------------------------------------------------
+[licenses]
+version = 2
+
+# Accepted SPDX license identifiers across the dependency graph.
+# List covers the OSS licenses in common use across the Rust ecosystem.
+# Mirrors the allow-list used by codex-rs (which shares several of the
+# same crates: ratatui, reqwest, crossterm, tree-sitter, axum, tokio).
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "CDLA-Permissive-2.0",
+  "ISC",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "CC0-1.0",
+  "Zlib",
+  "0BSD",
+  "Unlicense",
+  "BSL-1.0",
+  "MIT-0",
+]
+
+# Exceptions for crates with non-standard license expressions. Add an entry
+# here when a crate uses a valid but unlisted identifier and the license has
+# been manually reviewed and approved.
+exceptions = []
+
+# ---------------------------------------------------------------------------
+# 4. Source registry restrictions
+# ---------------------------------------------------------------------------
+[sources]
+# Reject crates fetched from unknown or unregistered sources.
+# All production crates should come from crates.io.
+unknown-registry = "deny"
+unknown-git = "deny"
+
+# Git sources must be pinned to an immutable revision (rev), not a branch.
+required-git-spec = "rev"
+
+# Permitted git sources. Add entries here only after explicit triage;
+# document the reason the crate is not available on crates.io.
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

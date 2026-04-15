@@ -17,6 +17,7 @@ pub mod sse;
 mod tests;
 pub mod util;
 
+use crate::app::runtime_tokio::{signal, spawn, task::JoinSet};
 #[cfg(not(unix))]
 use anyhow::bail;
 use anyhow::{Result, anyhow};
@@ -24,7 +25,6 @@ use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::Config;
@@ -81,8 +81,8 @@ pub async fn serve_local_api(
     let state = LocalApiState::new(config);
     let shutdown = CancellationToken::new();
     let shutdown_signal = shutdown.clone();
-    let signal_task = tokio::spawn(async move {
-        if tokio::signal::ctrl_c().await.is_ok() {
+    let signal_task = spawn(async move {
+        if signal::ctrl_c().await.is_ok() {
             shutdown_signal.cancel();
         }
     });

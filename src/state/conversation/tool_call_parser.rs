@@ -60,6 +60,12 @@ impl ToolCallParser for TaggedParser {
 
 pub(crate) struct XmlFallbackParser;
 
+fn decode_xml_text(text: &quick_xml::events::BytesText<'_>) -> Option<String> {
+    // Keep quick-xml text decoding behind one helper so API churn lands here
+    // instead of leaking across the fallback parser.
+    text.decode().ok().map(|value| value.into_owned())
+}
+
 impl XmlFallbackParser {
     /// Try to parse tool calls from generic XML patterns:
     ///   `<tool_call>…</tool_call>`  or  `<invoke name="…">…</invoke>`
@@ -149,8 +155,8 @@ impl XmlFallbackParser {
                     _ => {}
                 },
                 Ok(XmlEvent::Text(ref e)) if depth > 0 && current_key.is_some() => {
-                    if let (Some(key), Ok(val)) = (current_key.take(), e.unescape()) {
-                        current_params.insert(key, serde_json::Value::String(val.into_owned()));
+                    if let (Some(key), Some(val)) = (current_key.take(), decode_xml_text(e)) {
+                        current_params.insert(key, serde_json::Value::String(val));
                     }
                 }
                 Ok(XmlEvent::End(ref e)) => match e.name().as_ref() {

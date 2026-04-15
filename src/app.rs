@@ -17,6 +17,7 @@ use crate::runtime::r#loop::Runtime;
 use crate::runtime::mode::RuntimeMode;
 use crate::runtime::project_instructions::{LoadResult, load_project_instructions};
 use crate::runtime::task_state::SessionNote;
+use crate::runtime::tokio::sync::{mpsc, oneshot};
 use crate::runtime::validation::ValidationSuite;
 use crate::runtime::{
     ApprovalScope, Capability, CommandRequest, CommandRunner, ConfiguredSandbox,
@@ -42,15 +43,14 @@ use crate::tools::ToolOperator;
 use crate::turn_evidence::ToolInvocationSummary;
 use crate::turn_evidence::note_changed_files_from_tool_call;
 use crate::types::ModelProfile;
-use anyhow::Result;
 #[cfg(test)]
-use crossterm::event::{Event, KeyCode, KeyModifiers};
+use crate::ui::tui::event::{Event, KeyCode, KeyModifiers};
+use anyhow::Result;
 use std::cell::{Cell, RefCell};
 use std::io::Write;
 use std::ops::Range;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 mod commands;
@@ -94,6 +94,7 @@ pub use self::task_facade::{
     facade_schedule_team, facade_task_graph, facade_update_session_task_status,
     facade_watch_rollup, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
 };
+pub use crate::runtime::tokio as runtime_tokio;
 
 use self::overlay::summarize_tool_approval_context;
 #[cfg(test)]
@@ -118,7 +119,7 @@ struct PendingApproval {
 }
 
 enum PendingApprovalAction {
-    Tool(tokio::sync::oneshot::Sender<bool>),
+    Tool(oneshot::Sender<bool>),
     InlineCommand(PendingInlineCommand),
 }
 
@@ -129,7 +130,7 @@ struct PendingInlineCommand {
 struct PendingPatchApproval {
     patch_preview: String,
     scroll_offset: usize,
-    response_tx: Option<tokio::sync::oneshot::Sender<bool>>,
+    response_tx: Option<oneshot::Sender<bool>>,
 }
 
 struct PendingResumeSelection {

@@ -13,3 +13,7 @@
 - [CLI and TUI Commands](commands.md)
 - [Performance](performance.md)
 - [Legacy Config Note](migration.md)
+
+# Maintainer Guide
+
+- [Dependency Upgrades](dependency-upgrades.md)

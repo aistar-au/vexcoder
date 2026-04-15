@@ -1,7 +1,7 @@
 pub(super) use super::*;
 pub(super) use crate::api::{ApiClient, mock_client::MockApiClient};
 pub(super) use crate::ui::editor::{InputAction, InputEditor};
-pub(super) use crossterm::event::KeyEvent;
+pub(super) use crate::ui::tui::event::KeyEvent;
 pub(super) use futures::FutureExt;
 pub(super) use std::collections::HashMap;
 pub(super) use std::sync::Arc;

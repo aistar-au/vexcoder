@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail};
 use axum::Json;
-use axum::http::StatusCode;
+use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::io::BufReader;
 use std::net::ToSocketAddrs;
@@ -11,6 +11,7 @@ use std::sync::Arc;
 use super::ResolvedUnixSurface;
 use super::{ControlResponse, HttpSurfaceSettings, ResolvedHttpSurface, ResolvedServeConfig};
 use crate::config::Config;
+use crate::http_facade::StatusCode;
 
 pub fn resolve_serve_config(
     config: &Config,
@@ -133,10 +134,11 @@ pub fn build_http_tls_config(
 }
 
 fn load_pem_certificates(path: &Path) -> Result<Vec<CertificateDer<'static>>> {
-    let file = std::fs::File::open(path)
-        .with_context(|| format!("failed to read PEM certificates from '{}'", path.display()))?;
-    let mut reader = BufReader::new(file);
-    let certificates = rustls_pemfile::certs(&mut reader)
+    let reader =
+        BufReader::new(std::fs::File::open(path).with_context(|| {
+            format!("failed to read PEM certificates from '{}'", path.display())
+        })?);
+    let certificates = CertificateDer::pem_reader_iter(reader)
         .collect::<std::result::Result<Vec<_>, _>>()
         .with_context(|| format!("failed to parse PEM certificates from '{}'", path.display()))?;
     if certificates.is_empty() {
@@ -151,52 +153,8 @@ fn validate_pem_certificates(path: &Path) -> Result<()> {
 }
 
 fn load_private_key(path: &Path) -> Result<PrivateKeyDer<'static>> {
-    let pkcs8 = load_first_private_key(path, PrivateKeyFormat::Pkcs8)?;
-    if let Some(key) = pkcs8 {
-        return Ok(key);
-    }
-
-    let sec1 = load_first_private_key(path, PrivateKeyFormat::Sec1)?;
-    if let Some(key) = sec1 {
-        return Ok(key);
-    }
-
-    let rsa = load_first_private_key(path, PrivateKeyFormat::Rsa)?;
-    if let Some(key) = rsa {
-        return Ok(key);
-    }
-
-    bail!("no supported PEM private key found in '{}'", path.display())
-}
-
-enum PrivateKeyFormat {
-    Pkcs8,
-    Sec1,
-    Rsa,
-}
-
-fn load_first_private_key(
-    path: &Path,
-    format: PrivateKeyFormat,
-) -> Result<Option<PrivateKeyDer<'static>>> {
-    let file = std::fs::File::open(path)
-        .with_context(|| format!("failed to read PEM private key from '{}'", path.display()))?;
-    let mut reader = BufReader::new(file);
-    let key = match format {
-        PrivateKeyFormat::Pkcs8 => rustls_pemfile::pkcs8_private_keys(&mut reader)
-            .next()
-            .transpose()?
-            .map(Into::into),
-        PrivateKeyFormat::Sec1 => rustls_pemfile::ec_private_keys(&mut reader)
-            .next()
-            .transpose()?
-            .map(Into::into),
-        PrivateKeyFormat::Rsa => rustls_pemfile::rsa_private_keys(&mut reader)
-            .next()
-            .transpose()?
-            .map(Into::into),
-    };
-    Ok(key)
+    PrivateKeyDer::from_pem_file(path)
+        .with_context(|| format!("failed to parse PEM private key from '{}'", path.display()))
 }
 
 #[cfg(unix)]

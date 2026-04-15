@@ -64,6 +64,8 @@ enum SourceLanguage {
 
 impl SourceLanguage {
     fn parser_language(self) -> tree_sitter::Language {
+        // Keep tree-sitter grammar wiring in one place so grammar crate bumps
+        // only need code review in this file.
         match self {
             Self::Rust => tree_sitter_rust::LANGUAGE.into(),
             Self::Python => tree_sitter_python::LANGUAGE.into(),

@@ -1,7 +1,4 @@
 use anyhow::{Context, Result};
-use axum::extract::Request;
-use axum::http::header::{AUTHORIZATION, STRICT_TRANSPORT_SECURITY};
-use axum::http::{HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::routing::{get, patch, post};
@@ -22,8 +19,10 @@ use super::handlers::{
     turns_handler, update_session_task_status_handler, watch_handler, watch_session_task_handler,
 };
 use super::{ControlResponse, HSTS_HEADER_VALUE, HttpSurfaceSettings, ResolvedHttpSurface};
+use crate::app::runtime_tokio::{net::TcpListener, select, spawn};
 #[cfg(test)]
 use crate::config::Config;
+use crate::http_facade::{HeaderValue, Request, StatusCode, header};
 use crate::local_api::LocalApiState;
 
 #[cfg(test)]
@@ -92,7 +91,7 @@ async fn authorize_http_request(
 ) -> Response {
     let provided = request
         .headers()
-        .get(AUTHORIZATION)
+        .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
         .map(str::trim);
     if provided != Some(expected_header.as_ref()) {
@@ -102,7 +101,7 @@ async fn authorize_http_request(
     let mut response = next.run(request).await;
     if hsts_enabled {
         response.headers_mut().insert(
-            STRICT_TRANSPORT_SECURITY,
+            header::STRICT_TRANSPORT_SECURITY,
             HeaderValue::from_static(HSTS_HEADER_VALUE),
         );
     }
@@ -126,7 +125,7 @@ pub async fn run_http_surface(
     surface: ResolvedHttpSurface,
     shutdown: CancellationToken,
 ) -> Result<()> {
-    let listener = tokio::net::TcpListener::bind((surface.bind_addr.as_str(), surface.port))
+    let listener = TcpListener::bind((surface.bind_addr.as_str(), surface.port))
         .await
         .with_context(|| {
             format!(
@@ -147,21 +146,21 @@ pub async fn run_http_surface(
 }
 
 async fn serve_tls_listener(
-    listener: tokio::net::TcpListener,
+    listener: TcpListener,
     router: Router,
     tls_config: Arc<rustls::ServerConfig>,
     shutdown: CancellationToken,
 ) -> Result<()> {
     let acceptor = TlsAcceptor::from(tls_config);
     loop {
-        tokio::select! {
+        select! {
             _ = shutdown.cancelled() => return Ok(()),
             accepted = listener.accept() => {
                 let (stream, _) = accepted.context("failed to accept LocalApiServer TLS connection")?;
                 let acceptor = acceptor.clone();
                 let service = TowerToHyperService::new(router.clone());
                 let shutdown = shutdown.clone();
-                tokio::spawn(async move {
+                spawn(async move {
                     let tls_stream = match acceptor.accept(stream).await {
                         Ok(stream) => stream,
                         Err(error) => {
@@ -172,7 +171,7 @@ async fn serve_tls_listener(
                     let io = TokioIo::new(tls_stream);
                     let builder = HyperConnectionBuilder::new(TokioExecutor::new());
                     let connection = builder.serve_connection(io, service);
-                    tokio::select! {
+                    select! {
                         _ = shutdown.cancelled() => {}
                         result = connection => {
                             if let Err(error) = result {

@@ -59,7 +59,65 @@ sequence, TTY-size API, or quoted log output.
 
 Every PR body uses five sections in this order: `Summary`, `Motivation`,
 `Approach`, `Validation`, and `Risks`. Do not omit `Risks`, even for docs-only
-or small cleanup lanes.
+or small cleanup changes.
+
+## Dependency upgrades
+
+Direct crate version requirements live in the root `Cargo.toml`
+`[workspace.dependencies]` table. Workspace members inherit those entries with
+`workspace = true` so most dependency upgrades stay confined to one manifest
+section plus any version-sensitive seam file.
+
+Rust does not offer a runtime "crate version variable" for these upgrades.
+Versions are resolved at compile time, so when a bump needs source edits, use
+the root `Cargo.toml` `[workspace.metadata.upgrade-seams]` and
+`[workspace.metadata.upgrade-notes]` tables as the reviewed map of which files
+should absorb API churn.
+
+Use the repository wrappers instead of ad hoc manifest edits:
+
+```bash
+# Install the maintenance tools once.
+cargo install cargo-edit --locked --no-default-features --features upgrade
+cargo install cargo-outdated --locked
+cargo install cargo-deny --locked
+
+# 0. Security and license gate — always run first.
+make deps-deny
+
+# 1. Audit stale direct dependencies across the workspace.
+make deps-audit
+
+# 2. Preview a manifest change without writing files.
+make deps-plan ARGS='-p quick-xml@0.40 -p tree-sitter@0.27'
+
+# 3. Apply the manifest change, refresh Cargo.lock, and run cargo check.
+make deps-upgrade ARGS='-p quick-xml@0.40 -p tree-sitter@0.27'
+
+# 4. Re-run the security gate after the upgrade.
+make deps-deny
+```
+
+`make deps-deny` runs `cargo-deny`: it checks the RustSec advisory database for
+known vulnerabilities, verifies all crate licenses against the allow-list in
+`deny.toml`, reports wildcard version requirements, and restricts crate sources to
+crates.io. Run it before and after every upgrade batch.
+
+Cargo's default semver requirements are the repository default. Prefer entries
+such as `"1"` or `"0.39"` over manually constrained upper bounds unless a
+documented compatibility reason requires something narrower. `cargo upgrade`
+updates `Cargo.toml`; `cargo update` refreshes `Cargo.lock`.
+
+When an upgraded crate needs source changes, keep that wiring localized to the
+existing seam files instead of spreading version-specific code through the tree:
+
+- TUI stack (`ratatui`, `crossterm`, `ansi-to-tui`, `ratatui-macros`): `src/ui/tui.rs`, `src/tui_handle.rs`
+- XML tool-call parsing (`quick-xml`): `src/state/conversation/tool_call_parser.rs`
+- Structural indexing (`tree-sitter` and grammar crates): `src/tools/index.rs`
+- Markdown rendering (`pulldown-cmark`, `syntect`): `src/ui/render/markdown.rs`
+- HTTP and MCP stack (`reqwest`, `rustls`, `rmcp`): `src/api/client/mod.rs`, `src/mcp.rs`, `src/server/`
+
+Full workflow documentation: `docs/src/dependency-upgrades.md`
 
 ---
 
@@ -224,7 +282,7 @@ instructions file under `.github/`.
   promotion work, but the remote agent catalog itself is resolved from the
   default-branch profile set before the session starts.
 - Keep the preferred model pinned inside the agent profile itself rather than
-  passing a model flag in `gh agent-task create`. If the hosting surface does
+  passing a model option in `gh agent-task create`. If the hosting surface does
   not honor the profile pin, record the observed behavior in the session log
   instead of changing invocation style.
 - If `rg` is unavailable in the hosted runner, fall back to `git grep -n`,
@@ -241,17 +299,17 @@ instructions file under `.github/`.
   workflows, run `cargo fmt --check`, `cargo test --all-targets`, and
   `bash scripts/check_forbidden_names.sh` first. Run `make gate-fast` only if
   the runner image already has the required gate tools.
-- For one feature lane, keep one authoritative integration branch and one
+- For one feature track, keep one authoritative integration branch and one
   final PR to `main`. Parallel hosted shard PRs are allowed only when each
   shard has an explicit disjoint write set and all accepted commits are
   promoted onto the shared integration branch before merge.
-- For any remote code-bearing lane, create or reuse the draft PR before the
+- For any remote code-bearing branch, create or reuse the draft PR before the
   first code-bearing push. Do not wait for a later merge prompt to open the
   PR.
 - After every code-bearing commit or patch set, push immediately, fetch
   `origin`, and verify `HEAD` matches `origin/<branch>`. Do not continue from
   unpublished local-only branch state.
-- Once the remote lane exists, treat the remote branch head and PR state as
+- Once the remote branch/PR exists, treat the remote branch head and PR state as
   authoritative for commit-debug, CI watch, PR body updates, review cleanup,
   and merge readiness.
 - Every `gh agent-task create` invocation must be followed immediately by an
@@ -289,7 +347,7 @@ Available profiles:
 
 ### Parallel UI overhaul pattern
 
-Use this pattern when the UI lane is broad enough to justify concurrent
+Use this pattern when the UI workstream is broad enough to justify concurrent
 repository-hosted sessions.
 
 1. Create and push one shared integration branch from the latest `origin/main`.

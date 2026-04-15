@@ -3,7 +3,7 @@ use crate::app::scroll::apply_bounded_scroll;
 use crate::tool_preview::{ToolPreviewStyle, preview_tool_input};
 
 #[cfg(test)]
-use crossterm::event::{Event, KeyCode, KeyModifiers};
+use crate::ui::tui::event::{Event, KeyCode, KeyModifiers};
 
 impl TuiMode {
     pub(super) fn pending_tool_step_id(&self, tool_name: &str, input_preview: &str) -> Option<u64> {

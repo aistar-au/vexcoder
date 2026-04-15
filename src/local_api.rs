@@ -19,6 +19,7 @@ use crate::runtime::json_handoff::{
     runtime_approval_request_event,
 };
 use crate::runtime::mode::RuntimeMode;
+use crate::runtime::tokio::sync::{Mutex as AsyncMutex, broadcast, mpsc, oneshot};
 #[cfg(test)]
 use crate::state::ConversationManager;
 use crate::state::TurnToolPolicy;
@@ -27,8 +28,6 @@ use crate::tools::ToolOperator;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tokio::sync::Mutex as AsyncMutex;
-use tokio::sync::{broadcast, mpsc};
 
 const SESSION_TASK_EVENT_BUFFER: usize = 64;
 
@@ -58,7 +57,7 @@ pub(crate) struct LocalApiTaskShared {
 pub(crate) struct PendingApproval {
     pub capability: String,
     pub scope: String,
-    pub response_tx: tokio::sync::oneshot::Sender<bool>,
+    pub response_tx: oneshot::Sender<bool>,
 }
 
 pub(crate) enum FrontendCommand {

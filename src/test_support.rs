@@ -1,4 +1,4 @@
-use tokio::sync::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
+use crate::runtime::tokio::sync::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 
 pub struct EnvLock {
     inner: AsyncMutex<()>,

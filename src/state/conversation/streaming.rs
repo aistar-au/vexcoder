@@ -2,8 +2,8 @@ use super::super::stream_block::{StreamBlock, ToolStatus};
 use super::{ConversationManager, ConversationStreamUpdate};
 use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::task_document::{AssistantPhase, TurnEntry};
+use crate::runtime::tokio::sync::mpsc;
 use std::collections::BTreeSet;
-use tokio::sync::mpsc;
 
 impl ConversationManager {
     /// Insert or update a stream block in the active turn and emit a

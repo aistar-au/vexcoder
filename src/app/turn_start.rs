@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime::tokio::task::spawn_blocking;
 
 impl TuiMode {
     pub(super) fn start_single_turn(
@@ -52,11 +53,9 @@ impl TuiMode {
         let operator = ToolOperator::new(self.working_dir.clone());
         let scope_instruction_for_task = scope_instruction.to_string();
         let assembled = block_on_context_task(async move {
-            tokio::task::spawn_blocking(move || {
-                assembler.assemble(&scope_instruction_for_task, &operator)
-            })
-            .await
-            .map_err(|error| anyhow::anyhow!("failed to join context assembly task: {error}"))?
+            spawn_blocking(move || assembler.assemble(&scope_instruction_for_task, &operator))
+                .await
+                .map_err(|error| anyhow::anyhow!("failed to join context assembly task: {error}"))?
         })?;
         self.last_assembled_context = Some(assembled.clone());
         Ok(assembled)

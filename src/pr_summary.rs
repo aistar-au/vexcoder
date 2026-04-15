@@ -4,11 +4,12 @@ use std::path::{Path, PathBuf};
 use crate::batch_mode::{BatchResult, BatchRunOpts, OutputFormat, run_batch};
 use crate::config::Config;
 use crate::prompts::render_pr_summary_prompt;
+use crate::runtime::tokio::task::spawn_blocking;
 use crate::runtime::{ContextAssembler, TaskState};
 
 pub async fn run_git_capture(cwd: PathBuf, args: Vec<String>) -> Result<String> {
     let command_display = format!("git {}", args.join(" "));
-    let output = tokio::task::spawn_blocking(move || {
+    let output = spawn_blocking(move || {
         std::process::Command::new("git")
             .current_dir(cwd)
             .args(&args)

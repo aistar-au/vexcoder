@@ -1,22 +1,22 @@
 use axum::Json;
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tokio::sync::mpsc;
 
 use super::SSE_KEEPALIVE_INTERVAL;
 use super::sse::runtime_sse_response;
 use super::util::{bad_request, conflict, internal_error, not_found};
+use crate::app::runtime_tokio::{spawn, sync::mpsc};
 use crate::app::{
     DelegateError, ScheduleTeamError, execute_facade_runtime, facade_delegate_session_task,
     facade_get_session_task, facade_list_agents, facade_poll_join, facade_release_session_task,
     facade_schedule_team, facade_watch_rollup,
 };
+use crate::http_facade::{StatusCode, header};
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
 };
@@ -368,7 +368,7 @@ pub async fn turns_handler(
 
     Ok((
         StatusCode::OK,
-        [(axum::http::header::CACHE_CONTROL, "no-cache")],
+        [(header::CACHE_CONTROL, "no-cache")],
         runtime_sse_response(envelope_rx, SSE_KEEPALIVE_INTERVAL),
     ))
 }
@@ -450,7 +450,7 @@ fn spawn_local_api_task(
     shared: Arc<Mutex<LocalApiTaskShared>>,
     interrupt_rx: mpsc::UnboundedReceiver<FrontendCommand>,
 ) {
-    tokio::spawn(async move {
+    spawn(async move {
         let result = run_local_api_task(
             state.config.clone(),
             task_id.clone(),
