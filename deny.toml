@@ -28,9 +28,9 @@
 #   the same discovery benefit while keeping the source edit in the same PR.
 #
 #   cargo-machete — detects dependencies declared in Cargo.toml but not
-#   imported anywhere. Noted as a useful complementary tool for future
-#   periodic dead-dependency sweeps; not enforced in CI today because
-#   build-dep and dev-dep false positives require triage per crate.
+#   imported anywhere. Integrated in `make deps-audit` (scripts/upgrade-deps.sh).
+#   Not enforced in CI because build-dep and dev-dep false positives require
+#   per-crate triage.
 #
 #   cargo-audit — RustSec advisory scanner. cargo-deny's [advisories] check
 #   subsumes cargo-audit for CI purposes; cargo-audit is still useful locally
@@ -53,11 +53,10 @@ version = 2
 db-path = "$CARGO_HOME/advisory-dbs"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 
-# Only fail for unmaintained crates that are direct workspace dependencies,
-# not for every transitive crate in the ecosystem (many third-party ecosystems
-# carry legitimately unmaintained transitives with no known replacement).
-# codex-rs uses the same "workspace" scope for this check.
-unmaintained = "workspace"
+# Fail on unmaintained crates across the full dependency graph. Add entries to
+# the ignore list below for any transitive crates that have no upstream fix and
+# pose no realistic exploitation risk; every ignore entry must include a reason.
+unmaintained = "deny"
 
 # Yanked versions are a post-publish retraction signal; always block on them.
 yanked = "deny"

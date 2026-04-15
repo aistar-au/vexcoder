@@ -45,7 +45,9 @@ distinct problem:
 | Tool | Purpose | Manifest change? |
 | :--- | :--- | :--- |
 | `cargo deny` | Security advisories, license compliance, graph quality | No |
+| `cargo machete` | Detects unused direct dependencies in `Cargo.toml` | No |
 | `cargo outdated` | Reports which direct requirements have newer releases | No |
+| `cargo semver-checks` | Verifies library crate API compatibility after upgrades | No |
 | `cargo upgrade` | Edits `Cargo.toml` requirement strings to latest compatible version | Yes |
 | `cargo update` | Refreshes `Cargo.lock` to newest versions allowed by existing requirements | No |
 
@@ -65,10 +67,17 @@ achieves the same stale-version discovery benefit while keeping the source edit
 co-authored in the same PR.
 
 **`cargo-machete`** — scans for dependencies declared in `Cargo.toml` but
-unused by source files. Useful as a periodic cleanup sweep.
-Not enforced in the main CI gate today because build-dependency and
-dev-dependency false positives require per-crate triage. Can be run locally:
-`cargo install cargo-machete && cargo machete`.
+unused by source files. Integrated in `make deps-audit`: running
+`make deps-audit` now reports both unused dependencies (machete) and stale
+version requirements (outdated) in one pass. Not enforced in the main CI gate
+because build-dependency and dev-dependency false positives require per-crate
+triage.
+
+**`cargo-semver-checks`** — verifies that changes to library crate APIs do not
+introduce semver-incompatible breaking changes. Integrated in `make deps-upgrade`:
+after applying a manifest upgrade, `cargo-semver-checks` compares the library
+crate APIs against `origin/main` and reports any regressions. Advisory only:
+exits non-zero on breakage but does not block the upgrade step.
 
 **`cargo-audit`** — the RustSec advisory scanner from the rust-secure-code
 working group. `cargo-deny`'s `[advisories]` check subsumes `cargo-audit` for
@@ -99,6 +108,8 @@ unrelated to direct dependency hygiene. `cargo-deny`'s `bans.multiple-versions
 cargo install cargo-edit --locked --no-default-features --features upgrade
 cargo install cargo-outdated --locked
 cargo install cargo-deny --locked
+cargo install cargo-machete --locked
+cargo install cargo-semver-checks --locked
 ```
 
 `cargo-edit` provides `cargo upgrade`, which edits `Cargo.toml` requirements.
@@ -106,6 +117,10 @@ cargo install cargo-deny --locked
 change.
 `cargo-deny` checks security advisories, licenses, and graph quality against
 the configuration in `deny.toml`.
+`cargo-machete` detects unused direct dependencies and is run as part of
+`make deps-audit`.
+`cargo-semver-checks` verifies that library crate APIs remain semver-compatible
+after an upgrade and is run as part of `make deps-upgrade`.
 
 ## Standard upgrade workflow
 
@@ -154,6 +169,13 @@ Scoped to one category:
 make deps-deny ARGS="advisories"
 make deps-deny ARGS="licenses"
 ```
+
+## Unmaintained crate policy
+
+`deny.toml` uses `unmaintained = "deny"` to check the full dependency graph,
+not just direct workspace dependencies. If `cargo deny check` fails on an
+unmaintained transitive crate, add an entry to `[advisories].ignore` with a
+`reason` field before merging (see the exception format below).
 
 ## Security advisory exceptions
 
