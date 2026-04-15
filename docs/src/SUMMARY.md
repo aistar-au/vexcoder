@@ -17,3 +17,5 @@
 # Maintainer Guide
 
 - [Dependency Upgrades](dependency-upgrades.md)
+- [Lint Policy](linting.md)
+- [MSRV Policy](msrv.md)

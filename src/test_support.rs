@@ -33,12 +33,14 @@ pub struct EnvLockGuard<'a> {
 }
 
 impl EnvLockGuard<'_> {
+    #[allow(unsafe_code)] // guarded: ENV_LOCK serialises all callers — see SAFETY comment
     pub fn set_var(&self, key: &str, value: impl AsRef<std::ffi::OsStr>) {
         let _ = &self.guard;
         // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
         unsafe { std::env::set_var(key, value) }
     }
 
+    #[allow(unsafe_code)] // guarded: ENV_LOCK serialises all callers — see SAFETY comment
     pub fn remove_var(&self, key: &str) {
         let _ = &self.guard;
         // SAFETY: the guard proves exclusive ownership of ENV_LOCK.
@@ -70,6 +72,7 @@ impl<'a> EnvRestore<'a> {
 }
 
 impl Drop for EnvRestore<'_> {
+    #[allow(unsafe_code)] // lifetime-bounded: EnvRestore cannot outlive its EnvLockGuard — see SAFETY comment
     fn drop(&mut self) {
         match &self.value {
             // SAFETY: EnvRestore cannot outlive the EnvLockGuard it was created from.
