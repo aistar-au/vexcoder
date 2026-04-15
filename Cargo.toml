@@ -88,11 +88,11 @@ unicode-width = "0.2"
 uuid = { version = "1", features = ["v4"] }
 portable-pty = "0.9"
 tempfile = "3"
-quick-xml = "0.37"
+quick-xml = "0.39"
 textwrap = "0.16"
-tree-sitter = "0.24"
-tree-sitter-rust = "0.23"
-x509-parser = "0.17"
+tree-sitter = "0.26"
+tree-sitter-rust = "0.24"
+x509-parser = "0.18"
 ansi-to-tui.workspace = true
 # arboard: used by the /copy slash command (src/app/commands/session.rs) for
 # system clipboard access. default-features = false avoids pulling in the
@@ -107,7 +107,7 @@ similar = "2"
 
 # --- rich terminal rendering ---
 ratatui-macros.workspace = true
-pulldown-cmark = { version = "0.12", default-features = false }
+pulldown-cmark = { version = "0.13", default-features = false }
 syntect = { version = "5", default-features = false, features = [
   "default-fancy",
 ] }
@@ -218,10 +218,10 @@ crossbeam-channel = "0.5"
 # tree-sitter-python: Python grammar for tree-sitter; enables symbol
 #                     extraction and structural search in Python files.
 #                     Wire point: src/tools/index.rs.
-tree-sitter-python = "0.23"
+tree-sitter-python = "0.25"
 # tree-sitter-typescript: TypeScript and TSX grammars for tree-sitter.
 #                         Wire point: src/tools/index.rs.
-tree-sitter-typescript = "0.23"
+tree-sitter-typescript = "0.23.2"
 # tree-sitter-javascript: JavaScript grammar for tree-sitter.
 #                         Wire point: src/tools/index.rs.
 tree-sitter-javascript = "0.25"

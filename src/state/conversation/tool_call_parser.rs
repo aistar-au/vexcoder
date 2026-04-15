@@ -149,7 +149,7 @@ impl XmlFallbackParser {
                     _ => {}
                 },
                 Ok(XmlEvent::Text(ref e)) if depth > 0 && current_key.is_some() => {
-                    if let (Some(key), Ok(val)) = (current_key.take(), e.unescape()) {
+                    if let (Some(key), Ok(val)) = (current_key.take(), e.decode()) {
                         current_params.insert(key, serde_json::Value::String(val.into_owned()));
                     }
                 }
