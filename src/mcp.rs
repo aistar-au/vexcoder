@@ -434,29 +434,29 @@ mod tests {
     #[test]
     fn test_resolve_mcp_header_env_expands_reference() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        crate::test_support::test_set_var("VEX_MCP_TOKEN", "secret-token");
+        crate::test_support::test_set_var(&_lock, "VEX_MCP_TOKEN", "secret-token");
         assert_eq!(
             resolve_mcp_header_env("${VEX_MCP_TOKEN}").unwrap(),
             "secret-token"
         );
-        crate::test_support::test_remove_var("VEX_MCP_TOKEN");
+        crate::test_support::test_remove_var(&_lock, "VEX_MCP_TOKEN");
     }
 
     #[test]
     fn test_resolve_mcp_header_env_expands_templated_reference() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        crate::test_support::test_set_var("VEX_MCP_TOKEN", "secret-token");
+        crate::test_support::test_set_var(&_lock, "VEX_MCP_TOKEN", "secret-token");
         assert_eq!(
             resolve_mcp_header_env("Bearer ${VEX_MCP_TOKEN}").unwrap(),
             "Bearer secret-token"
         );
-        crate::test_support::test_remove_var("VEX_MCP_TOKEN");
+        crate::test_support::test_remove_var(&_lock, "VEX_MCP_TOKEN");
     }
 
     #[test]
     fn test_resolve_mcp_timeout_defaults() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        crate::test_support::test_remove_var("VEX_MCP_TIMEOUT");
+        crate::test_support::test_remove_var(&_lock, "VEX_MCP_TIMEOUT");
         assert_eq!(
             resolve_mcp_timeout(None),
             Duration::from_secs(DEFAULT_MCP_TIMEOUT_SECS),
@@ -466,23 +466,23 @@ mod tests {
     #[test]
     fn test_resolve_mcp_timeout_per_server_wins() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        crate::test_support::test_set_var("VEX_MCP_TIMEOUT", "60");
+        crate::test_support::test_set_var(&_lock, "VEX_MCP_TIMEOUT", "60");
         assert_eq!(resolve_mcp_timeout(Some(10)), Duration::from_secs(10));
-        crate::test_support::test_remove_var("VEX_MCP_TIMEOUT");
+        crate::test_support::test_remove_var(&_lock, "VEX_MCP_TIMEOUT");
     }
 
     #[test]
     fn test_resolve_mcp_timeout_env_fallback() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        crate::test_support::test_set_var("VEX_MCP_TIMEOUT", "45");
+        crate::test_support::test_set_var(&_lock, "VEX_MCP_TIMEOUT", "45");
         assert_eq!(resolve_mcp_timeout(None), Duration::from_secs(45));
-        crate::test_support::test_remove_var("VEX_MCP_TIMEOUT");
+        crate::test_support::test_remove_var(&_lock, "VEX_MCP_TIMEOUT");
     }
 
     #[test]
     fn test_resolve_mcp_timeout_clamps_to_range() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        crate::test_support::test_remove_var("VEX_MCP_TIMEOUT");
+        crate::test_support::test_remove_var(&_lock, "VEX_MCP_TIMEOUT");
         assert_eq!(resolve_mcp_timeout(Some(0)), Duration::from_secs(1));
         assert_eq!(resolve_mcp_timeout(Some(999)), Duration::from_secs(300));
     }

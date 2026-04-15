@@ -256,10 +256,10 @@ async fn test_list_todos_endpoint_excludes_completed_tasks() {
 #[tokio::test]
 async fn test_task_graph_endpoint_scans_large_state_dirs_and_prefers_newest_duplicate() {
     let _env_lock = ENV_LOCK.lock().await;
-    let _state_dir = EnvRestore::capture("VEX_STATE_DIR");
-    let _startup_task_scans = EnvRestore::capture("VEX_MAX_STARTUP_TASK_SCANS");
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
-    crate::test_support::test_remove_var("VEX_MAX_STARTUP_TASK_SCANS");
+    let _state_dir = EnvRestore::capture(&_env_lock, "VEX_STATE_DIR");
+    let _startup_task_scans = EnvRestore::capture(&_env_lock, "VEX_MAX_STARTUP_TASK_SCANS");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_MAX_STARTUP_TASK_SCANS");
 
     let (_temp, nested) = setup_large_scan_fixture();
 
@@ -316,10 +316,10 @@ async fn test_task_graph_endpoint_scans_large_state_dirs_and_prefers_newest_dupl
 #[tokio::test]
 async fn test_list_todos_endpoint_scans_large_state_dirs_and_ignores_older_duplicate_live_tasks() {
     let _env_lock = ENV_LOCK.lock().await;
-    let _state_dir = EnvRestore::capture("VEX_STATE_DIR");
-    let _startup_task_scans = EnvRestore::capture("VEX_MAX_STARTUP_TASK_SCANS");
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
-    crate::test_support::test_remove_var("VEX_MAX_STARTUP_TASK_SCANS");
+    let _state_dir = EnvRestore::capture(&_env_lock, "VEX_STATE_DIR");
+    let _startup_task_scans = EnvRestore::capture(&_env_lock, "VEX_MAX_STARTUP_TASK_SCANS");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_MAX_STARTUP_TASK_SCANS");
 
     let (_temp, nested) = setup_large_scan_fixture();
 

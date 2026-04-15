@@ -721,9 +721,9 @@ mod tests {
     #[test]
     fn bubblewrap_mounts_common_toolchain_roots_and_path_entries() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        let _path = crate::test_support::EnvRestore::capture("PATH");
-        let _cargo_home = crate::test_support::EnvRestore::capture("CARGO_HOME");
-        let _rustup_home = crate::test_support::EnvRestore::capture("RUSTUP_HOME");
+        let _path = crate::test_support::EnvRestore::capture(&_lock, "PATH");
+        let _cargo_home = crate::test_support::EnvRestore::capture(&_lock, "CARGO_HOME");
+        let _rustup_home = crate::test_support::EnvRestore::capture(&_lock, "RUSTUP_HOME");
 
         let temp = tempfile::tempdir().expect("tempdir");
         let workspace = temp.path().join("workspace");
@@ -737,9 +737,10 @@ mod tests {
         fs::create_dir_all(&rustup_home).expect("rustup home");
         fs::create_dir_all(&custom_bin).expect("custom bin");
 
-        crate::test_support::test_set_var("CARGO_HOME", &cargo_home);
-        crate::test_support::test_set_var("RUSTUP_HOME", &rustup_home);
+        crate::test_support::test_set_var(&_lock, "CARGO_HOME", &cargo_home);
+        crate::test_support::test_set_var(&_lock, "RUSTUP_HOME", &rustup_home);
         crate::test_support::test_set_var(
+            &_lock,
             "PATH",
             std::env::join_paths([cargo_bin.as_path(), custom_bin.as_path()]).expect("PATH"),
         );

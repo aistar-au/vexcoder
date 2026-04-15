@@ -33,7 +33,7 @@ fn test_tui_compact_resets_conversation_history() {
 fn test_tui_compact_persists_cleared_turns() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    crate::test_support::test_set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
 
     let mut mode = TuiMode::new();
     mode.task_doc
@@ -65,7 +65,7 @@ fn test_tui_compact_persists_cleared_turns() {
         "/compact must persist cleared turns"
     );
 
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
 #[test]

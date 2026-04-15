@@ -188,10 +188,10 @@ mod tests {
     #[test]
     fn test_embedding_config_absent_without_provider() {
         let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-        crate::test_support::test_remove_var("VEX_EMBEDDING_PROVIDER");
-        crate::test_support::test_remove_var("VEX_EMBEDDING_MODEL");
-        crate::test_support::test_remove_var("VEX_EMBEDDING_URL");
-        crate::test_support::test_remove_var("VEX_EMBEDDING_API_KEY");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_EMBEDDING_PROVIDER");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_EMBEDDING_MODEL");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_EMBEDDING_URL");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_EMBEDDING_API_KEY");
 
         let config = EmbeddingConfig::from_env().unwrap();
         assert!(config.is_none());
@@ -200,10 +200,18 @@ mod tests {
     #[test]
     fn test_embedding_config_parses_compat_provider() {
         let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-        crate::test_support::test_set_var("VEX_EMBEDDING_PROVIDER", "compat");
-        crate::test_support::test_set_var("VEX_EMBEDDING_MODEL", "text-embedding-3-small");
-        crate::test_support::test_set_var("VEX_EMBEDDING_URL", "https://example.invalid/v1/");
-        crate::test_support::test_set_var("VEX_EMBEDDING_API_KEY", "secret");
+        crate::test_support::test_set_var(&_env_lock, "VEX_EMBEDDING_PROVIDER", "compat");
+        crate::test_support::test_set_var(
+            &_env_lock,
+            "VEX_EMBEDDING_MODEL",
+            "text-embedding-3-small",
+        );
+        crate::test_support::test_set_var(
+            &_env_lock,
+            "VEX_EMBEDDING_URL",
+            "https://example.invalid/v1/",
+        );
+        crate::test_support::test_set_var(&_env_lock, "VEX_EMBEDDING_API_KEY", "secret");
 
         let config = EmbeddingConfig::from_env()
             .unwrap()
@@ -214,9 +222,9 @@ mod tests {
         assert_eq!(config.url, "https://example.invalid/v1");
         assert_eq!(config.api_key.as_deref(), Some("secret"));
 
-        crate::test_support::test_remove_var("VEX_EMBEDDING_PROVIDER");
-        crate::test_support::test_remove_var("VEX_EMBEDDING_MODEL");
-        crate::test_support::test_remove_var("VEX_EMBEDDING_URL");
-        crate::test_support::test_remove_var("VEX_EMBEDDING_API_KEY");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_EMBEDDING_PROVIDER");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_EMBEDDING_MODEL");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_EMBEDDING_URL");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_EMBEDDING_API_KEY");
     }
 }

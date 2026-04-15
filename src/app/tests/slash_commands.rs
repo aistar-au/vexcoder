@@ -212,7 +212,7 @@ fn test_tui_commands_renders_all_registered_commands() {
 #[test]
 fn test_agents_and_delegate_commands_manage_session_tasks() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
     let temp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(temp.path().join(".vex")).unwrap();
     std::fs::write(
@@ -252,7 +252,7 @@ members = ["reviewer"]
 #[test]
 fn test_agents_command_counts_live_assignments_from_saved_task_state() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
     let temp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(temp.path().join(".vex")).unwrap();
     std::fs::write(
@@ -291,7 +291,7 @@ allowed_capabilities = ["read-file"]
 #[test]
 fn test_watch_command_reports_saved_session_task() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
     let temp = tempfile::tempdir().unwrap();
     let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
     let mut ctx = setup_ctx();
@@ -317,7 +317,7 @@ fn test_watch_command_reports_saved_session_task() {
 #[test]
 fn test_watch_command_finds_saved_session_task_by_agent_id() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
     let temp = tempfile::tempdir().unwrap();
     let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
     let mut ctx = setup_ctx();
@@ -460,7 +460,7 @@ fn test_custom_command_project_scoped_takes_precedence() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
     let xdg = tempfile::tempdir().unwrap();
-    crate::test_support::test_set_var("XDG_CONFIG_HOME", xdg.path());
+    crate::test_support::test_set_var(&_env_lock, "XDG_CONFIG_HOME", xdg.path());
 
     write_custom_command(
         &xdg.path().join("vex/commands"),
@@ -480,7 +480,7 @@ fn test_custom_command_project_scoped_takes_precedence() {
     let mut mode = TuiMode::new_with_config(None, config_with_workdir(temp.path()));
     let mut ctx = setup_ctx();
     mode.on_user_input("/standup".to_string(), &mut ctx);
-    crate::test_support::test_remove_var("XDG_CONFIG_HOME");
+    crate::test_support::test_remove_var(&_env_lock, "XDG_CONFIG_HOME");
 
     let turn_input = mode.last_turn_input.as_deref().unwrap_or_default();
     assert!(turn_input.contains("PROJECT TEMPLATE"));

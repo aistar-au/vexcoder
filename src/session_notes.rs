@@ -110,8 +110,8 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let home = temp.path().join("home");
         std::fs::create_dir_all(&home).unwrap();
-        crate::test_support::test_set_var("HOME", &home);
-        crate::test_support::test_remove_var("XDG_CONFIG_HOME");
+        crate::test_support::test_set_var(&_lock, "HOME", &home);
+        crate::test_support::test_remove_var(&_lock, "XDG_CONFIG_HOME");
         std::env::set_current_dir(temp.path()).unwrap();
         std::fs::write(temp.path().join(".vex-memory.md"), "repo local note\n").unwrap();
 
@@ -119,12 +119,12 @@ mod tests {
 
         std::env::set_current_dir(old_cwd).unwrap();
         match old_home {
-            Some(value) => crate::test_support::test_set_var("HOME", value),
-            None => crate::test_support::test_remove_var("HOME"),
+            Some(value) => crate::test_support::test_set_var(&_lock, "HOME", value),
+            None => crate::test_support::test_remove_var(&_lock, "HOME"),
         }
         match old_xdg {
-            Some(value) => crate::test_support::test_set_var("XDG_CONFIG_HOME", value),
-            None => crate::test_support::test_remove_var("XDG_CONFIG_HOME"),
+            Some(value) => crate::test_support::test_set_var(&_lock, "XDG_CONFIG_HOME", value),
+            None => crate::test_support::test_remove_var(&_lock, "XDG_CONFIG_HOME"),
         }
 
         assert_eq!(resolved, None);

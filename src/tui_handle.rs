@@ -78,12 +78,12 @@ fn disable_bracketed_paste() -> io::Result<()> {
 
 pub fn setup() -> Result<TuiHandle> {
     let mut tui = if host_has_tty() {
-        install_panic_hook_once();
         let (_, rows) = host_display_size()?;
         let inline_rows = preferred_inline_viewport_rows(rows);
         let inner = ratatui::try_init_with_options(TerminalOptions {
             viewport: Viewport::Inline(inline_rows),
         })?;
+        install_panic_hook_once();
         enable_bracketed_paste()?;
         TuiHandle { inner }
     } else {
@@ -148,7 +148,7 @@ mod tests {
         install_panic_hook_once();
         assert!(
             PANIC_HOOK_INSTALLED.is_completed(),
-            "panic hook must be installed before raw mode setup"
+            "panic hook must wrap the active ratatui hook exactly once"
         );
     }
 }

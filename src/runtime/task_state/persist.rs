@@ -503,7 +503,7 @@ mod tests {
         std::fs::create_dir_all(temp.path().join(".git")).unwrap();
         let nested = temp.path().join("src/nested");
         std::fs::create_dir_all(&nested).unwrap();
-        crate::test_support::test_remove_var("VEX_STATE_DIR");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 
         assert_eq!(
             TaskState::state_dir_from(&nested),
@@ -518,14 +518,14 @@ mod tests {
         std::fs::create_dir_all(temp.path().join(".git")).unwrap();
         let nested = temp.path().join("src/nested");
         std::fs::create_dir_all(&nested).unwrap();
-        crate::test_support::test_set_var("VEX_STATE_DIR", "custom/state");
+        crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", "custom/state");
 
         assert_eq!(
             TaskState::state_dir_from(&nested),
             temp.path().join("custom/state")
         );
 
-        crate::test_support::test_remove_var("VEX_STATE_DIR");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
     }
 
     #[test]
@@ -533,11 +533,11 @@ mod tests {
         let _env_lock = ENV_LOCK.blocking_lock();
         let temp = TempDir::new().unwrap();
         let absolute = temp.path().join("absolute-state");
-        crate::test_support::test_set_var("VEX_STATE_DIR", absolute.as_os_str());
+        crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", absolute.as_os_str());
 
         assert_eq!(TaskState::state_dir_from(temp.path()), absolute);
 
-        crate::test_support::test_remove_var("VEX_STATE_DIR");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
     }
 
     #[test]
@@ -561,7 +561,7 @@ mod tests {
         std::fs::create_dir_all(temp.path().join(".git")).unwrap();
         let nested = temp.path().join("src/nested");
         std::fs::create_dir_all(&nested).unwrap();
-        crate::test_support::test_set_var("VEX_STATE_DIR", "custom/state");
+        crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", "custom/state");
 
         assert_eq!(
             TaskState::state_search_dirs_from(&nested),
@@ -571,7 +571,7 @@ mod tests {
             ]
         );
 
-        crate::test_support::test_remove_var("VEX_STATE_DIR");
+        crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
     }
 
     #[test]
@@ -698,9 +698,9 @@ mod tests {
             .unwrap();
         }
 
-        crate::test_support::test_set_var("VEX_STATE_DIR", state_dir.to_str().unwrap());
+        crate::test_support::test_set_var(&_guard, "VEX_STATE_DIR", state_dir.to_str().unwrap());
         let files = TaskState::state_files_from_with_limit(dir.path(), Some(3));
-        crate::test_support::test_remove_var("VEX_STATE_DIR");
+        crate::test_support::test_remove_var(&_guard, "VEX_STATE_DIR");
 
         assert_eq!(files.len(), 3);
         // Newest first
@@ -722,10 +722,10 @@ mod tests {
             state.save(&state_dir).unwrap();
         }
 
-        crate::test_support::test_set_var("VEX_STATE_DIR", state_dir.to_str().unwrap());
+        crate::test_support::test_set_var(&_guard, "VEX_STATE_DIR", state_dir.to_str().unwrap());
         let with_none = TaskState::state_files_from_with_limit(dir.path(), None);
         let with_explicit = TaskState::state_files_from(dir.path());
-        crate::test_support::test_remove_var("VEX_STATE_DIR");
+        crate::test_support::test_remove_var(&_guard, "VEX_STATE_DIR");
 
         // Both paths now use the same bounded selector; results must match.
         assert_eq!(with_none.len(), with_explicit.len());
@@ -746,10 +746,10 @@ mod tests {
         root.add_session_task(session_task);
         root.save(&state_dir).unwrap();
 
-        crate::test_support::test_set_var("VEX_STATE_DIR", state_dir.to_str().unwrap());
+        crate::test_support::test_set_var(&_guard, "VEX_STATE_DIR", state_dir.to_str().unwrap());
         let result =
             TaskState::find_session_task_in_saved_states(dir.path(), &expected_id).unwrap();
-        crate::test_support::test_remove_var("VEX_STATE_DIR");
+        crate::test_support::test_remove_var(&_guard, "VEX_STATE_DIR");
 
         assert!(result.is_some());
         let (_, found) = result.unwrap();
@@ -767,9 +767,9 @@ mod tests {
         root.add_session_task(SessionTask::new("hdr-task", "analyst", "analyse", None));
         root.save(&state_dir).unwrap();
 
-        crate::test_support::test_set_var("VEX_STATE_DIR", state_dir.to_str().unwrap());
+        crate::test_support::test_set_var(&_guard, "VEX_STATE_DIR", state_dir.to_str().unwrap());
         let counts = TaskState::live_session_task_counts_from(dir.path()).unwrap();
-        crate::test_support::test_remove_var("VEX_STATE_DIR");
+        crate::test_support::test_remove_var(&_guard, "VEX_STATE_DIR");
 
         assert_eq!(counts.get("analyst"), Some(&1));
     }

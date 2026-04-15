@@ -159,16 +159,16 @@ mod tests {
     #[test]
     fn policy_mode_defaults_to_off() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        crate::test_support::test_remove_var("VEX_DISK_POLICY");
+        crate::test_support::test_remove_var(&_lock, "VEX_DISK_POLICY");
         assert_eq!(resolve_policy_mode(), DiskPolicyMode::Off);
     }
 
     #[test]
     fn unknown_policy_mode_defaults_to_off() {
         let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-        crate::test_support::test_set_var("VEX_DISK_POLICY", "mystery");
+        crate::test_support::test_set_var(&_lock, "VEX_DISK_POLICY", "mystery");
         assert_eq!(resolve_policy_mode(), DiskPolicyMode::Off);
-        crate::test_support::test_remove_var("VEX_DISK_POLICY");
+        crate::test_support::test_remove_var(&_lock, "VEX_DISK_POLICY");
     }
 
     #[test]

@@ -76,7 +76,7 @@ data: {"type":"message_stop"}"#.to_string(),
 #[tokio::test]
 async fn test_generate_tests_blocks_non_test_patch_before_approval() -> Result<()> {
     let _env_lock = crate::test_support::ENV_LOCK.lock().await;
-    crate::test_support::test_set_var("VEX_TOOL_CONFIRM", "off");
+    crate::test_support::test_set_var(&_env_lock, "VEX_TOOL_CONFIRM", "off");
 
     let first_response_sse = vec![
         r#"event: message_start
@@ -120,7 +120,7 @@ data: {"type":"message_stop"}"#.to_string(),
         .await?;
     drop(tx);
     let saw_approval_request = approval_task.await?;
-    crate::test_support::test_remove_var("VEX_TOOL_CONFIRM");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_TOOL_CONFIRM");
 
     assert!(
         !saw_approval_request,
@@ -223,14 +223,14 @@ fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_r
 #[test]
 fn test_write_file_rejects_content_above_max_lines() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_set_var("VEX_WRITE_FILE_MAX_LINES", "10");
+    crate::test_support::test_set_var(&_lock, "VEX_WRITE_FILE_MAX_LINES", "10");
     let dir = tempfile::tempdir().unwrap();
     let op = ToolOperator::new(dir.path().to_path_buf());
 
     let long_content: String = (0..15).map(|i| format!("line {i}\n")).collect();
     let input = json!({"path": "big.rs", "content": long_content});
     let result = super::tools::execute_tool_dispatch(&op, "write_file", &input);
-    crate::test_support::test_remove_var("VEX_WRITE_FILE_MAX_LINES");
+    crate::test_support::test_remove_var(&_lock, "VEX_WRITE_FILE_MAX_LINES");
 
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
@@ -242,16 +242,16 @@ fn test_write_file_rejects_content_above_max_lines() {
 #[test]
 fn test_write_file_warns_above_diff_preferred_threshold() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
-    crate::test_support::test_set_var("VEX_DIFF_PREFERRED_ABOVE_LINES", "15");
-    crate::test_support::test_set_var("VEX_WRITE_FILE_MAX_LINES", "500");
+    crate::test_support::test_set_var(&_lock, "VEX_DIFF_PREFERRED_ABOVE_LINES", "15");
+    crate::test_support::test_set_var(&_lock, "VEX_WRITE_FILE_MAX_LINES", "500");
     let dir = tempfile::tempdir().unwrap();
     let op = ToolOperator::new(dir.path().to_path_buf());
 
     let content: String = (0..20).map(|i| format!("line {i}\n")).collect();
     let input = json!({"path": "medium.rs", "content": content});
     let result = super::tools::execute_tool_dispatch(&op, "write_file", &input);
-    crate::test_support::test_remove_var("VEX_DIFF_PREFERRED_ABOVE_LINES");
-    crate::test_support::test_remove_var("VEX_WRITE_FILE_MAX_LINES");
+    crate::test_support::test_remove_var(&_lock, "VEX_DIFF_PREFERRED_ABOVE_LINES");
+    crate::test_support::test_remove_var(&_lock, "VEX_WRITE_FILE_MAX_LINES");
 
     let output = result.expect("write_file should succeed");
     assert!(

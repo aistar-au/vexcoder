@@ -6,7 +6,7 @@ use super::*;
 fn test_tui_fork_saves_parent_before_branching() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    crate::test_support::test_set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
 
     let mut mode = TuiMode::new();
     let parent_id = mode.current_task_id();
@@ -15,14 +15,14 @@ fn test_tui_fork_saves_parent_before_branching() {
 
     let parent_file = temp.path().join(format!("{parent_id}.json"));
     assert!(parent_file.exists(), "/fork must save parent state file");
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
 #[test]
 fn test_tui_fork_creates_new_task_id() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    crate::test_support::test_set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
 
     let mut mode = TuiMode::new();
     let parent_id = mode.current_task_id();
@@ -61,14 +61,14 @@ fn test_tui_fork_creates_new_task_id() {
         mode.history_lines()[0].contains(&format!("branched from {parent_id}")),
         "expected fork confirmation in history"
     );
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
 #[test]
 fn test_tui_fork_does_not_copy_conversation() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    crate::test_support::test_set_var("VEX_STATE_DIR", temp.path().as_os_str());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path().as_os_str());
 
     let mut mode = TuiMode::new();
     mode.push_history_line("stale transcript".to_string());
@@ -83,7 +83,7 @@ fn test_tui_fork_does_not_copy_conversation() {
         !mode.is_turn_in_progress(),
         "/fork must not start a model turn"
     );
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
 #[test]
@@ -92,7 +92,7 @@ fn test_tui_fork_aborts_on_save_failure() {
     let temp = tempfile::tempdir().unwrap();
     let blocking_path = temp.path().join("state-file");
     std::fs::write(&blocking_path, "occupied").unwrap();
-    crate::test_support::test_set_var("VEX_STATE_DIR", blocking_path.as_os_str());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", blocking_path.as_os_str());
 
     let mut mode = TuiMode::new();
     let original_id = mode.current_task_id();
@@ -110,5 +110,5 @@ fn test_tui_fork_aborts_on_save_failure() {
             .any(|l| l.contains("[fork] save failed")),
         "expected save failure message"
     );
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }

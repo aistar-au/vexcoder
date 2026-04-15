@@ -313,7 +313,7 @@ fn test_tui_edit_loop_completion_clears_busy_state() {
 fn test_tui_edit_loop_completion_persists_max_turn_status_in_task_state() {
     let _env_lock = crate::test_support::ENV_LOCK.blocking_lock();
     let temp = tempfile::tempdir().unwrap();
-    crate::test_support::test_set_var("VEX_STATE_DIR", temp.path());
+    crate::test_support::test_set_var(&_env_lock, "VEX_STATE_DIR", temp.path());
 
     let mut mode = TuiMode::new();
     let mut ctx = setup_ctx();
@@ -334,7 +334,7 @@ fn test_tui_edit_loop_completion_persists_max_turn_status_in_task_state() {
     );
     assert_eq!(saved.status, crate::runtime::TaskStatus::MaxTurnsReached);
 
-    crate::test_support::test_remove_var("VEX_STATE_DIR");
+    crate::test_support::test_remove_var(&_env_lock, "VEX_STATE_DIR");
 }
 
 // -- /explain -------------------------------------------------------------
