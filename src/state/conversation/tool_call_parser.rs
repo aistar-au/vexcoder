@@ -66,6 +66,20 @@ fn decode_xml_text(text: &quick_xml::events::BytesText<'_>) -> Option<String> {
     text.decode().ok().map(|value| value.into_owned())
 }
 
+fn decode_xml_reference(reference: &quick_xml::events::BytesRef<'_>) -> Option<String> {
+    let raw = std::str::from_utf8(reference.as_ref()).ok()?;
+    let escaped = if raw.starts_with('&') {
+        raw.to_string()
+    } else if raw.ends_with(';') {
+        format!("&{raw}")
+    } else {
+        format!("&{raw};")
+    };
+    quick_xml::escape::unescape(&escaped)
+        .ok()
+        .map(|value| value.into_owned())
+}
+
 impl XmlFallbackParser {
     /// Try to parse tool calls from generic XML patterns:
     ///   `<tool_call>…</tool_call>`  or  `<invoke name="…">…</invoke>`
@@ -125,11 +139,12 @@ impl XmlFallbackParser {
     fn parse_invoke_blocks(text: &str) -> Vec<TaggedToolCall> {
         let mut calls = Vec::new();
         let mut reader = XmlReader::from_str(text);
-        reader.config_mut().trim_text(true);
+        reader.config_mut().trim_text(false);
 
         let mut current_name: Option<String> = None;
         let mut current_params = serde_json::Map::new();
         let mut current_key: Option<String> = None;
+        let mut current_value = String::new();
         let mut depth = 0u32;
         let mut buf = Vec::new();
 
@@ -151,15 +166,30 @@ impl XmlFallbackParser {
                             .filter_map(Result::ok)
                             .find(|a| a.key.as_ref() == b"name" || a.key.as_ref() == b"key")
                             .and_then(|a| String::from_utf8(a.value.to_vec()).ok());
+                        current_value.clear();
                     }
                     _ => {}
                 },
                 Ok(XmlEvent::Text(ref e)) if depth > 0 && current_key.is_some() => {
-                    if let (Some(key), Some(val)) = (current_key.take(), decode_xml_text(e)) {
-                        current_params.insert(key, serde_json::Value::String(val));
+                    if let Some(val) = decode_xml_text(e) {
+                        current_value.push_str(&val);
+                    }
+                }
+                Ok(XmlEvent::GeneralRef(ref e)) if depth > 0 && current_key.is_some() => {
+                    if let Some(val) = decode_xml_reference(e) {
+                        current_value.push_str(&val);
                     }
                 }
                 Ok(XmlEvent::End(ref e)) => match e.name().as_ref() {
+                    b"parameter" | b"argument" if depth > 0 => {
+                        let value = current_value.trim().to_string();
+                        if let Some(key) = current_key.take()
+                            && !value.is_empty()
+                        {
+                            current_params.insert(key, serde_json::Value::String(value));
+                        }
+                        current_value.clear();
+                    }
                     b"invoke" | b"tool_use" if depth > 0 => {
                         depth -= 1;
                         if let Some(name) = current_name.take()
@@ -173,9 +203,7 @@ impl XmlFallbackParser {
                             });
                         }
                     }
-                    _ => {
-                        current_key = None;
-                    }
+                    _ => {}
                 },
                 Ok(XmlEvent::Eof) => break,
                 Err(_) => break,
@@ -313,6 +341,16 @@ mod tests {
         assert_eq!(calls.len(), 2);
         assert_eq!(calls[0].input["path"], "a.rs");
         assert_eq!(calls[1].input["path"], "b.rs");
+    }
+
+    #[test]
+    fn xml_fallback_unescapes_parameter_entities() {
+        let text = r#"<invoke name="search_files">
+<parameter name="query">a&amp;b &lt; c &#x2f; d</parameter>
+</invoke>"#;
+        let calls = XmlFallbackParser::parse_xml_tool_calls(text);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].input["query"], "a&b < c / d");
     }
 
     #[test]

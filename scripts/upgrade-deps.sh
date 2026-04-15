@@ -58,15 +58,29 @@ print_review_seams() {
   cat <<'EOF'
 
 Review these local seams when an upgraded crate needs source changes:
-  - TUI stack: src/ui/tui.rs, src/tui_handle.rs
-  - XML tool-call parsing: src/state/conversation/tool_call_parser.rs
-  - Structural indexing: src/tools/index.rs
+  - ratatui / crossterm: src/ui/tui.rs, src/tui_handle.rs,
+    src/tui_frontend.rs, src/ui/editor/mod.rs, src/app.rs,
+    src/app/overlay.rs, src/app/tests/mod.rs
+  - rmcp: src/mcp.rs
+  - http: src/http_facade.rs, src/mcp.rs, src/server/http.rs,
+    src/server/util.rs, src/server/handlers/mod.rs,
+    src/server/handlers/session.rs, src/server/tests.rs
+  - tokio: src/runtime/tokio.rs plus the focused runtime, server, and test
+    sites listed under [workspace.metadata.upgrade-seams] in Cargo.toml
+  - arboard: src/clipboard.rs, src/app/commands/session.rs
+  - serde: derives and #[serde(...)] attributes stay next to their owning
+    types; review src/** and crates/vexcoder-api-types/src/lib.rs directly
+  - rust / MSRV: update package.rust-version and CI toolchain declarations
+    together
+  - quick-xml: src/state/conversation/tool_call_parser.rs
+  - tree-sitter: src/tools/index.rs
   - Markdown rendering: src/ui/render/markdown.rs
-  - HTTP and MCP stack: src/api/client/mod.rs, src/mcp.rs, src/server/
 
 Use `cargo tree -i <crate>` to inspect reverse dependencies for one crate.
 Use `cargo tree -d` for investigation only; it is not a hard gate because the
 transitive tree legitimately carries parallel versions in some ecosystems.
+The authoritative seam map lives in [workspace.metadata.upgrade-seams] and
+[workspace.metadata.upgrade-notes] in the root Cargo.toml.
 EOF
 }
 
