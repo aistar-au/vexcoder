@@ -16,8 +16,6 @@ use crate::app::{
     facade_get_session_task, facade_list_agents, facade_poll_join, facade_release_session_task,
     facade_schedule_team, facade_watch_rollup,
 };
-use crate::api::stream::mapper_for_variant;
-use crate::config::ProtocolVariant;
 use crate::http_facade::{StatusCode, header};
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
@@ -338,16 +336,6 @@ pub async fn turns_handler(
     };
 
     let task_id = task_id.unwrap_or_else(new_server_task_id);
-    // Select protocol mapper from explicit config override; default to BlockDelta.
-    // The mapper is available for use by the SSE emitter when draining
-    // DeltaAccumulator snapshots (ADR-047 Phase 2).
-    let _protocol_mapper = mapper_for_variant(
-        state
-            .config
-            .api_client
-            .explicit_protocol
-            .unwrap_or(ProtocolVariant::BlockDelta),
-    );
     let (envelope_tx, envelope_rx) = mpsc::unbounded_channel::<String>();
     let (interrupt_tx, interrupt_rx) = mpsc::unbounded_channel::<FrontendCommand>();
     let quit = Arc::new(AtomicBool::new(false));

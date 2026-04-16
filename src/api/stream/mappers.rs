@@ -2,9 +2,8 @@
 //!
 //! Thin stateless serialisers that convert [`ToolState`] snapshots from the
 //! [`DeltaAccumulator`] into SSE frames for either the Block-Delta or
-//! Choices-Delta wire format.  The mapper is selected once per connection from
-//! [`crate::config::ApiClientConfig::explicit_protocol`] (or the default
-//! `ProtocolVariant::BlockDelta`) and kept for the lifetime of the task.
+//! Choices-Delta wire format. The caller is responsible for negotiating which
+//! mapper to use for a given stream surface.
 //!
 //! ADR-047 Phase 1.
 
@@ -133,7 +132,7 @@ impl ProtocolMapper for ChoicesDeltaMapper {
         .to_string())
     }
 
-    fn tool_finish_frame(&self, index: usize) -> SseFrame {
+    fn tool_finish_frame(&self, _index: usize) -> SseFrame {
         sse(serde_json::json!({
             "choices": [{
                 "index": 0,
@@ -147,8 +146,8 @@ impl ProtocolMapper for ChoicesDeltaMapper {
 
 /// Return a boxed mapper for the given protocol variant.
 ///
-/// Called once per request by the `turns_handler` to avoid embedding
-/// protocol-selection logic in the handler itself.
+/// Useful at stream setup time once the caller has already selected a
+/// `ProtocolVariant`.
 pub fn mapper_for_variant(variant: ProtocolVariant) -> Box<dyn ProtocolMapper> {
     match variant {
         ProtocolVariant::BlockDelta => Box::new(BlockDeltaMapper),
@@ -232,7 +231,10 @@ mod tests {
         assert_eq!(frame["type"], "content_block_delta");
         assert_eq!(frame["delta"]["type"], "input_json_delta");
         let pj = frame["delta"]["partial_json"].as_str().unwrap();
-        assert!(pj.starts_with('{'), "partial_json should start with open brace");
+        assert!(
+            pj.starts_with('{'),
+            "partial_json should start with open brace"
+        );
     }
 
     /// 4. Accumulator rejects partial JSON that would unbalance brace depth.
@@ -259,7 +261,10 @@ mod tests {
         acc.accumulate(&id, r#"{"dir":"#).unwrap();
         acc.finish(&id);
 
-        assert!(matches!(rx.try_recv().unwrap(), PeerDeltaEvent::ToolStart { .. }));
+        assert!(matches!(
+            rx.try_recv().unwrap(),
+            PeerDeltaEvent::ToolStart { .. }
+        ));
         assert!(matches!(
             rx.try_recv().unwrap(),
             PeerDeltaEvent::ToolDelta { .. }
@@ -294,12 +299,24 @@ mod tests {
     #[test]
     fn task_cleanup_on_completion() {
         let acc = DeltaAccumulator::new(1024 * 1024);
-        acc.start_tool("tx_1_aaaa".to_string(), "task-a".to_string(), "tool_1".to_string())
-            .unwrap();
-        acc.start_tool("tx_2_bbbb".to_string(), "task-b".to_string(), "tool_2".to_string())
-            .unwrap();
-        acc.start_tool("tx_3_cccc".to_string(), "task-a".to_string(), "tool_3".to_string())
-            .unwrap();
+        acc.start_tool(
+            "tx_1_aaaa".to_string(),
+            "task-a".to_string(),
+            "tool_1".to_string(),
+        )
+        .unwrap();
+        acc.start_tool(
+            "tx_2_bbbb".to_string(),
+            "task-b".to_string(),
+            "tool_2".to_string(),
+        )
+        .unwrap();
+        acc.start_tool(
+            "tx_3_cccc".to_string(),
+            "task-a".to_string(),
+            "tool_3".to_string(),
+        )
+        .unwrap();
 
         let removed = acc.cleanup_task("task-a");
         assert_eq!(removed, 2, "expected 2 entries removed for task-a");
