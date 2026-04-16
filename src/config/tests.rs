@@ -61,6 +61,20 @@ fn test_config_allows_private_network_http_model_url() {
 }
 
 #[test]
+fn test_config_validate_accepts_api_client_base_url_without_model_url() {
+    let mut config = Config::default_for_tui();
+    config.model_url.clear();
+    config.model_name = "local/test-model".to_string();
+    config.model_token = None;
+    config.api_client.base_url = "http://127.0.0.1:8787".to_string();
+
+    assert!(
+        config.validate().is_ok(),
+        "api_client.base_url should satisfy validation when model_url is unset"
+    );
+}
+
+#[test]
 fn test_config_loads_vex_model_name_without_legacy_prefix() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     crate::test_support::test_set_var(&_lock, "VEX_MODEL_URL", "http://localhost:8080/v1");

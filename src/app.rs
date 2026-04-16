@@ -22,7 +22,7 @@ use crate::runtime::validation::ValidationSuite;
 use crate::runtime::{
     ApprovalScope, Capability, CommandRequest, CommandRunner, ConfiguredSandbox,
     DefaultCommandRunner, EditLoopOutcome, SandboxDriver, TaskDocument, TaskDocumentCondenser,
-    TaskState, TaskStatus, TurnOutcome, UiUpdate, format_command_session_cancelled,
+    TaskState, TaskStatus, TurnOutcome, format_command_session_cancelled,
     format_command_session_exit, format_command_session_output, format_command_session_started,
     truncate_head_bytes,
 };
@@ -94,6 +94,7 @@ pub use self::task_facade::{
     facade_schedule_team, facade_task_graph, facade_update_session_task_status,
     facade_watch_rollup, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
 };
+pub use crate::runtime::UiUpdate;
 pub use crate::runtime::tokio as runtime_tokio;
 
 use self::overlay::summarize_tool_approval_context;

@@ -1,5 +1,6 @@
+use self::protocol_discovery::discover_protocol;
 use super::logging::{debug_payload_enabled, emit_debug_payload};
-use crate::config::Config;
+use crate::config::{Config, ProtocolVariant};
 use crate::runtime::backend::{
     ByteStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy,
 };
@@ -50,15 +51,7 @@ struct LocalServerGenSettings {
 /// Returns `None` if the server is not reachable or does not expose a
 /// recognised discovery endpoint. Best-effort; never blocks the session.
 pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<ServerInfo> {
-    if !is_local_endpoint_url(api_url) {
-        return None;
-    }
-    let base = api_url
-        .trim_end_matches('/')
-        .trim_end_matches("/chat/completions")
-        .trim_end_matches("/messages")
-        .trim_end_matches("/v1")
-        .trim_end_matches('/');
+    let base = local_endpoint_base_url(api_url)?;
 
     // Try the /props discovery endpoint first (supported by some local servers).
     let mut info: Option<ServerInfo> = None;
@@ -108,84 +101,38 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
         }
     }
 
-    // Probe protocol support. When the server only accepts one wire shape,
-    // cache that exclusive preference. If both endpoints respond, keep the
-    // configured protocol instead of silently overriding it.
-    if let Some(ref mut server_info) = info {
-        server_info.native_protocol = detect_native_protocol(http, base).await;
-    }
-
     info
 }
 
-/// Probe both `/v1/chat/completions` and `/v1/messages` to determine whether
-/// the server exposes only one wire protocol. When both endpoints respond,
-/// fall back to the configured protocol instead of overriding it.
-async fn detect_native_protocol(http: &reqwest::Client, base: &str) -> Option<ModelProtocol> {
-    let timeout = std::time::Duration::from_secs(2);
+fn local_endpoint_base_url(api_url: &str) -> Option<String> {
+    if !is_local_endpoint_url(api_url) {
+        return None;
+    }
 
-    // A minimal probe payload — we only care about whether the endpoint
-    // responds successfully (2xx/4xx-with-body), not whether it generates.
-    let probe = serde_json::json!({
-        "model": "probe",
-        "max_tokens": 1,
-        "stream": false,
-        "messages": [{"role": "user", "content": "probe"}]
-    });
-
-    let chat_ok = async {
-        let resp = http
-            .post(format!("{base}/v1/chat/completions"))
-            .json(&probe)
-            .timeout(timeout)
-            .send()
-            .await
-            .ok()?;
-        // 2xx or 4xx (server understood the format) counts as supported.
-        // 404 means the endpoint doesn't exist.
-        if resp.status().as_u16() == 404 {
-            None
-        } else {
-            Some(())
-        }
-    };
-
-    let messages_ok = async {
-        let messages_probe = serde_json::json!({
-            "model": "probe",
-            "max_tokens": 1,
-            "stream": false,
-            "system": "probe",
-            "messages": [{"role": "user", "content": [{"type": "text", "text": "probe"}]}]
-        });
-        let resp = http
-            .post(format!("{base}/v1/messages"))
-            .json(&messages_probe)
-            .timeout(timeout)
-            .send()
-            .await
-            .ok()?;
-        if resp.status().as_u16() == 404 {
-            None
-        } else {
-            Some(())
-        }
-    };
-
-    let (chat_result, messages_result) = tokio::join!(chat_ok, messages_ok);
-
-    select_detected_native_protocol(chat_result.is_some(), messages_result.is_some())
+    Some(
+        api_url
+            .trim_end_matches('/')
+            .trim_end_matches("/chat/completions")
+            .trim_end_matches("/messages")
+            .trim_end_matches("/v1")
+            .trim_end_matches('/')
+            .to_string(),
+    )
 }
 
-fn select_detected_native_protocol(
-    chat_supported: bool,
-    messages_supported: bool,
+async fn discover_native_protocol(
+    http: &reqwest::Client,
+    base_url: &str,
+    explicit_protocol: Option<ProtocolVariant>,
 ) -> Option<ModelProtocol> {
-    match (chat_supported, messages_supported) {
-        (true, false) => Some(ModelProtocol::ChatCompat),
-        (false, true) => Some(ModelProtocol::MessagesV1),
-        (true, true) | (false, false) => None,
+    if let Some(protocol) = explicit_protocol {
+        return Some(protocol_variant_to_model_protocol(protocol));
     }
+
+    discover_protocol(base_url, http)
+        .await
+        .ok()
+        .map(|result| protocol_variant_to_model_protocol(result.protocol))
 }
 /// Base system prompt applied to every API call.
 /// Project instructions are appended at runtime via
@@ -229,6 +176,7 @@ pub struct ApiClient {
     model: Arc<RwLock<String>>,
     supplementary_system_prompt: Arc<RwLock<Option<String>>>,
     api_url: String,
+    api_client_explicit_protocol: Option<ProtocolVariant>,
     model_backend: ModelBackendKind,
     model_protocol: ModelProtocol,
     tool_call_mode: ToolCallMode,
@@ -256,6 +204,7 @@ enum ApiProtocol {
 
 impl ApiClient {
     pub fn new(config: &Config) -> Result<Self> {
+        let api_client_base_url = configured_api_client_base_url(config);
         let http = reqwest::Client::builder()
             .danger_accept_invalid_certs(config.model_url_skip_tls_check)
             .build()?;
@@ -264,9 +213,16 @@ impl ApiClient {
             api_key: config.model_token.clone(),
             model: Arc::new(RwLock::new(config.model_name.clone())),
             supplementary_system_prompt: Arc::new(RwLock::new(None)),
-            api_url: config.model_url.clone(),
+            api_url: api_client_base_url
+                .clone()
+                .unwrap_or_else(|| config.model_url.clone()),
+            api_client_explicit_protocol: config.api_client.explicit_protocol,
             model_backend: config.model_backend,
-            model_protocol: config.model_protocol,
+            model_protocol: config
+                .api_client
+                .explicit_protocol
+                .map(protocol_variant_to_model_protocol)
+                .unwrap_or(config.model_protocol),
             tool_call_mode: config.tool_call_mode,
             tool_policy: config.tool_policy,
             model_headers: config.model_headers.clone(),
@@ -294,6 +250,7 @@ impl ApiClient {
             // Test-only override for mock endpoint URL; defaults to portless localhost.
             api_url: std::env::var("VEX_TEST_MODEL_URL")
                 .unwrap_or_else(|_| "http://localhost/v1/messages".to_string()),
+            api_client_explicit_protocol: None,
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
@@ -325,8 +282,25 @@ impl ApiClient {
     /// Poll the local inference server for capabilities and cache the result.
     /// No-op if the endpoint is not local or the server does not respond.
     pub async fn populate_server_info(&self) {
-        if let Some(info) = poll_server_info(&self.http, &self.api_url).await {
+        let Some(base_url) = local_endpoint_base_url(&self.api_url) else {
+            return;
+        };
+
+        let native_protocol =
+            discover_native_protocol(&self.http, &base_url, self.api_client_explicit_protocol)
+                .await;
+
+        if let Some(mut info) = poll_server_info(&self.http, &base_url).await {
+            info.native_protocol = native_protocol;
             self.set_server_info(info);
+            return;
+        }
+
+        if let Some(native_protocol) = native_protocol {
+            self.set_server_info(ServerInfo {
+                native_protocol: Some(native_protocol),
+                ..ServerInfo::default()
+            });
         }
     }
 
@@ -407,9 +381,8 @@ impl ApiClient {
     }
 
     fn api_protocol(&self) -> ApiProtocol {
-        // When server discovery proves that only one wire protocol works,
-        // prefer that exclusive route. If both routes are available, preserve
-        // the configured protocol instead of silently switching transports.
+        // Local discovery and explicit protocol overrides pin a concrete wire
+        // format for the session. Prefer that route once it is known.
         if let Some(native) = self.server_info().and_then(|si| si.native_protocol) {
             return match native {
                 ModelProtocol::MessagesV1 => ApiProtocol::MessagesV1,
@@ -638,6 +611,22 @@ impl ApiClient {
             ApiProtocol::MessagesV1 => adapt_to_messages_v1_url(&self.api_url),
             ApiProtocol::ChatCompat => adapt_to_chat_compat_url(&self.api_url),
         }
+    }
+}
+
+fn configured_api_client_base_url(config: &Config) -> Option<String> {
+    let base = config.api_client.base_url.trim();
+    if base.is_empty() {
+        None
+    } else {
+        Some(base.trim_end_matches('/').to_string())
+    }
+}
+
+fn protocol_variant_to_model_protocol(protocol: ProtocolVariant) -> ModelProtocol {
+    match protocol {
+        ProtocolVariant::BlockDelta => ModelProtocol::MessagesV1,
+        ProtocolVariant::ChoicesDelta => ModelProtocol::ChatCompat,
     }
 }
 
@@ -882,7 +871,7 @@ fn adapt_to_chat_compat_url(api_url: &str) -> String {
     if normalized.ends_with("/v1") {
         return format!("{normalized}/chat/completions");
     }
-    normalized.to_string()
+    format!("{normalized}/v1/chat/completions")
 }
 
 fn adapt_to_messages_v1_url(api_url: &str) -> String {
@@ -900,7 +889,7 @@ fn adapt_to_messages_v1_url(api_url: &str) -> String {
     if normalized.ends_with("/v1") {
         return format!("{normalized}/messages");
     }
-    normalized.to_string()
+    format!("{normalized}/v1/messages")
 }
 
 fn chat_compat_messages(messages: &[ApiMessage], system_prompt: &str) -> Vec<Value> {

@@ -8,7 +8,15 @@
 
 ## Context
 
-The current `messages/v1` endpoint emits full runtime envelopes. To enable small-portion SSE parsing (only the relevant delta for a given `tx_` ID), we pivot the default to Block-Delta format while preserving dual-protocol support via one canonical accumulator and two thin mappers. This amendment removes legacy backwards compatibility requirements and introduces client-side protocol discovery, simplifying user configuration to `host:port` only.
+The current `messages/v1` endpoint emits full runtime envelopes. To enable small-portion SSE parsing (only the relevant delta for a given `tx_` ID), we pivot the default to Block-Delta format while preserving dual-protocol support via one canonical accumulator and two thin mappers. This amendment removes legacy backwards compatibility requirements and introduces client-side protocol discovery for a host-and-port-only configuration surface.
+
+## Implementation Status Note
+
+- Phase 0 foundations are merged.
+- Phase 1 mapper serialisation now lives in `src/api/stream/mappers.rs`.
+- `/v1/turns` now negotiates runtime-envelope, Block-Delta, or Choices-Delta SSE via `Accept`, and HTTP-level tests assert `tx_` IDs over the wire for both mapper formats.
+- Live client-side discovery now uses `src/api/client/protocol_discovery.rs` for local `api_client.base_url` and local `model_url` sessions, with `explicit_protocol` remaining as the only bypass.
+- `LocalApiTaskShared::new()` now wires a bounded peer-event channel into the accumulator, and partial tool-argument truncation emits explicit peer diagnostics instead of failing silently.
 
 ## Why Backwards Compatibility Is Not Required
 
@@ -88,17 +96,17 @@ The `DeltaAccumulator` exposes an optional `mpsc::Sender<PeerDeltaEvent>` for in
 
 ### Phase 1 — Protocol Mappers
 
-- New `src/api/stream/mappers.rs` with `BlockDeltaMapper` and `ChoicesDeltaMapper` implementing `ProtocolMapper` trait
-- Mappers are thin stateless serialisers over `ToolState` snapshots
+- New `src/api/stream/mappers.rs` with internal `BlockDeltaMapper` and `ChoicesDeltaMapper` implementations behind a crate-private `ProtocolMapper` trait
+- Mappers are thin stateless serialisers over normalised tool-call state
 
 ### Phase 2 — Server Handler Simplification
 
-- `messages_handler` selects mapper via discovered `ProtocolVariant`; streams `content_block_start/delta/stop` from accumulator snapshot
-- No server-side protocol detection code; selection is driven by the cached discovery result
+- `/v1/turns` now selects a response mode from `Accept` and can emit legacy runtime envelopes, Block-Delta SSE, or Choices-Delta SSE from the same normalised runtime state.
+- Server-side request negotiation remains intentionally lightweight: runtime-envelope stays the default/fallback for older consumers, while ADR-047 clients can opt into mapper-native wire formats without a separate handler surface.
 
 ### Phase 3 — Testing
 
-Seven named integration tests: `dual_protocol_parity`, `interleaved_text_and_tool_deltas`, `truncated_stream_recovery`, `malformed_partial_rejection`, `peer_channel_propagation`, `memory_watermark_enforcement`, `task_cleanup_on_completion`.
+Expanded coverage now includes HTTP-level `tx_` SSE assertions for both mapper formats plus live discovery coverage for `api_client.base_url`, local `model_url` sessions, and explicit-protocol request routing.
 
 ### Phase 4 — Schema + Docs
 
@@ -119,8 +127,8 @@ Seven named integration tests: `dual_protocol_parity`, `interleaved_text_and_too
 1. Update `schemas/runtime_envelope_v1.json` to `tx_` pattern — **done (Phase 0)**
 2. Remove legacy `call_` ID generation — **done (Phase 0)**
 3. Add `protocol_discovery.rs` — **done (Phase 0)**
-4. Update `ApiClient::connect` to run discovery on first connect — phase 1
-5. Add protocol mapper tests — phase 3
-6. Update docs + CHANGELOG — phase 4
+4. Update `ApiClient::connect` (or equivalent live connection path) to run discovery on first connect — **done for local `api_client.base_url` and local `model_url` sessions**
+5. Add protocol mapper tests — **done; HTTP-level mapper assertions and client discovery tests are merged**
+6. Update docs + CHANGELOG — **in progress**
 
-This ADR supersedes all previous draft versions and is fully aligned with the repository as of 2026-04-16.
+This ADR supersedes all previous draft versions and captures the intended end state. The repository now contains the phase 0 foundations, mapper serialisation, live `/v1/turns` negotiated emission, and the unified local discovery cutover; remaining work is primarily documentation follow-through and broader parity coverage.

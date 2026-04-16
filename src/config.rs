@@ -243,7 +243,7 @@ pub enum ProtocolVariant {
 /// Client-side configuration for the local inference API.
 ///
 /// Simplifies user configuration to `base_url` only; protocol is discovered
-/// automatically unless `explicit_protocol` is set (ADR-047 Phase 0).
+/// automatically unless `explicit_protocol` is set (ADR-047).
 ///
 /// Example TOML fragment:
 /// ```toml
@@ -320,7 +320,7 @@ pub struct Config {
     pub auto_memory: AutoMemoryConfig,
     /// Client-side API configuration: `base_url`, optional protocol override,
     /// and delta-accumulator memory watermark.  Discovery runs automatically
-    /// when `explicit_protocol` is not set (ADR-047 Phase 0).
+    /// when `explicit_protocol` is not set (ADR-047).
     #[serde(default)]
     pub api_client: ApiClientConfig,
 }
@@ -481,13 +481,14 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
-        if self.model_url.trim().is_empty() {
-            bail!("VEX_MODEL_URL must be set");
+        let endpoint_url = self.effective_model_endpoint_url();
+        if endpoint_url.is_empty() {
+            bail!("VEX_MODEL_URL or api_client.base_url must be set");
         }
-        if !self.model_url.starts_with("http://") && !self.model_url.starts_with("https://") {
+        if !endpoint_url.starts_with("http://") && !endpoint_url.starts_with("https://") {
             bail!(
                 "Invalid VEX_MODEL_URL '{}': expected http:// or https:// URL",
-                self.model_url
+                endpoint_url
             );
         }
         if self.model_name.trim().is_empty() {
@@ -497,13 +498,13 @@ impl Config {
         if !local_endpoint && self.model_token.is_none() {
             bail!(
                 "VEX_MODEL_TOKEN must be set for non-local endpoints (url: '{}')",
-                self.model_url
+                endpoint_url
             );
         }
-        if !local_endpoint && self.model_url.starts_with("http://") {
+        if !local_endpoint && endpoint_url.starts_with("http://") {
             bail!(
                 "Model endpoint '{}' must use https://. Plain HTTP is allowed for local and private-network endpoints (localhost, 127.x.x.x, ::1, 0.0.0.0, and RFC 1918 LAN addresses like 192.168.x.x, 10.x.x.x, 172.16-31.x.x).",
-                self.model_url
+                endpoint_url
             );
         }
         if !local_endpoint && self.model_name.starts_with("local/") {
@@ -513,7 +514,15 @@ impl Config {
     }
 
     fn is_local_endpoint(&self) -> bool {
-        is_local_endpoint_url(&self.model_url)
+        is_local_endpoint_url(self.effective_model_endpoint_url())
+    }
+
+    fn effective_model_endpoint_url(&self) -> &str {
+        if self.model_url.trim().is_empty() {
+            self.api_client.base_url.trim()
+        } else {
+            self.model_url.trim()
+        }
     }
 
     pub fn apply_interactive_model_selection(

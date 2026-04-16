@@ -178,7 +178,7 @@ pub type ToolCallId = String;
 /// pre-generated to [`super::delta_accumulator::DeltaAccumulator`] — the
 /// accumulator never creates its own IDs.
 pub fn generate_tool_call_id(counter: &AtomicU32, entropy: u16) -> ToolCallId {
-    let count = counter.fetch_add(1, Ordering::SeqCst);
+    let count = counter.fetch_add(1, Ordering::SeqCst).saturating_add(1);
     format!("tx_{}_{entropy:04x}", count)
 }
 
@@ -196,7 +196,7 @@ pub struct RuntimeEnvelopeNormalizer {
     pending_tool_calls: IndexMap<String, PendingToolCall>,
     streaming_tool_call_blocks: HashMap<usize, ToolCallId>,
     turn_changed_files: BTreeSet<String>,
-    tool_id_counter: u64,
+    tool_id_counter: AtomicU32,
     open_final_text_block: Option<usize>,
     next_synthetic_block_index: usize,
     delta_accumulator: Option<Arc<DeltaAccumulator>>,
@@ -226,7 +226,7 @@ impl RuntimeEnvelopeNormalizer {
             pending_tool_calls: IndexMap::new(),
             streaming_tool_call_blocks: HashMap::new(),
             turn_changed_files: BTreeSet::new(),
-            tool_id_counter: 0,
+            tool_id_counter: AtomicU32::new(0),
             open_final_text_block: None,
             next_synthetic_block_index: SYNTHETIC_FINAL_TEXT_BLOCK_START,
             delta_accumulator,
@@ -638,10 +638,11 @@ impl RuntimeEnvelopeNormalizer {
     }
 
     fn generate_tool_call_id(&mut self) -> ToolCallId {
-        self.tool_id_counter = self.tool_id_counter.saturating_add(1);
         let now = Utc::now();
-        let entropy = ((now.nanosecond() as u128 ^ self.tool_id_counter as u128) & 0xffff) as u16;
-        format!("tx_{}_{entropy:04x}", self.tool_id_counter)
+        let entropy = ((now.nanosecond() as u128
+            ^ self.tool_id_counter.load(Ordering::SeqCst) as u128)
+            & 0xffff) as u16;
+        generate_tool_call_id(&self.tool_id_counter, entropy)
     }
 
     fn next_envelope(&mut self, event: RuntimeEvent) -> RuntimeEnvelope {

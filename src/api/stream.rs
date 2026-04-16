@@ -6,8 +6,10 @@ use crate::types::{
 use anyhow::Result;
 use serde::Deserialize;
 
+mod mappers;
 mod text_normaliser;
 
+pub(crate) use self::mappers::{ProtocolMapper, SseFrame, mapper_for_variant};
 pub use self::text_normaliser::{NormalisedChunk, StreamTextNormaliser};
 
 /// Maximum number of bytes the SSE intra-frame accumulation buffer may hold.

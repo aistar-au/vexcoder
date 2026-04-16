@@ -53,10 +53,9 @@ pub(crate) fn parse_sandbox_kind(value: String) -> Option<SandboxKind> {
 pub(crate) fn infer_model_protocol(_api_url: &str) -> ModelProtocol {
     // messages-v1 is always the default wire protocol regardless of the URL
     // path.  ChatCompat is selected only when the user explicitly sets
-    // `model_protocol = "chat-compat"` in config, or when server discovery
-    // proves the endpoint exclusively exposes /v1/chat/completions.  No
-    // URL-based inference is needed: both protocols are always attempted at
-    // session start via detect_native_protocol() for local endpoints.
+    // `model_protocol = "chat-compat"` in config, or when local protocol
+    // discovery later resolves the endpoint to Choices-Delta. No URL-based
+    // inference is needed here.
     ModelProtocol::MessagesV1
 }
 

@@ -1,4 +1,10 @@
 use super::*;
+use crate::api::stream::StreamParser;
+use crate::app::UiUpdate;
+use crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, TurnEndContext};
+use crate::state::{StreamBlock, ToolStatus};
+use crate::types::{ContentBlock, StreamEvent};
+use serde_json::json;
 
 #[tokio::test]
 async fn test_health_endpoint_returns_ok() {
@@ -333,7 +339,11 @@ async fn test_runtime_sse_response_emits_keepalive_comment() {
             .await
             .take()
             .expect("single keepalive request");
-        runtime_sse_response(receiver, Duration::from_millis(20))
+        runtime_sse_response(
+            receiver,
+            Duration::from_millis(20),
+            TurnsSseMode::RuntimeEnvelope,
+        )
     }
 
     let (sender, receiver) = mpsc::unbounded_channel::<String>();
@@ -383,6 +393,286 @@ async fn test_runtime_sse_response_emits_keepalive_comment() {
         payload.contains(": keepalive"),
         "expected SSE keepalive comment, got {payload:?}"
     );
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn test_runtime_sse_response_block_delta_emits_tx_tool_id_over_http() {
+    #[derive(Clone)]
+    struct TestSseState {
+        receiver: Arc<AsyncMutex<Option<mpsc::UnboundedReceiver<String>>>>,
+    }
+
+    async fn protocol_handler(
+        headers: axum::http::HeaderMap,
+        State(state): State<TestSseState>,
+    ) -> impl IntoResponse {
+        let receiver = state
+            .receiver
+            .lock()
+            .await
+            .take()
+            .expect("single block-delta request");
+        let mode = negotiate_turns_sse_mode(
+            headers
+                .get(axum::http::header::ACCEPT)
+                .and_then(|value| value.to_str().ok()),
+        );
+        runtime_sse_response(receiver, Duration::from_millis(20), mode)
+    }
+
+    let (sender, receiver) = mpsc::unbounded_channel::<String>();
+    let state = TestSseState {
+        receiver: Arc::new(AsyncMutex::new(Some(receiver))),
+    };
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/", get(protocol_handler))
+                .with_state(state),
+        )
+        .await
+        .unwrap();
+    });
+
+    let mut normalizer = RuntimeEnvelopeNormalizer::new("task-block-sse");
+    let mut envelopes = vec![normalizer.start_turn(1, Some("inspect file".to_string()))];
+    envelopes.extend(normalizer.normalize_ui_update(
+        &UiUpdate::StreamBlockStart {
+            index: 1,
+            block: StreamBlock::ToolCall {
+                id: "provider-call-1".to_string(),
+                name: "read_file".to_string(),
+                input: json!({}),
+                status: ToolStatus::Pending,
+            },
+        },
+        None,
+    ));
+    envelopes.extend(normalizer.normalize_ui_update(
+        &UiUpdate::StreamBlockDelta {
+            index: 1,
+            delta: r#"{"path":"src/lib.rs"}"#.to_string(),
+        },
+        None,
+    ));
+    envelopes
+        .extend(normalizer.normalize_ui_update(&UiUpdate::StreamBlockComplete { index: 1 }, None));
+    envelopes.extend(
+        normalizer.normalize_ui_update(&UiUpdate::TurnComplete, Some(TurnEndContext::default())),
+    );
+    for envelope in envelopes {
+        sender
+            .send(serde_json::to_string(&envelope).unwrap())
+            .unwrap();
+    }
+    drop(sender);
+
+    let response = reqwest::Client::new()
+        .get(format!("http://{addr}/"))
+        .header("Accept", "application/vnd.block-delta+sse")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+
+    let mut parser = StreamParser::new();
+    let mut saw_tool_start = false;
+    let mut saw_tool_delta = false;
+    let mut saw_tool_stop = false;
+    let mut saw_message_stop = false;
+    let mut stream = response.bytes_stream();
+
+    for _ in 0..12 {
+        let Some(chunk) = timeout(
+            Duration::from_secs(1),
+            futures::StreamExt::next(&mut stream),
+        )
+        .await
+        .expect("block-delta chunk timed out") else {
+            break;
+        };
+        let chunk = chunk.expect("stream ended unexpectedly");
+        for event in parser.process(&chunk).unwrap() {
+            match event {
+                StreamEvent::ContentBlockStart {
+                    content_block: ContentBlock::ToolUse { id, name, .. },
+                    ..
+                } => {
+                    assert!(id.starts_with("tx_"), "expected tx_ id, got {id}");
+                    assert_eq!(name, "read_file");
+                    saw_tool_start = true;
+                }
+                StreamEvent::ContentBlockDelta { delta, .. } => {
+                    assert_eq!(
+                        delta.partial_json.as_deref(),
+                        Some(r#"{"path":"src/lib.rs"}"#)
+                    );
+                    saw_tool_delta = true;
+                }
+                StreamEvent::ContentBlockStop { .. } => saw_tool_stop = true,
+                StreamEvent::MessageStop => {
+                    saw_message_stop = true;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        if saw_message_stop {
+            break;
+        }
+    }
+
+    assert!(saw_tool_start, "expected tool start over block-delta SSE");
+    assert!(saw_tool_delta, "expected tool delta over block-delta SSE");
+    assert!(saw_tool_stop, "expected tool stop over block-delta SSE");
+    assert!(
+        saw_message_stop,
+        "expected message stop over block-delta SSE"
+    );
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn test_runtime_sse_response_choices_delta_emits_tx_tool_id_over_http() {
+    #[derive(Clone)]
+    struct TestSseState {
+        receiver: Arc<AsyncMutex<Option<mpsc::UnboundedReceiver<String>>>>,
+    }
+
+    async fn protocol_handler(
+        headers: axum::http::HeaderMap,
+        State(state): State<TestSseState>,
+    ) -> impl IntoResponse {
+        let receiver = state
+            .receiver
+            .lock()
+            .await
+            .take()
+            .expect("single choices request");
+        let mode = negotiate_turns_sse_mode(
+            headers
+                .get(axum::http::header::ACCEPT)
+                .and_then(|value| value.to_str().ok()),
+        );
+        runtime_sse_response(receiver, Duration::from_millis(20), mode)
+    }
+
+    let (sender, receiver) = mpsc::unbounded_channel::<String>();
+    let state = TestSseState {
+        receiver: Arc::new(AsyncMutex::new(Some(receiver))),
+    };
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/", get(protocol_handler))
+                .with_state(state),
+        )
+        .await
+        .unwrap();
+    });
+
+    let mut normalizer = RuntimeEnvelopeNormalizer::new("task-choices-sse");
+    let mut envelopes = vec![normalizer.start_turn(1, Some("inspect file".to_string()))];
+    envelopes.extend(normalizer.normalize_ui_update(
+        &UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "provider-call-1".to_string(),
+                name: "read_file".to_string(),
+                input: json!({}),
+                status: ToolStatus::Pending,
+            },
+        },
+        None,
+    ));
+    envelopes.extend(normalizer.normalize_ui_update(
+        &UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: r#"{"path":"src/lib.rs"}"#.to_string(),
+        },
+        None,
+    ));
+    envelopes
+        .extend(normalizer.normalize_ui_update(&UiUpdate::StreamBlockComplete { index: 0 }, None));
+    envelopes.extend(
+        normalizer.normalize_ui_update(&UiUpdate::TurnComplete, Some(TurnEndContext::default())),
+    );
+    for envelope in envelopes {
+        sender
+            .send(serde_json::to_string(&envelope).unwrap())
+            .unwrap();
+    }
+    drop(sender);
+
+    let response = reqwest::Client::new()
+        .get(format!("http://{addr}/"))
+        .header("Accept", "application/vnd.choices-delta+sse")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+
+    let mut parser = StreamParser::new();
+    let mut saw_tool_start = false;
+    let mut saw_tool_delta = false;
+    let mut saw_tool_stop = false;
+    let mut stream = response.bytes_stream();
+
+    for _ in 0..12 {
+        let Some(chunk) = timeout(
+            Duration::from_secs(1),
+            futures::StreamExt::next(&mut stream),
+        )
+        .await
+        .expect("choices chunk timed out") else {
+            break;
+        };
+        let chunk = chunk.expect("stream ended unexpectedly");
+        for event in parser.process(&chunk).unwrap() {
+            match event {
+                StreamEvent::ContentBlockStart {
+                    content_block: ContentBlock::ToolUse { id, name, .. },
+                    ..
+                } => {
+                    assert!(id.starts_with("tx_"), "expected tx_ id, got {id}");
+                    assert_eq!(name, "read_file");
+                    saw_tool_start = true;
+                }
+                StreamEvent::ContentBlockDelta { delta, .. } => {
+                    assert_eq!(
+                        delta.partial_json.as_deref(),
+                        Some(r#"{"path":"src/lib.rs"}"#)
+                    );
+                    saw_tool_delta = true;
+                }
+                StreamEvent::ContentBlockStop { .. } => {
+                    saw_tool_stop = true;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        if saw_tool_stop {
+            break;
+        }
+    }
+
+    assert!(saw_tool_start, "expected tool start over choices SSE");
+    assert!(saw_tool_delta, "expected tool delta over choices SSE");
+    assert!(saw_tool_stop, "expected tool stop over choices SSE");
 
     server.abort();
 }
@@ -470,16 +760,15 @@ async fn test_approve_handler_returns_conflict_without_pending_approval() {
     let (interrupt_tx, _interrupt_rx) = mpsc::unbounded_channel();
     let (envelope_tx, _envelope_rx) = mpsc::unbounded_channel();
     let quit = Arc::new(AtomicBool::new(false));
-    let shared = Arc::new(Mutex::new(LocalApiTaskShared {
-        normalizer: RuntimeEnvelopeNormalizer::new(task_id.clone()),
+    let shared = Arc::new(Mutex::new(LocalApiTaskShared::new(
+        task_id.clone(),
         envelope_tx,
-        pending_approval: None,
         quit,
-        turn_in_progress: false,
-        interrupted: false,
-        active_command_sessions: std::collections::BTreeSet::new(),
-        turn_completion_pending: false,
-    }));
+        state
+            .config
+            .api_client
+            .delta_accumulator_memory_watermark_bytes(),
+    )));
     state.tasks.lock().await.insert(
         task_id.clone(),
         ActiveTask {
