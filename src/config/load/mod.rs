@@ -460,6 +460,7 @@ pub(super) fn read_env_layer() -> Result<(ConfigLayer, Option<String>)> {
         http_hooks: None,
         search: None,
         auto_memory: None,
+        api_client: None,
     };
 
     Ok((layer, env_token))

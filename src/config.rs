@@ -476,6 +476,7 @@ impl Config {
             undo: UndoConfig::default(),
             search: SearchConfig::default(),
             auto_memory: AutoMemoryConfig::default(),
+            api_client: ApiClientConfig::default(),
         }
     }
 
