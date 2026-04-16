@@ -12,7 +12,8 @@ use chrono::{Timelike, Utc};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
-use std::sync::{Arc, atomic::{AtomicU32, Ordering}};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 mod derived;
 
