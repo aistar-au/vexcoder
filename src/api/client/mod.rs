@@ -1012,6 +1012,8 @@ fn tool_input_to_json_string(value: &Value) -> String {
     }
 }
 
+pub mod protocol_discovery;
+
 mod tools;
 pub(crate) use tools::{builtin_tool_summaries, is_readonly_tool};
 #[cfg(test)]

@@ -19,9 +19,7 @@ use paths::*;
 // Re-exports for parent module (config.rs test-only imports)
 pub(super) use parse::infer_model_protocol;
 #[cfg(test)]
-pub(super) use parse::{
-    legacy_chat_protocol_value, legacy_messages_protocol_value, parse_model_headers_json,
-};
+pub(super) use parse::parse_model_headers_json;
 pub(super) use paths::user_config_path;
 
 pub(super) fn load() -> Result<Config> {
