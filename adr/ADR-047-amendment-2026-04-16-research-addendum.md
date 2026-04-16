@@ -38,7 +38,7 @@ and defines the id/notification split as a universal RPC concern.
 
 ### 1.2 Language Server Protocol Progress Tokens
 
-LSP 3.17 (Microsoft, open specification) extends JSON-RPC with a
+The Language Server Protocol (LSP) 3.17 specification extends JSON-RPC with a
 `ProgressToken` type (integer or string) used to correlate `$/progress`
 notifications back to the originating request. LSP defines a three-phase
 progress lifecycle:
@@ -67,13 +67,13 @@ followed by ToolResult) pattern.
 
 **Reference:** Language Server Protocol Specification 3.17, Sections "Progress
 Support," "Work Done Progress," and "Partial Result Progress."
-(microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/)
 Published under the Creative Commons Attribution 4.0 International license.
+The LSP base protocol layer is defined over JSON-RPC 2.0 (see §1.1).
 
 ### 1.3 CloudEvents Identity Fields
 
-The CloudEvents specification (CNCF, v1.0.2) defines a minimal set of required
-attributes for any event:
+The CloudEvents specification (v1.0.2, CNCF Serverless Working Group) defines
+a minimal set of required attributes for any event:
 
 - `id` (string, required): identifies the event; unique within the scope of
   the source.
@@ -97,8 +97,9 @@ fields added in Phase A directly satisfy the CloudEvents core attribute
 contract. The `parent_event_id` field extends the pattern for causal chaining,
 which CloudEvents supports via extension attributes.
 
-**Reference:** CloudEvents Specification v1.0.2 (github.com/cloudevents/spec).
-Published under the Apache License 2.0.
+**Reference:** CloudEvents Specification v1.0.2 (CNCF Serverless WG).
+Published under the Apache License 2.0. The event identity model aligns
+with RFC 4122 (UUID) for `id` generation and RFC 3986 (URI) for `source`.
 
 ---
 
@@ -160,8 +161,8 @@ The amendment goes further than MCP by adding explicit lifecycle events for
 streaming scenarios where tool execution is long-running.
 
 **Reference:** Model Context Protocol Specification 2025-03-26, Section
-"Server: Tools" (spec.modelcontextprotocol.io). Published under the MIT
-License.
+"Server: Tools." Published under the MIT License. The tool invocation
+model is defined over JSON-RPC 2.0 (see §1.1).
 
 ---
 
@@ -286,14 +287,21 @@ Phase A of the amendment is implemented in PR #390 and adds:
    https://www.jsonrpc.org/specification
    License: perpetual, permits implementation and derivative works.
 
-2. Language Server Protocol Specification 3.17 (Microsoft).
-   https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/
-   License: Creative Commons Attribution 4.0 International (CC BY 4.0).
+2. Language Server Protocol Specification 3.17 (open specification, CC BY 4.0).
+   Base protocol defined over JSON-RPC 2.0 (ref 1).
 
-3. CloudEvents Specification v1.0.2 (CNCF).
-   https://github.com/cloudevents/spec
-   License: Apache License 2.0.
+3. CloudEvents Specification v1.0.2 (CNCF Serverless WG, Apache-2.0).
+   Event identity uses RFC 4122 UUIDs; source uses RFC 3986 URI-references;
+   timestamps use RFC 3339.
 
-4. Model Context Protocol Specification 2025-03-26.
-   https://spec.modelcontextprotocol.io/specification/2025-03-26/
-   License: MIT License.
+4. Model Context Protocol Specification 2025-03-26 (MIT License).
+   Tool invocation defined over JSON-RPC 2.0 (ref 1).
+
+5. RFC 4122 — A Universally Unique IDentifier (UUID) URN Namespace.
+   https://www.rfc-editor.org/rfc/rfc4122
+
+6. RFC 3986 — Uniform Resource Identifier (URI): Generic Syntax.
+   https://www.rfc-editor.org/rfc/rfc3986
+
+7. RFC 3339 — Date and Time on the Internet: Timestamps.
+   https://www.rfc-editor.org/rfc/rfc3339
