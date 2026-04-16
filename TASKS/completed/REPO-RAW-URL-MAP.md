@@ -76,7 +76,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 65 | `adr/ADR-046-agent-peer-message-channel.md` | ~270 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-046-agent-peer-message-channel.md> |
 | 66 | `adr/ADR-047-amendment-2026-04-16.md` | ~181 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-amendment-2026-04-16.md> |
 | 67 | `adr/ADR-047-amendment-2026-04-16-research-addendum.md` | ~299 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-amendment-2026-04-16-research-addendum.md> |
-| 69 | `adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md` | ~134 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md> |
+| 68 | `adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md` | ~134 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md> |
 | 69 | `adr/ADR-README.md` | ~107 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 70 | `adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
 | 71 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~77 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |
