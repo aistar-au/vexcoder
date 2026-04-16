@@ -48,6 +48,24 @@ reqwest = { version = "0.13", default-features = false, features = [
   "json",
   "stream",
   "rustls",
+  # RFC 1928 (SOCKS5): proxy support for SOCKS5/SOCKS4 proxy tunnelling.
+  "socks",
+] }
+# RFC 1952/7932 (DEFLATE/Brotli): async streaming de/compression for HTTP bodies.
+async-compression = { version = "0.4", default-features = false, features = [
+  "tokio",
+  "gzip",
+  "brotli",
+  "zlib",
+] }
+# RFC 7519/7515 (JWT/JWS): JSON Web Token encoding and validation.
+jsonwebtoken = "9"
+# RFC 7636/6750 (PKCE/Bearer): OAuth2 client with PKCE code-challenge support.
+oauth2 = { version = "4", default-features = false }
+# RFC 8484/6555 (DoH/Happy Eyeballs): DNS-over-HTTPS and dual-stack connection racing.
+hickory-resolver = { version = "0.24", default-features = false, features = [
+  "dns-over-https-rustls",
+  "tokio-runtime",
 ] }
 rmcp = { version = "1.2.0", default-features = false, features = [
   "client",
@@ -244,6 +262,10 @@ http.workspace = true
 hyper-util.workspace = true
 ratatui.workspace = true
 reqwest.workspace = true
+async-compression.workspace = true
+jsonwebtoken.workspace = true
+oauth2.workspace = true
+hickory-resolver.workspace = true
 rmcp.workspace = true
 rustls.workspace = true
 serde.workspace = true

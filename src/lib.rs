@@ -17,6 +17,7 @@ pub(crate) mod http_facade;
 pub mod init;
 pub(crate) mod local_api;
 pub mod mcp;
+pub mod net;
 pub mod pr_summary;
 pub mod prompts;
 pub mod runtime;
