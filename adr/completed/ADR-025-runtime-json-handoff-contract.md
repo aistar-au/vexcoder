@@ -671,7 +671,7 @@ ws ::= (" " | "\n" | "\r" | "\t")*
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://vexcoder.io/schemas/runtime_envelope_v1.json",
+  "$id": "https://vexcoder.com/schemas/runtime_envelope_v1.json",
   "title": "RuntimeEnvelope v1",
   "type": "object",
   "additionalProperties": false,
@@ -868,7 +868,7 @@ ws ::= (" " | "\n" | "\r" | "\t")*
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://vexcoder.io/schemas/runtime_request_v1.json",
+  "$id": "https://vexcoder.com/schemas/runtime_request_v1.json",
   "title": "RuntimeRequest v1",
   "$defs": {
     "scope": {

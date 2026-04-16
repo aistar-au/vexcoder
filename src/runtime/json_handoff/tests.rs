@@ -54,11 +54,11 @@ fn test_pi_11_schema_assets_parse_as_json() {
 
     assert_eq!(
         envelope_schema["$id"],
-        "https://vexcoder.io/schemas/runtime_envelope_v1.json"
+        "https://vexcoder.com/schemas/runtime_envelope_v1.json"
     );
     assert_eq!(
         request_schema["$id"],
-        "https://vexcoder.io/schemas/runtime_request_v1.json"
+        "https://vexcoder.com/schemas/runtime_request_v1.json"
     );
     assert_eq!(envelope_schema["properties"]["version"]["const"], 1);
     assert_eq!(
