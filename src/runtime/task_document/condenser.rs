@@ -2,7 +2,7 @@ use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::session_task::now_millis;
 use crate::runtime::task_state::TaskStatus;
 use crate::runtime::{ApprovalScope, Capability};
-use crate::state::{StreamBlock, ToolStatus, TurnToolPolicy};
+use crate::state::{StreamBlock, TurnToolPolicy};
 use crate::usage::TurnTokens;
 
 use super::{
@@ -190,41 +190,45 @@ impl TaskDocumentCondenser {
                     summary.active_turn_changed = true;
                 }
             }
-            RuntimeEvent::ToolCall {
-                id,
-                name,
+            RuntimeEvent::ToolCallStarted {
+                tool_call_id,
+                tool_name,
                 arguments,
+                status,
+                ..
             } => {
                 if let Some(active) = doc.active_turn.as_mut() {
                     let step_id = Self::alloc_step(&mut doc.info.next_step_id);
                     active.entries.push(TurnEntry::ToolCall {
                         step_id,
-                        id,
-                        name,
+                        id: tool_call_id,
+                        name: tool_name,
                         input: arguments,
-                        status: ToolStatus::Pending,
+                        status,
                     });
                     summary.active_turn_changed = true;
                     summary.appended_rows += 1;
                     summary.selected_step_id = Some(step_id);
                 }
             }
-            RuntimeEvent::ToolResult {
+            RuntimeEvent::ToolCallArgumentsDelta { .. } => {}
+            RuntimeEvent::ToolCallCompleted {
                 tool_call_id,
                 tool_name,
-                is_error,
                 output,
+                status,
+                ..
             } => {
                 if let Some(active) = doc.active_turn.as_mut() {
                     for entry in &mut active.entries {
-                        if let TurnEntry::ToolCall { id, status, .. } = entry
+                        if let TurnEntry::ToolCall {
+                            id,
+                            status: entry_status,
+                            ..
+                        } = entry
                             && *id == tool_call_id
                         {
-                            *status = if is_error {
-                                ToolStatus::Error
-                            } else {
-                                ToolStatus::Complete
-                            };
+                            *entry_status = status.clone();
                             break;
                         }
                     }
@@ -235,7 +239,40 @@ impl TaskDocumentCondenser {
                         tool_call_id,
                         tool_name,
                         output,
-                        is_error,
+                        is_error: false,
+                    });
+                    summary.active_turn_changed = true;
+                    summary.appended_rows += 1;
+                }
+            }
+            RuntimeEvent::ToolCallFailed {
+                tool_call_id,
+                tool_name,
+                output,
+                status,
+                ..
+            } => {
+                if let Some(active) = doc.active_turn.as_mut() {
+                    for entry in &mut active.entries {
+                        if let TurnEntry::ToolCall {
+                            id,
+                            status: entry_status,
+                            ..
+                        } = entry
+                            && *id == tool_call_id
+                        {
+                            *entry_status = status.clone();
+                            break;
+                        }
+                    }
+
+                    let step_id = Self::alloc_step(&mut doc.info.next_step_id);
+                    active.entries.push(TurnEntry::ToolResult {
+                        step_id,
+                        tool_call_id,
+                        tool_name,
+                        output,
+                        is_error: true,
                     });
                     summary.active_turn_changed = true;
                     summary.appended_rows += 1;

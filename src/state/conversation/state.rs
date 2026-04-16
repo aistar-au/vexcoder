@@ -11,10 +11,12 @@ use crate::tool_preview::ReadFileRollupCache;
 use crate::tools::ToolOperator;
 use crate::types::{ApiMessage, Content, StreamChunkMetadata};
 use crate::usage::TurnTokens;
+use chrono::{DateTime, Utc};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 #[cfg(test)]
-use std::{collections::HashMap, sync::Mutex};
+use std::sync::Mutex;
 use tokio::sync::oneshot;
 
 /// A snapshot of a single file's content before a mutating tool call.
@@ -105,6 +107,7 @@ pub struct ConversationManager {
     /// used by `upsert_turn_block` to pad with empty Thinking placeholders when
     /// the model sends a block at a non-zero index without prior blocks.
     pub(super) current_round_stream_block_count: usize,
+    pub(super) tool_call_started_at: HashMap<String, DateTime<Utc>>,
     pub(super) last_turn_tokens: TurnTokens,
     pub(super) read_file_history_cache: ReadFileRollupCache,
     pub(super) undo_stack: Vec<UndoCheckpoint>,
@@ -147,6 +150,7 @@ impl ConversationManager {
             condenser: TaskDocumentCondenser::new(),
             current_round_entry_start: 0,
             current_round_stream_block_count: 0,
+            tool_call_started_at: HashMap::new(),
             last_turn_tokens: TurnTokens::default(),
             read_file_history_cache: ReadFileRollupCache::default(),
             undo_stack: Vec::new(),
@@ -231,6 +235,7 @@ impl ConversationManager {
             condenser: TaskDocumentCondenser::new(),
             current_round_entry_start: 0,
             current_round_stream_block_count: 0,
+            tool_call_started_at: HashMap::new(),
             last_turn_tokens: TurnTokens::default(),
             read_file_history_cache: ReadFileRollupCache::default(),
             undo_stack: Vec::new(),
@@ -257,6 +262,7 @@ impl ConversationManager {
         self.task_doc = None;
         self.current_round_entry_start = 0;
         self.current_round_stream_block_count = 0;
+        self.tool_call_started_at.clear();
         self.last_turn_tokens = TurnTokens::default();
         self.read_file_history_cache = ReadFileRollupCache::default();
     }
@@ -363,6 +369,7 @@ impl ConversationManager {
             self.condenser.begin_turn(doc, input, now, tool_policy);
         }
         self.current_round_stream_block_count = 0;
+        self.tool_call_started_at.clear();
     }
 
     /// Commit the active turn and mark it completed.
@@ -371,6 +378,7 @@ impl ConversationManager {
             let now = now_millis();
             self.condenser.finish_turn(doc, outcome, tokens, now);
         }
+        self.tool_call_started_at.clear();
     }
 
     /// Apply one `RuntimeEvent` to the document.

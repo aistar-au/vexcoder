@@ -12,12 +12,19 @@ fn test_pi_09_anchor_runtime_envelope_serde_shape() {
         task_id: "task-1741700000000".to_string(),
         turn: 1,
         seq: 3,
-        event: RuntimeEvent::ToolCall {
-            id: "tx_1_9a2f".to_string(),
-            name: "read_file".to_string(),
+        event_id: "evt:task-1741700000000:1:3".to_string(),
+        emitted_at: "2026-04-16T00:00:00.000Z".to_string(),
+        source: RuntimeEnvelopeSource::Model,
+        request_id: Some("req-1".to_string()),
+        parent_event_id: None,
+        event: RuntimeEvent::ToolCallStarted {
+            tool_call_id: "tx_1_9a2f".to_string(),
+            tool_name: "read_file".to_string(),
             arguments: json!({
                 "path": "src/app.rs"
             }),
+            status: crate::state::ToolStatus::Pending,
+            started_at: "2026-04-16T00:00:00.000Z".to_string(),
         },
     };
 
@@ -26,9 +33,13 @@ fn test_pi_09_anchor_runtime_envelope_serde_shape() {
     assert_eq!(value["task_id"], "task-1741700000000");
     assert_eq!(value["turn"], 1);
     assert_eq!(value["seq"], 3);
-    assert_eq!(value["event"]["type"], "tool_call");
-    assert_eq!(value["event"]["id"], "tx_1_9a2f");
-    assert_eq!(value["event"]["name"], "read_file");
+    assert_eq!(value["event_id"], "evt:task-1741700000000:1:3");
+    assert_eq!(value["emitted_at"], "2026-04-16T00:00:00.000Z");
+    assert_eq!(value["source"], "model");
+    assert_eq!(value["request_id"], "req-1");
+    assert_eq!(value["event"]["type"], "tool_call_started");
+    assert_eq!(value["event"]["tool_call_id"], "tx_1_9a2f");
+    assert_eq!(value["event"]["tool_name"], "read_file");
     assert_eq!(value["event"]["arguments"]["path"], "src/app.rs");
 }
 
@@ -43,13 +54,17 @@ fn test_pi_11_schema_assets_parse_as_json() {
 
     assert_eq!(
         envelope_schema["$id"],
-        "https://vexcoder.io/schemas/runtime_envelope_v1.json"
+        "https://vexcoder.com/schemas/runtime_envelope_v1.json"
     );
     assert_eq!(
         request_schema["$id"],
-        "https://vexcoder.io/schemas/runtime_request_v1.json"
+        "https://vexcoder.com/schemas/runtime_request_v1.json"
     );
     assert_eq!(envelope_schema["properties"]["version"]["const"], 1);
+    assert_eq!(
+        envelope_schema["properties"]["source"]["$ref"],
+        "#/$defs/envelope_source"
+    );
     assert_eq!(
         envelope_schema["$defs"]["tool_name"]["pattern"],
         "^([a-z][a-z0-9_-]*|mcp\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_-]*)$"
@@ -98,18 +113,21 @@ fn test_pi_10_normalization_discards_provider_ids_and_tracks_results() {
         .expect("tool call envelope");
 
     let runtime_call_id = match &tool_call.event {
-        RuntimeEvent::ToolCall {
-            id,
-            name,
+        RuntimeEvent::ToolCallStarted {
+            tool_call_id,
+            tool_name,
             arguments,
+            status,
+            ..
         } => {
-            assert_ne!(id, "provider-call-1");
-            assert_runtime_tool_id(id);
-            assert_eq!(name, "write_file");
+            assert_ne!(tool_call_id, "provider-call-1");
+            assert_runtime_tool_id(tool_call_id);
+            assert_eq!(tool_name, "write_file");
             assert_eq!(arguments["path"], "src/main.rs");
-            id.clone()
+            assert_eq!(status, &crate::state::ToolStatus::Pending);
+            tool_call_id.clone()
         }
-        other => panic!("expected tool_call event, got {other:?}"),
+        other => panic!("expected tool_call_started event, got {other:?}"),
     };
 
     let tool_result = normalizer
@@ -122,18 +140,19 @@ fn test_pi_10_normalization_discards_provider_ids_and_tracks_results() {
         .expect("tool result envelope");
 
     match tool_result.event {
-        RuntimeEvent::ToolResult {
+        RuntimeEvent::ToolCallCompleted {
             tool_call_id,
             tool_name,
-            is_error,
+            status,
             output,
+            ..
         } => {
             assert_eq!(tool_call_id, runtime_call_id);
             assert_eq!(tool_name.as_deref(), Some("write_file"));
-            assert!(!is_error);
+            assert_eq!(status, crate::state::ToolStatus::Complete);
             assert_eq!(output, "ok");
         }
-        other => panic!("expected tool_result event, got {other:?}"),
+        other => panic!("expected tool_call_completed event, got {other:?}"),
     }
 
     let grammar_calls = normalizer.normalize_tool_call_array(&json!([
@@ -173,6 +192,8 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
             ref delta,
         } if index == final_text_index && delta == "partial model response"
     ));
+    assert_eq!(delta[0].source, RuntimeEnvelopeSource::Model);
+    assert_eq!(delta[1].source, RuntimeEnvelopeSource::Model);
 
     let transcript_line = normalizer.normalize_ui_update(
         &UiUpdate::TranscriptLine("[edit loop: running validation]".to_string()),
@@ -188,6 +209,8 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         RuntimeEvent::TranscriptLine { ref line }
             if line == "[edit loop: running validation]"
     ));
+    assert_eq!(transcript_line[0].source, RuntimeEnvelopeSource::Model);
+    assert_eq!(transcript_line[1].source, RuntimeEnvelopeSource::Runtime);
 
     let transcript_block_start = normalizer.normalize_ui_update(
         &UiUpdate::StreamBlockStart {
@@ -216,29 +239,49 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
     ));
     assert!(matches!(
         transcript_block_start[1].event,
-        RuntimeEvent::ToolCall {
-            ref name,
+        RuntimeEvent::ToolCallStarted {
+            ref tool_name,
             ref arguments,
             ..
-        } if name == "read_file" && arguments["path"] == "src/lib.rs"
+        } if tool_name == "read_file" && arguments["path"] == "src/lib.rs"
     ));
+    assert_eq!(
+        transcript_block_start[0].source,
+        RuntimeEnvelopeSource::Model
+    );
+    assert_eq!(
+        transcript_block_start[1].source,
+        RuntimeEnvelopeSource::Model
+    );
 
-    let transcript_block_delta = normalizer
-        .normalize_ui_update(
-            &UiUpdate::StreamBlockDelta {
-                index: 0,
-                delta: "{\"path\":\"src/lib.rs\"}".to_string(),
-            },
-            None,
-        )
-        .pop()
-        .expect("transcript block delta envelope");
+    // TranscriptBlockDelta is emitted first (canonical protocol event),
+    // followed by ToolCallArgumentsDelta for tool blocks.
+    let block_delta_envelopes = normalizer.normalize_ui_update(
+        &UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: "{\"path\":\"src/lib.rs\"}".to_string(),
+        },
+        None,
+    );
+    assert_eq!(block_delta_envelopes.len(), 2);
+    let transcript_block_delta = &block_delta_envelopes[0];
+    let tool_call_arguments_delta = &block_delta_envelopes[1];
     assert!(matches!(
         transcript_block_delta.event,
         RuntimeEvent::TranscriptBlockDelta {
             index: 0,
             ref delta,
         } if delta == "{\"path\":\"src/lib.rs\"}"
+    ));
+    assert_eq!(transcript_block_delta.source, RuntimeEnvelopeSource::Model);
+    assert!(matches!(
+        tool_call_arguments_delta.event,
+        RuntimeEvent::ToolCallArgumentsDelta {
+            ref tool_name,
+            ref delta,
+            ..
+        } if tool_name.as_deref() == Some("read_file")
+            && delta == "{\"path\":\"src/lib.rs\"}"
     ));
 
     let transcript_block_complete = normalizer
@@ -249,6 +292,10 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         transcript_block_complete.event,
         RuntimeEvent::TranscriptBlockComplete { index: 0 }
     ));
+    assert_eq!(
+        transcript_block_complete.source,
+        RuntimeEnvelopeSource::Model
+    );
 
     let (response_tx, _response_rx) = oneshot::channel();
     let approval = normalizer
@@ -274,6 +321,7 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
 
     let resolved = normalizer
         .normalize_runtime_request(&RuntimeRequest::ApproveCapability {
+            request_id: "req-approve-1".to_string(),
             task_id: "task-2".to_string(),
             capability: "apply-patch".to_string(),
             scope: "session".to_string(),
@@ -333,8 +381,8 @@ fn test_pi_10_stream_block_deltas_feed_delta_accumulator() {
         None,
     );
     let runtime_call_id = match &start[1].event {
-        RuntimeEvent::ToolCall { id, .. } => id.clone(),
-        other => panic!("expected tool_call event, got {other:?}"),
+        RuntimeEvent::ToolCallStarted { tool_call_id, .. } => tool_call_id.clone(),
+        other => panic!("expected tool_call_started event, got {other:?}"),
     };
 
     normalizer.normalize_ui_update(
@@ -362,6 +410,53 @@ fn test_pi_10_stream_block_deltas_feed_delta_accumulator() {
         vec![r#"{"path":"src/"#.to_string(), r#"lib.rs"}"#.to_string()]
     );
     assert!(tool_state.finished);
+}
+
+#[test]
+fn test_pi_10_runtime_origin_block_sources_are_preserved() {
+    let mut normalizer = RuntimeEnvelopeNormalizer::new("task-source");
+    let _ = normalizer.start_turn(1, Some("runtime block".to_string()));
+
+    let start = normalizer.normalize_ui_update(
+        &UiUpdate::StreamBlockStart {
+            index: 7,
+            block: StreamBlock::ToolResult {
+                tool_call_id: "provider-call-1".to_string(),
+                output: "done".to_string(),
+                is_error: false,
+            },
+        },
+        None,
+    );
+
+    assert_eq!(start[0].source, RuntimeEnvelopeSource::Runtime);
+    assert!(matches!(
+        start[0].event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 7,
+            block: StreamBlock::ToolResult { .. }
+        }
+    ));
+    assert_eq!(start[1].source, RuntimeEnvelopeSource::Runtime);
+    assert!(matches!(
+        start[1].event,
+        RuntimeEvent::ToolCallCompleted {
+            ref tool_call_id,
+            tool_name: None,
+            status: crate::state::ToolStatus::Complete,
+            ..
+        } if tool_call_id == "provider-call-1"
+    ));
+
+    let complete = normalizer
+        .normalize_ui_update(&UiUpdate::StreamBlockComplete { index: 7 }, None)
+        .pop()
+        .expect("tool-result block complete envelope");
+    assert_eq!(complete.source, RuntimeEnvelopeSource::Runtime);
+    assert!(matches!(
+        complete.event,
+        RuntimeEvent::TranscriptBlockComplete { index: 7 }
+    ));
 }
 
 #[test]
@@ -398,46 +493,22 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
     ));
 
     envelopes.push(normalizer.start_turn(2, Some("second".to_string())));
-    envelopes.push(RuntimeEnvelope {
-        version: 1,
-        task_id: "batch-1741700000000".to_string(),
-        turn: 2,
-        seq: 2,
-        event: RuntimeEvent::TranscriptBlockStart {
-            index: 0,
-            block: StreamBlock::FinalText {
-                content: String::new(),
-            },
+    envelopes.push(normalizer.emit_event(RuntimeEvent::TranscriptBlockStart {
+        index: 0,
+        block: StreamBlock::FinalText {
+            content: String::new(),
         },
-    });
-    envelopes.push(RuntimeEnvelope {
-        version: 1,
-        task_id: "batch-1741700000000".to_string(),
-        turn: 2,
-        seq: 3,
-        event: RuntimeEvent::TranscriptBlockDelta {
-            index: 0,
-            delta: "fallback".to_string(),
-        },
-    });
-    envelopes.push(RuntimeEnvelope {
-        version: 1,
-        task_id: "batch-1741700000000".to_string(),
-        turn: 2,
-        seq: 4,
-        event: RuntimeEvent::TranscriptBlockComplete { index: 0 },
-    });
-    envelopes.push(RuntimeEnvelope {
-        version: 1,
-        task_id: "batch-1741700000000".to_string(),
-        turn: 2,
-        seq: 5,
-        event: RuntimeEvent::TurnEnd {
-            status: "completed".to_string(),
-            usage: None,
-            changed_files: vec!["src/second.rs".to_string()],
-        },
-    });
+    }));
+    envelopes.push(normalizer.emit_event(RuntimeEvent::TranscriptBlockDelta {
+        index: 0,
+        delta: "fallback".to_string(),
+    }));
+    envelopes.push(normalizer.emit_event(RuntimeEvent::TranscriptBlockComplete { index: 0 }));
+    envelopes.push(normalizer.emit_event(RuntimeEvent::TurnEnd {
+        status: "completed".to_string(),
+        usage: None,
+        changed_files: vec!["src/second.rs".to_string()],
+    }));
 
     for envelope in &envelopes {
         let json = serde_json::to_string(envelope).expect("serialize envelope");
@@ -447,18 +518,22 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
 
     let requests = vec![
         RuntimeRequest::SubmitInput {
+            request_id: "req-submit-1".to_string(),
             task_id: None,
             input: "go".to_string(),
         },
         RuntimeRequest::Interrupt {
+            request_id: "req-interrupt-1".to_string(),
             task_id: "batch-1741700000000".to_string(),
         },
         RuntimeRequest::ApproveCapability {
+            request_id: "req-approve-2".to_string(),
             task_id: "batch-1741700000000".to_string(),
             capability: "apply-patch".to_string(),
             scope: "session".to_string(),
         },
         RuntimeRequest::DenyCapability {
+            request_id: "req-deny-1".to_string(),
             task_id: "batch-1741700000000".to_string(),
             capability: "run-command".to_string(),
         },
@@ -476,7 +551,15 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(turn_start_seqs, vec![(1, 1), (2, 1)]);
+    // seq is process-lifetime monotonic: turn 1 starts at seq 1; turn 2
+    // continues without a reset so its TurnStart seq > 1.
+    assert_eq!(turn_start_seqs.len(), 2);
+    assert_eq!(turn_start_seqs[0], (1, 1));
+    assert_eq!(turn_start_seqs[1].0, 2);
+    assert!(
+        turn_start_seqs[1].1 > turn_start_seqs[0].1,
+        "turn 2 TurnStart seq must be greater than turn 1 TurnStart seq (global monotonic counter)"
+    );
 
     let derived = derive_batch_records(&envelopes, Some("AGENTS.md".to_string()));
     assert_eq!(derived.turns.len(), 2);

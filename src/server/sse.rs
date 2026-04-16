@@ -173,10 +173,11 @@ impl NegotiatedTurnsAdapter {
 
                 Vec::new()
             }
-            RuntimeEvent::ToolCall {
-                id,
-                name,
+            RuntimeEvent::ToolCallStarted {
+                tool_call_id,
+                tool_name,
                 arguments,
+                ..
             } => {
                 if let Some(pending) = self.pending_tool_blocks.pop_front() {
                     let wire_index = pending.block_index;
@@ -190,16 +191,20 @@ impl NegotiatedTurnsAdapter {
                             saw_delta: false,
                         },
                     );
-                    return vec![event_from_sse_frame(
-                        self.mapper.tool_start_frame(wire_index, &id, &name),
-                    )];
+                    return vec![event_from_sse_frame(self.mapper.tool_start_frame(
+                        wire_index,
+                        &tool_call_id,
+                        &tool_name,
+                    ))];
                 }
 
                 let wire_index = self.next_block_delta_index;
                 self.next_block_delta_index = self.next_block_delta_index.saturating_add(1);
-                let mut events = vec![event_from_sse_frame(
-                    self.mapper.tool_start_frame(wire_index, &id, &name),
-                )];
+                let mut events = vec![event_from_sse_frame(self.mapper.tool_start_frame(
+                    wire_index,
+                    &tool_call_id,
+                    &tool_name,
+                ))];
                 if let Some(serialized) = serialize_nonempty_arguments(&arguments) {
                     events.push(event_from_sse_frame(
                         self.mapper.tool_delta_frame(wire_index, &serialized),
@@ -258,9 +263,11 @@ impl NegotiatedTurnsAdapter {
                 .to_string(),
             )],
             RuntimeEvent::TranscriptLine { .. }
+            | RuntimeEvent::ToolCallArgumentsDelta { .. }
             | RuntimeEvent::ToolCallStatusUpdated { .. }
             | RuntimeEvent::TranscriptBlockPhaseUpdated { .. }
-            | RuntimeEvent::ToolResult { .. }
+            | RuntimeEvent::ToolCallCompleted { .. }
+            | RuntimeEvent::ToolCallFailed { .. }
             | RuntimeEvent::ApprovalRequest { .. }
             | RuntimeEvent::ApprovalResolved { .. }
             | RuntimeEvent::ValidationResult { .. } => Vec::new(),
@@ -319,10 +326,11 @@ impl NegotiatedTurnsAdapter {
                 }
                 Vec::new()
             }
-            RuntimeEvent::ToolCall {
-                id,
-                name,
+            RuntimeEvent::ToolCallStarted {
+                tool_call_id,
+                tool_name,
                 arguments,
+                ..
             } => {
                 if let Some(pending) = self.pending_tool_blocks.pop_front() {
                     let wire_index = self.next_choices_tool_index;
@@ -339,9 +347,11 @@ impl NegotiatedTurnsAdapter {
                     );
                     return vec![json_event(augment_choices_chunk(
                         self.message_id.as_deref(),
-                        event_payload_from_sse_frame(
-                            self.mapper.tool_start_frame(wire_index, &id, &name),
-                        ),
+                        event_payload_from_sse_frame(self.mapper.tool_start_frame(
+                            wire_index,
+                            &tool_call_id,
+                            &tool_name,
+                        )),
                     ))];
                 }
 
@@ -349,9 +359,11 @@ impl NegotiatedTurnsAdapter {
                 self.next_choices_tool_index = self.next_choices_tool_index.saturating_add(1);
                 let mut events = vec![json_event(augment_choices_chunk(
                     self.message_id.as_deref(),
-                    event_payload_from_sse_frame(
-                        self.mapper.tool_start_frame(wire_index, &id, &name),
-                    ),
+                    event_payload_from_sse_frame(self.mapper.tool_start_frame(
+                        wire_index,
+                        &tool_call_id,
+                        &tool_name,
+                    )),
                 ))];
                 if let Some(serialized) = serialize_nonempty_arguments(&arguments) {
                     events.push(json_event(augment_choices_chunk(
@@ -399,9 +411,11 @@ impl NegotiatedTurnsAdapter {
                 .to_string(),
             )],
             RuntimeEvent::TranscriptLine { .. }
+            | RuntimeEvent::ToolCallArgumentsDelta { .. }
             | RuntimeEvent::ToolCallStatusUpdated { .. }
             | RuntimeEvent::TranscriptBlockPhaseUpdated { .. }
-            | RuntimeEvent::ToolResult { .. }
+            | RuntimeEvent::ToolCallCompleted { .. }
+            | RuntimeEvent::ToolCallFailed { .. }
             | RuntimeEvent::ApprovalRequest { .. }
             | RuntimeEvent::ApprovalResolved { .. }
             | RuntimeEvent::ValidationResult { .. } => Vec::new(),

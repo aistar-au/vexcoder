@@ -50,7 +50,8 @@ pub(crate) use git_rollup::{
     block_on_context_task, resolve_git_timeout_ms, run_git_command_with_timeout,
 };
 pub use json_handoff::{
-    RuntimeEnvelope, RuntimeEvent, RuntimeRequest, TokenUsageEnvelope, ValidationOutputEnvelope,
+    RuntimeEnvelope, RuntimeEnvelopeSource, RuntimeEvent, RuntimeRequest, TokenUsageEnvelope,
+    ValidationOutputEnvelope,
 };
 pub use rate_limit::{
     RetryHint, RetryHintSource, looks_like_rate_limit, parse_retry_after_header,

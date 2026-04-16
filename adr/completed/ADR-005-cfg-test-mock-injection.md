@@ -60,7 +60,7 @@ This pattern appears in several production Rust codebases where full trait extra
 
 ```rust
 trait ApiStream: Send {
-    async fn create_stream(&self, messages: &[ApiMessage]) -> Result<ByteStream>;
+    async fn create_stream(&self, messages: &[ApiMessage]) -> Result<EventStream>;
 }
 struct ApiClient { ... }
 impl ApiStream for ApiClient { ... }

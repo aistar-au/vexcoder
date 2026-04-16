@@ -140,7 +140,7 @@ pub trait ModelBackend: Send + Sync {
     fn protocol(&self) -> ModelProtocol;
     fn supports_structured_tools(&self) -> bool;
     fn is_local(&self) -> bool;
-    async fn create_stream(&self, messages: &[ApiMessage]) -> Result<ByteStream>;
+  async fn create_stream(&self, messages: &[ApiMessage]) -> Result<EventStream>;
 }
 
 pub trait CommandRunner: Send + Sync {

@@ -32,6 +32,8 @@ axum = { version = "0.8", features = ["http1", "json", "tokio"] }
 clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4" }
 bytes = "1"
+# 0.17 is the last release compatible with Rust 1.91 (MSRV); bump when MSRV advances.
+eventsource-client = { version = "0.17", default-features = false }
 fs2 = "0.4"
 futures = "0.3"
 hyper = { version = "1", features = ["http1", "server"] }
@@ -119,6 +121,8 @@ keyring = { version = "3", features = [
   "windows-native",
   "linux-native",
 ] }
+# 0.1 is the transitive requirement of eventsource-client 0.17; bump alongside it.
+launchdarkly-sdk-transport = { version = "0.1", default-features = false }
 grep-matcher = "0.1"
 grep-regex = "0.1"
 grep-searcher = "0.1"
@@ -231,6 +235,7 @@ axum.workspace = true
 clap.workspace = true
 clap_complete.workspace = true
 bytes.workspace = true
+eventsource-client.workspace = true
 crossterm.workspace = true
 fs2.workspace = true
 futures.workspace = true
@@ -340,6 +345,7 @@ imara-diff.workspace = true
 # constraint. Wire point: src/config/load/mod.rs (model token fallback),
 # src/credentials.rs.
 keyring.workspace = true
+launchdarkly-sdk-transport.workspace = true
 
 # --- high-performance code search ---
 # grep-matcher: trait for pluggable regex backends used by grep-searcher.

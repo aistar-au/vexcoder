@@ -112,8 +112,11 @@ allow = []
 # licensing issues that have safe alternatives already available.
 deny = []
 
-# Per-version skip entries for crates where a duplicate version is known
-# and triaged. Each entry must include a reason comment.
+# Per-version skip entries for crates where a duplicate version is known and
+# triaged. Each entry must include a reason field.
+# Note: launchdarkly-sdk-transport is a transitive-only dep pulled by
+# eventsource-client; it appears once in the graph so no skip entry is needed.
+# Upgrade tracking is via the MSRV comment in Cargo.toml [workspace.dependencies].
 skip = []
 
 # ---------------------------------------------------------------------------

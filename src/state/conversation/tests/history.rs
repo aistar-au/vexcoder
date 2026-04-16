@@ -1,6 +1,43 @@
 use super::*;
 
 #[test]
+fn test_tool_result_event_uses_recorded_start_time_for_streaming_calls() {
+    let mock_api_client = ApiClient::new_mock(Arc::new(
+        crate::api::mock_client::MockApiClient::new(vec![]),
+    ));
+    let mut manager = ConversationManager::new_mock(mock_api_client, HashMap::new());
+
+    let started_at = chrono::DateTime::parse_from_rfc3339("2026-04-16T00:00:00.000Z")
+        .expect("fixed timestamp")
+        .with_timezone(&chrono::Utc);
+    manager.record_tool_call_started_at("toolu_timing_01", started_at);
+
+    let event = manager.tool_result_event(
+        "toolu_timing_01",
+        Some("read_file".to_string()),
+        "ok".to_string(),
+        false,
+        started_at + chrono::Duration::milliseconds(250),
+    );
+
+    match event {
+        crate::runtime::json_handoff::RuntimeEvent::ToolCallCompleted {
+            started_at,
+            completed_at,
+            duration_ms,
+            ..
+        } => {
+            assert_eq!(started_at.as_deref(), Some("2026-04-16T00:00:00.000Z"));
+            assert_eq!(completed_at, "2026-04-16T00:00:00.250Z");
+            assert_eq!(duration_ms, Some(250));
+        }
+        other => panic!("expected tool_call_completed event, got {other:?}"),
+    }
+
+    assert!(!manager.tool_call_started_at.contains_key("toolu_timing_01"));
+}
+
+#[test]
 fn test_parse_tagged_tool_calls() {
     let text = r#"I can do this.
 <function=write_file>
