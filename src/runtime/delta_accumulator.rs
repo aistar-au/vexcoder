@@ -24,6 +24,11 @@ pub enum PeerDeltaEvent {
         tool_call_id: ToolCallId,
         task_id: String,
     },
+    PartialArgsTruncated {
+        tool_call_id: ToolCallId,
+        task_id: String,
+        stored_bytes: usize,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -32,6 +37,7 @@ pub struct ToolState {
     pub task_id: String,
     pub name: String,
     pub partial_args: String,
+    pub partial_args_truncated: bool,
     pub finished: bool,
     pub delta_queue: VecDeque<String>,
     pub last_activity: Instant,
@@ -89,6 +95,7 @@ impl DeltaAccumulator {
                     task_id: task_id.clone(),
                     name: name.clone(),
                     partial_args: String::new(),
+                    partial_args_truncated: false,
                     finished: false,
                     delta_queue: VecDeque::new(),
                     last_activity: Instant::now(),
@@ -106,8 +113,9 @@ impl DeltaAccumulator {
     }
 
     pub fn accumulate(&self, id: &ToolCallId, partial_json: &str) -> Result<(), AccumulationError> {
-        let task_id = {
+        let (task_id, truncation_event) = {
             let mut map = self.state.lock().unwrap_or_else(|e| e.into_inner());
+            let mut truncation_event = None;
 
             {
                 let entry = map
@@ -127,6 +135,14 @@ impl DeltaAccumulator {
                 for ch in partial_json.chars() {
                     let next_len = entry.partial_args.len().saturating_add(ch.len_utf8());
                     if next_len > MAX_STORED_PARTIAL_BYTES {
+                        if !entry.partial_args_truncated {
+                            entry.partial_args_truncated = true;
+                            truncation_event = Some(PeerDeltaEvent::PartialArgsTruncated {
+                                tool_call_id: id.clone(),
+                                task_id: entry.task_id.clone(),
+                                stored_bytes: MAX_STORED_PARTIAL_BYTES,
+                            });
+                        }
                         break;
                     }
                     entry.partial_args.push(ch);
@@ -137,9 +153,12 @@ impl DeltaAccumulator {
                 self.drop_oldest_pending(&mut map);
             }
 
-            map.get(id)
-                .map(|state| state.task_id.clone())
-                .unwrap_or_default()
+            (
+                map.get(id)
+                    .map(|state| state.task_id.clone())
+                    .unwrap_or_default(),
+                truncation_event,
+            )
         };
 
         self.publish_event(PeerDeltaEvent::ToolDelta {
@@ -147,6 +166,9 @@ impl DeltaAccumulator {
             task_id,
             partial_json: partial_json.to_string(),
         });
+        if let Some(event) = truncation_event {
+            self.publish_event(event);
+        }
 
         Ok(())
     }
@@ -319,6 +341,7 @@ mod tests {
         let map = snapshot.lock().unwrap_or_else(|e| e.into_inner());
         let state = map.get(&tool_call_id).expect("tool state present");
         assert_eq!(state.partial_args, r#"{"path":"src/main.rs"}"#);
+        assert!(!state.partial_args_truncated);
         assert_eq!(state.delta_queue.len(), 2);
         assert!(state.finished);
 
@@ -351,6 +374,49 @@ mod tests {
             PeerDeltaEvent::ToolFinish {
                 tool_call_id,
                 task_id: "task-1".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn partial_args_truncation_emits_peer_event_and_sets_flag() {
+        let (tx, mut rx) = mpsc::channel(8);
+        let accumulator = DeltaAccumulator::new_with_peer_events(512 * 1_024, Some(tx));
+        let tool_call_id = "tx_3_trunc".to_string();
+        accumulator
+            .start_tool(
+                tool_call_id.clone(),
+                "task-trunc".to_string(),
+                "write_file".to_string(),
+            )
+            .unwrap();
+
+        let oversized = format!(
+            "{{\"content\":\"{}\"}}",
+            "x".repeat(MAX_STORED_PARTIAL_BYTES + 32)
+        );
+        accumulator.accumulate(&tool_call_id, &oversized).unwrap();
+
+        let snapshot = accumulator.snapshot();
+        let map = snapshot.lock().unwrap_or_else(|e| e.into_inner());
+        let state = map.get(&tool_call_id).expect("tool state present");
+        assert!(state.partial_args_truncated);
+        assert_eq!(state.partial_args.len(), MAX_STORED_PARTIAL_BYTES);
+
+        assert!(matches!(
+            rx.blocking_recv().unwrap(),
+            PeerDeltaEvent::ToolStart { .. }
+        ));
+        assert!(matches!(
+            rx.blocking_recv().unwrap(),
+            PeerDeltaEvent::ToolDelta { .. }
+        ));
+        assert_eq!(
+            rx.blocking_recv().unwrap(),
+            PeerDeltaEvent::PartialArgsTruncated {
+                tool_call_id,
+                task_id: "task-trunc".to_string(),
+                stored_bytes: MAX_STORED_PARTIAL_BYTES,
             }
         );
     }

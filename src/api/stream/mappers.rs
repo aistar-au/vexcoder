@@ -169,6 +169,7 @@ mod tests {
             task_id: "task-1".to_string(),
             name: name.to_string(),
             partial_args: String::new(),
+            partial_args_truncated: false,
             finished: false,
             delta_queue: VecDeque::new(),
             last_activity: Instant::now(),

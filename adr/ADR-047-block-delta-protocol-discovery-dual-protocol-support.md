@@ -14,8 +14,9 @@ The current `messages/v1` endpoint emits full runtime envelopes. To enable small
 
 - Phase 0 foundations are merged.
 - Phase 1 mapper serialisation now lives in `src/api/stream/mappers.rs`.
-- Live client-side protocol probing still runs through `detect_native_protocol()` in `src/api/client/mod.rs`; `src/api/client/protocol_discovery.rs` and the `ApiClientConfig` `base_url` / `explicit_protocol` fields remain staged for the follow-up cutover.
-- The repository does not yet expose the `messages_handler` surface described below. An intermediate `/v1/turns` mapper-selection hook was removed because it had no runtime effect on the current runtime-envelope stream.
+- `/v1/turns` now negotiates runtime-envelope, Block-Delta, or Choices-Delta SSE via `Accept`, and HTTP-level tests assert `tx_` IDs over the wire for both mapper formats.
+- Live client-side discovery now uses `src/api/client/protocol_discovery.rs` when `api_client.base_url` is configured and `explicit_protocol` is unset; the older `detect_native_protocol()` path remains only for legacy `model_url` sessions.
+- `LocalApiTaskShared::new()` now wires a bounded peer-event channel into the accumulator, and partial tool-argument truncation emits explicit peer diagnostics instead of failing silently.
 
 ## Why Backwards Compatibility Is Not Required
 
@@ -100,12 +101,12 @@ The `DeltaAccumulator` exposes an optional `mpsc::Sender<PeerDeltaEvent>` for in
 
 ### Phase 2 — Server Handler Simplification
 
-- Target state: `messages_handler` selects mapper via discovered `ProtocolVariant` and streams `content_block_start/delta/stop` from accumulator snapshot
-- Target state: no server-side protocol detection code; selection is driven by the cached discovery result
+- `/v1/turns` now selects a response mode from `Accept` and can emit legacy runtime envelopes, Block-Delta SSE, or Choices-Delta SSE from the same normalised runtime state.
+- Server-side request negotiation remains intentionally lightweight: runtime-envelope stays the default/fallback for older consumers, while ADR-047 clients can opt into mapper-native wire formats without a separate handler surface.
 
 ### Phase 3 — Testing
 
-Seven named integration tests: `dual_protocol_parity`, `interleaved_text_and_tool_deltas`, `truncated_stream_recovery`, `malformed_partial_rejection`, `peer_channel_propagation`, `memory_watermark_enforcement`, `task_cleanup_on_completion`.
+Expanded coverage now includes HTTP-level `tx_` SSE assertions for both mapper formats plus live `api_client.base_url` discovery and explicit-protocol request routing tests. Additional parity and recovery coverage can continue incrementally.
 
 ### Phase 4 — Schema + Docs
 
@@ -126,8 +127,8 @@ Seven named integration tests: `dual_protocol_parity`, `interleaved_text_and_too
 1. Update `schemas/runtime_envelope_v1.json` to `tx_` pattern — **done (Phase 0)**
 2. Remove legacy `call_` ID generation — **done (Phase 0)**
 3. Add `protocol_discovery.rs` — **done (Phase 0)**
-4. Update `ApiClient::connect` (or equivalent live connection path) to run discovery on first connect — pending; current live probing still uses `detect_native_protocol()` in `src/api/client/mod.rs`
-5. Add protocol mapper tests — phase 3
-6. Update docs + CHANGELOG — phase 4
+4. Update `ApiClient::connect` (or equivalent live connection path) to run discovery on first connect — **done for `api_client.base_url`; legacy `model_url` sessions still use the older native-probe path**
+5. Add protocol mapper tests — **in progress; HTTP-level mapper assertions and client discovery tests are merged**
+6. Update docs + CHANGELOG — **in progress**
 
-This ADR supersedes all previous draft versions and captures the intended end state. The repository currently contains the phase 0 foundations plus phase 1 mapper scaffolding; the remaining client/server cutover is still pending.
+This ADR supersedes all previous draft versions and captures the intended end state. The repository now contains the phase 0 foundations, mapper serialisation, live `/v1/turns` negotiated emission, and the `api_client.base_url` discovery cutover; remaining work is primarily broader parity coverage and follow-on polish.

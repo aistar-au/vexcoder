@@ -1,5 +1,6 @@
+use self::protocol_discovery::discover_protocol;
 use super::logging::{debug_payload_enabled, emit_debug_payload};
-use crate::config::Config;
+use crate::config::{Config, ProtocolVariant};
 use crate::runtime::backend::{
     ByteStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy,
 };
@@ -106,13 +107,6 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
                 native_protocol: None,
             });
         }
-    }
-
-    // Probe protocol support. When the server only accepts one wire shape,
-    // cache that exclusive preference. If both endpoints respond, keep the
-    // configured protocol instead of silently overriding it.
-    if let Some(ref mut server_info) = info {
-        server_info.native_protocol = detect_native_protocol(http, base).await;
     }
 
     info
@@ -229,6 +223,8 @@ pub struct ApiClient {
     model: Arc<RwLock<String>>,
     supplementary_system_prompt: Arc<RwLock<Option<String>>>,
     api_url: String,
+    api_client_base_url: Option<String>,
+    api_client_explicit_protocol: Option<ProtocolVariant>,
     model_backend: ModelBackendKind,
     model_protocol: ModelProtocol,
     tool_call_mode: ToolCallMode,
@@ -256,6 +252,7 @@ enum ApiProtocol {
 
 impl ApiClient {
     pub fn new(config: &Config) -> Result<Self> {
+        let api_client_base_url = configured_api_client_base_url(config);
         let http = reqwest::Client::builder()
             .danger_accept_invalid_certs(config.model_url_skip_tls_check)
             .build()?;
@@ -264,9 +261,17 @@ impl ApiClient {
             api_key: config.model_token.clone(),
             model: Arc::new(RwLock::new(config.model_name.clone())),
             supplementary_system_prompt: Arc::new(RwLock::new(None)),
-            api_url: config.model_url.clone(),
+            api_url: api_client_base_url
+                .clone()
+                .unwrap_or_else(|| config.model_url.clone()),
+            api_client_base_url,
+            api_client_explicit_protocol: config.api_client.explicit_protocol,
             model_backend: config.model_backend,
-            model_protocol: config.model_protocol,
+            model_protocol: config
+                .api_client
+                .explicit_protocol
+                .map(protocol_variant_to_model_protocol)
+                .unwrap_or(config.model_protocol),
             tool_call_mode: config.tool_call_mode,
             tool_policy: config.tool_policy,
             model_headers: config.model_headers.clone(),
@@ -294,6 +299,8 @@ impl ApiClient {
             // Test-only override for mock endpoint URL; defaults to portless localhost.
             api_url: std::env::var("VEX_TEST_MODEL_URL")
                 .unwrap_or_else(|_| "http://localhost/v1/messages".to_string()),
+            api_client_base_url: None,
+            api_client_explicit_protocol: None,
             model_backend: ModelBackendKind::LocalRuntime,
             model_protocol: ModelProtocol::MessagesV1,
             tool_call_mode: ToolCallMode::Structured,
@@ -325,7 +332,34 @@ impl ApiClient {
     /// Poll the local inference server for capabilities and cache the result.
     /// No-op if the endpoint is not local or the server does not respond.
     pub async fn populate_server_info(&self) {
-        if let Some(info) = poll_server_info(&self.http, &self.api_url).await {
+        if let Some(base_url) = self.api_client_base_url.as_deref() {
+            let native_protocol = if let Some(protocol) = self.api_client_explicit_protocol {
+                Some(protocol_variant_to_model_protocol(protocol))
+            } else {
+                discover_protocol(base_url, &self.http)
+                    .await
+                    .ok()
+                    .map(|result| protocol_variant_to_model_protocol(result.protocol))
+            };
+
+            if let Some(native_protocol) = native_protocol {
+                self.set_server_info(ServerInfo {
+                    native_protocol: Some(native_protocol),
+                    ..ServerInfo::default()
+                });
+            }
+            return;
+        }
+
+        if let Some(mut info) = poll_server_info(&self.http, &self.api_url).await {
+            let base = self
+                .api_url
+                .trim_end_matches('/')
+                .trim_end_matches("/chat/completions")
+                .trim_end_matches("/messages")
+                .trim_end_matches("/v1")
+                .trim_end_matches('/');
+            info.native_protocol = detect_native_protocol(&self.http, base).await;
             self.set_server_info(info);
         }
     }
@@ -641,6 +675,22 @@ impl ApiClient {
     }
 }
 
+fn configured_api_client_base_url(config: &Config) -> Option<String> {
+    let base = config.api_client.base_url.trim();
+    if base.is_empty() {
+        None
+    } else {
+        Some(base.trim_end_matches('/').to_string())
+    }
+}
+
+fn protocol_variant_to_model_protocol(protocol: ProtocolVariant) -> ModelProtocol {
+    match protocol {
+        ProtocolVariant::BlockDelta => ModelProtocol::MessagesV1,
+        ProtocolVariant::ChoicesDelta => ModelProtocol::ChatCompat,
+    }
+}
+
 impl ModelBackend for ApiClient {
     fn backend_kind(&self) -> ModelBackendKind {
         self.model_backend
@@ -882,7 +932,7 @@ fn adapt_to_chat_compat_url(api_url: &str) -> String {
     if normalized.ends_with("/v1") {
         return format!("{normalized}/chat/completions");
     }
-    normalized.to_string()
+    format!("{normalized}/v1/chat/completions")
 }
 
 fn adapt_to_messages_v1_url(api_url: &str) -> String {
@@ -900,7 +950,7 @@ fn adapt_to_messages_v1_url(api_url: &str) -> String {
     if normalized.ends_with("/v1") {
         return format!("{normalized}/messages");
     }
-    normalized.to_string()
+    format!("{normalized}/v1/messages")
 }
 
 fn chat_compat_messages(messages: &[ApiMessage], system_prompt: &str) -> Vec<Value> {

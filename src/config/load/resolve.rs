@@ -435,7 +435,7 @@ pub(crate) fn migrate_config_from_env(envs: &[(&str, &str)]) -> String {
     lines
         .push("# apply this fragment to .vex/config.toml or ~/.config/vex/config.toml".to_string());
 
-    // VEX_API_PROTOCOL (legacy env var) migration removed in ADR-047 Phase 0.
+    // VEX_API_PROTOCOL (legacy env var) migration was removed during ADR-047.
     // The env var previously accepted short string aliases for "messages-v1"
     // and "chat-compat". Protocol is now discovered automatically at connection
     // time or set via `api_client.explicit_protocol` in config.

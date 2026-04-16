@@ -1,7 +1,11 @@
 use super::*;
-use crate::config::CompactionConfig;
+use crate::config::{CompactionConfig, ProtocolVariant};
 use crate::runtime::backend::{ModelBackendKind, ModelProtocol, ToolCallMode};
 use crate::test_support::ENV_LOCK;
+use axum::Router;
+use axum::http::{StatusCode, header};
+use axum::response::IntoResponse;
+use axum::routing::get;
 use std::collections::BTreeSet;
 
 fn with_vex_max_tokens_env<T>(value: Option<&str>, run: impl FnOnce() -> T) -> T {
@@ -140,6 +144,72 @@ fn test_local_bare_v1_endpoint_resolves_chat_compat_url() {
         "http://localhost:8000/v1/chat/completions"
     );
     assert_eq!(client.protocol(), ModelProtocol::ChatCompat);
+}
+
+#[test]
+fn test_api_client_base_url_explicit_protocol_controls_request_url() {
+    let mut config = crate::config::Config::default_for_tui();
+    config.model_name = "local/test-model".to_string();
+    config.model_url.clear();
+    config.api_client.base_url = "http://127.0.0.1:8787".to_string();
+    config.api_client.explicit_protocol = Some(ProtocolVariant::ChoicesDelta);
+
+    let client = ApiClient::new(&config).expect("client should build");
+
+    assert_eq!(client.protocol(), ModelProtocol::ChatCompat);
+    assert_eq!(
+        client.request_url(),
+        "http://127.0.0.1:8787/v1/chat/completions"
+    );
+}
+
+#[tokio::test]
+async fn test_populate_server_info_discovers_protocol_from_api_client_base_url() {
+    async fn block_delta_probe() -> impl IntoResponse {
+        StatusCode::NOT_FOUND
+    }
+
+    async fn choices_delta_probe() -> impl IntoResponse {
+        (
+            [(header::CONTENT_TYPE, "text/event-stream")],
+            "data: {\"ok\":true}\n\n",
+        )
+    }
+
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/messages", get(block_delta_probe))
+                .route("/v1/chat/completions", get(choices_delta_probe)),
+        )
+        .await
+        .unwrap();
+    });
+
+    let mut config = crate::config::Config::default_for_tui();
+    config.model_name = "local/test-model".to_string();
+    config.model_url.clear();
+    config.model_token = None;
+    config.api_client.base_url = format!("http://{addr}");
+
+    let client = ApiClient::new(&config).expect("client should build");
+    client.populate_server_info().await;
+
+    let info = client
+        .server_info()
+        .expect("server info should be populated");
+    assert_eq!(info.native_protocol, Some(ModelProtocol::ChatCompat));
+    assert_eq!(
+        client.request_url(),
+        format!("http://{addr}/v1/chat/completions")
+    );
+
+    server.abort();
 }
 
 #[test]
@@ -886,6 +956,8 @@ fn test_native_protocol_overrides_configured_protocol() {
         model: Arc::new(RwLock::new("test".to_string())),
         supplementary_system_prompt: Arc::new(RwLock::new(None)),
         api_url: "http://localhost:8000/v1/messages".to_string(),
+        api_client_base_url: None,
+        api_client_explicit_protocol: None,
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,
@@ -927,6 +999,8 @@ fn test_no_native_protocol_falls_back_to_configured() {
         model: Arc::new(RwLock::new("test".to_string())),
         supplementary_system_prompt: Arc::new(RwLock::new(None)),
         api_url: "http://localhost:8000/v1/messages".to_string(),
+        api_client_base_url: None,
+        api_client_explicit_protocol: None,
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,

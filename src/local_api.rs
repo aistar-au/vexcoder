@@ -13,7 +13,7 @@ use crate::app::FacadeSessionTaskRollup;
 use crate::config::Config;
 use crate::runtime::UiUpdate;
 use crate::runtime::context::RuntimeContext;
-use crate::runtime::delta_accumulator::DeltaAccumulator;
+use crate::runtime::delta_accumulator::{DeltaAccumulator, PeerDeltaEvent};
 use crate::runtime::frontend::{FrontendAdapter, UserInputEvent};
 use crate::runtime::json_handoff::{
     RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent, TurnEndContext,
@@ -26,11 +26,13 @@ use crate::state::ConversationManager;
 use crate::state::TurnToolPolicy;
 #[cfg(test)]
 use crate::tools::ToolOperator;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 const SESSION_TASK_EVENT_BUFFER: usize = 64;
+const PEER_EVENT_BUFFER: usize = 128;
+const RECENT_PEER_EVENT_LIMIT: usize = 128;
 
 #[derive(Clone)]
 pub(crate) struct LocalApiState {
@@ -47,6 +49,8 @@ pub(crate) struct ActiveTask {
 pub(crate) struct LocalApiTaskShared {
     pub normalizer: RuntimeEnvelopeNormalizer,
     pub envelope_tx: mpsc::UnboundedSender<String>,
+    pub peer_event_rx: mpsc::Receiver<PeerDeltaEvent>,
+    pub recent_peer_events: VecDeque<PeerDeltaEvent>,
     pub pending_approval: Option<PendingApproval>,
     pub quit: Arc<AtomicBool>,
     pub turn_in_progress: bool,
@@ -69,7 +73,11 @@ impl LocalApiTaskShared {
         quit: Arc<AtomicBool>,
         memory_watermark_bytes: usize,
     ) -> Self {
-        let delta_accumulator = Arc::new(DeltaAccumulator::new(memory_watermark_bytes));
+        let (peer_event_tx, peer_event_rx) = mpsc::channel(PEER_EVENT_BUFFER);
+        let delta_accumulator = Arc::new(DeltaAccumulator::new_with_peer_events(
+            memory_watermark_bytes,
+            Some(peer_event_tx),
+        ));
 
         Self {
             normalizer: RuntimeEnvelopeNormalizer::new_with_delta_accumulator(
@@ -77,12 +85,23 @@ impl LocalApiTaskShared {
                 delta_accumulator,
             ),
             envelope_tx,
+            peer_event_rx,
+            recent_peer_events: VecDeque::new(),
             pending_approval: None,
             quit,
             turn_in_progress: false,
             interrupted: false,
             active_command_sessions: BTreeSet::new(),
             turn_completion_pending: false,
+        }
+    }
+
+    fn drain_peer_events(&mut self) {
+        while let Ok(event) = self.peer_event_rx.try_recv() {
+            if self.recent_peer_events.len() == RECENT_PEER_EVENT_LIMIT {
+                self.recent_peer_events.pop_front();
+            }
+            self.recent_peer_events.push_back(event);
         }
     }
 }
@@ -153,11 +172,13 @@ impl LocalApiMode {
     }
 
     pub fn emit_envelopes(shared: &mut LocalApiTaskShared, envelopes: Vec<RuntimeEnvelope>) {
+        shared.drain_peer_events();
         for envelope in envelopes {
             if let Ok(json) = serde_json::to_string(&envelope) {
                 let _ = shared.envelope_tx.send(json);
             }
         }
+        shared.drain_peer_events();
     }
 
     fn complete_turn_if_idle(shared: &mut LocalApiTaskShared) {
@@ -327,6 +348,8 @@ mod tests {
         let shared = Arc::new(Mutex::new(LocalApiTaskShared {
             normalizer: RuntimeEnvelopeNormalizer::new("task-1"),
             envelope_tx,
+            peer_event_rx: mpsc::channel(1).1,
+            recent_peer_events: VecDeque::new(),
             pending_approval: None,
             quit,
             turn_in_progress: false,
@@ -361,6 +384,8 @@ mod tests {
         let shared = Arc::new(Mutex::new(LocalApiTaskShared {
             normalizer: RuntimeEnvelopeNormalizer::new("task-2"),
             envelope_tx,
+            peer_event_rx: mpsc::channel(1).1,
+            recent_peer_events: VecDeque::new(),
             pending_approval: None,
             quit,
             turn_in_progress: false,
@@ -424,6 +449,8 @@ mod tests {
         let shared = Arc::new(Mutex::new(LocalApiTaskShared {
             normalizer: RuntimeEnvelopeNormalizer::new("task-seq"),
             envelope_tx,
+            peer_event_rx: mpsc::channel(1).1,
+            recent_peer_events: VecDeque::new(),
             pending_approval: None,
             quit,
             turn_in_progress: false,
@@ -484,16 +511,12 @@ mod tests {
     async fn test_local_api_mode_emits_transcript_block_events() {
         let (envelope_tx, mut envelope_rx) = mpsc::unbounded_channel();
         let quit = Arc::new(AtomicBool::new(false));
-        let shared = Arc::new(Mutex::new(LocalApiTaskShared {
-            normalizer: RuntimeEnvelopeNormalizer::new("task-transcript"),
+        let shared = Arc::new(Mutex::new(LocalApiTaskShared::new(
+            "task-transcript".to_string(),
             envelope_tx,
-            pending_approval: None,
             quit,
-            turn_in_progress: false,
-            interrupted: false,
-            active_command_sessions: BTreeSet::new(),
-            turn_completion_pending: false,
-        }));
+            crate::runtime::delta_accumulator::DEFAULT_DELTA_ACCUMULATOR_MEMORY_WATERMARK_BYTES,
+        )));
         let mut mode = LocalApiMode::new(Arc::clone(&shared));
         let client = ApiClient::new_mock(Arc::new(MockApiClient::new(vec![])));
         let conversation =
@@ -576,6 +599,24 @@ mod tests {
             transcript_block_complete.event,
             RuntimeEvent::TranscriptBlockComplete { index: 0 }
         ));
+
+        {
+            let shared = shared.lock().unwrap();
+            assert!(matches!(
+                shared.recent_peer_events.front(),
+                Some(PeerDeltaEvent::ToolStart { .. })
+            ));
+            assert!(
+                shared
+                    .recent_peer_events
+                    .iter()
+                    .any(|event| matches!(event, PeerDeltaEvent::ToolDelta { .. }))
+            );
+            assert!(matches!(
+                shared.recent_peer_events.back(),
+                Some(PeerDeltaEvent::ToolFinish { .. })
+            ));
+        }
     }
 
     #[tokio::test]
@@ -585,6 +626,8 @@ mod tests {
         let shared = Arc::new(Mutex::new(LocalApiTaskShared {
             normalizer: RuntimeEnvelopeNormalizer::new("task-command-session"),
             envelope_tx,
+            peer_event_rx: mpsc::channel(1).1,
+            recent_peer_events: VecDeque::new(),
             pending_approval: None,
             quit: Arc::clone(&quit),
             turn_in_progress: false,
@@ -650,6 +693,8 @@ mod tests {
         let shared = Arc::new(Mutex::new(LocalApiTaskShared {
             normalizer: RuntimeEnvelopeNormalizer::new("task-error"),
             envelope_tx,
+            peer_event_rx: mpsc::channel(1).1,
+            recent_peer_events: VecDeque::new(),
             pending_approval: None,
             quit,
             turn_in_progress: false,

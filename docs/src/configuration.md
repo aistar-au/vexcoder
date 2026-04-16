@@ -557,21 +557,18 @@ export VEX_MODEL_TOKEN="your-token"
 
 ## API Client Configuration (ADR-047)
 
-The `[api_client]` section currently contains one live ADR-047 setting plus
-two staged cutover fields.
-
-`delta_accumulator_memory_watermark_mb` is active today. `base_url` and
-`explicit_protocol` document the planned host-and-port discovery surface, but
-current sessions still connect through `VEX_MODEL_URL` / `model_url` and the
-existing `ApiClient` probe path.
+The `[api_client]` section is live. `base_url` enables the ADR-047 host-and-port
+connection path, `explicit_protocol` can pin the wire format for the session,
+and `delta_accumulator_memory_watermark_mb` bounds in-flight tool-call delta
+state.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `base_url` | string | `""` | Staged host-and-port input for the pending discovery cutover (for example `http://127.0.0.1:8000`). Not yet the primary runtime connection path. |
-| `explicit_protocol` | `"block_delta"` \| `"choices_delta"` | unset | Staged override for that cutover. Reserved for the follow-up discovery wiring. |
+| `base_url` | string | `""` | Optional scheme-and-host base URL (for example `http://127.0.0.1:8000`). When set, the client discovers or applies the protocol and adapts requests to `/v1/messages` or `/v1/chat/completions`. |
+| `explicit_protocol` | `"block_delta"` \| `"choices_delta"` | unset | Optional override that bypasses discovery and pins request routing plus SSE parsing to the selected format. |
 | `delta_accumulator_memory_watermark_mb` | integer | `256` | Memory ceiling (MiB) for in-flight streaming tool-argument deltas. When exceeded, the oldest pending entry is evicted. |
 
-Planned cutover shape:
+Discovery-based form:
 
 ```toml
 [api_client]
@@ -579,7 +576,7 @@ base_url = "http://127.0.0.1:8000"
 delta_accumulator_memory_watermark_mb = 512
 ```
 
-Planned override form:
+Pinned-protocol form:
 
 ```toml
 [api_client]
