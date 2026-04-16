@@ -10,7 +10,7 @@
 ADR-047 settled the negotiated streaming transport, `tx_` tool-call IDs, and
 client-side protocol discovery. It did not fully settle the next architectural
 question: what is the primary internal application surface once Vexcoder pivots
-from terminal-era runtime traits to an API-first terminal application?
+from legacy runtime loop traits to an API-first operator-facing application?
 
 The repository still exposes three gaps that matter for that pivot:
 
@@ -20,9 +20,9 @@ The repository still exposes three gaps that matter for that pivot:
 2. Tool-call lifecycle is still split between explicit tool events and
    transcript-block events, which forces downstream consumers to infer tool
    state from renderer-oriented deltas.
-3. Terminal-era branching traits such as `RuntimeMode`, `FrontendAdapter`, and
-   `ToolCallParser` still exist even though the intended direction is one
-   canonical API/event surface with the terminal acting as a consumer.
+3. Legacy runtime loop traits such as `RuntimeMode`, `FrontendAdapter`, and
+  `ToolCallParser` still exist even though the intended direction is one
+  canonical API/event surface with the interactive UI acting as a consumer.
 
 ## External Precedent Summary
 
@@ -31,8 +31,8 @@ API-first agent applications and streaming protocols:
 
 - Responses-style clients converge on a single typed request/event surface
   rather than preserving parallel legacy wire APIs behind internal adapters.
-  The relevant precedent reviewed for this amendment is Codex, which uses a
-  unified responses event stream and rejects its removed legacy chat wire API.
+  The relevant precedent reviewed for this amendment uses a unified responses
+  event stream and rejects its removed legacy chat wire API.
 - Mature streaming APIs emit explicit lifecycle events for creation, partial
   output, completion, metadata, and errors. They do not require transcript
   renderers to reconstruct tool state indirectly.
@@ -51,7 +51,7 @@ API-first agent applications and streaming protocols:
 ### 1. The Runtime Event Envelope Becomes the Primary Internal API
 
 `RuntimeEnvelope` is the canonical application surface consumed by transports,
-the terminal UI, persistence, and peer coordination. No new internal trait may
+the interactive UI, persistence, and peer coordination. No new internal trait may
 be introduced where a typed request/event surface can represent the contract
 directly.
 
@@ -95,11 +95,11 @@ re-parsing transcript deltas.
 Requests that expect a result carry a client-generated `request_id`. Fire-and-
 forget notifications remain distinct and do not expect a reply. Interrupt,
 cancel, and resume semantics must be modeled explicitly in the request schema
-instead of being implied by terminal-only control flow.
+instead of being implied by UI-only control flow.
 
 ### 6. UI/Transport Branching Traits Are Retirement Targets
 
-The terminal is a consumer of the runtime API, not a separate runtime flavor.
+The interactive UI is a consumer of the runtime API, not a separate runtime flavor.
 After the envelope and request schemas are extended, the following traits are
 retirement targets:
 
@@ -142,7 +142,7 @@ explicit notification semantics, and structured cancel/resume support.
 ### Phase D — Runtime Loop Simplification
 
 Once event coverage is sufficient, collapse `RuntimeMode` and
-`FrontendAdapter` into a single API-driven runtime loop with the terminal as a
+`FrontendAdapter` into a single API-driven runtime loop with the interactive UI as a
 consumer.
 
 ### Phase E — Structured Tools Hard Cutover
@@ -157,7 +157,7 @@ path rather than preserving them as indefinite compatibility seams.
 
 - Replay and debug traces gain stable event identity and timestamp metadata.
 - Tool execution becomes observable without transcript re-interpretation.
-- The terminal, local API server, and peer orchestration can converge on one
+- The interactive UI, local API server, and peer orchestration can converge on one
   contract instead of parallel runtime flavors.
 - Trait removal becomes safer because the event API becomes the stable seam.
 
@@ -178,4 +178,4 @@ The following follow-on changes must conform to this amendment:
    traits.
 2. Tool lifecycle additions must be represented as explicit runtime events.
 3. Envelope and request schema work must be treated as the prerequisite for
-   removing terminal-era runtime branching.
+  removing legacy runtime-loop branching.
