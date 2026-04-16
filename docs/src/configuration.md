@@ -557,16 +557,21 @@ export VEX_MODEL_TOKEN="your-token"
 
 ## API Client Configuration (ADR-047)
 
-The `[api_client]` section configures the local inference client. Only
-`base_url` is required; protocol is auto-discovered at connection time.
+The `[api_client]` section currently contains one live ADR-047 setting plus
+two staged cutover fields.
+
+`delta_accumulator_memory_watermark_mb` is active today. `base_url` and
+`explicit_protocol` document the planned host-and-port discovery surface, but
+current sessions still connect through `VEX_MODEL_URL` / `model_url` and the
+existing `ApiClient` probe path.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `base_url` | string | `""` | Server address — `scheme://host:port` only (e.g. `http://127.0.0.1:8000`). Endpoint path and protocol are discovered automatically. |
-| `explicit_protocol` | `"block_delta"` \| `"choices_delta"` | unset | Bypass discovery and use this protocol for the session. Use only for debugging or non-standard servers. |
+| `base_url` | string | `""` | Staged host-and-port input for the pending discovery cutover (for example `http://127.0.0.1:8000`). Not yet the primary runtime connection path. |
+| `explicit_protocol` | `"block_delta"` \| `"choices_delta"` | unset | Staged override for that cutover. Reserved for the follow-up discovery wiring. |
 | `delta_accumulator_memory_watermark_mb` | integer | `256` | Memory ceiling (MiB) for in-flight streaming tool-argument deltas. When exceeded, the oldest pending entry is evicted. |
 
-Example:
+Planned cutover shape:
 
 ```toml
 [api_client]
@@ -574,7 +579,7 @@ base_url = "http://127.0.0.1:8000"
 delta_accumulator_memory_watermark_mb = 512
 ```
 
-Override protocol (debugging only):
+Planned override form:
 
 ```toml
 [api_client]

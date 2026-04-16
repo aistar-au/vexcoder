@@ -8,7 +8,14 @@
 
 ## Context
 
-The current `messages/v1` endpoint emits full runtime envelopes. To enable small-portion SSE parsing (only the relevant delta for a given `tx_` ID), we pivot the default to Block-Delta format while preserving dual-protocol support via one canonical accumulator and two thin mappers. This amendment removes legacy backwards compatibility requirements and introduces client-side protocol discovery, simplifying user configuration to `host:port` only.
+The current `messages/v1` endpoint emits full runtime envelopes. To enable small-portion SSE parsing (only the relevant delta for a given `tx_` ID), we pivot the default to Block-Delta format while preserving dual-protocol support via one canonical accumulator and two thin mappers. This amendment removes legacy backwards compatibility requirements and introduces client-side protocol-discovery scaffolding toward a host-and-port-only configuration surface.
+
+## Implementation Status Note
+
+- Phase 0 foundations are merged.
+- Phase 1 mapper serialisation now lives in `src/api/stream/mappers.rs`.
+- Live client-side protocol probing still runs through `detect_native_protocol()` in `src/api/client/mod.rs`; `src/api/client/protocol_discovery.rs` and the `ApiClientConfig` `base_url` / `explicit_protocol` fields remain staged for the follow-up cutover.
+- The repository does not yet expose the `messages_handler` surface described below. An intermediate `/v1/turns` mapper-selection hook was removed because it had no runtime effect on the current runtime-envelope stream.
 
 ## Why Backwards Compatibility Is Not Required
 
@@ -93,8 +100,8 @@ The `DeltaAccumulator` exposes an optional `mpsc::Sender<PeerDeltaEvent>` for in
 
 ### Phase 2 — Server Handler Simplification
 
-- `messages_handler` selects mapper via discovered `ProtocolVariant`; streams `content_block_start/delta/stop` from accumulator snapshot
-- No server-side protocol detection code; selection is driven by the cached discovery result
+- Target state: `messages_handler` selects mapper via discovered `ProtocolVariant` and streams `content_block_start/delta/stop` from accumulator snapshot
+- Target state: no server-side protocol detection code; selection is driven by the cached discovery result
 
 ### Phase 3 — Testing
 
@@ -119,8 +126,8 @@ Seven named integration tests: `dual_protocol_parity`, `interleaved_text_and_too
 1. Update `schemas/runtime_envelope_v1.json` to `tx_` pattern — **done (Phase 0)**
 2. Remove legacy `call_` ID generation — **done (Phase 0)**
 3. Add `protocol_discovery.rs` — **done (Phase 0)**
-4. Update `ApiClient::connect` to run discovery on first connect — phase 1
+4. Update `ApiClient::connect` (or equivalent live connection path) to run discovery on first connect — pending; current live probing still uses `detect_native_protocol()` in `src/api/client/mod.rs`
 5. Add protocol mapper tests — phase 3
 6. Update docs + CHANGELOG — phase 4
 
-This ADR supersedes all previous draft versions and is fully aligned with the repository as of 2026-04-16.
+This ADR supersedes all previous draft versions and captures the intended end state. The repository currently contains the phase 0 foundations plus phase 1 mapper scaffolding; the remaining client/server cutover is still pending.
