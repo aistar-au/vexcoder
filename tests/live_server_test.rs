@@ -104,6 +104,7 @@ fn build_chat_compat_config(base_url: &str, model_name: &str) -> Config {
         api: vexcoder::config::ApiConfig::default(),
         hooks: Vec::new(),
         auto_memory: vexcoder::config::AutoMemoryConfig::default(),
+        api_client: vexcoder::config::ApiClientConfig::default(),
     }
 }
 
@@ -136,6 +137,7 @@ fn build_messages_v1_config(base_url: &str, model_name: &str) -> Config {
         api: vexcoder::config::ApiConfig::default(),
         hooks: Vec::new(),
         auto_memory: vexcoder::config::AutoMemoryConfig::default(),
+        api_client: vexcoder::config::ApiClientConfig::default(),
     }
 }
 

@@ -139,6 +139,7 @@ async fn test_batch_mode_memory_clear_with_auto_approve_clears_notes() {
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
+        api_client: crate::config::ApiClientConfig::default(),
     };
 
     let result = run_batch(
@@ -428,6 +429,7 @@ async fn test_build_batch_runtime_injects_memory_notes_into_system_prompt() {
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
+        api_client: crate::config::ApiClientConfig::default(),
     };
 
     let (_runtime, ctx, _task_id) = build_batch_runtime(
@@ -478,6 +480,7 @@ async fn test_build_batch_runtime_injects_project_instructions_into_system_promp
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
+        api_client: crate::config::ApiClientConfig::default(),
     };
 
     let (_runtime, ctx, _task_id) = build_batch_runtime(
@@ -551,6 +554,7 @@ fn test_build_batch_runtime_uses_resumed_task_id() {
         api: crate::config::ApiConfig::default(),
         hooks: Vec::new(),
         auto_memory: crate::config::AutoMemoryConfig::default(),
+        api_client: crate::config::ApiClientConfig::default(),
     };
     let resume_state = TaskState::new("task-batch-resume".to_string());
 
