@@ -63,7 +63,10 @@ impl ConversationManager {
             // ToolCall blocks use the dedicated tool lifecycle event instead
             // of the generic transcript-block start path.
             StreamBlock::ToolCall {
-                id, name, input, status
+                id,
+                name,
+                input,
+                status,
             } => Some(RuntimeEvent::ToolCallStarted {
                 tool_call_id: id.clone(),
                 tool_name: name.clone(),

@@ -192,6 +192,8 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
             ref delta,
         } if index == final_text_index && delta == "partial model response"
     ));
+    assert_eq!(delta[0].source, RuntimeEnvelopeSource::Model);
+    assert_eq!(delta[1].source, RuntimeEnvelopeSource::Model);
 
     let transcript_line = normalizer.normalize_ui_update(
         &UiUpdate::TranscriptLine("[edit loop: running validation]".to_string()),
@@ -207,6 +209,8 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         RuntimeEvent::TranscriptLine { ref line }
             if line == "[edit loop: running validation]"
     ));
+    assert_eq!(transcript_line[0].source, RuntimeEnvelopeSource::Model);
+    assert_eq!(transcript_line[1].source, RuntimeEnvelopeSource::Runtime);
 
     let transcript_block_start = normalizer.normalize_ui_update(
         &UiUpdate::StreamBlockStart {
@@ -241,6 +245,14 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
             ..
         } if tool_name == "read_file" && arguments["path"] == "src/lib.rs"
     ));
+    assert_eq!(
+        transcript_block_start[0].source,
+        RuntimeEnvelopeSource::Model
+    );
+    assert_eq!(
+        transcript_block_start[1].source,
+        RuntimeEnvelopeSource::Model
+    );
 
     let transcript_block_delta = normalizer
         .normalize_ui_update(
@@ -259,6 +271,7 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
             ref delta,
         } if delta == "{\"path\":\"src/lib.rs\"}"
     ));
+    assert_eq!(transcript_block_delta.source, RuntimeEnvelopeSource::Model);
 
     let transcript_block_complete = normalizer
         .normalize_ui_update(&UiUpdate::StreamBlockComplete { index: 0 }, None)
@@ -268,6 +281,10 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         transcript_block_complete.event,
         RuntimeEvent::TranscriptBlockComplete { index: 0 }
     ));
+    assert_eq!(
+        transcript_block_complete.source,
+        RuntimeEnvelopeSource::Model
+    );
 
     let (response_tx, _response_rx) = oneshot::channel();
     let approval = normalizer
@@ -385,6 +402,53 @@ fn test_pi_10_stream_block_deltas_feed_delta_accumulator() {
 }
 
 #[test]
+fn test_pi_10_runtime_origin_block_sources_are_preserved() {
+    let mut normalizer = RuntimeEnvelopeNormalizer::new("task-source");
+    let _ = normalizer.start_turn(1, Some("runtime block".to_string()));
+
+    let start = normalizer.normalize_ui_update(
+        &UiUpdate::StreamBlockStart {
+            index: 7,
+            block: StreamBlock::ToolResult {
+                tool_call_id: "provider-call-1".to_string(),
+                output: "done".to_string(),
+                is_error: false,
+            },
+        },
+        None,
+    );
+
+    assert_eq!(start[0].source, RuntimeEnvelopeSource::Runtime);
+    assert!(matches!(
+        start[0].event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 7,
+            block: StreamBlock::ToolResult { .. }
+        }
+    ));
+    assert_eq!(start[1].source, RuntimeEnvelopeSource::Runtime);
+    assert!(matches!(
+        start[1].event,
+        RuntimeEvent::ToolCallCompleted {
+            ref tool_call_id,
+            tool_name: None,
+            status: crate::state::ToolStatus::Complete,
+            ..
+        } if tool_call_id == "provider-call-1"
+    ));
+
+    let complete = normalizer
+        .normalize_ui_update(&UiUpdate::StreamBlockComplete { index: 7 }, None)
+        .pop()
+        .expect("tool-result block complete envelope");
+    assert_eq!(complete.source, RuntimeEnvelopeSource::Runtime);
+    assert!(matches!(
+        complete.event,
+        RuntimeEvent::TranscriptBlockComplete { index: 7 }
+    ));
+}
+
+#[test]
 fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
     let mut normalizer = RuntimeEnvelopeNormalizer::new("batch-1741700000000");
     let mut envelopes = Vec::new();
@@ -418,22 +482,22 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
     ));
 
     envelopes.push(normalizer.start_turn(2, Some("second".to_string())));
-        envelopes.push(normalizer.emit_event(RuntimeEvent::TranscriptBlockStart {
-            index: 0,
-            block: StreamBlock::FinalText {
-                content: String::new(),
-            },
-        }));
-        envelopes.push(normalizer.emit_event(RuntimeEvent::TranscriptBlockDelta {
-            index: 0,
-            delta: "fallback".to_string(),
-        }));
-        envelopes.push(normalizer.emit_event(RuntimeEvent::TranscriptBlockComplete { index: 0 }));
-        envelopes.push(normalizer.emit_event(RuntimeEvent::TurnEnd {
-            status: "completed".to_string(),
-            usage: None,
-            changed_files: vec!["src/second.rs".to_string()],
-        }));
+    envelopes.push(normalizer.emit_event(RuntimeEvent::TranscriptBlockStart {
+        index: 0,
+        block: StreamBlock::FinalText {
+            content: String::new(),
+        },
+    }));
+    envelopes.push(normalizer.emit_event(RuntimeEvent::TranscriptBlockDelta {
+        index: 0,
+        delta: "fallback".to_string(),
+    }));
+    envelopes.push(normalizer.emit_event(RuntimeEvent::TranscriptBlockComplete { index: 0 }));
+    envelopes.push(normalizer.emit_event(RuntimeEvent::TurnEnd {
+        status: "completed".to_string(),
+        usage: None,
+        changed_files: vec!["src/second.rs".to_string()],
+    }));
 
     for envelope in &envelopes {
         let json = serde_json::to_string(envelope).expect("serialize envelope");
@@ -443,22 +507,22 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
 
     let requests = vec![
         RuntimeRequest::SubmitInput {
-                request_id: "req-submit-1".to_string(),
+            request_id: "req-submit-1".to_string(),
             task_id: None,
             input: "go".to_string(),
         },
         RuntimeRequest::Interrupt {
-                request_id: "req-interrupt-1".to_string(),
+            request_id: "req-interrupt-1".to_string(),
             task_id: "batch-1741700000000".to_string(),
         },
         RuntimeRequest::ApproveCapability {
-                request_id: "req-approve-2".to_string(),
+            request_id: "req-approve-2".to_string(),
             task_id: "batch-1741700000000".to_string(),
             capability: "apply-patch".to_string(),
             scope: "session".to_string(),
         },
         RuntimeRequest::DenyCapability {
-                request_id: "req-deny-1".to_string(),
+            request_id: "req-deny-1".to_string(),
             task_id: "batch-1741700000000".to_string(),
             capability: "run-command".to_string(),
         },
