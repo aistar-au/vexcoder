@@ -1,6 +1,8 @@
 use super::*;
+use crate::runtime::delta_accumulator::DeltaAccumulator;
 use crate::state::ToolApprovalRequest;
 use serde_json::json;
+use std::sync::Arc;
 use tokio::sync::oneshot;
 
 #[test]
@@ -11,7 +13,7 @@ fn test_pi_09_anchor_runtime_envelope_serde_shape() {
         turn: 1,
         seq: 3,
         event: RuntimeEvent::ToolCall {
-            id: "call_1741700123456_9a2f".to_string(),
+            id: "tx_1_9a2f".to_string(),
             name: "read_file".to_string(),
             arguments: json!({
                 "path": "src/app.rs"
@@ -25,7 +27,7 @@ fn test_pi_09_anchor_runtime_envelope_serde_shape() {
     assert_eq!(value["turn"], 1);
     assert_eq!(value["seq"], 3);
     assert_eq!(value["event"]["type"], "tool_call");
-    assert_eq!(value["event"]["id"], "call_1741700123456_9a2f");
+    assert_eq!(value["event"]["id"], "tx_1_9a2f");
     assert_eq!(value["event"]["name"], "read_file");
     assert_eq!(value["event"]["arguments"]["path"], "src/app.rs");
 }
@@ -310,6 +312,59 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
 }
 
 #[test]
+fn test_pi_10_stream_block_deltas_feed_delta_accumulator() {
+    let accumulator = Arc::new(DeltaAccumulator::new(8 * 1_024));
+    let mut normalizer = RuntimeEnvelopeNormalizer::new_with_delta_accumulator(
+        "task-delta",
+        Arc::clone(&accumulator),
+    );
+    let _ = normalizer.start_turn(1, Some("stream tool".to_string()));
+
+    let start = normalizer.normalize_ui_update(
+        &UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::ToolCall {
+                id: "provider-call-1".to_string(),
+                name: "read_file".to_string(),
+                input: json!({}),
+                status: crate::state::ToolStatus::Pending,
+            },
+        },
+        None,
+    );
+    let runtime_call_id = match &start[1].event {
+        RuntimeEvent::ToolCall { id, .. } => id.clone(),
+        other => panic!("expected tool_call event, got {other:?}"),
+    };
+
+    normalizer.normalize_ui_update(
+        &UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: r#"{"path":"src/"#.to_string(),
+        },
+        None,
+    );
+    normalizer.normalize_ui_update(
+        &UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: r#"lib.rs"}"#.to_string(),
+        },
+        None,
+    );
+    normalizer.normalize_ui_update(&UiUpdate::StreamBlockComplete { index: 0 }, None);
+
+    let snapshot = accumulator.snapshot();
+    let map = snapshot.lock().unwrap_or_else(|e| e.into_inner());
+    let tool_state = map.get(&runtime_call_id).expect("tool state present");
+    assert_eq!(tool_state.partial_args, r#"{"path":"src/lib.rs"}"#);
+    assert_eq!(
+        tool_state.delta_queue.iter().cloned().collect::<Vec<_>>(),
+        vec![r#"{"path":"src/"#.to_string(), r#"lib.rs"}"#.to_string()]
+    );
+    assert!(tool_state.finished);
+}
+
+#[test]
 fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
     let mut normalizer = RuntimeEnvelopeNormalizer::new("batch-1741700000000");
     let mut envelopes = Vec::new();
@@ -495,7 +550,7 @@ fn test_pi_12_error_and_max_turn_sequences_follow_contract() {
 fn assert_runtime_tool_id(id: &str) {
     let parts: Vec<_> = id.split('_').collect();
     assert_eq!(parts.len(), 3, "runtime tool id must have three segments");
-    assert_eq!(parts[0], "call");
+    assert_eq!(parts[0], "tx");
     assert!(parts[1].chars().all(|ch| ch.is_ascii_digit()));
     assert_eq!(parts[2].len(), 4);
     assert!(parts[2].chars().all(|ch| ch.is_ascii_hexdigit()));

@@ -166,7 +166,7 @@
       "required": ["type", "id", "name", "arguments"],
       "properties": {
         "type": { "const": "tool_call" },
-        "id": { "type": "string", "pattern": "^call_[0-9]+_[0-9a-f]{4}$" },
+        "id": { "type": "string", "pattern": "^tx_[0-9]+_[0-9a-f]{4}$" },
         "name": { "$ref": "#/$defs/tool_name" },
         "arguments": { "type": "object" }
       }
@@ -177,7 +177,7 @@
       "required": ["type", "tool_call_id", "is_error", "output"],
       "properties": {
         "type": { "const": "tool_result" },
-        "tool_call_id": { "type": "string", "pattern": "^call_[0-9]+_[0-9a-f]{4}$" },
+        "tool_call_id": { "type": "string", "pattern": "^tx_[0-9]+_[0-9a-f]{4}$" },
         "tool_name": {
           "oneOf": [
             { "$ref": "#/$defs/tool_name" },
