@@ -140,7 +140,7 @@ The JSON below is an abbreviated extract showing the bundle shape only; it is no
 {
   "version": 1,
   "request_schema": {
-    "$id": "https://vexcoder.io/schemas/runtime_request_v1.json",
+    "$id": "https://vexcoder.com/schemas/runtime_request_v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "RuntimeRequest v1",
     "oneOf": [
@@ -150,7 +150,7 @@ The JSON below is an abbreviated extract showing the bundle shape only; it is no
     ]
   },
   "envelope_schema": {
-    "$id": "https://vexcoder.io/schemas/runtime_envelope_v1.json",
+    "$id": "https://vexcoder.com/schemas/runtime_envelope_v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "RuntimeEnvelope v1",
     "type": "object",
