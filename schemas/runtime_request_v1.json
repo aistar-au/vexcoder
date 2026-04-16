@@ -3,6 +3,10 @@
   "$id": "https://vexcoder.io/schemas/runtime_request_v1.json",
   "title": "RuntimeRequest v1",
   "$defs": {
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
     "scope": {
       "type": "string",
       "enum": ["once", "session"]
@@ -12,9 +16,10 @@
     {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "input"],
+      "required": ["type", "request_id", "input"],
       "properties": {
         "type": { "const": "submit_input" },
+        "request_id": { "$ref": "#/$defs/request_id" },
         "task_id": { "type": ["string", "null"] },
         "input": { "type": "string", "minLength": 1 }
       }
@@ -22,18 +27,20 @@
     {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "task_id"],
+      "required": ["type", "request_id", "task_id"],
       "properties": {
         "type": { "const": "interrupt" },
+        "request_id": { "$ref": "#/$defs/request_id" },
         "task_id": { "type": "string", "minLength": 1 }
       }
     },
     {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "task_id", "capability", "scope"],
+      "required": ["type", "request_id", "task_id", "capability", "scope"],
       "properties": {
         "type": { "const": "approve_capability" },
+        "request_id": { "$ref": "#/$defs/request_id" },
         "task_id": { "type": "string", "minLength": 1 },
         "capability": { "type": "string", "minLength": 1 },
         "scope": { "$ref": "#/$defs/scope" }
@@ -42,9 +49,10 @@
     {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "task_id", "capability"],
+      "required": ["type", "request_id", "task_id", "capability"],
       "properties": {
         "type": { "const": "deny_capability" },
+        "request_id": { "$ref": "#/$defs/request_id" },
         "task_id": { "type": "string", "minLength": 1 },
         "capability": { "type": "string", "minLength": 1 }
       }

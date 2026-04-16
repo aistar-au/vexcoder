@@ -427,6 +427,7 @@ mod tests {
                 shared
                     .normalizer
                     .normalize_runtime_request(&RuntimeRequest::ApproveCapability {
+                        request_id: "req-approve-local-api".to_string(),
                         task_id: "task-2".to_string(),
                         capability: pending.capability,
                         scope: pending.scope,
@@ -558,6 +559,8 @@ mod tests {
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         let tool_call: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        let tool_call_arguments_delta: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         let transcript_block_delta: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         let transcript_block_complete: RuntimeEnvelope =
@@ -582,11 +585,20 @@ mod tests {
         ));
         assert!(matches!(
             tool_call.event,
-            RuntimeEvent::ToolCall {
-                ref name,
+            RuntimeEvent::ToolCallStarted {
+                ref tool_name,
                 ref arguments,
                 ..
-            } if name == "read_file" && arguments["path"] == "src/local_api.rs"
+            } if tool_name == "read_file" && arguments["path"] == "src/local_api.rs"
+        ));
+        assert!(matches!(
+            tool_call_arguments_delta.event,
+            RuntimeEvent::ToolCallArgumentsDelta {
+                ref tool_name,
+                ref delta,
+                ..
+            } if tool_name.as_deref() == Some("read_file")
+                && delta == "{\"path\":\"src/local_api.rs\"}"
         ));
         assert!(matches!(
             transcript_block_delta.event,

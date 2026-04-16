@@ -697,7 +697,7 @@ async fn test_interrupt_handler_returns_not_found_for_unknown_task() {
                 .header(AUTHORIZATION, "Bearer token-123")
                 .header(CONTENT_TYPE, "application/json")
                 .body(Body::from(
-                    r#"{"type":"interrupt","task_id":"missing-task"}"#,
+                    r#"{"type":"interrupt","request_id":"req-interrupt-missing","task_id":"missing-task"}"#,
                 ))
                 .unwrap(),
         )
@@ -734,7 +734,7 @@ async fn test_approve_handler_returns_not_found_for_unknown_task() {
                     .header(AUTHORIZATION, "Bearer token-123")
                     .header(CONTENT_TYPE, "application/json")
                     .body(Body::from(
-                        r#"{"type":"approve_capability","task_id":"missing-task","capability":"run_command","scope":"once"}"#,
+                        r#"{"type":"approve_capability","request_id":"req-approve-missing","task_id":"missing-task","capability":"run_command","scope":"once"}"#,
                     ))
                     .unwrap(),
             )
@@ -792,7 +792,7 @@ async fn test_approve_handler_returns_conflict_without_pending_approval() {
                     .header(AUTHORIZATION, "Bearer token-123")
                     .header(CONTENT_TYPE, "application/json")
                     .body(Body::from(format!(
-                        r#"{{"type":"approve_capability","task_id":"{task_id}","capability":"run_command","scope":"once"}}"#,
+                        r#"{{"type":"approve_capability","request_id":"req-approve-conflict","task_id":"{task_id}","capability":"run_command","scope":"once"}}"#,
                     )))
                     .unwrap(),
             )

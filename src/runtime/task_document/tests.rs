@@ -84,10 +84,12 @@ fn apply_tool_call_event_appends_entry() {
     condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
     let summary = condenser.apply_runtime_event(
         &mut doc,
-        RuntimeEvent::ToolCall {
-            id: "tc-01".to_string(),
-            name: "read_file".to_string(),
+        RuntimeEvent::ToolCallStarted {
+            tool_call_id: "tc-01".to_string(),
+            tool_name: "read_file".to_string(),
             arguments: serde_json::json!({"path": "src/main.rs"}),
+            status: ToolStatus::Pending,
+            started_at: "2026-04-16T00:00:00.000Z".to_string(),
         },
     );
 
@@ -109,18 +111,23 @@ fn tool_result_advances_tool_call_status() {
     condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
     condenser.apply_runtime_event(
         &mut doc,
-        RuntimeEvent::ToolCall {
-            id: "tc-01".to_string(),
-            name: "read_file".to_string(),
+        RuntimeEvent::ToolCallStarted {
+            tool_call_id: "tc-01".to_string(),
+            tool_name: "read_file".to_string(),
             arguments: serde_json::json!({}),
+            status: ToolStatus::Pending,
+            started_at: "2026-04-16T00:00:00.000Z".to_string(),
         },
     );
     condenser.apply_runtime_event(
         &mut doc,
-        RuntimeEvent::ToolResult {
+        RuntimeEvent::ToolCallCompleted {
             tool_call_id: "tc-01".to_string(),
             tool_name: Some("read_file".to_string()),
-            is_error: false,
+            status: ToolStatus::Complete,
+            started_at: Some("2026-04-16T00:00:00.000Z".to_string()),
+            completed_at: "2026-04-16T00:00:01.000Z".to_string(),
+            duration_ms: Some(1000),
             output: "file contents".to_string(),
         },
     );
@@ -245,18 +252,23 @@ fn snapshot_preserves_denied_tool_outcome_on_restore() {
     condenser.begin_turn(&mut doc, "q".to_string(), 1000, TurnToolPolicy::Default);
     condenser.apply_runtime_event(
         &mut doc,
-        RuntimeEvent::ToolCall {
-            id: "tc-01".to_string(),
-            name: "write_file".to_string(),
+        RuntimeEvent::ToolCallStarted {
+            tool_call_id: "tc-01".to_string(),
+            tool_name: "write_file".to_string(),
             arguments: serde_json::json!({"path": "src/main.rs"}),
+            status: ToolStatus::Pending,
+            started_at: "2026-04-16T00:00:00.000Z".to_string(),
         },
     );
     condenser.apply_runtime_event(
         &mut doc,
-        RuntimeEvent::ToolResult {
+        RuntimeEvent::ToolCallFailed {
             tool_call_id: "tc-01".to_string(),
             tool_name: Some("write_file".to_string()),
-            is_error: true,
+            status: ToolStatus::Error,
+            started_at: Some("2026-04-16T00:00:00.000Z".to_string()),
+            completed_at: "2026-04-16T00:00:01.000Z".to_string(),
+            duration_ms: Some(1000),
             output: "permission denied".to_string(),
         },
     );
