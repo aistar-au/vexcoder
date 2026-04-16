@@ -536,10 +536,10 @@ async fn test_normaliser_intercepts_embedded_tool_markup_in_delta() {
     let mut leaked_markup = false;
     while let Ok(update) = rx.try_recv() {
         match update {
-            UiUpdate::TranscriptLine(line) => {
-                if line.contains("[tool]") && line.contains("runshellcommand") {
-                    saw_transcript_line = true;
-                }
+            UiUpdate::TranscriptLine(line)
+                if line.contains("[tool]") && line.contains("runshellcommand") =>
+            {
+                saw_transcript_line = true;
             }
             UiUpdate::StreamBlockStart {
                 block: StreamBlock::FinalText { content },
@@ -548,20 +548,18 @@ async fn test_normaliser_intercepts_embedded_tool_markup_in_delta() {
             | UiUpdate::StreamBlockStart {
                 block: StreamBlock::Thinking { content, .. },
                 ..
-            } => {
-                if content.contains("function=") || content.contains("parameter=") {
-                    leaked_markup = true;
-                }
+            } if content.contains("function=") || content.contains("parameter=") => {
+                leaked_markup = true;
             }
-            UiUpdate::StreamBlockDelta { delta, .. } => {
-                if delta.contains("function=") || delta.contains("parameter=") {
-                    leaked_markup = true;
-                }
+            UiUpdate::StreamBlockDelta { delta, .. }
+                if delta.contains("function=") || delta.contains("parameter=") =>
+            {
+                leaked_markup = true;
             }
-            UiUpdate::StreamDelta(text) => {
-                if text.contains("function=") || text.contains("parameter=") {
-                    leaked_markup = true;
-                }
+            UiUpdate::StreamDelta(text)
+                if text.contains("function=") || text.contains("parameter=") =>
+            {
+                leaked_markup = true;
             }
             _ => {}
         }
