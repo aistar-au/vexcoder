@@ -12,7 +12,7 @@ use chrono::{Timelike, Utc};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
-use std::sync::Arc;
+use std::sync::{Arc, atomic::{AtomicU32, Ordering}};
 
 mod derived;
 
@@ -161,6 +161,25 @@ pub struct DerivedBatchRecords {
 }
 
 pub type ToolCallId = String;
+
+/// Generates a `tx_`-prefixed tool call ID suitable for use as a
+/// [`ToolCallId`] anywhere in the runtime pipeline.
+///
+/// `counter` must be an [`AtomicU32`] owned or shared by the caller and
+/// monotonically incremented per call. `entropy` is a 16-bit time- or
+/// task-derived salt that reduces collision risk across counter resets.
+///
+/// The resulting format is `tx_{counter}_{entropy:04x}` — a decimal monotonic
+/// counter followed by a 4-hex-digit entropy field — matching the pattern
+/// `^tx_[0-9]+_[0-9a-f]{4}$` enforced by `schemas/runtime_envelope_v1.json`.
+///
+/// IDs are generated once in `src/runtime/json_handoff.rs` and passed
+/// pre-generated to [`super::delta_accumulator::DeltaAccumulator`] — the
+/// accumulator never creates its own IDs.
+pub fn generate_tool_call_id(counter: &AtomicU32, entropy: u16) -> ToolCallId {
+    let count = counter.fetch_add(1, Ordering::SeqCst);
+    format!("tx_{}_{:04x}", count, entropy & 0xffff)
+}
 
 #[derive(Debug, Clone)]
 struct PendingToolCall {
