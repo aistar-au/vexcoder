@@ -31,10 +31,9 @@ API Contract):** The request_id field added in Phase A directly implements the
 JSON-RPC id semantics, and the notification vs. response distinction aligns
 with the amendment's requirement for explicit interrupt/cancel/resume modeling.
 
-**Reference:** JSON-RPC 2.0 Specification, Sections 4 and 4.1
-(jsonrpc.org/specification). Published under a perpetual license permitting
-implementation and derivative works. The specification is transport-agnostic
-and defines the id/notification split as a universal RPC concern.
+**Protocol precedent:** JSON-RPC 2.0, Sections 4 and 4.1. The specification is
+transport-agnostic and defines the id/notification split as a universal RPC
+concern.
 
 ### 1.2 Language Server Protocol Progress Tokens
 
@@ -65,10 +64,9 @@ API Contract):** The three-phase lifecycle validates the
 started/delta/completed pattern rather than the older two-event (ToolCall
 followed by ToolResult) pattern.
 
-**Reference:** Language Server Protocol Specification 3.17, Sections "Progress
-Support," "Work Done Progress," and "Partial Result Progress."
-Published under the Creative Commons Attribution 4.0 International license.
-The LSP base protocol layer is defined over JSON-RPC 2.0 (see §1.1).
+**Protocol precedent:** LSP 3.17, Sections "Progress Support," "Work Done
+Progress," and "Partial Result Progress." The LSP base protocol layer is
+defined over JSON-RPC 2.0 (see §1.1).
 
 ### 1.3 CloudEvents Identity Fields
 
@@ -97,9 +95,9 @@ fields added in Phase A directly satisfy the CloudEvents core attribute
 contract. The `parent_event_id` field extends the pattern for causal chaining,
 which CloudEvents supports via extension attributes.
 
-**Reference:** CloudEvents Specification v1.0.2 (CNCF Serverless WG).
-Published under the Apache License 2.0. The event identity model aligns
-with RFC 4122 (UUID) for `id` generation and RFC 3986 (URI) for `source`.
+**Protocol precedent:** CloudEvents v1.0.2. The event identity model aligns
+with RFC 4122 (UUID) for `id` generation, RFC 3986 (URI) for `source`, and
+RFC 3339 for timestamps.
 
 ---
 
@@ -160,9 +158,9 @@ identity and arguments belong in the protocol layer, not in content blocks.
 The amendment goes further than MCP by adding explicit lifecycle events for
 streaming scenarios where tool execution is long-running.
 
-**Reference:** Model Context Protocol Specification 2025-03-26, Section
-"Server: Tools." Published under the MIT License. The tool invocation
-model is defined over JSON-RPC 2.0 (see §1.1).
+**Protocol precedent:** Model Context Protocol 2025-03-26, Section
+"Server: Tools." The tool invocation model is defined over JSON-RPC 2.0
+(see §1.1).
 
 ---
 
@@ -283,25 +281,14 @@ Phase A of the amendment is implemented in PR #390 and adds:
 
 ## References
 
-1. JSON-RPC 2.0 Specification (2010, JSON-RPC Working Group).
-   https://www.jsonrpc.org/specification
-   License: perpetual, permits implementation and derivative works.
+1. RFC 8259 — The JavaScript Object Notation (JSON) Data Interchange Format.
+   https://www.rfc-editor.org/rfc/rfc8259
 
-2. Language Server Protocol Specification 3.17 (open specification, CC BY 4.0).
-   Base protocol defined over JSON-RPC 2.0 (ref 1).
-
-3. CloudEvents Specification v1.0.2 (CNCF Serverless WG, Apache-2.0).
-   Event identity uses RFC 4122 UUIDs; source uses RFC 3986 URI-references;
-   timestamps use RFC 3339.
-
-4. Model Context Protocol Specification 2025-03-26 (MIT License).
-   Tool invocation defined over JSON-RPC 2.0 (ref 1).
-
-5. RFC 4122 — A Universally Unique IDentifier (UUID) URN Namespace.
+2. RFC 4122 — A Universally Unique IDentifier (UUID) URN Namespace.
    https://www.rfc-editor.org/rfc/rfc4122
 
-6. RFC 3986 — Uniform Resource Identifier (URI): Generic Syntax.
+3. RFC 3986 — Uniform Resource Identifier (URI): Generic Syntax.
    https://www.rfc-editor.org/rfc/rfc3986
 
-7. RFC 3339 — Date and Time on the Internet: Timestamps.
+4. RFC 3339 — Date and Time on the Internet: Timestamps.
    https://www.rfc-editor.org/rfc/rfc3339
