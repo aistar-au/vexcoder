@@ -21,7 +21,6 @@ mod tests;
 #[cfg(test)]
 use self::load::{
     default_model_backend, default_tool_call_mode, infer_model_protocol,
-    legacy_chat_protocol_value, legacy_messages_protocol_value,
     model_token_from_env_or_keyring_with, parse_model_headers_json, read_env_layer,
     user_config_path,
 };
@@ -218,6 +217,73 @@ pub(crate) struct AutoMemoryConfigLayer {
     pub(crate) max_notes_per_turn: Option<usize>,
 }
 
+/// Wire protocol variant for streaming tool-call deltas.
+///
+/// Stored in [`ApiClientConfig::explicit_protocol`] as an optional override
+/// for client-side protocol discovery (ADR-047 §6).  When `None`, the client
+/// probes the server at connection time via
+/// [`crate::api::client::protocol_discovery::discover_protocol`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolVariant {
+    /// `messages/v1` Block-Delta format (default).
+    ///
+    /// Emits `content_block_start` / `content_block_delta` (`input_json_delta`)
+    /// / `content_block_stop` events.  Preferred for all new local-inference
+    /// deployments.
+    #[default]
+    BlockDelta,
+    /// `chat/completions` Choices-Delta format.
+    ///
+    /// Emits `choices[].delta.tool_calls[]` with partial `arguments` strings.
+    /// Used when the server exposes only the chat-compat completions endpoint.
+    ChoicesDelta,
+}
+
+/// Client-side configuration for the local inference API.
+///
+/// Simplifies user configuration to `base_url` only; protocol is discovered
+/// automatically unless `explicit_protocol` is set (ADR-047 Phase 0).
+///
+/// Example TOML fragment:
+/// ```toml
+/// [api_client]
+/// base_url = "http://127.0.0.1:8000"
+/// delta_accumulator_memory_watermark_mb = 512
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ApiClientConfig {
+    /// Server address. Protocol and endpoint path are discovered automatically.
+    /// Only `scheme://host:port` is required (e.g. `http://127.0.0.1:8000`).
+    pub base_url: String,
+    /// Optional explicit protocol override. When set, protocol discovery is
+    /// skipped and this variant is used for the entire session.
+    pub explicit_protocol: Option<ProtocolVariant>,
+    /// Memory ceiling for the delta accumulator in mebibytes (default: 256).
+    /// When the in-flight tool-delta map exceeds this threshold, the oldest
+    /// pending entry is evicted to stay within the bound.
+    pub delta_accumulator_memory_watermark_mb: usize,
+}
+
+impl Default for ApiClientConfig {
+    fn default() -> Self {
+        Self {
+            base_url: String::new(),
+            explicit_protocol: None,
+            delta_accumulator_memory_watermark_mb: 256,
+        }
+    }
+}
+
+impl ApiClientConfig {
+    /// Returns the watermark in bytes for use with [`DeltaAccumulator`](crate::runtime::delta_accumulator::DeltaAccumulator).
+    pub fn delta_accumulator_memory_watermark_bytes(&self) -> usize {
+        self.delta_accumulator_memory_watermark_mb
+            .saturating_mul(1024 * 1024)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub model_token: Option<String>,
@@ -252,6 +318,11 @@ pub struct Config {
     pub undo: UndoConfig,
     pub search: SearchConfig,
     pub auto_memory: AutoMemoryConfig,
+    /// Client-side API configuration: `base_url`, optional protocol override,
+    /// and delta-accumulator memory watermark.  Discovery runs automatically
+    /// when `explicit_protocol` is not set (ADR-047 Phase 0).
+    #[serde(default)]
+    pub api_client: ApiClientConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -298,6 +369,7 @@ struct ConfigLayer {
     undo: Option<UndoConfigLayer>,
     search: Option<SearchConfigLayer>,
     auto_memory: Option<AutoMemoryConfigLayer>,
+    api_client: Option<ApiClientConfig>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -404,6 +476,7 @@ impl Config {
             undo: UndoConfig::default(),
             search: SearchConfig::default(),
             auto_memory: AutoMemoryConfig::default(),
+            api_client: ApiClientConfig::default(),
         }
     }
 

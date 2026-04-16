@@ -181,6 +181,7 @@ pub(super) fn resolve_config(
         undo: resolve_undo_config(merged.undo),
         search: resolve_search_config(merged.search),
         auto_memory: resolve_auto_memory_config(merged.auto_memory),
+        api_client: merged.api_client.unwrap_or_default(),
     })
 }
 
@@ -434,19 +435,10 @@ pub(crate) fn migrate_config_from_env(envs: &[(&str, &str)]) -> String {
     lines
         .push("# apply this fragment to .vex/config.toml or ~/.config/vex/config.toml".to_string());
 
-    if let Some(value) = get("VEX_API_PROTOCOL") {
-        match value.trim().to_ascii_lowercase().as_str() {
-            value if value == legacy_messages_protocol_value() => {
-                lines.push(r#"model_protocol = "messages-v1""#.to_string())
-            }
-            value if value == legacy_chat_protocol_value() => {
-                lines.push(r#"model_protocol = "chat-compat""#.to_string())
-            }
-            other => lines.push(format!(
-                "# WARNING: unknown VEX_API_PROTOCOL value {other:?}; no mapping generated"
-            )),
-        }
-    }
+    // VEX_API_PROTOCOL (legacy env var) migration removed in ADR-047 Phase 0.
+    // The env var previously accepted short string aliases for "messages-v1"
+    // and "chat-compat". Protocol is now discovered automatically at connection
+    // time or set via `api_client.explicit_protocol` in config.
 
     if let Some(value) = get("VEX_STRUCTURED_TOOL_PROTOCOL") {
         match value.trim().to_ascii_lowercase().as_str() {

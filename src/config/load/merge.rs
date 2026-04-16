@@ -33,6 +33,7 @@ pub(super) fn apply_over(base: ConfigLayer, over: ConfigLayer) -> ConfigLayer {
         undo: apply_undo_over(base.undo, over.undo),
         search: apply_search_over(base.search, over.search),
         auto_memory: apply_auto_memory_over(base.auto_memory, over.auto_memory),
+        api_client: over.api_client.or(base.api_client),
     }
 }
 

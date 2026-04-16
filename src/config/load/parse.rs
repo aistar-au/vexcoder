@@ -82,11 +82,3 @@ pub(crate) fn parse_model_headers_json() -> Result<HeaderMap> {
     }
     Ok(headers)
 }
-
-pub(crate) fn legacy_messages_protocol_value() -> &'static str {
-    concat!("anth", "ropic")
-}
-
-pub(crate) fn legacy_chat_protocol_value() -> &'static str {
-    concat!("open", "ai")
-}

@@ -100,18 +100,6 @@ fn init_pr_summary_repo() -> tempfile::TempDir {
 }
 
 #[test]
-fn test_migrate_config_maps_legacy_messages_value() {
-    let out = vexcoder::config::migrate_config_from_env(&[(
-        "VEX_API_PROTOCOL",
-        concat!("anth", "ropic"),
-    )]);
-    assert!(
-        out.contains("model_protocol = \"messages-v1\""),
-        "migrate output: {out}"
-    );
-}
-
-#[test]
 fn test_migrate_config_maps_structured_tool_protocol_on() {
     let out = vexcoder::config::migrate_config_from_env(&[("VEX_STRUCTURED_TOOL_PROTOCOL", "on")]);
     assert!(

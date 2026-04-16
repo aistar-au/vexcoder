@@ -170,6 +170,7 @@ fn test_config_validation_rejects_local_model_for_remote_endpoint() {
         api: vexcoder::config::ApiConfig::default(),
         hooks: Vec::new(),
         auto_memory: vexcoder::config::AutoMemoryConfig::default(),
+        api_client: vexcoder::config::ApiClientConfig::default(),
     };
     assert!(config.validate().is_err());
 }
@@ -200,6 +201,7 @@ fn test_config_validation_allows_local_endpoint_without_token() {
         api: vexcoder::config::ApiConfig::default(),
         hooks: Vec::new(),
         auto_memory: vexcoder::config::AutoMemoryConfig::default(),
+        api_client: vexcoder::config::ApiClientConfig::default(),
     };
     assert!(config.validate().is_ok());
 }
@@ -539,6 +541,7 @@ async fn test_build_batch_runtime_succeeds_with_local_config() {
         api: vexcoder::config::ApiConfig::default(),
         hooks: Vec::new(),
         auto_memory: vexcoder::config::AutoMemoryConfig::default(),
+        api_client: vexcoder::config::ApiClientConfig::default(),
     };
     let result = build_batch_runtime(&config, "test task".to_string(), BatchRunOpts::default());
     assert!(

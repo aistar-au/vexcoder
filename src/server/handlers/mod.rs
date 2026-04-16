@@ -20,7 +20,7 @@ use crate::http_facade::{StatusCode, header};
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
 };
-use crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, RuntimeRequest, TurnEndContext};
+use crate::runtime::json_handoff::{RuntimeRequest, TurnEndContext};
 
 use super::ControlResponse;
 
@@ -339,16 +339,15 @@ pub async fn turns_handler(
     let (envelope_tx, envelope_rx) = mpsc::unbounded_channel::<String>();
     let (interrupt_tx, interrupt_rx) = mpsc::unbounded_channel::<FrontendCommand>();
     let quit = Arc::new(AtomicBool::new(false));
-    let shared = Arc::new(Mutex::new(LocalApiTaskShared {
-        normalizer: RuntimeEnvelopeNormalizer::new(task_id.clone()),
+    let shared = Arc::new(Mutex::new(LocalApiTaskShared::new(
+        task_id.clone(),
         envelope_tx,
-        pending_approval: None,
-        quit: Arc::clone(&quit),
-        turn_in_progress: false,
-        interrupted: false,
-        active_command_sessions: std::collections::BTreeSet::new(),
-        turn_completion_pending: false,
-    }));
+        Arc::clone(&quit),
+        state
+            .config
+            .api_client
+            .delta_accumulator_memory_watermark_bytes(),
+    )));
 
     {
         let mut tasks = state.tasks.lock().await;

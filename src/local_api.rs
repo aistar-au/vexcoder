@@ -13,6 +13,7 @@ use crate::app::FacadeSessionTaskRollup;
 use crate::config::Config;
 use crate::runtime::UiUpdate;
 use crate::runtime::context::RuntimeContext;
+use crate::runtime::delta_accumulator::DeltaAccumulator;
 use crate::runtime::frontend::{FrontendAdapter, UserInputEvent};
 use crate::runtime::json_handoff::{
     RuntimeEnvelope, RuntimeEnvelopeNormalizer, RuntimeEvent, TurnEndContext,
@@ -52,6 +53,38 @@ pub(crate) struct LocalApiTaskShared {
     pub interrupted: bool,
     pub active_command_sessions: BTreeSet<u64>,
     pub turn_completion_pending: bool,
+}
+
+impl LocalApiTaskShared {
+    /// Constructs a new `LocalApiTaskShared` with a fresh delta accumulator.
+    ///
+    /// `memory_watermark_bytes` should be read from
+    /// [`crate::config::ApiClientConfig::delta_accumulator_memory_watermark_bytes`]
+    /// by the server handler.  Pass
+    /// `crate::runtime::delta_accumulator::DEFAULT_DELTA_ACCUMULATOR_MEMORY_WATERMARK_BYTES`
+    /// from paths that do not have access to the full config.
+    pub fn new(
+        task_id: String,
+        envelope_tx: mpsc::UnboundedSender<String>,
+        quit: Arc<AtomicBool>,
+        memory_watermark_bytes: usize,
+    ) -> Self {
+        let delta_accumulator = Arc::new(DeltaAccumulator::new(memory_watermark_bytes));
+
+        Self {
+            normalizer: RuntimeEnvelopeNormalizer::new_with_delta_accumulator(
+                task_id,
+                delta_accumulator,
+            ),
+            envelope_tx,
+            pending_approval: None,
+            quit,
+            turn_in_progress: false,
+            interrupted: false,
+            active_command_sessions: BTreeSet::new(),
+            turn_completion_pending: false,
+        }
+    }
 }
 
 pub(crate) struct PendingApproval {

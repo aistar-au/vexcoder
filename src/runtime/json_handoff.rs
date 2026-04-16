@@ -1,5 +1,6 @@
 use super::UiUpdate;
 use crate::runtime::AssistantPhase;
+use crate::runtime::delta_accumulator::DeltaAccumulator;
 use crate::state::{StreamBlock, ToolStatus};
 use crate::turn_evidence::{
     SummaryRecord, TurnEvidenceRecord, command_evidence_from_tool_result,
@@ -10,7 +11,9 @@ use crate::usage::TurnTokens;
 use chrono::{Timelike, Utc};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 mod derived;
 
@@ -158,9 +161,30 @@ pub struct DerivedBatchRecords {
     pub max_turns_reached: bool,
 }
 
+pub type ToolCallId = String;
+
+/// Generates a `tx_`-prefixed tool call ID suitable for use as a
+/// [`ToolCallId`] anywhere in the runtime pipeline.
+///
+/// `counter` must be an [`AtomicU32`] owned or shared by the caller and
+/// monotonically incremented per call. `entropy` is a 16-bit time- or
+/// task-derived salt that reduces collision risk across counter resets.
+///
+/// The resulting format is `tx_{counter}_{entropy:04x}` — a decimal monotonic
+/// counter followed by a 4-hex-digit entropy field — matching the pattern
+/// `^tx_[0-9]+_[0-9a-f]{4}$` enforced by `schemas/runtime_envelope_v1.json`.
+///
+/// IDs are generated once in `src/runtime/json_handoff.rs` and passed
+/// pre-generated to [`super::delta_accumulator::DeltaAccumulator`] — the
+/// accumulator never creates its own IDs.
+pub fn generate_tool_call_id(counter: &AtomicU32, entropy: u16) -> ToolCallId {
+    let count = counter.fetch_add(1, Ordering::SeqCst);
+    format!("tx_{}_{entropy:04x}", count)
+}
+
 #[derive(Debug, Clone)]
 struct PendingToolCall {
-    runtime_id: String,
+    runtime_id: ToolCallId,
     name: String,
     arguments: serde_json::Value,
 }
@@ -170,23 +194,42 @@ pub struct RuntimeEnvelopeNormalizer {
     turn: u32,
     next_seq: u64,
     pending_tool_calls: IndexMap<String, PendingToolCall>,
+    streaming_tool_call_blocks: HashMap<usize, ToolCallId>,
     turn_changed_files: BTreeSet<String>,
     tool_id_counter: u64,
     open_final_text_block: Option<usize>,
     next_synthetic_block_index: usize,
+    delta_accumulator: Option<Arc<DeltaAccumulator>>,
 }
 
 impl RuntimeEnvelopeNormalizer {
     pub fn new(task_id: impl Into<String>) -> Self {
+        Self::new_inner(task_id.into(), None)
+    }
+
+    pub fn new_with_delta_accumulator(
+        task_id: impl Into<String>,
+        delta_accumulator: Arc<DeltaAccumulator>,
+    ) -> Self {
+        Self::new_inner(task_id.into(), Some(delta_accumulator))
+    }
+
+    pub fn delta_accumulator(&self) -> Option<Arc<DeltaAccumulator>> {
+        self.delta_accumulator.clone()
+    }
+
+    fn new_inner(task_id: String, delta_accumulator: Option<Arc<DeltaAccumulator>>) -> Self {
         Self {
-            task_id: task_id.into(),
+            task_id,
             turn: 0,
             next_seq: 1,
             pending_tool_calls: IndexMap::new(),
+            streaming_tool_call_blocks: HashMap::new(),
             turn_changed_files: BTreeSet::new(),
             tool_id_counter: 0,
             open_final_text_block: None,
             next_synthetic_block_index: SYNTHETIC_FINAL_TEXT_BLOCK_START,
+            delta_accumulator,
         }
     }
 
@@ -194,6 +237,7 @@ impl RuntimeEnvelopeNormalizer {
         self.turn = turn;
         self.next_seq = 1;
         self.pending_tool_calls.clear();
+        self.streaming_tool_call_blocks.clear();
         self.turn_changed_files.clear();
         self.open_final_text_block = None;
         self.next_synthetic_block_index = SYNTHETIC_FINAL_TEXT_BLOCK_START;
@@ -207,7 +251,9 @@ impl RuntimeEnvelopeNormalizer {
                 id, name, input, ..
             }
             | ContentBlock::ServerToolUse { id, name, input } => {
-                vec![self.record_tool_call(id.clone(), name.clone(), input.clone())]
+                let envelope = self.record_tool_call(id.clone(), name.clone(), input.clone());
+                self.seed_tool_accumulator_for_source(id, input);
+                vec![envelope]
             }
             ContentBlock::ToolResult {
                 tool_use_id,
@@ -280,15 +326,27 @@ impl RuntimeEnvelopeNormalizer {
                     block: block.clone(),
                 }));
                 envelopes.extend(self.normalize_stream_block(block));
+                if let StreamBlock::ToolCall { id, .. } = block
+                    && let Some(pending) = self.pending_tool_calls.get(id)
+                {
+                    self.streaming_tool_call_blocks
+                        .insert(*index, pending.runtime_id.clone());
+                }
                 envelopes
             }
             UiUpdate::StreamBlockDelta { index, delta } => {
+                if let Some(runtime_id) = self.streaming_tool_call_blocks.get(index).cloned() {
+                    self.accumulate_tool_delta(&runtime_id, delta);
+                }
                 vec![self.next_envelope(RuntimeEvent::TranscriptBlockDelta {
                     index: *index,
                     delta: delta.clone(),
                 })]
             }
             UiUpdate::StreamBlockComplete { index } => {
+                if let Some(runtime_id) = self.streaming_tool_call_blocks.remove(index) {
+                    self.finish_tool_accumulator(&runtime_id);
+                }
                 vec![self.next_envelope(RuntimeEvent::TranscriptBlockComplete { index: *index })]
             }
             UiUpdate::TurnComplete => self.complete_turn(turn_end.unwrap_or_default()),
@@ -333,10 +391,14 @@ impl RuntimeEnvelopeNormalizer {
         }));
 
         if !recoverable {
+            let changed_files = self.resolve_changed_files(turn_end.changed_files);
+            self.finish_pending_tool_accumulations();
+            self.pending_tool_calls.clear();
+            self.streaming_tool_call_blocks.clear();
             envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
                 status: "failed".to_string(),
                 usage: turn_end.usage,
-                changed_files: self.resolve_changed_files(turn_end.changed_files),
+                changed_files,
             }));
         }
 
@@ -349,11 +411,15 @@ impl RuntimeEnvelopeNormalizer {
         turn_end: TurnEndContext,
     ) -> Vec<RuntimeEnvelope> {
         let mut envelopes = self.close_open_final_text_block();
+        let changed_files = self.resolve_changed_files(turn_end.changed_files);
+        self.finish_pending_tool_accumulations();
+        self.pending_tool_calls.clear();
+        self.streaming_tool_call_blocks.clear();
         envelopes.push(self.next_envelope(RuntimeEvent::MaxTurnsReached { max_turns }));
         envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
             status: "failed".to_string(),
             usage: turn_end.usage,
-            changed_files: self.resolve_changed_files(turn_end.changed_files),
+            changed_files,
         }));
         envelopes
     }
@@ -375,11 +441,15 @@ impl RuntimeEnvelopeNormalizer {
         status: &str,
         turn_end: TurnEndContext,
     ) -> Vec<RuntimeEnvelope> {
+        let changed_files = self.resolve_changed_files(turn_end.changed_files);
+        self.finish_pending_tool_accumulations();
+        self.pending_tool_calls.clear();
+        self.streaming_tool_call_blocks.clear();
         let mut envelopes = self.close_open_final_text_block();
         envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
             status: status.to_string(),
             usage: turn_end.usage,
-            changed_files: self.resolve_changed_files(turn_end.changed_files),
+            changed_files,
         }));
         envelopes
     }
@@ -431,6 +501,8 @@ impl RuntimeEnvelopeNormalizer {
                 arguments: arguments.clone(),
             },
         );
+        self.start_tool_accumulator(&runtime_id, &name);
+        self.seed_tool_accumulator(&runtime_id, &arguments);
 
         Some(self.next_envelope(RuntimeEvent::ToolCall {
             id: runtime_id,
@@ -454,6 +526,7 @@ impl RuntimeEnvelopeNormalizer {
                 arguments: arguments.clone(),
             },
         );
+        self.start_tool_accumulator(&runtime_id, &name);
 
         self.next_envelope(RuntimeEvent::ToolCall {
             id: runtime_id,
@@ -469,6 +542,7 @@ impl RuntimeEnvelopeNormalizer {
         is_error: bool,
     ) -> RuntimeEnvelope {
         if let Some(pending) = self.pending_tool_calls.shift_remove(source_id) {
+            self.finish_tool_accumulator(&pending.runtime_id);
             if !is_error {
                 note_changed_files_from_tool_call(
                     &mut self.turn_changed_files,
@@ -500,12 +574,74 @@ impl RuntimeEnvelopeNormalizer {
         }
     }
 
-    fn generate_tool_call_id(&mut self) -> String {
+    fn start_tool_accumulator(&self, tool_call_id: &ToolCallId, name: &str) {
+        let Some(delta_accumulator) = &self.delta_accumulator else {
+            return;
+        };
+
+        if let Err(error) = delta_accumulator.start_tool(
+            tool_call_id.clone(),
+            self.task_id.clone(),
+            name.to_string(),
+        ) {
+            tracing::debug!(%error, tool_call_id = %tool_call_id, "failed to start tool delta accumulation");
+        }
+    }
+
+    fn seed_tool_accumulator_for_source(&self, source_id: &str, arguments: &serde_json::Value) {
+        let Some(pending) = self.pending_tool_calls.get(source_id) else {
+            return;
+        };
+
+        self.seed_tool_accumulator(&pending.runtime_id, arguments);
+    }
+
+    fn seed_tool_accumulator(&self, tool_call_id: &ToolCallId, arguments: &serde_json::Value) {
+        let Some(delta_accumulator) = &self.delta_accumulator else {
+            return;
+        };
+
+        let Ok(serialized) = serde_json::to_string(arguments) else {
+            return;
+        };
+        if serialized == "{}" {
+            return;
+        }
+
+        if let Err(error) = delta_accumulator.accumulate(tool_call_id, &serialized) {
+            tracing::debug!(%error, tool_call_id = %tool_call_id, "failed to seed tool delta accumulation");
+        }
+    }
+
+    fn accumulate_tool_delta(&self, tool_call_id: &ToolCallId, delta: &str) {
+        let Some(delta_accumulator) = &self.delta_accumulator else {
+            return;
+        };
+
+        if let Err(error) = delta_accumulator.accumulate(tool_call_id, delta) {
+            tracing::debug!(%error, tool_call_id = %tool_call_id, "failed to accumulate tool delta");
+        }
+    }
+
+    fn finish_tool_accumulator(&self, tool_call_id: &ToolCallId) {
+        let Some(delta_accumulator) = &self.delta_accumulator else {
+            return;
+        };
+
+        delta_accumulator.finish(tool_call_id);
+    }
+
+    fn finish_pending_tool_accumulations(&self) {
+        for pending in self.pending_tool_calls.values() {
+            self.finish_tool_accumulator(&pending.runtime_id);
+        }
+    }
+
+    fn generate_tool_call_id(&mut self) -> ToolCallId {
         self.tool_id_counter = self.tool_id_counter.saturating_add(1);
         let now = Utc::now();
-        let millis = now.timestamp_millis() as u128;
         let entropy = ((now.nanosecond() as u128 ^ self.tool_id_counter as u128) & 0xffff) as u16;
-        format!("call_{millis}_{entropy:04x}")
+        format!("tx_{}_{entropy:04x}", self.tool_id_counter)
     }
 
     fn next_envelope(&mut self, event: RuntimeEvent) -> RuntimeEnvelope {

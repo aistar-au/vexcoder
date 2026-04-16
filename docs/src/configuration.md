@@ -554,3 +554,30 @@ Token for authenticated endpoints:
 ```bash
 export VEX_MODEL_TOKEN="your-token"
 ```
+
+## API Client Configuration (ADR-047)
+
+The `[api_client]` section configures the local inference client. Only
+`base_url` is required; protocol is auto-discovered at connection time.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `base_url` | string | `""` | Server address — `scheme://host:port` only (e.g. `http://127.0.0.1:8000`). Endpoint path and protocol are discovered automatically. |
+| `explicit_protocol` | `"block_delta"` \| `"choices_delta"` | unset | Bypass discovery and use this protocol for the session. Use only for debugging or non-standard servers. |
+| `delta_accumulator_memory_watermark_mb` | integer | `256` | Memory ceiling (MiB) for in-flight streaming tool-argument deltas. When exceeded, the oldest pending entry is evicted. |
+
+Example:
+
+```toml
+[api_client]
+base_url = "http://127.0.0.1:8000"
+delta_accumulator_memory_watermark_mb = 512
+```
+
+Override protocol (debugging only):
+
+```toml
+[api_client]
+base_url = "http://127.0.0.1:8000"
+explicit_protocol = "choices_delta"
+```

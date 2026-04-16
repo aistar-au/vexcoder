@@ -4,6 +4,7 @@ pub mod command;
 pub mod context;
 pub mod context_assembler;
 pub mod context_cache;
+pub mod delta_accumulator;
 pub mod edit_loop;
 pub mod frontend;
 pub mod git_parse;

@@ -5,7 +5,7 @@ Canonical raw URL index for every tracked file in this repository.
 - Branch: main
 - Base: <https://raw.githubusercontent.com/aistar-au/vexcoder/main/>
 - Source: git ls-files
-- Total tracked files: 366
+- Total tracked files: 369
 
 | # | Path | Approx. lines | Raw URL |
 | :--- | :--- | :--- | :--- |
@@ -73,6 +73,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 62 | `adr/ADR-044-test-suite-scalability-and-fixture-patterns.md` | ~227 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-044-test-suite-scalability-and-fixture-patterns.md> |
 | 63 | `adr/ADR-045-replay-first-task-document-and-single-writer-state.md` | ~604 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-045-replay-first-task-document-and-single-writer-state.md> |
 | 64 | `adr/ADR-046-agent-peer-message-channel.md` | ~270 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-046-agent-peer-message-channel.md> |
+| 65 | `adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md` | ~126 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md> |
 | 65 | `adr/ADR-README.md` | ~104 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |
 | 66 | `adr/completed/ADR-001-tdm-agentic-manifest-strategy.md` | ~113 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-001-tdm-agentic-manifest-strategy.md> |
 | 67 | `adr/completed/ADR-002-lexical-path-normalization.md` | ~77 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/completed/ADR-002-lexical-path-normalization.md> |
@@ -138,7 +139,8 @@ Canonical raw URL index for every tracked file in this repository.
 | 127 | `src/agents.rs` | ~733 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/agents.rs> |
 | 128 | `src/api.rs` | ~6 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api.rs> |
 | 129 | `src/api/client/mod.rs` | ~1030 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client/mod.rs> |
-| 130 | `src/api/client/tests.rs` | ~976 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client/tests.rs> |
+| 130 | `src/api/client/protocol_discovery.rs` | ~218 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client/protocol_discovery.rs> |
+| 131 | `src/api/client/tests.rs` | ~976 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client/tests.rs> |
 | 131 | `src/api/client/tools.rs` | ~394 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/client/tools.rs> |
 | 132 | `src/api/logging.rs` | ~85 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/logging.rs> |
 | 133 | `src/api/mock_client.rs` | ~47 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/api/mock_client.rs> |
@@ -372,3 +374,4 @@ Canonical raw URL index for every tracked file in this repository.
 | 361 | `clippy.toml` | ~12 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/clippy.toml> |
 | 362 | `docs/src/linting.md` | ~95 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/linting.md> |
 | 363 | `docs/src/msrv.md` | ~70 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/docs/src/msrv.md> |
+| 364 | `src/runtime/delta_accumulator.rs` | ~384 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/src/runtime/delta_accumulator.rs> |

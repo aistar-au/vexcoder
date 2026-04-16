@@ -517,24 +517,6 @@ fn test_model_profile_loaded_from_layered_config() {
 }
 
 #[test]
-fn test_migrate_maps_legacy_messages_protocol() {
-    let out = super::migrate_config_from_env(&[(
-        "VEX_API_PROTOCOL",
-        super::legacy_messages_protocol_value(),
-    )]);
-    assert!(out.contains("model_protocol = \"messages-v1\""), "{out}");
-}
-
-#[test]
-fn test_migrate_maps_legacy_chat_protocol() {
-    let out = super::migrate_config_from_env(&[(
-        "VEX_API_PROTOCOL",
-        super::legacy_chat_protocol_value(),
-    )]);
-    assert!(out.contains("model_protocol = \"chat-compat\""), "{out}");
-}
-
-#[test]
 fn test_migrate_maps_structured_tool_protocol_on() {
     let out = super::migrate_config_from_env(&[("VEX_STRUCTURED_TOOL_PROTOCOL", "on")]);
     assert!(out.contains("tool_call_mode = \"structured\""), "{out}");
