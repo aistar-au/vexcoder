@@ -117,6 +117,18 @@ deny = []
 skip = []
 
 # ---------------------------------------------------------------------------
+# Transitive-only crates pulled in by eventsource-client
+# ---------------------------------------------------------------------------
+# launchdarkly-sdk-transport is a transitive dependency of eventsource-client.
+# It is not a direct dependency of this workspace; it provides only the HTTP
+# transport primitive used by eventsource-client's connection management layer.
+# No direct usage in vexcoder code; bump tracking is handled via the
+# eventsource-client workspace dependency comment in Cargo.toml.
+[[bans.skip]]
+name = "launchdarkly-sdk-transport"
+reason = "Transitive dep of eventsource-client 0.17; version is locked to eventsource-client's requirements. Bump alongside eventsource-client when upgrading."
+
+# ---------------------------------------------------------------------------
 # 3. License compliance
 # ---------------------------------------------------------------------------
 [licenses]

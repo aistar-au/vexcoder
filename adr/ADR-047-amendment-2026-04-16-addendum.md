@@ -245,9 +245,10 @@ parser) represents internal routing that the API event surface replaces.
 
 Phase A of the amendment adds:
 
-1. **Envelope metadata:** `event_id` (UUID-based), `emitted_at` (ISO 8601),
-   `source` (Model, Runtime, or UserRequest), `request_id`, and
-   `parent_event_id` to `RuntimeEnvelope`.
+1. **Envelope metadata:** `event_id` (formatted as
+   `evt:{task_id}:{turn}:{seq}`), `emitted_at` (ISO 8601), `source` (Model,
+   Runtime, or UserRequest), `request_id`, and `parent_event_id` (referencing
+   another `event_id` in the same format) to `RuntimeEnvelope`.
 
 2. **Explicit tool lifecycle events:** `ToolCallStarted`,
    `ToolCallArgumentsDelta`, `ToolCallCompleted`, and `ToolCallFailed` replace

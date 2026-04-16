@@ -75,7 +75,7 @@ Canonical raw URL index for every tracked file in this repository.
 | 64 | `adr/ADR-044-test-suite-scalability-and-fixture-patterns.md` | ~227 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-044-test-suite-scalability-and-fixture-patterns.md> |
 | 65 | `adr/ADR-045-replay-first-task-document-and-single-writer-state.md` | ~604 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-045-replay-first-task-document-and-single-writer-state.md> |
 | 66 | `adr/ADR-046-agent-peer-message-channel.md` | ~270 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-046-agent-peer-message-channel.md> |
-| 67 | `adr/ADR-047-amendment-2026-04-16-research-addendum.md` | ~294 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-amendment-2026-04-16-research-addendum.md> |
+| 67 | `adr/ADR-047-amendment-2026-04-16-addendum.md` | ~294 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-amendment-2026-04-16-addendum.md> |
 | 68 | `adr/ADR-047-amendment-2026-04-16.md` | ~180 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-amendment-2026-04-16.md> |
 | 69 | `adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md` | ~134 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-047-block-delta-protocol-discovery-dual-protocol-support.md> |
 | 70 | `adr/ADR-README.md` | ~107 | <https://raw.githubusercontent.com/aistar-au/vexcoder/main/adr/ADR-README.md> |

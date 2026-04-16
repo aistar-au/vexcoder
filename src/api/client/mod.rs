@@ -552,6 +552,17 @@ impl ApiClient {
             reqwest::header::CONTENT_TYPE,
             reqwest::header::HeaderValue::from_static("application/json"),
         );
+        // Signal the expected SSE dialect so servers that multiplex multiple
+        // streaming formats can select the right one (mirrors the probe in
+        // protocol_discovery.rs).
+        let accept_value = match api_protocol {
+            ApiProtocol::MessagesV1 => "application/vnd.block-delta+sse",
+            ApiProtocol::ChatCompat => "application/vnd.choices-delta+sse",
+        };
+        headers.insert(
+            reqwest::header::ACCEPT,
+            reqwest::header::HeaderValue::from_static(accept_value),
+        );
 
         // Apply operator-supplied headers. Reserved headers are excluded to
         // prevent duplicates so auth headers are only set once in the block below.

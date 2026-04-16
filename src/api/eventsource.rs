@@ -140,9 +140,6 @@ async fn read_error_body(mut stream: TransportByteStream) -> String {
                 }
                 let take = remaining.min(chunk.len());
                 body.extend_from_slice(&chunk[..take]);
-                if body.len() >= MAX_ERROR_BODY_BYTES {
-                    break;
-                }
             }
             Err(error) => {
                 if body.is_empty() {

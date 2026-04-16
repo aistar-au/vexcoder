@@ -559,9 +559,11 @@ mod tests {
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         let tool_call: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
-        let tool_call_arguments_delta: RuntimeEnvelope =
-            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        // TranscriptBlockDelta is now emitted before ToolCallArgumentsDelta
+        // for tool blocks (canonical protocol event first, derived event second).
         let transcript_block_delta: RuntimeEnvelope =
+            serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
+        let tool_call_arguments_delta: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();
         let transcript_block_complete: RuntimeEnvelope =
             serde_json::from_str(&envelope_rx.recv().await.unwrap()).unwrap();

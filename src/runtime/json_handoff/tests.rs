@@ -254,16 +254,18 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         RuntimeEnvelopeSource::Model
     );
 
-    let transcript_block_delta = normalizer
-        .normalize_ui_update(
-            &UiUpdate::StreamBlockDelta {
-                index: 0,
-                delta: "{\"path\":\"src/lib.rs\"}".to_string(),
-            },
-            None,
-        )
-        .pop()
-        .expect("transcript block delta envelope");
+    // TranscriptBlockDelta is emitted first (canonical protocol event),
+    // followed by ToolCallArgumentsDelta for tool blocks.
+    let block_delta_envelopes = normalizer.normalize_ui_update(
+        &UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: "{\"path\":\"src/lib.rs\"}".to_string(),
+        },
+        None,
+    );
+    assert_eq!(block_delta_envelopes.len(), 2);
+    let transcript_block_delta = &block_delta_envelopes[0];
+    let tool_call_arguments_delta = &block_delta_envelopes[1];
     assert!(matches!(
         transcript_block_delta.event,
         RuntimeEvent::TranscriptBlockDelta {
@@ -272,6 +274,15 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         } if delta == "{\"path\":\"src/lib.rs\"}"
     ));
     assert_eq!(transcript_block_delta.source, RuntimeEnvelopeSource::Model);
+    assert!(matches!(
+        tool_call_arguments_delta.event,
+        RuntimeEvent::ToolCallArgumentsDelta {
+            ref tool_name,
+            ref delta,
+            ..
+        } if tool_name.as_deref() == Some("read_file")
+            && delta == "{\"path\":\"src/lib.rs\"}"
+    ));
 
     let transcript_block_complete = normalizer
         .normalize_ui_update(&UiUpdate::StreamBlockComplete { index: 0 }, None)
@@ -540,7 +551,15 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(turn_start_seqs, vec![(1, 1), (2, 1)]);
+    // seq is process-lifetime monotonic: turn 1 starts at seq 1; turn 2
+    // continues without a reset so its TurnStart seq > 1.
+    assert_eq!(turn_start_seqs.len(), 2);
+    assert_eq!(turn_start_seqs[0], (1, 1));
+    assert_eq!(turn_start_seqs[1].0, 2);
+    assert!(
+        turn_start_seqs[1].1 > turn_start_seqs[0].1,
+        "turn 2 TurnStart seq must be greater than turn 1 TurnStart seq (global monotonic counter)"
+    );
 
     let derived = derive_batch_records(&envelopes, Some("AGENTS.md".to_string()));
     assert_eq!(derived.turns.len(), 2);

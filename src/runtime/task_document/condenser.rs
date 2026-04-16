@@ -2,7 +2,7 @@ use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::session_task::now_millis;
 use crate::runtime::task_state::TaskStatus;
 use crate::runtime::{ApprovalScope, Capability};
-use crate::state::{StreamBlock, ToolStatus, TurnToolPolicy};
+use crate::state::{StreamBlock, TurnToolPolicy};
 use crate::usage::TurnTokens;
 
 use super::{
@@ -216,14 +216,19 @@ impl TaskDocumentCondenser {
                 tool_call_id,
                 tool_name,
                 output,
+                status,
                 ..
             } => {
                 if let Some(active) = doc.active_turn.as_mut() {
                     for entry in &mut active.entries {
-                        if let TurnEntry::ToolCall { id, status, .. } = entry
+                        if let TurnEntry::ToolCall {
+                            id,
+                            status: entry_status,
+                            ..
+                        } = entry
                             && *id == tool_call_id
                         {
-                            *status = ToolStatus::Complete;
+                            *entry_status = status.clone();
                             break;
                         }
                     }
@@ -244,14 +249,19 @@ impl TaskDocumentCondenser {
                 tool_call_id,
                 tool_name,
                 output,
+                status,
                 ..
             } => {
                 if let Some(active) = doc.active_turn.as_mut() {
                     for entry in &mut active.entries {
-                        if let TurnEntry::ToolCall { id, status, .. } = entry
+                        if let TurnEntry::ToolCall {
+                            id,
+                            status: entry_status,
+                            ..
+                        } = entry
                             && *id == tool_call_id
                         {
-                            *status = ToolStatus::Error;
+                            *entry_status = status.clone();
                             break;
                         }
                     }

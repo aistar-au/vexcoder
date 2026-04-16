@@ -306,7 +306,9 @@ impl RuntimeEnvelopeNormalizer {
 
     pub fn start_turn(&mut self, turn: u32, input: Option<String>) -> RuntimeEnvelope {
         self.turn = turn;
-        self.next_seq = 1;
+        // next_seq is intentionally NOT reset here: the seq counter is
+        // process-lifetime monotonic so that event_ids remain unique across
+        // turn boundaries within the same RuntimeEventEmitter instance.
         self.pending_tool_calls.clear();
         self.pending_tool_call_contexts.clear();
         self.streaming_tool_call_blocks.clear();
@@ -325,7 +327,6 @@ impl RuntimeEnvelopeNormalizer {
             }
             | ContentBlock::ServerToolUse { id, name, input } => {
                 let envelope = self.record_tool_call(id.clone(), name.clone(), input.clone());
-                self.seed_tool_accumulator_for_source(id, input);
                 vec![envelope]
             }
             ContentBlock::ToolResult {
@@ -421,9 +422,9 @@ impl RuntimeEnvelopeNormalizer {
             }
             UiUpdate::StreamBlockDelta { index, delta } => {
                 let mut envelopes = Vec::new();
-                if let Some(runtime_id) = self.streaming_tool_call_blocks.get(index).cloned() {
-                    envelopes.push(self.record_tool_call_arguments_delta(&runtime_id, delta));
-                }
+                // TranscriptBlockDelta is the canonical protocol event and is
+                // emitted first so consumers see the raw stream before the
+                // derived ToolCallArgumentsDelta that follows for tool blocks.
                 envelopes.push(self.next_envelope_with_source(
                     RuntimeEvent::TranscriptBlockDelta {
                         index: *index,
@@ -433,6 +434,9 @@ impl RuntimeEnvelopeNormalizer {
                     None,
                     self.block_sources.get(index).cloned(),
                 ));
+                if let Some(runtime_id) = self.streaming_tool_call_blocks.get(index).cloned() {
+                    envelopes.push(self.record_tool_call_arguments_delta(&runtime_id, delta));
+                }
                 envelopes
             }
             UiUpdate::StreamBlockComplete { index } => {
@@ -681,6 +685,7 @@ impl RuntimeEnvelopeNormalizer {
             },
         );
         self.start_tool_accumulator(&runtime_id, &name);
+        self.seed_tool_accumulator(&runtime_id, &arguments);
 
         envelope
     }
@@ -807,14 +812,6 @@ impl RuntimeEnvelopeNormalizer {
         ) {
             tracing::debug!(%error, tool_call_id = %tool_call_id, "failed to start tool delta accumulation");
         }
-    }
-
-    fn seed_tool_accumulator_for_source(&self, source_id: &str, arguments: &serde_json::Value) {
-        let Some(pending) = self.pending_tool_calls.get(source_id) else {
-            return;
-        };
-
-        self.seed_tool_accumulator(&pending.runtime_id, arguments);
     }
 
     fn seed_tool_accumulator(&self, tool_call_id: &ToolCallId, arguments: &serde_json::Value) {
@@ -1066,10 +1063,14 @@ fn source_for_event(event: &RuntimeEvent) -> RuntimeEnvelopeSource {
         }
         RuntimeEvent::TranscriptLine { .. } => RuntimeEnvelopeSource::Runtime,
         RuntimeEvent::TranscriptBlockStart { block, .. } => source_for_stream_block(block),
-        RuntimeEvent::TranscriptBlockDelta { .. }
-        | RuntimeEvent::TranscriptBlockComplete { .. }
+        RuntimeEvent::TranscriptBlockComplete { .. }
         | RuntimeEvent::ToolCallStarted { .. }
         | RuntimeEvent::ToolCallArgumentsDelta { .. } => RuntimeEnvelopeSource::Model,
+        // TranscriptBlockDelta callers always supply the block's recorded
+        // source via next_envelope_with_source; this fallback only fires if a
+        // delta arrives for an unregistered block index, in which case Runtime
+        // is a safer default than assuming Model.
+        RuntimeEvent::TranscriptBlockDelta { .. } => RuntimeEnvelopeSource::Runtime,
         RuntimeEvent::ToolCallStatusUpdated { .. }
         | RuntimeEvent::TranscriptBlockPhaseUpdated { .. }
         | RuntimeEvent::ToolCallCompleted { .. }
