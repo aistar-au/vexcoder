@@ -354,27 +354,29 @@ impl ManagedTuiFrontend {
                     .move_cursor_visual_end(self.editor_visual_width());
                 None
             }
+            KeyCode::Up
+                if key.modifiers.is_empty()
+                    && self
+                        .editor
+                        .move_cursor_visual_up(self.editor_visual_width()) =>
+            {
+                None
+            }
             KeyCode::Up if key.modifiers.is_empty() => {
-                if self
-                    .editor
-                    .move_cursor_visual_up(self.editor_visual_width())
-                {
-                    None
-                } else {
-                    let action = self.editor.apply_key(key);
-                    self.map_editor_action(action)
-                }
+                let action = self.editor.apply_key(key);
+                self.map_editor_action(action)
+            }
+            KeyCode::Down
+                if key.modifiers.is_empty()
+                    && self
+                        .editor
+                        .move_cursor_visual_down(self.editor_visual_width()) =>
+            {
+                None
             }
             KeyCode::Down if key.modifiers.is_empty() => {
-                if self
-                    .editor
-                    .move_cursor_visual_down(self.editor_visual_width())
-                {
-                    None
-                } else {
-                    let action = self.editor.apply_key(key);
-                    self.map_editor_action(action)
-                }
+                let action = self.editor.apply_key(key);
+                self.map_editor_action(action)
             }
             _ => {
                 let action = self.editor.apply_key(key);

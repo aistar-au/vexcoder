@@ -205,7 +205,7 @@ impl TaskState {
                 insert_bounded_state_file(&mut files, file, cap);
             });
         }
-        files.sort_by(|left, right| right.modified_millis.cmp(&left.modified_millis));
+        files.sort_by_key(|file| std::cmp::Reverse(file.modified_millis));
         emit_startup_scan_trace(scanned_files, cap, &files);
         files
     }
