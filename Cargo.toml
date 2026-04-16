@@ -171,6 +171,9 @@ crossterm = [
   "src/app/overlay.rs",
   "src/app/tests/mod.rs",
 ]
+async-compression = ["src/net/compression.rs"]
+jsonwebtoken = ["src/net/jwt.rs"]
+oauth2 = ["src/net/oauth.rs"]
 rmcp = ["src/mcp.rs"]
 http = [
   "src/http_facade.rs",
@@ -205,6 +208,17 @@ pulldown-cmark = ["src/ui/render/markdown.rs"]
 syntect = ["src/ui/render/markdown.rs"]
 # TUI text bridge — converts ANSI escape sequences to ratatui spans.
 ansi-to-tui = ["src/ui/tui.rs"]
+# Network wrappers — focused seams for transport-related helper crates.
+hickory-resolver = ["src/net/dns.rs"]
+reqwest = [
+  "src/api/client/mod.rs",
+  "src/mcp.rs",
+  "src/server/http.rs",
+  "src/server/util.rs",
+  "src/server/handlers/mod.rs",
+  "src/server/handlers/session.rs",
+  "src/net/proxy.rs",
+]
 # XML tool-call parser — the only call site for quick-xml's reader API.
 quick-xml = ["src/state/conversation/tool_call_parser.rs"]
 # tree-sitter grammar loading and query API — one indexing module.
@@ -228,6 +242,11 @@ tokio = "Runtime helpers are localized in src/runtime/tokio.rs; attribute macros
 tree-sitter = "All five grammar crates share the same seam (src/tools/index.rs); bump them together."
 gix = "The four gix-* sub-crates share the same seam (src/runtime/git_rollup.rs); coordinate their bumps."
 pulldown-cmark = "pulldown-cmark and syntect share src/ui/render/markdown.rs; check both when either changes."
+async-compression = "Compression and decompression wiring stays localized in src/net/compression.rs, including output-cap enforcement."
+hickory-resolver = "DoH resolver configuration and rustls-dependent DNS wiring stay localized in src/net/dns.rs."
+jsonwebtoken = "JWT/JWS helpers stay localized in src/net/jwt.rs; keep RFC 7519 audience parsing and expiry semantics aligned when upgrading."
+oauth2 = "PKCE generation and authorization URL assembly stay localized in src/net/oauth.rs."
+reqwest = "Core HTTP client seams remain in src/api/client/mod.rs and src/server/, with proxy-specific URL handling isolated in src/net/proxy.rs."
 
 [package]
 name = "vexcoder"

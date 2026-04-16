@@ -22,29 +22,34 @@ use std::time::Duration;
 
 /// RFC 8484 DoH server endpoints.
 ///
-/// Both endpoints support the `GET` and `POST` request methods defined in
+/// The endpoint supports the `GET` and `POST` request methods defined in
 /// RFC 8484 §4.1 and §4.2 using `application/dns-message` content type.
 pub mod doh_endpoints {
     /// Cloudflare 1.1.1.1 DNS-over-HTTPS (RFC 8484).
     pub const CLOUDFLARE: &str = "https://cloudflare-dns.com/dns-query";
-    /// Google Public DNS-over-HTTPS (RFC 8484).
-    pub const GOOGLE: &str = "https://dns.google/dns-query";
 }
 
 /// A DNS resolver that uses DNS-over-HTTPS (RFC 8484).
 ///
 /// Wraps `hickory_resolver::TokioAsyncResolver` configured for HTTPS
-/// transport. The resolver implements Happy Eyeballs-compatible behaviour
-/// (RFC 6555) by querying both A and AAAA records concurrently.
+/// transport. Resolved address lists are sorted with IPv6 entries before
+/// IPv4 entries to follow the RFC 6555 preference order.
 pub struct DohResolver {
     inner: TokioAsyncResolver,
 }
 
 impl DohResolver {
-    /// Build a resolver against the given DoH endpoint URL.
+    /// Build a DoH resolver from a name server address and TLS DNS name.
+    ///
+    /// `doh_server_ip` and `doh_server_port` identify the HTTPS name server
+    /// socket address to contact. `tls_dns_name` is the DNS name presented for
+    /// TLS server name indication and certificate validation.
     ///
     /// The `doh_server_ip` must be the pre-resolved IP of the DoH server
     /// (to avoid a chicken-and-egg DNS lookup for the resolver itself).
+    ///
+    /// This constructor does not accept a full RFC 8484 endpoint URL or path;
+    /// it configures HTTPS transport through `NameServerConfig`.
     pub fn new(doh_server_ip: IpAddr, doh_server_port: u16, tls_dns_name: &str) -> Result<Self> {
         let name_server = NameServerConfig {
             socket_addr: std::net::SocketAddr::new(doh_server_ip, doh_server_port),
@@ -59,7 +64,7 @@ impl DohResolver {
         config.add_name_server(name_server);
 
         let mut opts = ResolverOpts::default();
-        // RFC 6555 §5: attempt IPv6 first, fall back to IPv4 within 300 ms.
+        // Prefer IPv6 answers first and then fall back to IPv4 if needed.
         opts.ip_strategy = hickory_resolver::config::LookupIpStrategy::Ipv6thenIpv4;
         opts.timeout = Duration::from_secs(5);
         opts.attempts = 2;
@@ -101,7 +106,7 @@ impl DohResolver {
 /// IPv6 addresses are placed before IPv4 addresses. Within each family the
 /// original order from the DNS response is preserved (consistent with the
 /// RFC 6555 §5 requirement to respect the DNS TTL-based ordering).
-pub fn happy_sort(addrs: &mut Vec<IpAddr>) {
+pub fn happy_sort(addrs: &mut [IpAddr]) {
     addrs.sort_by_key(|addr| match addr {
         IpAddr::V6(_) => 0u8,
         IpAddr::V4(_) => 1u8,
@@ -115,10 +120,10 @@ mod tests {
     #[test]
     fn happy_sort_ipv6_before_ipv4() {
         let mut addrs = vec![
-            IpAddr::from_str("93.184.216.34").unwrap(),   // IPv4
-            IpAddr::from_str("2001:db8::1").unwrap(),     // IPv6
-            IpAddr::from_str("192.0.2.1").unwrap(),       // IPv4
-            IpAddr::from_str("2001:db8::2").unwrap(),     // IPv6
+            IpAddr::from_str("93.184.216.34").unwrap(), // IPv4
+            IpAddr::from_str("2001:db8::1").unwrap(),   // IPv6
+            IpAddr::from_str("192.0.2.1").unwrap(),     // IPv4
+            IpAddr::from_str("2001:db8::2").unwrap(),   // IPv6
         ];
         happy_sort(&mut addrs);
         // IPv6 addresses first (RFC 6555 §5 preference)

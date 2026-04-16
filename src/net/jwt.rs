@@ -5,18 +5,37 @@
 //! | RFC | Title | Covered |
 //! |-----|-------|---------|
 //! | [RFC 7519](https://www.rfc-editor.org/rfc/rfc7519) | JSON Web Token (JWT) | Claims structure, validation |
-//! | [RFC 7515](https://www.rfc-editor.org/rfc/rfc7515) | JSON Web Signature (JWS) | HMAC-SHA256 / RSA signature verification |
+//! | [RFC 7515](https://www.rfc-editor.org/rfc/rfc7515) | JSON Web Signature (JWS) | HMAC-SHA256 signature generation and verification |
 //!
 //! The `typ` header, registered claim names (`iss`, `sub`, `aud`, `exp`,
 //! `nbf`, `iat`, `jti`), and compact serialisation format follow RFC 7519.
-//! Algorithm identifiers (`HS256`, `RS256`) follow RFC 7518.
+//! Algorithm identifier (`HS256`) follows RFC 7518.
 
 use anyhow::{Context, Result, anyhow};
 use jsonwebtoken::{
-    Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation,
-    decode, encode,
+    Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation, decode, encode,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+enum AudienceClaim {
+    One(String),
+    Many(Vec<String>),
+}
+
+fn deserialize_optional_audience<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<AudienceClaim>::deserialize(deserializer)?;
+    Ok(value.map(|audience| match audience {
+        AudienceClaim::One(entry) => vec![entry],
+        AudienceClaim::Many(entries) => entries,
+    }))
+}
 
 /// Standard JWT registered claims (RFC 7519 §4.1).
 ///
@@ -31,7 +50,11 @@ pub struct RegisteredClaims {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sub: Option<String>,
     /// `aud` — Audience (RFC 7519 §4.1.3).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_audience",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub aud: Option<Vec<String>>,
     /// `exp` — Expiration time (RFC 7519 §4.1.4), seconds since Unix epoch.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -51,7 +74,8 @@ pub struct RegisteredClaims {
 ///
 /// The `typ` header is set to `"JWT"` per RFC 7519 §5.1.
 pub fn encode_hs256<C: Serialize>(claims: &C, secret: &[u8]) -> Result<String> {
-    let header = Header::new(Algorithm::HS256);
+    let mut header = Header::new(Algorithm::HS256);
+    header.typ = Some("JWT".to_owned());
     encode(&header, claims, &EncodingKey::from_secret(secret))
         .context("JWT HS256 encoding failed (RFC 7519/7515)")
 }
@@ -76,12 +100,12 @@ pub fn decode_hs256<C: for<'de> Deserialize<'de>>(
 /// Returns an error if the claim is present and the token has expired.
 /// Returns `Ok(())` if the claim is absent (expiry not enforced).
 pub fn validate_expiry(claims: &RegisteredClaims, now_secs: u64) -> Result<()> {
-    if let Some(exp) = claims.exp {
-        if now_secs > exp {
-            return Err(anyhow!(
-                "JWT expired: exp={exp} now={now_secs} (RFC 7519 §4.1.4)"
-            ));
-        }
+    if let Some(exp) = claims.exp
+        && now_secs >= exp
+    {
+        return Err(anyhow!(
+            "JWT expired: exp={exp} now={now_secs} (RFC 7519 §4.1.4)"
+        ));
     }
     Ok(())
 }
@@ -132,7 +156,11 @@ mod tests {
         let token = encode_hs256(&claims, SECRET).expect("encode");
         assert!(!token.is_empty());
         // JWT compact serialisation: three base64url segments separated by '.'
-        assert_eq!(token.split('.').count(), 3, "RFC 7519 compact serialisation");
+        assert_eq!(
+            token.split('.').count(),
+            3,
+            "RFC 7519 compact serialisation"
+        );
 
         let decoded: TokenData<TestClaims> = decode_hs256(&token, SECRET).expect("decode");
         assert_eq!(decoded.claims, claims);
@@ -152,7 +180,31 @@ mod tests {
         };
         let token = encode_hs256(&claims, SECRET).expect("encode");
         let result = decode_hs256::<RegisteredClaims>(&token, b"wrong-secret");
-        assert!(result.is_err(), "mismatched HMAC must be rejected (RFC 7515)");
+        assert!(
+            result.is_err(),
+            "mismatched HMAC must be rejected (RFC 7515)"
+        );
+    }
+
+    #[test]
+    fn single_string_audience_decodes_rfc7519() {
+        #[derive(Serialize)]
+        struct SingleAudienceClaims {
+            aud: String,
+            exp: u64,
+        }
+
+        let token = encode_hs256(
+            &SingleAudienceClaims {
+                aud: "cli".to_string(),
+                exp: now() + 60,
+            },
+            SECRET,
+        )
+        .expect("encode");
+
+        let decoded = decode_hs256::<RegisteredClaims>(&token, SECRET).expect("decode");
+        assert_eq!(decoded.claims.aud, Some(vec!["cli".to_string()]));
     }
 
     #[test]
@@ -167,7 +219,29 @@ mod tests {
             jti: None,
         };
         let result = validate_expiry(&claims, now());
-        assert!(result.is_err(), "expired token must be rejected (RFC 7519 §4.1.4)");
+        assert!(
+            result.is_err(),
+            "expired token must be rejected (RFC 7519 §4.1.4)"
+        );
+    }
+
+    #[test]
+    fn token_at_expiry_is_rejected_rfc7519() {
+        let instant = now();
+        let claims = RegisteredClaims {
+            iss: None,
+            sub: None,
+            aud: None,
+            exp: Some(instant),
+            nbf: None,
+            iat: None,
+            jti: None,
+        };
+        let result = validate_expiry(&claims, instant);
+        assert!(
+            result.is_err(),
+            "exp must be treated as expired at the exact timestamp"
+        );
     }
 
     #[test]
@@ -198,5 +272,6 @@ mod tests {
         let token = encode_hs256(&claims, SECRET).expect("encode");
         let header = peek_header(&token).expect("peek header");
         assert_eq!(header.alg, Algorithm::HS256);
+        assert_eq!(header.typ.as_deref(), Some("JWT"));
     }
 }

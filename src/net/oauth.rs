@@ -14,8 +14,7 @@
 
 use anyhow::{Context, Result};
 use oauth2::{
-    AuthUrl, ClientId, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope,
-    TokenUrl,
+    AuthUrl, ClientId, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenUrl,
 };
 
 /// A PKCE code verifier/challenge pair (RFC 7636 §4.1 and §4.2).
@@ -34,7 +33,10 @@ pub struct PkceChallenge {
 /// encoding).
 pub fn generate_pkce_pair() -> PkceChallenge {
     let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
-    PkceChallenge { verifier, challenge }
+    PkceChallenge {
+        verifier,
+        challenge,
+    }
 }
 
 /// Parameters for building an OAuth 2.0 authorization URL (RFC 6749 §4.1.1).
@@ -58,8 +60,7 @@ pub fn build_authorization_url(
     let client = oauth2::basic::BasicClient::new(
         ClientId::new(req.client_id.clone()),
         None,
-        AuthUrl::new(req.auth_url.clone())
-            .context("invalid auth_url (RFC 6749 §3.1)")?,
+        AuthUrl::new(req.auth_url.clone()).context("invalid auth_url (RFC 6749 §3.1)")?,
         None::<TokenUrl>,
     )
     .set_redirect_uri(
@@ -141,11 +142,23 @@ mod tests {
         };
         let (url_str, _csrf, _verifier) = build_authorization_url(&req).expect("build auth url");
         // RFC 7636 §4.3: code_challenge and code_challenge_method must be present.
-        assert!(url_str.contains("code_challenge="), "RFC 7636 §4.3 code_challenge");
-        assert!(url_str.contains("code_challenge_method=S256"), "RFC 7636 §4.3 S256 method");
+        assert!(
+            url_str.contains("code_challenge="),
+            "RFC 7636 §4.3 code_challenge"
+        );
+        assert!(
+            url_str.contains("code_challenge_method=S256"),
+            "RFC 7636 §4.3 S256 method"
+        );
         // RFC 6749 §4.1.1: response_type, client_id, redirect_uri, scope.
-        assert!(url_str.contains("response_type=code"), "RFC 6749 §4.1.1 response_type");
-        assert!(url_str.contains("client_id=test-client"), "RFC 6749 §4.1.1 client_id");
+        assert!(
+            url_str.contains("response_type=code"),
+            "RFC 6749 §4.1.1 response_type"
+        );
+        assert!(
+            url_str.contains("client_id=test-client"),
+            "RFC 6749 §4.1.1 client_id"
+        );
         assert!(url_str.contains("scope="), "RFC 6749 §4.1.1 scope");
     }
 }

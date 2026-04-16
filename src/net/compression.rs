@@ -11,12 +11,14 @@
 //! [RFC 7231 §3.1.2.2](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.2.2) and
 //! [RFC 7230 §4](https://www.rfc-editor.org/rfc/rfc7230#section-4).
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder};
 use bytes::Bytes;
 use std::fmt;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio_util::io::StreamReader;
+
+const DEFAULT_MAX_OUTPUT_BYTES: usize = 8 * 1024 * 1024;
 
 /// Content-Encoding values defined by HTTP/1.1 and extensions.
 ///
@@ -74,43 +76,84 @@ pub fn accept_encoding_header() -> &'static str {
 ///
 /// Returns the original bytes unchanged for `Encoding::Identity`.
 /// Returns an error for unknown or unsupported encodings.
+/// The decompressed payload is capped at 8 MiB to avoid unbounded memory
+/// growth when handling untrusted bodies.
 pub async fn decompress(bytes: Bytes, encoding: Encoding) -> Result<Bytes> {
+    decompress_with_limit(bytes, encoding, DEFAULT_MAX_OUTPUT_BYTES).await
+}
+
+/// Decompress `bytes` according to `encoding` with an explicit output cap.
+///
+/// Returns an error if decompression fails or if the decompressed payload
+/// exceeds `max_output_bytes`.
+pub async fn decompress_with_limit(
+    bytes: Bytes,
+    encoding: Encoding,
+    max_output_bytes: usize,
+) -> Result<Bytes> {
     match encoding {
         Encoding::Identity => Ok(bytes),
         Encoding::Gzip => {
             let stream = futures::stream::once(async move { Ok::<_, std::io::Error>(bytes) });
             let reader = StreamReader::new(Box::pin(stream));
-            let mut decoder = GzipDecoder::new(reader);
-            let mut out = Vec::new();
-            decoder
-                .read_to_end(&mut out)
-                .await
-                .context("gzip decompression failed (RFC 1952)")?;
-            Ok(Bytes::from(out))
+            decompress_reader_with_limit(
+                GzipDecoder::new(reader),
+                max_output_bytes,
+                "gzip",
+                "RFC 1952",
+            )
+            .await
         }
         Encoding::Brotli => {
             let stream = futures::stream::once(async move { Ok::<_, std::io::Error>(bytes) });
             let reader = StreamReader::new(Box::pin(stream));
-            let mut decoder = BrotliDecoder::new(reader);
-            let mut out = Vec::new();
-            decoder
-                .read_to_end(&mut out)
-                .await
-                .context("brotli decompression failed (RFC 7932)")?;
-            Ok(Bytes::from(out))
+            decompress_reader_with_limit(
+                BrotliDecoder::new(reader),
+                max_output_bytes,
+                "brotli",
+                "RFC 7932",
+            )
+            .await
         }
         Encoding::Deflate => {
             let stream = futures::stream::once(async move { Ok::<_, std::io::Error>(bytes) });
             let reader = StreamReader::new(Box::pin(stream));
-            let mut decoder = ZlibDecoder::new(reader);
-            let mut out = Vec::new();
-            decoder
-                .read_to_end(&mut out)
-                .await
-                .context("deflate decompression failed (RFC 1950)")?;
-            Ok(Bytes::from(out))
+            decompress_reader_with_limit(
+                ZlibDecoder::new(reader),
+                max_output_bytes,
+                "deflate",
+                "RFC 1950",
+            )
+            .await
         }
     }
+}
+
+async fn decompress_reader_with_limit<R>(
+    decoder: R,
+    max_output_bytes: usize,
+    encoding_name: &str,
+    rfc: &str,
+) -> Result<Bytes>
+where
+    R: AsyncRead + Unpin,
+{
+    let read_limit = u64::try_from(max_output_bytes)
+        .context("decompression limit exceeds supported reader size")?
+        .checked_add(1)
+        .context("decompression limit is too large")?;
+    let mut limited = decoder.take(read_limit);
+    let mut out = Vec::new();
+    limited
+        .read_to_end(&mut out)
+        .await
+        .with_context(|| format!("{encoding_name} decompression failed ({rfc})"))?;
+    if out.len() > max_output_bytes {
+        return Err(anyhow!(
+            "{encoding_name} decompression exceeded {max_output_bytes} bytes"
+        ));
+    }
+    Ok(Bytes::from(out))
 }
 
 /// Compress `bytes` using GZIP (RFC 1952).
@@ -123,7 +166,10 @@ pub async fn compress_gzip(bytes: Bytes) -> Result<Bytes> {
         .write_all(&bytes)
         .await
         .context("gzip compression write failed")?;
-    encoder.shutdown().await.context("gzip compression flush failed")?;
+    encoder
+        .shutdown()
+        .await
+        .context("gzip compression flush failed")?;
     Ok(Bytes::from(encoder.into_inner()))
 }
 
@@ -137,7 +183,10 @@ pub async fn compress_brotli(bytes: Bytes) -> Result<Bytes> {
         .write_all(&bytes)
         .await
         .context("brotli compression write failed")?;
-    encoder.shutdown().await.context("brotli compression flush failed")?;
+    encoder
+        .shutdown()
+        .await
+        .context("brotli compression flush failed")?;
     Ok(Bytes::from(encoder.into_inner()))
 }
 
@@ -180,9 +229,20 @@ mod tests {
             ("x-gzip", Encoding::Gzip),
         ] {
             assert_eq!(Encoding::from_token(token), Some(*expected));
-            assert_eq!(expected.as_token(), expected.as_token()); // reflexive
+            assert_eq!(Encoding::from_token(expected.as_token()), Some(*expected));
         }
         assert_eq!(Encoding::from_token("unknown"), None);
+    }
+
+    #[tokio::test]
+    async fn decompress_limit_rejects_expansion() {
+        let original = Bytes::from(vec![b'a'; 1024]);
+        let compressed = compress_gzip(original).await.expect("compress gzip");
+        let result = decompress_with_limit(compressed, Encoding::Gzip, 64).await;
+        assert!(
+            result.is_err(),
+            "decompression cap must reject oversized output"
+        );
     }
 
     #[test]

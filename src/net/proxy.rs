@@ -36,17 +36,29 @@ pub enum ProxyConfig {
 }
 
 impl ProxyConfig {
+    fn parts(&self) -> (&'static str, &str, u16) {
+        match self {
+            Self::Socks5 { host, port } => ("socks5", host, *port),
+            Self::Socks5h { host, port } => ("socks5h", host, *port),
+            Self::Http { host, port } => ("http", host, *port),
+            Self::Https { host, port } => ("https", host, *port),
+        }
+    }
+
     /// Returns the proxy URL string for this configuration.
     ///
     /// The URL scheme determines which protocol `reqwest` uses to establish
     /// the tunnel.
-    pub fn url(&self) -> String {
-        match self {
-            Self::Socks5 { host, port } => format!("socks5://{host}:{port}"),
-            Self::Socks5h { host, port } => format!("socks5h://{host}:{port}"),
-            Self::Http { host, port } => format!("http://{host}:{port}"),
-            Self::Https { host, port } => format!("https://{host}:{port}"),
-        }
+    pub fn url(&self) -> Result<String> {
+        let (scheme, host, port) = self.parts();
+        let formatted_host = if host.contains(':') {
+            format!("[{host}]")
+        } else {
+            host.to_owned()
+        };
+        let url = format!("{scheme}://{formatted_host}:{port}");
+        reqwest::Url::parse(&url).with_context(|| format!("invalid proxy URL '{url}'"))?;
+        Ok(url)
     }
 
     /// Build a `reqwest::Proxy` that forwards all traffic through this proxy.
@@ -55,7 +67,7 @@ impl ProxyConfig {
     /// the proxy — including the TLS handshake for HTTPS targets when using
     /// SOCKS5.
     pub fn into_reqwest_proxy(self) -> Result<Proxy> {
-        let url = self.url();
+        let url = self.url()?;
         Proxy::all(&url).with_context(|| format!("invalid proxy URL '{url}'"))
     }
 
@@ -83,7 +95,11 @@ mod tests {
             host: "127.0.0.1".to_string(),
             port: 1080,
         };
-        assert_eq!(cfg.url(), "socks5://127.0.0.1:1080", "RFC 1928 SOCKS5 URL scheme");
+        assert_eq!(
+            cfg.url().expect("proxy url"),
+            "socks5://127.0.0.1:1080",
+            "RFC 1928 SOCKS5 URL scheme"
+        );
     }
 
     #[test]
@@ -93,7 +109,7 @@ mod tests {
             port: 1080,
         };
         assert_eq!(
-            cfg.url(),
+            cfg.url().expect("proxy url"),
             "socks5h://proxy.example.com:1080",
             "socks5h for remote DNS resolution (RFC 1928 §3)"
         );
@@ -105,7 +121,19 @@ mod tests {
             host: "proxy.corp.example".to_string(),
             port: 3128,
         };
-        assert_eq!(cfg.url(), "http://proxy.corp.example:3128");
+        assert_eq!(
+            cfg.url().expect("proxy url"),
+            "http://proxy.corp.example:3128"
+        );
+    }
+
+    #[test]
+    fn ipv6_proxy_url_format_uses_brackets() {
+        let cfg = ProxyConfig::Socks5 {
+            host: "2001:db8::1".to_string(),
+            port: 1080,
+        };
+        assert_eq!(cfg.url().expect("proxy url"), "socks5://[2001:db8::1]:1080");
     }
 
     #[test]
@@ -115,7 +143,8 @@ mod tests {
             port: 1080,
         };
         // Smoke test: proxy construction must not error (no live connection needed).
-        cfg.into_reqwest_proxy().expect("SOCKS5 proxy construction (RFC 1928)");
+        cfg.into_reqwest_proxy()
+            .expect("SOCKS5 proxy construction (RFC 1928)");
     }
 
     #[test]
@@ -125,6 +154,7 @@ mod tests {
             port: 9050,
         };
         // Smoke test: client construction must not error (no live connection needed).
-        cfg.build_client().expect("reqwest client with SOCKS5 proxy (RFC 1928)");
+        cfg.build_client()
+            .expect("reqwest client with SOCKS5 proxy (RFC 1928)");
     }
 }
