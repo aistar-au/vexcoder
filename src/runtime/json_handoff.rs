@@ -250,12 +250,20 @@ struct PendingToolCall {
     started_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone)]
+struct PendingToolCallContext {
+    name: String,
+    start_event_id: String,
+}
+
 pub struct RuntimeEnvelopeNormalizer {
     task_id: String,
     turn: u32,
     next_seq: u64,
     pending_tool_calls: IndexMap<String, PendingToolCall>,
+    pending_tool_call_contexts: HashMap<ToolCallId, PendingToolCallContext>,
     streaming_tool_call_blocks: HashMap<usize, ToolCallId>,
+    block_sources: HashMap<usize, RuntimeEnvelopeSource>,
     turn_changed_files: BTreeSet<String>,
     tool_id_counter: AtomicU32,
     open_final_text_block: Option<usize>,
@@ -285,7 +293,9 @@ impl RuntimeEnvelopeNormalizer {
             turn: 0,
             next_seq: 1,
             pending_tool_calls: IndexMap::new(),
+            pending_tool_call_contexts: HashMap::new(),
             streaming_tool_call_blocks: HashMap::new(),
+            block_sources: HashMap::new(),
             turn_changed_files: BTreeSet::new(),
             tool_id_counter: AtomicU32::new(0),
             open_final_text_block: None,
@@ -298,7 +308,9 @@ impl RuntimeEnvelopeNormalizer {
         self.turn = turn;
         self.next_seq = 1;
         self.pending_tool_calls.clear();
+        self.pending_tool_call_contexts.clear();
         self.streaming_tool_call_blocks.clear();
+        self.block_sources.clear();
         self.turn_changed_files.clear();
         self.open_final_text_block = None;
         self.next_synthetic_block_index = SYNTHETIC_FINAL_TEXT_BLOCK_START;
@@ -374,18 +386,30 @@ impl RuntimeEnvelopeNormalizer {
             UiUpdate::StreamDelta(text) => {
                 let (index, block_start) = self.ensure_open_final_text_block();
                 let mut envelopes = block_start.into_iter().collect::<Vec<_>>();
-                envelopes.push(self.next_envelope(RuntimeEvent::TranscriptBlockDelta {
-                    index,
-                    delta: text.clone(),
-                }));
+                envelopes.push(self.next_envelope_with_source(
+                    RuntimeEvent::TranscriptBlockDelta {
+                        index,
+                        delta: text.clone(),
+                    },
+                    None,
+                    None,
+                    self.block_sources.get(&index).cloned(),
+                ));
                 envelopes
             }
             UiUpdate::StreamBlockStart { index, block } => {
                 let mut envelopes = self.close_open_final_text_block();
-                envelopes.push(self.next_envelope(RuntimeEvent::TranscriptBlockStart {
-                    index: *index,
-                    block: block.clone(),
-                }));
+                let source = source_for_stream_block(block);
+                self.block_sources.insert(*index, source.clone());
+                envelopes.push(self.next_envelope_with_source(
+                    RuntimeEvent::TranscriptBlockStart {
+                        index: *index,
+                        block: block.clone(),
+                    },
+                    None,
+                    None,
+                    Some(source),
+                ));
                 envelopes.extend(self.normalize_stream_block(block));
                 if let StreamBlock::ToolCall { id, .. } = block
                     && let Some(pending) = self.pending_tool_calls.get(id)
@@ -400,17 +424,28 @@ impl RuntimeEnvelopeNormalizer {
                 if let Some(runtime_id) = self.streaming_tool_call_blocks.get(index).cloned() {
                     envelopes.push(self.record_tool_call_arguments_delta(&runtime_id, delta));
                 }
-                envelopes.push(self.next_envelope(RuntimeEvent::TranscriptBlockDelta {
-                    index: *index,
-                    delta: delta.clone(),
-                }));
+                envelopes.push(self.next_envelope_with_source(
+                    RuntimeEvent::TranscriptBlockDelta {
+                        index: *index,
+                        delta: delta.clone(),
+                    },
+                    None,
+                    None,
+                    self.block_sources.get(index).cloned(),
+                ));
                 envelopes
             }
             UiUpdate::StreamBlockComplete { index } => {
                 if let Some(runtime_id) = self.streaming_tool_call_blocks.remove(index) {
                     self.finish_tool_accumulator(&runtime_id);
                 }
-                vec![self.next_envelope(RuntimeEvent::TranscriptBlockComplete { index: *index })]
+                let source = self.block_sources.remove(index);
+                vec![self.next_envelope_with_source(
+                    RuntimeEvent::TranscriptBlockComplete { index: *index },
+                    None,
+                    None,
+                    source,
+                )]
             }
             UiUpdate::TurnComplete => self.complete_turn(turn_end.unwrap_or_default()),
             UiUpdate::Error(message) => self.emit_error(
@@ -463,7 +498,9 @@ impl RuntimeEnvelopeNormalizer {
             let changed_files = self.resolve_changed_files(turn_end.changed_files);
             self.finish_pending_tool_accumulations();
             self.pending_tool_calls.clear();
+            self.pending_tool_call_contexts.clear();
             self.streaming_tool_call_blocks.clear();
+            self.block_sources.clear();
             envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
                 status: "failed".to_string(),
                 usage: turn_end.usage,
@@ -483,7 +520,9 @@ impl RuntimeEnvelopeNormalizer {
         let changed_files = self.resolve_changed_files(turn_end.changed_files);
         self.finish_pending_tool_accumulations();
         self.pending_tool_calls.clear();
+        self.pending_tool_call_contexts.clear();
         self.streaming_tool_call_blocks.clear();
+        self.block_sources.clear();
         envelopes.push(self.next_envelope(RuntimeEvent::MaxTurnsReached { max_turns }));
         envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
             status: "failed".to_string(),
@@ -512,9 +551,11 @@ impl RuntimeEnvelopeNormalizer {
     ) -> Vec<RuntimeEnvelope> {
         let changed_files = self.resolve_changed_files(turn_end.changed_files);
         self.finish_pending_tool_accumulations();
-        self.pending_tool_calls.clear();
-        self.streaming_tool_call_blocks.clear();
         let mut envelopes = self.close_open_final_text_block();
+        self.pending_tool_calls.clear();
+        self.pending_tool_call_contexts.clear();
+        self.streaming_tool_call_blocks.clear();
+        self.block_sources.clear();
         envelopes.push(self.next_envelope(RuntimeEvent::TurnEnd {
             status: status.to_string(),
             usage: turn_end.usage,
@@ -531,15 +572,22 @@ impl RuntimeEnvelopeNormalizer {
         let index = self.next_synthetic_block_index;
         self.next_synthetic_block_index = self.next_synthetic_block_index.saturating_add(1);
         self.open_final_text_block = Some(index);
+        self.block_sources
+            .insert(index, RuntimeEnvelopeSource::Model);
 
         (
             index,
-            Some(self.next_envelope(RuntimeEvent::TranscriptBlockStart {
-                index,
-                block: StreamBlock::FinalText {
-                    content: String::new(),
+            Some(self.next_envelope_with_source(
+                RuntimeEvent::TranscriptBlockStart {
+                    index,
+                    block: StreamBlock::FinalText {
+                        content: String::new(),
+                    },
                 },
-            })),
+                None,
+                None,
+                Some(RuntimeEnvelopeSource::Model),
+            )),
         )
     }
 
@@ -548,7 +596,14 @@ impl RuntimeEnvelopeNormalizer {
             return Vec::new();
         };
 
-        vec![self.next_envelope(RuntimeEvent::TranscriptBlockComplete { index })]
+        let source = self.block_sources.remove(&index);
+
+        vec![self.next_envelope_with_source(
+            RuntimeEvent::TranscriptBlockComplete { index },
+            None,
+            None,
+            source,
+        )]
     }
 
     fn normalize_grammar_tool_call(
@@ -578,6 +633,13 @@ impl RuntimeEnvelopeNormalizer {
                 arguments: arguments.clone(),
                 start_event_id: envelope.event_id.clone(),
                 started_at,
+            },
+        );
+        self.pending_tool_call_contexts.insert(
+            runtime_id.clone(),
+            PendingToolCallContext {
+                name: name.clone(),
+                start_event_id: envelope.event_id.clone(),
             },
         );
         self.start_tool_accumulator(&runtime_id, &name);
@@ -611,6 +673,13 @@ impl RuntimeEnvelopeNormalizer {
                 started_at,
             },
         );
+        self.pending_tool_call_contexts.insert(
+            runtime_id.clone(),
+            PendingToolCallContext {
+                name: name.clone(),
+                start_event_id: envelope.event_id.clone(),
+            },
+        );
         self.start_tool_accumulator(&runtime_id, &name);
 
         envelope
@@ -625,6 +694,7 @@ impl RuntimeEnvelopeNormalizer {
         let completed_at = Utc::now();
         let completed_at_value = timestamp_string(completed_at);
         if let Some(pending) = self.pending_tool_calls.shift_remove(source_id) {
+            self.pending_tool_call_contexts.remove(&pending.runtime_id);
             self.finish_tool_accumulator(&pending.runtime_id);
             if !is_error {
                 note_changed_files_from_tool_call(
@@ -690,10 +760,14 @@ impl RuntimeEnvelopeNormalizer {
         delta: &str,
     ) -> RuntimeEnvelope {
         let (tool_name, parent_event_id) = self
-            .pending_tool_calls
-            .values()
-            .find(|pending| pending.runtime_id == *tool_call_id)
-            .map(|pending| (Some(pending.name.clone()), Some(pending.start_event_id.clone())))
+            .pending_tool_call_contexts
+            .get(tool_call_id)
+            .map(|pending| {
+                (
+                    Some(pending.name.clone()),
+                    Some(pending.start_event_id.clone()),
+                )
+            })
             .unwrap_or((None, None));
         let invalid_json = matches!(
             self.accumulate_tool_delta(tool_call_id, delta),
@@ -809,6 +883,16 @@ impl RuntimeEnvelopeNormalizer {
         request_id: Option<String>,
         parent_event_id: Option<String>,
     ) -> RuntimeEnvelope {
+        self.next_envelope_with_source(event, request_id, parent_event_id, None)
+    }
+
+    fn next_envelope_with_source(
+        &mut self,
+        event: RuntimeEvent,
+        request_id: Option<String>,
+        parent_event_id: Option<String>,
+        source: Option<RuntimeEnvelopeSource>,
+    ) -> RuntimeEnvelope {
         let seq = self.next_seq;
         let envelope = RuntimeEnvelope {
             version: 1,
@@ -817,7 +901,7 @@ impl RuntimeEnvelopeNormalizer {
             seq,
             event_id: format!("evt:{}:{}:{seq}", self.task_id, self.turn),
             emitted_at: timestamp_string(Utc::now()),
-            source: source_for_event(&event),
+            source: source.unwrap_or_else(|| source_for_event(&event)),
             request_id,
             parent_event_id,
             event,
@@ -887,9 +971,7 @@ pub fn derive_batch_records(
                 }
             }
             RuntimeEvent::ToolCallCompleted {
-                tool_name,
-                status,
-                ..
+                tool_name, status, ..
             } => {
                 if let Some(state) = current_turn.as_mut()
                     && let Some(name) = tool_name
@@ -900,9 +982,7 @@ pub fn derive_batch_records(
                 }
             }
             RuntimeEvent::ToolCallFailed {
-                tool_name,
-                status,
-                ..
+                tool_name, status, ..
             } => {
                 if let Some(state) = current_turn.as_mut()
                     && let Some(name) = tool_name
@@ -970,14 +1050,23 @@ pub fn derive_batch_records(
     }
 }
 
+fn source_for_stream_block(block: &StreamBlock) -> RuntimeEnvelopeSource {
+    match block {
+        StreamBlock::ToolResult { .. } => RuntimeEnvelopeSource::Runtime,
+        StreamBlock::Thinking { .. }
+        | StreamBlock::ToolCall { .. }
+        | StreamBlock::FinalText { .. } => RuntimeEnvelopeSource::Model,
+    }
+}
+
 fn source_for_event(event: &RuntimeEvent) -> RuntimeEnvelopeSource {
     match event {
         RuntimeEvent::TurnStart { .. } | RuntimeEvent::ApprovalResolved { .. } => {
             RuntimeEnvelopeSource::UserRequest
         }
-        RuntimeEvent::TranscriptLine { .. }
-        | RuntimeEvent::TranscriptBlockStart { .. }
-        | RuntimeEvent::TranscriptBlockDelta { .. }
+        RuntimeEvent::TranscriptLine { .. } => RuntimeEnvelopeSource::Runtime,
+        RuntimeEvent::TranscriptBlockStart { block, .. } => source_for_stream_block(block),
+        RuntimeEvent::TranscriptBlockDelta { .. }
         | RuntimeEvent::TranscriptBlockComplete { .. }
         | RuntimeEvent::ToolCallStarted { .. }
         | RuntimeEvent::ToolCallArgumentsDelta { .. } => RuntimeEnvelopeSource::Model,
