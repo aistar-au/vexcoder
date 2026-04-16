@@ -1,6 +1,5 @@
 use crate::config::Config;
 use crate::local_api::{ActiveTask, LocalApiState, LocalApiTaskShared};
-use crate::runtime::delta_accumulator::PeerDeltaEvent;
 
 use super::HttpSurfaceSettings;
 use super::http::{build_http_router, build_router};

@@ -1,6 +1,6 @@
 use super::*;
 use crate::api::stream::StreamParser;
-use crate::runtime::UiUpdate;
+use crate::app::UiUpdate;
 use crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, TurnEndContext};
 use crate::state::{StreamBlock, ToolStatus};
 use crate::types::{ContentBlock, StreamEvent};
@@ -760,18 +760,15 @@ async fn test_approve_handler_returns_conflict_without_pending_approval() {
     let (interrupt_tx, _interrupt_rx) = mpsc::unbounded_channel();
     let (envelope_tx, _envelope_rx) = mpsc::unbounded_channel();
     let quit = Arc::new(AtomicBool::new(false));
-    let shared = Arc::new(Mutex::new(LocalApiTaskShared {
-        normalizer: RuntimeEnvelopeNormalizer::new(task_id.clone()),
+    let shared = Arc::new(Mutex::new(LocalApiTaskShared::new(
+        task_id.clone(),
         envelope_tx,
-        peer_event_rx: mpsc::channel::<PeerDeltaEvent>(1).1,
-        recent_peer_events: std::collections::VecDeque::new(),
-        pending_approval: None,
         quit,
-        turn_in_progress: false,
-        interrupted: false,
-        active_command_sessions: std::collections::BTreeSet::new(),
-        turn_completion_pending: false,
-    }));
+        state
+            .config
+            .api_client
+            .delta_accumulator_memory_watermark_bytes(),
+    )));
     state.tasks.lock().await.insert(
         task_id.clone(),
         ActiveTask {

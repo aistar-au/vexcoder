@@ -212,6 +212,54 @@ async fn test_populate_server_info_discovers_protocol_from_api_client_base_url()
     server.abort();
 }
 
+#[tokio::test]
+async fn test_populate_server_info_discovers_protocol_from_local_model_url_session() {
+    async fn block_delta_probe() -> impl IntoResponse {
+        StatusCode::NOT_FOUND
+    }
+
+    async fn choices_delta_probe() -> impl IntoResponse {
+        (
+            [(header::CONTENT_TYPE, "text/event-stream")],
+            "data: {\"ok\":true}\n\n",
+        )
+    }
+
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/messages", get(block_delta_probe))
+                .route("/v1/chat/completions", get(choices_delta_probe)),
+        )
+        .await
+        .unwrap();
+    });
+
+    let mut config = crate::config::Config::default_for_tui();
+    config.model_name = "local/test-model".to_string();
+    config.model_url = format!("http://{addr}/v1/messages");
+    config.model_token = None;
+
+    let client = ApiClient::new(&config).expect("client should build");
+    client.populate_server_info().await;
+
+    let info = client
+        .server_info()
+        .expect("server info should be populated");
+    assert_eq!(info.native_protocol, Some(ModelProtocol::ChatCompat));
+    assert_eq!(
+        client.request_url(),
+        format!("http://{addr}/v1/chat/completions")
+    );
+
+    server.abort();
+}
+
 #[test]
 fn test_remote_messages_endpoint_preserves_messages_wire_protocol() {
     let config = crate::config::Config {
@@ -932,20 +980,6 @@ async fn test_live_server_messages_v1_reachable() {
 // ── Protocol conversion boundary regression tests ────────────────────
 
 #[test]
-fn test_detected_native_protocol_requires_exclusive_route() {
-    assert_eq!(
-        select_detected_native_protocol(true, false),
-        Some(ModelProtocol::ChatCompat)
-    );
-    assert_eq!(
-        select_detected_native_protocol(false, true),
-        Some(ModelProtocol::MessagesV1)
-    );
-    assert_eq!(select_detected_native_protocol(true, true), None);
-    assert_eq!(select_detected_native_protocol(false, false), None);
-}
-
-#[test]
 fn test_native_protocol_overrides_configured_protocol() {
     // When server discovery detects native ChatCompat, the client must
     // use ChatCompat even if the user configured MessagesV1 — this is
@@ -956,7 +990,6 @@ fn test_native_protocol_overrides_configured_protocol() {
         model: Arc::new(RwLock::new("test".to_string())),
         supplementary_system_prompt: Arc::new(RwLock::new(None)),
         api_url: "http://localhost:8000/v1/messages".to_string(),
-        api_client_base_url: None,
         api_client_explicit_protocol: None,
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
@@ -999,7 +1032,6 @@ fn test_no_native_protocol_falls_back_to_configured() {
         model: Arc::new(RwLock::new("test".to_string())),
         supplementary_system_prompt: Arc::new(RwLock::new(None)),
         api_url: "http://localhost:8000/v1/messages".to_string(),
-        api_client_base_url: None,
         api_client_explicit_protocol: None,
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,

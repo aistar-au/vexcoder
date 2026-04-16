@@ -1,64 +1,51 @@
 //! Protocol mappers for tool-call delta serialisation.
 //!
-//! Thin stateless serialisers that convert [`ToolState`] snapshots from the
-//! [`DeltaAccumulator`] into SSE frames for either the Block-Delta or
+//! Thin stateless serialisers that convert normalised tool-call state into SSE
+//! frames for either the Block-Delta or
 //! Choices-Delta wire format. The caller is responsible for negotiating which
 //! mapper to use for a given stream surface.
 //!
 //! ADR-047 Phase 1.
 
 use crate::config::ProtocolVariant;
-use crate::runtime::delta_accumulator::ToolState;
 
 /// A complete SSE event: `data: <payload>\n\n`.
 ///
 /// The inner string is the full text ready for transmission over the SSE
 /// channel; callers must not add a second `data:` prefix.
-pub struct SseFrame(pub String);
+pub(crate) struct SseFrame(pub(crate) String);
 
 fn sse(payload: String) -> SseFrame {
     SseFrame(format!("data: {}\n\n", payload))
 }
 
-/// Thin stateless serialiser over [`ToolState`] snapshots.
+/// Thin stateless serialiser over normalised tool-call deltas.
 ///
 /// Implementations are required to be `Send + Sync + 'static` so they can be
 /// stored in Axum state or passed across task boundaries.
-pub trait ProtocolMapper: Send + Sync + 'static {
+pub(crate) trait ProtocolMapper: Send + Sync + 'static {
     /// Emit the start-of-tool frame for the given state.
-    fn tool_start_frame(&self, index: usize, state: &ToolState) -> SseFrame;
+    fn tool_start_frame(&self, index: usize, tool_call_id: &str, tool_name: &str) -> SseFrame;
     /// Emit a single partial-JSON delta frame.
     fn tool_delta_frame(&self, index: usize, partial_json: &str) -> SseFrame;
     /// Emit the end-of-tool frame.
     fn tool_finish_frame(&self, index: usize) -> SseFrame;
-
-    /// Drain all queued delta chunks from `state` and return frames in order.
-    ///
-    /// Convenience wrapper over [`ProtocolMapper::tool_delta_frame`] that
-    /// iterates `state.delta_queue` without consuming it.
-    fn drain_tool_deltas(&self, index: usize, state: &ToolState) -> Vec<SseFrame> {
-        state
-            .delta_queue
-            .iter()
-            .map(|delta| self.tool_delta_frame(index, delta))
-            .collect()
-    }
 }
 
 /// Serialises tool calls as Block-Delta SSE events (ADR-047 default format).
 ///
 /// Emits `content_block_start` → N × `content_block_delta` → `content_block_stop`.
-pub struct BlockDeltaMapper;
+struct BlockDeltaMapper;
 
 impl ProtocolMapper for BlockDeltaMapper {
-    fn tool_start_frame(&self, index: usize, state: &ToolState) -> SseFrame {
+    fn tool_start_frame(&self, index: usize, tool_call_id: &str, tool_name: &str) -> SseFrame {
         sse(serde_json::json!({
             "type": "content_block_start",
             "index": index,
             "content_block": {
                 "type": "tool_use",
-                "id": &state.id,
-                "name": &state.name,
+                "id": tool_call_id,
+                "name": tool_name,
                 "input": {}
             }
         })
@@ -90,20 +77,20 @@ impl ProtocolMapper for BlockDeltaMapper {
 ///
 /// Produces frames compatible with the `chat/completions` streaming format:
 /// `choices[].delta.tool_calls[]` with partial argument strings.
-pub struct ChoicesDeltaMapper;
+struct ChoicesDeltaMapper;
 
 impl ProtocolMapper for ChoicesDeltaMapper {
-    fn tool_start_frame(&self, index: usize, state: &ToolState) -> SseFrame {
+    fn tool_start_frame(&self, index: usize, tool_call_id: &str, tool_name: &str) -> SseFrame {
         sse(serde_json::json!({
             "choices": [{
                 "index": 0,
                 "delta": {
                     "tool_calls": [{
                         "index": index,
-                        "id": &state.id,
+                        "id": tool_call_id,
                         "type": "function",
                         "function": {
-                            "name": &state.name,
+                            "name": tool_name,
                             "arguments": ""
                         }
                     }]
@@ -148,7 +135,7 @@ impl ProtocolMapper for ChoicesDeltaMapper {
 ///
 /// Useful at stream setup time once the caller has already selected a
 /// `ProtocolVariant`.
-pub fn mapper_for_variant(variant: ProtocolVariant) -> Box<dyn ProtocolMapper> {
+pub(crate) fn mapper_for_variant(variant: ProtocolVariant) -> Box<dyn ProtocolMapper> {
     match variant {
         ProtocolVariant::BlockDelta => Box::new(BlockDeltaMapper),
         ProtocolVariant::ChoicesDelta => Box::new(ChoicesDeltaMapper),
@@ -160,21 +147,6 @@ mod tests {
     use super::*;
     use crate::runtime::delta_accumulator::{AccumulationError, DeltaAccumulator, PeerDeltaEvent};
     use crate::runtime::tokio::sync::mpsc;
-    use std::collections::VecDeque;
-    use std::time::Instant;
-
-    fn make_tool_state(id: &str, name: &str) -> ToolState {
-        ToolState {
-            id: id.to_string(),
-            task_id: "task-1".to_string(),
-            name: name.to_string(),
-            partial_args: String::new(),
-            partial_args_truncated: false,
-            finished: false,
-            delta_queue: VecDeque::new(),
-            last_activity: Instant::now(),
-        }
-    }
 
     fn parse_frame(frame: &SseFrame) -> serde_json::Value {
         let payload = frame
@@ -188,12 +160,11 @@ mod tests {
     /// 1. Both mappers encode the same id/name and use their respective formats.
     #[test]
     fn dual_protocol_parity() {
-        let state = make_tool_state("tx_1_abcd", "read_file");
         let block = BlockDeltaMapper;
         let choices = ChoicesDeltaMapper;
 
-        let b = parse_frame(&block.tool_start_frame(0, &state));
-        let c = parse_frame(&choices.tool_start_frame(0, &state));
+        let b = parse_frame(&block.tool_start_frame(0, "tx_1_abcd", "read_file"));
+        let c = parse_frame(&choices.tool_start_frame(0, "tx_1_abcd", "read_file"));
 
         assert_eq!(b["type"], "content_block_start");
         assert_eq!(b["content_block"]["id"], "tx_1_abcd");
@@ -208,12 +179,10 @@ mod tests {
     /// 2. Multiple tools at distinct indices do not share index values.
     #[test]
     fn interleaved_text_and_tool_deltas() {
-        let s0 = make_tool_state("tx_0_aaaa", "write_file");
-        let s1 = make_tool_state("tx_1_bbbb", "read_file");
         let mapper = BlockDeltaMapper;
 
-        let f0 = parse_frame(&mapper.tool_start_frame(0, &s0));
-        let f1 = parse_frame(&mapper.tool_start_frame(1, &s1));
+        let f0 = parse_frame(&mapper.tool_start_frame(0, "tx_0_aaaa", "write_file"));
+        let f1 = parse_frame(&mapper.tool_start_frame(1, "tx_1_bbbb", "read_file"));
         let d0 = parse_frame(&mapper.tool_delta_frame(0, r#"{"path":"a.rs""#));
         let d1 = parse_frame(&mapper.tool_delta_frame(1, r#"{"path":"b.rs""#));
 

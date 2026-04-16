@@ -8,14 +8,14 @@
 
 ## Context
 
-The current `messages/v1` endpoint emits full runtime envelopes. To enable small-portion SSE parsing (only the relevant delta for a given `tx_` ID), we pivot the default to Block-Delta format while preserving dual-protocol support via one canonical accumulator and two thin mappers. This amendment removes legacy backwards compatibility requirements and introduces client-side protocol-discovery scaffolding toward a host-and-port-only configuration surface.
+The current `messages/v1` endpoint emits full runtime envelopes. To enable small-portion SSE parsing (only the relevant delta for a given `tx_` ID), we pivot the default to Block-Delta format while preserving dual-protocol support via one canonical accumulator and two thin mappers. This amendment removes legacy backwards compatibility requirements and introduces client-side protocol discovery for a host-and-port-only configuration surface.
 
 ## Implementation Status Note
 
 - Phase 0 foundations are merged.
 - Phase 1 mapper serialisation now lives in `src/api/stream/mappers.rs`.
 - `/v1/turns` now negotiates runtime-envelope, Block-Delta, or Choices-Delta SSE via `Accept`, and HTTP-level tests assert `tx_` IDs over the wire for both mapper formats.
-- Live client-side discovery now uses `src/api/client/protocol_discovery.rs` when `api_client.base_url` is configured and `explicit_protocol` is unset; the older `detect_native_protocol()` path remains only for legacy `model_url` sessions.
+- Live client-side discovery now uses `src/api/client/protocol_discovery.rs` for local `api_client.base_url` and local `model_url` sessions, with `explicit_protocol` remaining as the only bypass.
 - `LocalApiTaskShared::new()` now wires a bounded peer-event channel into the accumulator, and partial tool-argument truncation emits explicit peer diagnostics instead of failing silently.
 
 ## Why Backwards Compatibility Is Not Required
@@ -96,8 +96,8 @@ The `DeltaAccumulator` exposes an optional `mpsc::Sender<PeerDeltaEvent>` for in
 
 ### Phase 1 — Protocol Mappers
 
-- New `src/api/stream/mappers.rs` with `BlockDeltaMapper` and `ChoicesDeltaMapper` implementing `ProtocolMapper` trait
-- Mappers are thin stateless serialisers over `ToolState` snapshots
+- New `src/api/stream/mappers.rs` with internal `BlockDeltaMapper` and `ChoicesDeltaMapper` implementations behind a crate-private `ProtocolMapper` trait
+- Mappers are thin stateless serialisers over normalised tool-call state
 
 ### Phase 2 — Server Handler Simplification
 
@@ -106,7 +106,7 @@ The `DeltaAccumulator` exposes an optional `mpsc::Sender<PeerDeltaEvent>` for in
 
 ### Phase 3 — Testing
 
-Expanded coverage now includes HTTP-level `tx_` SSE assertions for both mapper formats plus live `api_client.base_url` discovery and explicit-protocol request routing tests. Additional parity and recovery coverage can continue incrementally.
+Expanded coverage now includes HTTP-level `tx_` SSE assertions for both mapper formats plus live discovery coverage for `api_client.base_url`, local `model_url` sessions, and explicit-protocol request routing.
 
 ### Phase 4 — Schema + Docs
 
@@ -127,8 +127,8 @@ Expanded coverage now includes HTTP-level `tx_` SSE assertions for both mapper f
 1. Update `schemas/runtime_envelope_v1.json` to `tx_` pattern — **done (Phase 0)**
 2. Remove legacy `call_` ID generation — **done (Phase 0)**
 3. Add `protocol_discovery.rs` — **done (Phase 0)**
-4. Update `ApiClient::connect` (or equivalent live connection path) to run discovery on first connect — **done for `api_client.base_url`; legacy `model_url` sessions still use the older native-probe path**
-5. Add protocol mapper tests — **in progress; HTTP-level mapper assertions and client discovery tests are merged**
+4. Update `ApiClient::connect` (or equivalent live connection path) to run discovery on first connect — **done for local `api_client.base_url` and local `model_url` sessions**
+5. Add protocol mapper tests — **done; HTTP-level mapper assertions and client discovery tests are merged**
 6. Update docs + CHANGELOG — **in progress**
 
-This ADR supersedes all previous draft versions and captures the intended end state. The repository now contains the phase 0 foundations, mapper serialisation, live `/v1/turns` negotiated emission, and the `api_client.base_url` discovery cutover; remaining work is primarily broader parity coverage and follow-on polish.
+This ADR supersedes all previous draft versions and captures the intended end state. The repository now contains the phase 0 foundations, mapper serialisation, live `/v1/turns` negotiated emission, and the unified local discovery cutover; remaining work is primarily documentation follow-through and broader parity coverage.

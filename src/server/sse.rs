@@ -5,14 +5,13 @@ use serde_json::json;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::convert::Infallible;
 use std::pin::Pin;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use super::SSE_KEEPALIVE_TEXT;
 use crate::api::stream::{ProtocolMapper, SseFrame, mapper_for_variant};
 use crate::config::ProtocolVariant;
-use crate::runtime::delta_accumulator::ToolState;
 use crate::runtime::json_handoff::{RuntimeEnvelope, RuntimeEvent, TokenUsageEnvelope};
 use crate::state::StreamBlock;
 use crate::types::ContentBlock;
@@ -179,7 +178,6 @@ impl NegotiatedTurnsAdapter {
                 name,
                 arguments,
             } => {
-                let tool_state = mapper_tool_state(&envelope.task_id, &id, &name);
                 if let Some(pending) = self.pending_tool_blocks.pop_front() {
                     let wire_index = pending.block_index;
                     self.active_tool_blocks.insert(
@@ -193,14 +191,14 @@ impl NegotiatedTurnsAdapter {
                         },
                     );
                     return vec![event_from_sse_frame(
-                        self.mapper.tool_start_frame(wire_index, &tool_state),
+                        self.mapper.tool_start_frame(wire_index, &id, &name),
                     )];
                 }
 
                 let wire_index = self.next_block_delta_index;
                 self.next_block_delta_index = self.next_block_delta_index.saturating_add(1);
                 let mut events = vec![event_from_sse_frame(
-                    self.mapper.tool_start_frame(wire_index, &tool_state),
+                    self.mapper.tool_start_frame(wire_index, &id, &name),
                 )];
                 if let Some(serialized) = serialize_nonempty_arguments(&arguments) {
                     events.push(event_from_sse_frame(
@@ -326,7 +324,6 @@ impl NegotiatedTurnsAdapter {
                 name,
                 arguments,
             } => {
-                let tool_state = mapper_tool_state(&envelope.task_id, &id, &name);
                 if let Some(pending) = self.pending_tool_blocks.pop_front() {
                     let wire_index = self.next_choices_tool_index;
                     self.next_choices_tool_index = self.next_choices_tool_index.saturating_add(1);
@@ -343,7 +340,7 @@ impl NegotiatedTurnsAdapter {
                     return vec![json_event(augment_choices_chunk(
                         self.message_id.as_deref(),
                         event_payload_from_sse_frame(
-                            self.mapper.tool_start_frame(wire_index, &tool_state),
+                            self.mapper.tool_start_frame(wire_index, &id, &name),
                         ),
                     ))];
                 }
@@ -353,7 +350,7 @@ impl NegotiatedTurnsAdapter {
                 let mut events = vec![json_event(augment_choices_chunk(
                     self.message_id.as_deref(),
                     event_payload_from_sse_frame(
-                        self.mapper.tool_start_frame(wire_index, &tool_state),
+                        self.mapper.tool_start_frame(wire_index, &id, &name),
                     ),
                 ))];
                 if let Some(serialized) = serialize_nonempty_arguments(&arguments) {
@@ -534,19 +531,6 @@ fn serialize_nonempty_arguments(arguments: &serde_json::Value) -> Option<String>
         None
     } else {
         Some(serialized)
-    }
-}
-
-fn mapper_tool_state(task_id: &str, tool_call_id: &str, name: &str) -> ToolState {
-    ToolState {
-        id: tool_call_id.to_string(),
-        task_id: task_id.to_string(),
-        name: name.to_string(),
-        partial_args: String::new(),
-        partial_args_truncated: false,
-        finished: false,
-        delta_queue: VecDeque::new(),
-        last_activity: Instant::now(),
     }
 }
 
