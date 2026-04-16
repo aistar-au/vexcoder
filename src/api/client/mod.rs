@@ -1,14 +1,14 @@
 use self::protocol_discovery::discover_protocol;
+use super::eventsource::create_event_stream;
 use super::logging::{debug_payload_enabled, emit_debug_payload};
 use crate::config::{Config, ProtocolVariant};
 use crate::runtime::backend::{
-    ByteStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy,
+    EventStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy,
 };
 use crate::types::{ApiMessage, Content, ContentBlock};
 use crate::util::{is_local_endpoint_url, preferred_plain_http_url_for_local_endpoint};
 use anyhow::Result;
 use anyhow::anyhow;
-use futures::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
 use serde_json::json;
@@ -166,7 +166,7 @@ Tool results from earlier turns may be condensed to their first few lines; if yo
 
 #[cfg(test)]
 pub trait MockStreamProducer: Send + Sync {
-    fn create_mock_stream(&self, messages: &[ApiMessage]) -> Result<ByteStream>;
+    fn create_mock_stream(&self, messages: &[ApiMessage]) -> Result<EventStream>;
 }
 
 #[derive(Clone)]
@@ -455,7 +455,7 @@ impl ApiClient {
         self
     }
 
-    pub async fn create_stream(&self, messages: &[ApiMessage]) -> Result<ByteStream> {
+    pub async fn create_stream(&self, messages: &[ApiMessage]) -> Result<EventStream> {
         #[cfg(test)]
         {
             if let Some(producer) = &self.mock_stream_producer {
@@ -543,22 +543,21 @@ impl ApiClient {
             }
         };
 
-        let mut request = self
-            .http
-            .post(&request_url)
-            .header("content-type", "application/json")
-            .json(&payload);
-
         if debug_payload_enabled() {
             emit_debug_payload(&request_url, &payload);
         }
 
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::CONTENT_TYPE,
+            reqwest::header::HeaderValue::from_static("application/json"),
+        );
+
         // Apply operator-supplied headers. Reserved headers are excluded to
-        // prevent duplicates — reqwest::RequestBuilder::header() appends, not
-        // replaces, so auth headers must only be set once in the block below.
+        // prevent duplicates so auth headers are only set once in the block below.
         for (name, value) in &self.model_headers {
             if !is_reserved_header(name.as_str()) {
-                request = request.header(name, value);
+                headers.insert(name.clone(), value.clone());
             }
         }
 
@@ -567,43 +566,26 @@ impl ApiClient {
         match api_protocol {
             ApiProtocol::MessagesV1 => {
                 if let Some(api_key) = &self.api_key {
-                    request = request.header("x-api-key", api_key);
+                    headers.insert(
+                        reqwest::header::HeaderName::from_static("x-api-key"),
+                        reqwest::header::HeaderValue::from_str(api_key)
+                            .map_err(|error| anyhow!("invalid x-api-key header: {error}"))?,
+                    );
                 }
             }
             ApiProtocol::ChatCompat => {
                 if let Some(api_key) = &self.api_key {
-                    request = request.header("authorization", format!("Bearer {api_key}"));
+                    let bearer = format!("Bearer {api_key}");
+                    headers.insert(
+                        reqwest::header::AUTHORIZATION,
+                        reqwest::header::HeaderValue::from_str(&bearer)
+                            .map_err(|error| anyhow!("invalid authorization header: {error}"))?,
+                    );
                 }
             }
         }
 
-        let response = request
-            .send()
-            .await
-            .map_err(|error| map_api_request_error(error, &request_url))?;
-
-        let status = response.status();
-        if status.is_client_error() || status.is_server_error() {
-            // Read the Retry-After header before consuming the response body.
-            let retry_after_header = response
-                .headers()
-                .get("retry-after")
-                .and_then(|v| v.to_str().ok())
-                .map(String::from);
-            let body = response.text().await.unwrap_or_default();
-            return Err(map_api_status_error(
-                status,
-                &body,
-                &request_url,
-                retry_after_header.as_deref(),
-            ));
-        }
-
-        let request_url_for_stream = request_url.clone();
-        let stream = response.bytes_stream().map(move |item| {
-            item.map_err(|error| map_api_request_error(error, &request_url_for_stream))
-        });
-        Ok(Box::pin(stream))
+        create_event_stream(self.http.clone(), &request_url, &payload, &headers).await
     }
 
     fn request_url(&self) -> String {
@@ -647,12 +629,12 @@ impl ModelBackend for ApiClient {
         self.is_local_endpoint()
     }
 
-    async fn create_stream(&self, messages: &[ApiMessage]) -> Result<ByteStream> {
+    async fn create_stream(&self, messages: &[ApiMessage]) -> Result<EventStream> {
         self.create_stream(messages).await
     }
 }
 
-fn map_api_request_error(error: reqwest::Error, request_url: &str) -> anyhow::Error {
+pub(crate) fn map_api_request_error(error: reqwest::Error, request_url: &str) -> anyhow::Error {
     let local_http_hint = local_plain_http_hint(request_url);
 
     if error.is_connect() && is_local_endpoint_url(request_url) {
@@ -702,7 +684,7 @@ fn map_api_request_error(error: reqwest::Error, request_url: &str) -> anyhow::Er
 /// actionable guidance including `--ctx-size` configuration hints.
 /// Also detects 429 rate-limit responses and extracts retry hints from
 /// both the `Retry-After` header and the response body text.
-fn map_api_status_error(
+pub(crate) fn map_api_status_error(
     status: reqwest::StatusCode,
     body: &str,
     request_url: &str,

@@ -16,6 +16,7 @@ Whole-repo tracked file map: `TASKS/completed/REPO-RAW-URL-MAP.md`.
 | `TASKS/PM-03-code-search.md` | Pre-ADR | None | Code search hardening and `/reindex` command. Branch only. |
 | `TASKS/PM-04-auto-memory.md` | Pre-ADR | None | Automatic memory extraction from conversation turns. Branch only. |
 | `TASKS/PM-05-crate-boundaries-and-tool-calls.md` | PR #342 docs alignment | `ACTIVE-ROADMAP`, `architecture.md` | Neutral wording, crate-boundary rationale, structured tool-call design, and next-batch dependency decisions. Active. |
+| `TASKS/PR-390-detached-worktree-skill-bootstrap-followup.md` | PR #390 replacement follow-up | `AGENTS.md`, `CONTRIBUTING.md` | Local-session detached-worktree skill-bootstrap audit and repo-root anchoring. Branch only. |
 | `TASKS/completed/PL-01-pre-post-tool-hooks.md` | `ADR-024` Gap 26 | `PA-01` | Pre/post-tool-call hooks (`[[hooks]]` in user config layer only). All 7 anchor tests pass. Complete. |
 
 ## Open ADR Dispatch Sources

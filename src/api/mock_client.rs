@@ -1,8 +1,8 @@
 use crate::api::client::MockStreamProducer;
-use crate::runtime::backend::ByteStream;
+use crate::api::stream::StreamParser;
+use crate::runtime::backend::EventStream;
 use crate::types::ApiMessage;
 use anyhow::Result;
-use bytes::Bytes;
 use futures::stream;
 use std::sync::{Arc, Mutex};
 
@@ -21,7 +21,7 @@ impl MockApiClient {
 
 #[cfg(test)]
 impl MockStreamProducer for MockApiClient {
-    fn create_mock_stream(&self, _messages: &[ApiMessage]) -> Result<ByteStream> {
+    fn create_mock_stream(&self, _messages: &[ApiMessage]) -> Result<EventStream> {
         let mut responses_guard = self.responses.lock().unwrap();
         if responses_guard.is_empty() {
             return Err(anyhow::anyhow!(
@@ -29,19 +29,18 @@ impl MockStreamProducer for MockApiClient {
             ));
         }
         let current_sse_chunks = responses_guard.remove(0);
+        let mut parser = StreamParser::new();
+        let mut events = Vec::new();
 
-        let sse_byte_chunks: Vec<Result<Bytes>> = current_sse_chunks
-            .into_iter()
-            .map(|s| {
-                let framed = if s.ends_with("\n\n") {
-                    s
-                } else {
-                    format!("{s}\n\n")
-                };
-                Ok(Bytes::from(framed))
-            })
-            .collect();
+        for s in current_sse_chunks {
+            let framed = if s.ends_with("\n\n") {
+                s
+            } else {
+                format!("{s}\n\n")
+            };
+            events.extend(parser.process(framed.as_bytes())?);
+        }
 
-        Ok(Box::pin(stream::iter(sse_byte_chunks)))
+        Ok(Box::pin(stream::iter(events.into_iter().map(Ok))))
     }
 }

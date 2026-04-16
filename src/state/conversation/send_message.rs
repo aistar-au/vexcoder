@@ -5,7 +5,6 @@ use super::{
     ConversationManager, ConversationStreamUpdate, TurnToolPolicy, history::*, streaming::*,
     tools::*,
 };
-use crate::api::stream::StreamParser;
 use crate::runtime::policy::{RuntimeCorePolicy, default_runtime_policy};
 use crate::runtime::task_document::TurnOutcome;
 use crate::types::{ApiMessage, ApiUsage, Content, ContentBlock, StreamEvent};
@@ -140,159 +139,154 @@ impl ConversationManager {
                 }
                 Err(e) => return Err(e),
             };
-            let mut parser = StreamParser::new();
             let mut assistant_text = String::new();
             let mut tool_use_blocks = Vec::new();
             let mut tool_input_buffers: Vec<Option<String>> = Vec::new();
             let mut deferred_text_block_indices = BTreeSet::new();
 
-            while let Some(chunk_result) = stream.next().await {
-                let chunk = chunk_result?;
-                let events = parser.process(&chunk)?;
+            while let Some(event_result) = stream.next().await {
+                let event = event_result?;
 
-                for event in events {
-                    match event {
-                        StreamEvent::MessageStart { message } => {
-                            accumulate_usage(&mut turn_tokens, message.usage.as_ref());
-                            emit_server_metadata_update(message.metadata.as_ref(), stream_delta_tx);
-                        }
-                        StreamEvent::ContentBlockStart {
-                            index,
-                            content_block,
-                        } => {
-                            // Structured block pipeline: all SSE events are
-                            // normalised into typed StreamBlock variants that
-                            // flow through the single runtime core engine.
-                            match &content_block {
-                                ContentBlock::Text { .. } => {
-                                    self.upsert_turn_block(
-                                        index,
-                                        StreamBlock::Thinking {
-                                            content: String::new(),
-                                            collapsed: false,
-                                        },
-                                        None,
-                                    );
-                                    deferred_text_block_indices.insert(index);
-                                }
-                                ContentBlock::ToolUse {
-                                    id, name, input, ..
-                                } => {
-                                    self.flush_deferred_thinking_blocks(
-                                        &mut deferred_text_block_indices,
-                                        stream_delta_tx,
-                                    );
-                                    self.upsert_turn_block(
-                                        index,
-                                        StreamBlock::ToolCall {
-                                            id: id.clone(),
-                                            name: name.clone(),
-                                            input: input.clone(),
-                                            status: ToolStatus::Pending,
-                                        },
-                                        stream_delta_tx,
-                                    );
-                                }
-                                ContentBlock::ToolResult { .. } => {}
-                                ContentBlock::Thinking { .. }
-                                | ContentBlock::RedactedThinking { .. } => {}
-                                ContentBlock::ServerToolUse { .. }
-                                | ContentBlock::WebSearchToolResult { .. } => {}
-                            }
-
-                            let tool_name =
-                                if let ContentBlock::ToolUse { name, .. } = &content_block {
-                                    Some(name.clone())
-                                } else {
-                                    None
-                                };
-                            if tool_name.is_some() {
-                                while tool_use_blocks.len() <= index {
-                                    tool_use_blocks.push(None);
-                                    tool_input_buffers.push(None);
-                                }
-                                tool_use_blocks[index] = Some(content_block);
-                                tool_input_buffers[index] = Some(String::new());
-                            }
-                        }
-                        StreamEvent::ContentBlockDelta { index, delta } => {
-                            if let Some(text) = delta.text {
-                                let delta_tx = if deferred_text_block_indices.contains(&index) {
-                                    None
-                                } else {
-                                    stream_delta_tx
-                                };
-                                let appended = self.append_text_delta(index, &text, delta_tx);
-                                assistant_text.push_str(&appended);
-                            }
-
-                            if let Some(partial_json) = delta.partial_json {
-                                let maybe_buffer = tool_input_buffers.get_mut(index);
-                                if let Some(Some(buffer)) = maybe_buffer {
-                                    buffer.push_str(&partial_json);
-                                    emit_stream_update(
-                                        stream_delta_tx,
-                                        ConversationStreamUpdate::BlockDelta {
-                                            index,
-                                            delta: partial_json.clone(),
-                                        },
-                                    );
-                                }
-                            }
-                        }
-                        StreamEvent::ContentBlockStop { index } => {
-                            let maybe_json = tool_input_buffers.get_mut(index);
-                            let maybe_tool = tool_use_blocks.get_mut(index);
-
-                            if let (
-                                Some(Some(json_str)),
-                                Some(Some(ContentBlock::ToolUse { input, .. })),
-                            ) = (maybe_json, maybe_tool)
-                                && !json_str.is_empty()
-                            {
-                                let parse_result: Result<serde_json::Value, _> =
-                                    serde_json::from_str(json_str)
-                                        .or_else(|_| serde_json::from_str(json_str.trim()));
-                                match parse_result {
-                                    Ok(parsed_input) => {
-                                        *input = parsed_input;
-                                    }
-                                    Err(err) => {
-                                        tracing::warn!(
-                                            index,
-                                            json_len = json_str.len(),
-                                            err = %err,
-                                            "tool input JSON parse failed; tool will run with empty input"
-                                        );
-                                    }
-                                }
-                            }
-                            emit_stream_update(
-                                stream_delta_tx,
-                                ConversationStreamUpdate::BlockComplete { index },
-                            );
-                        }
-                        StreamEvent::MessageDelta { delta, usage } => {
-                            accumulate_usage(&mut turn_tokens, usage.as_ref());
-                            emit_server_metadata_update(delta.metadata.as_ref(), stream_delta_tx);
-                        }
-                        StreamEvent::MessageStop => {}
-                        StreamEvent::Ping => {}
-                        StreamEvent::Error { error } => {
-                            // Surface all stream errors (API errors and SSE
-                            // parse failures) to the UI so the user observes
-                            // the failure rather than a silently stalled turn.
-                            // ADR-021 Item 19.
-                            emit_stream_update(
-                                stream_delta_tx,
-                                ConversationStreamUpdate::StreamError(format!(
-                                    "stream error ({}): {}",
-                                    error.error_type, error.message
-                                )),
-                            );
-                        }
-                        StreamEvent::Unknown => {}
+                match event {
+                    StreamEvent::MessageStart { message } => {
+                        accumulate_usage(&mut turn_tokens, message.usage.as_ref());
+                        emit_server_metadata_update(message.metadata.as_ref(), stream_delta_tx);
                     }
+                    StreamEvent::ContentBlockStart {
+                        index,
+                        content_block,
+                    } => {
+                        // Structured block pipeline: all SSE events are
+                        // normalised into typed StreamBlock variants that
+                        // flow through the single runtime core engine.
+                        match &content_block {
+                            ContentBlock::Text { .. } => {
+                                self.upsert_turn_block(
+                                    index,
+                                    StreamBlock::Thinking {
+                                        content: String::new(),
+                                        collapsed: false,
+                                    },
+                                    None,
+                                );
+                                deferred_text_block_indices.insert(index);
+                            }
+                            ContentBlock::ToolUse {
+                                id, name, input, ..
+                            } => {
+                                self.flush_deferred_thinking_blocks(
+                                    &mut deferred_text_block_indices,
+                                    stream_delta_tx,
+                                );
+                                self.upsert_turn_block(
+                                    index,
+                                    StreamBlock::ToolCall {
+                                        id: id.clone(),
+                                        name: name.clone(),
+                                        input: input.clone(),
+                                        status: ToolStatus::Pending,
+                                    },
+                                    stream_delta_tx,
+                                );
+                            }
+                            ContentBlock::ToolResult { .. } => {}
+                            ContentBlock::Thinking { .. }
+                            | ContentBlock::RedactedThinking { .. } => {}
+                            ContentBlock::ServerToolUse { .. }
+                            | ContentBlock::WebSearchToolResult { .. } => {}
+                        }
+
+                        let tool_name = if let ContentBlock::ToolUse { name, .. } = &content_block {
+                            Some(name.clone())
+                        } else {
+                            None
+                        };
+                        if tool_name.is_some() {
+                            while tool_use_blocks.len() <= index {
+                                tool_use_blocks.push(None);
+                                tool_input_buffers.push(None);
+                            }
+                            tool_use_blocks[index] = Some(content_block);
+                            tool_input_buffers[index] = Some(String::new());
+                        }
+                    }
+                    StreamEvent::ContentBlockDelta { index, delta } => {
+                        if let Some(text) = delta.text {
+                            let delta_tx = if deferred_text_block_indices.contains(&index) {
+                                None
+                            } else {
+                                stream_delta_tx
+                            };
+                            let appended = self.append_text_delta(index, &text, delta_tx);
+                            assistant_text.push_str(&appended);
+                        }
+
+                        if let Some(partial_json) = delta.partial_json {
+                            let maybe_buffer = tool_input_buffers.get_mut(index);
+                            if let Some(Some(buffer)) = maybe_buffer {
+                                buffer.push_str(&partial_json);
+                                emit_stream_update(
+                                    stream_delta_tx,
+                                    ConversationStreamUpdate::BlockDelta {
+                                        index,
+                                        delta: partial_json.clone(),
+                                    },
+                                );
+                            }
+                        }
+                    }
+                    StreamEvent::ContentBlockStop { index } => {
+                        let maybe_json = tool_input_buffers.get_mut(index);
+                        let maybe_tool = tool_use_blocks.get_mut(index);
+
+                        if let (
+                            Some(Some(json_str)),
+                            Some(Some(ContentBlock::ToolUse { input, .. })),
+                        ) = (maybe_json, maybe_tool)
+                            && !json_str.is_empty()
+                        {
+                            let parse_result: Result<serde_json::Value, _> =
+                                serde_json::from_str(json_str)
+                                    .or_else(|_| serde_json::from_str(json_str.trim()));
+                            match parse_result {
+                                Ok(parsed_input) => {
+                                    *input = parsed_input;
+                                }
+                                Err(err) => {
+                                    tracing::warn!(
+                                        index,
+                                        json_len = json_str.len(),
+                                        err = %err,
+                                        "tool input JSON parse failed; tool will run with empty input"
+                                    );
+                                }
+                            }
+                        }
+                        emit_stream_update(
+                            stream_delta_tx,
+                            ConversationStreamUpdate::BlockComplete { index },
+                        );
+                    }
+                    StreamEvent::MessageDelta { delta, usage } => {
+                        accumulate_usage(&mut turn_tokens, usage.as_ref());
+                        emit_server_metadata_update(delta.metadata.as_ref(), stream_delta_tx);
+                    }
+                    StreamEvent::MessageStop => {}
+                    StreamEvent::Ping => {}
+                    StreamEvent::Error { error } => {
+                        // Surface all stream errors (API errors and SSE
+                        // parse failures) to the UI so the user observes
+                        // the failure rather than a silently stalled turn.
+                        // ADR-021 Item 19.
+                        emit_stream_update(
+                            stream_delta_tx,
+                            ConversationStreamUpdate::StreamError(format!(
+                                "stream error ({}): {}",
+                                error.error_type, error.message
+                            )),
+                        );
+                    }
+                    StreamEvent::Unknown => {}
                 }
             }
 

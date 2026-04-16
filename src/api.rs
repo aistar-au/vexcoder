@@ -1,4 +1,5 @@
 pub mod client;
+mod eventsource;
 mod logging;
 #[cfg(test)]
 pub mod mock_client;

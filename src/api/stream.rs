@@ -116,6 +116,10 @@ impl StreamParser {
         Self::default()
     }
 
+    pub fn process_sse_event(&mut self, event_type: &str, data: &str) -> Result<Vec<StreamEvent>> {
+        self.parse_event_payload((!event_type.is_empty()).then_some(event_type), data)
+    }
+
     pub fn process(&mut self, chunk: &[u8]) -> Result<Vec<StreamEvent>> {
         if self.buffer.len().saturating_add(chunk.len()) > MAX_SSE_BUFFER_BYTES {
             return Ok(vec![StreamEvent::Error {
@@ -172,20 +176,28 @@ impl StreamParser {
             frame_text.trim().to_string()
         };
 
+        self.parse_event_payload(event_type.as_deref(), &json_data)
+    }
+
+    fn parse_event_payload(
+        &mut self,
+        event_type: Option<&str>,
+        json_data: &str,
+    ) -> Result<Vec<StreamEvent>> {
         if json_data.is_empty() {
             return Ok(Vec::new());
         }
-        if event_type.as_deref() == Some("ping") {
+        if event_type == Some("ping") {
             return Ok(vec![StreamEvent::Ping]);
         }
 
-        match serde_json::from_str::<StreamEvent>(&json_data) {
+        match serde_json::from_str::<StreamEvent>(json_data) {
             Ok(evt) => Ok(vec![evt]),
             Err(messages_v1_error) => {
-                if let Some(chat_compat_events) = self.parse_chat_compat_chunk(&json_data) {
+                if let Some(chat_compat_events) = self.parse_chat_compat_chunk(json_data) {
                     Ok(chat_compat_events)
                 } else {
-                    emit_sse_parse_error(event_type.as_deref(), &json_data, &messages_v1_error);
+                    emit_sse_parse_error(event_type, json_data, &messages_v1_error);
                     // Emit a structured error event so the runtime can surface
                     // the failure to the UI rather than silently dropping the
                     // frame.  ADR-021 Item 19.

@@ -241,9 +241,9 @@ parser) represents internal routing that the API event surface replaces.
 
 ---
 
-## 5. Phasing Validation: What Phase A (This PR) Implements
+## 5. Phasing Validation: What Phase A Implements
 
-Phase A of the amendment is implemented in PR #390 and adds:
+Phase A of the amendment adds:
 
 1. **Envelope metadata:** `event_id` (UUID-based), `emitted_at` (ISO 8601),
    `source` (Model, Runtime, or UserRequest), `request_id`, and
@@ -275,7 +275,7 @@ Phase A of the amendment is implemented in PR #390 and adds:
 - Source attribution assertions added to the existing normalization test.
 - `test_pi_10_runtime_origin_block_sources_are_preserved` verifies
   `ToolResult` stream blocks receive `RuntimeEnvelopeSource::Runtime`.
-- Full library test suite: 1206 passed, 0 failed.
+- Focused normalization and library tests passed on the implementation branch.
 
 ---
 

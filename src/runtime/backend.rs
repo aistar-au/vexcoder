@@ -1,12 +1,11 @@
 use anyhow::Result;
-use bytes::Bytes;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 
-use crate::types::ApiMessage;
+use crate::types::{ApiMessage, StreamEvent};
 
-pub type ByteStream = Pin<Box<dyn Stream<Item = Result<Bytes>> + Send>>;
+pub type EventStream = Pin<Box<dyn Stream<Item = Result<StreamEvent>> + Send>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelBackendKind {
@@ -47,5 +46,5 @@ pub trait ModelBackend: Send + Sync {
     fn create_stream(
         &self,
         messages: &[ApiMessage],
-    ) -> impl std::future::Future<Output = Result<ByteStream>> + Send;
+    ) -> impl std::future::Future<Output = Result<EventStream>> + Send;
 }

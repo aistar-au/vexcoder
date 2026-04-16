@@ -3,10 +3,73 @@ use super::{ConversationManager, ConversationStreamUpdate};
 use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::task_document::{AssistantPhase, TurnEntry};
 use crate::runtime::tokio::sync::mpsc;
-use chrono::{SecondsFormat, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use std::collections::BTreeSet;
 
 impl ConversationManager {
+    pub(super) fn record_tool_call_started_at(
+        &mut self,
+        tool_call_id: &str,
+        started_at: DateTime<Utc>,
+    ) {
+        self.tool_call_started_at
+            .insert(tool_call_id.to_string(), started_at);
+    }
+
+    fn take_tool_call_timing(
+        &mut self,
+        tool_call_id: &str,
+        completed_at: DateTime<Utc>,
+    ) -> (Option<String>, Option<u64>) {
+        let Some(started_at) = self.tool_call_started_at.remove(tool_call_id) else {
+            return (None, None);
+        };
+
+        let duration_ms = completed_at
+            .signed_duration_since(started_at)
+            .num_milliseconds()
+            .max(0) as u64;
+
+        (
+            Some(started_at.to_rfc3339_opts(SecondsFormat::Millis, true)),
+            Some(duration_ms),
+        )
+    }
+
+    pub(super) fn tool_result_event(
+        &mut self,
+        tool_call_id: &str,
+        tool_name: Option<String>,
+        output: String,
+        is_error: bool,
+        completed_at: DateTime<Utc>,
+    ) -> RuntimeEvent {
+        let completed_at_value = completed_at.to_rfc3339_opts(SecondsFormat::Millis, true);
+        let (started_at, duration_ms) = self.take_tool_call_timing(tool_call_id, completed_at);
+
+        if is_error {
+            RuntimeEvent::ToolCallFailed {
+                tool_call_id: tool_call_id.to_string(),
+                tool_name,
+                status: ToolStatus::Error,
+                started_at,
+                completed_at: completed_at_value,
+                duration_ms,
+                output,
+            }
+        } else {
+            RuntimeEvent::ToolCallCompleted {
+                tool_call_id: tool_call_id.to_string(),
+                tool_name,
+                status: ToolStatus::Complete,
+                started_at,
+                completed_at: completed_at_value,
+                duration_ms,
+                output,
+            }
+        }
+    }
+
     /// Insert or update a stream block in the active turn and emit a
     /// `BlockStart` update to the TUI channel.
     ///
@@ -67,13 +130,17 @@ impl ConversationManager {
                 name,
                 input,
                 status,
-            } => Some(RuntimeEvent::ToolCallStarted {
-                tool_call_id: id.clone(),
-                tool_name: name.clone(),
-                arguments: input.clone(),
-                status: status.clone(),
-                started_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-            }),
+            } => {
+                let started_at = Utc::now();
+                self.record_tool_call_started_at(id, started_at);
+                Some(RuntimeEvent::ToolCallStarted {
+                    tool_call_id: id.clone(),
+                    tool_name: name.clone(),
+                    arguments: input.clone(),
+                    status: status.clone(),
+                    started_at: started_at.to_rfc3339_opts(SecondsFormat::Millis, true),
+                })
+            }
             _ => None,
         };
         if let Some(ev) = event {
@@ -247,27 +314,13 @@ impl ConversationManager {
                     })
                 });
 
-            let event = if is_error {
-                RuntimeEvent::ToolCallFailed {
-                    tool_call_id: tool_call_id.clone(),
-                    tool_name,
-                    status: ToolStatus::Error,
-                    started_at: None,
-                    completed_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                    duration_ms: None,
-                    output: output.clone(),
-                }
-            } else {
-                RuntimeEvent::ToolCallCompleted {
-                    tool_call_id: tool_call_id.clone(),
-                    tool_name,
-                    status: ToolStatus::Complete,
-                    started_at: None,
-                    completed_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                    duration_ms: None,
-                    output: output.clone(),
-                }
-            };
+            let event = self.tool_result_event(
+                tool_call_id,
+                tool_name,
+                output.clone(),
+                is_error,
+                Utc::now(),
+            );
             self.apply_doc_event(event);
         }
 
