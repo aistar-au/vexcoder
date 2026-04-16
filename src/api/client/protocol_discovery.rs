@@ -67,11 +67,7 @@ pub enum DiscoveryError {
 ///
 /// A probe is considered successful when the server returns `200 OK` and
 /// a `Content-Type` that contains `text/event-stream`.
-async fn probe_endpoint(
-    url: &str,
-    accept_header: &str,
-    client: &reqwest::Client,
-) -> ProbeAttempt {
+async fn probe_endpoint(url: &str, accept_header: &str, client: &reqwest::Client) -> ProbeAttempt {
     let start = Instant::now();
 
     let response = client

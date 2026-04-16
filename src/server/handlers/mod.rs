@@ -343,7 +343,10 @@ pub async fn turns_handler(
         task_id.clone(),
         envelope_tx,
         Arc::clone(&quit),
-        state.config.api_client.delta_accumulator_memory_watermark_bytes(),
+        state
+            .config
+            .api_client
+            .delta_accumulator_memory_watermark_bytes(),
     )));
 
     {
