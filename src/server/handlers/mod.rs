@@ -333,7 +333,7 @@ pub async fn turns_handler(
     headers: HeaderMap,
     Json(request): Json<RuntimeRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ControlResponse>)> {
-    let RuntimeRequest::SubmitInput { task_id, input } = request else {
+    let RuntimeRequest::SubmitInput { task_id, input, .. } = request else {
         return Err(bad_request("invalid_request_type"));
     };
 
@@ -380,7 +380,7 @@ pub async fn interrupt_handler(
     State(state): State<LocalApiState>,
     Json(request): Json<RuntimeRequest>,
 ) -> Result<Json<ControlResponse>, (StatusCode, Json<ControlResponse>)> {
-    let RuntimeRequest::Interrupt { task_id } = request else {
+    let RuntimeRequest::Interrupt { task_id, .. } = request else {
         return Err(bad_request("invalid_request_type"));
     };
 

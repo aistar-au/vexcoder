@@ -1,6 +1,6 @@
 use super::UiUpdate;
 use crate::runtime::AssistantPhase;
-use crate::runtime::delta_accumulator::DeltaAccumulator;
+use crate::runtime::delta_accumulator::{AccumulationError, DeltaAccumulator};
 use crate::state::{StreamBlock, ToolStatus};
 use crate::turn_evidence::{
     SummaryRecord, TurnEvidenceRecord, command_evidence_from_tool_result,
@@ -8,7 +8,7 @@ use crate::turn_evidence::{
 };
 use crate::types::ContentBlock;
 use crate::usage::TurnTokens;
-use chrono::{Timelike, Utc};
+use chrono::{DateTime, SecondsFormat, Timelike, Utc};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
@@ -28,7 +28,23 @@ pub struct RuntimeEnvelope {
     pub task_id: String,
     pub turn: u32,
     pub seq: u64,
+    pub event_id: String,
+    pub emitted_at: String,
+    pub source: RuntimeEnvelopeSource,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_event_id: Option<String>,
     pub event: RuntimeEvent,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeEnvelopeSource {
+    Model,
+    Runtime,
+    UserRequest,
+    System,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -67,16 +83,44 @@ pub enum RuntimeEvent {
         phase: AssistantPhase,
         streaming: bool,
     },
-    ToolCall {
-        id: String,
-        name: String,
+    ToolCallStarted {
+        tool_call_id: String,
+        tool_name: String,
         arguments: serde_json::Value,
+        status: ToolStatus,
+        started_at: String,
     },
-    ToolResult {
+    ToolCallArgumentsDelta {
         tool_call_id: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         tool_name: Option<String>,
-        is_error: bool,
+        delta: String,
+        status: ToolStatus,
+        #[serde(default)]
+        invalid_json: bool,
+    },
+    ToolCallCompleted {
+        tool_call_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tool_name: Option<String>,
+        status: ToolStatus,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        started_at: Option<String>,
+        completed_at: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        duration_ms: Option<u64>,
+        output: String,
+    },
+    ToolCallFailed {
+        tool_call_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tool_name: Option<String>,
+        status: ToolStatus,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        started_at: Option<String>,
+        completed_at: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        duration_ms: Option<u64>,
         output: String,
     },
     ApprovalRequest {
@@ -114,22 +158,37 @@ pub enum RuntimeEvent {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuntimeRequest {
     SubmitInput {
+        request_id: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         task_id: Option<String>,
         input: String,
     },
     Interrupt {
+        request_id: String,
         task_id: String,
     },
     ApproveCapability {
+        request_id: String,
         task_id: String,
         capability: String,
         scope: String,
     },
     DenyCapability {
+        request_id: String,
         task_id: String,
         capability: String,
     },
+}
+
+impl RuntimeRequest {
+    pub fn request_id(&self) -> &str {
+        match self {
+            RuntimeRequest::SubmitInput { request_id, .. }
+            | RuntimeRequest::Interrupt { request_id, .. }
+            | RuntimeRequest::ApproveCapability { request_id, .. }
+            | RuntimeRequest::DenyCapability { request_id, .. } => request_id,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -187,6 +246,8 @@ struct PendingToolCall {
     runtime_id: ToolCallId,
     name: String,
     arguments: serde_json::Value,
+    start_event_id: String,
+    started_at: DateTime<Utc>,
 }
 
 pub struct RuntimeEnvelopeNormalizer {
@@ -335,13 +396,15 @@ impl RuntimeEnvelopeNormalizer {
                 envelopes
             }
             UiUpdate::StreamBlockDelta { index, delta } => {
+                let mut envelopes = Vec::new();
                 if let Some(runtime_id) = self.streaming_tool_call_blocks.get(index).cloned() {
-                    self.accumulate_tool_delta(&runtime_id, delta);
+                    envelopes.push(self.record_tool_call_arguments_delta(&runtime_id, delta));
                 }
-                vec![self.next_envelope(RuntimeEvent::TranscriptBlockDelta {
+                envelopes.push(self.next_envelope(RuntimeEvent::TranscriptBlockDelta {
                     index: *index,
                     delta: delta.clone(),
-                })]
+                }));
+                envelopes
             }
             UiUpdate::StreamBlockComplete { index } => {
                 if let Some(runtime_id) = self.streaming_tool_call_blocks.remove(index) {
@@ -372,7 +435,13 @@ impl RuntimeEnvelopeNormalizer {
 
     pub fn normalize_runtime_request(&mut self, request: &RuntimeRequest) -> Vec<RuntimeEnvelope> {
         approval_resolution_event(request)
-            .map(|event| vec![self.next_envelope(event)])
+            .map(|event| {
+                vec![self.next_envelope_with_context(
+                    event,
+                    Some(request.request_id().to_string()),
+                    None,
+                )]
+            })
             .unwrap_or_default()
     }
 
@@ -493,22 +562,28 @@ impl RuntimeEnvelopeNormalizer {
             .unwrap_or_else(empty_json_object);
 
         let runtime_id = self.generate_tool_call_id();
+        let started_at = Utc::now();
+        let envelope = self.next_envelope(RuntimeEvent::ToolCallStarted {
+            tool_call_id: runtime_id.clone(),
+            tool_name: name.clone(),
+            arguments: arguments.clone(),
+            status: ToolStatus::Pending,
+            started_at: timestamp_string(started_at),
+        });
         self.pending_tool_calls.insert(
             runtime_id.clone(),
             PendingToolCall {
                 runtime_id: runtime_id.clone(),
                 name: name.clone(),
                 arguments: arguments.clone(),
+                start_event_id: envelope.event_id.clone(),
+                started_at,
             },
         );
         self.start_tool_accumulator(&runtime_id, &name);
         self.seed_tool_accumulator(&runtime_id, &arguments);
 
-        Some(self.next_envelope(RuntimeEvent::ToolCall {
-            id: runtime_id,
-            name,
-            arguments,
-        }))
+        Some(envelope)
     }
 
     fn record_tool_call(
@@ -518,21 +593,27 @@ impl RuntimeEnvelopeNormalizer {
         arguments: serde_json::Value,
     ) -> RuntimeEnvelope {
         let runtime_id = self.generate_tool_call_id();
+        let started_at = Utc::now();
+        let envelope = self.next_envelope(RuntimeEvent::ToolCallStarted {
+            tool_call_id: runtime_id.clone(),
+            tool_name: name.clone(),
+            arguments: arguments.clone(),
+            status: ToolStatus::Pending,
+            started_at: timestamp_string(started_at),
+        });
         self.pending_tool_calls.insert(
             source_id,
             PendingToolCall {
                 runtime_id: runtime_id.clone(),
                 name: name.clone(),
                 arguments: arguments.clone(),
+                start_event_id: envelope.event_id.clone(),
+                started_at,
             },
         );
         self.start_tool_accumulator(&runtime_id, &name);
 
-        self.next_envelope(RuntimeEvent::ToolCall {
-            id: runtime_id,
-            name,
-            arguments,
-        })
+        envelope
     }
 
     fn record_tool_result(
@@ -541,6 +622,8 @@ impl RuntimeEnvelopeNormalizer {
         output: String,
         is_error: bool,
     ) -> RuntimeEnvelope {
+        let completed_at = Utc::now();
+        let completed_at_value = timestamp_string(completed_at);
         if let Some(pending) = self.pending_tool_calls.shift_remove(source_id) {
             self.finish_tool_accumulator(&pending.runtime_id);
             if !is_error {
@@ -550,20 +633,84 @@ impl RuntimeEnvelopeNormalizer {
                     &pending.arguments,
                 );
             }
-            return self.next_envelope(RuntimeEvent::ToolResult {
-                tool_call_id: pending.runtime_id,
-                tool_name: Some(pending.name),
-                is_error,
-                output,
-            });
+            let duration_ms = completed_at
+                .signed_duration_since(pending.started_at)
+                .num_milliseconds()
+                .max(0) as u64;
+            let event = if is_error {
+                RuntimeEvent::ToolCallFailed {
+                    tool_call_id: pending.runtime_id,
+                    tool_name: Some(pending.name),
+                    status: ToolStatus::Error,
+                    started_at: Some(timestamp_string(pending.started_at)),
+                    completed_at: completed_at_value,
+                    duration_ms: Some(duration_ms),
+                    output,
+                }
+            } else {
+                RuntimeEvent::ToolCallCompleted {
+                    tool_call_id: pending.runtime_id,
+                    tool_name: Some(pending.name),
+                    status: ToolStatus::Complete,
+                    started_at: Some(timestamp_string(pending.started_at)),
+                    completed_at: completed_at_value,
+                    duration_ms: Some(duration_ms),
+                    output,
+                }
+            };
+            return self.next_envelope_with_context(event, None, Some(pending.start_event_id));
         }
 
-        self.next_envelope(RuntimeEvent::ToolResult {
-            tool_call_id: source_id.to_string(),
-            tool_name: None,
-            is_error,
-            output,
+        self.next_envelope(if is_error {
+            RuntimeEvent::ToolCallFailed {
+                tool_call_id: source_id.to_string(),
+                tool_name: None,
+                status: ToolStatus::Error,
+                started_at: None,
+                completed_at: completed_at_value,
+                duration_ms: None,
+                output,
+            }
+        } else {
+            RuntimeEvent::ToolCallCompleted {
+                tool_call_id: source_id.to_string(),
+                tool_name: None,
+                status: ToolStatus::Complete,
+                started_at: None,
+                completed_at: completed_at_value,
+                duration_ms: None,
+                output,
+            }
         })
+    }
+
+    fn record_tool_call_arguments_delta(
+        &mut self,
+        tool_call_id: &ToolCallId,
+        delta: &str,
+    ) -> RuntimeEnvelope {
+        let (tool_name, parent_event_id) = self
+            .pending_tool_calls
+            .values()
+            .find(|pending| pending.runtime_id == *tool_call_id)
+            .map(|pending| (Some(pending.name.clone()), Some(pending.start_event_id.clone())))
+            .unwrap_or((None, None));
+        let invalid_json = matches!(
+            self.accumulate_tool_delta(tool_call_id, delta),
+            Some(AccumulationError::MalformedPartial)
+        );
+
+        self.next_envelope_with_context(
+            RuntimeEvent::ToolCallArgumentsDelta {
+                tool_call_id: tool_call_id.clone(),
+                tool_name,
+                delta: delta.to_string(),
+                status: ToolStatus::Pending,
+                invalid_json,
+            },
+            None,
+            parent_event_id,
+        )
     }
 
     fn resolve_changed_files(&self, changed_files: Vec<String>) -> Vec<String> {
@@ -613,14 +760,21 @@ impl RuntimeEnvelopeNormalizer {
         }
     }
 
-    fn accumulate_tool_delta(&self, tool_call_id: &ToolCallId, delta: &str) {
+    fn accumulate_tool_delta(
+        &self,
+        tool_call_id: &ToolCallId,
+        delta: &str,
+    ) -> Option<AccumulationError> {
         let Some(delta_accumulator) = &self.delta_accumulator else {
-            return;
+            return None;
         };
 
         if let Err(error) = delta_accumulator.accumulate(tool_call_id, delta) {
             tracing::debug!(%error, tool_call_id = %tool_call_id, "failed to accumulate tool delta");
+            return Some(error);
         }
+
+        None
     }
 
     fn finish_tool_accumulator(&self, tool_call_id: &ToolCallId) {
@@ -646,14 +800,29 @@ impl RuntimeEnvelopeNormalizer {
     }
 
     fn next_envelope(&mut self, event: RuntimeEvent) -> RuntimeEnvelope {
+        self.next_envelope_with_context(event, None, None)
+    }
+
+    fn next_envelope_with_context(
+        &mut self,
+        event: RuntimeEvent,
+        request_id: Option<String>,
+        parent_event_id: Option<String>,
+    ) -> RuntimeEnvelope {
+        let seq = self.next_seq;
         let envelope = RuntimeEnvelope {
             version: 1,
             task_id: self.task_id.clone(),
             turn: self.turn,
-            seq: self.next_seq,
+            seq,
+            event_id: format!("evt:{}:{}:{seq}", self.task_id, self.turn),
+            emitted_at: timestamp_string(Utc::now()),
+            source: source_for_event(&event),
+            request_id,
+            parent_event_id,
             event,
         };
-        self.next_seq = self.next_seq.saturating_add(1);
+        self.next_seq = seq.saturating_add(1);
         envelope
     }
 }
@@ -717,14 +886,28 @@ pub fn derive_batch_records(
                     state.complete_final_text_block(*index);
                 }
             }
-            RuntimeEvent::ToolResult {
+            RuntimeEvent::ToolCallCompleted {
                 tool_name,
-                is_error,
+                status,
                 ..
             } => {
                 if let Some(state) = current_turn.as_mut()
                     && let Some(name) = tool_name
-                    && let Some(evidence) = command_evidence_from_tool_result(name, *is_error)
+                    && let Some(evidence) =
+                        command_evidence_from_tool_result(name, *status == ToolStatus::Error)
+                {
+                    state.command_history.push(evidence);
+                }
+            }
+            RuntimeEvent::ToolCallFailed {
+                tool_name,
+                status,
+                ..
+            } => {
+                if let Some(state) = current_turn.as_mut()
+                    && let Some(name) = tool_name
+                    && let Some(evidence) =
+                        command_evidence_from_tool_result(name, *status == ToolStatus::Error)
                 {
                     state.command_history.push(evidence);
                 }
@@ -750,7 +933,8 @@ pub fn derive_batch_records(
                 max_turns_reached = true;
             }
             RuntimeEvent::TranscriptLine { .. }
-            | RuntimeEvent::ToolCall { .. }
+            | RuntimeEvent::ToolCallStarted { .. }
+            | RuntimeEvent::ToolCallArgumentsDelta { .. }
             | RuntimeEvent::ToolCallStatusUpdated { .. }
             | RuntimeEvent::TranscriptBlockPhaseUpdated { .. }
             | RuntimeEvent::ApprovalRequest { .. }
@@ -784,6 +968,33 @@ pub fn derive_batch_records(
         summary,
         max_turns_reached,
     }
+}
+
+fn source_for_event(event: &RuntimeEvent) -> RuntimeEnvelopeSource {
+    match event {
+        RuntimeEvent::TurnStart { .. } | RuntimeEvent::ApprovalResolved { .. } => {
+            RuntimeEnvelopeSource::UserRequest
+        }
+        RuntimeEvent::TranscriptLine { .. }
+        | RuntimeEvent::TranscriptBlockStart { .. }
+        | RuntimeEvent::TranscriptBlockDelta { .. }
+        | RuntimeEvent::TranscriptBlockComplete { .. }
+        | RuntimeEvent::ToolCallStarted { .. }
+        | RuntimeEvent::ToolCallArgumentsDelta { .. } => RuntimeEnvelopeSource::Model,
+        RuntimeEvent::ToolCallStatusUpdated { .. }
+        | RuntimeEvent::TranscriptBlockPhaseUpdated { .. }
+        | RuntimeEvent::ToolCallCompleted { .. }
+        | RuntimeEvent::ToolCallFailed { .. }
+        | RuntimeEvent::ApprovalRequest { .. }
+        | RuntimeEvent::ValidationResult { .. }
+        | RuntimeEvent::TurnEnd { .. }
+        | RuntimeEvent::Error { .. }
+        | RuntimeEvent::MaxTurnsReached { .. } => RuntimeEnvelopeSource::Runtime,
+    }
+}
+
+fn timestamp_string(timestamp: DateTime<Utc>) -> String {
+    timestamp.to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
 #[cfg(test)]

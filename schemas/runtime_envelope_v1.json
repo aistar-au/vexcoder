@@ -4,15 +4,33 @@
   "title": "RuntimeEnvelope v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "task_id", "turn", "seq", "event"],
+  "required": [
+    "version",
+    "task_id",
+    "turn",
+    "seq",
+    "event_id",
+    "emitted_at",
+    "source",
+    "event"
+  ],
   "properties": {
     "version": { "type": "integer", "const": 1 },
     "task_id": { "type": "string", "minLength": 1 },
     "turn": { "type": "integer", "minimum": 1 },
     "seq": { "type": "integer", "minimum": 1 },
+    "event_id": { "type": "string", "minLength": 1 },
+    "emitted_at": { "$ref": "#/$defs/timestamp" },
+    "source": { "$ref": "#/$defs/envelope_source" },
+    "request_id": { "type": ["string", "null"], "minLength": 1 },
+    "parent_event_id": { "type": ["string", "null"], "minLength": 1 },
     "event": { "$ref": "#/$defs/runtime_event" }
   },
   "$defs": {
+    "tool_call_id": {
+      "type": "string",
+      "pattern": "^tx_[0-9]+_[0-9a-f]{4}$"
+    },
     "tool_name": {
       "type": "string",
       "pattern": "^([a-z][a-z0-9_-]*|mcp\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_-]*)$"
@@ -24,6 +42,18 @@
     "tool_status": {
       "type": "string",
       "enum": ["pending", "waiting_approval", "executing", "complete", "error", "cancelled"]
+    },
+    "assistant_phase": {
+      "type": "string",
+      "enum": ["thinking", "final"]
+    },
+    "envelope_source": {
+      "type": "string",
+      "enum": ["model", "runtime", "user_request", "system"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
     },
     "token_usage": {
       "type": "object",
@@ -103,8 +133,12 @@
         { "$ref": "#/$defs/transcript_block_start" },
         { "$ref": "#/$defs/transcript_block_delta" },
         { "$ref": "#/$defs/transcript_block_complete" },
-        { "$ref": "#/$defs/tool_call" },
-        { "$ref": "#/$defs/tool_result" },
+        { "$ref": "#/$defs/tool_call_status_updated" },
+        { "$ref": "#/$defs/transcript_block_phase_updated" },
+        { "$ref": "#/$defs/tool_call_started" },
+        { "$ref": "#/$defs/tool_call_arguments_delta" },
+        { "$ref": "#/$defs/tool_call_completed" },
+        { "$ref": "#/$defs/tool_call_failed" },
         { "$ref": "#/$defs/approval_request" },
         { "$ref": "#/$defs/approval_resolved" },
         { "$ref": "#/$defs/validation_result" },
@@ -160,31 +194,95 @@
         "index": { "type": "integer", "minimum": 0 }
       }
     },
-    "tool_call": {
+    "tool_call_status_updated": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "id", "name", "arguments"],
+      "required": ["type", "tool_call_id", "status"],
       "properties": {
-        "type": { "const": "tool_call" },
-        "id": { "type": "string", "pattern": "^tx_[0-9]+_[0-9a-f]{4}$" },
-        "name": { "$ref": "#/$defs/tool_name" },
-        "arguments": { "type": "object" }
+        "type": { "const": "tool_call_status_updated" },
+        "tool_call_id": { "$ref": "#/$defs/tool_call_id" },
+        "status": { "$ref": "#/$defs/tool_status" }
       }
     },
-    "tool_result": {
+    "transcript_block_phase_updated": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "tool_call_id", "is_error", "output"],
+      "required": ["type", "index", "phase", "streaming"],
       "properties": {
-        "type": { "const": "tool_result" },
-        "tool_call_id": { "type": "string", "pattern": "^tx_[0-9]+_[0-9a-f]{4}$" },
+        "type": { "const": "transcript_block_phase_updated" },
+        "index": { "type": "integer", "minimum": 0 },
+        "phase": { "$ref": "#/$defs/assistant_phase" },
+        "streaming": { "type": "boolean" }
+      }
+    },
+    "tool_call_started": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "tool_call_id", "tool_name", "arguments", "status", "started_at"],
+      "properties": {
+        "type": { "const": "tool_call_started" },
+        "tool_call_id": { "$ref": "#/$defs/tool_call_id" },
+        "tool_name": { "$ref": "#/$defs/tool_name" },
+        "arguments": { "type": "object" },
+        "status": { "$ref": "#/$defs/tool_status" },
+        "started_at": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "tool_call_arguments_delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "tool_call_id", "delta", "status", "invalid_json"],
+      "properties": {
+        "type": { "const": "tool_call_arguments_delta" },
+        "tool_call_id": { "$ref": "#/$defs/tool_call_id" },
         "tool_name": {
           "oneOf": [
             { "$ref": "#/$defs/tool_name" },
             { "type": "null" }
           ]
         },
-        "is_error": { "type": "boolean" },
+        "delta": { "type": "string" },
+        "status": { "$ref": "#/$defs/tool_status" },
+        "invalid_json": { "type": "boolean", "default": false }
+      }
+    },
+    "tool_call_completed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "tool_call_id", "status", "completed_at", "output"],
+      "properties": {
+        "type": { "const": "tool_call_completed" },
+        "tool_call_id": { "$ref": "#/$defs/tool_call_id" },
+        "tool_name": {
+          "oneOf": [
+            { "$ref": "#/$defs/tool_name" },
+            { "type": "null" }
+          ]
+        },
+        "status": { "const": "complete" },
+        "started_at": { "type": ["string", "null"], "format": "date-time" },
+        "completed_at": { "$ref": "#/$defs/timestamp" },
+        "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
+        "output": { "type": "string" }
+      }
+    },
+    "tool_call_failed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "tool_call_id", "status", "completed_at", "output"],
+      "properties": {
+        "type": { "const": "tool_call_failed" },
+        "tool_call_id": { "$ref": "#/$defs/tool_call_id" },
+        "tool_name": {
+          "oneOf": [
+            { "$ref": "#/$defs/tool_name" },
+            { "type": "null" }
+          ]
+        },
+        "status": { "const": "error" },
+        "started_at": { "type": ["string", "null"], "format": "date-time" },
+        "completed_at": { "$ref": "#/$defs/timestamp" },
+        "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
         "output": { "type": "string" }
       }
     },

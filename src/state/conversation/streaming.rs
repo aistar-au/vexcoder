@@ -3,6 +3,7 @@ use super::{ConversationManager, ConversationStreamUpdate};
 use crate::runtime::json_handoff::RuntimeEvent;
 use crate::runtime::task_document::{AssistantPhase, TurnEntry};
 use crate::runtime::tokio::sync::mpsc;
+use chrono::{SecondsFormat, Utc};
 use std::collections::BTreeSet;
 
 impl ConversationManager {
@@ -59,14 +60,16 @@ impl ConversationManager {
                     content: content.clone(),
                 },
             }),
-            // RuntimeEvent::TranscriptBlockStart ignores ToolCall blocks in
-            // the condenser; use the dedicated ToolCall variant instead.
+            // ToolCall blocks use the dedicated tool lifecycle event instead
+            // of the generic transcript-block start path.
             StreamBlock::ToolCall {
-                id, name, input, ..
-            } => Some(RuntimeEvent::ToolCall {
-                id: id.clone(),
-                name: name.clone(),
+                id, name, input, status
+            } => Some(RuntimeEvent::ToolCallStarted {
+                tool_call_id: id.clone(),
+                tool_name: name.clone(),
                 arguments: input.clone(),
+                status: status.clone(),
+                started_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
             }),
             _ => None,
         };
@@ -241,12 +244,28 @@ impl ConversationManager {
                     })
                 });
 
-            self.apply_doc_event(RuntimeEvent::ToolResult {
-                tool_call_id: tool_call_id.clone(),
-                tool_name,
-                is_error,
-                output: output.clone(),
-            });
+            let event = if is_error {
+                RuntimeEvent::ToolCallFailed {
+                    tool_call_id: tool_call_id.clone(),
+                    tool_name,
+                    status: ToolStatus::Error,
+                    started_at: None,
+                    completed_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                    duration_ms: None,
+                    output: output.clone(),
+                }
+            } else {
+                RuntimeEvent::ToolCallCompleted {
+                    tool_call_id: tool_call_id.clone(),
+                    tool_name,
+                    status: ToolStatus::Complete,
+                    started_at: None,
+                    completed_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                    duration_ms: None,
+                    output: output.clone(),
+                }
+            };
+            self.apply_doc_event(event);
         }
 
         let index = self

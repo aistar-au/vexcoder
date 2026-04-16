@@ -165,15 +165,20 @@ fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_r
     // Populate an active turn with a successful write_file call.
     manager.ensure_task_doc();
     manager.begin_turn_doc("prompt".to_string(), TurnToolPolicy::Default);
-    manager.apply_doc_event(RuntimeEvent::ToolCall {
-        id: "tool_mut".to_string(),
-        name: "apply_patch".to_string(),
+    manager.apply_doc_event(RuntimeEvent::ToolCallStarted {
+        tool_call_id: "tool_mut".to_string(),
+        tool_name: "apply_patch".to_string(),
         arguments: json!({"path": "src/lib.rs"}),
+        status: ToolStatus::Pending,
+        started_at: "2026-04-16T00:00:00.000Z".to_string(),
     });
-    manager.apply_doc_event(RuntimeEvent::ToolResult {
+    manager.apply_doc_event(RuntimeEvent::ToolCallCompleted {
         tool_call_id: "tool_mut".to_string(),
         tool_name: Some("apply_patch".to_string()),
-        is_error: false,
+        status: ToolStatus::Complete,
+        started_at: Some("2026-04-16T00:00:00.000Z".to_string()),
+        completed_at: "2026-04-16T00:00:01.000Z".to_string(),
+        duration_ms: Some(1000),
         output: "patched".to_string(),
     });
     assert!(manager.current_turn_has_successful_mutation());
@@ -181,15 +186,20 @@ fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_r
     // Replace active turn with a read-only call.
     manager.finish_turn_doc(TurnOutcome::Completed, TurnTokens::default());
     manager.begin_turn_doc("prompt2".to_string(), TurnToolPolicy::Default);
-    manager.apply_doc_event(RuntimeEvent::ToolCall {
-        id: "tool_read".to_string(),
-        name: "read_file".to_string(),
+    manager.apply_doc_event(RuntimeEvent::ToolCallStarted {
+        tool_call_id: "tool_read".to_string(),
+        tool_name: "read_file".to_string(),
         arguments: json!({"path": "src/lib.rs"}),
+        status: ToolStatus::Pending,
+        started_at: "2026-04-16T00:00:00.000Z".to_string(),
     });
-    manager.apply_doc_event(RuntimeEvent::ToolResult {
+    manager.apply_doc_event(RuntimeEvent::ToolCallCompleted {
         tool_call_id: "tool_read".to_string(),
         tool_name: Some("read_file".to_string()),
-        is_error: false,
+        status: ToolStatus::Complete,
+        started_at: Some("2026-04-16T00:00:00.000Z".to_string()),
+        completed_at: "2026-04-16T00:00:01.000Z".to_string(),
+        duration_ms: Some(1000),
         output: "contents".to_string(),
     });
     assert!(
@@ -200,15 +210,20 @@ fn test_current_turn_has_successful_mutation_requires_successful_mutating_tool_r
     // Replace active turn with a failed mutating call.
     manager.finish_turn_doc(TurnOutcome::Completed, TurnTokens::default());
     manager.begin_turn_doc("prompt3".to_string(), TurnToolPolicy::Default);
-    manager.apply_doc_event(RuntimeEvent::ToolCall {
-        id: "tool_fail".to_string(),
-        name: "apply_patch".to_string(),
+    manager.apply_doc_event(RuntimeEvent::ToolCallStarted {
+        tool_call_id: "tool_fail".to_string(),
+        tool_name: "apply_patch".to_string(),
         arguments: json!({"path": "src/lib.rs"}),
+        status: ToolStatus::Pending,
+        started_at: "2026-04-16T00:00:00.000Z".to_string(),
     });
-    manager.apply_doc_event(RuntimeEvent::ToolResult {
+    manager.apply_doc_event(RuntimeEvent::ToolCallFailed {
         tool_call_id: "tool_fail".to_string(),
         tool_name: Some("apply_patch".to_string()),
-        is_error: true,
+        status: ToolStatus::Error,
+        started_at: Some("2026-04-16T00:00:00.000Z".to_string()),
+        completed_at: "2026-04-16T00:00:01.000Z".to_string(),
+        duration_ms: Some(1000),
         output: "error".to_string(),
     });
     assert!(
