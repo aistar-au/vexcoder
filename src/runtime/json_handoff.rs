@@ -179,7 +179,7 @@ pub type ToolCallId = String;
 /// accumulator never creates its own IDs.
 pub fn generate_tool_call_id(counter: &AtomicU32, entropy: u16) -> ToolCallId {
     let count = counter.fetch_add(1, Ordering::SeqCst);
-    format!("tx_{}_{:04x}", count, entropy & 0xffff)
+    format!("tx_{}_{entropy:04x}", count)
 }
 
 #[derive(Debug, Clone)]
