@@ -41,6 +41,9 @@ All ADR files are stored under `adr/`.
 | [ADR-043](ADR-043-structured-output-parser-adoption-gates.md) | Structured output parser adoption gates | Active, with open adoption gates | Present in tree but not the default runtime parser path; 3 gates: live wiring, parity, defect reduction |
 | [ADR-044](ADR-044-test-suite-scalability-and-fixture-patterns.md) | Test suite scalability and fixture patterns | Proposed | 3-phase implementation roadmap; Phase 1: aggregator + RAII helpers; Phase 2: builder API + async; Phase 3: parameterization + coverage |
 | [ADR-045](ADR-045-replay-first-task-document-and-single-writer-state.md) | Replay-first task document and single-writer state | Proposed | Defines `TaskDocumentCondenser` as sole writer, `RuntimeEventLog` as canonical persisted history, full event coverage requirement, full-fidelity checkpoints, and session rollback markers; supersedes lossy `persistable_snapshot` as canonical resume source |
+| [ADR-046](ADR-046-agent-peer-message-channel.md) | Agent peer message channel | Accepted | Async append-only peer correction channel is accepted; dependency-direction constraints continue to govern any cross-process bridge |
+| [ADR-047 amendment](ADR-047-amendment-2026-04-16.md) | API-first runtime event envelope and trait reduction | Amended | Phase A targets `json_handoff.rs` envelope metadata and explicit tool lifecycle events before retiring terminal-era runtime traits |
+| [ADR-047](ADR-047-block-delta-protocol-discovery-dual-protocol-support.md) | Block-delta default, discovery, and dual-protocol support | Accepted | `tx_` IDs, negotiated `/v1/turns`, mapper SSE coverage, and unified local discovery are merged; docs and broader parity follow-through remain |
 
 ## Implementation-Complete ADRs (pending move to completed/)
 
