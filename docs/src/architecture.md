@@ -281,7 +281,7 @@ adopt only when there is a live code path and a focused verification seam.
 | `console-subscriber` | **Deferred** | Useful for local runtime diagnostics, but it is debug-only instrumentation and not part of the shipping transport, auth, or CLI contract. |
 | `tui-textarea`, `tui-input`, `ratatui-image`, `tui-tree-widget`, `tui-logger`, `throbber-widgets-tui`, `ratatui-splash-screen` | **Deferred** | The current editor, transcript, and task-surface code already own these concerns.  A widget-crate swap would be a UI-architecture lane, not a transport follow-up. |
 | `directories`, `config`, `strum`, `bytesize` | **Deferred** | Current config loading, XDG path resolution, enum handling, and byte-count formatting already stay localized in existing repo seams.  Adding alternate helpers now would duplicate working code. |
-| `dialoguer`, `palette` | **Deferred** | These remain plausible polish crates, but there is still no live prompt/theme seam that requires them in the current tree. |
+| `dialoguer`, `palette` | **Deferred** | These remain plausible polish crates, but the current tree still lacks a concrete prompt or theme seam that would justify them without speculative churn. |
 
 ### Vexcoder-specific crates
 
