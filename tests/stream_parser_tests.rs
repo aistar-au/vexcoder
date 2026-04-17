@@ -389,3 +389,46 @@ fn test_regression_progress_updates_across_multiple_chunks() {
         "all three prompt_progress.processed updates must be forwarded"
     );
 }
+
+// ---------------------------------------------------------------------------
+// WHATWG HTML §9.2.6 — id: and retry: field compliance (C1 fix)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn sse_parser_tracks_last_event_id_from_id_field() {
+    let mut parser = StreamParser::new();
+    let chunk = b"id: evt-42\ndata: {}\n\n";
+    parser.process(chunk).expect("frame should parse");
+    assert_eq!(
+        parser.last_event_id(),
+        Some("evt-42"),
+        "parser must store the last id: value per WHATWG HTML \u{a7}9.2.6"
+    );
+}
+
+#[test]
+fn sse_parser_updates_last_event_id_across_frames() {
+    let mut parser = StreamParser::new();
+    parser.process(b"id: first\ndata: {}\n\n").unwrap();
+    parser.process(b"id: second\ndata: {}\n\n").unwrap();
+    assert_eq!(parser.last_event_id(), Some("second"));
+}
+
+#[test]
+fn sse_parser_stores_retry_delay_ms() {
+    let mut parser = StreamParser::new();
+    parser.process(b"retry: 3000\ndata: {}\n\n").unwrap();
+    assert_eq!(
+        parser.reconnect_delay_ms(),
+        Some(3000),
+        "parser must store the retry: value in milliseconds per WHATWG HTML \u{a7}9.2.6"
+    );
+}
+
+#[test]
+fn sse_parser_ignores_unknown_fields_and_parses_data() {
+    let mut parser = StreamParser::new();
+    let chunk = b"custom-field: ignored\ndata: {}\n\n";
+    let events = parser.process(chunk).expect("unknown field must not abort parse");
+    assert!(!events.is_empty(), "data field must still produce an event");
+}

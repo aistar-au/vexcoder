@@ -31,6 +31,11 @@ pub struct StreamParser {
     chat_compat_message_started: bool,
     bom_checked: bool,
     overflowed: bool,
+    // WHATWG HTML §9.2.6 — last received event ID and reconnection delay.
+    // Updated as id: and retry: fields are parsed; exposed for callers that
+    // implement reconnection with Last-Event-ID semantics.
+    last_event_id: Option<String>,
+    reconnect_delay_ms: Option<u64>,
 }
 
 #[derive(Default, Clone)]
@@ -160,6 +165,12 @@ impl StreamParser {
                 event_type = Some(strip_single_leading_space(rest).to_string());
             } else if let Some(rest) = line.strip_prefix("data:") {
                 data_lines.push(strip_single_leading_space(rest).to_string());
+            } else if let Some(rest) = line.strip_prefix("id:") {
+                self.last_event_id = Some(strip_single_leading_space(rest).to_string());
+            } else if let Some(rest) = line.strip_prefix("retry:") {
+                if let Ok(ms) = strip_single_leading_space(rest).parse::<u64>() {
+                    self.reconnect_delay_ms = Some(ms);
+                }
             }
         }
 
@@ -537,6 +548,16 @@ impl StreamParser {
                 state.stopped = true;
             }
         }
+    }
+
+    /// Returns the last event ID received from the stream (WHATWG HTML §9.2.6).
+    pub fn last_event_id(&self) -> Option<&str> {
+        self.last_event_id.as_deref()
+    }
+
+    /// Returns the reconnection delay hint from the stream in milliseconds (WHATWG HTML §9.2.6).
+    pub fn reconnect_delay_ms(&self) -> Option<u64> {
+        self.reconnect_delay_ms
     }
 }
 
