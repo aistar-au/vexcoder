@@ -166,7 +166,12 @@ impl StreamParser {
             } else if let Some(rest) = line.strip_prefix("data:") {
                 data_lines.push(strip_single_leading_space(rest).to_string());
             } else if let Some(rest) = line.strip_prefix("id:") {
-                self.last_event_id = Some(strip_single_leading_space(rest).to_string());
+                let val = strip_single_leading_space(rest);
+                if !val.contains('\0') {
+                    self.last_event_id = Some(val.to_string());
+                }
+            } else if line == "id" {
+                self.last_event_id = Some(String::new());
             } else if let Some(rest) = line.strip_prefix("retry:")
                 && let Ok(ms) = strip_single_leading_space(rest).parse::<u64>()
             {
