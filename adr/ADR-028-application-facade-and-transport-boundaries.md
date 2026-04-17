@@ -97,7 +97,7 @@ For the current ADR chain, transport means the ADR-026 `LocalApiServer` surface 
 - receive high-level commands from outer layers and route them into runtime entrypoints;
 - centralize command semantics and validation that should be shared across CLI and server;
 - shape application output into ADR-025 canonical runtime JSON where a machine-readable seam is required;
-- provide a narrow coordination boundary above runtime and below CLI or transport.
+- provide a focused coordination boundary above runtime and below CLI or transport.
 
 **Non-responsibilities**
 

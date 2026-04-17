@@ -53,7 +53,7 @@ left implicit:
   bytes instead of attempting UTF-8 reads.
 - Session state stays simple: no disk persistence, no hidden rollback metadata,
   and no dependency on repository cleanliness.
-- The first implementation remains intentionally narrow around single-path file
+- The first implementation remains intentionally focused on single-path file
    mutations; if a future tool requires coordinated multi-path rollback, that must be
   specified explicitly in a later ADR amendment or successor ADR.
 

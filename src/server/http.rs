@@ -139,12 +139,37 @@ pub async fn run_http_surface(
 
     match surface.tls {
         Some(tls_config) => serve_tls_listener(listener, router, tls_config, shutdown).await,
-        None => axum::serve(listener, router)
-            .with_graceful_shutdown(async move {
-                shutdown.cancelled().await;
-            })
-            .await
-            .context("LocalApiServer exited with an error"),
+        None => serve_plain_listener(listener, router, shutdown).await,
+    }
+}
+
+async fn serve_plain_listener(
+    listener: TcpListener,
+    router: Router,
+    shutdown: CancellationToken,
+) -> Result<()> {
+    loop {
+        select! {
+            _ = shutdown.cancelled() => return Ok(()),
+            accepted = listener.accept() => {
+                let (stream, _) = accepted.context("failed to accept LocalApiServer connection")?;
+                let service = TowerToHyperService::new(router.clone());
+                let shutdown = shutdown.clone();
+                spawn(async move {
+                    let io = TokioIo::new(stream);
+                    let builder = http1_connection_builder();
+                    let connection = builder.serve_connection(io, service);
+                    select! {
+                        _ = shutdown.cancelled() => {}
+                        result = connection => {
+                            if let Err(error) = result {
+                                eprintln!("[local api] connection error: {error}");
+                            }
+                        }
+                    }
+                });
+            }
+        }
     }
 }
 
@@ -172,9 +197,7 @@ async fn serve_tls_listener(
                         }
                     };
                     let io = TokioIo::new(tls_stream);
-                    let mut builder = HyperConnectionBuilder::new(TokioExecutor::new());
-                    builder.http1().header_read_timeout(Duration::from_secs(30));
-                    builder.http1().keep_alive(true);
+                    let builder = http1_connection_builder();
                     let connection = builder.serve_connection(io, service);
                     select! {
                         _ = shutdown.cancelled() => {}
@@ -188,4 +211,11 @@ async fn serve_tls_listener(
             }
         }
     }
+}
+
+fn http1_connection_builder() -> HyperConnectionBuilder<TokioExecutor> {
+    let mut builder = HyperConnectionBuilder::new(TokioExecutor::new());
+    builder.http1().header_read_timeout(Duration::from_secs(30));
+    builder.http1().keep_alive(true);
+    builder
 }

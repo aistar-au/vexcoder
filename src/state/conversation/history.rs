@@ -672,14 +672,14 @@ fn tool_error_hint(name: &str) -> Option<&'static str> {
             "Locate the workspace-relative target first, then retry with an explicit path or pattern.",
         ),
         "search_files" | "search" | "search_content" | "codebase_search" => Some(
-            "Retry with a narrower query or a concrete path scope so the next search result is easier to use.",
+            "Retry with a focused query or a concrete path scope so the next search result is easier to use.",
         ),
         "write_file" | "apply_patch" | "edit_file" | "rename_file" => {
-            Some("Re-read the target path and retry with a narrower file edit or patch.")
+            Some("Re-read the target path and retry with a focused file edit or patch.")
         }
-        "git_status" | "git_diff" | "git_log" | "git_show" => Some(
-            "Retry with a narrower git target if the repository state is larger than expected.",
-        ),
+        "git_status" | "git_diff" | "git_log" | "git_show" => {
+            Some("Retry with a focused git target if the repository state is larger than expected.")
+        }
         _ => None,
     }
 }

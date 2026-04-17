@@ -31,8 +31,6 @@ pub struct StreamParser {
     chat_compat_message_started: bool,
     bom_checked: bool,
     overflowed: bool,
-    last_event_id: Option<String>,
-    retry_ms: Option<u64>,
 }
 
 #[derive(Default, Clone)]
@@ -160,13 +158,6 @@ impl StreamParser {
             }
             if let Some(rest) = line.strip_prefix("event:") {
                 event_type = Some(strip_single_leading_space(rest).to_string());
-            } else if let Some(rest) = line.strip_prefix("id:") {
-                self.last_event_id = Some(strip_single_leading_space(rest).to_string());
-            } else if let Some(rest) = line.strip_prefix("retry:") {
-                let value = strip_single_leading_space(rest);
-                if value.bytes().all(|byte| byte.is_ascii_digit()) {
-                    self.retry_ms = value.parse::<u64>().ok();
-                }
             } else if let Some(rest) = line.strip_prefix("data:") {
                 data_lines.push(strip_single_leading_space(rest).to_string());
             }
@@ -256,9 +247,7 @@ impl StreamParser {
         }
 
         let prefix_len = self.buffer.len().min(UTF8_BOM.len());
-        if self.buffer[..prefix_len] != UTF8_BOM[..prefix_len]
-            || self.buffer.len() >= UTF8_BOM.len()
-        {
+        if prefix_len == UTF8_BOM.len() || self.buffer[..prefix_len] != UTF8_BOM[..prefix_len] {
             self.bom_checked = true;
         }
     }
@@ -564,7 +553,7 @@ fn frame_without_data_should_error(frame: &str) -> bool {
         .split('\n')
         .map(str::trim)
         .filter(|line| !line.is_empty() && !line.starts_with(':'))
-        .any(|line| !line.contains(':') || looks_like_raw_json_payload(line))
+        .any(looks_like_raw_json_payload)
 }
 
 fn looks_like_raw_json_payload(text: &str) -> bool {

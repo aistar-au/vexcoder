@@ -19,7 +19,7 @@ ADR-024 reserves `LocalApiServer` as the post-phase-1 path for exposing the shar
 
 ADR-025 now defines the missing transport-neutral machine-readable contract: `RuntimeRequest` and `RuntimeEnvelope`.
 
-This ADR therefore does **not** need to invent a new event schema. Its job is narrower and more precise:
+This ADR therefore does **not** need to invent a new event schema. Its job is more focused and more precise:
 
 > bind ADR-025's canonical runtime JSON contract to a concrete local transport so the runtime can be driven through a local API without duplicating runtime logic.
 

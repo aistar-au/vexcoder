@@ -278,6 +278,14 @@ fn test_process_id_only_frame_emits_no_event() {
 }
 
 #[test]
+fn test_process_colon_free_field_name_is_ignored() {
+    let mut parser = StreamParser::new();
+    let events = parser.process(b"custom-field\n\n").unwrap();
+
+    assert!(events.is_empty());
+}
+
+#[test]
 fn test_process_raw_json_frame_without_data_emits_error() {
     let mut parser = StreamParser::new();
     let events = parser.process(b"{\"type\":\"ping\"}\n\n").unwrap();

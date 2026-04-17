@@ -51,7 +51,7 @@ Residual deltas against `batch-start.txt`:
 
 ### Post-merge follow-up todo
 
-- Open the next narrow cleanup lane for the remaining deltas from PRs #350-
+- Open the next focused cleanup lane for the remaining deltas from PRs #350-
   #353: remove marker decoding from `src/ui/render/transcript.rs` and move
   command-session ownership fully into `task_doc`.
 

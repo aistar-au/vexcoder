@@ -457,7 +457,7 @@ rows into host scrollback insertion sequences.
 
 Stop using main-surface full-history display-row expansion as the indefinite
 scroll owner. `expand_rows_for_display()` in `src/ui/render/transcript.rs`
-is narrowed to overlay and owned-transcript fallback use only.
+is streamlined to overlay and owned-transcript fallback use only.
 
 ### D21: Turn-boundary reset semantics
 

@@ -54,6 +54,16 @@ fn re_retry_body() -> &'static regex_lite::Regex {
     })
 }
 
+fn clamp_delay_ms(value: f64) -> Option<u64> {
+    if value.is_nan() || value.is_sign_negative() {
+        return None;
+    }
+    if value.is_infinite() {
+        return Some(u64::MAX);
+    }
+    Some(value.min(u64::MAX as f64) as u64)
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -68,7 +78,7 @@ pub fn parse_retry_after_header(value: &str) -> Option<RetryHint> {
     if let Some(caps) = re_retry_after_header().captures(trimmed) {
         let seconds: f64 = caps[1].parse().ok()?;
         return Some(RetryHint {
-            delay_ms: (seconds * 1000.0) as u64,
+            delay_ms: clamp_delay_ms(seconds * 1000.0)?,
             source: RetryHintSource::Header,
         });
     }
@@ -93,9 +103,9 @@ pub fn parse_retry_from_body(body: &str) -> Option<RetryHint> {
     let value: f64 = caps[1].parse().ok()?;
     let unit = caps[2].to_ascii_lowercase();
     let delay_ms = if unit.starts_with("ms") || unit.starts_with("milli") {
-        value as u64
+        clamp_delay_ms(value)?
     } else {
-        (value * 1000.0) as u64
+        clamp_delay_ms(value * 1000.0)?
     };
     Some(RetryHint {
         delay_ms,
@@ -131,6 +141,12 @@ mod tests {
     fn test_parse_retry_after_header_decimal() {
         let hint = parse_retry_after_header("1.5").unwrap();
         assert_eq!(hint.delay_ms, 1500);
+    }
+
+    #[test]
+    fn test_parse_retry_after_header_large_value_clamps_to_u64_max() {
+        let hint = parse_retry_after_header("18446744073709551616").unwrap();
+        assert_eq!(hint.delay_ms, u64::MAX);
     }
 
     #[test]

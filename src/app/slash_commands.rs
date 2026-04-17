@@ -489,7 +489,7 @@ pub(super) fn builtin_tool_usage_hint(name: &str) -> &'static str {
             "start broad at the workspace or directory level"
         }
         "glob_files" => "find files by name pattern across the workspace",
-        "find_files" => "narrow to filename matches before reading content",
+        "find_files" => "focus on filename matches before reading content",
         "search" | "search_content" => "scan exact text or regex hits across files",
         "codebase_search" => "rank functions, types, and code snippets before opening files",
         "read_file" => "read exact paths after discovery narrows the target",
