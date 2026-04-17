@@ -4,7 +4,7 @@
 
 **Depends on:** None (green on current main)
 
-**Current status (2026-04-07):** The current PR 6 branch narrows this task to
+**Current status (2026-04-07):** The current PR 6 branch streamlines this task to
 the search-substrate cutover from `batch-start.txt`: whole-workspace structural
 indexing, live use of the Python and JS/TS tree-sitter grammars, and one
 shared glob matcher across `glob_files`, `find_files`, and `search_content`.

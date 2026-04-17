@@ -720,7 +720,7 @@ When checking any PI-13…PI-16 box, append an evidence block:
 
 ## Compliance notes for agents
 
-**Relationship to ADR-024 compliance notes:** the rules below are additive to ADR-024's compliance table. All ADR-024 compliance rules remain in effect. Where a rule here overlaps ADR-024, this ADR narrows it for the LocalApiServer / runtime-JSON seam rather than replacing it.
+**Relationship to ADR-024 compliance notes:** the rules below are additive to ADR-024's compliance table. All ADR-024 compliance rules remain in effect. Where a rule here overlaps ADR-024, this ADR focuses it on the LocalApiServer / runtime-JSON seam rather than replacing it.
 
 | This ADR rule | ADR-024 cross-reference |
 |--------------|------------------------|

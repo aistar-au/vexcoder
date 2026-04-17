@@ -583,7 +583,7 @@ Rejected. Inline constants are harder to audit for prohibited names, cannot be d
 
 ### Use `RuntimeCorePolicy` to inject the coding system prompt
 
-Rejected. `RuntimeCorePolicy` applies globally. The coding prompt is narrowly scoped to active edit-loop and semantic-command turns.
+Rejected. `RuntimeCorePolicy` applies globally. The coding prompt is focused on active edit-loop and semantic-command turns.
 
 ### Embedding-based context assembly
 
