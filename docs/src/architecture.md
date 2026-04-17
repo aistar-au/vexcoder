@@ -261,6 +261,28 @@ does not accumulate unused crates.
 | `walkdir` | Recursive directory traversal | **Design rejects** | vexcoder uses `ignore` (from the ripgrep ecosystem) which already provides recursive traversal with `.gitignore` support.  Adding `walkdir` would duplicate traversal logic.  `ignore` is the conventional choice for git-aware CLI tools. |
 | `notify` | Filesystem event watching | **Next batch planned** | Enables watch-mode for `git_rollup` to detect working-tree changes without polling.  Will integrate with the existing `git_rollup.rs` orchestration layer. |
 
+### RFC follow-up suitability
+
+The transport and auth follow-up after the first RFC-audit merge rechecked the
+requested crate set against the current seams.  The rule stayed the same:
+adopt only when there is a live code path and a focused verification seam.
+
+| Crate / feature | Decision | Current seam / rationale |
+|-------|----------|--------------------------|
+| `reqwest` `multipart` feature | **Adopted now** | RFC 7578 readiness belongs on the workspace-owned HTTP client seam in `src/api/client/mod.rs` and `src/net/http_client.rs`.  The CLI surface is still text-only, but enabling multipart on that shared client keeps future media-bearing requests on the same transport profile. |
+| `oauth2` native code exchange (`CodeTokenRequest`) | **Adopted now** | RFC 8252 native-app flow now stays localized in `src/net/oauth.rs`: loopback redirect validation, PKCE authorization URL construction, and authorization-code exchange share one seam while issuing HTTP requests through the workspace `reqwest` client profile. |
+| `open` | **Adopted now** | Browser launch for native-app authorization belongs beside the OAuth helper seam in `src/net/oauth.rs`, not in the TUI or command-routing layer. |
+| HTTP/2 on the existing `reqwest` / `hyper` / `hyper-util` / `axum` stack | **Adopted now** | The workspace transport seam already owns HTTP negotiation, so h2 readiness is delivered by enabling negotiated HTTP/2 and ALPN on that shared client and server path instead of introducing a second transport layer. |
+| `ring` | **Already active** | The TLS stack already uses `rustls` with the `ring` provider enabled, so no follow-up crate add is needed for the current crypto posture. |
+| `ciborium` | **Deferred** | The runtime contract remains JSON-first (ADR-025 / ADR-026).  There is no CBOR wire format in the current CLI, local API server, or persisted task-state path, so adding a CBOR parser now would be speculative. |
+| `pkcs8` / `pem` | **Deferred** | `src/server/util.rs` already uses the rustls `pki_types` PEM readers and key loaders for the current TLS seam.  Adding parallel PEM / PKCS#8 parsers now would duplicate certificate and key handling without adding a live path. |
+| Direct `h2` / `quinn` crates | **Deferred** | The current follow-up only needs negotiated HTTP/2 on the existing transport stack.  Low-level frame-window tuning (`h2`) or HTTP/3 / QUIC transport (`quinn`) should wait until vexcoder owns direct frame control or a QUIC endpoint. |
+| `signal-hook` | **Deferred** | The TUI already receives resize events through `crossterm` and shutdown through the Tokio signal seam.  A second signal layer would duplicate current display-resize and ctrl-c handling. |
+| `console-subscriber` | **Deferred** | Useful for local runtime diagnostics, but it is debug-only instrumentation and not part of the shipping transport, auth, or CLI contract. |
+| `tui-textarea`, `tui-input`, `ratatui-image`, `tui-tree-widget`, `tui-logger`, `throbber-widgets-tui`, `ratatui-splash-screen` | **Deferred** | The current editor, transcript, and task-surface code already own these concerns.  A widget-crate swap would be a UI-architecture lane, not a transport follow-up. |
+| `directories`, `config`, `strum`, `bytesize` | **Deferred** | Current config loading, XDG path resolution, enum handling, and byte-count formatting already stay localized in existing repo seams.  Adding alternate helpers now would duplicate working code. |
+| `human-panic`, `dialoguer`, `tabled`, `palette` | **Deferred** | These are reasonable polish crates, but they do not close a current RFC or transport gap and would broaden the PR beyond the active follow-up lane. |
+
 ### Vexcoder-specific crates
 
 The following crates are in vexcoder's tree but not in comparable CLI toolchains.  Each serves
