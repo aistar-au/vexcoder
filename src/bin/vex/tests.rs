@@ -5,8 +5,7 @@
 use super::{
     Cli, Commands, CredentialsCommands, MigrateCommands, SkillsCommands,
     emit_migrate_config_output, format_task_entries_table, read_secret_from_env_var,
-    read_secret_from_reader, render_task_entries,
-    resolve_credentials_secret, resolve_resume_state,
+    read_secret_from_reader, render_task_entries, resolve_credentials_secret, resolve_resume_state,
 };
 use clap::Parser;
 use clap_complete::Shell;
