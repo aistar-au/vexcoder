@@ -1,3 +1,10 @@
+//! Reqwest-backed EventSource bridge.
+//!
+//! The upstream streaming endpoints require `POST` request bodies, so this
+//! module intentionally uses EventSource framing without the browser
+//! `GET`-only interface contract. Reconnect is disabled because retrying a
+//! non-idempotent streamed generation request would duplicate work and billing.
+
 use crate::api::client::{map_api_request_error, map_api_status_error};
 use crate::api::stream::StreamParser;
 use crate::runtime::backend::EventStream;
@@ -25,8 +32,12 @@ pub(crate) async fn create_event_stream(
                 error
             )
         })?
+        // Intentional deviation from the browser EventSource interface: the
+        // upstream APIs require POST bodies for streamed generation.
         .method("POST".to_string())
         .body(payload.to_string())
+        // Reconnect stays disabled for POST streaming requests. Replaying a
+        // partial generation would not be idempotent and could duplicate work.
         .reconnect(ReconnectOptions::reconnect(false).build());
 
     for (name, value) in headers {

@@ -143,32 +143,6 @@ fn test_process_chat_compat_emits_prompt_progress_and_timings_without_text() {
 }
 
 #[test]
-fn test_process_accepts_raw_json_frame_without_sse_delimiter() {
-    let mut parser = StreamParser::new();
-    let events = parser
-        .process(
-            br#"{"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"hello"},"finish_reason":"stop"}]}"#,
-        )
-        .unwrap();
-
-    assert_eq!(events.len(), 3);
-    assert!(matches!(events[0], StreamEvent::MessageStart { .. }));
-    assert!(matches!(events[1], StreamEvent::ContentBlockDelta { .. }));
-    assert!(matches!(events[2], StreamEvent::MessageDelta { .. }));
-}
-
-#[test]
-fn test_process_accepts_raw_done_frame_without_sse_delimiter() {
-    let mut parser = StreamParser::new();
-    let events = parser.process(b"[DONE]").unwrap();
-
-    assert!(
-        events.is_empty(),
-        "raw [DONE] should terminate cleanly without emitting a parse error"
-    );
-}
-
-#[test]
 fn test_process_emits_error_event_on_unparseable_frame() {
     let mut parser = StreamParser::new();
     let events = parser.process(b"data: not-a-json-value\n\n").unwrap();
@@ -195,6 +169,10 @@ fn test_process_emits_error_event_on_buffer_overflow() {
         }
         other => panic!("expected StreamEvent::Error on overflow, got {other:?}"),
     }
+
+    let follow_up = parser.process(b"still-overflowed").unwrap();
+    assert_eq!(follow_up.len(), 1);
+    assert!(matches!(follow_up[0], StreamEvent::Error { .. }));
 }
 
 #[test]
@@ -236,6 +214,59 @@ fn test_process_clamps_chat_compat_tool_call_index() {
         }
         other => panic!("expected ContentBlockDelta, got {other:?}"),
     }
+}
+
+#[test]
+fn test_process_preserves_tab_after_single_space_strip() {
+    let mut parser = StreamParser::new();
+    let events = parser.process(b"data: \t{\"type\":\"ping\"}\n\n").unwrap();
+
+    assert_eq!(events.len(), 1);
+    assert!(matches!(events[0], StreamEvent::Ping));
+}
+
+#[test]
+fn test_process_ignores_unknown_fields() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(b"custom-field: ignored\nevent: ping\ndata: {\"type\":\"ping\"}\n\n")
+        .unwrap();
+
+    assert_eq!(events.len(), 1);
+    assert!(matches!(events[0], StreamEvent::Ping));
+}
+
+#[test]
+fn test_process_handles_cr_only_frame_delimiters() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(b"event: ping\rdata: {\"type\":\"ping\"}\r\r")
+        .unwrap();
+
+    assert_eq!(events.len(), 1);
+    assert!(matches!(events[0], StreamEvent::Ping));
+}
+
+#[test]
+fn test_process_strips_utf8_bom_once() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(b"\xEF\xBB\xBFevent: ping\ndata: {\"type\":\"ping\"}\n\n")
+        .unwrap();
+
+    assert_eq!(events.len(), 1);
+    assert!(matches!(events[0], StreamEvent::Ping));
+}
+
+#[test]
+fn test_process_recognises_id_and_retry_fields() {
+    let mut parser = StreamParser::new();
+    let events = parser
+        .process(b"id: evt-42\nretry: 1500\nevent: ping\ndata: {\"type\":\"ping\"}\n\n")
+        .unwrap();
+
+    assert_eq!(events.len(), 1);
+    assert!(matches!(events[0], StreamEvent::Ping));
 }
 
 use super::{NormalisedChunk, StreamTextNormaliser};

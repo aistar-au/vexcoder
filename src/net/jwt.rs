@@ -4,12 +4,14 @@
 //!
 //! | RFC | Title | Covered |
 //! |-----|-------|---------|
-//! | [RFC 7519](https://www.rfc-editor.org/rfc/rfc7519) | JSON Web Token (JWT) | Claims structure, validation |
-//! | [RFC 7515](https://www.rfc-editor.org/rfc/rfc7515) | JSON Web Signature (JWS) | HMAC-SHA256 signature generation and verification |
+//! | [RFC 7519](https://www.rfc-editor.org/rfc/rfc7519) | JSON Web Token (JWT) | Registered claims and compact serialisation for HS256 tokens |
+//! | [RFC 7515](https://www.rfc-editor.org/rfc/rfc7515) | JSON Web Signature (JWS) | HS256 signing and verification only |
 //!
 //! The `typ` header, registered claim names (`iss`, `sub`, `aud`, `exp`,
 //! `nbf`, `iat`, `jti`), and compact serialisation format follow RFC 7519.
-//! Algorithm identifier (`HS256`) follows RFC 7518.
+//! Algorithm identifier (`HS256`) follows RFC 7518. RS256 and ES256 are out of
+//! scope for this wrapper; callers that need them require an API extension,
+//! not a wrapper tweak.
 
 use anyhow::{Context, Result, anyhow};
 use jsonwebtoken::{

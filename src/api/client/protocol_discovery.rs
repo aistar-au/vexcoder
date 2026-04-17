@@ -74,7 +74,7 @@ async fn probe_endpoint(url: &str, accept_header: &str, client: &reqwest::Client
         .get(url)
         .header("Accept", accept_header)
         .header("Accept-Encoding", "identity")
-        .timeout(Duration::from_millis(500))
+        .timeout(Duration::from_secs(2))
         .send()
         .await;
 

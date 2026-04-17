@@ -789,6 +789,21 @@ fn test_map_api_status_error_429_with_retry_after_header() {
 }
 
 #[test]
+fn test_map_api_status_error_429_with_retry_after_http_date_header() {
+    let retry_after =
+        httpdate::fmt_http_date(std::time::SystemTime::now() + std::time::Duration::from_secs(3));
+    let err = map_api_status_error(
+        reqwest::StatusCode::TOO_MANY_REQUESTS,
+        "rate limit exceeded",
+        "https://api.example.com/v1/messages",
+        Some(&retry_after),
+    );
+    let msg = format!("{}", err);
+    assert!(msg.contains("rate limited"), "got: {msg}");
+    assert!(msg.contains("Retry suggested after"), "got: {msg}");
+}
+
+#[test]
 fn test_map_api_status_error_429_body_fallback() {
     let err = map_api_status_error(
         reqwest::StatusCode::TOO_MANY_REQUESTS,
@@ -1010,6 +1025,7 @@ fn test_native_protocol_overrides_configured_protocol() {
             model: "test".to_string(),
             native_protocol: Some(ModelProtocol::ChatCompat),
         }))),
+        tls_verification_disabled: false,
         #[cfg(test)]
         mock_stream_producer: None,
     };
@@ -1052,6 +1068,7 @@ fn test_no_native_protocol_falls_back_to_configured() {
             model: "test".to_string(),
             native_protocol: None,
         }))),
+        tls_verification_disabled: false,
         #[cfg(test)]
         mock_stream_producer: None,
     };

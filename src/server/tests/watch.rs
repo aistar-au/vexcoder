@@ -56,6 +56,18 @@ async fn test_watch_session_task_stream_emits_rollup_and_terminates_on_terminal(
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get(CACHE_CONTROL).unwrap(),
+        "no-cache, no-store, must-revalidate"
+    );
+    assert_eq!(response.headers().get("x-accel-buffering").unwrap(), "no");
+    assert!(
+        response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.contains("text/event-stream"))
+    );
 
     let raw = timeout(
         Duration::from_secs(5),

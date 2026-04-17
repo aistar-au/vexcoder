@@ -35,6 +35,37 @@ local seam files such as `src/ui/tui.rs`,
 - `src/tools/workspace_explore.rs` provides the `list_dir` and `glob_files` tools for workspace exploration. Both are workspace-confined, `.gitignore`-aware, and bounded to prevent unbounded output.
 - `src/tools/workspace_ignore.rs` implements `WorkspaceIgnore` on top of the `ignore` crate's gitignore matcher so that `search_files`, `list_dir`, `glob_files`, and `find_files` all skip ignored paths with gitignore-compatible directory semantics.
 
+## HTTP and SSE contract
+
+The transport stack is aligned to RFC 9110, RFC 9111, RFC 9112, RFC 8259, the
+WHATWG server-sent-events parsing algorithm, RFC 7519, and RFC 8446 for the
+protocol surface implemented in-tree.
+
+- Upstream streaming requests are sent as `POST` with `application/json`, a
+   versioned `User-Agent`, `Accept-Encoding: identity`, and request-side
+   `Cache-Control: no-store`.
+- Local API streaming responses are emitted as `text/event-stream` with
+   `Cache-Control: no-cache, no-store, must-revalidate` and
+   `X-Accel-Buffering: no` so intermediaries do not cache or buffer the stream.
+- The shared SSE parser accepts `event`, `data`, `id`, and `retry` fields,
+   strips a single leading space per WHATWG rules, handles BOM-prefixed streams,
+   and recognises `\n`, `\r\n`, and `\r` line terminators.
+- Raw JSON chunk streams without SSE framing are unsupported. Providers and
+   local backends are expected to emit valid SSE frames.
+
+Intentional deviations are documented and narrow:
+
+- Browser EventSource is `GET`-only, but upstream model APIs require `POST`
+   request bodies for streamed generation.
+- Automatic reconnect is disabled for streamed generations because replaying a
+   partial `POST` request would not be idempotent.
+- The local API server omits SSE event ids until resumable replay exists.
+   Timestamp ids are not stable resume tokens and would mislead clients.
+- The local API server currently targets HTTP/1.1 semantics and framing. HTTP/2
+   is not required for the current compliance scope.
+- TLS 1.3 is preferred. TLS 1.2 remains enabled only for compatibility with
+   older local and private inference servers.
+
 ## Streaming protocol coverage
 
 The shared SSE parser in `src/api/stream.rs` and the normalized type surface in
@@ -143,7 +174,7 @@ The `regex-lite` modules live under `src/runtime/` as three focused files:
 
 - **`git_parse.rs`** -- Structured parsing of `git status --porcelain`, `git diff --stat`, `git diff --name-status`, `git log --oneline`, and `git apply` output into typed enums and structs.  Patterns compile once via `OnceLock<regex_lite::Regex>` and are reused across calls.
 - **`secrets.rs`** -- Output redaction for vendor API keys (`sk-...`), AWS access keys (`AKIA...`), GitHub PATs (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`), PEM private key headers, bearer tokens, connection strings with embedded credentials, and generic secret assignments.  Wired into `sanitize_assistant_text` so secrets never leak into the transcript or logs.
-- **`rate_limit.rs`** -- Extracts retry delay hints from `Retry-After` header values and error response body text ("try again in N seconds").  The header path is wired into `map_api_status_error` in the API client with fallback to body text for 429 detection.
+- **`rate_limit.rs`** -- Extracts retry delay hints from `Retry-After` header values (delta-seconds and HTTP-date forms) and error response body text ("try again in N seconds"). The header path is wired into `map_api_status_error` in the API client with fallback to body text for 429 detection.
 
 Design rationale: `regex-lite` was chosen over the full `regex` crate because
 (a) vexcoder does not allow non-ASCII characters in these internal patterns,

@@ -1,8 +1,9 @@
 use serde_json::Value;
 use std::fs::OpenOptions;
 use std::io::{IsTerminal, Write};
+use std::path::PathBuf;
 
-const DEFAULT_API_LOG_PATH: &str = "/tmp/vex-debug-payload.log";
+const DEFAULT_API_LOG_FILENAME: &str = "vex-debug-payload.log";
 const DEBUG_PAYLOAD_ENV: &str = "VEX_DEBUG_PAYLOAD";
 const API_LOG_PATH_ENV: &str = "VEX_API_LOG_PATH";
 
@@ -49,11 +50,15 @@ fn resolve_log_path() -> Option<String> {
         .filter(|v| !v.is_empty())
         .or_else(|| {
             if std::io::stderr().is_terminal() {
-                Some(DEFAULT_API_LOG_PATH.to_string())
+                Some(default_log_path().to_string_lossy().into_owned())
             } else {
                 None
             }
         })
+}
+
+fn default_log_path() -> PathBuf {
+    std::env::temp_dir().join(DEFAULT_API_LOG_FILENAME)
 }
 
 fn append_log_file(path: &str, message: &str) -> std::io::Result<()> {

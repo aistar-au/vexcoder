@@ -9,6 +9,7 @@
 //! lives in `crate::api::client`.
 
 use std::sync::OnceLock;
+use std::time::SystemTime;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,7 +27,7 @@ pub struct RetryHint {
 /// Origin of a retry hint.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RetryHintSource {
-    /// Extracted from a `Retry-After` header value (integer seconds).
+    /// Extracted from a `Retry-After` header value.
     Header,
     /// Extracted from an error response body.
     Body,
@@ -59,14 +60,23 @@ fn re_retry_body() -> &'static regex_lite::Regex {
 
 /// Parse a retry delay from a `Retry-After` header value.
 ///
-/// Handles the simple numeric-seconds form.  Does not handle HTTP-date
-/// values (RFC 7231 §7.1.3).
+/// Handles the numeric-seconds form and the HTTP-date forms accepted by
+/// RFC 9110 §10.2.3.
 pub fn parse_retry_after_header(value: &str) -> Option<RetryHint> {
-    let re = re_retry_after_header();
-    let caps = re.captures(value.trim())?;
-    let seconds: f64 = caps[1].parse().ok()?;
+    let trimmed = value.trim();
+
+    if let Some(caps) = re_retry_after_header().captures(trimmed) {
+        let seconds: f64 = caps[1].parse().ok()?;
+        return Some(RetryHint {
+            delay_ms: (seconds * 1000.0) as u64,
+            source: RetryHintSource::Header,
+        });
+    }
+
+    let when = httpdate::parse_http_date(trimmed).ok()?;
+    let duration = when.duration_since(SystemTime::now()).ok()?;
     Some(RetryHint {
-        delay_ms: (seconds * 1000.0) as u64,
+        delay_ms: duration.as_millis().min(u64::MAX as u128) as u64,
         source: RetryHintSource::Header,
     })
 }
@@ -129,9 +139,41 @@ mod tests {
 
     #[test]
     fn test_parse_retry_after_header_invalid() {
-        assert!(parse_retry_after_header("Thu, 01 Dec 2025 16:00:00 GMT").is_none());
         assert!(parse_retry_after_header("abc").is_none());
         assert!(parse_retry_after_header("").is_none());
+    }
+
+    #[test]
+    fn test_parse_retry_after_header_imf_fixdate() {
+        let value = chrono::DateTime::<chrono::Utc>::from(
+            SystemTime::now() + std::time::Duration::from_secs(5),
+        )
+        .format("%a, %d %b %Y %H:%M:%S GMT")
+        .to_string();
+        let hint = parse_retry_after_header(&value).expect("IMF-fixdate should parse");
+        assert!((1_000..=10_000).contains(&hint.delay_ms));
+    }
+
+    #[test]
+    fn test_parse_retry_after_header_rfc850_date() {
+        let value = chrono::DateTime::<chrono::Utc>::from(
+            SystemTime::now() + std::time::Duration::from_secs(5),
+        )
+        .format("%A, %d-%b-%y %H:%M:%S GMT")
+        .to_string();
+        let hint = parse_retry_after_header(&value).expect("RFC 850 date should parse");
+        assert!((1_000..=10_000).contains(&hint.delay_ms));
+    }
+
+    #[test]
+    fn test_parse_retry_after_header_asctime_date() {
+        let value = chrono::DateTime::<chrono::Utc>::from(
+            SystemTime::now() + std::time::Duration::from_secs(5),
+        )
+        .format("%a %b %e %H:%M:%S %Y")
+        .to_string();
+        let hint = parse_retry_after_header(&value).expect("asctime date should parse");
+        assert!((1_000..=10_000).contains(&hint.delay_ms));
     }
 
     #[test]

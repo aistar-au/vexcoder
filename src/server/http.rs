@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use axum::extract::DefaultBodyLimit;
 use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::routing::{get, patch, post};
@@ -7,6 +8,7 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as HyperConnectionBuilder;
 use hyper_util::service::TowerToHyperService;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::TraceLayer;
@@ -67,6 +69,7 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
             "/v1/tasks/{parent_task_id}/messages",
             post(post_peer_message_handler).get(read_peer_messages_handler),
         )
+        .layer(DefaultBodyLimit::max(1024 * 1024))
         .with_state(state)
 }
 
@@ -169,7 +172,9 @@ async fn serve_tls_listener(
                         }
                     };
                     let io = TokioIo::new(tls_stream);
-                    let builder = HyperConnectionBuilder::new(TokioExecutor::new());
+                    let mut builder = HyperConnectionBuilder::new(TokioExecutor::new());
+                    builder.http1().header_read_timeout(Duration::from_secs(30));
+                    builder.http1().keep_alive(true);
                     let connection = builder.serve_connection(io, service);
                     select! {
                         _ = shutdown.cancelled() => {}

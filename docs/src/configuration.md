@@ -244,6 +244,8 @@ network paths. This rule does not block local inference servers reached via
 addresses (`192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`, `169.254.x.x`).
 `VEX_MODEL_URL_SKIP_TLS_CHECK` only relaxes certificate verification for HTTPS
 endpoints; it does not permit plain HTTP for public-internet hosts.
+The transport stack prefers TLS 1.3 and keeps TLS 1.2 enabled only for older
+local and private inference servers that have not moved forward yet.
 
 ### `VEX_MODEL_NAME`
 
