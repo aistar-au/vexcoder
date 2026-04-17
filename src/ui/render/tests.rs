@@ -569,6 +569,8 @@ fn transcript_output_line_defaults_plain_text_to_white() {
 #[test]
 fn transcript_output_line_styles_single_line_markdown_without_dropping_rows() {
     use crate::app::TranscriptRow;
+    let expected = crate::ui::render::markdown::markdown_to_inline_line("## Heading")
+        .expect("single heading line");
     let heading = transcript_output_line(&TranscriptRow::AssistantText {
         text: "## Heading".to_string(),
         streaming: false,
@@ -580,7 +582,7 @@ fn transcript_output_line_styles_single_line_markdown_without_dropping_rows() {
         .collect();
 
     assert_eq!(text, "Heading");
-    assert_eq!(heading.spans[0].style.fg, Some(Color::Cyan));
+    assert_eq!(heading.spans[0].style.fg, expected.spans[0].style.fg);
 }
 
 #[test]

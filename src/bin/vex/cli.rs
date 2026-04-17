@@ -133,6 +133,8 @@ pub(super) enum CredentialsCommands {
     ///
     /// Example:
     /// `printf '%s' "$VEX_MODEL_TOKEN" | vex credentials set model-token --stdin`
+    /// If no flag is passed on an interactive TTY, vex prompts for the secret
+    /// without echoing it.
     Set {
         /// Account identifier (e.g., `model-token`).
         account: String,

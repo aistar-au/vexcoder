@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, bail};
 use clap::{CommandFactory, Parser};
+use dialoguer::Password;
 use serde::Serialize;
 use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
@@ -110,6 +111,41 @@ fn read_secret_from_env_var(name: &str) -> Result<String> {
         .with_context(|| format!("environment variable '{name}' is not set or is not valid UTF-8"))
 }
 
+fn can_prompt_for_secret() -> bool {
+    std::io::stdin().is_terminal() && std::io::stderr().is_terminal()
+}
+
+fn read_secret_from_tty_prompt(account: &str) -> Result<String> {
+    Password::new()
+        .with_prompt(format!("Credential secret for {account}"))
+        .with_confirmation(
+            "Confirm credential secret",
+            "credential secrets did not match",
+        )
+        .interact()
+        .context("failed to read credential secret interactively")
+}
+
+fn resolve_credentials_secret(
+    account: &str,
+    stdin: bool,
+    from_env: Option<String>,
+    can_prompt: bool,
+    prompt_secret: impl FnOnce(&str) -> Result<String>,
+) -> Result<String> {
+    if stdin {
+        read_secret_from_stdin()
+    } else if let Some(var_name) = from_env {
+        read_secret_from_env_var(&var_name)
+    } else if can_prompt {
+        prompt_secret(account)
+    } else {
+        bail!(
+            "refusing to read a credential secret from argv; use --stdin, --from-env VAR, or rerun on an interactive TTY"
+        )
+    }
+}
+
 fn credentials_action_from_cli(
     sub: CredentialsCommands,
 ) -> Result<vexcoder::credentials::CredentialsAction> {
@@ -121,15 +157,13 @@ fn credentials_action_from_cli(
             stdin,
             from_env,
         } => {
-            let secret = if stdin {
-                read_secret_from_stdin()?
-            } else if let Some(var_name) = from_env {
-                read_secret_from_env_var(&var_name)?
-            } else {
-                bail!(
-                    "refusing to read a credential secret from argv; use --stdin or --from-env VAR"
-                );
-            };
+            let secret = resolve_credentials_secret(
+                &account,
+                stdin,
+                from_env,
+                can_prompt_for_secret(),
+                read_secret_from_tty_prompt,
+            )?;
             Ok(CredentialsAction::Set { account, secret })
         }
         CredentialsCommands::Get { account } => Ok(CredentialsAction::Get { account }),

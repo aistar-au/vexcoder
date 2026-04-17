@@ -4,8 +4,9 @@
 
 use super::{
     Cli, Commands, CredentialsCommands, MigrateCommands, SkillsCommands,
-    credentials_action_from_cli, emit_migrate_config_output, format_task_entries_table,
-    read_secret_from_env_var, read_secret_from_reader, render_task_entries, resolve_resume_state,
+    emit_migrate_config_output, format_task_entries_table, read_secret_from_env_var,
+    read_secret_from_reader, render_task_entries,
+    resolve_credentials_secret, resolve_resume_state,
 };
 use clap::Parser;
 use clap_complete::Shell;
@@ -1111,13 +1112,20 @@ fn test_credentials_set_cli_rejects_positional_secret() {
 
 #[test]
 fn test_credentials_action_from_cli_requires_non_argv_secret_source() {
-    let err = credentials_action_from_cli(CredentialsCommands::Set {
-        account: "model-token".to_string(),
-        stdin: false,
-        from_env: None,
-    })
-    .unwrap_err();
+    let err = resolve_credentials_secret("model-token", false, None, false, |_| unreachable!())
+        .unwrap_err();
     assert!(err.to_string().contains("--stdin") || err.to_string().contains("--from-env"));
+}
+
+#[test]
+fn test_resolve_credentials_secret_uses_interactive_prompt_when_tty_available() {
+    let secret = resolve_credentials_secret("model-token", false, None, true, |account| {
+        assert_eq!(account, "model-token");
+        Ok("prompt-secret".to_string())
+    })
+    .expect("interactive secret");
+
+    assert_eq!(secret, "prompt-secret");
 }
 
 #[test]
