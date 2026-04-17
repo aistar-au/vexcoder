@@ -207,7 +207,7 @@ without changing machine-facing lifecycle values or diff color semantics.
   display-only.
 - Do not rename code symbols, persisted schema fields, or JSON payload keys.
 
-Concrete targets (7 display-facing strings across 4 files):
+Concrete targets (6 display-facing strings across 3 files):
 
 | File | Count | Terms to normalize |
 | :--- | :--- | :--- |
