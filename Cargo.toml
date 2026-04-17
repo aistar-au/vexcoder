@@ -109,15 +109,19 @@ tree-sitter-rust = "0.24"
 x509-parser = "0.18"
 arboard = { version = "3", default-features = false }
 color-eyre = "0.6"
+human-panic = "2"
+dialoguer = "0.12"
 dirs = "6"
 tracing-appender = "0.2"
 similar = "2"
 pulldown-cmark = { version = "0.13", default-features = false }
+palette = "0.7"
 syntect = { version = "5", default-features = false, features = [
   "default-fancy",
 ] }
 indicatif = "0.17"
 console = "0.15"
+tabled = "0.20"
 ignore = "0.4"
 globset = "0.4"
 pathdiff = "0.2"
@@ -213,7 +217,12 @@ serde = [
 arboard = ["src/clipboard.rs", "src/app/commands/session.rs"]
 # Markdown rendering stack — both crates are consumed together at one site.
 pulldown-cmark = ["src/ui/render/markdown.rs"]
+palette = ["src/ui/render/markdown.rs"]
 syntect = ["src/ui/render/markdown.rs"]
+# CLI panic/reporting polish — release panic hook and interactive task table.
+human-panic = ["src/bin/vex.rs"]
+dialoguer = ["src/bin/vex.rs"]
+tabled = ["src/bin/vex.rs"]
 # TUI text bridge — converts ANSI escape sequences to ratatui spans.
 ansi-to-tui = ["src/ui/tui.rs"]
 # Network wrappers — focused seams for transport-related helper crates.
@@ -251,12 +260,16 @@ tokio = "Runtime helpers are localized in src/runtime/tokio.rs; attribute macros
 tree-sitter = "All five grammar crates share the same seam (src/tools/index.rs); bump them together."
 gix = "The four gix-* sub-crates share the same seam (src/runtime/git_rollup.rs); coordinate their bumps."
 pulldown-cmark = "pulldown-cmark and syntect share src/ui/render/markdown.rs; check both when either changes."
+palette = "Semantic markdown accent derivation stays localized in src/ui/render/markdown.rs."
 async-compression = "Compression and decompression wiring stays localized in src/net/compression.rs, including output-cap enforcement."
 hickory-resolver = "DoH resolver configuration and rustls-dependent DNS wiring stay localized in src/net/dns.rs."
 jsonwebtoken = "JWT/JWS helpers stay localized in src/net/jwt.rs; keep RFC 7519 audience parsing and expiry semantics aligned when upgrading."
 oauth2 = "Native-app PKCE generation, authorization URL assembly, and the custom async token-exchange adapter stay localized in src/net/oauth.rs."
 open = "Browser-launch helpers for RFC 8252 native-app authorization stay localized in src/net/oauth.rs."
 reqwest = "Core HTTP client seams remain in src/api/client/mod.rs, src/net/http_client.rs, and src/server/, with proxy-specific URL handling isolated in src/net/proxy.rs."
+human-panic = "The release-build panic path stays localized in src/bin/vex.rs so panic-hook ownership remains explicit alongside color-eyre's eyre hook."
+dialoguer = "Interactive credential-secret entry stays localized in src/bin/vex.rs; keep hidden TTY prompts on the CLI credential path only."
+tabled = "Interactive task-list rendering stays localized in src/bin/vex.rs; non-TTY and --json output remain separate compatibility paths."
 
 [package]
 name = "vexcoder"
@@ -326,6 +339,8 @@ arboard.workspace = true
 
 # --- diagnostics, path utilities, diff rendering ---
 color-eyre.workspace = true
+human-panic.workspace = true
+dialoguer.workspace = true
 dirs.workspace = true
 tracing-appender.workspace = true
 similar.workspace = true
@@ -333,9 +348,11 @@ similar.workspace = true
 # --- rich terminal rendering ---
 ratatui-macros.workspace = true
 pulldown-cmark.workspace = true
+palette.workspace = true
 syntect.workspace = true
 indicatif.workspace = true
 console.workspace = true
+tabled.workspace = true
 
 # --- workspace navigation and path normalization ---
 ignore.workspace = true

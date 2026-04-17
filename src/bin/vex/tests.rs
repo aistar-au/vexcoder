@@ -4,8 +4,8 @@
 
 use super::{
     Cli, Commands, CredentialsCommands, MigrateCommands, SkillsCommands,
-    credentials_action_from_cli, emit_migrate_config_output, read_secret_from_env_var,
-    read_secret_from_reader, resolve_resume_state,
+    emit_migrate_config_output, format_task_entries_table, read_secret_from_env_var,
+    read_secret_from_reader, render_task_entries, resolve_credentials_secret, resolve_resume_state,
 };
 use clap::Parser;
 use clap_complete::Shell;
@@ -936,6 +936,51 @@ fn test_resolve_resume_state_explicit_id_falls_back_to_legacy_subdir() {
     std::env::set_current_dir(old_cwd).unwrap();
 }
 
+#[test]
+fn task_list_interactive_render_uses_columns() {
+    let entries = vec![
+        super::TaskListEntry {
+            id: "task-parent".to_string(),
+            status: "Ready".to_string(),
+            kind: "task",
+            parent_task_id: None,
+            agent_id: None,
+        },
+        super::TaskListEntry {
+            id: "task-parent-reviewer-123".to_string(),
+            status: "Running".to_string(),
+            kind: "session-task",
+            parent_task_id: Some("task-parent".to_string()),
+            agent_id: Some("reviewer".to_string()),
+        },
+    ];
+
+    let rendered = format_task_entries_table(&entries);
+
+    assert!(rendered.contains("kind"), "table output: {rendered}");
+    assert!(rendered.contains("origin"), "table output: {rendered}");
+    assert!(rendered.contains("reviewer"), "table output: {rendered}");
+    assert!(rendered.contains("task-parent"), "table output: {rendered}");
+}
+
+#[test]
+fn task_list_noninteractive_render_keeps_line_mode_and_origin_copy() {
+    let entries = vec![super::TaskListEntry {
+        id: "task-parent-reviewer-123".to_string(),
+        status: "Running".to_string(),
+        kind: "session-task",
+        parent_task_id: Some("task-parent".to_string()),
+        agent_id: Some("reviewer".to_string()),
+    }];
+
+    let rendered = render_task_entries(&entries, false);
+
+    assert_eq!(
+        rendered,
+        "session-task task-parent-reviewer-123 origin=task-parent agent=reviewer status=Running"
+    );
+}
+
 // -- PM-03 ----------------------------------------------------------------
 
 #[test]
@@ -1066,13 +1111,20 @@ fn test_credentials_set_cli_rejects_positional_secret() {
 
 #[test]
 fn test_credentials_action_from_cli_requires_non_argv_secret_source() {
-    let err = credentials_action_from_cli(CredentialsCommands::Set {
-        account: "model-token".to_string(),
-        stdin: false,
-        from_env: None,
-    })
-    .unwrap_err();
+    let err = resolve_credentials_secret("model-token", false, None, false, |_| unreachable!())
+        .unwrap_err();
     assert!(err.to_string().contains("--stdin") || err.to_string().contains("--from-env"));
+}
+
+#[test]
+fn test_resolve_credentials_secret_uses_interactive_prompt_when_tty_available() {
+    let secret = resolve_credentials_secret("model-token", false, None, true, |account| {
+        assert_eq!(account, "model-token");
+        Ok("prompt-secret".to_string())
+    })
+    .expect("interactive secret");
+
+    assert_eq!(secret, "prompt-secret");
 }
 
 #[test]

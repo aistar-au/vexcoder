@@ -207,12 +207,11 @@ without changing machine-facing lifecycle values or diff color semantics.
   display-only.
 - Do not rename code symbols, persisted schema fields, or JSON payload keys.
 
-Concrete targets (9 display-facing strings across 5 files):
+Concrete targets (6 display-facing strings across 3 files):
 
 | File | Count | Terms to normalize |
 | :--- | :--- | :--- |
 | `src/app/commands/mod.rs` | 3 | `parent=` -> `origin=` in watch lines; `branched from` -> `derived from`; `fork aborted` -> `fork halted` |
-| `src/bin/vex.rs` | 2 | `parent=` -> `origin=` in session-task status lines |
 | `src/app/model_update.rs` | 1 | `aborted` -> `halted` in edit loop approval denial |
 | `src/app/input.rs` | 2 | `busy` -> `occupied` in turn-in-progress status lines |
 

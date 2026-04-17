@@ -127,6 +127,17 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            release_version="${GITHUB_REF_NAME}"
+          else
+            release_version="$(git rev-parse --short=7 HEAD)"
+          fi
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+
       - name: Run gate (non-Windows)
         if: runner.os != 'Windows'
         shell: bash
@@ -139,8 +150,7 @@ jobs:
           TARGET: ${{ matrix.target }}
           OUT_DIR: dist
           BUILD_TOOL: ${{ matrix.build_tool }}
-          VERSION: ${{ github.ref_name }}
-        run: bash scripts/release.sh
+        run: VERSION="${RELEASE_VERSION}" bash scripts/release.sh
 
       - name: Package release archive (Windows)
         if: runner.os == 'Windows'
@@ -149,7 +159,7 @@ jobs:
           TARGET: ${{ matrix.target }}
           OUT_DIR: dist
         run: |
-          .\scripts\release.ps1 -Version $env:GITHUB_REF_NAME -Target $env:TARGET -OutDir $env:OUT_DIR
+          .\scripts\release.ps1 -Version $env:RELEASE_VERSION -Target $env:TARGET -OutDir $env:OUT_DIR
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v6
