@@ -4,6 +4,7 @@ use serde::Serialize;
 use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use tabled::{Table, Tabled};
 use vexcoder::app::{
     run_tui_session, task_graph_rollup_path, todos_rollup_path, write_projection_rollup,
 };
@@ -175,6 +176,15 @@ struct TaskListEntry {
     agent_id: Option<String>,
 }
 
+#[derive(Tabled)]
+struct TaskListTableRow {
+    kind: &'static str,
+    id: String,
+    status: String,
+    origin: String,
+    agent: String,
+}
+
 fn collect_task_entries(working_dir: &Path) -> Result<Vec<TaskListEntry>> {
     let mut entries = Vec::new();
     for file in TaskState::state_files_from(working_dir) {
@@ -199,23 +209,62 @@ fn collect_task_entries(working_dir: &Path) -> Result<Vec<TaskListEntry>> {
     Ok(entries)
 }
 
+fn render_task_entries(entries: &[TaskListEntry], interactive: bool) -> String {
+    if entries.is_empty() {
+        return "[tasks] no saved tasks found".to_string();
+    }
+
+    if interactive {
+        return format_task_entries_table(entries);
+    }
+
+    entries
+        .iter()
+        .map(|entry| {
+            match (
+                entry.kind,
+                entry.parent_task_id.as_deref(),
+                entry.agent_id.as_deref(),
+            ) {
+                ("task", _, _) => format!("task {} status={}", entry.id, entry.status),
+                (_, Some(origin), Some(agent)) => format!(
+                    "session-task {} origin={} agent={} status={}",
+                    entry.id, origin, agent, entry.status
+                ),
+                _ => format!("{} {} status={}", entry.kind, entry.id, entry.status),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn format_task_entries_table(entries: &[TaskListEntry]) -> String {
+    let rows = entries
+        .iter()
+        .map(|entry| TaskListTableRow {
+            kind: entry.kind,
+            id: entry.id.clone(),
+            status: entry.status.clone(),
+            origin: entry
+                .parent_task_id
+                .clone()
+                .unwrap_or_else(|| "-".to_string()),
+            agent: entry.agent_id.clone().unwrap_or_else(|| "-".to_string()),
+        })
+        .collect::<Vec<_>>();
+
+    Table::new(rows).to_string()
+}
+
 fn run_tasks_list(working_dir: &Path, json: bool) -> Result<ExitCode> {
     let entries = collect_task_entries(working_dir)?;
     if json {
         println!("{}", serde_json::to_string_pretty(&entries)?);
-    } else if entries.is_empty() {
-        println!("[tasks] no saved tasks found");
     } else {
-        for entry in entries {
-            match (entry.kind, entry.parent_task_id, entry.agent_id) {
-                ("task", _, _) => println!("task {} status={}", entry.id, entry.status),
-                (_, Some(parent), Some(agent)) => println!(
-                    "session-task {} parent={} agent={} status={}",
-                    entry.id, parent, agent, entry.status
-                ),
-                _ => println!("{} {} status={}", entry.kind, entry.id, entry.status),
-            }
-        }
+        println!(
+            "{}",
+            render_task_entries(&entries, std::io::stdout().is_terminal())
+        );
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -249,7 +298,7 @@ fn run_tasks_watch(working_dir: &Path, id: &str, json: bool) -> Result<ExitCode>
             );
         } else {
             println!(
-                "session-task {} parent={} agent={} status={}",
+                "session-task {} origin={} agent={} status={}",
                 session_task.id, state.id, session_task.agent_id, session_task.lifecycle_state
             );
         }
@@ -276,9 +325,11 @@ fn run_tasks_export_todos(working_dir: &Path) -> Result<ExitCode> {
 
 #[tokio::main]
 async fn main() -> Result<ExitCode> {
-    // Install color-eyre panic hook for pretty backtraces/suggestions.
-    // Errors are ignored here because the handler is optional diagnostic sugar.
-    let _ = color_eyre::install();
+    // Keep human-panic for unexpected release crashes while color-eyre formats
+    // recoverable Result-based failures.
+    human_panic::setup_panic!();
+    let (_, eyre_hook) = color_eyre::config::HookBuilder::default().into_hooks();
+    let _ = eyre_hook.install();
 
     let _log_guard = if std::env::var_os("RUST_LOG").is_some() {
         let file_appender = tracing_appender::rolling::daily(

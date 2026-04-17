@@ -281,7 +281,7 @@ adopt only when there is a live code path and a focused verification seam.
 | `console-subscriber` | **Deferred** | Useful for local runtime diagnostics, but it is debug-only instrumentation and not part of the shipping transport, auth, or CLI contract. |
 | `tui-textarea`, `tui-input`, `ratatui-image`, `tui-tree-widget`, `tui-logger`, `throbber-widgets-tui`, `ratatui-splash-screen` | **Deferred** | The current editor, transcript, and task-surface code already own these concerns.  A widget-crate swap would be a UI-architecture lane, not a transport follow-up. |
 | `directories`, `config`, `strum`, `bytesize` | **Deferred** | Current config loading, XDG path resolution, enum handling, and byte-count formatting already stay localized in existing repo seams.  Adding alternate helpers now would duplicate working code. |
-| `human-panic`, `dialoguer`, `tabled`, `palette` | **Deferred** | These are reasonable polish crates, but they do not close a current RFC or transport gap and would broaden the PR beyond the active follow-up lane. |
+| `dialoguer`, `palette` | **Deferred** | These remain plausible polish crates, but there is still no live prompt/theme seam that requires them in the current tree. |
 
 ### Vexcoder-specific crates
 
@@ -293,9 +293,11 @@ a design need specific to vexcoder's architecture.
 | `axum` | HTTP routing and handler composition for the local API server surface | Comparable CLIs may use a thinner direct HTTP surface or a different server seam. | `axum` is already the active server foundation in vexcoder; `tower-http` sits on top of it for request tracing, not in place of it. |
 | `tower-http` | `TraceLayer` HTTP middleware for the local API server (`src/server/http.rs`) | Comparable CLIs use axum directly without tower middleware.  vexcoder's `LocalApiServer` (ADR-026) requires request/response tracing for debugging multi-agent sessions. | Conventional for axum-based servers needing observability. |
 | `fs2` | File-locking for `.vex/state/` durable writes | Comparable CLIs use a different persistence model. | Prevents concurrent vexcoder sessions from corrupting task-state files.  `write_json_safe` uses temp+fsync+rename; `fs2` adds advisory locking as a second safety layer. |
+| `human-panic` | Release-build crash reports for unexpected CLI panics | Comparable CLIs often rely on raw panic output or a single issue-url hook. | `vex` keeps `color-eyre` for recoverable `Result` errors and uses `human-panic` only for unrecoverable release crashes so operators get a stable report path without replacing the normal error-reporting surface. |
 | `portable-pty` | Pseudo-TTY allocation for sandboxed command execution | Comparable CLIs use platform-specific PTY code directly. | vexcoder's command runner needs PTY for interactive tool output (e.g., `git commit` with editor).  `portable-pty` provides cross-platform PTY without platform-specific FFI. |
 | `rmcp` (workspace-managed 1.x requirement) | MCP (Model Context Protocol) client for external tool providers | Comparable CLIs implement MCP transport directly using earlier transport library versions (e.g., pre-1.0). | vexcoder supports `[[mcp_servers]]` config for connecting to external tool providers (ADR-024 PM-01). The root workspace manifest owns the `rmcp` requirement so upgrades stay in one place while the MCP wire contract remains on the stable 1.x line. |
 | `quick-xml` | XML tool-call tag parsing from model output | Comparable CLIs use string-based parsing for tool calls. | vexcoder's stream parser delegates structured XML extraction to `quick-xml` rather than hand-rolling an XML parser.  Conventional for XML processing in Rust. |
+| `tabled` | Interactive task inventory tables in `vex tasks list` | Comparable CLIs often keep ad-hoc line output or JSON-only task listings. | vexcoder keeps `--json` and non-TTY line output stable while giving TTY operators aligned task/session-task columns through one localized renderer in `src/bin/vex.rs`. |
 
 ## Ongoing boundary work
 
