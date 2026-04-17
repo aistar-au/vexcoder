@@ -212,6 +212,10 @@ impl ApiClient {
             .pool_idle_timeout(Duration::from_secs(90))
             .read_timeout(Duration::from_secs(120))
             .tcp_keepalive(Duration::from_secs(60))
+            .http2_adaptive_window(true)
+            .http2_keep_alive_interval(Duration::from_secs(30))
+            .http2_keep_alive_timeout(Duration::from_secs(10))
+            .http2_keep_alive_while_idle(true)
             .user_agent(format!(
                 "vexcoder/{} (+https://github.com/aistar-au/vexcoder)",
                 env!("CARGO_PKG_VERSION")

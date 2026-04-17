@@ -28,7 +28,7 @@ ansi-to-tui = "8"
 ratatui-macros = "0.7"
 aho-corasick = "1"
 anyhow = "1"
-axum = { version = "0.8", features = ["http1", "json", "tokio"] }
+axum = { version = "0.8", features = ["http1", "http2", "json", "tokio"] }
 clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4" }
 bytes = "1"
@@ -36,16 +36,21 @@ bytes = "1"
 eventsource-client = { version = "0.17", default-features = false }
 fs2 = "0.4"
 futures = "0.3"
-hyper = { version = "1", features = ["http1", "server"] }
+hyper = { version = "1", features = ["http1", "http2", "server"] }
 http = "1"
 hyper-util = { version = "0.1", features = [
   "http1",
+  "http2",
   "server-auto",
   "service",
   "tokio",
 ] }
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
+  # RFC 9113: negotiate HTTP/2 when the remote endpoint supports it.
+  "http2",
+  # RFC 7578: multipart form uploads for future media-bearing requests.
+  "multipart",
   "stream",
   "rustls",
   # RFC 1928 (SOCKS5): proxy support for SOCKS5/SOCKS4 proxy tunnelling.
@@ -60,8 +65,9 @@ async-compression = { version = "0.4", default-features = false, features = [
 ] }
 # RFC 7519/7515 (JWT/JWS): JSON Web Token encoding and validation.
 jsonwebtoken = "9"
-# RFC 7636/6750 (PKCE/Bearer): OAuth2 client with PKCE code-challenge support.
-oauth2 = { version = "4", default-features = false }
+# RFC 8252/7636/6750 (Native Apps/PKCE/Bearer): browser auth + code exchange.
+oauth2 = { version = "4", default-features = false, features = ["reqwest"] }
+open = "5"
 # RFC 8484/6555 (DoH/Happy Eyeballs): DNS-over-HTTPS and dual-stack connection racing.
 hickory-resolver = { version = "0.24", default-features = false, features = [
   "dns-over-https-rustls",
@@ -175,6 +181,7 @@ crossterm = [
 async-compression = ["src/net/compression.rs"]
 jsonwebtoken = ["src/net/jwt.rs"]
 oauth2 = ["src/net/oauth.rs"]
+open = ["src/net/oauth.rs"]
 rmcp = ["src/mcp.rs"]
 http = [
   "src/http_facade.rs",
@@ -246,7 +253,8 @@ pulldown-cmark = "pulldown-cmark and syntect share src/ui/render/markdown.rs; ch
 async-compression = "Compression and decompression wiring stays localized in src/net/compression.rs, including output-cap enforcement."
 hickory-resolver = "DoH resolver configuration and rustls-dependent DNS wiring stay localized in src/net/dns.rs."
 jsonwebtoken = "JWT/JWS helpers stay localized in src/net/jwt.rs; keep RFC 7519 audience parsing and expiry semantics aligned when upgrading."
-oauth2 = "PKCE generation and authorization URL assembly stay localized in src/net/oauth.rs."
+oauth2 = "Native-app PKCE generation, authorization URL assembly, and code exchange stay localized in src/net/oauth.rs."
+open = "Browser-launch helpers for RFC 8252 native-app authorization stay localized in src/net/oauth.rs."
 reqwest = "Core HTTP client seams remain in src/api/client/mod.rs and src/server/, with proxy-specific URL handling isolated in src/net/proxy.rs."
 
 [package]
@@ -285,6 +293,7 @@ reqwest.workspace = true
 async-compression.workspace = true
 jsonwebtoken.workspace = true
 oauth2.workspace = true
+open.workspace = true
 hickory-resolver.workspace = true
 rmcp.workspace = true
 rustls.workspace = true
