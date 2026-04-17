@@ -269,6 +269,33 @@ fn test_process_recognises_id_and_retry_fields() {
     assert!(matches!(events[0], StreamEvent::Ping));
 }
 
+#[test]
+fn test_process_id_only_frame_emits_no_event() {
+    let mut parser = StreamParser::new();
+    let events = parser.process(b"id: evt-42\n\n").unwrap();
+
+    assert!(events.is_empty());
+}
+
+#[test]
+fn test_process_raw_json_frame_without_data_emits_error() {
+    let mut parser = StreamParser::new();
+    let events = parser.process(b"{\"type\":\"ping\"}\n\n").unwrap();
+
+    assert_eq!(events.len(), 1);
+    match &events[0] {
+        StreamEvent::Error { error } => {
+            assert_eq!(error.error_type, "sse_parse_error");
+            assert!(
+                error
+                    .message
+                    .contains("raw JSON chunk streams are unsupported")
+            );
+        }
+        other => panic!("expected StreamEvent::Error, got {other:?}"),
+    }
+}
+
 use super::{NormalisedChunk, StreamTextNormaliser};
 
 fn collect_text(chunks: &[NormalisedChunk]) -> String {

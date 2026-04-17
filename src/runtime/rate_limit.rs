@@ -9,7 +9,7 @@
 //! lives in `crate::api::client`.
 
 use std::sync::OnceLock;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -74,7 +74,9 @@ pub fn parse_retry_after_header(value: &str) -> Option<RetryHint> {
     }
 
     let when = httpdate::parse_http_date(trimmed).ok()?;
-    let duration = when.duration_since(SystemTime::now()).ok()?;
+    let duration = when
+        .duration_since(SystemTime::now())
+        .unwrap_or(Duration::ZERO);
     Some(RetryHint {
         delay_ms: duration.as_millis().min(u64::MAX as u128) as u64,
         source: RetryHintSource::Header,
@@ -174,6 +176,17 @@ mod tests {
         .to_string();
         let hint = parse_retry_after_header(&value).expect("asctime date should parse");
         assert!((1_000..=10_000).contains(&hint.delay_ms));
+    }
+
+    #[test]
+    fn test_parse_retry_after_header_past_date_clamps_to_zero() {
+        let value = chrono::DateTime::<chrono::Utc>::from(
+            SystemTime::now() - std::time::Duration::from_secs(5),
+        )
+        .format("%a, %d %b %Y %H:%M:%S GMT")
+        .to_string();
+        let hint = parse_retry_after_header(&value).expect("past date should still parse");
+        assert_eq!(hint.delay_ms, 0);
     }
 
     #[test]

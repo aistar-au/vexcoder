@@ -145,8 +145,6 @@ impl StreamParser {
             events.extend(self.parse_frame_bytes(frame_bytes)?);
         }
 
-        let _resume_state = (&self.last_event_id, self.retry_ms);
-
         Ok(events)
     }
 
@@ -175,6 +173,15 @@ impl StreamParser {
         }
 
         if data_lines.is_empty() {
+            if frame_without_data_should_error(&normalised_frame) {
+                return Ok(vec![StreamEvent::Error {
+                    error: ApiStreamError {
+                        error_type: "sse_parse_error".to_string(),
+                        message: "received a non-SSE payload without a data field; raw JSON chunk streams are unsupported"
+                            .to_string(),
+                    },
+                }]);
+            }
             return Ok(Vec::new());
         }
 
@@ -550,6 +557,22 @@ fn strip_single_leading_space(value: &str) -> &str {
 
 fn normalise_sse_line_endings(frame: &str) -> String {
     frame.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+fn frame_without_data_should_error(frame: &str) -> bool {
+    frame
+        .split('\n')
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with(':'))
+        .any(|line| !line.contains(':') || looks_like_raw_json_payload(line))
+}
+
+fn looks_like_raw_json_payload(text: &str) -> bool {
+    let trimmed = text.trim();
+    !trimmed.is_empty()
+        && (trimmed == "[DONE]"
+            || ((trimmed.starts_with('{') || trimmed.starts_with('['))
+                && serde_json::from_str::<serde_json::Value>(trimmed).is_ok()))
 }
 
 fn line_terminator_len(buffer: &[u8], index: usize) -> Option<usize> {
