@@ -429,6 +429,8 @@ fn sse_parser_stores_retry_delay_ms() {
 fn sse_parser_ignores_unknown_fields_and_parses_data() {
     let mut parser = StreamParser::new();
     let chunk = b"custom-field: ignored\ndata: {}\n\n";
-    let events = parser.process(chunk).expect("unknown field must not abort parse");
+    let events = parser
+        .process(chunk)
+        .expect("unknown field must not abort parse");
     assert!(!events.is_empty(), "data field must still produce an event");
 }

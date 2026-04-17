@@ -167,10 +167,10 @@ impl StreamParser {
                 data_lines.push(strip_single_leading_space(rest).to_string());
             } else if let Some(rest) = line.strip_prefix("id:") {
                 self.last_event_id = Some(strip_single_leading_space(rest).to_string());
-            } else if let Some(rest) = line.strip_prefix("retry:") {
-                if let Ok(ms) = strip_single_leading_space(rest).parse::<u64>() {
-                    self.reconnect_delay_ms = Some(ms);
-                }
+            } else if let Some(rest) = line.strip_prefix("retry:")
+                && let Ok(ms) = strip_single_leading_space(rest).parse::<u64>()
+            {
+                self.reconnect_delay_ms = Some(ms);
             }
         }
 
