@@ -209,15 +209,16 @@ so future bumps start from one manifest and one reviewed file map.
   `src/net/compression.rs`.
 - `jsonwebtoken`: keep JWT claim parsing and signature helper changes
   localized to `src/net/jwt.rs`.
-- `oauth2`: keep PKCE and authorization URL wiring localized to
-  `src/net/oauth.rs`.
+- `oauth2`: keep PKCE, authorization URL wiring, and the custom async token
+  exchange adapter localized to `src/net/oauth.rs`.
 - `hickory-resolver`: keep DoH resolver and dual-stack lookup configuration
   localized to `src/net/dns.rs`.
 - `rmcp`: stays localized in `src/mcp.rs`.
 - `http`: start in `src/http_facade.rs`, then adjust the server and MCP files
   listed in the metadata table.
-- `reqwest`: start in the existing HTTP client and server seams, then check
-  `src/net/proxy.rs` for proxy URL formatting or feature-surface changes.
+- `reqwest`: start in `src/api/client/mod.rs`, `src/net/http_client.rs`, and
+  the existing server seams, then check `src/net/proxy.rs` for proxy URL
+  formatting or feature-surface changes.
 - `tokio`: start in `src/runtime/tokio.rs` for production runtime helpers. Do
   not try to wrap `#[tokio::test]` or similar proc-macro sites; leaving those
   direct is clearer and matches common Rust practice.

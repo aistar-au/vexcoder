@@ -13,7 +13,6 @@ use serde::Deserialize;
 use serde_json::Value;
 use serde_json::json;
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
 
 /// Server capabilities discovered from a local inference server.
 /// Populated by `poll_server_info()` once per session for local endpoints.
@@ -207,21 +206,7 @@ enum ApiProtocol {
 impl ApiClient {
     pub fn new(config: &Config) -> Result<Self> {
         let api_client_base_url = configured_api_client_base_url(config);
-        let http = reqwest::Client::builder()
-            .connect_timeout(Duration::from_secs(10))
-            .pool_idle_timeout(Duration::from_secs(90))
-            .read_timeout(Duration::from_secs(120))
-            .tcp_keepalive(Duration::from_secs(60))
-            .http2_adaptive_window(true)
-            .http2_keep_alive_interval(Duration::from_secs(30))
-            .http2_keep_alive_timeout(Duration::from_secs(10))
-            .http2_keep_alive_while_idle(true)
-            .user_agent(format!(
-                "vexcoder/{} (+https://github.com/aistar-au/vexcoder)",
-                env!("CARGO_PKG_VERSION")
-            ))
-            .danger_accept_invalid_certs(config.model_url_skip_tls_check)
-            .build()?;
+        let http = crate::net::http_client::default_client(config.model_url_skip_tls_check)?;
         Ok(Self {
             http,
             api_key: config.model_token.clone(),

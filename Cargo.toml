@@ -66,7 +66,7 @@ async-compression = { version = "0.4", default-features = false, features = [
 # RFC 7519/7515 (JWT/JWS): JSON Web Token encoding and validation.
 jsonwebtoken = "9"
 # RFC 8252/7636/6750 (Native Apps/PKCE/Bearer): browser auth + code exchange.
-oauth2 = { version = "4", default-features = false, features = ["reqwest"] }
+oauth2 = { version = "4", default-features = false }
 open = "5"
 # RFC 8484/6555 (DoH/Happy Eyeballs): DNS-over-HTTPS and dual-stack connection racing.
 hickory-resolver = { version = "0.24", default-features = false, features = [
@@ -221,6 +221,7 @@ hickory-resolver = ["src/net/dns.rs"]
 reqwest = [
   "src/api/client/mod.rs",
   "src/mcp.rs",
+  "src/net/http_client.rs",
   "src/server/http.rs",
   "src/server/util.rs",
   "src/server/handlers/mod.rs",
@@ -253,9 +254,9 @@ pulldown-cmark = "pulldown-cmark and syntect share src/ui/render/markdown.rs; ch
 async-compression = "Compression and decompression wiring stays localized in src/net/compression.rs, including output-cap enforcement."
 hickory-resolver = "DoH resolver configuration and rustls-dependent DNS wiring stay localized in src/net/dns.rs."
 jsonwebtoken = "JWT/JWS helpers stay localized in src/net/jwt.rs; keep RFC 7519 audience parsing and expiry semantics aligned when upgrading."
-oauth2 = "Native-app PKCE generation, authorization URL assembly, and code exchange stay localized in src/net/oauth.rs."
+oauth2 = "Native-app PKCE generation, authorization URL assembly, and the custom async token-exchange adapter stay localized in src/net/oauth.rs."
 open = "Browser-launch helpers for RFC 8252 native-app authorization stay localized in src/net/oauth.rs."
-reqwest = "Core HTTP client seams remain in src/api/client/mod.rs and src/server/, with proxy-specific URL handling isolated in src/net/proxy.rs."
+reqwest = "Core HTTP client seams remain in src/api/client/mod.rs, src/net/http_client.rs, and src/server/, with proxy-specific URL handling isolated in src/net/proxy.rs."
 
 [package]
 name = "vexcoder"

@@ -14,12 +14,12 @@
 //! "S256"").  The `plain` method is intentionally not implemented.
 
 use anyhow::{Context, Result, bail};
-use oauth2::reqwest::async_http_client;
 use oauth2::{
-    AuthUrl, AuthorizationCode, ClientId, CsrfToken, PkceCodeChallenge, PkceCodeVerifier,
-    RedirectUrl, Scope, TokenResponse, TokenUrl,
+    AuthUrl, AuthorizationCode, ClientId, CsrfToken, HttpRequest, HttpResponse, PkceCodeChallenge,
+    PkceCodeVerifier, RedirectUrl, Scope, TokenResponse, TokenUrl,
 };
 use std::time::Duration;
+use thiserror::Error;
 
 /// A PKCE code verifier/challenge pair (RFC 7636 §4.1 and §4.2).
 pub struct PkceChallenge {
@@ -79,6 +79,28 @@ pub struct NativeTokenResponse {
     pub scopes: Vec<String>,
 }
 
+#[derive(Debug, Error)]
+enum OAuthTransportError {
+    #[error("invalid HTTP method '{method}' in oauth request")]
+    InvalidMethod { method: String },
+    #[error("invalid oauth request header name '{name}': {message}")]
+    InvalidRequestHeaderName { name: String, message: String },
+    #[error("invalid oauth request header value for '{name}': {message}")]
+    InvalidRequestHeaderValue { name: String, message: String },
+    #[error("failed to build oauth HTTP request")]
+    BuildRequest(#[source] reqwest::Error),
+    #[error("oauth HTTP request failed")]
+    ExecuteRequest(#[source] reqwest::Error),
+    #[error("failed to read oauth HTTP response body")]
+    ReadResponseBody(#[source] reqwest::Error),
+    #[error("invalid oauth response status code '{status}'")]
+    InvalidStatusCode { status: u16 },
+    #[error("invalid oauth response header name '{name}': {message}")]
+    InvalidResponseHeaderName { name: String, message: String },
+    #[error("invalid oauth response header value for '{name}': {message}")]
+    InvalidResponseHeaderValue { name: String, message: String },
+}
+
 fn build_basic_client(
     client_id: &str,
     auth_url: &str,
@@ -109,6 +131,77 @@ fn build_authorization_url_with_client(
 
     let (url, csrf) = builder.url();
     (url.to_string(), csrf, pkce.verifier)
+}
+
+async fn execute_oauth_http_request(
+    http: reqwest::Client,
+    request: HttpRequest,
+) -> std::result::Result<HttpResponse, OAuthTransportError> {
+    let method = reqwest::Method::from_bytes(request.method.as_str().as_bytes()).map_err(|_| {
+        OAuthTransportError::InvalidMethod {
+            method: request.method.to_string(),
+        }
+    })?;
+
+    let mut request_builder = http
+        .request(method, request.url.as_str())
+        .body(request.body);
+    for (name, value) in &request.headers {
+        let request_name = reqwest::header::HeaderName::from_bytes(name.as_str().as_bytes())
+            .map_err(|error| OAuthTransportError::InvalidRequestHeaderName {
+                name: name.as_str().to_string(),
+                message: error.to_string(),
+            })?;
+        let request_value =
+            reqwest::header::HeaderValue::from_bytes(value.as_bytes()).map_err(|error| {
+                OAuthTransportError::InvalidRequestHeaderValue {
+                    name: name.as_str().to_string(),
+                    message: error.to_string(),
+                }
+            })?;
+        request_builder = request_builder.header(request_name, request_value);
+    }
+
+    let request = request_builder
+        .build()
+        .map_err(OAuthTransportError::BuildRequest)?;
+    let response = http
+        .execute(request)
+        .await
+        .map_err(OAuthTransportError::ExecuteRequest)?;
+    let status = response.status();
+    let status_code = oauth2::http::StatusCode::from_u16(status.as_u16()).map_err(|_| {
+        OAuthTransportError::InvalidStatusCode {
+            status: status.as_u16(),
+        }
+    })?;
+    let response_headers = response.headers().clone();
+    let body = response
+        .bytes()
+        .await
+        .map_err(OAuthTransportError::ReadResponseBody)?
+        .to_vec();
+
+    let mut headers = oauth2::http::HeaderMap::new();
+    for (name, value) in &response_headers {
+        let response_name = oauth2::http::header::HeaderName::from_bytes(name.as_str().as_bytes())
+            .map_err(|error| OAuthTransportError::InvalidResponseHeaderName {
+                name: name.as_str().to_string(),
+                message: error.to_string(),
+            })?;
+        let response_value = oauth2::http::header::HeaderValue::from_bytes(value.as_bytes())
+            .map_err(|error| OAuthTransportError::InvalidResponseHeaderValue {
+                name: name.as_str().to_string(),
+                message: error.to_string(),
+            })?;
+        headers.append(response_name, response_value);
+    }
+
+    Ok(HttpResponse {
+        status_code,
+        headers,
+        body,
+    })
 }
 
 fn validate_native_loopback_redirect_url(redirect_url: &str) -> Result<RedirectUrl> {
@@ -186,10 +279,14 @@ pub async fn exchange_native_authorization_code(
     let token_url =
         TokenUrl::new(req.token_url.clone()).context("invalid token_url (RFC 6749 §3.2)")?;
     let client = build_basic_client(&req.client_id, &req.auth_url, redirect_url, Some(token_url))?;
+    let http = crate::net::http_client::default_client_builder(false)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .context("failed to build oauth HTTP client")?;
     let response = client
         .exchange_code(AuthorizationCode::new(req.authorization_code.clone()))
         .set_pkce_verifier(PkceCodeVerifier::new(req.pkce_verifier.clone()))
-        .request_async(async_http_client)
+        .request_async(move |request| execute_oauth_http_request(http.clone(), request))
         .await
         .context("authorization code exchange failed (RFC 6749 §4.1.3 / RFC 8252 §8.1)")?;
 

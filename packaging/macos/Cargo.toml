@@ -8,6 +8,8 @@ description = "macOS application launcher wrapper for vexcoder (Phase H PH-01/PH
 # library crates.  All agent logic remains in the main vex binary.
 publish = false
 
+[workspace]
+
 [[bin]]
 name = "vex-launcher"
 path = "src/main.rs"
