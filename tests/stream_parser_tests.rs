@@ -446,9 +446,7 @@ fn sse_parser_bare_id_without_colon_clears_last_event_id() {
         .process(b"id: stored-id\ndata: {}\n\n")
         .expect("setup frame");
     assert_eq!(parser.last_event_id(), Some("stored-id"));
-    parser
-        .process(b"id\ndata: {}\n\n")
-        .expect("bare id frame");
+    parser.process(b"id\ndata: {}\n\n").expect("bare id frame");
     assert_eq!(
         parser.last_event_id(),
         Some(""),
