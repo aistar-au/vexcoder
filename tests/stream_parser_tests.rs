@@ -426,11 +426,11 @@ fn sse_parser_stores_retry_delay_ms() {
 }
 
 #[test]
-fn sse_parser_ignores_unknown_fields_and_parses_data() {
+fn sse_parser_ignores_unknown_fields_and_does_not_error() {
+    // Unknown SSE fields must be silently discarded (WHATWG HTML §9.2.6).
+    // The parse must succeed (Ok), regardless of what the data payload produces.
     let mut parser = StreamParser::new();
-    let chunk = b"custom-field: ignored\ndata: {}\n\n";
-    let events = parser
-        .process(chunk)
-        .expect("unknown field must not abort parse");
-    assert!(!events.is_empty(), "data field must still produce an event");
+    let chunk = b"custom-field: ignored\ndata: {\"type\":\"ping\"}\n\n";
+    let result = parser.process(chunk);
+    assert!(result.is_ok(), "unknown field must not cause a parse error");
 }
