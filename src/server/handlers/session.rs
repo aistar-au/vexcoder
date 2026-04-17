@@ -9,10 +9,13 @@ use crate::app::{
     facade_task_graph, facade_update_session_task_status, task_graph_rollup_path,
     todos_rollup_path, write_projection_rollup,
 };
-use crate::http_facade::{StatusCode, header};
+use crate::http_facade::{HeaderName, HeaderValue, StatusCode, header};
 use crate::local_api::LocalApiState;
 use crate::server::util::{bad_request, conflict, not_found};
-use crate::server::{ControlResponse, SSE_KEEPALIVE_INTERVAL, SSE_KEEPALIVE_TEXT};
+use crate::server::{
+    ControlResponse, SSE_CACHE_CONTROL_HEADER, SSE_KEEPALIVE_INTERVAL, SSE_KEEPALIVE_TEXT,
+    SSE_PROXY_BUFFERING_DISABLED, SSE_PROXY_BUFFERING_HEADER,
+};
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
@@ -216,15 +219,23 @@ pub async fn watch_session_task_handler(
     }
 
     let stream = UnboundedReceiverStream::new(rx);
-    Ok((
-        StatusCode::OK,
-        [(header::CACHE_CONTROL, "no-cache")],
-        Sse::new(stream).keep_alive(
+    let mut response = Sse::new(stream)
+        .keep_alive(
             KeepAlive::new()
                 .interval(SSE_KEEPALIVE_INTERVAL)
                 .text(SSE_KEEPALIVE_TEXT),
-        ),
-    ))
+        )
+        .into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static(SSE_CACHE_CONTROL_HEADER),
+    );
+    response.headers_mut().insert(
+        HeaderName::from_static(SSE_PROXY_BUFFERING_HEADER),
+        HeaderValue::from_static(SSE_PROXY_BUFFERING_DISABLED),
+    );
+
+    Ok(response)
 }
 
 // ---------------------------------------------------------------------------

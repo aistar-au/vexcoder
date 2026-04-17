@@ -24,7 +24,7 @@ consume instead of replacing:
 - ADR-025 defines canonical runtime request and event envelopes;
 - ADR-026 defines the local transport surface for those envelopes;
 - ADR-030 defines task-state-owned orchestration invariants;
-- ADR-033 reduces context pressure enough that narrower sub-task prompts and
+- ADR-033 reduces context pressure enough that more focused sub-task prompts and
   agent handoffs are practical in large repositories.
 
 At the same time, the repository still lacks a normative answer for the

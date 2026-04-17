@@ -119,7 +119,7 @@ repository's centralized workflow.
   exact technical term is required for a crate name, ANSI control, TTY-size
   API, or quoted log line.
 - PR bodies always use `Summary`, `Motivation`, `Approach`, `Validation`, and
-  `Risks`. `Risks` is mandatory even for narrow cleanup or documentation lanes.
+  `Risks`. `Risks` is mandatory even for focused cleanup or documentation lanes.
 
 ## Pull requests
 

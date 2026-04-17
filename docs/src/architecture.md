@@ -35,6 +35,37 @@ local seam files such as `src/ui/tui.rs`,
 - `src/tools/workspace_explore.rs` provides the `list_dir` and `glob_files` tools for workspace exploration. Both are workspace-confined, `.gitignore`-aware, and bounded to prevent unbounded output.
 - `src/tools/workspace_ignore.rs` implements `WorkspaceIgnore` on top of the `ignore` crate's gitignore matcher so that `search_files`, `list_dir`, `glob_files`, and `find_files` all skip ignored paths with gitignore-compatible directory semantics.
 
+## HTTP and SSE contract
+
+The transport stack is aligned to RFC 9110, RFC 9111, RFC 9112, RFC 8259, the
+WHATWG server-sent-events parsing algorithm, RFC 7519, and RFC 8446 for the
+protocol surface implemented in-tree.
+
+- Upstream streaming requests are sent as `POST` with `application/json`, a
+   versioned `User-Agent`, `Accept-Encoding: identity`, and request-side
+   `Cache-Control: no-store`.
+- Local API streaming responses are emitted as `text/event-stream` with
+   `Cache-Control: no-cache, no-store, must-revalidate` and
+   `X-Accel-Buffering: no` so intermediaries do not cache or buffer the stream.
+- The shared SSE parser accepts `event`, `data`, `id`, and `retry` fields,
+   strips a single leading space per WHATWG rules, handles BOM-prefixed streams,
+   and recognises `\n`, `\r\n`, and `\r` line terminators.
+- Raw JSON chunk streams without SSE framing are unsupported. Providers and
+   local backends are expected to emit valid SSE frames.
+
+Intentional deviations are documented and focused in scope:
+
+- Browser EventSource is `GET`-only, but upstream model APIs require `POST`
+   request bodies for streamed generation.
+- Automatic reconnect is disabled for streamed generations because replaying a
+   partial `POST` request would not be idempotent.
+- The local API server omits SSE event ids until resumable replay exists.
+   Timestamp ids are not stable resume tokens and would mislead clients.
+- The local API server currently targets HTTP/1.1 semantics and framing. HTTP/2
+   is not required for the current compliance scope.
+- TLS 1.3 is preferred. TLS 1.2 remains enabled only for compatibility with
+   older local and private inference servers.
+
 ## Streaming protocol coverage
 
 The shared SSE parser in `src/api/stream.rs` and the normalized type surface in
@@ -143,7 +174,7 @@ The `regex-lite` modules live under `src/runtime/` as three focused files:
 
 - **`git_parse.rs`** -- Structured parsing of `git status --porcelain`, `git diff --stat`, `git diff --name-status`, `git log --oneline`, and `git apply` output into typed enums and structs.  Patterns compile once via `OnceLock<regex_lite::Regex>` and are reused across calls.
 - **`secrets.rs`** -- Output redaction for vendor API keys (`sk-...`), AWS access keys (`AKIA...`), GitHub PATs (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`), PEM private key headers, bearer tokens, connection strings with embedded credentials, and generic secret assignments.  Wired into `sanitize_assistant_text` so secrets never leak into the transcript or logs.
-- **`rate_limit.rs`** -- Extracts retry delay hints from `Retry-After` header values and error response body text ("try again in N seconds").  The header path is wired into `map_api_status_error` in the API client with fallback to body text for 429 detection.
+- **`rate_limit.rs`** -- Extracts retry delay hints from `Retry-After` header values (delta-seconds and HTTP-date forms) and error response body text ("try again in N seconds"). The header path is wired into `map_api_status_error` in the API client with fallback to body text for 429 detection.
 
 Design rationale: `regex-lite` was chosen over the full `regex` crate because
 (a) vexcoder does not allow non-ASCII characters in these internal patterns,
@@ -253,7 +284,7 @@ The long-term architecture work is tracked in the ADR set under `adr/`.
 - ADR-028 is now active in the current tree: the facade helpers are stored under `src/app/`, transport code has been extracted from `src/local_api.rs` into `src/server/` submodules (`http.rs`, `sse.rs`, `socket.rs`, `handlers/mod.rs`, `handlers/session.rs`, `util.rs`), and dependency-direction enforcement tests verify inward-only import rules across all layers, including grouped, multiline, and `super::`-relative `crate::{server::...}` / `crate::{bin::...}` imports.
 - ADR-029 is now accepted: the stream parser covers all documented SSE event types (error envelopes, heartbeats, thinking/signature deltas, citations, server-tool blocks, web-search results, cache/geo/detail metadata) and TaskState persists plan, session notes, context compaction records, and cache usage stats for multi-agent handoff. ADR-029 is a declared dependency of ADR-030 and a prerequisite for full invariant compliance — `StreamEvent::Error` lets orchestrating agents detect sub-agent stream failures, and the TaskState extensions are the handoff payload that lets an orchestrator reconstruct a sub-agent's context on resume.
 - ADR-030 is now accepted with an explicit six-point verification suite: provider events normalize into canonical runtime events, task state owns execution truth, the orchestrator decides whether the task continues or stops, and task handoff or resume consumers depend on that same runtime-owned control flow. ADR-030 is also load-bearing for multi-agent orchestration: Invariants 1, 4, and 5 are the semantic correctness guarantees that make agent handoffs coherent. Without these invariants proven end-to-end, multi-agent orchestration has undefined behaviour at handoff points.
-- ADR-031 extends the active operator surface with timeline selection, stable step identity, explicit approved/running/completed lifecycle rendering, prompt-anchored transcript scrolling, a larger multiline composer, direct ANSI task rendering during orchestration, and keyboard navigation for timeline selection and inspector detail. Each pending tool call carries a stable `step_id` and compact input preview. The task-state timeline still derives pending rows as `AwaitingApproval`, `Approved`, or `Running` from canonical state, and the `Approved` state is tracked for manual approvals, session auto-approvals, and capability-grant auto-approvals. Batches A through E are merged into `main`. Batch C/D implemented viewport alignment (output-pane scroll ownership and six-line inspector cap) across both the direct ANSI and ratatui renderers. The fullscreen composer now also auto-fits to current display row and column changes, including narrower half-screen or quarter-screen display snaps. Batch E removed the legacy `activity_rows` derivation, `draw_timeline_fallback()`, `draw_legacy_activity_row()`, and the `legacy_row` field from `TaskStepView`, and the current ANSI path renders those task-state updates as transcript paragraphs instead of reserving a dedicated top strip. A 2026-04-09 correction keeps the owned transcript surface as the primary scroll architecture: committed transcript paragraphs, waiting telemetry, tool activity, and live response deltas all share one ratatui-owned task surface, and transcript review stays in that owned surface or an explicit overlay rather than a host-scrollback sink. Textual block deltas are sanitised before they mutate UI state so tagged tool markup does not leak into the live transcript.
+- ADR-031 extends the active operator surface with timeline selection, stable step identity, explicit approved/running/completed lifecycle rendering, prompt-anchored transcript scrolling, a larger multiline composer, direct ANSI task rendering during orchestration, and keyboard navigation for timeline selection and inspector detail. Each pending tool call carries a stable `step_id` and compact input preview. The task-state timeline still derives pending rows as `AwaitingApproval`, `Approved`, or `Running` from canonical state, and the `Approved` state is tracked for manual approvals, session auto-approvals, and capability-grant auto-approvals. Batches A through E are merged into `main`. Batch C/D implemented viewport alignment (output-pane scroll ownership and six-line inspector cap) across both the direct ANSI and ratatui renderers. The fullscreen composer now also auto-fits to current display row and column changes, including half-screen or quarter-screen display snaps with a more focused viewport. Batch E removed the legacy `activity_rows` derivation, `draw_timeline_fallback()`, `draw_legacy_activity_row()`, and the `legacy_row` field from `TaskStepView`, and the current ANSI path renders those task-state updates as transcript paragraphs instead of reserving a dedicated top strip. A 2026-04-09 correction keeps the owned transcript surface as the primary scroll architecture: committed transcript paragraphs, waiting telemetry, tool activity, and live response deltas all share one ratatui-owned task surface, and transcript review stays in that owned surface or an explicit overlay rather than a host-scrollback sink. Textual block deltas are sanitised before they mutate UI state so tagged tool markup does not leak into the live transcript.
 
 - ADR-032 adds prompt-area interactivity: interactive `/` slash command picker and `@path` file picker with `Up`/`Down`/`Enter`/`Esc` navigation and hierarchical directory drill-down, `!command` shell execution, pasted-block handling, a responsive auto-fit composer surface that keeps those controls visible under display resize, and a context guard that limits project-instructions and notes token budgets.
 - ADR-033 introduces the hybrid retrieval context architecture: a `codebase_search` tool (Phase 1) backed by structural keyword indexing, optional semantic vector search via an external embedding endpoint (Phase 2), write guards that steer `write_file` toward `apply_patch`/`edit_file` for large files (Phase 3), and history condensing that compresses older tool results to stay within the context budget (Phase 4).

@@ -22,8 +22,8 @@ tables and keep the fallout inside those local seam files.
 ## Policy
 
 - Prefer Cargo's default semver requirements such as `"1"` or `"0.39"` over
-  custom upper bounds unless a documented compatibility reason requires a
-  narrower range.
+  custom upper bounds unless a documented compatibility reason requires
+  essential version constraints.
 - Use `cargo upgrade` to change manifest requirements. Use `cargo update` to
   refresh `Cargo.lock`. They solve different parts of an upgrade.
 - Avoid hard-coding crate versions in docs unless behavior truly depends on a

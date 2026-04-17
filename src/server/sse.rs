@@ -1,5 +1,11 @@
+//! SSE framing for the local API server.
+//!
+//! The server emits standard `text/event-stream` responses with cache and
+//! proxy-buffering suppression headers applied by the handlers. Event IDs are
+//! intentionally omitted until resumable replay is implemented; timestamp ids
+//! are not stable resume tokens.
+
 use axum::response::sse::{Event, KeepAlive, Sse};
-use chrono::Utc;
 use futures::{Stream, StreamExt, stream};
 use serde_json::json;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -515,14 +521,11 @@ pub fn runtime_sse_response(
 }
 
 fn runtime_event(payload: String) -> Event {
-    Event::default()
-        .event("runtime")
-        .id(Utc::now().to_rfc3339())
-        .data(payload)
+    Event::default().event("runtime").data(payload)
 }
 
 fn json_event(payload: String) -> Event {
-    Event::default().id(Utc::now().to_rfc3339()).data(payload)
+    Event::default().data(payload)
 }
 
 fn event_from_sse_frame(frame: SseFrame) -> Event {

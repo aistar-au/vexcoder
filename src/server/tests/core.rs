@@ -839,6 +839,38 @@ async fn test_turns_endpoint_rejects_schema_invalid_request() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+#[tokio::test]
+async fn test_turns_endpoint_returns_sse_headers() {
+    let router = build_router(Config::default_for_tui());
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/turns")
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"type":"submit_input","request_id":"req-turns-sse","input":"hello"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get(CACHE_CONTROL).unwrap(),
+        "no-cache, no-store, must-revalidate"
+    );
+    assert_eq!(response.headers().get("x-accel-buffering").unwrap(), "no");
+    assert!(
+        response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.contains("text/event-stream"))
+    );
+}
+
 #[test]
 fn test_resolve_serve_config_rejects_non_loopback_without_tls() {
     let mut config = Config::default_for_tui();

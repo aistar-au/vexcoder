@@ -314,7 +314,7 @@ pub(crate) fn resolve_git_timeout_ms(default_ms: u64) -> u64 {
 /// is tied to the owning context (e.g., a long-lived task or session).
 ///
 /// This is the integration seam for `notify`-based watch mode in the git
-/// rollup layer.  It is intentionally kept narrow: the callback receives only
+/// rollup layer. It is intentionally kept focused in scope: the callback receives only
 /// a `Vec<PathBuf>` of changed paths so the caller decides how to respond
 /// (e.g., schedule a fresh `collect_git_rollup` call).
 pub(crate) fn watch_working_dir<F>(

@@ -105,7 +105,7 @@ crates.io. Run it before and after every upgrade batch.
 
 Cargo's default semver requirements are the repository default. Prefer entries
 such as `"1"` or `"0.39"` over manually constrained upper bounds unless a
-documented compatibility reason requires something narrower. `cargo upgrade`
+documented compatibility reason requires something more focused. `cargo upgrade`
 updates `Cargo.toml`; `cargo update` refreshes `Cargo.lock`.
 
 When an upgraded crate needs source changes, keep that wiring localized to the

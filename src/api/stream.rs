@@ -29,6 +29,8 @@ pub struct StreamParser {
     buffer: Vec<u8>,
     chat_compat_tools: Vec<ChatCompatToolState>,
     chat_compat_message_started: bool,
+    bom_checked: bool,
+    overflowed: bool,
 }
 
 #[derive(Default, Clone)]
@@ -121,18 +123,16 @@ impl StreamParser {
     }
 
     pub fn process(&mut self, chunk: &[u8]) -> Result<Vec<StreamEvent>> {
+        if self.overflowed {
+            return Ok(vec![self.buffer_overflow_event()]);
+        }
+
         if self.buffer.len().saturating_add(chunk.len()) > MAX_SSE_BUFFER_BYTES {
-            return Ok(vec![StreamEvent::Error {
-                error: ApiStreamError {
-                    error_type: "sse_buffer_overflow".to_string(),
-                    message: format!(
-                        "SSE intra-frame buffer exceeded {MAX_SSE_BUFFER_BYTES} bytes without a \
-                         frame delimiter; the upstream stream may be malformed"
-                    ),
-                },
-            }]);
+            self.overflowed = true;
+            return Ok(vec![self.buffer_overflow_event()]);
         }
         self.buffer.extend_from_slice(chunk);
+        self.strip_utf8_bom_once();
 
         let mut events = Vec::new();
 
@@ -143,38 +143,40 @@ impl StreamParser {
             events.extend(self.parse_frame_bytes(frame_bytes)?);
         }
 
-        if self.find_delimiter().is_none() {
-            let frame_text = String::from_utf8_lossy(&self.buffer).trim().to_string();
-            if looks_like_raw_json_frame(&frame_text) {
-                let frame_bytes = std::mem::take(&mut self.buffer);
-                events.extend(self.parse_frame_bytes(frame_bytes)?);
-            }
-        }
-
         Ok(events)
     }
 
     fn parse_frame_bytes(&mut self, frame_bytes: Vec<u8>) -> Result<Vec<StreamEvent>> {
         let frame_text = String::from_utf8(frame_bytes)?;
+        let normalised_frame = normalise_sse_line_endings(&frame_text);
         let mut event_type = None;
         let mut data_lines = Vec::new();
 
-        for line in frame_text.lines() {
+        for line in normalised_frame.split('\n') {
             if line.is_empty() || line.starts_with(':') {
                 continue;
             }
             if let Some(rest) = line.strip_prefix("event:") {
-                event_type = Some(rest.trim().to_string());
+                event_type = Some(strip_single_leading_space(rest).to_string());
             } else if let Some(rest) = line.strip_prefix("data:") {
-                data_lines.push(rest.trim_start().to_string());
+                data_lines.push(strip_single_leading_space(rest).to_string());
             }
         }
 
-        let json_data = if !data_lines.is_empty() {
-            data_lines.join("\n")
-        } else {
-            frame_text.trim().to_string()
-        };
+        if data_lines.is_empty() {
+            if frame_without_data_should_error(&normalised_frame) {
+                return Ok(vec![StreamEvent::Error {
+                    error: ApiStreamError {
+                        error_type: "sse_parse_error".to_string(),
+                        message: "received a non-SSE payload without a data field; raw JSON chunk streams are unsupported"
+                            .to_string(),
+                    },
+                }]);
+            }
+            return Ok(Vec::new());
+        }
+
+        let json_data = data_lines.join("\n");
 
         self.parse_event_payload(event_type.as_deref(), &json_data)
     }
@@ -213,13 +215,53 @@ impl StreamParser {
     }
 
     fn find_delimiter(&self) -> Option<(usize, usize)> {
-        if let Some(pos) = self.buffer.windows(2).position(|w| w == b"\n\n") {
-            return Some((pos, 2));
-        }
-        if let Some(pos) = self.buffer.windows(4).position(|w| w == b"\r\n\r\n") {
-            return Some((pos, 4));
+        let mut index = 0;
+        while index < self.buffer.len() {
+            let Some(first_len) = line_terminator_len(&self.buffer, index) else {
+                index += 1;
+                continue;
+            };
+            let next = index + first_len;
+            if let Some(second_len) = line_terminator_len(&self.buffer, next) {
+                return Some((index, first_len + second_len));
+            }
+            index = next;
         }
         None
+    }
+
+    fn strip_utf8_bom_once(&mut self) {
+        if self.bom_checked {
+            return;
+        }
+
+        const UTF8_BOM: &[u8; 3] = b"\xEF\xBB\xBF";
+        if self.buffer.starts_with(UTF8_BOM) {
+            self.buffer.drain(..UTF8_BOM.len());
+            self.bom_checked = true;
+            return;
+        }
+
+        if self.buffer.is_empty() {
+            return;
+        }
+
+        let prefix_len = self.buffer.len().min(UTF8_BOM.len());
+        if prefix_len == UTF8_BOM.len() || self.buffer[..prefix_len] != UTF8_BOM[..prefix_len] {
+            self.bom_checked = true;
+        }
+    }
+
+    fn buffer_overflow_event(&self) -> StreamEvent {
+        StreamEvent::Error {
+            error: ApiStreamError {
+                error_type: "sse_buffer_overflow".to_string(),
+                message: format!(
+                    "SSE intra-frame buffer exceeded {MAX_SSE_BUFFER_BYTES} bytes without a \
+                     frame delimiter; the upstream stream may be malformed"
+                ),
+            },
+        }
     }
 
     fn parse_chat_compat_chunk(&mut self, json_data: &str) -> Option<Vec<StreamEvent>> {
@@ -498,11 +540,42 @@ impl StreamParser {
     }
 }
 
-fn looks_like_raw_json_frame(text: &str) -> bool {
+fn strip_single_leading_space(value: &str) -> &str {
+    value.strip_prefix(' ').unwrap_or(value)
+}
+
+fn normalise_sse_line_endings(frame: &str) -> String {
+    frame.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+fn frame_without_data_should_error(frame: &str) -> bool {
+    frame
+        .split('\n')
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with(':'))
+        .any(looks_like_raw_json_payload)
+}
+
+fn looks_like_raw_json_payload(text: &str) -> bool {
     let trimmed = text.trim();
     !trimmed.is_empty()
-        && (trimmed.starts_with('{') || trimmed == "[DONE]")
-        && (trimmed == "[DONE]" || serde_json::from_str::<serde_json::Value>(trimmed).is_ok())
+        && (trimmed == "[DONE]"
+            || ((trimmed.starts_with('{') || trimmed.starts_with('['))
+                && serde_json::from_str::<serde_json::Value>(trimmed).is_ok()))
+}
+
+fn line_terminator_len(buffer: &[u8], index: usize) -> Option<usize> {
+    match buffer.get(index) {
+        Some(b'\n') => Some(1),
+        Some(b'\r') => {
+            if buffer.get(index + 1) == Some(&b'\n') {
+                Some(2)
+            } else {
+                Some(1)
+            }
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]

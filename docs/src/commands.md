@@ -177,7 +177,7 @@ Commands entered inside the interactive UI start with `/`.
   - Expands `@path` mentions inside the instruction before the edit loop starts so picked files can be inlined as context.
   - Grants task-scoped `write-file`, `apply-patch`, and `run-command` permissions for the active edit workflow unless that capability is already session-scoped.
 - `/fix`
-  - Restores the edit loop from the last validation failure and re-seeds the same task-scoped edit permissions without narrowing existing session grants.
+  - Restores the edit loop from the last validation failure and re-seeds the same task-scoped edit permissions without reducing existing session grants.
 
 ### Read-only semantic turns
 

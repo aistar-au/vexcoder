@@ -34,6 +34,15 @@ Use `make deps-deny`, `make deps-audit`, `make deps-plan`, and `make deps-upgrad
 (backed by `cargo-deny`, `cargo-outdated`, and `cargo-upgrade`) for all
 dependency work. `make bump` changes the version.
 
+## Standards posture
+
+The transport surface aligns with RFC 9110, RFC 9111, RFC 9112, RFC 8259, the
+WHATWG server-sent-events parsing rules, RFC 7519, and RFC 8446 for the parts
+implemented in-tree. One deliberate exception remains: upstream streamed model
+requests use `POST` with EventSource framing because the provider APIs require
+request bodies. Raw JSON chunk streams without SSE framing are unsupported and
+discouraged.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).

@@ -17,11 +17,14 @@ use crate::app::{
     facade_get_session_task, facade_list_agents, facade_poll_join, facade_release_session_task,
     facade_schedule_team, facade_watch_rollup,
 };
-use crate::http_facade::{StatusCode, header};
+use crate::http_facade::{HeaderName, HeaderValue, StatusCode, header};
 use crate::local_api::{
     ActiveTask, FrontendCommand, LocalApiMode, LocalApiState, LocalApiTaskShared,
 };
 use crate::runtime::json_handoff::{RuntimeRequest, TurnEndContext};
+use crate::server::{
+    SSE_CACHE_CONTROL_HEADER, SSE_PROXY_BUFFERING_DISABLED, SSE_PROXY_BUFFERING_HEADER,
+};
 
 use super::ControlResponse;
 
@@ -369,11 +372,18 @@ pub async fn turns_handler(
 
     spawn_local_api_task(state.clone(), task_id, input, shared, interrupt_rx);
 
-    Ok((
-        StatusCode::OK,
-        [(header::CACHE_CONTROL, "no-cache")],
-        runtime_sse_response(envelope_rx, SSE_KEEPALIVE_INTERVAL, sse_mode),
-    ))
+    let mut response =
+        runtime_sse_response(envelope_rx, SSE_KEEPALIVE_INTERVAL, sse_mode).into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static(SSE_CACHE_CONTROL_HEADER),
+    );
+    response.headers_mut().insert(
+        HeaderName::from_static(SSE_PROXY_BUFFERING_HEADER),
+        HeaderValue::from_static(SSE_PROXY_BUFFERING_DISABLED),
+    );
+
+    Ok(response)
 }
 
 pub async fn interrupt_handler(

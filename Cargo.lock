@@ -5831,6 +5831,7 @@ dependencies = [
  "grep-searcher",
  "hickory-resolver",
  "http 1.4.0",
+ "httpdate",
  "hyper",
  "hyper-util",
  "ignore",

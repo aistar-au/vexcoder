@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use axum::extract::DefaultBodyLimit;
 use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::routing::{get, patch, post};
@@ -7,6 +8,7 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as HyperConnectionBuilder;
 use hyper_util::service::TowerToHyperService;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::TraceLayer;
@@ -67,6 +69,7 @@ pub fn build_router_with_state(state: LocalApiState) -> Router {
             "/v1/tasks/{parent_task_id}/messages",
             post(post_peer_message_handler).get(read_peer_messages_handler),
         )
+        .layer(DefaultBodyLimit::max(1024 * 1024))
         .with_state(state)
 }
 
@@ -136,12 +139,37 @@ pub async fn run_http_surface(
 
     match surface.tls {
         Some(tls_config) => serve_tls_listener(listener, router, tls_config, shutdown).await,
-        None => axum::serve(listener, router)
-            .with_graceful_shutdown(async move {
-                shutdown.cancelled().await;
-            })
-            .await
-            .context("LocalApiServer exited with an error"),
+        None => serve_plain_listener(listener, router, shutdown).await,
+    }
+}
+
+async fn serve_plain_listener(
+    listener: TcpListener,
+    router: Router,
+    shutdown: CancellationToken,
+) -> Result<()> {
+    loop {
+        select! {
+            _ = shutdown.cancelled() => return Ok(()),
+            accepted = listener.accept() => {
+                let (stream, _) = accepted.context("failed to accept LocalApiServer connection")?;
+                let service = TowerToHyperService::new(router.clone());
+                let shutdown = shutdown.clone();
+                spawn(async move {
+                    let io = TokioIo::new(stream);
+                    let builder = http1_connection_builder();
+                    let connection = builder.serve_connection(io, service);
+                    select! {
+                        _ = shutdown.cancelled() => {}
+                        result = connection => {
+                            if let Err(error) = result {
+                                eprintln!("[local api] connection error: {error}");
+                            }
+                        }
+                    }
+                });
+            }
+        }
     }
 }
 
@@ -169,7 +197,7 @@ async fn serve_tls_listener(
                         }
                     };
                     let io = TokioIo::new(tls_stream);
-                    let builder = HyperConnectionBuilder::new(TokioExecutor::new());
+                    let builder = http1_connection_builder();
                     let connection = builder.serve_connection(io, service);
                     select! {
                         _ = shutdown.cancelled() => {}
@@ -183,4 +211,11 @@ async fn serve_tls_listener(
             }
         }
     }
+}
+
+fn http1_connection_builder() -> HyperConnectionBuilder<TokioExecutor> {
+    let mut builder = HyperConnectionBuilder::new(TokioExecutor::new());
+    builder.http1().header_read_timeout(Duration::from_secs(30));
+    builder.http1().keep_alive(true);
+    builder
 }

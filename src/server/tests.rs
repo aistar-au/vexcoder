@@ -10,7 +10,7 @@ use crate::app::runtime_tokio::{
     sync::{Mutex as AsyncMutex, mpsc},
     time::timeout,
 };
-use crate::http_facade::header::{AUTHORIZATION, CONTENT_TYPE};
+use crate::http_facade::header::{AUTHORIZATION, CACHE_CONTROL, CONTENT_TYPE};
 use crate::http_facade::{Request, StatusCode};
 use axum::Router;
 use axum::body::{Body, to_bytes};

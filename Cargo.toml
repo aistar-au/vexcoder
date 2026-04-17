@@ -121,6 +121,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 indexmap = { version = "2", features = ["serde"] }
 tower-http = { version = "0.6", default-features = false, features = ["trace"] }
 regex-lite = "0.1"
+httpdate = "1"
 which = { version = "7", default-features = false }
 bm25 = "2"
 notify = { version = "8", default-features = false, features = [
@@ -338,6 +339,7 @@ chrono.workspace = true
 indexmap.workspace = true
 tower-http.workspace = true
 regex-lite.workspace = true
+httpdate.workspace = true
 
 # --- filesystem events, executable location, binary search ranking ---
 # which: locates executables on PATH; used by git_rollup.rs for a clear error

@@ -1,5 +1,6 @@
 use super::{InputEditor, MAX_INPUT_BYTES, file_mention_range, prev_char_boundary_in};
 use crate::ui::input_metrics::{cursor_row_col, visual_layout, visual_row_bounds};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 #[test]
 fn shared_prev_char_boundary_handles_multibyte_boundaries() {
@@ -262,4 +263,24 @@ fn insert_str_allows_input_up_to_cap() {
     // One byte below the cap — must succeed.
     editor.insert_str("z");
     assert_eq!(editor.input_state.buffer.len(), MAX_INPUT_BYTES);
+}
+
+#[test]
+fn ctrl_d_quits_only_when_buffer_is_empty() {
+    let mut editor = InputEditor::new();
+    let action = editor.apply_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL));
+    assert!(matches!(action, super::InputAction::Quit));
+}
+
+#[test]
+fn ctrl_d_deletes_character_when_buffer_is_not_empty() {
+    let mut editor = InputEditor::new();
+    editor.insert_str("abcd");
+    editor.input_state.cursor = 1;
+
+    let action = editor.apply_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL));
+
+    assert!(matches!(action, super::InputAction::None));
+    assert_eq!(editor.buffer(), "acd");
+    assert_eq!(editor.cursor(), 1);
 }

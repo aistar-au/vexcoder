@@ -293,3 +293,18 @@ Phase A of the amendment adds:
 
 4. RFC 3339 — Date and Time on the Internet: Timestamps.
    https://www.rfc-editor.org/rfc/rfc3339
+
+5. RFC 9110 — HTTP Semantics.
+   https://www.rfc-editor.org/rfc/rfc9110
+
+6. RFC 9111 — HTTP Caching.
+   https://www.rfc-editor.org/rfc/rfc9111
+
+7. RFC 9112 — HTTP/1.1.
+   https://www.rfc-editor.org/rfc/rfc9112
+
+8. WHATWG HTML Living Standard — Server-sent events.
+   https://html.spec.whatwg.org/multipage/server-sent-events.html
+
+9. RFC 8446 — The Transport Layer Security (TLS) Protocol Version 1.3.
+   https://www.rfc-editor.org/rfc/rfc8446

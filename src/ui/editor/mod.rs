@@ -359,11 +359,11 @@ impl InputEditor {
 
     pub fn apply_key(&mut self, key: KeyEvent) -> InputAction {
         match key.code {
-            KeyCode::Char('d')
-                if key.modifiers.contains(KeyModifiers::CONTROL)
-                    && self.input_state.buffer.is_empty() =>
-            {
-                return InputAction::Quit;
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if self.input_state.buffer.is_empty() {
+                    return InputAction::Quit;
+                }
+                self.delete();
             }
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return InputAction::Interrupt;
