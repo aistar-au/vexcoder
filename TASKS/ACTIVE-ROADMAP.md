@@ -1,6 +1,6 @@
 # Active Roadmap
 
-Single canonical source for what is active. Both `onboarding.md` Section 2b
+Single authoritative source for what is active. Both `onboarding.md` Section 2b
 and `TASKS/TASKS-DISPATCH-MAP.md` reference this file -- they do not duplicate it.
 
 Updated by the merge workflow after each ADR-scoped PR lands on main.
@@ -198,7 +198,7 @@ without changing machine-facing lifecycle values or diff color semantics.
   phrase when a more specific display string is unavailable.
 - `State synchronized.` now appears on human-facing completion surfaces.
 - Tool-call, orchestrator, and agent-enrichment status text now use the
-  deep-nebula-violet semantic lane while canonical machine lifecycle strings
+  deep-nebula-violet semantic lane while accepted machine lifecycle strings
   such as `completed` remain unchanged.
 
 **Batch B -- vocabulary normalization**
@@ -284,9 +284,9 @@ would duplicate traversal logic.
 
 | Task | Branch | PR | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| REF-01 follow-up | `work/vexcoder-runtime-envelope-client-api-direct-consumption` | Draft | **In Progress** | Whole-system continuation after PR #402: migrate residual client/API-side `StreamEvent` and `ContentBlock` parsing toward direct `RuntimeEnvelope` consumption; keep the CLI and ratatui/crossterm stack as downstream API consumers; stage structural extraction for `src/runtime/json_handoff.rs` and `src/api/stream.rs` in dedicated batches |
+| REF-01 follow-up | `work/vexcoder-runtime-envelope-client-api-direct-consumption` | #403 | **In Progress** | Whole-system continuation after PR #402: migrate residual client/API-side `StreamEvent` and `ContentBlock` parsing toward direct `RuntimeEnvelope` consumption; keep the CLI and ratatui/crossterm stack as downstream API consumers; stage structural extraction for `src/runtime/json_handoff.rs` and `src/api/stream.rs` in dedicated batches |
 | Ratatui-C1 | `work/vexcoder-ratatui-crossterm-compliance-plan` | #400 | **In Progress** | ECMA-48 / ratatui / crossterm compliance lane for inline viewport, bracketed paste, scroll-region, resize, and Windows VT capability contracts; preserve the current primary-screen scrollback lifecycle unless a later ADR changes it |
-| TaskDoc-PR1 | `work/vexcoder-task-document-pr1` | #349 | **In Progress** | Introduce canonical `TaskDocument` runtime module and split it into model, condenser, task_state_bridge, and test submodules; keep snapshot round-trip compatibility with `TaskState` persistence and leave TUI ownership changes to later PRs |
+| TaskDoc-PR1 | `work/vexcoder-task-document-pr1` | #349 | **In Progress** | Introduce the shared `TaskDocument` runtime module and split it into model, condenser, task_state_bridge, and test submodules; keep snapshot round-trip compatibility with `TaskState` persistence and leave TUI ownership changes to later PRs |
 | Ratatui-T4 | `work/vexcoder-tier4-ratatui-stack` | #342 | **In Review** | Tier 4 crate wiring: `indexmap`, `tower-http`, `regex-lite`, `pretty_assertions`, `assert_cmd`; full git parsing stack (status, diff stat, diff name-status, log oneline, apply); secret rewriting (vendor-API/AWS/GitHub/PEM/bearer/connection-string/generic); rate-limit extraction with Retry-After header + body; snapshot-to-rollup rename |
 
 ### Recently Merged / Closed

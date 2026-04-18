@@ -200,7 +200,7 @@ pub enum StepLifecycle {
     CommandSession,
 }
 
-/// A single row in the orchestration timeline, derived from canonical task state.
+/// A single row in the orchestration timeline, derived from task state.
 #[derive(Clone, Debug)]
 pub struct TimelineEntry {
     /// Monotonic identity that survives timeline re-derivation across frames.
@@ -228,7 +228,7 @@ pub struct TaskLayoutState {
     pub task_id: String,
     pub status_line: String,
     pub telemetry: TaskTelemetryState,
-    /// Structured timeline entries derived from canonical task state.
+    /// Structured timeline entries derived from task state.
     pub timeline_entries: Vec<TimelineEntry>,
     /// Index of the selected timeline entry (for inspector focus).
     pub selected_step: usize,
@@ -415,7 +415,7 @@ pub struct TuiMode {
     file_prompt_entries: RefCell<Option<Vec<String>>>,
     custom_commands: Vec<CustomCommand>,
     last_assembled_context: Option<AssembledContext>,
-    // ── Canonical task document ───────────────────────────────────────────
+    // ── Shared task document ──────────────────────────────────────────────
     /// Single source of truth for all task state: turns, entries, session
     /// grants, and metadata.  Replaces the legacy `TaskState` + per-turn
     /// transcript buffers.
@@ -427,10 +427,10 @@ pub struct TuiMode {
     /// Raw partial-JSON accumulator for streaming tool-call input fragments,
     /// keyed by block index.  Cleared when the block completes or turn ends.
     streaming_tool_input_buffers: std::collections::HashMap<usize, String>,
-    /// Set to `true` once a `StreamBlockDelta` updates a Final-phase
-    /// assistant block, so that flat `StreamDelta` events are skipped to
-    /// avoid double-counting the same content.
-    stream_uses_block_deltas: bool,
+    /// Set to `true` once structured final-block updates have supplied the
+    /// visible assistant text, so that flat `StreamDelta` events are skipped
+    /// and the same content is not counted twice.
+    stream_uses_structured_final_output: bool,
     // ── Turn lifecycle settings ────────────────────────────────────────────
     read_only_turn_active: bool,
     active_edit_loop: Option<EditLoop>,

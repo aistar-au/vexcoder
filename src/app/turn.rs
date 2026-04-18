@@ -39,7 +39,7 @@ impl TuiMode {
     pub(super) fn reset_turn_capture(&mut self) {
         self.task_doc.active_turn = None;
         self.streaming_tool_input_buffers.clear();
-        self.stream_uses_block_deltas = false;
+        self.stream_uses_structured_final_output = false;
         self.overlay_state.approved_tool_steps.clear();
         self.selected_timeline_index = 0;
         self.timeline_follow_mode = true;

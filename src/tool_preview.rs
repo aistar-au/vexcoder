@@ -31,7 +31,7 @@ pub enum ReadFileRollupSummary {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReadFileSummaryMessageStyle {
     History,
-    StreamEvent,
+    Streaming,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -132,15 +132,15 @@ pub fn format_read_file_rollup_message(
             "Read {path}: content changed ({before_chars} chars/{before_lines} lines -> {after_chars} chars/{after_lines} lines). Full content omitted; use search_files for targeted string matches."
         ),
         (
-            ReadFileSummaryMessageStyle::StreamEvent,
+            ReadFileSummaryMessageStyle::Streaming,
             ReadFileRollupSummary::FirstRead { chars, lines },
         ) => format!("content: {chars} chars, {lines} lines (hidden)"),
         (
-            ReadFileSummaryMessageStyle::StreamEvent,
+            ReadFileSummaryMessageStyle::Streaming,
             ReadFileRollupSummary::Unchanged { chars, lines },
         ) => format!("no changes since last read ({chars} chars, {lines} lines)"),
         (
-            ReadFileSummaryMessageStyle::StreamEvent,
+            ReadFileSummaryMessageStyle::Streaming,
             ReadFileRollupSummary::Changed {
                 before_chars,
                 before_lines,
@@ -449,7 +449,7 @@ mod tests {
                 after_chars: 10,
                 after_lines: 2,
             },
-            ReadFileSummaryMessageStyle::StreamEvent,
+            ReadFileSummaryMessageStyle::Streaming,
         );
         assert_eq!(
             stream,

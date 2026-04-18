@@ -85,10 +85,10 @@ impl TuiMode {
                 {
                     return;
                 }
-                // When the protocol also sends StreamBlockDelta for Final
-                // content, the block-level entries already contain the text.
-                // Skip the flat delta to avoid double-counting.
-                if self.stream_uses_block_deltas {
+                // Once structured final-block updates already carry the
+                // visible assistant text, skip flat stream deltas so the
+                // transcript does not count the same content twice.
+                if self.stream_uses_structured_final_output {
                     return;
                 }
                 if self.task_doc.active_turn.is_some() {
@@ -359,7 +359,7 @@ impl TuiMode {
                             && block.block_index == index
                         {
                             block.content.push_str(&delta);
-                            self.stream_uses_block_deltas = true;
+                            self.stream_uses_structured_final_output = true;
                             return true;
                         }
                         false

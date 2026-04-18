@@ -8,14 +8,14 @@
 
 ## Context
 
-The current `messages/v1` endpoint emits full runtime envelopes. To enable small-portion SSE parsing (only the relevant delta for a given `tx_` ID), we pivot the default to Block-Delta format while preserving dual-protocol support via one canonical accumulator and two thin mappers. This amendment removes legacy backwards compatibility requirements and introduces client-side protocol discovery for a host-and-port-only configuration surface.
+The current `messages/v1` endpoint emits full runtime envelopes. To enable small-portion SSE parsing (only the relevant delta for a given `tx_` ID), we pivot the default to Block-Delta format while preserving dual-protocol support via one shared accumulator and two thin mappers. This amendment removes legacy backwards compatibility requirements and introduces client-side protocol discovery for a host-and-port-only configuration surface.
 
 ## Implementation Status Note
 
 - Phase 0 foundations are merged.
 - Phase 1 mapper serialisation now lives in `src/api/stream/mappers.rs`.
 - `/v1/turns` now negotiates runtime-envelope, Block-Delta, or Choices-Delta SSE via `Accept`, and HTTP-level tests assert `tx_` IDs over the wire for both mapper formats.
-- Live client-side discovery now uses `src/api/client/protocol_discovery.rs` for local `api_client.base_url` and local `model_url` sessions, with `explicit_protocol` remaining as the only bypass and now reusing canonical `ModelProtocol` names.
+- Live client-side discovery now uses `src/api/client/protocol_discovery.rs` for local `api_client.base_url` and local `model_url` sessions, with `explicit_protocol` remaining as the only bypass and now reusing the accepted `ModelProtocol` names.
 - `LocalApiTaskShared::new()` now wires a bounded peer-event channel into the accumulator, and partial tool-argument truncation emits explicit peer diagnostics instead of failing silently.
 
 ## Why Backwards Compatibility Is Not Required
@@ -60,9 +60,9 @@ The `DeltaAccumulator` exposes an optional `mpsc::Sender<PeerDeltaEvent>` for in
 
 - Users configure only `base_url` (e.g., `http://127.0.0.1:8000`)
 - `discover_protocol()` runs a one-time probe at connection time:
-  1. Attempt `GET /v1/messages` with `Accept: application/vnd.block-delta+sse`
+  1. Attempt `GET /v1/messages` with `Accept: text/event-stream`
   2. If `200 OK` + `text/event-stream` content-type → `ModelProtocol::MessagesV1`
-  3. Else attempt `GET /v1/chat/completions` with `Accept: application/vnd.choices-delta+sse`
+  3. Else attempt `GET /v1/chat/completions` with `Accept: text/event-stream`
   4. If `200 OK` + `text/event-stream` → `ModelProtocol::ChatCompat`
   5. Else return `DiscoveryError::AllProbesFailed` with probe diagnostics
 - Discovery result cached for session duration
@@ -106,7 +106,7 @@ The `DeltaAccumulator` exposes an optional `mpsc::Sender<PeerDeltaEvent>` for in
 
 ### Phase 3 — Testing
 
-Expanded coverage now includes HTTP-level `tx_` SSE assertions for both mapper formats plus live discovery coverage for `api_client.base_url`, local `model_url` sessions, and explicit-protocol request routing via canonical protocol names.
+Expanded coverage now includes HTTP-level `tx_` SSE assertions for both mapper formats plus live discovery coverage for `api_client.base_url`, local `model_url` sessions, and explicit-protocol request routing via the accepted protocol names.
 
 ### Phase 4 — Schema + Docs
 
@@ -131,4 +131,4 @@ Expanded coverage now includes HTTP-level `tx_` SSE assertions for both mapper f
 5. Add protocol mapper tests — **done; HTTP-level mapper assertions and client discovery tests are merged**
 6. Update docs + CHANGELOG — **in progress**
 
-This ADR supersedes all previous draft versions and captures the intended end state. The repository now contains the phase 0 foundations, mapper serialisation, live `/v1/turns` negotiated emission, and the unified local discovery cutover; remaining work is primarily documentation follow-through and broader parity coverage.
+This ADR supersedes all previous versions and captures the intended end state. The repository now contains the phase 0 foundations, mapper serialisation, live `/v1/turns` negotiated emission, and the unified local discovery cutover; remaining work is primarily documentation follow-through and broader parity coverage.
