@@ -7,8 +7,8 @@
 
 use crate::api::client::{map_api_request_error, map_api_status_error};
 use crate::api::stream::StreamParser;
+use crate::runtime::RuntimeEnvelope;
 use crate::runtime::backend::EventStream;
-use crate::types::StreamEvent;
 use anyhow::{Context, Result, anyhow};
 use bytes::Bytes;
 use eventsource_client::{Client as _, ClientBuilder, ReconnectOptions, SSE};
@@ -81,17 +81,21 @@ pub(crate) async fn create_event_stream(
 struct EventStreamState {
     upstream: eventsource_client::BoxStream<eventsource_client::Result<SSE>>,
     parser: StreamParser,
-    pending: VecDeque<StreamEvent>,
+    pending: VecDeque<RuntimeEnvelope>,
     request_url: String,
 }
 
-async fn next_stream_event(state: &mut EventStreamState) -> Result<Option<StreamEvent>> {
+async fn next_stream_event(state: &mut EventStreamState) -> Result<Option<RuntimeEnvelope>> {
     loop {
         if let Some(event) = state.pending.pop_front() {
             return Ok(Some(event));
         }
 
         let Some(item) = state.upstream.next().await else {
+            state.pending.extend(state.parser.finish());
+            if let Some(event) = state.pending.pop_front() {
+                return Ok(Some(event));
+            }
             return Ok(None);
         };
 

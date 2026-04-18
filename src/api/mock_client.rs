@@ -42,14 +42,26 @@ impl MockStreamProducer for MockApiClient {
         // split-frame parser behaviour should supply a raw "\n\n"-terminated
         // sequence explicitly.
         let stream = stream::try_unfold(
-            (chunks.into_iter(), StreamParser::new(), VecDeque::new()),
-            |(mut chunks, mut parser, mut pending)| async move {
+            (
+                chunks.into_iter(),
+                StreamParser::new(),
+                VecDeque::new(),
+                false,
+            ),
+            |(mut chunks, mut parser, mut pending, mut finished)| async move {
                 loop {
                     if let Some(event) = pending.pop_front() {
-                        return Ok(Some((event, (chunks, parser, pending))));
+                        return Ok(Some((event, (chunks, parser, pending, finished))));
                     }
                     match chunks.next() {
-                        None => return Ok(None),
+                        None => {
+                            if finished {
+                                return Ok(None);
+                            }
+                            finished = true;
+                            pending.extend(parser.finish());
+                            continue;
+                        }
                         Some(chunk) => {
                             let framed = if chunk.ends_with("\n\n") {
                                 chunk

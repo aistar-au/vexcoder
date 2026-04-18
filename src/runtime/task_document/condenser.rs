@@ -345,6 +345,18 @@ impl TaskDocumentCondenser {
                 }
             }
             RuntimeEvent::ValidationResult { .. } => {}
+            RuntimeEvent::ServerMetadata { metadata } => {
+                if let Some(active) = doc.active_turn.as_mut() {
+                    if let Some(prompt_progress) = metadata.prompt_progress {
+                        active.prompt_progress = Some(prompt_progress);
+                    }
+                    if let Some(timings) = metadata.timings {
+                        active.timings = Some(timings);
+                    }
+                    summary.active_turn_changed = true;
+                }
+            }
+            RuntimeEvent::UsageUpdated { .. } => {}
             RuntimeEvent::TurnEnd {
                 status: _,
                 changed_files,

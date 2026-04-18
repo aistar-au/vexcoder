@@ -143,7 +143,7 @@ make deps-deny
 # 5. Run the normal verification gate before pushing.
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
-cargo nextest run -j 2
+cargo nextest run
 cargo test --all-targets
 bash scripts/check_forbidden_names.sh
 ```

@@ -3,9 +3,10 @@ use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 
-use crate::types::{ApiMessage, StreamEvent};
+use crate::runtime::RuntimeEnvelope;
+use crate::types::ApiMessage;
 
-pub type EventStream = Pin<Box<dyn Stream<Item = Result<StreamEvent>> + Send>>;
+pub type EventStream = Pin<Box<dyn Stream<Item = Result<RuntimeEnvelope>> + Send>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelBackendKind {

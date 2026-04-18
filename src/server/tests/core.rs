@@ -1,9 +1,8 @@
 use super::*;
 use crate::api::stream::StreamParser;
 use crate::app::UiUpdate;
-use crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, TurnEndContext};
+use crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, RuntimeEvent, TurnEndContext};
 use crate::state::{StreamBlock, ToolStatus};
-use crate::types::{ContentBlock, StreamEvent};
 use serde_json::json;
 
 #[tokio::test]
@@ -391,11 +390,7 @@ async fn test_runtime_sse_response_emits_keepalive_comment() {
             .await
             .take()
             .expect("single keepalive request");
-        runtime_sse_response(
-            receiver,
-            Duration::from_millis(20),
-            TurnsSseMode::RuntimeEnvelope,
-        )
+        runtime_sse_response(receiver, Duration::from_millis(20))
     }
 
     let (sender, receiver) = mpsc::unbounded_channel::<String>();
@@ -463,11 +458,7 @@ async fn test_runtime_sse_response_omits_event_ids_until_resume_support_exists()
             .await
             .take()
             .expect("single runtime request");
-        runtime_sse_response(
-            receiver,
-            Duration::from_millis(20),
-            TurnsSseMode::RuntimeEnvelope,
-        )
+        runtime_sse_response(receiver, Duration::from_millis(20))
     }
 
     let (sender, receiver) = mpsc::unbounded_channel::<String>();
@@ -519,28 +510,20 @@ async fn test_runtime_sse_response_omits_event_ids_until_resume_support_exists()
 }
 
 #[tokio::test]
-async fn test_runtime_sse_response_block_delta_emits_tx_tool_id_over_http() {
+async fn test_runtime_sse_response_emits_runtime_envelope_tool_events_over_http() {
     #[derive(Clone)]
     struct TestSseState {
         receiver: Arc<AsyncMutex<Option<mpsc::UnboundedReceiver<String>>>>,
     }
 
-    async fn protocol_handler(
-        headers: axum::http::HeaderMap,
-        State(state): State<TestSseState>,
-    ) -> impl IntoResponse {
+    async fn protocol_handler(State(state): State<TestSseState>) -> impl IntoResponse {
         let receiver = state
             .receiver
             .lock()
             .await
             .take()
-            .expect("single block-delta request");
-        let mode = negotiate_turns_sse_mode(
-            headers
-                .get(axum::http::header::ACCEPT)
-                .and_then(|value| value.to_str().ok()),
-        );
-        runtime_sse_response(receiver, Duration::from_millis(20), mode)
+            .expect("single runtime-envelope request");
+        runtime_sse_response(receiver, Duration::from_millis(20))
     }
 
     let (sender, receiver) = mpsc::unbounded_channel::<String>();
@@ -597,7 +580,7 @@ async fn test_runtime_sse_response_block_delta_emits_tx_tool_id_over_http() {
 
     let response = reqwest::Client::new()
         .get(format!("http://{addr}/"))
-        .header("Accept", "application/vnd.block-delta+sse")
+        .header("Accept", "text/event-stream")
         .send()
         .await
         .unwrap();
@@ -606,8 +589,8 @@ async fn test_runtime_sse_response_block_delta_emits_tx_tool_id_over_http() {
     let mut parser = StreamParser::new();
     let mut saw_tool_start = false;
     let mut saw_tool_delta = false;
-    let mut saw_tool_stop = false;
-    let mut saw_message_stop = false;
+    let mut saw_tool_block_complete = false;
+    let mut saw_turn_end = false;
     let mut stream = response.bytes_stream();
 
     for _ in 0..12 {
@@ -621,69 +604,70 @@ async fn test_runtime_sse_response_block_delta_emits_tx_tool_id_over_http() {
         };
         let chunk = chunk.expect("stream ended unexpectedly");
         for event in parser.process(&chunk).unwrap() {
-            match event {
-                StreamEvent::ContentBlockStart {
-                    content_block: ContentBlock::ToolUse { id, name, .. },
+            match event.event {
+                RuntimeEvent::ToolCallStarted {
+                    tool_call_id,
+                    tool_name,
                     ..
                 } => {
-                    assert!(id.starts_with("tx_"), "expected tx_ id, got {id}");
-                    assert_eq!(name, "read_file");
+                    assert!(
+                        tool_call_id.starts_with("tx_"),
+                        "expected tx_ id, got {tool_call_id}"
+                    );
+                    assert_eq!(tool_name, "read_file");
                     saw_tool_start = true;
                 }
-                StreamEvent::ContentBlockDelta { delta, .. } => {
-                    assert_eq!(
-                        delta.partial_json.as_deref(),
-                        Some(r#"{"path":"src/lib.rs"}"#)
-                    );
+                RuntimeEvent::ToolCallArgumentsDelta { delta, .. } => {
+                    assert_eq!(delta, r#"{"path":"src/lib.rs"}"#);
                     saw_tool_delta = true;
                 }
-                StreamEvent::ContentBlockStop { .. } => saw_tool_stop = true,
-                StreamEvent::MessageStop => {
-                    saw_message_stop = true;
+                RuntimeEvent::TranscriptBlockComplete { .. } => {
+                    saw_tool_block_complete = true;
+                }
+                RuntimeEvent::TurnEnd { .. } => {
+                    saw_turn_end = true;
                     break;
                 }
                 _ => {}
             }
         }
-        if saw_message_stop {
+        if saw_turn_end {
             break;
         }
     }
 
-    assert!(saw_tool_start, "expected tool start over block-delta SSE");
-    assert!(saw_tool_delta, "expected tool delta over block-delta SSE");
-    assert!(saw_tool_stop, "expected tool stop over block-delta SSE");
     assert!(
-        saw_message_stop,
-        "expected message stop over block-delta SSE"
+        saw_tool_start,
+        "expected tool start over runtime-envelope SSE"
     );
+    assert!(
+        saw_tool_delta,
+        "expected tool delta over runtime-envelope SSE"
+    );
+    assert!(
+        saw_tool_block_complete,
+        "expected tool block completion over runtime-envelope SSE"
+    );
+    assert!(saw_turn_end, "expected turn end over runtime-envelope SSE");
 
     server.abort();
 }
 
 #[tokio::test]
-async fn test_runtime_sse_response_choices_delta_emits_tx_tool_id_over_http() {
+async fn test_runtime_sse_response_emits_runtime_envelope_tool_events_without_accept_override() {
     #[derive(Clone)]
     struct TestSseState {
         receiver: Arc<AsyncMutex<Option<mpsc::UnboundedReceiver<String>>>>,
     }
 
-    async fn protocol_handler(
-        headers: axum::http::HeaderMap,
-        State(state): State<TestSseState>,
-    ) -> impl IntoResponse {
+    async fn protocol_handler(State(state): State<TestSseState>) -> impl IntoResponse {
         let receiver = state
             .receiver
             .lock()
             .await
             .take()
-            .expect("single choices request");
-        let mode = negotiate_turns_sse_mode(
-            headers
-                .get(axum::http::header::ACCEPT)
-                .and_then(|value| value.to_str().ok()),
-        );
-        runtime_sse_response(receiver, Duration::from_millis(20), mode)
+            .expect("single runtime-envelope request");
+        runtime_sse_response(receiver, Duration::from_millis(20))
     }
 
     let (sender, receiver) = mpsc::unbounded_channel::<String>();
@@ -740,7 +724,6 @@ async fn test_runtime_sse_response_choices_delta_emits_tx_tool_id_over_http() {
 
     let response = reqwest::Client::new()
         .get(format!("http://{addr}/"))
-        .header("Accept", "application/vnd.choices-delta+sse")
         .send()
         .await
         .unwrap();
@@ -749,7 +732,7 @@ async fn test_runtime_sse_response_choices_delta_emits_tx_tool_id_over_http() {
     let mut parser = StreamParser::new();
     let mut saw_tool_start = false;
     let mut saw_tool_delta = false;
-    let mut saw_tool_stop = false;
+    let mut saw_tool_block_complete = false;
     let mut stream = response.bytes_stream();
 
     for _ in 0..12 {
@@ -763,37 +746,47 @@ async fn test_runtime_sse_response_choices_delta_emits_tx_tool_id_over_http() {
         };
         let chunk = chunk.expect("stream ended unexpectedly");
         for event in parser.process(&chunk).unwrap() {
-            match event {
-                StreamEvent::ContentBlockStart {
-                    content_block: ContentBlock::ToolUse { id, name, .. },
+            match event.event {
+                RuntimeEvent::ToolCallStarted {
+                    tool_call_id,
+                    tool_name,
                     ..
                 } => {
-                    assert!(id.starts_with("tx_"), "expected tx_ id, got {id}");
-                    assert_eq!(name, "read_file");
+                    assert!(
+                        tool_call_id.starts_with("tx_"),
+                        "expected tx_ id, got {tool_call_id}"
+                    );
+                    assert_eq!(tool_name, "read_file");
                     saw_tool_start = true;
                 }
-                StreamEvent::ContentBlockDelta { delta, .. } => {
-                    assert_eq!(
-                        delta.partial_json.as_deref(),
-                        Some(r#"{"path":"src/lib.rs"}"#)
-                    );
+                RuntimeEvent::ToolCallArgumentsDelta { delta, .. } => {
+                    assert_eq!(delta, r#"{"path":"src/lib.rs"}"#);
                     saw_tool_delta = true;
                 }
-                StreamEvent::ContentBlockStop { .. } => {
-                    saw_tool_stop = true;
+                RuntimeEvent::TranscriptBlockComplete { .. } => {
+                    saw_tool_block_complete = true;
                     break;
                 }
                 _ => {}
             }
         }
-        if saw_tool_stop {
+        if saw_tool_block_complete {
             break;
         }
     }
 
-    assert!(saw_tool_start, "expected tool start over choices SSE");
-    assert!(saw_tool_delta, "expected tool delta over choices SSE");
-    assert!(saw_tool_stop, "expected tool stop over choices SSE");
+    assert!(
+        saw_tool_start,
+        "expected tool start over runtime-envelope SSE"
+    );
+    assert!(
+        saw_tool_delta,
+        "expected tool delta over runtime-envelope SSE"
+    );
+    assert!(
+        saw_tool_block_complete,
+        "expected tool block completion over runtime-envelope SSE"
+    );
 
     server.abort();
 }

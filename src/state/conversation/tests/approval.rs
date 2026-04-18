@@ -259,14 +259,11 @@ data: {"type":"message_stop"}"#.to_string(),
         })
         .expect("expected tool_result message in history");
     if let Content::Blocks(blocks) = &tool_result_message.content {
-        assert!(blocks.iter().any(|block| matches!(
-            block,
-            ContentBlock::ToolResult {
-                tool_use_id,
-                is_error: true,
-                ..
-            } if tool_use_id == "toolu_mut_01"
-        )));
+        assert!(
+            blocks
+                .iter()
+                .any(|block| matches!(block, ContentBlock::ToolResult { is_error: true, .. }))
+        );
     } else {
         panic!("expected tool_result blocks");
     }

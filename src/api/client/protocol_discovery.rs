@@ -5,8 +5,8 @@
 //! returns a cached [`ProtocolVariant`] for the session.
 //!
 //! Two probes are attempted in order:
-//! 1. `GET /v1/messages` with `Accept: application/vnd.block-delta+sse`
-//! 2. `GET /v1/chat/completions` with `Accept: application/vnd.choices-delta+sse`
+//! 1. `GET /v1/messages` with `Accept: text/event-stream`
+//! 2. `GET /v1/chat/completions` with `Accept: text/event-stream`
 //!
 //! The first probe that returns `200 OK` with a `text/event-stream`
 //! `Content-Type` wins. If both fail, [`DiscoveryError::AllProbesFailed`]
@@ -155,7 +155,7 @@ pub async fn discover_protocol(
 
     let block_probe = probe_endpoint(
         &format!("{base}/v1/messages"),
-        "application/vnd.block-delta+sse",
+        "text/event-stream",
         timeout,
         client,
     )
@@ -176,7 +176,7 @@ pub async fn discover_protocol(
 
     let choices_probe = probe_endpoint(
         &format!("{base}/v1/chat/completions"),
-        "application/vnd.choices-delta+sse",
+        "text/event-stream",
         timeout,
         client,
     )
@@ -221,7 +221,7 @@ mod tests {
     fn probe_attempt_fields() {
         let attempt = ProbeAttempt {
             endpoint: "http://127.0.0.1:8000/v1/messages".to_string(),
-            accept_header: "application/vnd.block-delta+sse".to_string(),
+            accept_header: "text/event-stream".to_string(),
             status: Some(200),
             error: None,
             latency_ms: 12,

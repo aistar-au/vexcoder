@@ -6,7 +6,7 @@ use crate::turn_evidence::{
     SummaryRecord, TurnEvidenceRecord, command_evidence_from_tool_result,
     note_changed_files_from_tool_call,
 };
-use crate::types::ContentBlock;
+use crate::types::{ContentBlock, StreamChunkMetadata};
 use crate::usage::TurnTokens;
 use chrono::{DateTime, SecondsFormat, Timelike, Utc};
 use indexmap::IndexMap;
@@ -138,6 +138,12 @@ pub enum RuntimeEvent {
         passed: bool,
         outputs: Vec<ValidationOutputEnvelope>,
     },
+    ServerMetadata {
+        metadata: Box<StreamChunkMetadata>,
+    },
+    UsageUpdated {
+        usage: TokenUsageEnvelope,
+    },
     TurnEnd {
         status: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -205,6 +211,10 @@ pub struct TokenUsageEnvelope {
     pub output: u64,
     #[serde(default)]
     pub estimated: bool,
+    #[serde(default)]
+    pub cache_creation_input: u64,
+    #[serde(default)]
+    pub cache_read_input: u64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -463,7 +473,11 @@ impl RuntimeEnvelopeNormalizer {
                 envelopes.push(self.next_envelope(runtime_approval_request_event(request)));
                 envelopes
             }
-            UiUpdate::ServerMetadata(_) => Vec::new(),
+            UiUpdate::ServerMetadata(metadata) => {
+                vec![self.next_envelope(RuntimeEvent::ServerMetadata {
+                    metadata: Box::new((**metadata).clone()),
+                })]
+            }
             UiUpdate::CommandSessionStarted { .. }
             | UiUpdate::CommandSessionAttached { .. }
             | UiUpdate::CommandSessionFinished { .. }
@@ -1014,6 +1028,8 @@ pub fn derive_batch_records(
             | RuntimeEvent::ToolCallArgumentsDelta { .. }
             | RuntimeEvent::ToolCallStatusUpdated { .. }
             | RuntimeEvent::TranscriptBlockPhaseUpdated { .. }
+            | RuntimeEvent::ServerMetadata { .. }
+            | RuntimeEvent::UsageUpdated { .. }
             | RuntimeEvent::ApprovalRequest { .. }
             | RuntimeEvent::ApprovalResolved { .. }
             | RuntimeEvent::ValidationResult { .. }
@@ -1065,7 +1081,9 @@ fn source_for_event(event: &RuntimeEvent) -> RuntimeEnvelopeSource {
         RuntimeEvent::TranscriptBlockStart { block, .. } => source_for_stream_block(block),
         RuntimeEvent::TranscriptBlockComplete { .. }
         | RuntimeEvent::ToolCallStarted { .. }
-        | RuntimeEvent::ToolCallArgumentsDelta { .. } => RuntimeEnvelopeSource::Model,
+        | RuntimeEvent::ToolCallArgumentsDelta { .. }
+        | RuntimeEvent::ServerMetadata { .. }
+        | RuntimeEvent::UsageUpdated { .. } => RuntimeEnvelopeSource::Model,
         // TranscriptBlockDelta callers always supply the block's recorded
         // source via next_envelope_with_source; this fallback only fires if a
         // delta arrives for an unregistered block index, in which case Runtime

@@ -13,6 +13,8 @@ pub fn token_usage_from_turn_tokens(tokens: TurnTokens) -> Option<TokenUsageEnve
             input: tokens.input,
             output: tokens.output,
             estimated: tokens.estimated,
+            cache_creation_input: tokens.cache_creation_input_tokens,
+            cache_read_input: tokens.cache_read_input_tokens,
         })
     }
 }
@@ -22,7 +24,8 @@ pub(super) fn turn_tokens_from_usage(usage: &TokenUsageEnvelope) -> TurnTokens {
         input: usage.input,
         output: usage.output,
         estimated: usage.estimated,
-        ..Default::default()
+        cache_creation_input_tokens: usage.cache_creation_input,
+        cache_read_input_tokens: usage.cache_read_input,
     }
 }
 

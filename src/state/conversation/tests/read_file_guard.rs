@@ -162,23 +162,23 @@ data: {"type":"message_stop"}"#.to_string(),
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert_eq!(
-            tool_result_ids,
-            vec!["toolu_list_root", "toolu_missing_read_parallel"]
+        assert_eq!(tool_result_ids.len(), 2);
+        assert!(
+            tool_result_ids
+                .iter()
+                .all(|tool_use_id| tool_use_id.starts_with("tx_"))
         );
         assert!(blocks.iter().any(|block| matches!(
             block,
             ContentBlock::ToolResult {
-                tool_use_id,
                 is_error: false,
                 ..
-            } if tool_use_id == "toolu_list_root"
+            }
         )));
         assert!(blocks.iter().any(|block| matches!(
             block,
-            ContentBlock::ToolResult { tool_use_id, content, is_error }
-                if tool_use_id == "toolu_missing_read_parallel"
-                    && *is_error
+            ContentBlock::ToolResult { content, is_error, .. }
+                if *is_error
                     && content.contains("explicit file path")
                     && content.contains("[file: ...]")
                     && !content.contains("requires a non-empty 'path'")
@@ -249,13 +249,22 @@ data: {"type":"message_stop"}"#.to_string(),
         })
         .expect("expected tool_result message in history");
     if let Content::Blocks(blocks) = &tool_result_message.content {
+        let tool_result_ids = blocks
+            .iter()
+            .filter_map(|block| match block {
+                ContentBlock::ToolResult { tool_use_id, .. } => Some(tool_use_id.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(tool_result_ids.len(), 1);
+        assert!(tool_result_ids[0].starts_with("tx_"));
         assert!(blocks.iter().any(|block| matches!(
             block,
             ContentBlock::ToolResult {
-                tool_use_id,
                 content,
                 is_error: true,
-            } if tool_use_id == "toolu_readonly_guard_01" && content.contains("appears read-only")
+                ..
+            } if content.contains("appears read-only")
         )));
     } else {
         panic!("expected tool_result blocks");

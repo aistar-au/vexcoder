@@ -1,5 +1,5 @@
 use super::{MAX_SSE_BUFFER_BYTES, StreamParser};
-use crate::types::{ContentBlock, StreamEvent};
+use crate::runtime::RuntimeEvent;
 
 #[test]
 fn test_process_emits_ping_for_ping_frame() {
@@ -8,8 +8,7 @@ fn test_process_emits_ping_for_ping_frame() {
         .process(b"event: ping\ndata: {\"type\":\"ping\"}\n\n")
         .unwrap();
 
-    assert_eq!(events.len(), 1);
-    assert!(matches!(events[0], StreamEvent::Ping));
+    assert!(events.is_empty());
 }
 
 #[test]
@@ -21,16 +20,13 @@ fn test_process_maps_chat_compat_usage_chunk() {
         )
         .unwrap();
 
-    assert_eq!(events.len(), 1);
-    match &events[0] {
-        StreamEvent::MessageDelta { usage, .. } => {
-            let usage = usage.as_ref().expect("usage should be present");
-            assert_eq!(usage.input_tokens, Some(12));
-            assert_eq!(usage.output_tokens, Some(7));
-            assert_eq!(usage.total_tokens, Some(19));
-        }
-        other => panic!("expected MessageDelta event, got {other:?}"),
-    }
+    assert_eq!(events.len(), 2);
+    assert!(matches!(&events[0].event, RuntimeEvent::TurnStart { .. }));
+    assert!(matches!(
+        &events[1].event,
+        RuntimeEvent::UsageUpdated { usage }
+            if usage.input == 12 && usage.output == 7 && usage.cache_creation_input == 0 && usage.cache_read_input == 0
+    ));
 }
 
 #[test]
@@ -42,15 +38,12 @@ fn test_process_messages_v1_message_delta_top_level_usage() {
         )
         .unwrap();
 
-    assert_eq!(events.len(), 1);
-    match &events[0] {
-        StreamEvent::MessageDelta { delta, usage } => {
-            assert_eq!(delta.stop_reason.as_deref(), Some("end_turn"));
-            let usage = usage.as_ref().expect("top-level usage must be present");
-            assert_eq!(usage.output_tokens, Some(15));
-        }
-        other => panic!("expected MessageDelta event, got {other:?}"),
-    }
+    assert_eq!(events.len(), 2);
+    assert!(matches!(&events[0].event, RuntimeEvent::TurnStart { .. }));
+    assert!(matches!(
+        &events[1].event,
+        RuntimeEvent::UsageUpdated { usage } if usage.output == 15
+    ));
 }
 
 #[test]
@@ -64,23 +57,18 @@ fn test_process_chat_compat_emits_message_start_metadata() {
         )
         .unwrap();
 
-    assert_eq!(events.len(), 2);
-    match &events[0] {
-        StreamEvent::MessageStart { message } => {
-            assert_eq!(message.id, "chatcmpl-1");
-            assert_eq!(message.role, "assistant");
-            assert_eq!(message.model, "model-name");
-            let metadata = message
-                .metadata
-                .as_ref()
-                .expect("metadata should be present");
-            assert_eq!(metadata.object.as_deref(), Some("chat.completion.chunk"));
-            assert_eq!(metadata.created, Some(1741730100));
-            assert_eq!(metadata.system_fingerprint.as_deref(), Some("fp_123"));
-            assert_eq!(metadata.service_tier.as_deref(), Some("standard"));
-        }
-        other => panic!("expected MessageStart event, got {other:?}"),
-    }
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ServerMetadata { metadata }
+            if metadata.object.as_deref() == Some("chat.completion.chunk")
+                && metadata.created == Some(1741730100)
+                && metadata.system_fingerprint.as_deref() == Some("fp_123")
+                && metadata.service_tier.as_deref() == Some("standard")
+    )));
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockDelta { delta, .. } if delta == "hello"
+    )));
 }
 
 #[test]
@@ -94,19 +82,11 @@ fn test_process_chat_compat_emits_refusal_logprobs_and_choice_index() {
         )
         .unwrap();
 
-    assert_eq!(events.len(), 2);
-    match &events[1] {
-        StreamEvent::MessageDelta { delta, usage } => {
-            assert!(usage.is_none());
-            assert_eq!(delta.stop_reason.as_deref(), Some("stop"));
-            assert_eq!(delta.role.as_deref(), Some("assistant"));
-            assert_eq!(delta.refusal.as_deref(), Some("cannot comply"));
-            let metadata = delta.metadata.as_ref().expect("metadata should be present");
-            assert_eq!(metadata.choice_index, Some(2));
-            assert!(metadata.logprobs.is_some());
-        }
-        other => panic!("expected MessageDelta event, got {other:?}"),
-    }
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ServerMetadata { metadata }
+            if metadata.choice_index == Some(2) && metadata.logprobs.is_some()
+    )));
 }
 
 #[test]
@@ -120,26 +100,18 @@ fn test_process_chat_compat_emits_prompt_progress_and_timings_without_text() {
         )
         .unwrap();
 
-    assert_eq!(events.len(), 2);
-    match &events[1] {
-        StreamEvent::MessageDelta { delta, usage } => {
-            assert!(usage.is_none());
-            let metadata = delta.metadata.as_ref().expect("metadata should be present");
-            let prompt_progress = metadata
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ServerMetadata { metadata }
+            if metadata
                 .prompt_progress
                 .as_ref()
-                .expect("prompt progress should be present");
-            assert_eq!(prompt_progress.total, Some(2641));
-            assert_eq!(prompt_progress.processed, Some(2048));
-            let timings = metadata
-                .timings
-                .as_ref()
-                .expect("timings should be present");
-            assert_eq!(timings.prompt_n, Some(2048));
-            assert_eq!(timings.prompt_ms, Some(153341.0));
-        }
-        other => panic!("expected MessageDelta event, got {other:?}"),
-    }
+                .is_some_and(|progress| progress.total == Some(2641) && progress.processed == Some(2048))
+                && metadata
+                    .timings
+                    .as_ref()
+                    .is_some_and(|timings| timings.prompt_n == Some(2048) && timings.prompt_ms == Some(153341.0))
+    )));
 }
 
 #[test]
@@ -148,12 +120,10 @@ fn test_process_emits_error_event_on_unparseable_frame() {
     let events = parser.process(b"data: not-a-json-value\n\n").unwrap();
 
     assert_eq!(events.len(), 1);
-    match &events[0] {
-        StreamEvent::Error { error } => {
-            assert_eq!(error.error_type, "sse_parse_error");
-        }
-        other => panic!("expected StreamEvent::Error, got {other:?}"),
-    }
+    assert!(matches!(
+        &events[0].event,
+        RuntimeEvent::Error { code, .. } if code == "sse_parse_error"
+    ));
 }
 
 #[test]
@@ -163,16 +133,14 @@ fn test_process_emits_error_event_on_buffer_overflow() {
     let events = parser.process(&big_chunk).unwrap();
 
     assert_eq!(events.len(), 1);
-    match &events[0] {
-        StreamEvent::Error { error } => {
-            assert_eq!(error.error_type, "sse_buffer_overflow");
-        }
-        other => panic!("expected StreamEvent::Error on overflow, got {other:?}"),
-    }
+    assert!(matches!(
+        &events[0].event,
+        RuntimeEvent::Error { code, .. } if code == "sse_buffer_overflow"
+    ));
 
     let follow_up = parser.process(b"still-overflowed").unwrap();
     assert_eq!(follow_up.len(), 1);
-    assert!(matches!(follow_up[0], StreamEvent::Error { .. }));
+    assert!(matches!(&follow_up[0].event, RuntimeEvent::Error { .. }));
 }
 
 #[test]
@@ -186,34 +154,18 @@ fn test_process_clamps_chat_compat_tool_call_index() {
         )
         .unwrap();
 
-    assert_eq!(events.len(), 3);
-    match &events[1] {
-        StreamEvent::ContentBlockStart {
-            index,
-            content_block,
-        } => {
-            assert_eq!(*index, 1025);
-            match content_block {
-                ContentBlock::ToolUse { id, name, .. } => {
-                    assert_eq!(id, "call_1");
-                    assert_eq!(name, "read_file");
-                }
-                other => panic!("expected tool-use block, got {other:?}"),
-            }
-        }
-        other => panic!("expected ContentBlockStart, got {other:?}"),
-    }
-
-    match &events[2] {
-        StreamEvent::ContentBlockDelta { index, delta } => {
-            assert_eq!(*index, 1025);
-            assert_eq!(
-                delta.partial_json.as_deref(),
-                Some("{\"path\":\"src/main.rs\"}")
-            );
-        }
-        other => panic!("expected ContentBlockDelta, got {other:?}"),
-    }
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 1025,
+            block: crate::state::StreamBlock::ToolCall { id, name, .. }
+        } if id == "call_1" && name == "read_file"
+    )));
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ToolCallArgumentsDelta { delta, .. }
+            if delta == "{\"path\":\"src/main.rs\"}"
+    )));
 }
 
 #[test]
@@ -221,8 +173,7 @@ fn test_process_preserves_tab_after_single_space_strip() {
     let mut parser = StreamParser::new();
     let events = parser.process(b"data: \t{\"type\":\"ping\"}\n\n").unwrap();
 
-    assert_eq!(events.len(), 1);
-    assert!(matches!(events[0], StreamEvent::Ping));
+    assert!(events.is_empty());
 }
 
 #[test]
@@ -232,8 +183,7 @@ fn test_process_ignores_unknown_fields() {
         .process(b"custom-field: ignored\nevent: ping\ndata: {\"type\":\"ping\"}\n\n")
         .unwrap();
 
-    assert_eq!(events.len(), 1);
-    assert!(matches!(events[0], StreamEvent::Ping));
+    assert!(events.is_empty());
 }
 
 #[test]
@@ -243,8 +193,7 @@ fn test_process_handles_cr_only_frame_delimiters() {
         .process(b"event: ping\rdata: {\"type\":\"ping\"}\r\r")
         .unwrap();
 
-    assert_eq!(events.len(), 1);
-    assert!(matches!(events[0], StreamEvent::Ping));
+    assert!(events.is_empty());
 }
 
 #[test]
@@ -254,8 +203,7 @@ fn test_process_strips_utf8_bom_once() {
         .process(b"\xEF\xBB\xBFevent: ping\ndata: {\"type\":\"ping\"}\n\n")
         .unwrap();
 
-    assert_eq!(events.len(), 1);
-    assert!(matches!(events[0], StreamEvent::Ping));
+    assert!(events.is_empty());
 }
 
 #[test]
@@ -265,8 +213,7 @@ fn test_process_recognises_id_and_retry_fields() {
         .process(b"id: evt-42\nretry: 1500\nevent: ping\ndata: {\"type\":\"ping\"}\n\n")
         .unwrap();
 
-    assert_eq!(events.len(), 1);
-    assert!(matches!(events[0], StreamEvent::Ping));
+    assert!(events.is_empty());
 }
 
 #[test]
@@ -291,17 +238,12 @@ fn test_process_raw_json_frame_without_data_emits_error() {
     let events = parser.process(b"{\"type\":\"ping\"}\n\n").unwrap();
 
     assert_eq!(events.len(), 1);
-    match &events[0] {
-        StreamEvent::Error { error } => {
-            assert_eq!(error.error_type, "sse_parse_error");
-            assert!(
-                error
-                    .message
-                    .contains("raw JSON chunk streams are unsupported")
-            );
-        }
-        other => panic!("expected StreamEvent::Error, got {other:?}"),
-    }
+    assert!(matches!(
+        &events[0].event,
+        RuntimeEvent::Error { code, message, .. }
+            if code == "sse_parse_error"
+                && message.contains("raw JSON chunk streams are unsupported")
+    ));
 }
 
 use super::{NormalisedChunk, StreamTextNormaliser};

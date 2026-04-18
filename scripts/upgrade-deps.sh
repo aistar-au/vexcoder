@@ -142,7 +142,7 @@ Next steps:
   bash scripts/upgrade-deps.sh deny   # re-run security + license gate
   cargo fmt --check
   cargo clippy --all-targets -- -D warnings
-  cargo nextest run -j 2
+  cargo nextest run
   cargo test --all-targets
   bash scripts/check_forbidden_names.sh
 EOF
