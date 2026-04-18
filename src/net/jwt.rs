@@ -14,10 +14,19 @@
 //! not a wrapper tweak.
 
 use anyhow::{Context, Result, anyhow};
+use base64::Engine as _;
 use jsonwebtoken::{
     Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation, decode, encode,
 };
 use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::HashSet;
+
+#[derive(Debug, Deserialize)]
+struct RawJoseHeader {
+    alg: Option<String>,
+    typ: Option<String>,
+    cty: Option<String>,
+}
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(untagged)]
@@ -84,15 +93,40 @@ pub fn encode_hs256<C: Serialize>(claims: &C, secret: &[u8]) -> Result<String> {
 
 /// Decode and validate a JWT signed with HMAC-SHA256 (HS256).
 ///
-/// Validates the signature and the `exp` claim (if present).  The caller
-/// may further validate `iss`, `sub`, and `aud` claims per RFC 7519 §7.2.
+/// This wrapper enforces RFC 7519 registered claims (`iss`, `aud`, `exp`) and
+/// rejects RFC 8725 forbidden or unsupported header values such as `alg: none`,
+/// missing `typ: JWT`, or unexpected `cty` values.
 pub fn decode_hs256<C: for<'de> Deserialize<'de>>(
     token: &str,
     secret: &[u8],
+    expected_issuer: &str,
+    expected_audience: &str,
 ) -> Result<TokenData<C>> {
+    let raw_header = peek_raw_header(token)?;
+    if raw_header.alg.as_deref() == Some("none") {
+        return Err(anyhow!(
+            "JWT header uses forbidden alg=none (RFC 8725 §3.1)"
+        ));
+    }
+    peek_header(token)?;
+    if raw_header.typ.as_deref() != Some("JWT") {
+        return Err(anyhow!(
+            "JWT header typ must be JWT (RFC 7519 §5.1 / RFC 8725 §3.11)"
+        ));
+    }
+    if raw_header.cty.is_some() {
+        return Err(anyhow!(
+            "nested JWT content types are not supported by this HS256 wrapper (RFC 8725 §3.11)"
+        ));
+    }
+
     let mut validation = Validation::new(Algorithm::HS256);
-    // Disable automatic audience check — caller performs claim validation.
-    validation.validate_aud = false;
+    validation.validate_exp = true;
+    validation.validate_aud = true;
+    validation.required_spec_claims =
+        HashSet::from(["exp".to_string(), "aud".to_string(), "iss".to_string()]);
+    validation.set_audience(&[expected_audience]);
+    validation.set_issuer(&[expected_issuer]);
     decode::<C>(token, &DecodingKey::from_secret(secret), &validation)
         .context("JWT HS256 validation failed (RFC 7519/7515)")
 }
@@ -118,6 +152,17 @@ pub fn validate_expiry(claims: &RegisteredClaims, now_secs: u64) -> Result<()> {
 /// the algorithm before signature verification.
 pub fn peek_header(token: &str) -> Result<Header> {
     jsonwebtoken::decode_header(token).context("JWT header decode failed (RFC 7519 §7.2)")
+}
+
+fn peek_raw_header(token: &str) -> Result<RawJoseHeader> {
+    let encoded = token
+        .split('.')
+        .next()
+        .ok_or_else(|| anyhow!("JWT compact serialisation is missing a JOSE header segment"))?;
+    let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(encoded)
+        .context("JWT JOSE header base64url decode failed")?;
+    serde_json::from_slice(&decoded).context("JWT JOSE header JSON decode failed")
 }
 
 #[cfg(test)]
@@ -146,7 +191,7 @@ mod tests {
             registered: RegisteredClaims {
                 iss: Some("vexcoder".to_string()),
                 sub: Some("test-subject".to_string()),
-                aud: None,
+                aud: Some(vec!["cli".to_string()]),
                 exp: Some(now() + 3600),
                 nbf: None,
                 iat: Some(now()),
@@ -164,7 +209,8 @@ mod tests {
             "RFC 7519 compact serialisation"
         );
 
-        let decoded: TokenData<TestClaims> = decode_hs256(&token, SECRET).expect("decode");
+        let decoded: TokenData<TestClaims> =
+            decode_hs256(&token, SECRET, "vexcoder", "cli").expect("decode");
         assert_eq!(decoded.claims, claims);
         assert_eq!(decoded.header.alg, Algorithm::HS256);
     }
@@ -172,16 +218,16 @@ mod tests {
     #[test]
     fn wrong_secret_fails_validation_rfc7515() {
         let claims = RegisteredClaims {
-            iss: None,
+            iss: Some("issuer".to_string()),
             sub: Some("s".to_string()),
-            aud: None,
+            aud: Some(vec!["cli".to_string()]),
             exp: Some(now() + 60),
             nbf: None,
             iat: None,
             jti: None,
         };
         let token = encode_hs256(&claims, SECRET).expect("encode");
-        let result = decode_hs256::<RegisteredClaims>(&token, b"wrong-secret");
+        let result = decode_hs256::<RegisteredClaims>(&token, b"wrong-secret", "issuer", "cli");
         assert!(
             result.is_err(),
             "mismatched HMAC must be rejected (RFC 7515)"
@@ -192,12 +238,14 @@ mod tests {
     fn single_string_audience_decodes_rfc7519() {
         #[derive(Serialize)]
         struct SingleAudienceClaims {
+            iss: String,
             aud: String,
             exp: u64,
         }
 
         let token = encode_hs256(
             &SingleAudienceClaims {
+                iss: "issuer".to_string(),
                 aud: "cli".to_string(),
                 exp: now() + 60,
             },
@@ -205,8 +253,45 @@ mod tests {
         )
         .expect("encode");
 
-        let decoded = decode_hs256::<RegisteredClaims>(&token, SECRET).expect("decode");
+        let decoded =
+            decode_hs256::<RegisteredClaims>(&token, SECRET, "issuer", "cli").expect("decode");
         assert_eq!(decoded.claims.aud, Some(vec!["cli".to_string()]));
+    }
+
+    #[test]
+    fn decode_hs256_rejects_missing_required_claims_rfc7519() {
+        let claims = RegisteredClaims {
+            iss: Some("issuer".to_string()),
+            sub: None,
+            aud: None,
+            exp: None,
+            nbf: None,
+            iat: None,
+            jti: None,
+        };
+        let token = encode_hs256(&claims, SECRET).expect("encode");
+        let result = decode_hs256::<RegisteredClaims>(&token, SECRET, "issuer", "cli");
+        assert!(result.is_err(), "missing aud/exp must be rejected");
+    }
+
+    #[test]
+    fn decode_hs256_rejects_alg_none_rfc8725() {
+        let header = serde_json::json!({"alg": "none", "typ": "JWT"});
+        let claims = serde_json::json!({
+            "iss": "issuer",
+            "aud": "cli",
+            "exp": now() + 60
+        });
+        let token = format!(
+            "{}.{}.",
+            base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .encode(serde_json::to_vec(&header).expect("header json")),
+            base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .encode(serde_json::to_vec(&claims).expect("claims json"))
+        );
+
+        let result = decode_hs256::<RegisteredClaims>(&token, SECRET, "issuer", "cli");
+        assert!(result.is_err(), "alg=none must be rejected");
     }
 
     #[test]

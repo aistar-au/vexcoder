@@ -562,13 +562,15 @@ export VEX_MODEL_TOKEN="your-token"
 
 The `[api_client]` section is live. `base_url` enables the ADR-047 host-and-port
 connection path, `explicit_protocol` can pin the wire format for the session,
-and `delta_accumulator_memory_watermark_mb` bounds in-flight tool-call delta
+`probe_timeout_ms` controls the discovery-request ceiling, and
+`delta_accumulator_memory_watermark_mb` bounds in-flight tool-call delta
 state.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `base_url` | string | `""` | Optional scheme-and-host base URL (for example `http://127.0.0.1:8000`). When set, the client discovers or applies the protocol and adapts requests to `/v1/messages` or `/v1/chat/completions`. |
 | `explicit_protocol` | `"block_delta"` \| `"choices_delta"` | unset | Optional override that bypasses discovery and pins request routing plus SSE parsing to the selected format. |
+| `probe_timeout_ms` | integer | `2000` | Per-request timeout budget for each ADR-047 protocol-discovery probe (`/v1/messages`, then `/v1/chat/completions`). Raise this for slower local runtimes or remote tunnels. |
 | `delta_accumulator_memory_watermark_mb` | integer | `256` | Memory ceiling (MiB) for in-flight streaming tool-argument deltas. When exceeded, the oldest pending entry is evicted. |
 
 Discovery-based form:
@@ -576,6 +578,7 @@ Discovery-based form:
 ```toml
 [api_client]
 base_url = "http://127.0.0.1:8000"
+probe_timeout_ms = 2000
 delta_accumulator_memory_watermark_mb = 512
 ```
 

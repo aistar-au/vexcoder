@@ -9,11 +9,11 @@ use crate::app::{
     facade_task_graph, facade_update_session_task_status, task_graph_rollup_path,
     todos_rollup_path, write_projection_rollup,
 };
-use crate::http_facade::{HeaderName, HeaderValue, StatusCode, header};
+use crate::http_facade::{HeaderName, HeaderValue, header};
 use crate::local_api::LocalApiState;
-use crate::server::util::{bad_request, conflict, not_found};
+use crate::server::util::{ProblemResponse, bad_request, conflict, not_found};
 use crate::server::{
-    ControlResponse, SSE_CACHE_CONTROL_HEADER, SSE_KEEPALIVE_INTERVAL, SSE_KEEPALIVE_TEXT,
+    SSE_CACHE_CONTROL_HEADER, SSE_KEEPALIVE_INTERVAL, SSE_KEEPALIVE_TEXT,
     SSE_PROXY_BUFFERING_DISABLED, SSE_PROXY_BUFFERING_HEADER,
 };
 use axum::Json;
@@ -61,7 +61,7 @@ pub struct UpdateSessionTaskStatusRequest {
 #[tracing::instrument(skip_all)]
 pub async fn list_tasks_handler(
     State(state): State<LocalApiState>,
-) -> Result<Json<Vec<TaskSummaryResponse>>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<Vec<TaskSummaryResponse>>, ProblemResponse> {
     let summaries = facade_list_tasks(&state.config.working_dir).map_err(internal_anyhow)?;
     Ok(Json(
         summaries
@@ -82,7 +82,7 @@ pub async fn list_tasks_handler(
 #[tracing::instrument(skip_all)]
 pub async fn list_session_tasks_handler(
     State(state): State<LocalApiState>,
-) -> Result<Json<Vec<SessionTaskRollupResponse>>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<Vec<SessionTaskRollupResponse>>, ProblemResponse> {
     let tasks = facade_list_session_tasks(&state.config.working_dir).map_err(internal_anyhow)?;
     Ok(Json(tasks.into_iter().map(rollup_to_response).collect()))
 }
@@ -92,7 +92,7 @@ pub async fn list_session_tasks_handler(
 pub async fn get_session_task_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
-) -> Result<Json<SessionTaskRollupResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<SessionTaskRollupResponse>, ProblemResponse> {
     let snap = facade_get_session_task(&state.config.working_dir, &id).map_err(internal_anyhow)?;
     match snap {
         Some(s) => Ok(Json(rollup_to_response(s))),
@@ -106,7 +106,7 @@ pub async fn update_session_task_status_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
     Json(body): Json<UpdateSessionTaskStatusRequest>,
-) -> Result<Json<SessionTaskRollupResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<SessionTaskRollupResponse>, ProblemResponse> {
     match facade_update_session_task_status(&state.config.working_dir, &id, &body.status) {
         Ok(snap) => {
             state.publish_session_task_rollup(snap.clone());
@@ -165,7 +165,7 @@ fn lifecycle_state_is_terminal(state: &str) -> bool {
 pub async fn watch_session_task_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ControlResponse>)> {
+) -> Result<impl IntoResponse, ProblemResponse> {
     let mut updates = state.subscribe_session_task_events();
 
     let initial_rollup = facade_get_session_task(&state.config.working_dir, &id)
@@ -262,7 +262,7 @@ pub struct TaskGraphResponse {
 #[tracing::instrument(skip_all)]
 pub async fn task_graph_handler(
     State(state): State<LocalApiState>,
-) -> Result<Json<TaskGraphResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<TaskGraphResponse>, ProblemResponse> {
     let graph = facade_task_graph(&state.config.working_dir).map_err(internal_anyhow)?;
     Ok(Json(TaskGraphResponse {
         nodes: graph
@@ -300,7 +300,7 @@ pub struct TodoItemResponse {
 #[tracing::instrument(skip_all)]
 pub async fn list_todos_handler(
     State(state): State<LocalApiState>,
-) -> Result<Json<Vec<TodoItemResponse>>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<Vec<TodoItemResponse>>, ProblemResponse> {
     let todos = facade_list_todos(&state.config.working_dir).map_err(internal_anyhow)?;
     Ok(Json(
         todos
@@ -345,7 +345,7 @@ fn file_modified_ms(path: &std::path::Path) -> Option<u64> {
 #[tracing::instrument(skip_all)]
 pub async fn projection_handler(
     State(state): State<LocalApiState>,
-) -> Result<Json<ProjectionStatusResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<ProjectionStatusResponse>, ProblemResponse> {
     let working_dir = &state.config.working_dir;
     let graph_path = task_graph_rollup_path(working_dir);
     let todos_path = todos_rollup_path(working_dir);
@@ -406,7 +406,7 @@ pub async fn post_peer_message_handler(
     State(state): State<LocalApiState>,
     Path(parent_task_id): Path<String>,
     Json(body): Json<PostPeerMessageRequest>,
-) -> Result<Json<PeerMessageResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<PeerMessageResponse>, ProblemResponse> {
     match facade_post_peer_message(
         &state.config.working_dir,
         &parent_task_id,
@@ -432,7 +432,7 @@ pub async fn read_peer_messages_handler(
     State(state): State<LocalApiState>,
     Path(parent_task_id): Path<String>,
     axum::extract::Query(query): axum::extract::Query<ReadPeerMessagesQuery>,
-) -> Result<Json<Vec<PeerMessageResponse>>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<Vec<PeerMessageResponse>>, ProblemResponse> {
     let messages = facade_read_peer_messages(
         &state.config.working_dir,
         &parent_task_id,

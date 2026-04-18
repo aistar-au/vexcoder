@@ -186,8 +186,11 @@ async fn test_schedule_team_handler_enforces_max_parallel_tasks_under_parallel_r
             StatusCode::CONFLICT => {
                 conflicts += 1;
                 assert_eq!(
-                    payload.get("reason"),
-                    Some(&Value::String("concurrency_limit_reached".into()))
+                    payload.get("type"),
+                    Some(&Value::String(
+                        "https://aistar-au.github.io/vexcoder/problems/concurrency_limit_reached"
+                            .into()
+                    ))
                 );
             }
             other => panic!("unexpected schedule_team status: {other}"),

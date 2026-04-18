@@ -1,7 +1,7 @@
 //! Rate-limit and Retry-After extraction using `regex-lite`.
 //!
 //! Parses retry delay hints from HTTP `Retry-After` header values and
-//! from error response body text (e.g. "try again in 5 seconds").
+//! from structured or unstructured error response bodies.
 //! All patterns are ASCII-only.
 //!
 //! Design boundary: this module extracts *structured delay hints* from
@@ -10,6 +10,8 @@
 
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime};
+
+use serde::Deserialize;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -64,6 +66,12 @@ fn clamp_delay_ms(value: f64) -> Option<u64> {
     Some(value.min(u64::MAX as f64) as u64)
 }
 
+#[derive(Debug, Deserialize)]
+struct RetryBodyHint {
+    #[serde(default)]
+    retry_after_ms: Option<u64>,
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -95,11 +103,22 @@ pub fn parse_retry_after_header(value: &str) -> Option<RetryHint> {
 
 /// Parse a retry delay from an error response body.
 ///
-/// Scans for natural-language phrases like "try again in 5 seconds",
-/// "retry in 500ms", "wait 30 sec", etc.
+/// Accepts JSON objects with `retry_after_ms` first, then falls back to
+/// natural-language phrases like "try again in 5 seconds", "retry in 500ms",
+/// and "wait 30 sec".
 pub fn parse_retry_from_body(body: &str) -> Option<RetryHint> {
+    let trimmed = body.trim();
+    if let Ok(hint) = serde_json::from_str::<RetryBodyHint>(trimmed)
+        && let Some(delay_ms) = hint.retry_after_ms
+    {
+        return Some(RetryHint {
+            delay_ms,
+            source: RetryHintSource::Body,
+        });
+    }
+
     let re = re_retry_body();
-    let caps = re.captures(body)?;
+    let caps = re.captures(trimmed)?;
     let value: f64 = caps[1].parse().ok()?;
     let unit = caps[2].to_ascii_lowercase();
     let delay_ms = if unit.starts_with("ms") || unit.starts_with("milli") {
@@ -208,6 +227,20 @@ mod tests {
     #[test]
     fn test_parse_retry_from_body_seconds() {
         let hint = parse_retry_from_body("Rate limited: try again in 5 seconds").unwrap();
+        assert_eq!(hint.delay_ms, 5000);
+        assert_eq!(hint.source, RetryHintSource::Body);
+    }
+
+    #[test]
+    fn test_parse_retry_from_body_json_retry_after_ms() {
+        let hint = parse_retry_from_body(r#"{"retry_after_ms":2500}"#).unwrap();
+        assert_eq!(hint.delay_ms, 2500);
+        assert_eq!(hint.source, RetryHintSource::Body);
+    }
+
+    #[test]
+    fn test_parse_retry_from_body_json_falls_back_to_regex_when_field_missing() {
+        let hint = parse_retry_from_body(r#"{"message":"try again in 5 seconds"}"#).unwrap();
         assert_eq!(hint.delay_ms, 5000);
         assert_eq!(hint.source, RetryHintSource::Body);
     }

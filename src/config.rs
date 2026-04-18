@@ -260,6 +260,10 @@ pub struct ApiClientConfig {
     /// Optional explicit protocol override. When set, protocol discovery is
     /// skipped and this variant is used for the entire session.
     pub explicit_protocol: Option<ProtocolVariant>,
+    /// Timeout budget in milliseconds for each protocol-discovery probe.
+    /// The client probes `/v1/messages` and `/v1/chat/completions` separately;
+    /// this ceiling applies to each individual request.
+    pub probe_timeout_ms: u64,
     /// Memory ceiling for the delta accumulator in mebibytes (default: 256).
     /// When the in-flight tool-delta map exceeds this threshold, the oldest
     /// pending entry is evicted to stay within the bound.
@@ -271,6 +275,7 @@ impl Default for ApiClientConfig {
         Self {
             base_url: String::new(),
             explicit_protocol: None,
+            probe_timeout_ms: 2000,
             delta_accumulator_memory_watermark_mb: 256,
         }
     }

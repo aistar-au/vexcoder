@@ -20,7 +20,7 @@ use super::handlers::{
     release_session_task_handler, schedule_team_handler, schema_handler, task_graph_handler,
     turns_handler, update_session_task_status_handler, watch_handler, watch_session_task_handler,
 };
-use super::{ControlResponse, HSTS_HEADER_VALUE, HttpSurfaceSettings, ResolvedHttpSurface};
+use super::{HSTS_HEADER_VALUE, HttpSurfaceSettings, ProblemDetails, ResolvedHttpSurface};
 use crate::app::runtime_tokio::{net::TcpListener, select, spawn};
 #[cfg(test)]
 use crate::config::Config;
@@ -113,14 +113,22 @@ async fn authorize_http_request(
 
 fn unauthorized_response() -> Response {
     use axum::response::IntoResponse;
-    (
+    let mut response = (
         StatusCode::UNAUTHORIZED,
-        Json(ControlResponse {
-            ok: false,
-            reason: Some("unauthorized"),
+        Json(ProblemDetails {
+            r#type: "https://aistar-au.github.io/vexcoder/problems/unauthorized".to_string(),
+            title: "unauthorized".to_string(),
+            status: StatusCode::UNAUTHORIZED.as_u16(),
+            detail: Some("unauthorized".to_string()),
+            instance: None,
         }),
     )
-        .into_response()
+        .into_response();
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/problem+json"),
+    );
+    response
 }
 
 pub async fn run_http_surface(

@@ -7,6 +7,7 @@ use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use std::collections::BTreeSet;
+use std::time::Duration;
 
 fn with_vex_max_tokens_env<T>(value: Option<&str>, run: impl FnOnce() -> T) -> T {
     let env_lock = ENV_LOCK.blocking_lock();
@@ -255,6 +256,53 @@ async fn test_populate_server_info_discovers_protocol_from_local_model_url_sessi
     assert_eq!(
         client.request_url(),
         format!("http://{addr}/v1/chat/completions")
+    );
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn test_populate_server_info_respects_probe_timeout_config() {
+    async fn slow_probe() -> impl IntoResponse {
+        tokio::time::sleep(Duration::from_millis(75)).await;
+        (
+            [(header::CONTENT_TYPE, "text/event-stream")],
+            "data: {\"ok\":true}\n\n",
+        )
+    }
+
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/v1/messages", get(slow_probe))
+                .route("/v1/chat/completions", get(slow_probe)),
+        )
+        .await
+        .unwrap();
+    });
+
+    let mut config = crate::config::Config::default_for_tui();
+    config.model_name = "local/test-model".to_string();
+    config.model_url.clear();
+    config.model_token = None;
+    config.api_client.base_url = format!("http://{addr}");
+    config.api_client.probe_timeout_ms = 10;
+
+    let client = ApiClient::new(&config).expect("client should build");
+    client.populate_server_info().await;
+
+    let info = client.server_info();
+    assert!(
+        info.is_none()
+            || info
+                .as_ref()
+                .is_some_and(|entry| entry.native_protocol.is_none()),
+        "probe should time out before protocol discovery succeeds"
     );
 
     server.abort();
@@ -1006,6 +1054,7 @@ fn test_native_protocol_overrides_configured_protocol() {
         supplementary_system_prompt: Arc::new(RwLock::new(None)),
         api_url: "http://localhost:8000/v1/messages".to_string(),
         api_client_explicit_protocol: None,
+        probe_timeout_ms: 2000,
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,
@@ -1049,6 +1098,7 @@ fn test_no_native_protocol_falls_back_to_configured() {
         supplementary_system_prompt: Arc::new(RwLock::new(None)),
         api_url: "http://localhost:8000/v1/messages".to_string(),
         api_client_explicit_protocol: None,
+        probe_timeout_ms: 2000,
         model_backend: ModelBackendKind::LocalRuntime,
         model_protocol: ModelProtocol::MessagesV1,
         tool_call_mode: ToolCallMode::Structured,

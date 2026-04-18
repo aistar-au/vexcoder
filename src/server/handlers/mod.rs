@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use super::SSE_KEEPALIVE_INTERVAL;
 use super::sse::{negotiate_turns_sse_mode, runtime_sse_response};
-use super::util::{bad_request, conflict, internal_error, not_found};
+use super::util::{ProblemResponse, bad_request, conflict, internal_error, not_found};
 use crate::app::runtime_tokio::{spawn, sync::mpsc};
 use crate::app::{
     DelegateError, ScheduleTeamError, execute_facade_runtime, facade_delegate_session_task,
@@ -89,15 +89,9 @@ pub struct WatchRollup {
     worktree_path: Option<String>,
 }
 
-fn internal_anyhow(err: anyhow::Error) -> (StatusCode, Json<ControlResponse>) {
+fn internal_anyhow(err: anyhow::Error) -> ProblemResponse {
     tracing::error!(%err, "handler returned internal error");
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ControlResponse {
-            ok: false,
-            reason: Some("internal_error"),
-        }),
-    )
+    ProblemResponse::new(StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
 }
 
 pub async fn health_handler() -> Json<HealthResponse> {
@@ -108,7 +102,7 @@ pub async fn health_handler() -> Json<HealthResponse> {
     })
 }
 
-pub async fn schema_handler() -> Result<Json<SchemaBundle>, (StatusCode, Json<ControlResponse>)> {
+pub async fn schema_handler() -> Result<Json<SchemaBundle>, ProblemResponse> {
     let request_schema: Value =
         serde_json::from_str(include_str!("../../../schemas/runtime_request_v1.json"))
             .map_err(internal_error)?;
@@ -124,7 +118,7 @@ pub async fn schema_handler() -> Result<Json<SchemaBundle>, (StatusCode, Json<Co
 
 pub async fn agents_handler(
     State(state): State<LocalApiState>,
-) -> Result<Json<AgentsResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<AgentsResponse>, ProblemResponse> {
     let listing = facade_list_agents(&state.config.working_dir).map_err(internal_anyhow)?;
 
     Ok(Json(AgentsResponse {
@@ -156,7 +150,7 @@ pub async fn agents_handler(
 pub async fn delegate_handler(
     State(state): State<LocalApiState>,
     Json(request): Json<DelegateRequest>,
-) -> Result<Json<DelegateResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<DelegateResponse>, ProblemResponse> {
     if request.agent_id.trim().is_empty() || request.prompt.trim().is_empty() {
         return Err(bad_request("invalid_delegate_request"));
     }
@@ -187,7 +181,7 @@ pub async fn delegate_handler(
 pub async fn watch_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
-) -> Result<Json<WatchRollup>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<WatchRollup>, ProblemResponse> {
     let snapshot = facade_watch_rollup(&state.config.working_dir, &id)
         .map_err(internal_anyhow)?
         .ok_or_else(|| not_found("task_not_found"))?;
@@ -212,7 +206,7 @@ pub async fn watch_handler(
 pub async fn release_session_task_handler(
     State(state): State<LocalApiState>,
     Path(id): Path<String>,
-) -> Result<Json<ControlResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<ControlResponse>, ProblemResponse> {
     let released =
         facade_release_session_task(&state.config.working_dir, &id).map_err(internal_anyhow)?;
     if released {
@@ -272,7 +266,7 @@ pub async fn schedule_team_handler(
     State(state): State<LocalApiState>,
     Path(team_name): Path<String>,
     Json(request): Json<ScheduleTeamRequest>,
-) -> Result<Json<ScheduleTeamResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<ScheduleTeamResponse>, ProblemResponse> {
     let result = facade_schedule_team(
         &state.config.working_dir,
         &request.parent_task_id,
@@ -304,7 +298,7 @@ pub async fn schedule_team_handler(
 pub async fn join_status_handler(
     State(state): State<LocalApiState>,
     Path(task_id): Path<String>,
-) -> Result<Json<JoinStatusResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<JoinStatusResponse>, ProblemResponse> {
     let outcome = facade_poll_join(&state.config.working_dir, &task_id).map_err(internal_anyhow)?;
 
     match outcome {
@@ -335,7 +329,7 @@ pub async fn turns_handler(
     State(state): State<LocalApiState>,
     headers: HeaderMap,
     Json(request): Json<RuntimeRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ControlResponse>)> {
+) -> Result<impl IntoResponse, ProblemResponse> {
     let RuntimeRequest::SubmitInput { task_id, input, .. } = request else {
         return Err(bad_request("invalid_request_type"));
     };
@@ -389,7 +383,7 @@ pub async fn turns_handler(
 pub async fn interrupt_handler(
     State(state): State<LocalApiState>,
     Json(request): Json<RuntimeRequest>,
-) -> Result<Json<ControlResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<ControlResponse>, ProblemResponse> {
     let RuntimeRequest::Interrupt { task_id, .. } = request else {
         return Err(bad_request("invalid_request_type"));
     };
@@ -411,7 +405,7 @@ pub async fn interrupt_handler(
 pub async fn approve_handler(
     State(state): State<LocalApiState>,
     Json(request): Json<RuntimeRequest>,
-) -> Result<Json<ControlResponse>, (StatusCode, Json<ControlResponse>)> {
+) -> Result<Json<ControlResponse>, ProblemResponse> {
     let task_id = match &request {
         RuntimeRequest::ApproveCapability { task_id, .. }
         | RuntimeRequest::DenyCapability { task_id, .. } => task_id.clone(),
