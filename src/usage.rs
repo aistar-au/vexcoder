@@ -14,7 +14,10 @@ pub struct TurnTokens {
 
 impl TurnTokens {
     pub fn is_zero(self) -> bool {
-        self.input == 0 && self.output == 0
+        self.input == 0
+            && self.output == 0
+            && self.cache_creation_input_tokens == 0
+            && self.cache_read_input_tokens == 0
     }
 }
 

@@ -184,7 +184,7 @@ fn default_json_object() -> serde_json::Value {
     serde_json::Value::Object(serde_json::Map::new())
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct StreamChunkMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub object: Option<String>,

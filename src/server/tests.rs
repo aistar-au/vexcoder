@@ -3,7 +3,7 @@ use crate::local_api::{ActiveTask, LocalApiState, LocalApiTaskShared};
 
 use super::HttpSurfaceSettings;
 use super::http::{build_http_router, build_router};
-use super::sse::{TurnsSseMode, negotiate_turns_sse_mode, runtime_sse_response};
+use super::sse::runtime_sse_response;
 use super::util::resolve_serve_config;
 
 use crate::app::runtime_tokio::{

@@ -174,7 +174,7 @@ data: {"type":"message_stop"}"#.to_string(),
             block: StreamBlock::ToolCall { id, status, .. },
             ..
         } = update
-            && id == "toolu_error_01"
+            && id.starts_with("tx_")
             && status == ToolStatus::Error
         {
             saw_error_status = true;
@@ -251,21 +251,35 @@ data: {"type":"message_stop"}"#.to_string(),
         })
         .expect("expected tool_result message in history");
     if let Content::Blocks(blocks) = &tool_result_message.content {
+        let tool_results = blocks
+            .iter()
+            .filter_map(|block| match block {
+                ContentBlock::ToolResult {
+                    tool_use_id,
+                    content,
+                    is_error,
+                } => Some((tool_use_id.as_str(), content.as_str(), *is_error)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(tool_results.len(), 2);
+        assert!(
+            tool_results
+                .iter()
+                .all(|(tool_use_id, _, _)| tool_use_id.starts_with("tx_"))
+        );
+        assert!(
+            blocks
+                .iter()
+                .any(|block| matches!(block, ContentBlock::ToolResult { is_error: true, .. }))
+        );
         assert!(blocks.iter().any(|block| matches!(
             block,
             ContentBlock::ToolResult {
-                tool_use_id,
-                is_error: true,
-                ..
-            } if tool_use_id == "toolu_multi_mut"
-        )));
-        assert!(blocks.iter().any(|block| matches!(
-            block,
-            ContentBlock::ToolResult {
-                tool_use_id,
+                content,
                 is_error: false,
                 ..
-            } if tool_use_id == "toolu_multi_read"
+            } if content.contains("hello")
         )));
     } else {
         panic!("expected tool_result blocks");
@@ -318,22 +332,27 @@ data: {"type":"message_stop"}"#.to_string(),
         .expect("expected tool_result message in history");
 
     if let Content::Blocks(blocks) = &tool_result_message.content {
-        let tool_result_ids = blocks
+        let tool_results = blocks
             .iter()
             .filter_map(|block| match block {
-                ContentBlock::ToolResult { tool_use_id, .. } => Some(tool_use_id.as_str()),
+                ContentBlock::ToolResult {
+                    tool_use_id,
+                    content,
+                    is_error,
+                } => Some((tool_use_id.as_str(), content.as_str(), *is_error)),
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert_eq!(tool_result_ids, vec!["toolu_read_a", "toolu_read_b"]);
-        assert!(blocks.iter().any(|block| matches!(
-            block,
-            ContentBlock::ToolResult { tool_use_id, content, is_error } if tool_use_id == "toolu_read_a" && !is_error && content.contains("alpha")
-        )));
-        assert!(blocks.iter().any(|block| matches!(
-            block,
-            ContentBlock::ToolResult { tool_use_id, content, is_error } if tool_use_id == "toolu_read_b" && !is_error && content.contains("beta")
-        )));
+        assert_eq!(tool_results.len(), 2);
+        assert!(
+            tool_results
+                .iter()
+                .all(|(tool_use_id, _, _)| tool_use_id.starts_with("tx_"))
+        );
+        assert!(!tool_results[0].2);
+        assert!(!tool_results[1].2);
+        assert!(tool_results[0].1.contains("alpha"));
+        assert!(tool_results[1].1.contains("beta"));
     } else {
         panic!("expected tool_result blocks");
     }

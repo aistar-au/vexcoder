@@ -1,16 +1,19 @@
 use super::logging::emit_sse_parse_error;
-use crate::runtime::json_handoff::RuntimeEnvelope;
+use crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, TurnEndContext};
+use crate::runtime::{RuntimeEnvelope, RuntimeEvent, TokenUsageEnvelope, UiUpdate};
+use crate::state::{StreamBlock, ToolStatus};
 use crate::types::{
     ApiStreamError, ApiUsage, ContentBlock, Delta, MessageDelta, MessageStartData,
     StreamChunkMetadata, StreamEvent, StreamPromptProgress, StreamTimings, ToolUseMetadata,
 };
-use anyhow::{Result, anyhow};
+use crate::usage::TurnTokens;
+use anyhow::Result;
 use serde::Deserialize;
+use std::collections::BTreeSet;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-mod mappers;
 mod text_normaliser;
 
-pub(crate) use self::mappers::{ProtocolMapper, SseFrame, mapper_for_variant};
 pub use self::text_normaliser::{NormalisedChunk, StreamTextNormaliser};
 
 /// Maximum number of bytes the SSE intra-frame accumulation buffer may hold.
@@ -25,13 +28,14 @@ const MAX_SSE_BUFFER_BYTES: usize = 1_048_576;
 /// from untrusted server data.
 const MAX_TOOL_CALL_INDEX: usize = 1_024;
 
-#[derive(Default)]
-pub struct RuntimeEnvelopeSseParser {
-    buffer: Vec<u8>,
-    bom_checked: bool,
-    overflowed: bool,
-    last_event_id: Option<String>,
-    reconnect_delay_ms: Option<u64>,
+static NEXT_STREAM_TASK_ID: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+enum StreamProtocolMode {
+    #[default]
+    Undecided,
+    RuntimeEnvelope,
+    ProviderNormalized,
 }
 
 #[derive(Default)]
@@ -46,6 +50,11 @@ pub struct StreamParser {
     // implement reconnection with Last-Event-ID semantics.
     last_event_id: Option<String>,
     reconnect_delay_ms: Option<u64>,
+    protocol_mode: StreamProtocolMode,
+    provider_normalizer: Option<RuntimeEnvelopeNormalizer>,
+    provider_turn_started: bool,
+    provider_open_blocks: BTreeSet<usize>,
+    provider_turn_tokens: TurnTokens,
 }
 
 #[derive(Default, Clone)]
@@ -128,7 +137,7 @@ struct ChatCompatFunctionDelta {
     arguments: Option<String>,
 }
 
-impl RuntimeEnvelopeSseParser {
+impl StreamParser {
     pub fn new() -> Self {
         Self::default()
     }
@@ -142,148 +151,6 @@ impl RuntimeEnvelopeSseParser {
     }
 
     pub fn process(&mut self, chunk: &[u8]) -> Result<Vec<RuntimeEnvelope>> {
-        if self.overflowed {
-            return Err(self.buffer_overflow_error());
-        }
-
-        if self.buffer.len().saturating_add(chunk.len()) > MAX_SSE_BUFFER_BYTES {
-            self.overflowed = true;
-            return Err(self.buffer_overflow_error());
-        }
-        self.buffer.extend_from_slice(chunk);
-        self.strip_utf8_bom_once();
-
-        let mut envelopes = Vec::new();
-
-        while let Some((pos, delim_len)) = self.find_delimiter() {
-            let end = pos + delim_len;
-            let frame_bytes = self.buffer[..pos].to_vec();
-            self.buffer.drain(..end);
-            envelopes.extend(self.parse_frame_bytes(frame_bytes)?);
-        }
-
-        Ok(envelopes)
-    }
-
-    pub fn last_event_id(&self) -> Option<&str> {
-        self.last_event_id.as_deref()
-    }
-
-    pub fn reconnect_delay_ms(&self) -> Option<u64> {
-        self.reconnect_delay_ms
-    }
-
-    fn parse_frame_bytes(&mut self, frame_bytes: Vec<u8>) -> Result<Vec<RuntimeEnvelope>> {
-        let frame_text = String::from_utf8(frame_bytes)?;
-        let normalised_frame = normalise_sse_line_endings(&frame_text);
-        let mut event_type = None;
-        let mut data_lines = Vec::new();
-
-        for line in normalised_frame.split('\n') {
-            if line.is_empty() || line.starts_with(':') {
-                continue;
-            }
-            if let Some(rest) = line.strip_prefix("event:") {
-                event_type = Some(strip_single_leading_space(rest).to_string());
-            } else if let Some(rest) = line.strip_prefix("data:") {
-                data_lines.push(strip_single_leading_space(rest).to_string());
-            } else if let Some(rest) = line.strip_prefix("id:") {
-                let value = strip_single_leading_space(rest);
-                if !value.contains('\0') {
-                    self.last_event_id = Some(value.to_string());
-                }
-            } else if line == "id" {
-                self.last_event_id = Some(String::new());
-            } else if let Some(rest) = line.strip_prefix("retry:")
-                && let Ok(milliseconds) = strip_single_leading_space(rest).parse::<u64>()
-            {
-                self.reconnect_delay_ms = Some(milliseconds);
-            }
-        }
-
-        if data_lines.is_empty() {
-            if frame_without_data_should_error(&normalised_frame) {
-                return Err(anyhow!(
-                    "received a non-SSE payload without a data field; raw JSON chunk streams are unsupported"
-                ));
-            }
-            return Ok(Vec::new());
-        }
-
-        self.parse_event_payload(event_type.as_deref(), &data_lines.join("\n"))
-    }
-
-    fn parse_event_payload(
-        &mut self,
-        event_type: Option<&str>,
-        json_data: &str,
-    ) -> Result<Vec<RuntimeEnvelope>> {
-        if json_data.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        if matches!(event_type, Some(event_type) if event_type != "runtime") {
-            return Ok(Vec::new());
-        }
-
-        Ok(vec![serde_json::from_str::<RuntimeEnvelope>(json_data)?])
-    }
-
-    fn find_delimiter(&self) -> Option<(usize, usize)> {
-        let mut index = 0;
-        while index < self.buffer.len() {
-            let Some(first_len) = line_terminator_len(&self.buffer, index) else {
-                index += 1;
-                continue;
-            };
-            let next = index + first_len;
-            if let Some(second_len) = line_terminator_len(&self.buffer, next) {
-                return Some((index, first_len + second_len));
-            }
-            index = next;
-        }
-        None
-    }
-
-    fn strip_utf8_bom_once(&mut self) {
-        if self.bom_checked {
-            return;
-        }
-
-        const UTF8_BOM: &[u8; 3] = b"\xEF\xBB\xBF";
-        if self.buffer.starts_with(UTF8_BOM) {
-            self.buffer.drain(..UTF8_BOM.len());
-            self.bom_checked = true;
-            return;
-        }
-
-        if self.buffer.is_empty() {
-            return;
-        }
-
-        let prefix_len = self.buffer.len().min(UTF8_BOM.len());
-        if prefix_len == UTF8_BOM.len() || self.buffer[..prefix_len] != UTF8_BOM[..prefix_len] {
-            self.bom_checked = true;
-        }
-    }
-
-    fn buffer_overflow_error(&self) -> anyhow::Error {
-        anyhow!(
-            "SSE intra-frame buffer exceeded {MAX_SSE_BUFFER_BYTES} bytes without a frame delimiter; the upstream stream may be malformed"
-        )
-    }
-}
-
-impl StreamParser {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn process_sse_event(&mut self, event_type: &str, data: &str) -> Result<Vec<StreamEvent>> {
-        self.parse_event_payload((!event_type.is_empty()).then_some(event_type), data)
-    }
-
-    pub fn process(&mut self, chunk: &[u8]) -> Result<Vec<StreamEvent>> {
         if self.overflowed {
             return Ok(vec![self.buffer_overflow_event()]);
         }
@@ -307,7 +174,7 @@ impl StreamParser {
         Ok(events)
     }
 
-    fn parse_frame_bytes(&mut self, frame_bytes: Vec<u8>) -> Result<Vec<StreamEvent>> {
+    fn parse_frame_bytes(&mut self, frame_bytes: Vec<u8>) -> Result<Vec<RuntimeEnvelope>> {
         let frame_text = String::from_utf8(frame_bytes)?;
         let normalised_frame = normalise_sse_line_endings(&frame_text);
         let mut event_type = None;
@@ -337,13 +204,11 @@ impl StreamParser {
 
         if data_lines.is_empty() {
             if frame_without_data_should_error(&normalised_frame) {
-                return Ok(vec![StreamEvent::Error {
-                    error: ApiStreamError {
-                        error_type: "sse_parse_error".to_string(),
-                        message: "received a non-SSE payload without a data field; raw JSON chunk streams are unsupported"
-                            .to_string(),
-                    },
-                }]);
+                return Ok(vec![self.provider_error_envelope(
+                    "sse_parse_error",
+                    "received a non-SSE payload without a data field; raw JSON chunk streams are unsupported"
+                        .to_string(),
+                )]);
             }
             return Ok(Vec::new());
         }
@@ -357,30 +222,45 @@ impl StreamParser {
         &mut self,
         event_type: Option<&str>,
         json_data: &str,
-    ) -> Result<Vec<StreamEvent>> {
+    ) -> Result<Vec<RuntimeEnvelope>> {
         if json_data.is_empty() {
             return Ok(Vec::new());
         }
+
+        if let Ok(envelope) = serde_json::from_str::<RuntimeEnvelope>(json_data) {
+            self.protocol_mode = StreamProtocolMode::RuntimeEnvelope;
+            return Ok(vec![envelope]);
+        }
+
+        let events = self.parse_legacy_event_payload(event_type, json_data);
+        Ok(self.normalize_provider_events(events))
+    }
+
+    fn parse_legacy_event_payload(
+        &mut self,
+        event_type: Option<&str>,
+        json_data: &str,
+    ) -> Vec<StreamEvent> {
         if event_type == Some("ping") {
-            return Ok(vec![StreamEvent::Ping]);
+            return vec![StreamEvent::Ping];
         }
 
         match serde_json::from_str::<StreamEvent>(json_data) {
-            Ok(evt) => Ok(vec![evt]),
+            Ok(evt) => vec![evt],
             Err(messages_v1_error) => {
                 if let Some(chat_compat_events) = self.parse_chat_compat_chunk(json_data) {
-                    Ok(chat_compat_events)
+                    chat_compat_events
                 } else {
                     emit_sse_parse_error(event_type, json_data, &messages_v1_error);
                     // Emit a structured error event so the runtime can surface
                     // the failure to the UI rather than silently dropping the
                     // frame.  ADR-021 Item 19.
-                    Ok(vec![StreamEvent::Error {
+                    vec![StreamEvent::Error {
                         error: ApiStreamError {
                             error_type: "sse_parse_error".to_string(),
                             message: messages_v1_error.to_string(),
                         },
-                    }])
+                    }]
                 }
             }
         }
@@ -424,16 +304,14 @@ impl StreamParser {
         }
     }
 
-    fn buffer_overflow_event(&self) -> StreamEvent {
-        StreamEvent::Error {
-            error: ApiStreamError {
-                error_type: "sse_buffer_overflow".to_string(),
-                message: format!(
-                    "SSE intra-frame buffer exceeded {MAX_SSE_BUFFER_BYTES} bytes without a \
-                     frame delimiter; the upstream stream may be malformed"
-                ),
-            },
-        }
+    fn buffer_overflow_event(&mut self) -> RuntimeEnvelope {
+        self.provider_error_envelope(
+            "sse_buffer_overflow",
+            format!(
+                "SSE intra-frame buffer exceeded {MAX_SSE_BUFFER_BYTES} bytes without a \
+                 frame delimiter; the upstream stream may be malformed"
+            ),
+        )
     }
 
     fn parse_chat_compat_chunk(&mut self, json_data: &str) -> Option<Vec<StreamEvent>> {
@@ -719,6 +597,353 @@ impl StreamParser {
     /// Returns the reconnection delay hint from the stream in milliseconds (WHATWG HTML §9.2.6).
     pub fn reconnect_delay_ms(&self) -> Option<u64> {
         self.reconnect_delay_ms
+    }
+
+    pub fn finish(&mut self) -> Vec<RuntimeEnvelope> {
+        if self.protocol_mode != StreamProtocolMode::ProviderNormalized
+            || !self.provider_turn_started
+        {
+            return Vec::new();
+        }
+
+        let mut envelopes = Vec::new();
+        let open_blocks = std::mem::take(&mut self.provider_open_blocks);
+        for index in open_blocks {
+            envelopes.extend(
+                self.provider_normalizer_mut()
+                    .normalize_ui_update(&UiUpdate::StreamBlockComplete { index }, None),
+            );
+        }
+
+        let usage = token_usage_from_turn_tokens(self.provider_turn_tokens);
+        envelopes.extend(self.provider_normalizer_mut().normalize_ui_update(
+            &UiUpdate::TurnComplete,
+            Some(TurnEndContext {
+                usage,
+                changed_files: Vec::new(),
+            }),
+        ));
+
+        self.provider_turn_started = false;
+        self.provider_turn_tokens = TurnTokens::default();
+        envelopes
+    }
+
+    fn normalize_provider_events(&mut self, events: Vec<StreamEvent>) -> Vec<RuntimeEnvelope> {
+        if events.is_empty() {
+            return Vec::new();
+        }
+
+        if self.protocol_mode == StreamProtocolMode::RuntimeEnvelope {
+            return vec![self.provider_error_envelope(
+                "mixed_sse_protocol",
+                "received legacy stream events after RuntimeEnvelope passthrough began".to_string(),
+            )];
+        }
+        self.protocol_mode = StreamProtocolMode::ProviderNormalized;
+
+        let mut envelopes = Vec::new();
+        for event in events {
+            envelopes.extend(self.normalize_provider_event(event));
+        }
+
+        envelopes
+    }
+
+    fn normalize_provider_event(&mut self, event: StreamEvent) -> Vec<RuntimeEnvelope> {
+        match event {
+            StreamEvent::MessageStart { message } => {
+                let mut envelopes = Vec::new();
+                if let Some(metadata) = message_start_metadata(message.metadata) {
+                    envelopes.extend(self.emit_server_metadata(metadata));
+                }
+                if let Some(usage) = message.usage {
+                    envelopes.extend(self.emit_usage_update(usage));
+                }
+                envelopes
+            }
+            StreamEvent::ContentBlockStart {
+                index,
+                content_block,
+            } => {
+                let Some((block, initial_delta)) = provider_stream_block(&content_block) else {
+                    return Vec::new();
+                };
+
+                let mut envelopes: Vec<RuntimeEnvelope> =
+                    self.ensure_provider_turn_started().into_iter().collect();
+                self.provider_open_blocks.insert(index);
+                envelopes.extend(
+                    self.provider_normalizer_mut()
+                        .normalize_ui_update(&UiUpdate::StreamBlockStart { index, block }, None),
+                );
+                if let Some(delta) = initial_delta.filter(|delta| !delta.is_empty()) {
+                    envelopes.extend(
+                        self.provider_normalizer_mut().normalize_ui_update(
+                            &UiUpdate::StreamBlockDelta { index, delta },
+                            None,
+                        ),
+                    );
+                }
+                envelopes
+            }
+            StreamEvent::ContentBlockDelta { index, delta } => {
+                let Some(block_delta) = provider_block_delta(&delta) else {
+                    return Vec::new();
+                };
+
+                let mut envelopes: Vec<RuntimeEnvelope> =
+                    self.ensure_provider_turn_started().into_iter().collect();
+                if matches!(block_delta, ProviderBlockDelta::Text(_))
+                    && !self.provider_open_blocks.contains(&index)
+                {
+                    self.provider_open_blocks.insert(index);
+                    envelopes.extend(self.provider_normalizer_mut().normalize_ui_update(
+                        &UiUpdate::StreamBlockStart {
+                            index,
+                            block: StreamBlock::Thinking {
+                                content: String::new(),
+                                collapsed: false,
+                            },
+                        },
+                        None,
+                    ));
+                }
+
+                let delta = match block_delta {
+                    ProviderBlockDelta::Text(delta) | ProviderBlockDelta::ToolArguments(delta) => {
+                        delta
+                    }
+                };
+                envelopes.extend(
+                    self.provider_normalizer_mut()
+                        .normalize_ui_update(&UiUpdate::StreamBlockDelta { index, delta }, None),
+                );
+                envelopes
+            }
+            StreamEvent::ContentBlockStop { index } => {
+                if !self.provider_open_blocks.remove(&index) {
+                    return Vec::new();
+                }
+                self.provider_normalizer_mut()
+                    .normalize_ui_update(&UiUpdate::StreamBlockComplete { index }, None)
+            }
+            StreamEvent::MessageDelta { delta, usage } => {
+                let mut envelopes = Vec::new();
+                if let Some(metadata) = delta.metadata {
+                    envelopes.extend(self.emit_server_metadata(metadata));
+                }
+                if let Some(usage) = usage {
+                    envelopes.extend(self.emit_usage_update(usage));
+                }
+                envelopes
+            }
+            StreamEvent::MessageStop | StreamEvent::Ping | StreamEvent::Unknown => Vec::new(),
+            StreamEvent::Error { error } => {
+                vec![
+                    self.provider_normalizer_mut()
+                        .emit_event(RuntimeEvent::Error {
+                            code: error.error_type,
+                            message: error.message,
+                            recoverable: true,
+                        }),
+                ]
+            }
+        }
+    }
+
+    fn ensure_provider_turn_started(&mut self) -> Option<RuntimeEnvelope> {
+        if self.provider_turn_started {
+            return None;
+        }
+
+        self.provider_turn_started = true;
+        Some(self.provider_normalizer_mut().start_turn(1, None))
+    }
+
+    fn provider_normalizer_mut(&mut self) -> &mut RuntimeEnvelopeNormalizer {
+        self.provider_normalizer
+            .get_or_insert_with(|| RuntimeEnvelopeNormalizer::new(next_stream_task_id()))
+    }
+
+    fn emit_server_metadata(&mut self, metadata: StreamChunkMetadata) -> Vec<RuntimeEnvelope> {
+        let mut envelopes = self
+            .ensure_provider_turn_started()
+            .into_iter()
+            .collect::<Vec<_>>();
+        envelopes.extend(
+            self.provider_normalizer_mut()
+                .normalize_ui_update(&UiUpdate::ServerMetadata(Box::new(metadata)), None),
+        );
+        envelopes
+    }
+
+    fn emit_usage_update(&mut self, usage: ApiUsage) -> Vec<RuntimeEnvelope> {
+        accumulate_turn_tokens(&mut self.provider_turn_tokens, &usage);
+
+        let mut envelopes = self
+            .ensure_provider_turn_started()
+            .into_iter()
+            .collect::<Vec<_>>();
+        if let Some(usage) = token_usage_from_api_usage(&usage) {
+            envelopes.push(
+                self.provider_normalizer_mut()
+                    .emit_event(RuntimeEvent::UsageUpdated { usage }),
+            );
+        }
+        envelopes
+    }
+
+    fn provider_error_envelope(&mut self, code: &str, message: String) -> RuntimeEnvelope {
+        if self.protocol_mode == StreamProtocolMode::RuntimeEnvelope {
+            let mut normalizer = RuntimeEnvelopeNormalizer::new(next_stream_task_id());
+            let _ = normalizer.start_turn(1, None);
+            return normalizer.emit_event(RuntimeEvent::Error {
+                code: code.to_string(),
+                message,
+                recoverable: true,
+            });
+        }
+
+        self.protocol_mode = StreamProtocolMode::ProviderNormalized;
+        let _ = self.ensure_provider_turn_started();
+        self.provider_normalizer_mut()
+            .emit_event(RuntimeEvent::Error {
+                code: code.to_string(),
+                message,
+                recoverable: true,
+            })
+    }
+}
+
+#[derive(Debug, Clone)]
+enum ProviderBlockDelta {
+    Text(String),
+    ToolArguments(String),
+}
+
+fn next_stream_task_id() -> String {
+    let id = NEXT_STREAM_TASK_ID.fetch_add(1, Ordering::Relaxed);
+    format!("api_stream_{id}")
+}
+
+fn provider_stream_block(content_block: &ContentBlock) -> Option<(StreamBlock, Option<String>)> {
+    match content_block {
+        ContentBlock::Text { text, .. } => Some((
+            StreamBlock::Thinking {
+                content: String::new(),
+                collapsed: false,
+            },
+            Some(text.clone()),
+        )),
+        ContentBlock::Thinking { thinking, .. } => Some((
+            StreamBlock::Thinking {
+                content: String::new(),
+                collapsed: false,
+            },
+            Some(thinking.clone()),
+        )),
+        ContentBlock::ThinkingData { data } => Some((
+            StreamBlock::Thinking {
+                content: String::new(),
+                collapsed: false,
+            },
+            Some(data.clone()),
+        )),
+        ContentBlock::ToolUse {
+            id, name, input, ..
+        }
+        | ContentBlock::ServerToolUse { id, name, input } => Some((
+            StreamBlock::ToolCall {
+                id: id.clone(),
+                name: name.clone(),
+                input: input.clone(),
+                status: ToolStatus::Pending,
+            },
+            None,
+        )),
+        ContentBlock::ToolResult { .. } | ContentBlock::WebSearchToolResult { .. } => None,
+    }
+}
+
+fn provider_block_delta(delta: &Delta) -> Option<ProviderBlockDelta> {
+    if let Some(text) = delta.text.as_ref().filter(|text| !text.is_empty()) {
+        return Some(ProviderBlockDelta::Text(text.clone()));
+    }
+    if let Some(thinking) = delta
+        .thinking
+        .as_ref()
+        .filter(|thinking| !thinking.is_empty())
+    {
+        return Some(ProviderBlockDelta::Text(thinking.clone()));
+    }
+    delta
+        .partial_json
+        .as_ref()
+        .filter(|partial_json| !partial_json.is_empty())
+        .map(|partial_json| ProviderBlockDelta::ToolArguments(partial_json.clone()))
+}
+
+fn message_start_metadata(metadata: Option<StreamChunkMetadata>) -> Option<StreamChunkMetadata> {
+    let mut metadata = metadata?;
+    metadata.prompt_progress = None;
+    metadata.timings = None;
+
+    (metadata.object.is_some()
+        || metadata.created.is_some()
+        || metadata.system_fingerprint.is_some()
+        || metadata.service_tier.is_some()
+        || metadata.choice_index.is_some()
+        || metadata.logprobs.is_some())
+    .then_some(metadata)
+}
+
+fn token_usage_from_api_usage(usage: &ApiUsage) -> Option<TokenUsageEnvelope> {
+    let usage = TokenUsageEnvelope {
+        input: usage.input_tokens.unwrap_or(0),
+        output: usage.output_tokens.unwrap_or(0),
+        estimated: false,
+        cache_creation_input: usage.cache_creation_input_tokens.unwrap_or(0),
+        cache_read_input: usage.cache_read_input_tokens.unwrap_or(0),
+    };
+
+    (!usage.input.eq(&0)
+        || !usage.output.eq(&0)
+        || !usage.cache_creation_input.eq(&0)
+        || !usage.cache_read_input.eq(&0))
+    .then_some(usage)
+}
+
+fn token_usage_from_turn_tokens(tokens: TurnTokens) -> Option<TokenUsageEnvelope> {
+    if tokens.is_zero() {
+        None
+    } else {
+        Some(TokenUsageEnvelope {
+            input: tokens.input,
+            output: tokens.output,
+            estimated: tokens.estimated,
+            cache_creation_input: tokens.cache_creation_input_tokens,
+            cache_read_input: tokens.cache_read_input_tokens,
+        })
+    }
+}
+
+fn accumulate_turn_tokens(turn_tokens: &mut TurnTokens, usage: &ApiUsage) {
+    if let Some(input) = usage.input_tokens {
+        turn_tokens.input = turn_tokens.input.saturating_add(input);
+    }
+    if let Some(output) = usage.output_tokens {
+        turn_tokens.output = turn_tokens.output.saturating_add(output);
+    }
+    if let Some(cache_creation) = usage.cache_creation_input_tokens {
+        turn_tokens.cache_creation_input_tokens = turn_tokens
+            .cache_creation_input_tokens
+            .saturating_add(cache_creation);
+    }
+    if let Some(cache_read) = usage.cache_read_input_tokens {
+        turn_tokens.cache_read_input_tokens = turn_tokens
+            .cache_read_input_tokens
+            .saturating_add(cache_read);
     }
 }
 

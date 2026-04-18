@@ -138,14 +138,22 @@ data: {"type":"message_stop"}"#.to_string(),
         })
         .expect("expected tool_result message in history");
     if let Content::Blocks(blocks) = &tool_result_message.content {
+        let tool_result_ids = blocks
+            .iter()
+            .filter_map(|block| match block {
+                ContentBlock::ToolResult { tool_use_id, .. } => Some(tool_use_id.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(tool_result_ids.len(), 1);
+        assert!(tool_result_ids[0].starts_with("tx_"));
         assert!(blocks.iter().any(|block| matches!(
             block,
             ContentBlock::ToolResult {
-                tool_use_id,
                 content,
                 is_error: true,
-            } if tool_use_id == "toolu_generate_tests_guard_01"
-                && content.contains("Dropped non-test patch target `src/lib.rs`")
+                ..
+            } if content.contains("Dropped non-test patch target `src/lib.rs`")
         )));
     } else {
         panic!("expected tool_result blocks");

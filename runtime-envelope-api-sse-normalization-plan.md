@@ -24,18 +24,36 @@ transport wrapper around envelope JSON rather than as a second event schema.
 ## Current Repository Facts
 
 - `src/runtime/json_handoff.rs` already defines the canonical contract and
-  emits explicit tool lifecycle events.
-- `src/server/sse.rs` still negotiates and emits block-delta and
-  choices-delta variants instead of serving envelope JSON exclusively.
-- `src/runtime/backend.rs` still types `EventStream` as `Result<StreamEvent>`.
-- `src/api/eventsource.rs`, `src/api/stream.rs`, and
-  `crates/vexcoder-api-types/src/lib.rs` still parse and expose compatibility
-  streaming types.
-- `src/state/conversation/send_message.rs` still reconstructs tool lifecycle
-  state from block-oriented deltas instead of consuming canonical tool events
-  directly.
+  now emits explicit tool lifecycle events together with canonical metadata and
+  usage updates.
+- `src/server/sse.rs` now forwards canonical envelope JSON exclusively and no
+  longer negotiates legacy block-delta or choices-delta modes.
+- `src/runtime/backend.rs` now types `EventStream` as `Result<RuntimeEnvelope>`.
+- `src/api/eventsource.rs`, `src/api/mock_client.rs`, and `src/api/stream.rs`
+  now normalize provider-edge compatibility payloads into `RuntimeEnvelope`
+  values immediately at the API boundary.
+- `src/state/conversation/send_message.rs` now consumes canonical
+  `RuntimeEvent` values directly, including canonical tool-call IDs.
+- `src/runtime/task_document/condenser.rs` now absorbs canonical metadata
+  events for prompt-progress and timing propagation.
 - `src/app/model_update.rs`, `src/runtime/context.rs`, and `src/batch_mode.rs`
-  still depend on projections shaped by the compatibility parser path.
+  should still be audited for any remaining compatibility-shaped projections
+  that this branch did not need to touch.
+
+## Implemented In This Branch
+
+- Extended the canonical contract with `RuntimeEvent::ServerMetadata` and
+  `RuntimeEvent::UsageUpdated`.
+- Widened `TokenUsageEnvelope` and `TurnTokens::is_zero()` so cache token
+  accounting survives normalization.
+- Removed `src/api/stream/mappers.rs` and rewrote the server SSE layer as a
+  thin envelope passthrough.
+- Switched client negotiation to plain `text/event-stream`.
+- Reworked conversation, server, API, runtime-handoff, and guard tests to
+  assert canonical envelope behavior and canonical `tx_*` tool identifiers.
+- Validated the branch with `cargo fmt --check`,
+  `cargo clippy --all-targets -- -D warnings`, `cargo nextest run -j 2`, and
+  `bash scripts/check_forbidden_names.sh`.
 
 ## Workstreams
 

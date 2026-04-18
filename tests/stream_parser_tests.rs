@@ -1,10 +1,7 @@
 use pretty_assertions::assert_eq;
 use vexcoder::api::stream::StreamParser;
-use vexcoder::types::{ContentBlock, StreamEvent};
-
-// ---------------------------------------------------------------------------
-// MessagesV1 format tests — native event types
-// ---------------------------------------------------------------------------
+use vexcoder::runtime::RuntimeEvent;
+use vexcoder::state::StreamBlock;
 
 #[test]
 fn test_messages_v1_message_start_event_parsed() {
@@ -17,15 +14,12 @@ data: {"type":"message_start","message":{"id":"msg_01","type":"message","role":"
     let events = parser
         .process(chunk)
         .expect("message_start event should parse");
-    assert_eq!(events.len(), 1);
-
-    match &events[0] {
-        StreamEvent::MessageStart { message } => {
-            assert_eq!(message.id, "msg_01");
-            assert_eq!(message.role, "assistant");
-        }
-        other => panic!("expected MessageStart, got: {other:?}"),
-    }
+    assert_eq!(events.len(), 2);
+    assert!(matches!(&events[0].event, RuntimeEvent::TurnStart { .. }));
+    assert!(matches!(
+        &events[1].event,
+        RuntimeEvent::UsageUpdated { usage } if usage.input == 25 && usage.output == 1
+    ));
 }
 
 #[test]
@@ -39,69 +33,51 @@ data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":
     let events = parser
         .process(chunk)
         .expect("message_delta event should parse");
-    assert_eq!(events.len(), 1);
-
-    match &events[0] {
-        StreamEvent::MessageDelta { delta, usage } => {
-            assert_eq!(delta.stop_reason.as_deref(), Some("end_turn"));
-            assert!(usage.is_some());
-        }
-        other => panic!("expected MessageDelta, got: {other:?}"),
-    }
+    assert_eq!(events.len(), 2);
+    assert!(matches!(&events[0].event, RuntimeEvent::TurnStart { .. }));
+    assert!(matches!(
+        &events[1].event,
+        RuntimeEvent::UsageUpdated { usage } if usage.output == 15
+    ));
 }
 
 #[test]
-fn test_messages_v1_content_block_stop_event() {
+fn test_messages_v1_text_content_block_start_and_stop() {
     let mut parser = StreamParser::new();
 
-    let chunk = br#"event: content_block_stop
-data: {"type":"content_block_stop","index":0}
-
-"#;
-    let events = parser
-        .process(chunk)
-        .expect("content_block_stop event should parse");
-    assert_eq!(events.len(), 1);
-
-    match &events[0] {
-        StreamEvent::ContentBlockStop { index } => {
-            assert_eq!(*index, 0);
-        }
-        other => panic!("expected ContentBlockStop, got: {other:?}"),
-    }
-}
-
-#[test]
-fn test_messages_v1_text_content_block_start() {
-    let mut parser = StreamParser::new();
-
-    let chunk = br#"event: content_block_start
+    let start = br#"event: content_block_start
 data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
 
 "#;
-    let events = parser
-        .process(chunk)
+    let start_events = parser
+        .process(start)
         .expect("text content_block_start should parse");
-    assert_eq!(events.len(), 1);
-
-    match &events[0] {
-        StreamEvent::ContentBlockStart {
-            index,
-            content_block,
-        } => {
-            assert_eq!(*index, 0);
-            match content_block {
-                ContentBlock::Text { text, .. } => assert_eq!(text, ""),
-                other => panic!("expected Text block, got: {other:?}"),
-            }
+    assert_eq!(start_events.len(), 2);
+    assert!(matches!(
+        &start_events[0].event,
+        RuntimeEvent::TurnStart { .. }
+    ));
+    assert!(matches!(
+        &start_events[1].event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 0,
+            block: StreamBlock::Thinking { .. }
         }
-        other => panic!("expected ContentBlockStart, got: {other:?}"),
-    }
-}
+    ));
 
-// ---------------------------------------------------------------------------
-// Existing tests below (ChatCompat + cross-format)
-// ---------------------------------------------------------------------------
+    let stop = br#"event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+"#;
+    let stop_events = parser
+        .process(stop)
+        .expect("content_block_stop event should parse");
+    assert_eq!(stop_events.len(), 1);
+    assert!(matches!(
+        &stop_events[0].event,
+        RuntimeEvent::TranscriptBlockComplete { index: 0 }
+    ));
+}
 
 #[test]
 fn test_fragmented_events() {
@@ -109,84 +85,87 @@ fn test_fragmented_events() {
 
     let chunk1 = b"event: content_block_delta\ndata: {\"type\":\"content";
     let events1 = parser.process(chunk1).expect("first chunk parse");
-    assert_eq!(events1.len(), 0);
+    assert!(events1.is_empty());
 
     let chunk2 =
         b"_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hi\"}}\n\n";
     let events2 = parser.process(chunk2).expect("second chunk parse");
-    assert_eq!(events2.len(), 1);
+    assert_eq!(events2.len(), 3);
+    assert!(matches!(&events2[0].event, RuntimeEvent::TurnStart { .. }));
+    assert!(matches!(
+        &events2[1].event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 0,
+            block: StreamBlock::Thinking { .. }
+        }
+    ));
+    assert!(matches!(
+        &events2[2].event,
+        RuntimeEvent::TranscriptBlockDelta { index: 0, delta } if delta == "Hi"
+    ));
 }
 
 #[test]
 fn test_parse_error_handling() {
     let mut parser = StreamParser::new();
 
-    // ADR-021 Item 19: parse failures now surface as StreamEvent::Error
-    // rather than being silently swallowed (previously returned 0 events).
     let chunk = b"event: message_start\ndata: {invalid json}\n\n";
     let events = parser
         .process(chunk)
         .expect("error handling should not fail parser");
     assert_eq!(events.len(), 1);
-    assert!(
-        matches!(events[0], StreamEvent::Error { ref error } if error.error_type == "sse_parse_error"),
-        "expected StreamEvent::Error with sse_parse_error type, got {:?}",
-        events[0]
-    );
+    assert!(matches!(
+        &events[0].event,
+        RuntimeEvent::Error { code, .. } if code == "sse_parse_error"
+    ));
 }
 
 #[test]
 fn test_partial_json_delta_is_parsed() {
     let mut parser = StreamParser::new();
 
-    let chunk = b"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"path\\\":\\\"src/\"}}\n\n";
-    let events = parser
-        .process(chunk)
-        .expect("parser should parse input_json deltas");
-    assert_eq!(events.len(), 1);
-
-    match &events[0] {
-        StreamEvent::ContentBlockDelta { index, delta } => {
-            assert_eq!(*index, 1);
-            assert_eq!(delta.partial_json.as_deref(), Some("{\"path\":\"src/"));
-        }
-        other => panic!("unexpected event: {other:?}"),
-    }
-}
-
-#[test]
-fn test_tool_use_start_without_input_is_accepted() {
-    let mut parser = StreamParser::new();
-
-    let chunk = b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_123\",\"name\":\"write_file\"}}\n\n";
-    let events = parser
-        .process(chunk)
+    let start = b"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_123\",\"name\":\"write_file\"}}\n\n";
+    let start_events = parser
+        .process(start)
         .expect("tool_use start without explicit input should parse");
-    assert_eq!(events.len(), 1);
+    assert_eq!(start_events.len(), 3);
+    assert!(matches!(
+        &start_events[0].event,
+        RuntimeEvent::TurnStart { .. }
+    ));
+    assert!(matches!(
+        &start_events[1].event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 1,
+            block: StreamBlock::ToolCall { id, name, input, .. }
+        } if id == "toolu_123" && name == "write_file" && input == &serde_json::json!({})
+    ));
+    assert!(matches!(
+        &start_events[2].event,
+        RuntimeEvent::ToolCallStarted {
+            tool_name,
+            arguments,
+            ..
+        } if tool_name == "write_file" && arguments == &serde_json::json!({})
+    ));
 
-    match &events[0] {
-        StreamEvent::ContentBlockStart {
-            index,
-            content_block,
-        } => {
-            assert_eq!(*index, 1);
-            match content_block {
-                ContentBlock::ToolUse {
-                    id, name, input, ..
-                } => {
-                    assert_eq!(id, "toolu_123");
-                    assert_eq!(name, "write_file");
-                    assert_eq!(input, &serde_json::json!({}));
-                }
-                other => panic!("unexpected block type: {other:?}"),
-            }
-        }
-        other => panic!("unexpected event: {other:?}"),
-    }
+    let delta = b"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"path\\\":\\\"src/\"}}\n\n";
+    let delta_events = parser
+        .process(delta)
+        .expect("parser should parse input_json deltas");
+    assert_eq!(delta_events.len(), 2);
+    assert!(matches!(
+        &delta_events[0].event,
+        RuntimeEvent::TranscriptBlockDelta { index: 1, delta } if delta == "{\"path\":\"src/"
+    ));
+    assert!(matches!(
+        &delta_events[1].event,
+        RuntimeEvent::ToolCallArgumentsDelta { delta, .. } if delta == "{\"path\":\"src/"
+    ));
 }
 
 #[test]
-fn test_chat_compat_tool_call_stream_maps_to_unified_events() {
+fn test_chat_compat_tool_call_stream_maps_to_runtime_events() {
     let mut parser = StreamParser::new();
 
     let chunk1 = br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"Reading file now. "},"finish_reason":null}]}
@@ -195,23 +174,24 @@ fn test_chat_compat_tool_call_stream_maps_to_unified_events() {
     let events1 = parser
         .process(chunk1)
         .expect("chat-compat content delta should parse");
-    assert_eq!(events1.len(), 2);
-    match &events1[0] {
-        StreamEvent::MessageStart { message } => {
-            assert_eq!(message.id, "chatcmpl-1");
-            assert_eq!(message.role, "assistant");
-            assert!(message.metadata.is_some());
+    assert_eq!(events1.len(), 4);
+    assert!(matches!(&events1[0].event, RuntimeEvent::TurnStart { .. }));
+    assert!(matches!(
+        &events1[1].event,
+        RuntimeEvent::ServerMetadata { metadata }
+            if metadata.object.as_deref() == Some("chat.completion.chunk")
+    ));
+    assert!(matches!(
+        &events1[2].event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 0,
+            block: StreamBlock::Thinking { .. }
         }
-        other => panic!("unexpected event: {other:?}"),
-    }
-    match &events1[1] {
-        StreamEvent::ContentBlockDelta { index, delta } => {
-            assert_eq!(*index, 0);
-            assert_eq!(delta.text.as_deref(), Some("Reading file now. "));
-            assert_eq!(delta.choice_index, Some(0));
-        }
-        other => panic!("unexpected event: {other:?}"),
-    }
+    ));
+    assert!(matches!(
+        &events1[3].event,
+        RuntimeEvent::TranscriptBlockDelta { index: 0, delta } if delta == "Reading file now. "
+    ));
 
     let chunk2 = br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_abc","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"cal.rs\"}"}}]},"finish_reason":"tool_calls"}]}
 
@@ -219,53 +199,36 @@ fn test_chat_compat_tool_call_stream_maps_to_unified_events() {
     let events2 = parser
         .process(chunk2)
         .expect("chat-compat tool call delta should parse");
-    assert_eq!(events2.len(), 4);
-
-    match &events2[0] {
-        StreamEvent::ContentBlockStart {
-            index,
-            content_block,
-        } => {
-            assert_eq!(*index, 1);
-            match content_block {
-                ContentBlock::ToolUse {
-                    id, name, metadata, ..
-                } => {
-                    assert_eq!(id, "call_abc");
-                    assert_eq!(name, "read_file");
-                    let metadata = metadata.as_ref().expect("tool metadata should be present");
-                    assert_eq!(metadata.call_type.as_deref(), Some("function"));
-                    assert_eq!(metadata.choice_index, Some(0));
-                }
-                other => panic!("unexpected block: {other:?}"),
-            }
-        }
-        other => panic!("unexpected event: {other:?}"),
-    }
-
-    match &events2[1] {
-        StreamEvent::ContentBlockDelta { index, delta } => {
-            assert_eq!(*index, 1);
-            assert_eq!(delta.partial_json.as_deref(), Some("{\"path\":\"cal.rs\"}"));
-            assert_eq!(delta.choice_index, Some(0));
-        }
-        other => panic!("unexpected event: {other:?}"),
-    }
-
-    match &events2[2] {
-        StreamEvent::MessageDelta { delta, usage } => {
-            assert!(usage.is_none());
-            assert_eq!(delta.stop_reason.as_deref(), Some("tool_calls"));
-            let metadata = delta.metadata.as_ref().expect("metadata should be present");
-            assert_eq!(metadata.choice_index, Some(0));
-        }
-        other => panic!("unexpected event: {other:?}"),
-    }
-
-    match &events2[3] {
-        StreamEvent::ContentBlockStop { index } => assert_eq!(*index, 1),
-        other => panic!("unexpected event: {other:?}"),
-    }
+    assert_eq!(events2.len(), 6);
+    assert!(matches!(
+        &events2[0].event,
+        RuntimeEvent::TranscriptBlockStart {
+            index: 1,
+            block: StreamBlock::ToolCall { id, name, .. }
+        } if id == "call_abc" && name == "read_file"
+    ));
+    assert!(matches!(
+        &events2[1].event,
+        RuntimeEvent::ToolCallStarted { tool_name, .. } if tool_name == "read_file"
+    ));
+    assert!(matches!(
+        &events2[2].event,
+        RuntimeEvent::TranscriptBlockDelta { index: 1, delta }
+            if delta == "{\"path\":\"cal.rs\"}"
+    ));
+    assert!(matches!(
+        &events2[3].event,
+        RuntimeEvent::ToolCallArgumentsDelta { delta, .. }
+            if delta == "{\"path\":\"cal.rs\"}"
+    ));
+    assert!(events2.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ServerMetadata { metadata } if metadata.choice_index == Some(0)
+    )));
+    assert!(events2.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockComplete { index: 1 }
+    )));
 }
 
 #[test]
@@ -276,38 +239,37 @@ fn test_chat_compat_state_reset_after_done() {
 
 "#;
     let events1 = parser.process(chunk1).expect("first message");
-    assert!(matches!(
-        events1.first(),
-        Some(StreamEvent::MessageStart { .. })
-    ));
+    assert!(events1.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ServerMetadata { metadata }
+            if metadata.object.as_deref() == Some("chat.completion.chunk")
+    )));
 
     let chunk_done = br#"data: [DONE]
 
 "#;
-    let _events_done = parser.process(chunk_done).expect("done");
+    let done_events = parser.process(chunk_done).expect("done");
+    assert!(done_events.is_empty());
 
     let chunk2 = br#"data: {"id":"msg2","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"World"},"finish_reason":null}]}
 
 "#;
     let events2 = parser.process(chunk2).expect("second message");
-    let has_message_start = events2
-        .iter()
-        .any(|e| matches!(e, StreamEvent::MessageStart { .. }));
-    assert!(
-        has_message_start,
-        "second message should emit MessageStart after [DONE]"
-    );
+    assert!(events2.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ServerMetadata { metadata }
+            if metadata.object.as_deref() == Some("chat.completion.chunk")
+    )));
+    assert!(events2.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockDelta { delta, .. } if delta == "World"
+    )));
 }
-
-// ---------------------------------------------------------------------------
-// Regression: metadata-only chunks must not be dropped (ADR-040)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_regression_metadata_only_chunk_not_dropped() {
     let mut parser = StreamParser::new();
 
-    // First chunk: MessageStart (required to set chat_compat_message_started)
     let start = br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}],"prompt_progress":{"total":2641,"processed":512,"cache":0,"time_ms":38000},"timings":{"prompt_n":512,"prompt_ms":38000.0,"predicted_n":0,"predicted_ms":0.0}}
 
 "#;
@@ -315,46 +277,25 @@ fn test_regression_metadata_only_chunk_not_dropped() {
         .process(start)
         .expect("metadata-only chunk should parse");
 
-    // Prior to the fix, metadata-only chunks (content: null, no finish_reason)
-    // were silently dropped because the code only emitted MessageDelta when
-    // refusal, finish_reason, logprobs, or server progress was present.
-    // The fix in PR #297 added has_server_progress to the emission guard.
-    assert!(
-        events.len() >= 2,
-        "metadata-only chunk must produce at least MessageStart + MessageDelta, got {} events",
-        events.len()
-    );
-
-    let has_prompt_progress = events.iter().any(|e| match e {
-        StreamEvent::MessageDelta { delta, .. } => delta
-            .metadata
-            .as_ref()
-            .is_some_and(|m| m.prompt_progress.is_some()),
-        _ => false,
-    });
-    assert!(
-        has_prompt_progress,
-        "prompt_progress must be forwarded through MessageDelta metadata"
-    );
-
-    let has_timings = events.iter().any(|e| match e {
-        StreamEvent::MessageDelta { delta, .. } => {
-            delta.metadata.as_ref().is_some_and(|m| m.timings.is_some())
-        }
-        _ => false,
-    });
-    assert!(
-        has_timings,
-        "timings must be forwarded through MessageDelta metadata"
-    );
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ServerMetadata { metadata }
+            if metadata
+                .prompt_progress
+                .as_ref()
+                .is_some_and(|progress| progress.processed == Some(512))
+    )));
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::ServerMetadata { metadata }
+            if metadata.timings.as_ref().is_some_and(|timings| timings.prompt_ms == Some(38000.0))
+    )));
 }
 
 #[test]
 fn test_regression_progress_updates_across_multiple_chunks() {
     let mut parser = StreamParser::new();
 
-    // Simulate a multi-chunk prompt-eval sequence where each chunk carries
-    // increasing processed counts but no text content.
     let chunks = [
         br#"data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}],"prompt_progress":{"total":2641,"processed":512,"cache":0,"time_ms":38000}}
 
@@ -374,36 +315,23 @@ fn test_regression_progress_updates_across_multiple_chunks() {
     for chunk in &chunks {
         let events = parser.process(chunk).expect("chunk should parse");
         for event in &events {
-            if let StreamEvent::MessageDelta { delta, .. } = event
-                && let Some(md) = &delta.metadata
-                && let Some(pp) = &md.prompt_progress
+            if let RuntimeEvent::ServerMetadata { metadata } = &event.event
+                && let Some(progress) = &metadata.prompt_progress
             {
-                progress_values.push(pp.processed.unwrap_or(0));
+                progress_values.push(progress.processed.unwrap_or(0));
             }
         }
     }
 
-    assert_eq!(
-        progress_values,
-        vec![512, 1024, 2048],
-        "all three prompt_progress.processed updates must be forwarded"
-    );
+    assert_eq!(progress_values, vec![512, 1024, 2048]);
 }
-
-// ---------------------------------------------------------------------------
-// WHATWG HTML §9.2.6 — id: and retry: field compliance (C1 fix)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn sse_parser_tracks_last_event_id_from_id_field() {
     let mut parser = StreamParser::new();
     let chunk = b"id: evt-42\ndata: {}\n\n";
     parser.process(chunk).expect("frame should parse");
-    assert_eq!(
-        parser.last_event_id(),
-        Some("evt-42"),
-        "parser must store the last id: value per WHATWG HTML \u{a7}9.2.6"
-    );
+    assert_eq!(parser.last_event_id(), Some("evt-42"));
 }
 
 #[test]
@@ -418,26 +346,16 @@ fn sse_parser_updates_last_event_id_across_frames() {
 fn sse_parser_stores_retry_delay_ms() {
     let mut parser = StreamParser::new();
     parser.process(b"retry: 3000\ndata: {}\n\n").unwrap();
-    assert_eq!(
-        parser.reconnect_delay_ms(),
-        Some(3000),
-        "parser must store the retry: value in milliseconds per WHATWG HTML \u{a7}9.2.6"
-    );
+    assert_eq!(parser.reconnect_delay_ms(), Some(3000));
 }
 
 #[test]
 fn sse_parser_ignores_unknown_fields_and_does_not_error() {
-    // Unknown SSE fields must be silently discarded (WHATWG HTML §9.2.6).
-    // The parse must succeed (Ok), regardless of what the data payload produces.
     let mut parser = StreamParser::new();
     let chunk = b"custom-field: ignored\ndata: {\"type\":\"ping\"}\n\n";
     let result = parser.process(chunk);
     assert!(result.is_ok(), "unknown field must not cause a parse error");
 }
-
-// ---------------------------------------------------------------------------
-// WHATWG HTML §9.2.6 — spec edge cases for id and retry fields
-// ---------------------------------------------------------------------------
 
 #[test]
 fn sse_parser_bare_id_without_colon_clears_last_event_id() {
@@ -447,11 +365,7 @@ fn sse_parser_bare_id_without_colon_clears_last_event_id() {
         .expect("setup frame");
     assert_eq!(parser.last_event_id(), Some("stored-id"));
     parser.process(b"id\ndata: {}\n\n").expect("bare id frame");
-    assert_eq!(
-        parser.last_event_id(),
-        Some(""),
-        "bare 'id' (no colon) must set last-event-id to empty per WHATWG HTML \u{a7}9.2.6"
-    );
+    assert_eq!(parser.last_event_id(), Some(""));
 }
 
 #[test]
@@ -463,11 +377,7 @@ fn sse_parser_id_with_nul_is_ignored() {
     parser
         .process(b"id: bad\x00id\ndata: {}\n\n")
         .expect("nul frame");
-    assert_eq!(
-        parser.last_event_id(),
-        Some("valid-id"),
-        "id: value containing NUL must not update last_event_id per WHATWG HTML \u{a7}9.2.6"
-    );
+    assert_eq!(parser.last_event_id(), Some("valid-id"));
 }
 
 #[test]
@@ -476,9 +386,5 @@ fn sse_parser_non_decimal_retry_value_is_ignored() {
     parser
         .process(b"retry: abc\ndata: {}\n\n")
         .expect("non-decimal retry frame");
-    assert_eq!(
-        parser.reconnect_delay_ms(),
-        None,
-        "non-decimal retry: value must be ignored per WHATWG HTML \u{a7}9.2.6"
-    );
+    assert_eq!(parser.reconnect_delay_ms(), None);
 }

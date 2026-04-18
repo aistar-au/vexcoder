@@ -344,6 +344,8 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
                 input: 4,
                 output: 2,
                 estimated: false,
+                cache_creation_input: 0,
+                cache_read_input: 0,
             }),
             changed_files: vec!["src/main.rs".to_string()],
         }),
@@ -353,7 +355,12 @@ fn test_pi_10_normalization_projects_ui_updates_and_approval_events() {
         result[0].event,
         RuntimeEvent::TurnEnd {
             ref status,
-            usage: Some(TokenUsageEnvelope { input: 4, output: 2, estimated: false }),
+            usage: Some(TokenUsageEnvelope {
+                input: 4,
+                output: 2,
+                estimated: false,
+                ..
+            }),
             ref changed_files,
         } if status == "completed" && changed_files == &vec!["src/main.rs".to_string()]
     ));
@@ -487,6 +494,8 @@ fn test_pi_12_runtime_handoff_round_trips_and_batch_derivation_hold() {
                 input: 10,
                 output: 5,
                 estimated: false,
+                cache_creation_input: 0,
+                cache_read_input: 0,
             }),
             changed_files: vec![],
         }),

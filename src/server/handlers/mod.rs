@@ -1,6 +1,5 @@
 use axum::Json;
 use axum::extract::{Path, State};
-use axum::http::{HeaderMap, header::ACCEPT};
 use axum::response::IntoResponse;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -9,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use super::SSE_KEEPALIVE_INTERVAL;
-use super::sse::{negotiate_turns_sse_mode, runtime_sse_response};
+use super::sse::runtime_sse_response;
 use super::util::{ProblemDetailsResponse, bad_request, conflict, internal_error, not_found};
 use crate::app::runtime_tokio::{spawn, sync::mpsc};
 use crate::app::{
@@ -327,7 +326,6 @@ pub async fn join_status_handler(
 
 pub async fn turns_handler(
     State(state): State<LocalApiState>,
-    headers: HeaderMap,
     Json(request): Json<RuntimeRequest>,
 ) -> Result<impl IntoResponse, ProblemDetailsResponse> {
     let RuntimeRequest::SubmitInput { task_id, input, .. } = request else {
@@ -335,8 +333,6 @@ pub async fn turns_handler(
     };
 
     let task_id = task_id.unwrap_or_else(new_server_task_id);
-    let sse_mode =
-        negotiate_turns_sse_mode(headers.get(ACCEPT).and_then(|value| value.to_str().ok()));
     let (envelope_tx, envelope_rx) = mpsc::unbounded_channel::<String>();
     let (interrupt_tx, interrupt_rx) = mpsc::unbounded_channel::<FrontendCommand>();
     let quit = Arc::new(AtomicBool::new(false));
@@ -366,8 +362,7 @@ pub async fn turns_handler(
 
     spawn_local_api_task(state.clone(), task_id, input, shared, interrupt_rx);
 
-    let mut response =
-        runtime_sse_response(envelope_rx, SSE_KEEPALIVE_INTERVAL, sse_mode).into_response();
+    let mut response = runtime_sse_response(envelope_rx, SSE_KEEPALIVE_INTERVAL).into_response();
     response.headers_mut().insert(
         header::CACHE_CONTROL,
         HeaderValue::from_static(SSE_CACHE_CONTROL_HEADER),

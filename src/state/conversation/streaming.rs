@@ -6,6 +6,39 @@ use crate::runtime::tokio::sync::mpsc;
 use chrono::{DateTime, SecondsFormat, Utc};
 
 impl ConversationManager {
+    pub(super) fn emit_stream_block_start_update(
+        &mut self,
+        index: usize,
+        block: StreamBlock,
+        stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
+    ) {
+        while self.current_round_stream_block_count < index {
+            let pad_index = self.current_round_stream_block_count;
+            let placeholder = StreamBlock::Thinking {
+                content: String::new(),
+                collapsed: true,
+            };
+            self.apply_doc_event(RuntimeEvent::TranscriptBlockStart {
+                index: pad_index,
+                block: placeholder.clone(),
+            });
+            self.current_round_stream_block_count += 1;
+            emit_stream_update(
+                stream_delta_tx,
+                ConversationStreamUpdate::BlockStart {
+                    index: pad_index,
+                    block: placeholder,
+                },
+            );
+        }
+
+        self.current_round_stream_block_count = index + 1;
+        emit_stream_update(
+            stream_delta_tx,
+            ConversationStreamUpdate::BlockStart { index, block },
+        );
+    }
+
     pub(super) fn record_tool_call_started_at(
         &mut self,
         tool_call_id: &str,
@@ -77,30 +110,6 @@ impl ConversationManager {
         block: StreamBlock,
         stream_delta_tx: Option<&mpsc::UnboundedSender<ConversationStreamUpdate>>,
     ) {
-        // Emit collapsed Thinking placeholders for any gap between the last
-        // emitted block index and the target index.  This keeps the TUI block
-        // list contiguous even when the model skips indices.
-        while self.current_round_stream_block_count < index {
-            let pad_index = self.current_round_stream_block_count;
-            let placeholder = StreamBlock::Thinking {
-                content: String::new(),
-                collapsed: true,
-            };
-            self.apply_doc_event(RuntimeEvent::TranscriptBlockStart {
-                index: pad_index,
-                block: placeholder.clone(),
-            });
-            self.current_round_stream_block_count += 1;
-            emit_stream_update(
-                stream_delta_tx,
-                ConversationStreamUpdate::BlockStart {
-                    index: pad_index,
-                    block: placeholder,
-                },
-            );
-        }
-        self.current_round_stream_block_count = index + 1;
-
         // Apply the canonical block-start event to the condenser.
         let event = match &block {
             StreamBlock::Thinking { content, collapsed } => {
@@ -142,10 +151,7 @@ impl ConversationManager {
             self.apply_doc_event(ev);
         }
 
-        emit_stream_update(
-            stream_delta_tx,
-            ConversationStreamUpdate::BlockStart { index, block },
-        );
+        self.emit_stream_block_start_update(index, block, stream_delta_tx);
     }
 
     /// Append `text` to the Thinking block at `index`, computing only the
