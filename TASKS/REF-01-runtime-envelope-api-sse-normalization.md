@@ -20,7 +20,7 @@ and the active structural-extraction follow-up is
   PR #402. The active remaining work is structural extraction in
   `src/runtime/json_handoff.rs`, the now-implemented `src/api/stream.rs`
   split in PR #404, tagged/XML fallback evaluation, and final
-  compatibility-only documentation or config retirement.
+  compatibility-only documentation or config rewrite.
 - Validation is green with `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo nextest run`, and
   `bash scripts/check_forbidden_names.sh`.
