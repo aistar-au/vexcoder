@@ -37,14 +37,14 @@ JSON rather than as a second event schema.
   `RuntimeEvent` values directly, including runtime-owned tool-call IDs.
 - `src/runtime/task_document/condenser.rs` now absorbs accepted metadata
   events for prompt-progress and timing propagation.
-- The server-layer cleanup is in place, and the whole-system consumer audit is
-  now closed. The remaining follow-up is structural extraction because
-  `src/api/stream.rs` still owns the provider-edge compatibility parser
-  locally.
-- `src/runtime/json_handoff.rs` has now grown past one thousand lines and
-  `src/api/stream.rs` carries a similarly dense ingress-plus-normalization
-  surface, so a follow-up structural extraction batch is warranted even where
-  behavior stays unchanged.
+- The server-layer cleanup is in place, the whole-system consumer audit is
+  closed, and the remaining provider-edge compatibility parser is now confined
+  to focused `src/api/stream/` modules rather than a monolithic
+  `src/api/stream.rs`.
+- `src/runtime/json_handoff.rs` has now grown past one thousand lines, while
+  the `src/api/stream.rs` extraction is in place under
+  `src/api/stream/{framing,chat_compat,provider}.rs`, so the next structural
+  follow-up is the runtime handoff split even where behavior stays unchanged.
 - `src/app/model_update.rs`, `src/runtime/context.rs`, `src/app.rs`,
   `src/bin/vex/**`, `src/tui_frontend.rs`, and `src/batch_mode.rs` were
   audited for residual compatibility-shaped projections; no additional
@@ -67,6 +67,9 @@ JSON rather than as a second event schema.
 - Switched client negotiation to plain `text/event-stream`.
 - Reworked conversation, server, API, runtime-handoff, and guard tests to
   assert accepted envelope behavior and runtime-owned `tx_*` tool identifiers.
+- Extracted `src/api/stream.rs` into focused `framing`, `chat_compat`, and
+  `provider` modules while preserving the stable root module and immediate
+  provider-edge normalization boundary.
 - Validated the branch with `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo nextest run`, and
   `bash scripts/check_forbidden_names.sh`.
@@ -88,10 +91,10 @@ match the present scope boundary and consumer inventory.
 
 ### Batch C. `src/api/stream.rs` Structural Extraction
 
-- Split provider-edge parsing, compatibility ingress handling, and normalized
-  envelope emission helpers into focused `src/api/stream/` modules.
-- Keep the provider-edge adapter boundary explicit so direct envelope
-  consumption remains easy to review.
+Implemented in PR #404. Provider-edge parsing, compatibility ingress
+handling, and normalized envelope emission now live in focused
+`src/api/stream/` modules while `src/api/stream.rs` remains the stable root
+and direct envelope consumption stays easy to review.
 
 ### Batch D. Whole-System Consumer Completion
 
@@ -106,27 +109,27 @@ CLI plus ratatui/crossterm stack remain downstream of the normalized API.
 
 ## Follow-up Lane
 
-- Branch: `work/vexcoder-runtime-envelope-client-api-direct-consumption`
-- Purpose: complete the whole-system cleanup after PR #402 by moving the
-  residual client/API-side compatibility ingress from `StreamEvent` and
-  `ContentBlock` parsing toward direct `RuntimeEnvelope` consumption wherever
-  the layer is acting as an internal API consumer.
-- Status: consumer migration and downstream audit are complete in this lane;
-  remaining work now centers on structural extraction and later replay support.
+- Branch: `work/vexcoder-api-stream-structural-extraction`
+- Purpose: carry the Batch C structural extraction after PR #403 completed the
+  whole-system client/API consumer cleanup from PR #402.
+- Status: consumer migration and downstream audit are complete; this lane
+  narrows the remaining work to the `src/api/stream.rs` extraction and later
+  replay plus runtime-handoff follow-up.
 - Primary source anchors for that lane:
-  - `src/api/stream.rs` still owns the provider-edge compatibility parser,
-    but the wire dialect is now local to that ingress module rather than
-    shared through `vexcoder-api-types`.
+  - `src/api/stream.rs` is now a slim root over
+    `src/api/stream/{framing,chat_compat,provider}.rs`, with the provider wire
+    dialect confined to the immediate ingress adapter rather than shared
+    through `vexcoder-api-types`.
   - `crates/vexcoder-api-types/src/lib.rs` still defines
     `ContentBlockCompat` at the provider-facing type layer for outbound and
     history-facing content handling.
   - `src/api/client/mod.rs` and `src/api/client/protocol_discovery.rs` still
-    carry protocol-shape selection and `ContentBlock`-shaped request-history
-    handling that should be audited against the normalized contract boundary.
+    carry provider-boundary request-shape selection and `ContentBlock`-shaped
+    request-history handling, not a second internal stream consumer.
   - `src/bin/vex/**`, `src/tui_frontend.rs`, `src/app.rs`,
     `src/app/model_update.rs`, `src/runtime/context.rs`, and
-    `src/batch_mode.rs` remain consumer-audit targets so the CLI and
-    ratatui/crossterm stack stay downstream of the normalized API.
+    `src/batch_mode.rs` were audited in PR #403 and remain downstream API
+    consumers of the normalized contract.
 
 ## Workstreams
 
