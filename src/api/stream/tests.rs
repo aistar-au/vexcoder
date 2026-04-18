@@ -1,4 +1,4 @@
-use super::{MAX_SSE_BUFFER_BYTES, StreamParser};
+use super::{MAX_SSE_BUFFER_BYTES, StreamParser, legacy_external_thinking_tag};
 use crate::runtime::RuntimeEvent;
 
 #[test]
@@ -44,6 +44,21 @@ fn test_process_messages_v1_message_delta_top_level_usage() {
         &events[1].event,
         RuntimeEvent::UsageUpdated { usage } if usage.output == 15
     ));
+}
+
+#[test]
+fn test_process_messages_v1_legacy_thinking_tag_remains_supported() {
+    let mut parser = StreamParser::new();
+    let frame = format!(
+        "event: content_block_start\ndata: {{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{{\"type\":\"{}\",\"data\":\"opaque\"}}}}\n\n",
+        legacy_external_thinking_tag()
+    );
+    let events = parser.process(frame.as_bytes()).unwrap();
+
+    assert!(events.iter().any(|event| matches!(
+        &event.event,
+        RuntimeEvent::TranscriptBlockDelta { delta, .. } if delta == "opaque"
+    )));
 }
 
 #[test]

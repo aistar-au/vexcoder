@@ -246,86 +246,6 @@ pub struct ToolUseMetadata {
     pub choice_index: Option<usize>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum StreamEvent {
-    MessageStart {
-        message: MessageStartData,
-    },
-    ContentBlockStart {
-        index: usize,
-        content_block: ContentBlock,
-    },
-    ContentBlockDelta {
-        index: usize,
-        delta: Delta,
-    },
-    ContentBlockStop {
-        index: usize,
-    },
-    MessageDelta {
-        delta: MessageDelta,
-        #[serde(default)]
-        usage: Option<ApiUsage>,
-    },
-    MessageStop,
-    Ping,
-    Error {
-        error: ApiStreamError,
-    },
-    #[serde(other)]
-    Unknown,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct Delta {
-    #[serde(rename = "type")]
-    #[serde(default)]
-    pub delta_type: Option<String>,
-    #[serde(default)]
-    pub text: Option<String>,
-    #[serde(default)]
-    pub partial_json: Option<String>,
-    #[serde(default)]
-    pub thinking: Option<String>,
-    #[serde(default)]
-    pub signature: Option<String>,
-    #[serde(default)]
-    pub choice_index: Option<usize>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct MessageStartData {
-    pub id: String,
-    #[serde(rename = "type", default)]
-    pub message_type: Option<String>,
-    pub role: String,
-    pub model: String,
-    #[serde(default)]
-    pub content: Option<Vec<serde_json::Value>>,
-    #[serde(default)]
-    pub stop_reason: Option<String>,
-    #[serde(default)]
-    pub stop_sequence: Option<String>,
-    #[serde(default)]
-    pub usage: Option<ApiUsage>,
-    #[serde(default)]
-    pub metadata: Option<StreamChunkMetadata>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct MessageDelta {
-    pub stop_reason: Option<String>,
-    #[serde(default)]
-    pub stop_sequence: Option<String>,
-    #[serde(default)]
-    pub role: Option<String>,
-    #[serde(default)]
-    pub refusal: Option<String>,
-    #[serde(default)]
-    pub metadata: Option<StreamChunkMetadata>,
-}
-
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ApiUsage {
     // Core token counts (cross-protocol normalised)
@@ -378,13 +298,6 @@ pub struct CompletionTokenDetails {
     pub rejected_prediction_tokens: Option<u64>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct ApiStreamError {
-    #[serde(rename = "type")]
-    pub error_type: String,
-    pub message: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -403,26 +316,6 @@ mod tests {
             serialized.get("content").is_some(),
             "Missing 'content' key in JSON!"
         );
-    }
-
-    #[test]
-    fn test_stream_event_error_deserialises() {
-        let json = r#"{"type":"error","error":{"type":"overloaded_error","message":"overloaded"}}"#;
-        let evt: StreamEvent = serde_json::from_str(json).unwrap();
-        match evt {
-            StreamEvent::Error { error } => {
-                assert_eq!(error.error_type, "overloaded_error");
-                assert_eq!(error.message, "overloaded");
-            }
-            other => panic!("expected Error variant, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_stream_event_ping_deserialises() {
-        let json = r#"{"type":"ping"}"#;
-        let evt: StreamEvent = serde_json::from_str(json).unwrap();
-        assert!(matches!(evt, StreamEvent::Ping));
     }
 
     #[test]
@@ -481,15 +374,6 @@ mod tests {
     }
 
     #[test]
-    fn test_delta_thinking_fields_deserialise() {
-        let json = r#"{"type":"thinking_delta","thinking":"partial thought"}"#;
-        let delta: Delta = serde_json::from_str(json).unwrap();
-        assert_eq!(delta.delta_type.as_deref(), Some("thinking_delta"));
-        assert_eq!(delta.thinking.as_deref(), Some("partial thought"));
-        assert!(delta.signature.is_none());
-    }
-
-    #[test]
     fn test_api_usage_cache_fields_deserialise() {
         let json = r#"{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":200,"cache_read_input_tokens":800,"inference_geo":"au"}"#;
         let usage: ApiUsage = serde_json::from_str(json).unwrap();
@@ -510,70 +394,6 @@ mod tests {
         assert_eq!(usage.total_tokens, Some(150));
         assert!(usage.cache_creation_input_tokens.is_none());
         assert!(usage.cache_read_input_tokens.is_none());
-    }
-
-    #[test]
-    fn test_message_delta_stop_sequence_deserialises() {
-        let json = r#"{"stop_reason":"stop_sequence","stop_sequence":"\n\nHuman:","role":"assistant","refusal":"no","metadata":{"choice_index":2,"logprobs":{"content":[]}}}"#;
-        let delta: MessageDelta = serde_json::from_str(json).unwrap();
-        assert_eq!(delta.stop_reason.as_deref(), Some("stop_sequence"));
-        assert_eq!(delta.stop_sequence.as_deref(), Some("\n\nHuman:"));
-        assert_eq!(delta.role.as_deref(), Some("assistant"));
-        assert_eq!(delta.refusal.as_deref(), Some("no"));
-        let metadata = delta.metadata.expect("metadata should be present");
-        assert_eq!(metadata.choice_index, Some(2));
-        assert!(metadata.logprobs.is_some());
-    }
-
-    #[test]
-    fn test_message_delta_event_top_level_usage_deserialises() {
-        // Messages v1 wire format: usage is a peer of delta, not nested inside it
-        let json = r#"{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":15}}"#;
-        let evt: StreamEvent = serde_json::from_str(json).unwrap();
-        match evt {
-            StreamEvent::MessageDelta { delta, usage } => {
-                assert_eq!(delta.stop_reason.as_deref(), Some("end_turn"));
-                let usage = usage.expect("top-level usage must be present");
-                assert_eq!(usage.output_tokens, Some(15));
-            }
-            other => panic!("expected MessageDelta variant, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_message_start_full_message_deserialises() {
-        let json = r#"{
-            "type":"message_start",
-            "message":{
-                "id":"msg_01XY","type":"message","role":"assistant",
-                "content":[],"model":"model-name-20241022",
-                "stop_reason":null,"stop_sequence":null,
-                "usage":{"input_tokens":25,"output_tokens":1},
-                "metadata":{"object":"chat.completion.chunk","created":1741730100,"system_fingerprint":"fp_123","service_tier":"standard"}
-            }
-        }"#;
-        let evt: StreamEvent = serde_json::from_str(json).unwrap();
-        match evt {
-            StreamEvent::MessageStart { message } => {
-                assert_eq!(message.id, "msg_01XY");
-                assert_eq!(message.message_type.as_deref(), Some("message"));
-                assert_eq!(message.role, "assistant");
-                assert_eq!(message.model, "model-name-20241022");
-                assert!(message.stop_reason.is_none());
-                assert!(message.stop_sequence.is_none());
-                let content = message.content.expect("content array must be present");
-                assert!(content.is_empty());
-                let usage = message.usage.expect("usage must be present");
-                assert_eq!(usage.input_tokens, Some(25));
-                assert_eq!(usage.output_tokens, Some(1));
-                let metadata = message.metadata.expect("metadata must be present");
-                assert_eq!(metadata.object.as_deref(), Some("chat.completion.chunk"));
-                assert_eq!(metadata.created, Some(1741730100));
-                assert_eq!(metadata.system_fingerprint.as_deref(), Some("fp_123"));
-                assert_eq!(metadata.service_tier.as_deref(), Some("standard"));
-            }
-            other => panic!("expected MessageStart variant, got {:?}", other),
-        }
     }
 
     #[test]

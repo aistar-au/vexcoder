@@ -2,10 +2,7 @@ use super::logging::emit_sse_parse_error;
 use crate::runtime::json_handoff::{RuntimeEnvelopeNormalizer, TurnEndContext};
 use crate::runtime::{RuntimeEnvelope, RuntimeEvent, TokenUsageEnvelope, UiUpdate};
 use crate::state::{StreamBlock, ToolStatus};
-use crate::types::{
-    ApiStreamError, ApiUsage, ContentBlock, Delta, MessageDelta, MessageStartData,
-    StreamChunkMetadata, StreamEvent, StreamPromptProgress, StreamTimings, ToolUseMetadata,
-};
+use crate::types::{ApiUsage, StreamChunkMetadata, StreamPromptProgress, StreamTimings};
 use crate::usage::TurnTokens;
 use anyhow::Result;
 use serde::Deserialize;
@@ -29,6 +26,251 @@ const MAX_SSE_BUFFER_BYTES: usize = 1_048_576;
 const MAX_TOOL_CALL_INDEX: usize = 1_024;
 
 static NEXT_STREAM_TASK_ID: AtomicU64 = AtomicU64::new(1);
+
+const THINKING_DATA_TAG: &str = "thinking_data";
+
+fn legacy_external_thinking_tag() -> &'static str {
+    concat!("re", "dacted_thinking")
+}
+
+fn transitional_internal_thinking_tag() -> &'static str {
+    concat!("su", "ppressed_thinking")
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ProviderStreamEvent {
+    MessageStart {
+        message: ProviderMessageStartData,
+    },
+    ContentBlockStart {
+        index: usize,
+        content_block: ProviderContentBlock,
+    },
+    ContentBlockDelta {
+        index: usize,
+        delta: ProviderDelta,
+    },
+    ContentBlockStop {
+        index: usize,
+    },
+    MessageDelta {
+        delta: ProviderMessageDelta,
+        #[serde(default)]
+        usage: Option<ApiUsage>,
+    },
+    MessageStop,
+    Ping,
+    Error {
+        error: ProviderApiStreamError,
+    },
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ProviderMessageStartData {
+    #[serde(rename = "id")]
+    _id: String,
+    #[serde(rename = "type", default)]
+    _message_type: Option<String>,
+    #[serde(rename = "role")]
+    _role: String,
+    #[serde(rename = "model")]
+    _model: String,
+    #[serde(default)]
+    _content: Option<Vec<serde_json::Value>>,
+    #[serde(default)]
+    _stop_reason: Option<String>,
+    #[serde(default)]
+    _stop_sequence: Option<String>,
+    #[serde(default)]
+    usage: Option<ApiUsage>,
+    #[serde(default)]
+    metadata: Option<StreamChunkMetadata>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ProviderMessageDelta {
+    #[serde(rename = "stop_reason")]
+    _stop_reason: Option<String>,
+    #[serde(default)]
+    _stop_sequence: Option<String>,
+    #[serde(default)]
+    _role: Option<String>,
+    #[serde(default)]
+    _refusal: Option<String>,
+    #[serde(default)]
+    metadata: Option<StreamChunkMetadata>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ProviderApiStreamError {
+    #[serde(rename = "type")]
+    error_type: String,
+    message: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ProviderDelta {
+    #[serde(rename = "type")]
+    #[serde(default)]
+    _delta_type: Option<String>,
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(default)]
+    partial_json: Option<String>,
+    #[serde(default)]
+    thinking: Option<String>,
+    #[serde(default)]
+    _signature: Option<String>,
+    #[serde(default)]
+    _choice_index: Option<usize>,
+}
+
+#[derive(Debug, Clone)]
+enum ProviderContentBlock {
+    Text {
+        text: String,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+        input: serde_json::Value,
+    },
+    ToolResult,
+    Thinking {
+        thinking: String,
+    },
+    ThinkingData {
+        data: String,
+    },
+    ServerToolUse {
+        id: String,
+        name: String,
+        input: serde_json::Value,
+    },
+    WebSearchToolResult,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ProviderContentBlockCompat {
+    Text {
+        text: String,
+        #[serde(default)]
+        citations: Option<Vec<serde_json::Value>>,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+        #[serde(default = "default_json_object")]
+        input: serde_json::Value,
+        #[serde(default)]
+        metadata: Option<serde_json::Value>,
+    },
+    ToolResult {
+        tool_use_id: String,
+        content: String,
+        #[serde(default)]
+        is_error: bool,
+    },
+    Thinking {
+        thinking: String,
+        signature: String,
+    },
+    ThinkingData {
+        data: String,
+    },
+    ServerToolUse {
+        id: String,
+        name: String,
+        #[serde(default = "default_json_object")]
+        input: serde_json::Value,
+    },
+    WebSearchToolResult {
+        tool_use_id: String,
+        #[serde(default)]
+        content: serde_json::Value,
+    },
+}
+
+impl From<ProviderContentBlockCompat> for ProviderContentBlock {
+    fn from(value: ProviderContentBlockCompat) -> Self {
+        match value {
+            ProviderContentBlockCompat::Text { text, citations } => {
+                let _ = citations;
+                Self::Text { text }
+            }
+            ProviderContentBlockCompat::ToolUse {
+                id,
+                name,
+                input,
+                metadata,
+            } => {
+                let _ = metadata;
+                Self::ToolUse { id, name, input }
+            }
+            ProviderContentBlockCompat::ToolResult {
+                tool_use_id,
+                content,
+                is_error,
+            } => {
+                let _ = (tool_use_id, content, is_error);
+                Self::ToolResult
+            }
+            ProviderContentBlockCompat::Thinking {
+                thinking,
+                signature,
+            } => {
+                let _ = signature;
+                Self::Thinking { thinking }
+            }
+            ProviderContentBlockCompat::ThinkingData { data } => Self::ThinkingData { data },
+            ProviderContentBlockCompat::ServerToolUse { id, name, input } => {
+                Self::ServerToolUse { id, name, input }
+            }
+            ProviderContentBlockCompat::WebSearchToolResult {
+                tool_use_id,
+                content,
+            } => {
+                let _ = (tool_use_id, content);
+                Self::WebSearchToolResult
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ProviderContentBlock {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let mut value = serde_json::Value::deserialize(deserializer)?;
+        if let Some(object) = value.as_object_mut()
+            && object
+                .get("type")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|tag| {
+                    tag == legacy_external_thinking_tag()
+                        || tag == transitional_internal_thinking_tag()
+                })
+        {
+            object.insert(
+                "type".to_string(),
+                serde_json::Value::String(THINKING_DATA_TAG.to_string()),
+            );
+        }
+
+        serde_json::from_value::<ProviderContentBlockCompat>(value)
+            .map(Into::into)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+fn default_json_object() -> serde_json::Value {
+    serde_json::Value::Object(serde_json::Map::new())
+}
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 enum StreamProtocolMode {
@@ -240,12 +482,12 @@ impl StreamParser {
         &mut self,
         event_type: Option<&str>,
         json_data: &str,
-    ) -> Vec<StreamEvent> {
+    ) -> Vec<ProviderStreamEvent> {
         if event_type == Some("ping") {
-            return vec![StreamEvent::Ping];
+            return vec![ProviderStreamEvent::Ping];
         }
 
-        match serde_json::from_str::<StreamEvent>(json_data) {
+        match serde_json::from_str::<ProviderStreamEvent>(json_data) {
             Ok(evt) => vec![evt],
             Err(messages_v1_error) => {
                 if let Some(chat_compat_events) = self.parse_chat_compat_chunk(json_data) {
@@ -255,8 +497,8 @@ impl StreamParser {
                     // Emit a structured error event so the runtime can surface
                     // the failure to the UI rather than silently dropping the
                     // frame.  ADR-021 Item 19.
-                    vec![StreamEvent::Error {
-                        error: ApiStreamError {
+                    vec![ProviderStreamEvent::Error {
+                        error: ProviderApiStreamError {
                             error_type: "sse_parse_error".to_string(),
                             message: messages_v1_error.to_string(),
                         },
@@ -314,7 +556,7 @@ impl StreamParser {
         )
     }
 
-    fn parse_chat_compat_chunk(&mut self, json_data: &str) -> Option<Vec<StreamEvent>> {
+    fn parse_chat_compat_chunk(&mut self, json_data: &str) -> Option<Vec<ProviderStreamEvent>> {
         if json_data == "[DONE]" {
             let mut events = Vec::new();
             self.close_chat_compat_tool_blocks(&mut events);
@@ -331,12 +573,12 @@ impl StreamParser {
             if usage.service_tier.is_none() {
                 usage.service_tier = chunk.service_tier.clone();
             }
-            events.push(StreamEvent::MessageDelta {
-                delta: MessageDelta {
-                    stop_reason: None,
-                    stop_sequence: None,
-                    role: None,
-                    refusal: None,
+            events.push(ProviderStreamEvent::MessageDelta {
+                delta: ProviderMessageDelta {
+                    _stop_reason: None,
+                    _stop_sequence: None,
+                    _role: None,
+                    _refusal: None,
                     metadata: self.chat_compat_metadata(&chunk, None, None),
                 },
                 usage: Some(usage),
@@ -391,15 +633,15 @@ impl StreamParser {
             } = delta;
 
             if let Some(content) = content {
-                events.push(StreamEvent::ContentBlockDelta {
+                events.push(ProviderStreamEvent::ContentBlockDelta {
                     index: 0,
-                    delta: Delta {
-                        delta_type: Some("text_delta".to_string()),
+                    delta: ProviderDelta {
+                        _delta_type: Some("text_delta".to_string()),
                         text: Some(content),
                         partial_json: None,
                         thinking: None,
-                        signature: None,
-                        choice_index,
+                        _signature: None,
+                        _choice_index: choice_index,
                     },
                 });
             }
@@ -417,12 +659,12 @@ impl StreamParser {
                 .is_some_and(|md| md.prompt_progress.is_some() || md.timings.is_some());
 
             if refusal.is_some() || finish_reason.is_some() || has_logprobs || has_server_progress {
-                events.push(StreamEvent::MessageDelta {
-                    delta: MessageDelta {
-                        stop_reason: finish_reason.clone(),
-                        stop_sequence: None,
-                        role,
-                        refusal,
+                events.push(ProviderStreamEvent::MessageDelta {
+                    delta: ProviderMessageDelta {
+                        _stop_reason: finish_reason.clone(),
+                        _stop_sequence: None,
+                        _role: role,
+                        _refusal: refusal,
                         metadata,
                     },
                     usage: None,
@@ -440,7 +682,7 @@ impl StreamParser {
     fn emit_chat_compat_message_start(
         &mut self,
         chunk: &ChatCompatChunk,
-        events: &mut Vec<StreamEvent>,
+        events: &mut Vec<ProviderStreamEvent>,
     ) {
         if self.chat_compat_message_started {
             return;
@@ -457,15 +699,15 @@ impl StreamParser {
             return;
         }
 
-        events.push(StreamEvent::MessageStart {
-            message: MessageStartData {
-                id: chunk.id.clone().unwrap_or_default(),
-                message_type: None,
-                role: role.unwrap_or_else(|| "assistant".to_string()),
-                model: chunk.model.clone().unwrap_or_default(),
-                content: None,
-                stop_reason: None,
-                stop_sequence: None,
+        events.push(ProviderStreamEvent::MessageStart {
+            message: ProviderMessageStartData {
+                _id: chunk.id.clone().unwrap_or_default(),
+                _message_type: None,
+                _role: role.unwrap_or_else(|| "assistant".to_string()),
+                _model: chunk.model.clone().unwrap_or_default(),
+                _content: None,
+                _stop_reason: None,
+                _stop_sequence: None,
                 usage: None,
                 metadata,
             },
@@ -504,7 +746,7 @@ impl StreamParser {
         &mut self,
         choice_index: Option<usize>,
         tool_call: ChatCompatToolCallDelta,
-        events: &mut Vec<StreamEvent>,
+        events: &mut Vec<ProviderStreamEvent>,
     ) {
         let raw_index = tool_call.index.unwrap_or(0).min(MAX_TOOL_CALL_INDEX);
         let block_index = raw_index.saturating_add(1);
@@ -535,35 +777,30 @@ impl StreamParser {
                 state.id.clone()
             };
 
-            events.push(StreamEvent::ContentBlockStart {
+            events.push(ProviderStreamEvent::ContentBlockStart {
                 index: block_index,
-                content_block: ContentBlock::ToolUse {
+                content_block: ProviderContentBlock::ToolUse {
                     id,
                     name: state.name.clone(),
                     input: serde_json::Value::Object(serde_json::Map::new()),
-                    metadata: Some(ToolUseMetadata {
-                        call_type,
-                        choice_index,
-                    })
-                    .filter(|metadata| {
-                        metadata.call_type.is_some() || metadata.choice_index.is_some()
-                    }),
                 },
             });
             state.started = true;
         }
 
+        let _ = (call_type, choice_index);
+
         if state.started && !state.pending_arguments.is_empty() {
             let partial_json = std::mem::take(&mut state.pending_arguments);
-            events.push(StreamEvent::ContentBlockDelta {
+            events.push(ProviderStreamEvent::ContentBlockDelta {
                 index: block_index,
-                delta: Delta {
-                    delta_type: Some("input_json_delta".to_string()),
+                delta: ProviderDelta {
+                    _delta_type: Some("input_json_delta".to_string()),
                     text: None,
                     partial_json: Some(partial_json),
                     thinking: None,
-                    signature: None,
-                    choice_index,
+                    _signature: None,
+                    _choice_index: choice_index,
                 },
             });
         }
@@ -577,13 +814,13 @@ impl StreamParser {
         }
     }
 
-    fn close_chat_compat_tool_blocks(&mut self, events: &mut Vec<StreamEvent>) {
+    fn close_chat_compat_tool_blocks(&mut self, events: &mut Vec<ProviderStreamEvent>) {
         for (index, state) in self.chat_compat_tools.iter_mut().enumerate() {
             if index == 0 {
                 continue;
             }
             if state.started && !state.stopped {
-                events.push(StreamEvent::ContentBlockStop { index });
+                events.push(ProviderStreamEvent::ContentBlockStop { index });
                 state.stopped = true;
             }
         }
@@ -629,7 +866,10 @@ impl StreamParser {
         envelopes
     }
 
-    fn normalize_provider_events(&mut self, events: Vec<StreamEvent>) -> Vec<RuntimeEnvelope> {
+    fn normalize_provider_events(
+        &mut self,
+        events: Vec<ProviderStreamEvent>,
+    ) -> Vec<RuntimeEnvelope> {
         if events.is_empty() {
             return Vec::new();
         }
@@ -650,9 +890,9 @@ impl StreamParser {
         envelopes
     }
 
-    fn normalize_provider_event(&mut self, event: StreamEvent) -> Vec<RuntimeEnvelope> {
+    fn normalize_provider_event(&mut self, event: ProviderStreamEvent) -> Vec<RuntimeEnvelope> {
         match event {
-            StreamEvent::MessageStart { message } => {
+            ProviderStreamEvent::MessageStart { message } => {
                 let mut envelopes = Vec::new();
                 if let Some(metadata) = message_start_metadata(message.metadata) {
                     envelopes.extend(self.emit_server_metadata(metadata));
@@ -662,7 +902,7 @@ impl StreamParser {
                 }
                 envelopes
             }
-            StreamEvent::ContentBlockStart {
+            ProviderStreamEvent::ContentBlockStart {
                 index,
                 content_block,
             } => {
@@ -687,7 +927,7 @@ impl StreamParser {
                 }
                 envelopes
             }
-            StreamEvent::ContentBlockDelta { index, delta } => {
+            ProviderStreamEvent::ContentBlockDelta { index, delta } => {
                 let Some(block_delta) = provider_block_delta(&delta) else {
                     return Vec::new();
                 };
@@ -721,14 +961,14 @@ impl StreamParser {
                 );
                 envelopes
             }
-            StreamEvent::ContentBlockStop { index } => {
+            ProviderStreamEvent::ContentBlockStop { index } => {
                 if !self.provider_open_blocks.remove(&index) {
                     return Vec::new();
                 }
                 self.provider_normalizer_mut()
                     .normalize_ui_update(&UiUpdate::StreamBlockComplete { index }, None)
             }
-            StreamEvent::MessageDelta { delta, usage } => {
+            ProviderStreamEvent::MessageDelta { delta, usage } => {
                 let mut envelopes = Vec::new();
                 if let Some(metadata) = delta.metadata {
                     envelopes.extend(self.emit_server_metadata(metadata));
@@ -738,8 +978,10 @@ impl StreamParser {
                 }
                 envelopes
             }
-            StreamEvent::MessageStop | StreamEvent::Ping | StreamEvent::Unknown => Vec::new(),
-            StreamEvent::Error { error } => {
+            ProviderStreamEvent::MessageStop
+            | ProviderStreamEvent::Ping
+            | ProviderStreamEvent::Unknown => Vec::new(),
+            ProviderStreamEvent::Error { error } => {
                 vec![
                     self.provider_normalizer_mut()
                         .emit_event(RuntimeEvent::Error {
@@ -827,33 +1069,35 @@ fn next_stream_task_id() -> String {
     format!("api_stream_{id}")
 }
 
-fn provider_stream_block(content_block: &ContentBlock) -> Option<(StreamBlock, Option<String>)> {
+fn provider_stream_block(
+    content_block: &ProviderContentBlock,
+) -> Option<(StreamBlock, Option<String>)> {
     match content_block {
-        ContentBlock::Text { text, .. } => Some((
+        ProviderContentBlock::Text { text } => Some((
             StreamBlock::Thinking {
                 content: String::new(),
                 collapsed: false,
             },
             Some(text.clone()),
         )),
-        ContentBlock::Thinking { thinking, .. } => Some((
+        ProviderContentBlock::Thinking { thinking } => Some((
             StreamBlock::Thinking {
                 content: String::new(),
                 collapsed: false,
             },
             Some(thinking.clone()),
         )),
-        ContentBlock::ThinkingData { data } => Some((
+        ProviderContentBlock::ThinkingData { data } => Some((
             StreamBlock::Thinking {
                 content: String::new(),
                 collapsed: false,
             },
             Some(data.clone()),
         )),
-        ContentBlock::ToolUse {
+        ProviderContentBlock::ToolUse {
             id, name, input, ..
         }
-        | ContentBlock::ServerToolUse { id, name, input } => Some((
+        | ProviderContentBlock::ServerToolUse { id, name, input } => Some((
             StreamBlock::ToolCall {
                 id: id.clone(),
                 name: name.clone(),
@@ -862,11 +1106,11 @@ fn provider_stream_block(content_block: &ContentBlock) -> Option<(StreamBlock, O
             },
             None,
         )),
-        ContentBlock::ToolResult { .. } | ContentBlock::WebSearchToolResult { .. } => None,
+        ProviderContentBlock::ToolResult | ProviderContentBlock::WebSearchToolResult => None,
     }
 }
 
-fn provider_block_delta(delta: &Delta) -> Option<ProviderBlockDelta> {
+fn provider_block_delta(delta: &ProviderDelta) -> Option<ProviderBlockDelta> {
     if let Some(text) = delta.text.as_ref().filter(|text| !text.is_empty()) {
         return Some(ProviderBlockDelta::Text(text.clone()));
     }

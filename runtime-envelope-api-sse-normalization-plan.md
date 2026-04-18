@@ -38,9 +38,9 @@ JSON rather than as a second event schema.
 - `src/runtime/task_document/condenser.rs` now absorbs canonical metadata
   events for prompt-progress and timing propagation.
 - The server-layer cleanup is in place, but the whole-system cleanup is still
-  incomplete because `src/api/stream.rs` and provider-facing API types still
-  parse compatibility `StreamEvent` and `ContentBlock` shapes before
-  normalization.
+  incomplete because `src/api/stream.rs` still owns the provider-edge
+  compatibility parser locally and the downstream CLI/TUI consumer audit is
+  still open.
 - `src/runtime/json_handoff.rs` has now grown past one thousand lines and
   `src/api/stream.rs` carries a similarly dense ingress-plus-normalization
   surface, so a follow-up structural extraction batch is warranted even where
@@ -52,8 +52,9 @@ JSON rather than as a second event schema.
 - The deleted internal transport machinery does not appear in live source any
   longer: `TurnsSseMode`, `PendingToolBlock`, `ActiveToolBlock`, mapper
   dispatch, and `src/api/stream/mappers.rs` are gone. Provider-edge
-  `api_client.explicit_protocol` and `StreamEvent` remain as ingress-only
-  compatibility types before normalization.
+  `api_client.explicit_protocol` and the parser-local stream dialect in
+  `src/api/stream.rs` remain as ingress-only compatibility surfaces before
+  normalization.
 
 ## Implemented In This Branch
 
@@ -100,7 +101,8 @@ JSON rather than as a second event schema.
 
 - Replace residual client/API-side `StreamEvent` and compatibility
   `ContentBlock` parsing wherever those layers are acting as internal API
-  consumers.
+  consumers, while keeping any unavoidable provider-edge grammar local to the
+  ingress boundary.
 - Audit the CLI and ratatui/crossterm stack so it remains a consumer of the
   normalized API rather than a parallel stream-building path.
 
@@ -117,10 +119,12 @@ JSON rather than as a second event schema.
   `ContentBlock` parsing toward direct `RuntimeEnvelope` consumption wherever
   the layer is acting as an internal API consumer.
 - Primary source anchors for that lane:
-  - `src/api/stream.rs` still parses compatibility `StreamEvent` values before
-    normalization.
+  - `src/api/stream.rs` still owns the provider-edge compatibility parser,
+    but the wire dialect is now local to that ingress module rather than
+    shared through `vexcoder-api-types`.
   - `crates/vexcoder-api-types/src/lib.rs` still defines
-    `ContentBlockCompat` and `StreamEvent` at the provider-facing type layer.
+    `ContentBlockCompat` at the provider-facing type layer for outbound and
+    history-facing content handling.
   - `src/api/client/mod.rs` and `src/api/client/protocol_discovery.rs` still
     carry protocol-shape selection and `ContentBlock`-shaped request-history
     handling that should be audited against the normalized contract boundary.
@@ -172,7 +176,8 @@ JSON rather than as a second event schema.
   `src/api/client/protocol_discovery.rs` to request-shape concerns only.
 - Finish the client/API-side migration by removing `StreamEvent` and
   compatibility `ContentBlock` parsing from layers that should now consume the
-  normalized API contract directly.
+  normalized API contract directly, or by confining any remaining provider
+  grammar to the immediate ingress adapter.
 
 ### 4. Runtime Event Parser And Tool Loop
 

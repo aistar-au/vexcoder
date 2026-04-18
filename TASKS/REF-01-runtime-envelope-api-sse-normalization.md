@@ -15,9 +15,9 @@ cleanup is `work/vexcoder-runtime-envelope-client-api-direct-consumption`.
 - The conversation tool loop now consumes canonical `RuntimeEvent` values,
   including canonical tool-call IDs, metadata, and usage updates.
 - The branch closes the server-layer discrepancy, but it does not yet finish
-  the whole-system cleanup because the client/API ingress side still carries
-  provider-edge `StreamEvent` and `ContentBlock` parsing before immediate
-  normalization.
+  the whole-system cleanup because the client/API ingress side still carries a
+  local provider-edge compatibility parser in `src/api/stream.rs`, and the
+  downstream CLI/TUI consumer audit is still open.
 - Validation is green with `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo nextest run`, and
   `bash scripts/check_forbidden_names.sh`.
@@ -65,7 +65,9 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
   tool events directly.
 - [ ] Replace residual client/API-side `StreamEvent` and `ContentBlock`
   parsing as an internal consumer path with direct `RuntimeEnvelope`
-  consumption wherever the normalized API contract should be observed.
+  consumption wherever the normalized API contract should be observed, while
+  keeping any unavoidable provider-edge grammar confined to the immediate
+  ingress adapter.
 - [ ] Split `src/runtime/json_handoff.rs` into focused companion modules once
   the canonical contract changes settle, so the file no longer concentrates
   normalization, source classification, and envelope emission in one unit.
@@ -127,8 +129,9 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
 - Distinguish removed internal duplication from residual ingress-only
   compatibility: `TurnsSseMode`, mapper dispatch, `PendingToolBlock`,
   `ActiveToolBlock`, and `src/api/stream/mappers.rs` are gone, while
-  `api_client.explicit_protocol` and `StreamEvent` remain only at the
-  provider/config edge before immediate normalization.
+  `api_client.explicit_protocol` and the parser-local provider stream dialect
+  in `src/api/stream.rs` remain only at the provider/config edge before
+  immediate normalization.
 - Complete the whole-system cleanup by migrating client/API-side
   `StreamEvent` and `ContentBlock` parsing to direct `RuntimeEnvelope`
   consumption wherever those layers are acting as API consumers rather than as
