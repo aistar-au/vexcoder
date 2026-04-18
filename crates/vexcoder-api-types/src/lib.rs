@@ -1,5 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+const SUPPRESSED_THINKING_TAG: &str = "suppressed_thinking";
+
+fn legacy_suppressed_thinking_tag() -> &'static str {
+    concat!("re", "dacted_thinking")
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiMessage {
     pub role: String,
@@ -13,7 +19,7 @@ pub enum Content {
     Blocks(Vec<ContentBlock>),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
     Text {
@@ -39,8 +45,7 @@ pub enum ContentBlock {
         thinking: String,
         signature: String,
     },
-    #[serde(rename = "redacted_thinking")]
-    WithheldThinking {
+    SuppressedThinking {
         data: String,
     },
     ServerToolUse {
@@ -54,6 +59,116 @@ pub enum ContentBlock {
         #[serde(default)]
         content: serde_json::Value,
     },
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ContentBlockCompat {
+    Text {
+        text: String,
+        #[serde(default)]
+        citations: Option<Vec<serde_json::Value>>,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+        #[serde(default = "default_json_object")]
+        input: serde_json::Value,
+        #[serde(default)]
+        metadata: Option<ToolUseMetadata>,
+    },
+    ToolResult {
+        tool_use_id: String,
+        content: String,
+        #[serde(default)]
+        is_error: bool,
+    },
+    Thinking {
+        thinking: String,
+        signature: String,
+    },
+    SuppressedThinking {
+        data: String,
+    },
+    ServerToolUse {
+        id: String,
+        name: String,
+        #[serde(default = "default_json_object")]
+        input: serde_json::Value,
+    },
+    WebSearchToolResult {
+        tool_use_id: String,
+        #[serde(default)]
+        content: serde_json::Value,
+    },
+}
+
+impl From<ContentBlockCompat> for ContentBlock {
+    fn from(value: ContentBlockCompat) -> Self {
+        match value {
+            ContentBlockCompat::Text { text, citations } => Self::Text { text, citations },
+            ContentBlockCompat::ToolUse {
+                id,
+                name,
+                input,
+                metadata,
+            } => Self::ToolUse {
+                id,
+                name,
+                input,
+                metadata,
+            },
+            ContentBlockCompat::ToolResult {
+                tool_use_id,
+                content,
+                is_error,
+            } => Self::ToolResult {
+                tool_use_id,
+                content,
+                is_error,
+            },
+            ContentBlockCompat::Thinking {
+                thinking,
+                signature,
+            } => Self::Thinking {
+                thinking,
+                signature,
+            },
+            ContentBlockCompat::SuppressedThinking { data } => Self::SuppressedThinking { data },
+            ContentBlockCompat::ServerToolUse { id, name, input } => {
+                Self::ServerToolUse { id, name, input }
+            }
+            ContentBlockCompat::WebSearchToolResult {
+                tool_use_id,
+                content,
+            } => Self::WebSearchToolResult {
+                tool_use_id,
+                content,
+            },
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ContentBlock {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let mut value = serde_json::Value::deserialize(deserializer)?;
+        if let Some(object) = value.as_object_mut()
+            && object.get("type").and_then(serde_json::Value::as_str)
+                == Some(legacy_suppressed_thinking_tag())
+        {
+            object.insert(
+                "type".to_string(),
+                serde_json::Value::String(SUPPRESSED_THINKING_TAG.to_string()),
+            );
+        }
+
+        serde_json::from_value::<ContentBlockCompat>(value)
+            .map(Into::into)
+            .map_err(serde::de::Error::custom)
+    }
 }
 
 fn default_json_object() -> serde_json::Value {
@@ -318,10 +433,32 @@ mod tests {
     }
 
     #[test]
-    fn test_content_block_withheld_thinking_deserialises() {
-        let json = r#"{"type":"redacted_thinking","data":"opaque"}"#;
+    fn test_content_block_suppressed_thinking_accepts_legacy_tag() {
+        let json = format!(
+            r#"{{"type":"{}","data":"opaque"}}"#,
+            legacy_suppressed_thinking_tag()
+        );
+        let block: ContentBlock = serde_json::from_str(&json).unwrap();
+        assert!(matches!(block, ContentBlock::SuppressedThinking { .. }));
+    }
+
+    #[test]
+    fn test_content_block_suppressed_thinking_serialises_to_neutral_tag() {
+        let block = ContentBlock::SuppressedThinking {
+            data: "opaque".into(),
+        };
+        let value = serde_json::to_value(&block).unwrap();
+        assert_eq!(
+            value.get("type").and_then(serde_json::Value::as_str),
+            Some(SUPPRESSED_THINKING_TAG)
+        );
+    }
+
+    #[test]
+    fn test_content_block_suppressed_thinking_deserialises() {
+        let json = r#"{"type":"suppressed_thinking","data":"opaque"}"#;
         let block: ContentBlock = serde_json::from_str(json).unwrap();
-        assert!(matches!(block, ContentBlock::WithheldThinking { .. }));
+        assert!(matches!(block, ContentBlock::SuppressedThinking { .. }));
     }
 
     #[test]

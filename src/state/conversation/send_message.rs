@@ -191,7 +191,7 @@ impl ConversationManager {
                             }
                             ContentBlock::ToolResult { .. } => {}
                             ContentBlock::Thinking { .. }
-                            | ContentBlock::WithheldThinking { .. } => {}
+                            | ContentBlock::SuppressedThinking { .. } => {}
                             ContentBlock::ServerToolUse { .. }
                             | ContentBlock::WebSearchToolResult { .. } => {}
                         }

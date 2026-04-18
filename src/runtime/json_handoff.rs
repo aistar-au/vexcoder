@@ -336,7 +336,7 @@ impl RuntimeEnvelopeNormalizer {
             } => vec![self.record_tool_result(tool_use_id, content.clone(), *is_error)],
             ContentBlock::Text { .. }
             | ContentBlock::Thinking { .. }
-            | ContentBlock::WithheldThinking { .. }
+            | ContentBlock::SuppressedThinking { .. }
             | ContentBlock::WebSearchToolResult { .. } => Vec::new(),
         }
     }

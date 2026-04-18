@@ -210,11 +210,12 @@ All parsers live in `src/runtime/git_parse.rs` and are re-exported from
 timeout and cancellation support, using `parse_git_status` to produce
 structured rollups for context assembly.
 
-### Secret rewriting -- always on
+### Secret sanitization -- always on
 
-Secret rewriting runs on every assistant text output through
-`sanitize_assistant_text` in `src/runtime/policy.rs`.  The following
-patterns are detected and replaced with stable replacement markers:
+Secret sanitization runs on every assistant text output through
+`sanitize_assistant_text` in `src/runtime/policy.rs`. The following
+patterns are detected and replaced with stable `[SANITIZED]` markers or
+context-preserving equivalents:
 
 - Vendor API keys (`sk-` prefix, 20+ chars)
 - AWS access key IDs (`AKIA` prefix, 16 uppercase alphanumeric)

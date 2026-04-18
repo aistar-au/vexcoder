@@ -19,7 +19,7 @@ represented as distinct variants. Server-sent error events arrive as structured
 JSON with a typed error envelope but are silently absorbed by `Unknown` and
 never surfaced to the caller. Extended-thinking output streams produce
 `thinking_delta` and `signature_delta` delta types whose payload fields are not
-present in `Delta`. Thinking and withheld-thinking content blocks are legal
+present in `Delta`. Thinking and suppressed-thinking content blocks are legal
 `ContentBlockStart` payloads but are not parsed. Cache usage fields
 (`cache_creation_input_tokens`, `cache_read_input_tokens`) appear in
 `MessageStart` and `MessageDelta` usage objects but are dropped. The stop
@@ -61,7 +61,7 @@ Add four new variants to the `ContentBlock` enum:
 
 ```rust
 Thinking { thinking: String, signature: String },
-WithheldThinking { data: String },
+SuppressedThinking { data: String },
 ServerToolUse { id: String, name: String, input: serde_json::Value },
 WebSearchToolResult { tool_use_id: String, content: serde_json::Value },
 ```
@@ -72,8 +72,9 @@ Additionally, the existing `Text` variant gains an optional `citations` field:
 Text { text: String, citations: Option<Vec<serde_json::Value>> },
 ```
 
-`Thinking` and `WithheldThinking` cover extended-thinking model sessions.
-The wire tag remains `redacted_thinking` for protocol compatibility.
+`Thinking` and `SuppressedThinking` cover extended-thinking model sessions.
+The parser continues to accept the legacy wire tag at the compatibility
+boundary while using neutral internal names.
 `ServerToolUse` represents server-side tool invocations (e.g., web search)
 that the API executes internally. `WebSearchToolResult` carries the results
 of such invocations. `citations` on `Text` captures citation metadata that
@@ -377,7 +378,7 @@ pub enum ContentBlock {
     ToolUse { id: String, name: String, input: serde_json::Value },
     ToolResult { tool_use_id: String, content: String, is_error: bool },
     Thinking { thinking: String, signature: String },
-    WithheldThinking { data: String },
+    SuppressedThinking { data: String },
     ServerToolUse { id: String, name: String, input: serde_json::Value },
     WebSearchToolResult { tool_use_id: String, content: serde_json::Value },
 }

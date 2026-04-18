@@ -73,9 +73,9 @@ impl ConversationManager {
     /// Insert or update a stream block in the active turn and emit a
     /// `BlockStart` update to the TUI channel.
     ///
-    /// For deferred text blocks (tx is None) only the condenser state is updated;
-    /// the stream update is withheld until `flush_deferred_thinking_blocks` is
-    /// called.
+    /// For deferred text blocks (tx is None) the condenser state changes
+    /// immediately, while the UI delta waits for
+    /// `flush_deferred_thinking_blocks`.
     pub(super) fn upsert_turn_block(
         &mut self,
         index: usize,
@@ -230,7 +230,6 @@ impl ConversationManager {
     }
 
     /// Update the status of a ToolCall entry and re-emit a BlockStart update.
-    /// Update the status of a ToolCall entry and re-emit a BlockStart update.
     ///
     /// ADR-045 Invariant A: the status mutation is routed through the condenser
     /// via `apply_doc_event(RuntimeEvent::ToolCallStatusUpdated)` so the
@@ -344,7 +343,7 @@ impl ConversationManager {
         );
     }
 
-    /// Emit deferred Thinking blocks whose stream updates were withheld.
+    /// Emit deferred Thinking blocks whose UI updates were postponed.
     pub(super) fn flush_deferred_thinking_blocks(
         &self,
         deferred_text_block_indices: &mut BTreeSet<usize>,
