@@ -14,10 +14,10 @@ cleanup is `work/vexcoder-runtime-envelope-client-api-direct-consumption`.
   negotiation.
 - The conversation tool loop now consumes accepted `RuntimeEvent` values,
   including runtime-owned tool-call IDs, metadata, and usage updates.
-- The branch closes the server-layer discrepancy, but it does not yet finish
-  the whole-system cleanup because the client/API ingress side still carries a
-  local provider-edge compatibility parser in `src/api/stream.rs`, and the
-  downstream CLI/TUI consumer audit is still open.
+- The follow-up lane closes the whole-system consumer cleanup from PR #402.
+  The remaining work is structural extraction in `src/runtime/json_handoff.rs`
+  and `src/api/stream.rs`, tagged/XML fallback evaluation, and final
+  compatibility-only documentation or config retirement.
 - Validation is green with `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo nextest run`, and
   `bash scripts/check_forbidden_names.sh`.
@@ -102,10 +102,9 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
 ## Follow-up
 
 - Batch A: repository and wording cleanup.
-  Normalize non-workflow verification commands to `cargo nextest run`, refine
-  the `src/server/sse.rs` replay wording so it stays future-facing rather than
-  returning to "until resumable replay is implemented", and keep the tracked
-  notes aligned with the present branch boundary.
+  Completed in PR #403: non-workflow verification commands now standardize on
+  `cargo nextest run`, the `src/server/sse.rs` replay wording stays
+  future-facing, and the tracked notes now match the present branch boundary.
 - Batch B: `src/runtime/json_handoff.rs` structural extraction.
   Move event-source classification, normalization helpers, and envelope
   emission support into companion modules under `src/runtime/json_handoff/`
@@ -114,32 +113,21 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
   Move provider-edge parsing, compatibility ingress handling, and normalized
   envelope emission helpers into focused `src/api/stream/` modules.
 - Batch D: client and API direct-envelope completion.
-  Complete the client/API-side migration from residual `StreamEvent` and
-  `ContentBlock` parsing to direct `RuntimeEnvelope` consumption wherever the
-  layer is acting as an internal API consumer.
+  Completed in PR #403: residual `StreamEvent` and `ContentBlock` parsing no
+  longer remains as an internal consumer path; the remaining provider grammar
+  is confined to the immediate ingress adapter.
 - Batch E: resumable replay support.
   Introduce event IDs and replay semantics when the server transport is ready
   to support resumable envelope delivery rather than only keepalive framing.
 - Decide whether tagged and XML fallback parsing can now be removed outright,
   or whether a narrower migration lane is still required for local endpoint
   compatibility.
-- Audit `src/runtime/context.rs`, `src/runtime/update.rs`,
-  `src/app/model_update.rs`, `src/app.rs`, `src/batch_mode.rs`,
-  `src/bin/vex/**`, and `src/tui_frontend.rs` for any remaining
-  compatibility-shaped projections that this branch did not need to touch.
 - Distinguish removed internal duplication from residual ingress-only
   compatibility: `TurnsSseMode`, mapper dispatch, `PendingToolBlock`,
   `ActiveToolBlock`, and `src/api/stream/mappers.rs` are gone, while
   `api_client.explicit_protocol` and the parser-local provider stream dialect
   in `src/api/stream.rs` remain only at the provider/config edge before
   immediate normalization.
-- Complete the whole-system cleanup by migrating client/API-side
-  `StreamEvent` and `ContentBlock` parsing to direct `RuntimeEnvelope`
-  consumption wherever those layers are acting as API consumers rather than as
-  provider-edge adapters.
-- Follow-up lane: isolate the remaining client/API-side migration on a
-  dedicated branch so the merged server cleanup remains stable while the
-  ingress, API-type, and consumer-audit work proceeds in narrower batches.
 - Remove or rewrite compatibility-only documentation and ADR follow-up text
   once the remaining consumer cleanup is complete.
 

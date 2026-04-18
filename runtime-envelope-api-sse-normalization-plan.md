@@ -37,18 +37,18 @@ JSON rather than as a second event schema.
   `RuntimeEvent` values directly, including runtime-owned tool-call IDs.
 - `src/runtime/task_document/condenser.rs` now absorbs accepted metadata
   events for prompt-progress and timing propagation.
-- The server-layer cleanup is in place, but the whole-system cleanup is still
-  incomplete because `src/api/stream.rs` still owns the provider-edge
-  compatibility parser locally and the downstream CLI/TUI consumer audit is
-  still open.
+- The server-layer cleanup is in place, and the whole-system consumer audit is
+  now closed. The remaining follow-up is structural extraction because
+  `src/api/stream.rs` still owns the provider-edge compatibility parser
+  locally.
 - `src/runtime/json_handoff.rs` has now grown past one thousand lines and
   `src/api/stream.rs` carries a similarly dense ingress-plus-normalization
   surface, so a follow-up structural extraction batch is warranted even where
   behavior stays unchanged.
 - `src/app/model_update.rs`, `src/runtime/context.rs`, `src/app.rs`,
-  `src/bin/vex/**`, `src/tui_frontend.rs`, and `src/batch_mode.rs` should
-  still be audited for any remaining compatibility-shaped projections that this
-  branch did not need to touch.
+  `src/bin/vex/**`, `src/tui_frontend.rs`, and `src/batch_mode.rs` were
+  audited for residual compatibility-shaped projections; no additional
+  internal consumer path remained beyond the provider-edge adapter.
 - The deleted internal transport machinery does not appear in live source any
   longer: `TurnsSseMode`, `PendingToolBlock`, `ActiveToolBlock`, mapper
   dispatch, and `src/api/stream/mappers.rs` are gone. Provider-edge
@@ -75,13 +75,9 @@ JSON rather than as a second event schema.
 
 ### Batch A. Repository And Wording Cleanup
 
-- Keep non-workflow verification commands on `cargo nextest run` rather than
-  parallel-count overrides.
-- Keep the `src/server/sse.rs` module comment and the tracked notes on the
-  future-facing replay wording path rather than slipping back to
-  "until resumable replay is implemented" phrasing.
-- Keep the branch notes aligned with the current scope boundary and consumer
-  inventory.
+Completed in PR #403. Verification guidance now stays on `cargo nextest run`,
+the server-SSE replay wording remains future-facing, and the tracked notes now
+match the present scope boundary and consumer inventory.
 
 ### Batch B. `src/runtime/json_handoff.rs` Structural Extraction
 
@@ -99,12 +95,9 @@ JSON rather than as a second event schema.
 
 ### Batch D. Whole-System Consumer Completion
 
-- Replace residual client/API-side `StreamEvent` and compatibility
-  `ContentBlock` parsing wherever those layers are acting as internal API
-  consumers, while keeping any unavoidable provider-edge grammar local to the
-  ingress boundary.
-- Audit the CLI and ratatui/crossterm stack so it remains a consumer of the
-  normalized API rather than a parallel stream-building path.
+Completed in PR #403. Residual client/API-side `StreamEvent` and compatibility
+`ContentBlock` parsing no longer acts as an internal consumer path, and the
+CLI plus ratatui/crossterm stack remain downstream of the normalized API.
 
 ### Batch E. Resumable Replay Support
 
@@ -118,6 +111,8 @@ JSON rather than as a second event schema.
   residual client/API-side compatibility ingress from `StreamEvent` and
   `ContentBlock` parsing toward direct `RuntimeEnvelope` consumption wherever
   the layer is acting as an internal API consumer.
+- Status: consumer migration and downstream audit are complete in this lane;
+  remaining work now centers on structural extraction and later replay support.
 - Primary source anchors for that lane:
   - `src/api/stream.rs` still owns the provider-edge compatibility parser,
     but the wire dialect is now local to that ingress module rather than

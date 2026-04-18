@@ -21,8 +21,8 @@ The repository still exposes three gaps that matter for that pivot:
    transcript-block events, which forces downstream consumers to infer tool
    state from renderer-oriented deltas.
 3. Legacy runtime loop traits such as `RuntimeMode`, `FrontendAdapter`, and
-  `ToolCallParser` still exist even though the intended direction is one
-  canonical API/event surface with the interactive UI acting as a consumer.
+    `ToolCallParser` still exist even though the intended direction is one
+    accepted API/event surface with the interactive UI acting as a consumer.
 
 ## External Precedent Summary
 
@@ -50,7 +50,7 @@ API-first agent applications and streaming protocols:
 
 ### 1. The Runtime Event Envelope Becomes the Primary Internal API
 
-`RuntimeEnvelope` is the canonical application surface consumed by transports,
+`RuntimeEnvelope` is the accepted application surface consumed by transports,
 the interactive UI, persistence, and peer coordination. No new internal trait may
 be introduced where a typed request/event surface can represent the contract
 directly.
@@ -71,7 +71,7 @@ correlation mechanism.
 ### 3. Tool Lifecycle Becomes an Explicit API Contract
 
 Tool execution is represented with explicit event types rather than transcript
-inference. The canonical lifecycle is:
+inference. The accepted lifecycle is:
 
 - `tool_call_started`
 - `tool_call_arguments_delta`
@@ -107,7 +107,7 @@ follow-up simplification targets:
 - `FrontendAdapter`
 
 `ToolCallParser` is also a follow-up simplification target once structured tool
-calls are the canonical path and the text-protocol fallback is removed.
+calls are the accepted path and the text-protocol fallback is removed.
 
 ### 7. True External Boundary Traits Remain Acceptable
 
