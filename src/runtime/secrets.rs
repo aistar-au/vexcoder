@@ -3,7 +3,7 @@
 //! Scans text for common secret patterns (API keys, bearer tokens, AWS
 //! credentials, GitHub PATs, PEM private key headers, connection strings,
 //! and generic secret assignments) and replaces matches with
-//! pattern-specific revision markers. All patterns are ASCII-only --
+//! pattern-specific revision text. All patterns are ASCII-only --
 //! `regex-lite`'s `\d`
 //! and `\w` metaclasses match `[0-9]` and `[0-9A-Za-z_]` respectively.
 //!
@@ -13,13 +13,13 @@
 
 use std::sync::OnceLock;
 
-const REVISED_MARKER: &str = "[REVISED]";
-const EDITED_MARKER: &str = "[EDITED]";
-const AMENDED_MARKER: &str = "[AMENDED]";
-const EMENDED_PRIVATE_KEY_MARKER: &str = "[EMENDED PRIVATE KEY]";
-const REWRITTEN_BEARER_MARKER: &str = "${1}[REWRITTEN]";
-const AMENDED_CONNECTION_MARKER: &str = "${1}[AMENDED]${3}";
-const EDITED_ASSIGNMENT_MARKER: &str = "${1}[EDITED]";
+const REVISED_TEXT: &str = "[REVISED]";
+const EDITED_TEXT: &str = "[EDITED]";
+const AMENDED_TEXT: &str = "[AMENDED]";
+const EMENDED_PRIVATE_KEY_TEXT: &str = "[EMENDED PRIVATE KEY]";
+const REWRITTEN_BEARER_TEXT: &str = "${1}[REWRITTEN]";
+const AMENDED_CONNECTION_TEXT: &str = "${1}[AMENDED]${3}";
+const EDITED_ASSIGNMENT_TEXT: &str = "${1}[EDITED]";
 
 /// A pattern entry with its compiled regex accessor and replacement template.
 struct SecretPattern {
@@ -90,36 +90,36 @@ fn re_generic_secret_assignment() -> &'static regex_lite::Regex {
 /// backreferences in their replacement templates so the surrounding
 /// context is preserved.
 ///
-/// Replacement markers rotate across a fixed academic vocabulary. The
-/// mapping stays deterministic so logs, tests, and transcripts remain stable.
+/// Replacement terms follow a fixed mapping. The output stays deterministic so
+/// logs, tests, and transcripts remain stable.
 const PATTERNS: &[SecretPattern] = &[
     SecretPattern {
         regex: re_openai_key,
-        replacement: REVISED_MARKER,
+        replacement: REVISED_TEXT,
     },
     SecretPattern {
         regex: re_aws_access_key,
-        replacement: EDITED_MARKER,
+        replacement: EDITED_TEXT,
     },
     SecretPattern {
         regex: re_github_token,
-        replacement: AMENDED_MARKER,
+        replacement: AMENDED_TEXT,
     },
     SecretPattern {
         regex: re_private_key_header,
-        replacement: EMENDED_PRIVATE_KEY_MARKER,
+        replacement: EMENDED_PRIVATE_KEY_TEXT,
     },
     SecretPattern {
         regex: re_bearer_token,
-        replacement: REWRITTEN_BEARER_MARKER,
+        replacement: REWRITTEN_BEARER_TEXT,
     },
     SecretPattern {
         regex: re_connection_string,
-        replacement: AMENDED_CONNECTION_MARKER,
+        replacement: AMENDED_CONNECTION_TEXT,
     },
     SecretPattern {
         regex: re_generic_secret_assignment,
-        replacement: EDITED_ASSIGNMENT_MARKER,
+        replacement: EDITED_ASSIGNMENT_TEXT,
     },
 ];
 
@@ -129,7 +129,7 @@ const PATTERNS: &[SecretPattern] = &[
 
 /// Rewrite all recognised secret patterns from `text`, replacing each match
 /// with a deterministic revised, edited, amended, emended, or rewritten
-/// marker as appropriate. Returns the original string unmodified when no
+/// form as appropriate. Returns the original string unmodified when no
 /// secrets are detected.
 pub fn revise_secrets(text: &str) -> String {
     let mut out = text.to_string();

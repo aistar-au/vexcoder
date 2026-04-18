@@ -214,8 +214,8 @@ structured rollups for context assembly.
 
 Assistant output passes through `rewrite_assistant_text` in
 `src/runtime/policy.rs`. The following patterns are rewritten with
-deterministic revised, edited, amended, emended, or rewritten markers where
-the surrounding context permits it:
+deterministic revised, edited, amended, emended, or rewritten text where the
+surrounding context permits it:
 
 - Vendor API keys (`sk-` prefix, 20+ chars)
 - AWS access key IDs (`AKIA` prefix, 16 uppercase alphanumeric)

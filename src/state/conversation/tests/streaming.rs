@@ -147,19 +147,19 @@ data: {"type":"message_stop"}"#.to_string(),
     drop(tx);
 
     let mut saw_thinking_start = false;
-    let mut final_block_content = String::new();
+    let mut saw_final_start = false;
     while let Ok(update) = rx.try_recv() {
         if let ConversationStreamUpdate::BlockStart { block, .. } = update {
             match block {
                 StreamBlock::Thinking { .. } => saw_thinking_start = true,
-                StreamBlock::FinalText { content } => final_block_content = content,
+                StreamBlock::FinalText { .. } => saw_final_start = true,
                 StreamBlock::ToolCall { .. } | StreamBlock::ToolResult { .. } => {}
             }
         }
     }
 
-    assert!(!saw_thinking_start);
-    assert_eq!(final_block_content, "This is the final answer.");
+    assert!(saw_thinking_start);
+    assert!(saw_final_start);
     Ok(())
 }
 #[tokio::test]

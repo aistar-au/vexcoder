@@ -171,6 +171,33 @@ impl TuiMode {
                                 );
                             }
                         }
+                        let updated_existing =
+                            if let Some(active) = self.task_doc.active_turn.as_mut() {
+                                if let Some(TurnEntry::AssistantBlock { block, .. }) =
+                                    active.entries.last_mut()
+                                {
+                                    if block.block_index == index {
+                                        block.phase = AssistantPhase::Final;
+                                        block.collapsed = false;
+                                        block.streaming = true;
+                                        if !content.is_empty() {
+                                            block.content = content.clone();
+                                        }
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            };
+                        if updated_existing {
+                            self.clamp_transcript_after_mutation();
+                            self.preserve_transcript_scroll_on_growth(previous_output_len);
+                            return;
+                        }
                         let step_id = self.alloc_step_id();
                         self.append_turn_entry(TurnEntry::AssistantBlock {
                             step_id,
@@ -184,6 +211,33 @@ impl TuiMode {
                         });
                     }
                     StreamBlock::Thinking { content, collapsed } => {
+                        let updated_existing =
+                            if let Some(active) = self.task_doc.active_turn.as_mut() {
+                                if let Some(TurnEntry::AssistantBlock { block, .. }) =
+                                    active.entries.last_mut()
+                                {
+                                    if block.block_index == index {
+                                        block.phase = AssistantPhase::Thinking;
+                                        block.collapsed = collapsed;
+                                        block.streaming = true;
+                                        if !content.is_empty() {
+                                            block.content = content.clone();
+                                        }
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            };
+                        if updated_existing {
+                            self.clamp_transcript_after_mutation();
+                            self.preserve_transcript_scroll_on_growth(previous_output_len);
+                            return;
+                        }
                         let step_id = self.alloc_step_id();
                         self.append_turn_entry(TurnEntry::AssistantBlock {
                             step_id,

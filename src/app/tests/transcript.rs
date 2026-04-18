@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime::AssistantPhase;
 
 #[test]
 fn test_ref_08_stream_delta_appends_to_assistant_placeholder_not_user_line() {
@@ -322,4 +323,59 @@ fn test_edit_file_transcript_preview_preserves_structured_diff_rows() {
         "completed edit_file rows must keep diff evidence visible: {:?}",
         hl2
     );
+}
+
+#[test]
+fn stream_block_start_reuses_existing_block_index_for_phase_change() {
+    let mut mode = TuiMode::new();
+    let mut ctx = setup_ctx();
+    mode.on_user_input("summarize the file".to_string(), &mut ctx);
+
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::Thinking {
+                content: String::new(),
+                collapsed: false,
+            },
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockDelta {
+            index: 0,
+            delta: "partial answer".to_string(),
+        },
+        &mut ctx,
+    );
+    mode.on_model_update(
+        UiUpdate::StreamBlockStart {
+            index: 0,
+            block: StreamBlock::FinalText {
+                content: String::new(),
+            },
+        },
+        &mut ctx,
+    );
+
+    let assistant_blocks: Vec<_> = mode
+        .task_doc
+        .active_turn
+        .as_ref()
+        .unwrap()
+        .entries
+        .iter()
+        .filter_map(|entry| {
+            if let TurnEntry::AssistantBlock { block, .. } = entry {
+                Some(block)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    assert_eq!(assistant_blocks.len(), 1);
+    assert_eq!(assistant_blocks[0].block_index, 0);
+    assert_eq!(assistant_blocks[0].phase, AssistantPhase::Final);
+    assert_eq!(assistant_blocks[0].content, "partial answer");
 }
