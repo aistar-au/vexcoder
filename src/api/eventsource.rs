@@ -176,11 +176,12 @@ impl HttpTransport for ReqwestEventSourceTransport {
         Box::pin(async move {
             let (parts, body) = request.into_parts();
             let request_url = parts.uri.to_string();
+            let redacted_request_url = crate::runtime::redact_url_for_logs(&request_url);
 
             tracing::debug!(
                 target: "vex::http",
                 method = %parts.method,
-                url = %request_url,
+                url = %redacted_request_url,
                 "sending streaming request"
             );
 

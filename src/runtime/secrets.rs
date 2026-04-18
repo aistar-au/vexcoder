@@ -129,6 +129,20 @@ pub fn redact_secrets(text: &str) -> String {
     out
 }
 
+/// Redact sensitive URL components before logging.
+pub fn redact_url_for_logs(url: &str) -> String {
+    match reqwest::Url::parse(url) {
+        Ok(mut parsed) => {
+            let _ = parsed.set_username("");
+            let _ = parsed.set_password(None);
+            parsed.set_query(None);
+            parsed.set_fragment(None);
+            redact_secrets(parsed.as_ref())
+        }
+        Err(_) => redact_secrets(url),
+    }
+}
+
 /// Returns `true` if `text` contains any recognised secret pattern.
 pub fn contains_secret(text: &str) -> bool {
     PATTERNS.iter().any(|pat| (pat.regex)().is_match(text))
@@ -188,6 +202,20 @@ mod tests {
     fn test_no_secrets_unchanged() {
         let input = "this is a normal log line with no secrets";
         assert_eq!(redact_secrets(input), input);
+    }
+
+    #[test]
+    fn test_redact_url_for_logs_strips_userinfo_query_and_fragment() {
+        let input = "https://user:supersecretpassword@example.com/path?token=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij1234#frag";
+        let result = redact_url_for_logs(input);
+        assert_eq!(result, "https://example.com/path");
+    }
+
+    #[test]
+    fn test_redact_url_for_logs_falls_back_to_secret_redaction() {
+        let input = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature";
+        let result = redact_url_for_logs(input);
+        assert_eq!(result, "Bearer [REDACTED]");
     }
 
     #[test]
