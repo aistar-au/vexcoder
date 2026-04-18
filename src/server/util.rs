@@ -129,7 +129,8 @@ pub fn build_http_tls_config(
         .context(
             "api.tls_cert and api.tls_key must form a matching certificate/private-key pair",
         )?;
-    // Offer HTTP/2 first and fall back to HTTP/1.1 for older clients.
+    // Advertise both HTTP/2 and HTTP/1.1 over ALPN. The negotiated protocol is
+    // selected by TLS handshake, not implied by this list order.
     tls_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
     Ok(Some(Arc::new(tls_config)))
 }

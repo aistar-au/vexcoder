@@ -177,6 +177,13 @@ impl HttpTransport for ReqwestEventSourceTransport {
             let (parts, body) = request.into_parts();
             let request_url = parts.uri.to_string();
 
+            tracing::debug!(
+                target: "vex::http",
+                method = %parts.method,
+                url = %request_url,
+                "sending streaming request"
+            );
+
             let mut reqwest_request = client.request(parts.method, request_url.clone());
             for (name, value) in &parts.headers {
                 reqwest_request = reqwest_request.header(name, value);

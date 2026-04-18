@@ -75,3 +75,27 @@ fn remove_unix_socket(path: &Path) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn bind_unix_listener_applies_0600_permissions() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let socket_path = temp.path().join("vexcoder.sock");
+
+        let listener = bind_unix_listener(&socket_path).expect("bind unix listener");
+        let mode = std::fs::metadata(&socket_path)
+            .expect("socket metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+
+        assert_eq!(mode, 0o600, "unix socket should be owner-only");
+
+        drop(listener);
+        remove_unix_socket(&socket_path).expect("cleanup unix socket");
+    }
+}

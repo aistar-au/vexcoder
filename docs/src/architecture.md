@@ -61,10 +61,12 @@ Intentional deviations are documented and focused in scope:
    partial `POST` request would not be idempotent.
 - The local API server omits SSE event ids until resumable replay exists.
    Timestamp ids are not stable resume tokens and would mislead clients.
-- The local API server currently targets HTTP/1.1 semantics and framing. HTTP/2
-   is not required for the current compliance scope.
-- TLS 1.3 is preferred. TLS 1.2 remains enabled only for compatibility with
-   older local and private inference servers.
+- When TLS is enabled, the local API server advertises both HTTP/2 and
+   HTTP/1.1 over ALPN, and outbound reqwest clients negotiate HTTP/2 when the
+   peer supports it.
+- The workspace rustls profile is TLS 1.3-only. `model_url_skip_tls_check`
+   still bypasses certificate verification for an explicitly opted-in launch and
+   is surfaced through startup warnings plus `vex::tls` debug logs.
 
 ## Streaming protocol coverage
 

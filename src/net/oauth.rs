@@ -137,6 +137,13 @@ async fn execute_oauth_http_request(
     http: reqwest::Client,
     request: HttpRequest,
 ) -> std::result::Result<HttpResponse, OAuthTransportError> {
+    tracing::debug!(
+        target: "vex::http",
+        method = %request.method,
+        url = %request.url,
+        "sending oauth request"
+    );
+
     let method = reqwest::Method::from_bytes(request.method.as_str().as_bytes()).map_err(|_| {
         OAuthTransportError::InvalidMethod {
             method: request.method.to_string(),
