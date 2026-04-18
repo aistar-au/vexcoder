@@ -1,4 +1,4 @@
-//! Secret sanitization using `regex-lite`.
+//! Secret rewriting using `regex-lite`.
 //!
 //! Scans text for common secret patterns (API keys, bearer tokens, AWS
 //! credentials, GitHub PATs, PEM private key headers, connection strings,
@@ -6,13 +6,17 @@
 //! placeholder.  All patterns are ASCII-only -- `regex-lite`'s `\d`
 //! and `\w` metaclasses match `[0-9]` and `[0-9A-Za-z_]` respectively.
 //!
-//! Design boundary: this module handles *output* sanitization (log lines,
+//! Design boundary: this module handles *output* revision (log lines,
 //! debug traces, streamed assistant text).  Secret *resolution* from
 //! config values lives in `crate::config::load::resolve`.
 
 use std::sync::OnceLock;
 
-const SANITIZED: &str = "[SANITIZED]";
+const REVISED: &str = "[REVISED]";
+const EDITED: &str = "[EDITED]";
+const AMENDED: &str = "[AMENDED]";
+const BEARER_REWRITTEN: &str = "${1}[REWRITTEN]";
+const EMENDED_PRIVATE_KEY: &str = "[EMENDED PRIVATE KEY]";
 
 /// A pattern entry with its compiled regex accessor and replacement template.
 struct SecretPattern {
@@ -85,31 +89,31 @@ fn re_generic_secret_assignment() -> &'static regex_lite::Regex {
 const PATTERNS: &[SecretPattern] = &[
     SecretPattern {
         regex: re_openai_key,
-        replacement: SANITIZED,
+        replacement: REVISED,
     },
     SecretPattern {
         regex: re_aws_access_key,
-        replacement: SANITIZED,
+        replacement: EDITED,
     },
     SecretPattern {
         regex: re_github_token,
-        replacement: SANITIZED,
+        replacement: AMENDED,
     },
     SecretPattern {
         regex: re_private_key_header,
-        replacement: "[SANITIZED PRIVATE KEY]",
+        replacement: EMENDED_PRIVATE_KEY,
     },
     SecretPattern {
         regex: re_bearer_token,
-        replacement: "${1}[SANITIZED]",
+        replacement: BEARER_REWRITTEN,
     },
     SecretPattern {
         regex: re_connection_string,
-        replacement: "${1}[SANITIZED]${3}",
+        replacement: "${1}[AMENDED]${3}",
     },
     SecretPattern {
         regex: re_generic_secret_assignment,
-        replacement: "${1}[SANITIZED]",
+        replacement: "${1}[EDITED]",
     },
 ];
 
@@ -117,8 +121,8 @@ const PATTERNS: &[SecretPattern] = &[
 // Public API
 // ---------------------------------------------------------------------------
 
-/// Sanitize all recognised secret patterns from `text`, replacing each match
-/// with `[SANITIZED]` (or a context-preserving variant). Returns the
+/// Rewrite all recognised secret patterns from `text`, replacing each match
+/// with a stable replacement marker (or a context-preserving variant). Returns the
 /// original string unmodified when no secrets are detected.
 pub fn sanitize_secrets(text: &str) -> String {
     let mut out = text.to_string();
@@ -129,7 +133,7 @@ pub fn sanitize_secrets(text: &str) -> String {
     out
 }
 
-/// Sanitize sensitive URL components before logging.
+/// Rewrite sensitive URL components before logging.
 pub fn sanitize_url_for_logs(url: &str) -> String {
     match reqwest::Url::parse(url) {
         Ok(mut parsed) => {
@@ -160,7 +164,7 @@ mod tests {
     fn test_sanitize_openai_key() {
         let input = "key is sk-abc123def456ghi789jkl012mno345pqr678";
         let result = sanitize_secrets(input);
-        assert_eq!(result, "key is [SANITIZED]");
+        assert_eq!(result, "key is [REVISED]");
         assert!(!result.contains("sk-"));
     }
 
@@ -168,7 +172,7 @@ mod tests {
     fn test_sanitize_aws_key() {
         let input = "access key AKIAIOSFODNN7EXAMPLE";
         let result = sanitize_secrets(input);
-        assert_eq!(result, "access key [SANITIZED]");
+        assert_eq!(result, "access key [EDITED]");
         assert!(!result.contains("AKIA"));
     }
 
@@ -176,7 +180,7 @@ mod tests {
     fn test_sanitize_bearer_token_preserves_prefix() {
         let input = "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature";
         let result = sanitize_secrets(input);
-        assert!(result.contains("Bearer [SANITIZED]"));
+        assert!(result.contains("Bearer [REWRITTEN]"));
         assert!(!result.contains("eyJ"));
     }
 
@@ -185,7 +189,7 @@ mod tests {
         let input = "API_KEY=sk_live_abc123def456ghi789jkl";
         let result = sanitize_secrets(input);
         assert!(result.starts_with("API_KEY="));
-        assert!(result.contains("[SANITIZED]"));
+        assert!(result.contains("[EDITED]"));
         assert!(!result.contains("sk_live"));
     }
 
@@ -194,7 +198,7 @@ mod tests {
         let input = r#"token: "ghp_ABCDEFGHIJKLMNOPq12345""#;
         let result = sanitize_secrets(input);
         assert!(result.contains("token:"));
-        assert!(result.contains("[SANITIZED]"));
+        assert!(result.contains("[EDITED]"));
         assert!(!result.contains("ghp_"));
     }
 
@@ -215,7 +219,7 @@ mod tests {
     fn test_sanitize_url_for_logs_falls_back_to_secret_sanitization() {
         let input = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature";
         let result = sanitize_url_for_logs(input);
-        assert_eq!(result, "Bearer [SANITIZED]");
+        assert_eq!(result, "Bearer [REWRITTEN]");
     }
 
     #[test]
@@ -240,14 +244,15 @@ mod tests {
         let result = sanitize_secrets(input);
         assert!(!result.contains("sk-"));
         assert!(!result.contains("AKIA"));
-        assert_eq!(result.matches("[SANITIZED]").count(), 2);
+        assert!(result.contains("[REVISED]"));
+        assert!(result.contains("[EDITED]"));
     }
 
     #[test]
     fn test_sanitize_github_pat() {
         let input = "token ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij1234";
         let result = sanitize_secrets(input);
-        assert_eq!(result, "token [SANITIZED]");
+        assert_eq!(result, "token [AMENDED]");
         assert!(!result.contains("ghp_"));
     }
 
@@ -256,7 +261,7 @@ mod tests {
         for prefix in &["gho_", "ghu_", "ghs_", "ghr_"] {
             let token = format!("{prefix}ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab");
             let result = sanitize_secrets(&token);
-            assert_eq!(result, "[SANITIZED]", "failed for prefix {prefix}");
+            assert_eq!(result, "[AMENDED]", "failed for prefix {prefix}");
         }
     }
 
@@ -264,7 +269,7 @@ mod tests {
     fn test_sanitize_private_key_header() {
         let input = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...";
         let result = sanitize_secrets(input);
-        assert!(result.contains("[SANITIZED PRIVATE KEY]"));
+        assert!(result.contains("[EMENDED PRIVATE KEY]"));
         assert!(!result.contains("BEGIN RSA PRIVATE KEY"));
     }
 
@@ -272,7 +277,7 @@ mod tests {
     fn test_sanitize_connection_string() {
         let input = "postgres://admin:supersecretpassword@db.example.com:5432/mydb";
         let result = sanitize_secrets(input);
-        assert!(result.contains("[SANITIZED]"));
+        assert!(result.contains("[AMENDED]"));
         assert!(!result.contains("supersecretpassword"));
         assert!(result.contains("@db.example.com"));
     }

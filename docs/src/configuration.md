@@ -72,7 +72,7 @@ The runtime currently documents three structured tool-call shapes:
 3. XML-like fallback tags such as `<function=name>` and `<parameter=key>`.
 
 These paths are distinct from `regex-lite` processing. `regex-lite` is used for
-git output parsing, secret sanitization, and rate-limit extraction; it is not used
+git output parsing, secret rewriting, and rate-limit extraction; it is not used
 for live tool-call parsing.
 
 ## Tool policy

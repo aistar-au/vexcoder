@@ -1959,7 +1959,7 @@ The current command-execution amendment is recorded in `adr/ADR-022-amendment-20
 - Historical branch name: omitted
 - Commit: `03b84ced0cc7f5952f8091c996d56cc2efae1d48`
 - Files changed:
-  - `src/app.rs` (+N -0): `current_task`-backed session lifecycle; monotonic `new_task_id()` helper; transcript reset helper; no-argument `/resume` selection flow; `/fork` label sanitization; task-layout now reads from the running `current_task` state
+  - `src/app.rs` (+N -0): `current_task`-backed session lifecycle; monotonic `new_task_id()` helper; transcript reset helper; no-argument `/resume` selection flow; `/fork` label revision; task-layout now reads from the running `current_task` state
   - `src/runtime/context.rs` (+N -0): synchronous `clear_conversation()` helper that works in both sync tests and a running Tokio runtime
   - `src/state/conversation/state.rs` (+N -0): `clear_messages()` now resets `api_messages`, `current_turn_blocks`, and `read_file_history_cache`
   - `src/app.rs` (+N -0): 13 ADR anchor tests for PI-04/PI-05/PJ-01/PJ-02

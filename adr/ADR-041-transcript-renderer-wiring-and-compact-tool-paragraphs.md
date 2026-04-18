@@ -181,7 +181,7 @@ the preview spans multiple lines.
 
 ### D10: Flush completed streamed text segments at non-text boundaries
 
-When structured block streaming is active, sanitized `StreamDelta`
+When structured block streaming is active, revised `StreamDelta`
 chunks remain the only visible assistant-text source, but they are no
 longer rendered as one monolithic trailing `current_turn_response`
 blob. `push_history_line()` materializes the current streamed text

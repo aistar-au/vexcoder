@@ -147,9 +147,9 @@ a text-processing crate for file-content search or structural parsing.**
 
 | Crate | Role | Scope | NOT used for |
 |-------|------|-------|-------------|
-| `aho-corasick` | Multi-pattern **literal** matching | File content search, keyword extraction from source text | Git output parsing, secret sanitization |
-| `regex-lite` | Lightweight **internal text processing** | Git output parsing, secret sanitization, rate-limit extraction, format validation | Code search, RAG, semantic indexing, codebase search |
-| `tree-sitter` | **Structural AST** indexing | Language-aware parsing of source files into syntax trees | Text processing, log parsing, sanitization |
+| `aho-corasick` | Multi-pattern **literal** matching | File content search, keyword extraction from source text | Git output parsing, secret rewriting |
+| `regex-lite` | Lightweight **internal text processing** | Git output parsing, secret revision, rate-limit extraction, format validation | Code search, RAG, semantic indexing, codebase search |
+| `tree-sitter` | **Structural AST** indexing | Language-aware parsing of source files into syntax trees | Text processing, log revision, rewritten text fragments |
 | `globset` / `ignore` | **Filesystem traversal** | `.gitignore`-aware path matching and directory walking | File content search, string processing |
 | `quick-xml` | **XML tool-call** parsing | Structured extraction of `<function=...>` / `<parameter=...>` tags from model output | Git parsing, log analysis |
 | `indexmap` | **Ordered** insertion-preserving maps | Streaming tool-call accumulation preserving insertion order | Search indexing, text processing |
@@ -167,7 +167,7 @@ Conventional use cases DISTINCT from RAG/semantic search/codebase_search:
 
 - **Parsing structured output** from external tools (git status, git diff, git apply, git log)
 - **Extracting known fields** from semi-structured strings (retry delays, durations)
-- **Sanitizing sensitive data** from logs, transcripts, and telemetry
+- **Rewriting sensitive data** from logs, transcripts, and telemetry
 - **Format validation** (API key formats, token patterns, connection strings)
 
 None of these overlap with codebase search, RAG, or semantic indexing.
@@ -175,7 +175,7 @@ None of these overlap with codebase search, RAG, or semantic indexing.
 The `regex-lite` modules live under `src/runtime/` as three focused files:
 
 - **`git_parse.rs`** -- Structured parsing of `git status --porcelain`, `git diff --stat`, `git diff --name-status`, `git log --oneline`, and `git apply` output into typed enums and structs.  Patterns compile once via `OnceLock<regex_lite::Regex>` and are reused across calls.
-- **`secrets.rs`** -- Output sanitization for vendor API keys (`sk-...`), AWS access keys (`AKIA...`), GitHub PATs (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`), PEM private key headers, bearer tokens, connection strings with embedded credentials, and generic secret assignments. Wired into `sanitize_assistant_text` so secrets never leak into the transcript or logs.
+- **`secrets.rs`** -- Output revision for vendor API keys (`sk-...`), AWS access keys (`AKIA...`), GitHub PATs (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`), PEM private key headers, bearer tokens, connection strings with embedded credentials, and generic secret assignments. Wired into `sanitize_assistant_text` so secrets never leak into the transcript or logs.
 - **`rate_limit.rs`** -- Extracts retry delay hints from `Retry-After` header values (delta-seconds and HTTP-date forms) and error response body text ("try again in N seconds"). The header path is wired into `map_api_status_error` in the API client with fallback to body text for 429 detection.
 
 Design rationale: `regex-lite` was chosen over the full `regex` crate because
@@ -210,11 +210,11 @@ All parsers live in `src/runtime/git_parse.rs` and are re-exported from
 timeout and cancellation support, using `parse_git_status` to produce
 structured rollups for context assembly.
 
-### Secret sanitization -- always on
+### Secret rewriting -- always on
 
-Secret sanitization runs on every assistant text output through
+Secret rewriting runs on every assistant text output through
 `sanitize_assistant_text` in `src/runtime/policy.rs`.  The following
-patterns are detected and replaced with `[SANITIZED]`:
+patterns are detected and replaced with stable replacement markers:
 
 - Vendor API keys (`sk-` prefix, 20+ chars)
 - AWS access key IDs (`AKIA` prefix, 16 uppercase alphanumeric)
@@ -241,7 +241,7 @@ The stream parser handles three tool-call markup formats from model output:
    and `input` fields parsed from content-block deltas.
 
 No regex is used in the streaming tool-call path. `regex-lite` is reserved
-for post-hoc processing of git output and secret sanitization, never for
+for post-hoc processing of git output and secret rewriting, never for
 real-time stream parsing.
 
 ### Crate expansion decisions
