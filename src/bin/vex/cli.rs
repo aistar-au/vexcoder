@@ -98,6 +98,8 @@ pub(super) enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Print the current privacy summary for the CLI and LocalApiServer surfaces.
+    Privacy,
     /// Export a saved task to JSONL or Markdown.
     Export {
         task_id: String,

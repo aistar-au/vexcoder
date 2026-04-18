@@ -10,6 +10,7 @@
 
 - [Quick Start](quick-start.md)
 - [Configuration](configuration.md)
+- [Privacy](privacy.md)
 - [CLI and TUI Commands](commands.md)
 - [Performance](performance.md)
 - [Legacy Config Note](migration.md)

@@ -44,6 +44,10 @@ protocol surface implemented in-tree.
 - Upstream streaming requests are sent as `POST` with `application/json`, a
    versioned `User-Agent`, `Accept-Encoding: identity`, and request-side
    `Cache-Control: no-store`.
+- `GET /v1/privacy` returns a read-only disclosure bundle covering local
+   storage, configured network boundaries, credential handling, telemetry, and
+   retention for the CLI and LocalApiServer surfaces. Like `/v1/health` and
+   `/v1/schema`, it is metadata rather than a `RuntimeEnvelope` payload.
 - Local API streaming responses are emitted as `text/event-stream` with
    `Cache-Control: no-cache, no-store, must-revalidate` and
    `X-Accel-Buffering: no` so intermediaries do not cache or buffer the stream.

@@ -21,6 +21,31 @@ async fn test_health_endpoint_returns_ok() {
 }
 
 #[tokio::test]
+async fn test_privacy_endpoint_returns_summary() {
+    let router = build_router(Config::default_for_tui());
+    let response = router
+        .oneshot(
+            Request::builder()
+                .uri("/v1/privacy")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload.get("version"), Some(&json!(1)));
+    assert_eq!(
+        payload
+            .get("references")
+            .and_then(|refs| refs.get("local_api_path")),
+        Some(&json!("/v1/privacy"))
+    );
+}
+
+#[tokio::test]
 async fn test_schema_endpoint_returns_bundle() {
     let router = build_router(Config::default_for_tui());
     let response = router
