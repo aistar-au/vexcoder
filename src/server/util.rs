@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail};
 use axum::Json;
+use axum::response::{IntoResponse, Response};
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::io::BufReader;
@@ -9,7 +10,7 @@ use std::sync::Arc;
 
 #[cfg(unix)]
 use super::ResolvedUnixSurface;
-use super::{ControlResponse, HttpSurfaceSettings, ResolvedHttpSurface, ResolvedServeConfig};
+use super::{HttpSurfaceSettings, ProblemDetails, ResolvedHttpSurface, ResolvedServeConfig};
 use crate::config::Config;
 use crate::http_facade::StatusCode;
 
@@ -167,42 +168,50 @@ pub fn default_unix_socket_path() -> std::path::PathBuf {
         .join("vexcoder.sock")
 }
 
-pub fn bad_request(reason: &'static str) -> (StatusCode, Json<ControlResponse>) {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(ControlResponse {
-            ok: false,
-            reason: Some(reason),
-        }),
-    )
+#[derive(Debug)]
+pub struct ProblemDetailsResponse {
+    status: StatusCode,
+    details: ProblemDetails,
 }
 
-pub fn not_found(reason: &'static str) -> (StatusCode, Json<ControlResponse>) {
-    (
-        StatusCode::NOT_FOUND,
-        Json(ControlResponse {
-            ok: false,
-            reason: Some(reason),
-        }),
-    )
+impl ProblemDetailsResponse {
+    pub fn from_reason(status: StatusCode, reason: &'static str) -> Self {
+        Self {
+            status,
+            details: ProblemDetails {
+                r#type: format!("https://aistar-au.github.io/vexcoder/problems/{reason}"),
+                title: reason.replace('_', " "),
+                status: status.as_u16(),
+                detail: Some(reason.replace('_', " ")),
+                instance: None,
+            },
+        }
+    }
 }
 
-pub fn conflict(reason: &'static str) -> (StatusCode, Json<ControlResponse>) {
-    (
-        StatusCode::CONFLICT,
-        Json(ControlResponse {
-            ok: false,
-            reason: Some(reason),
-        }),
-    )
+impl IntoResponse for ProblemDetailsResponse {
+    fn into_response(self) -> Response {
+        let mut response = (self.status, Json(self.details)).into_response();
+        response.headers_mut().insert(
+            crate::http_facade::header::CONTENT_TYPE,
+            crate::http_facade::HeaderValue::from_static("application/problem+json"),
+        );
+        response
+    }
 }
 
-pub fn internal_error(_: serde_json::Error) -> (StatusCode, Json<ControlResponse>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ControlResponse {
-            ok: false,
-            reason: Some("internal_error"),
-        }),
-    )
+pub fn bad_request(reason: &'static str) -> ProblemDetailsResponse {
+    ProblemDetailsResponse::from_reason(StatusCode::BAD_REQUEST, reason)
+}
+
+pub fn not_found(reason: &'static str) -> ProblemDetailsResponse {
+    ProblemDetailsResponse::from_reason(StatusCode::NOT_FOUND, reason)
+}
+
+pub fn conflict(reason: &'static str) -> ProblemDetailsResponse {
+    ProblemDetailsResponse::from_reason(StatusCode::CONFLICT, reason)
+}
+
+pub fn internal_error(_: serde_json::Error) -> ProblemDetailsResponse {
+    ProblemDetailsResponse::from_reason(StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
 }

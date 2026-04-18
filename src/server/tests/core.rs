@@ -245,13 +245,21 @@ async fn test_release_session_task_route_returns_not_found_for_unknown_id() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
     assert_eq!(
-        payload.get("reason"),
-        Some(&Value::String("session_task_not_found".to_string()))
+        payload.get("type"),
+        Some(&Value::String(
+            "https://aistar-au.github.io/vexcoder/problems/session_task_not_found".to_string()
+        ))
     );
+    assert_eq!(payload.get("status"), Some(&Value::Number(404u64.into())));
+    assert_eq!(content_type.as_deref(), Some("application/problem+json"));
 }
 
 #[tokio::test]
@@ -315,12 +323,56 @@ async fn test_http_router_rejects_invalid_bearer_token() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
     assert_eq!(
-        payload.get("reason"),
-        Some(&Value::String("unauthorized".to_string()))
+        payload.get("type"),
+        Some(&Value::String(
+            "https://aistar-au.github.io/vexcoder/problems/unauthorized".to_string()
+        ))
+    );
+    assert_eq!(payload.get("status"), Some(&Value::Number(401u64.into())));
+    assert_eq!(content_type.as_deref(), Some("application/problem+json"));
+}
+
+#[tokio::test]
+async fn test_turns_invalid_request_uses_problem_details_content_type() {
+    let router = build_router(Config::default_for_tui());
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/turns")
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"type":"interrupt","request_id":"req-1","task_id":"task-1"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok()),
+        Some("application/problem+json")
+    );
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload.get("status"), Some(&Value::Number(400u64.into())));
+    assert_eq!(
+        payload.get("type"),
+        Some(&Value::String(
+            "https://aistar-au.github.io/vexcoder/problems/invalid_request_type".to_string()
+        ))
     );
 }
 
@@ -774,13 +826,21 @@ async fn test_interrupt_handler_returns_not_found_for_unknown_task() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
+    assert_eq!(payload.get("status"), Some(&Value::Number(404u64.into())));
     assert_eq!(
-        payload.get("reason"),
-        Some(&Value::String("task_not_found".to_string()))
+        payload.get("type"),
+        Some(&Value::String(
+            "https://aistar-au.github.io/vexcoder/problems/task_not_found".to_string()
+        ))
     );
+    assert_eq!(content_type.as_deref(), Some("application/problem+json"));
 }
 
 #[tokio::test]
@@ -811,13 +871,21 @@ async fn test_approve_handler_returns_not_found_for_unknown_task() {
             .unwrap();
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
+    assert_eq!(payload.get("status"), Some(&Value::Number(404u64.into())));
     assert_eq!(
-        payload.get("reason"),
-        Some(&Value::String("task_not_found".to_string()))
+        payload.get("type"),
+        Some(&Value::String(
+            "https://aistar-au.github.io/vexcoder/problems/task_not_found".to_string()
+        ))
     );
+    assert_eq!(content_type.as_deref(), Some("application/problem+json"));
 }
 
 #[tokio::test]
@@ -869,13 +937,21 @@ async fn test_approve_handler_returns_conflict_without_pending_approval() {
             .unwrap();
 
     assert_eq!(response.status(), StatusCode::CONFLICT);
+    let content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload.get("ok"), Some(&Value::Bool(false)));
+    assert_eq!(payload.get("status"), Some(&Value::Number(409u64.into())));
     assert_eq!(
-        payload.get("reason"),
-        Some(&Value::String("no_pending_approval".to_string()))
+        payload.get("type"),
+        Some(&Value::String(
+            "https://aistar-au.github.io/vexcoder/problems/no_pending_approval".to_string()
+        ))
     );
+    assert_eq!(content_type.as_deref(), Some("application/problem+json"));
 }
 
 #[tokio::test]

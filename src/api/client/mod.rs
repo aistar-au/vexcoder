@@ -52,11 +52,19 @@ struct LocalServerGenSettings {
 /// recognised discovery endpoint. Best-effort; never blocks the session.
 pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<ServerInfo> {
     let base = local_endpoint_base_url(api_url)?;
+    let props_url = format!("{base}/props");
+    let models_url = format!("{base}/v1/models");
 
     // Try the /props discovery endpoint first (supported by some local servers).
     let mut info: Option<ServerInfo> = None;
+    tracing::debug!(
+        target: "vex::http",
+        method = "GET",
+        url = %crate::runtime::rewrite_url_for_logs(&props_url),
+        "sending local server discovery request"
+    );
     if let Ok(resp) = http
-        .get(format!("{base}/props"))
+        .get(&props_url)
         .timeout(std::time::Duration::from_secs(3))
         .send()
         .await
@@ -74,9 +82,15 @@ pub async fn poll_server_info(http: &reqwest::Client, api_url: &str) -> Option<S
     }
 
     // Fallback: try /v1/models for other servers.
+    tracing::debug!(
+        target: "vex::http",
+        method = "GET",
+        url = %crate::runtime::rewrite_url_for_logs(&models_url),
+        "sending local server discovery request"
+    );
     if info.is_none()
         && let Ok(resp) = http
-            .get(format!("{base}/v1/models"))
+            .get(&models_url)
             .timeout(std::time::Duration::from_secs(3))
             .send()
             .await
@@ -124,15 +138,20 @@ async fn discover_native_protocol(
     http: &reqwest::Client,
     base_url: &str,
     explicit_protocol: Option<ProtocolVariant>,
+    probe_timeout_ms: u64,
 ) -> Option<ModelProtocol> {
     if let Some(protocol) = explicit_protocol {
         return Some(protocol_variant_to_model_protocol(protocol));
     }
 
-    discover_protocol(base_url, http)
-        .await
-        .ok()
-        .map(|result| protocol_variant_to_model_protocol(result.protocol))
+    discover_protocol(
+        base_url,
+        http,
+        std::time::Duration::from_millis(probe_timeout_ms.max(1)),
+    )
+    .await
+    .ok()
+    .map(|result| protocol_variant_to_model_protocol(result.protocol))
 }
 /// Base system prompt applied to every API call.
 /// Project instructions are appended at runtime via
@@ -156,6 +175,7 @@ For repository summaries or unfamiliar codebases, start with list_files at the w
 For edit_file, use a focused old_str snippet around the target change and avoid whole-file replacements; use write_file only for smaller full-file rewrites that stay under the write-file guard thresholds.\n\
 For large files, prefer apply_patch or edit_file over write_file; if write_file warns or rejects due to line limits, switch tools instead of retrying the same call.\n\
 For code edits, prefer this sequence: search_files -> read_file -> edit_file -> read_file (verify), escalating to apply_patch when the change is too broad for edit_file.\n\
+For Rust edits, keep diffs rustfmt-canonical and avoid formatting-only churn: preserve surrounding style, make the smallest semantic change that solves the task, and do not hand-wrap argument lists or method chains against local conventions.\n\
 For read-only requests (show/read/list/count/status/log/diff), use read-only tools and do not call mutating tools unless the user explicitly asks for changes.\n\
 If asked what git tools are available, only list built-in git tools: git_status, git_diff, git_log, git_show, git_add, git_commit.\n\
 Do not claim unsupported git tools like git_clone, git_init, git_remote, git_config, git_pull, git_push, git_branch, git_checkout, or git_stash.\n\
@@ -193,6 +213,7 @@ pub struct ApiClient {
     extra_tool_definitions: Vec<Value>,
     server_info: Arc<RwLock<Option<ServerInfo>>>,
     tls_verification_disabled: bool,
+    probe_timeout_ms: u64,
     #[cfg(test)]
     mock_stream_producer: Option<Arc<dyn MockStreamProducer>>,
 }
@@ -235,6 +256,7 @@ impl ApiClient {
             extra_tool_definitions: Vec::new(),
             server_info: Arc::new(RwLock::new(None)),
             tls_verification_disabled: config.model_url_skip_tls_check,
+            probe_timeout_ms: config.api_client.probe_timeout_ms,
             #[cfg(test)]
             mock_stream_producer: None,
         })
@@ -266,6 +288,7 @@ impl ApiClient {
             extra_tool_definitions: Vec::new(),
             server_info: Arc::new(RwLock::new(None)),
             tls_verification_disabled: false,
+            probe_timeout_ms: crate::config::ApiClientConfig::default().probe_timeout_ms,
             mock_stream_producer: Some(mock_producer),
         }
     }
@@ -287,9 +310,13 @@ impl ApiClient {
             return;
         };
 
-        let native_protocol =
-            discover_native_protocol(&self.http, &base_url, self.api_client_explicit_protocol)
-                .await;
+        let native_protocol = discover_native_protocol(
+            &self.http,
+            &base_url,
+            self.api_client_explicit_protocol,
+            self.probe_timeout_ms,
+        )
+        .await;
 
         if let Some(mut info) = poll_server_info(&self.http, &base_url).await {
             info.native_protocol = native_protocol;

@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
+use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::routing::{get, patch, post};
-use axum::{Json, Router};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as HyperConnectionBuilder;
 use hyper_util::service::TowerToHyperService;
@@ -20,7 +20,8 @@ use super::handlers::{
     release_session_task_handler, schedule_team_handler, schema_handler, task_graph_handler,
     turns_handler, update_session_task_status_handler, watch_handler, watch_session_task_handler,
 };
-use super::{ControlResponse, HSTS_HEADER_VALUE, HttpSurfaceSettings, ResolvedHttpSurface};
+use super::util::ProblemDetailsResponse;
+use super::{HSTS_HEADER_VALUE, HttpSurfaceSettings, ResolvedHttpSurface};
 use crate::app::runtime_tokio::{net::TcpListener, select, spawn};
 #[cfg(test)]
 use crate::config::Config;
@@ -113,14 +114,7 @@ async fn authorize_http_request(
 
 fn unauthorized_response() -> Response {
     use axum::response::IntoResponse;
-    (
-        StatusCode::UNAUTHORIZED,
-        Json(ControlResponse {
-            ok: false,
-            reason: Some("unauthorized"),
-        }),
-    )
-        .into_response()
+    ProblemDetailsResponse::from_reason(StatusCode::UNAUTHORIZED, "unauthorized").into_response()
 }
 
 pub async fn run_http_surface(

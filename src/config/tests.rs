@@ -75,6 +75,12 @@ fn test_config_validate_accepts_api_client_base_url_without_model_url() {
 }
 
 #[test]
+fn test_api_client_config_defaults_probe_timeout_ms() {
+    let config = crate::config::ApiClientConfig::default();
+    assert_eq!(config.probe_timeout_ms, 2000);
+}
+
+#[test]
 fn test_config_loads_vex_model_name_without_legacy_prefix() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     crate::test_support::test_set_var(&_lock, "VEX_MODEL_URL", "http://localhost:8080/v1");

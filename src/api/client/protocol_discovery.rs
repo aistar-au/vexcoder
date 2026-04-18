@@ -15,6 +15,7 @@
 //! ADR-047 §6 — Client-Side Protocol Discovery.
 
 use crate::config::ProtocolVariant;
+use crate::runtime::rewrite_url_for_logs;
 use std::time::{Duration, Instant};
 
 /// Result of a successful protocol probe.
@@ -67,14 +68,28 @@ pub enum DiscoveryError {
 ///
 /// A probe is considered successful when the server returns `200 OK` and
 /// a `Content-Type` that contains `text/event-stream`.
-async fn probe_endpoint(url: &str, accept_header: &str, client: &reqwest::Client) -> ProbeAttempt {
+async fn probe_endpoint(
+    url: &str,
+    accept_header: &str,
+    timeout: Duration,
+    client: &reqwest::Client,
+) -> ProbeAttempt {
     let start = Instant::now();
+
+    tracing::debug!(
+        target: "vex::http",
+        method = "GET",
+        url = %rewrite_url_for_logs(url),
+        accept = accept_header,
+        timeout_ms = timeout.as_millis() as u64,
+        "sending protocol discovery probe"
+    );
 
     let response = client
         .get(url)
         .header("Accept", accept_header)
         .header("Accept-Encoding", "identity")
-        .timeout(Duration::from_secs(2))
+        .timeout(timeout)
         .send()
         .await;
 
@@ -133,6 +148,7 @@ async fn probe_endpoint(url: &str, accept_header: &str, client: &reqwest::Client
 pub async fn discover_protocol(
     base_url: &str,
     client: &reqwest::Client,
+    timeout: Duration,
 ) -> Result<DiscoveryResult, DiscoveryError> {
     let base = base_url.trim_end_matches('/');
     let mut attempts = Vec::with_capacity(2);
@@ -140,6 +156,7 @@ pub async fn discover_protocol(
     let block_probe = probe_endpoint(
         &format!("{base}/v1/messages"),
         "application/vnd.block-delta+sse",
+        timeout,
         client,
     )
     .await;
@@ -160,6 +177,7 @@ pub async fn discover_protocol(
     let choices_probe = probe_endpoint(
         &format!("{base}/v1/chat/completions"),
         "application/vnd.choices-delta+sse",
+        timeout,
         client,
     )
     .await;
