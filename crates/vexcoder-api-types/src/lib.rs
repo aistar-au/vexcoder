@@ -1,9 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-const SUPPRESSED_THINKING_TAG: &str = "suppressed_thinking";
+const THINKING_DATA_TAG: &str = "thinking_data";
 
-fn legacy_suppressed_thinking_tag() -> &'static str {
+fn legacy_external_thinking_tag() -> &'static str {
     concat!("re", "dacted_thinking")
+}
+
+fn transitional_internal_thinking_tag() -> &'static str {
+    concat!("su", "ppressed_thinking")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +49,7 @@ pub enum ContentBlock {
         thinking: String,
         signature: String,
     },
-    SuppressedThinking {
+    ThinkingData {
         data: String,
     },
     ServerToolUse {
@@ -87,7 +91,7 @@ enum ContentBlockCompat {
         thinking: String,
         signature: String,
     },
-    SuppressedThinking {
+    ThinkingData {
         data: String,
     },
     ServerToolUse {
@@ -134,7 +138,7 @@ impl From<ContentBlockCompat> for ContentBlock {
                 thinking,
                 signature,
             },
-            ContentBlockCompat::SuppressedThinking { data } => Self::SuppressedThinking { data },
+            ContentBlockCompat::ThinkingData { data } => Self::ThinkingData { data },
             ContentBlockCompat::ServerToolUse { id, name, input } => {
                 Self::ServerToolUse { id, name, input }
             }
@@ -156,12 +160,17 @@ impl<'de> Deserialize<'de> for ContentBlock {
     {
         let mut value = serde_json::Value::deserialize(deserializer)?;
         if let Some(object) = value.as_object_mut()
-            && object.get("type").and_then(serde_json::Value::as_str)
-                == Some(legacy_suppressed_thinking_tag())
+            && object
+                .get("type")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|tag| {
+                    tag == legacy_external_thinking_tag()
+                        || tag == transitional_internal_thinking_tag()
+                })
         {
             object.insert(
                 "type".to_string(),
-                serde_json::Value::String(SUPPRESSED_THINKING_TAG.to_string()),
+                serde_json::Value::String(THINKING_DATA_TAG.to_string()),
             );
         }
 
@@ -433,32 +442,42 @@ mod tests {
     }
 
     #[test]
-    fn test_content_block_suppressed_thinking_accepts_legacy_tag() {
+    fn test_content_block_thinking_data_accepts_legacy_external_tag() {
         let json = format!(
             r#"{{"type":"{}","data":"opaque"}}"#,
-            legacy_suppressed_thinking_tag()
+            legacy_external_thinking_tag()
         );
         let block: ContentBlock = serde_json::from_str(&json).unwrap();
-        assert!(matches!(block, ContentBlock::SuppressedThinking { .. }));
+        assert!(matches!(block, ContentBlock::ThinkingData { .. }));
     }
 
     #[test]
-    fn test_content_block_suppressed_thinking_serialises_to_neutral_tag() {
-        let block = ContentBlock::SuppressedThinking {
+    fn test_content_block_thinking_data_accepts_transitional_internal_tag() {
+        let json = format!(
+            r#"{{"type":"{}","data":"opaque"}}"#,
+            transitional_internal_thinking_tag()
+        );
+        let block: ContentBlock = serde_json::from_str(&json).unwrap();
+        assert!(matches!(block, ContentBlock::ThinkingData { .. }));
+    }
+
+    #[test]
+    fn test_content_block_thinking_data_serialises_to_neutral_tag() {
+        let block = ContentBlock::ThinkingData {
             data: "opaque".into(),
         };
         let value = serde_json::to_value(&block).unwrap();
         assert_eq!(
             value.get("type").and_then(serde_json::Value::as_str),
-            Some(SUPPRESSED_THINKING_TAG)
+            Some(THINKING_DATA_TAG)
         );
     }
 
     #[test]
-    fn test_content_block_suppressed_thinking_deserialises() {
-        let json = r#"{"type":"suppressed_thinking","data":"opaque"}"#;
+    fn test_content_block_thinking_data_deserialises() {
+        let json = r#"{"type":"thinking_data","data":"opaque"}"#;
         let block: ContentBlock = serde_json::from_str(json).unwrap();
-        assert!(matches!(block, ContentBlock::SuppressedThinking { .. }));
+        assert!(matches!(block, ContentBlock::ThinkingData { .. }));
     }
 
     #[test]

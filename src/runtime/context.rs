@@ -459,7 +459,7 @@ fn estimate_char_count(messages: &[crate::types::ApiMessage]) -> usize {
                                 thinking,
                                 signature,
                             } => thinking.len() + signature.len(),
-                            ContentBlock::SuppressedThinking { data } => data.len(),
+                            ContentBlock::ThinkingData { data } => data.len(),
                             ContentBlock::ServerToolUse { id, name, input } => {
                                 id.len() + name.len() + input.to_string().len()
                             }

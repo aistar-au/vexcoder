@@ -190,8 +190,7 @@ impl ConversationManager {
                                 );
                             }
                             ContentBlock::ToolResult { .. } => {}
-                            ContentBlock::Thinking { .. }
-                            | ContentBlock::SuppressedThinking { .. } => {}
+                            ContentBlock::Thinking { .. } | ContentBlock::ThinkingData { .. } => {}
                             ContentBlock::ServerToolUse { .. }
                             | ContentBlock::WebSearchToolResult { .. } => {}
                         }
