@@ -389,3 +389,96 @@ fn test_regression_progress_updates_across_multiple_chunks() {
         "all three prompt_progress.processed updates must be forwarded"
     );
 }
+
+// ---------------------------------------------------------------------------
+// WHATWG HTML §9.2.6 — id: and retry: field compliance (C1 fix)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn sse_parser_tracks_last_event_id_from_id_field() {
+    let mut parser = StreamParser::new();
+    let chunk = b"id: evt-42\ndata: {}\n\n";
+    parser.process(chunk).expect("frame should parse");
+    assert_eq!(
+        parser.last_event_id(),
+        Some("evt-42"),
+        "parser must store the last id: value per WHATWG HTML \u{a7}9.2.6"
+    );
+}
+
+#[test]
+fn sse_parser_updates_last_event_id_across_frames() {
+    let mut parser = StreamParser::new();
+    parser.process(b"id: first\ndata: {}\n\n").unwrap();
+    parser.process(b"id: second\ndata: {}\n\n").unwrap();
+    assert_eq!(parser.last_event_id(), Some("second"));
+}
+
+#[test]
+fn sse_parser_stores_retry_delay_ms() {
+    let mut parser = StreamParser::new();
+    parser.process(b"retry: 3000\ndata: {}\n\n").unwrap();
+    assert_eq!(
+        parser.reconnect_delay_ms(),
+        Some(3000),
+        "parser must store the retry: value in milliseconds per WHATWG HTML \u{a7}9.2.6"
+    );
+}
+
+#[test]
+fn sse_parser_ignores_unknown_fields_and_does_not_error() {
+    // Unknown SSE fields must be silently discarded (WHATWG HTML §9.2.6).
+    // The parse must succeed (Ok), regardless of what the data payload produces.
+    let mut parser = StreamParser::new();
+    let chunk = b"custom-field: ignored\ndata: {\"type\":\"ping\"}\n\n";
+    let result = parser.process(chunk);
+    assert!(result.is_ok(), "unknown field must not cause a parse error");
+}
+
+// ---------------------------------------------------------------------------
+// WHATWG HTML §9.2.6 — spec edge cases for id and retry fields
+// ---------------------------------------------------------------------------
+
+#[test]
+fn sse_parser_bare_id_without_colon_clears_last_event_id() {
+    let mut parser = StreamParser::new();
+    parser
+        .process(b"id: stored-id\ndata: {}\n\n")
+        .expect("setup frame");
+    assert_eq!(parser.last_event_id(), Some("stored-id"));
+    parser.process(b"id\ndata: {}\n\n").expect("bare id frame");
+    assert_eq!(
+        parser.last_event_id(),
+        Some(""),
+        "bare 'id' (no colon) must set last-event-id to empty per WHATWG HTML \u{a7}9.2.6"
+    );
+}
+
+#[test]
+fn sse_parser_id_with_nul_is_ignored() {
+    let mut parser = StreamParser::new();
+    parser
+        .process(b"id: valid-id\ndata: {}\n\n")
+        .expect("setup frame");
+    parser
+        .process(b"id: bad\x00id\ndata: {}\n\n")
+        .expect("nul frame");
+    assert_eq!(
+        parser.last_event_id(),
+        Some("valid-id"),
+        "id: value containing NUL must not update last_event_id per WHATWG HTML \u{a7}9.2.6"
+    );
+}
+
+#[test]
+fn sse_parser_non_decimal_retry_value_is_ignored() {
+    let mut parser = StreamParser::new();
+    parser
+        .process(b"retry: abc\ndata: {}\n\n")
+        .expect("non-decimal retry frame");
+    assert_eq!(
+        parser.reconnect_delay_ms(),
+        None,
+        "non-decimal retry: value must be ignored per WHATWG HTML \u{a7}9.2.6"
+    );
+}
