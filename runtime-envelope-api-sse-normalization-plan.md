@@ -108,6 +108,26 @@ JSON rather than as a second event schema.
 - Introduce event IDs and replay semantics when the transport is ready to
   support resumable envelope delivery.
 
+## Successor Draft Lane
+
+- Branch: `work/vexcoder-runtime-envelope-client-api-direct-consumption`
+- Purpose: complete the whole-system cleanup after PR #402 by moving the
+  residual client/API-side compatibility ingress from `StreamEvent` and
+  `ContentBlock` parsing toward direct `RuntimeEnvelope` consumption wherever
+  the layer is acting as an internal API consumer.
+- Primary source anchors for that lane:
+  - `src/api/stream.rs` still parses compatibility `StreamEvent` values before
+    normalization.
+  - `crates/vexcoder-api-types/src/lib.rs` still defines
+    `ContentBlockCompat` and `StreamEvent` at the provider-facing type layer.
+  - `src/api/client/mod.rs` and `src/api/client/protocol_discovery.rs` still
+    carry protocol-shape selection and `ContentBlock`-shaped request-history
+    handling that should be audited against the normalized contract boundary.
+  - `src/bin/vex/**`, `src/tui_frontend.rs`, `src/app.rs`,
+    `src/app/model_update.rs`, `src/runtime/context.rs`, and
+    `src/batch_mode.rs` remain consumer-audit targets so the CLI and
+    ratatui/crossterm stack stay downstream of the normalized API.
+
 ## Workstreams
 
 ### 1. Contract And Schema

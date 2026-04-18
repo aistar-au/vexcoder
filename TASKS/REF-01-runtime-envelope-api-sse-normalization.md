@@ -4,6 +4,9 @@
 
 Implemented on `work/vexcoder-runtime-envelope-api-sse-normalization-plan`.
 
+Merged in PR #402. The successor draft lane for the remaining whole-system
+cleanup is `work/vexcoder-runtime-envelope-client-api-direct-consumption`.
+
 - The backend event-stream seam now carries `RuntimeEnvelope`.
 - The provider-edge SSE parser normalizes compatibility payloads into
   canonical envelopes immediately at the API boundary.
@@ -129,6 +132,9 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
   `StreamEvent` and `ContentBlock` parsing to direct `RuntimeEnvelope`
   consumption wherever those layers are acting as API consumers rather than as
   provider-edge adapters.
+- Successor draft lane: isolate the remaining client/API-side migration on a
+  dedicated branch so the merged server cleanup remains stable while the
+  ingress, API-type, and consumer-audit work proceeds in narrower batches.
 - Remove or rewrite compatibility-only documentation and ADR follow-up text
   once the remaining consumer cleanup is complete.
 
