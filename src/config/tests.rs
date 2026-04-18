@@ -81,6 +81,56 @@ fn test_api_client_config_defaults_probe_timeout_ms() {
 }
 
 #[test]
+fn test_api_client_explicit_protocol_accepts_canonical_name() {
+    let cwd = tempfile::tempdir().unwrap();
+    let user_cfg = tempfile::tempdir().unwrap();
+    let user_cfg_file = user_cfg.path().join("config.toml");
+    std::fs::write(
+        &user_cfg_file,
+        concat!(
+            "model_url = \"http://127.0.0.1:8000/v1\"\n",
+            "model_name = \"local-model\"\n",
+            "[api_client]\n",
+            "base_url = \"http://127.0.0.1:8787\"\n",
+            "explicit_protocol = \"chat-compat\"\n",
+        ),
+    )
+    .unwrap();
+
+    let config = Config::load_for_tests(cwd.path(), Some(&user_cfg_file), None).unwrap();
+
+    assert_eq!(
+        config.api_client.explicit_protocol,
+        Some(crate::runtime::ModelProtocol::ChatCompat)
+    );
+}
+
+#[test]
+fn test_api_client_explicit_protocol_accepts_legacy_alias() {
+    let cwd = tempfile::tempdir().unwrap();
+    let user_cfg = tempfile::tempdir().unwrap();
+    let user_cfg_file = user_cfg.path().join("config.toml");
+    std::fs::write(
+        &user_cfg_file,
+        concat!(
+            "model_url = \"http://127.0.0.1:8000/v1\"\n",
+            "model_name = \"local-model\"\n",
+            "[api_client]\n",
+            "base_url = \"http://127.0.0.1:8787\"\n",
+            "explicit_protocol = \"choices_delta\"\n",
+        ),
+    )
+    .unwrap();
+
+    let config = Config::load_for_tests(cwd.path(), Some(&user_cfg_file), None).unwrap();
+
+    assert_eq!(
+        config.api_client.explicit_protocol,
+        Some(crate::runtime::ModelProtocol::ChatCompat)
+    );
+}
+
+#[test]
 fn test_config_loads_vex_model_name_without_legacy_prefix() {
     let _lock = crate::test_support::ENV_LOCK.blocking_lock();
     crate::test_support::test_set_var(&_lock, "VEX_MODEL_URL", "http://localhost:8080/v1");

@@ -437,8 +437,8 @@ pub(crate) fn migrate_config_from_env(envs: &[(&str, &str)]) -> String {
 
     // VEX_API_PROTOCOL (legacy env var) migration was removed during ADR-047.
     // The env var previously accepted short string aliases for "messages-v1"
-    // and "chat-compat". Protocol is now discovered automatically at connection
-    // time or set via `api_client.explicit_protocol` in config.
+    // and "chat-compat". Protocol is now discovered automatically at
+    // connection time or pinned in config when needed.
 
     if let Some(value) = get("VEX_STRUCTURED_TOOL_PROTOCOL") {
         match value.trim().to_ascii_lowercase().as_str() {

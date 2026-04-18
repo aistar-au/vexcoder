@@ -57,7 +57,7 @@ impl TuiMode {
             task_doc_condenser,
             pre_session_notices: Vec::new(),
             streaming_tool_input_buffers: std::collections::HashMap::new(),
-            stream_uses_block_deltas: false,
+            stream_uses_structured_final_output: false,
             read_only_turn_active: false,
             active_edit_loop: None,
             selected_timeline_index: 0,

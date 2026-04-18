@@ -1,5 +1,5 @@
 use super::*;
-use crate::config::{CompactionConfig, ProtocolVariant};
+use crate::config::CompactionConfig;
 use crate::runtime::backend::{ModelBackendKind, ModelProtocol, ToolCallMode};
 use crate::test_support::ENV_LOCK;
 use axum::Router;
@@ -153,7 +153,7 @@ fn test_api_client_base_url_explicit_protocol_controls_request_url() {
     config.model_name = "local/test-model".to_string();
     config.model_url.clear();
     config.api_client.base_url = "http://127.0.0.1:8787".to_string();
-    config.api_client.explicit_protocol = Some(ProtocolVariant::ChoicesDelta);
+    config.api_client.explicit_protocol = Some(ModelProtocol::ChatCompat);
 
     let client = ApiClient::new(&config).expect("client should build");
 

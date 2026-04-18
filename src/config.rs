@@ -217,27 +217,49 @@ pub(crate) struct AutoMemoryConfigLayer {
     pub(crate) max_notes_per_turn: Option<usize>,
 }
 
-/// Wire protocol variant for streaming tool-call deltas.
-///
-/// Stored in [`ApiClientConfig::explicit_protocol`] as an optional override
-/// for client-side protocol discovery (ADR-047 §6).  When `None`, the client
-/// probes the server at connection time via
-/// [`crate::api::client::protocol_discovery::discover_protocol`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum ProtocolVariant {
-    /// `messages/v1` Block-Delta format (default).
-    ///
-    /// Emits `content_block_start` / `content_block_delta` (`input_json_delta`)
-    /// / `content_block_stop` events.  Preferred for all new local-inference
-    /// deployments.
-    #[default]
-    BlockDelta,
-    /// `chat/completions` Choices-Delta format.
-    ///
-    /// Emits `choices[].delta.tool_calls[]` with partial `arguments` strings.
-    /// Used when the server exposes only the chat-compat completions endpoint.
-    ChoicesDelta,
+fn parse_api_client_protocol_override(value: &str) -> Option<ModelProtocol> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "messages-v1" | "messages_v1" | "messages" | "v1" => Some(ModelProtocol::MessagesV1),
+        "chat-compat" | "chat_compat" | "chat" => Some(ModelProtocol::ChatCompat),
+        // Accept ADR-047 legacy names while keeping the config surface on the
+        // canonical protocol vocabulary.
+        "block-delta" | "block_delta" | "blockdelta" => Some(ModelProtocol::MessagesV1),
+        "choices-delta" | "choices_delta" | "choicesdelta" => Some(ModelProtocol::ChatCompat),
+        _ => None,
+    }
+}
+
+fn serialize_api_client_protocol_override<S>(
+    value: &Option<ModelProtocol>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match value {
+        Some(ModelProtocol::MessagesV1) => serializer.serialize_some("messages-v1"),
+        Some(ModelProtocol::ChatCompat) => serializer.serialize_some("chat-compat"),
+        None => serializer.serialize_none(),
+    }
+}
+
+fn deserialize_api_client_protocol_override<'de, D>(
+    deserializer: D,
+) -> Result<Option<ModelProtocol>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let Some(value) = Option::<String>::deserialize(deserializer)? else {
+        return Ok(None);
+    };
+
+    parse_api_client_protocol_override(&value)
+        .map(Some)
+        .ok_or_else(|| {
+            serde::de::Error::custom(
+                "invalid api_client.explicit_protocol: expected messages-v1 or chat-compat",
+            )
+        })
 }
 
 /// Client-side configuration for the local inference API.
@@ -258,8 +280,16 @@ pub struct ApiClientConfig {
     /// Only `scheme://host:port` is required (e.g. `http://127.0.0.1:8000`).
     pub base_url: String,
     /// Optional explicit protocol override. When set, protocol discovery is
-    /// skipped and this variant is used for the entire session.
-    pub explicit_protocol: Option<ProtocolVariant>,
+    /// skipped and this canonical model protocol is used for the entire
+    /// session. ADR-047 legacy aliases (`block_delta`, `choices_delta`) are
+    /// still accepted during config deserialization.
+    #[serde(
+        default,
+        deserialize_with = "deserialize_api_client_protocol_override",
+        serialize_with = "serialize_api_client_protocol_override",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub explicit_protocol: Option<ModelProtocol>,
     /// Timeout budget in milliseconds for each protocol-discovery probe.
     /// The client probes `/v1/messages` and `/v1/chat/completions` separately;
     /// this ceiling applies to each individual request.

@@ -236,8 +236,9 @@ dispatch.
 **Relevance to ADR-047 amendment, Decision 7 (True External Boundary Traits
 Remain Acceptable):** The amendment's keep-list (model backend, sandbox
 driver, approval policy, command runner) represents genuine external-system
-boundaries. The retirement-list (runtime mode, frontend adapter, tool call
-parser) represents internal routing that the API event surface replaces.
+boundaries. The follow-up simplification list (runtime mode, frontend adapter,
+tool call parser) represents internal routing that the API event surface
+replaces.
 
 ---
 

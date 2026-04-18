@@ -1,7 +1,7 @@
 use self::protocol_discovery::discover_protocol;
 use super::eventsource::create_event_stream;
 use super::logging::{debug_payload_enabled, emit_debug_payload};
-use crate::config::{Config, ProtocolVariant};
+use crate::config::Config;
 use crate::runtime::backend::{
     EventStream, ModelBackend, ModelBackendKind, ModelProtocol, ToolCallMode, ToolPolicy,
 };
@@ -137,11 +137,11 @@ fn local_endpoint_base_url(api_url: &str) -> Option<String> {
 async fn discover_native_protocol(
     http: &reqwest::Client,
     base_url: &str,
-    explicit_protocol: Option<ProtocolVariant>,
+    explicit_protocol: Option<ModelProtocol>,
     probe_timeout_ms: u64,
 ) -> Option<ModelProtocol> {
     if let Some(protocol) = explicit_protocol {
-        return Some(protocol_variant_to_model_protocol(protocol));
+        return Some(protocol);
     }
 
     discover_protocol(
@@ -151,7 +151,7 @@ async fn discover_native_protocol(
     )
     .await
     .ok()
-    .map(|result| protocol_variant_to_model_protocol(result.protocol))
+    .map(|result| result.protocol)
 }
 /// Base system prompt applied to every API call.
 /// Project instructions are appended at runtime via
@@ -196,7 +196,7 @@ pub struct ApiClient {
     model: Arc<RwLock<String>>,
     supplementary_system_prompt: Arc<RwLock<Option<String>>>,
     api_url: String,
-    api_client_explicit_protocol: Option<ProtocolVariant>,
+    api_client_explicit_protocol: Option<ModelProtocol>,
     model_backend: ModelBackendKind,
     model_protocol: ModelProtocol,
     tool_call_mode: ToolCallMode,
@@ -241,7 +241,6 @@ impl ApiClient {
             model_protocol: config
                 .api_client
                 .explicit_protocol
-                .map(protocol_variant_to_model_protocol)
                 .unwrap_or(config.model_protocol),
             tool_call_mode: config.tool_call_mode,
             tool_policy: config.tool_policy,
@@ -652,13 +651,6 @@ fn configured_api_client_base_url(config: &Config) -> Option<String> {
         None
     } else {
         Some(base.trim_end_matches('/').to_string())
-    }
-}
-
-fn protocol_variant_to_model_protocol(protocol: ProtocolVariant) -> ModelProtocol {
-    match protocol {
-        ProtocolVariant::BlockDelta => ModelProtocol::MessagesV1,
-        ProtocolVariant::ChoicesDelta => ModelProtocol::ChatCompat,
     }
 }
 

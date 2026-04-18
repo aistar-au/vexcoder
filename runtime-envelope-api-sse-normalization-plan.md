@@ -5,59 +5,60 @@
 Move the CLI and ratatui/crossterm-backed TUI stack onto one internal
 machine-readable stream contract: `RuntimeEnvelope`. The remaining
 compatibility stream paths stay only at the outbound provider edge, if they
-remain at all. Internal consumers should read a single canonical event stream,
+remain at all. Internal consumers should read a single accepted event stream,
 and the server SSE layer should operate as a transport wrapper around envelope
 JSON rather than as a second event schema.
 
 ## Reference Basis
 
 - ADR-025 defines the runtime JSON handoff contract and already treats
-  `RuntimeEnvelope` and `RuntimeEvent` as the canonical internal stream.
+  `RuntimeEnvelope` and `RuntimeEvent` as the accepted internal stream.
 - ADR-028 reserves transport logic for `src/server/**` and argues against
   secondary internal schemas leaking across boundaries.
 - ADR-045 and ADR-046 keep expanding `RuntimeEvent` coverage, which makes the
   remaining block-delta and chat-chunk paths harder to justify as durable
   internal contracts.
 - The current code already reflects the intended direction: `src/runtime/json_handoff.rs`
-  emits canonical envelopes, while `src/local_api.rs` already treats the
+  emits accepted envelopes, while `src/local_api.rs` already treats the
   envelope stream as the reference local path.
 
 ## Current Repository Facts
 
-- `src/runtime/json_handoff.rs` already defines the canonical contract and
-  now emits explicit tool lifecycle events together with canonical metadata and
+- `src/runtime/json_handoff.rs` already defines the accepted contract and
+  now emits explicit tool lifecycle events together with accepted metadata and
   usage updates.
-- `src/server/sse.rs` now forwards canonical envelope JSON exclusively and no
+- `src/server/sse.rs` now forwards accepted envelope JSON exclusively and no
   longer negotiates legacy block-delta or choices-delta modes.
 - `src/runtime/backend.rs` now types `EventStream` as `Result<RuntimeEnvelope>`.
 - `src/api/eventsource.rs`, `src/api/mock_client.rs`, and `src/api/stream.rs`
   now normalize provider-edge compatibility payloads into `RuntimeEnvelope`
   values immediately at the API boundary.
-- `src/state/conversation/send_message.rs` now consumes canonical
-  `RuntimeEvent` values directly, including canonical tool-call IDs.
-- `src/runtime/task_document/condenser.rs` now absorbs canonical metadata
+- `src/state/conversation/send_message.rs` now consumes accepted
+  `RuntimeEvent` values directly, including runtime-owned tool-call IDs.
+- `src/runtime/task_document/condenser.rs` now absorbs accepted metadata
   events for prompt-progress and timing propagation.
-- The server-layer cleanup is in place, but the whole-system cleanup is still
-  incomplete because `src/api/stream.rs` and provider-facing API types still
-  parse compatibility `StreamEvent` and `ContentBlock` shapes before
-  normalization.
+- The server-layer cleanup is in place, and the whole-system consumer audit is
+  now closed. The remaining follow-up is structural extraction because
+  `src/api/stream.rs` still owns the provider-edge compatibility parser
+  locally.
 - `src/runtime/json_handoff.rs` has now grown past one thousand lines and
   `src/api/stream.rs` carries a similarly dense ingress-plus-normalization
   surface, so a follow-up structural extraction batch is warranted even where
   behavior stays unchanged.
 - `src/app/model_update.rs`, `src/runtime/context.rs`, `src/app.rs`,
-  `src/bin/vex/**`, `src/tui_frontend.rs`, and `src/batch_mode.rs` should
-  still be audited for any remaining compatibility-shaped projections that this
-  branch did not need to touch.
+  `src/bin/vex/**`, `src/tui_frontend.rs`, and `src/batch_mode.rs` were
+  audited for residual compatibility-shaped projections; no additional
+  internal consumer path remained beyond the provider-edge adapter.
 - The deleted internal transport machinery does not appear in live source any
   longer: `TurnsSseMode`, `PendingToolBlock`, `ActiveToolBlock`, mapper
   dispatch, and `src/api/stream/mappers.rs` are gone. Provider-edge
-  `ProtocolVariant::{BlockDelta, ChoicesDelta}` and `StreamEvent` remain as
-  ingress-only compatibility types before normalization.
+  `api_client.explicit_protocol` and the parser-local stream dialect in
+  `src/api/stream.rs` remain as ingress-only compatibility surfaces before
+  normalization.
 
 ## Implemented In This Branch
 
-- Extended the canonical contract with `RuntimeEvent::ServerMetadata` and
+- Extended the accepted contract with `RuntimeEvent::ServerMetadata` and
   `RuntimeEvent::UsageUpdated`.
 - Widened `TokenUsageEnvelope` and `TurnTokens::is_zero()` so cache token
   accounting survives normalization.
@@ -65,7 +66,7 @@ JSON rather than as a second event schema.
   thin envelope passthrough.
 - Switched client negotiation to plain `text/event-stream`.
 - Reworked conversation, server, API, runtime-handoff, and guard tests to
-  assert canonical envelope behavior and canonical `tx_*` tool identifiers.
+  assert accepted envelope behavior and runtime-owned `tx_*` tool identifiers.
 - Validated the branch with `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo nextest run`, and
   `bash scripts/check_forbidden_names.sh`.
@@ -74,12 +75,9 @@ JSON rather than as a second event schema.
 
 ### Batch A. Repository And Wording Cleanup
 
-- Keep non-workflow verification commands on `cargo nextest run` rather than
-  parallel-count overrides.
-- Refine wording around future resumable replay support in `src/server/sse.rs`
-  and the tracked notes.
-- Keep the branch notes aligned with the current scope boundary and consumer
-  inventory.
+Completed in PR #403. Verification guidance now stays on `cargo nextest run`,
+the server-SSE replay wording remains future-facing, and the tracked notes now
+match the present scope boundary and consumer inventory.
 
 ### Batch B. `src/runtime/json_handoff.rs` Structural Extraction
 
@@ -97,16 +95,38 @@ JSON rather than as a second event schema.
 
 ### Batch D. Whole-System Consumer Completion
 
-- Replace residual client/API-side `StreamEvent` and compatibility
-  `ContentBlock` parsing wherever those layers are acting as internal API
-  consumers.
-- Audit the CLI and ratatui/crossterm stack so it remains a consumer of the
-  normalized API rather than a parallel stream-building path.
+Completed in PR #403. Residual client/API-side `StreamEvent` and compatibility
+`ContentBlock` parsing no longer acts as an internal consumer path, and the
+CLI plus ratatui/crossterm stack remain downstream of the normalized API.
 
 ### Batch E. Resumable Replay Support
 
 - Introduce event IDs and replay semantics when the transport is ready to
   support resumable envelope delivery.
+
+## Follow-up Lane
+
+- Branch: `work/vexcoder-runtime-envelope-client-api-direct-consumption`
+- Purpose: complete the whole-system cleanup after PR #402 by moving the
+  residual client/API-side compatibility ingress from `StreamEvent` and
+  `ContentBlock` parsing toward direct `RuntimeEnvelope` consumption wherever
+  the layer is acting as an internal API consumer.
+- Status: consumer migration and downstream audit are complete in this lane;
+  remaining work now centers on structural extraction and later replay support.
+- Primary source anchors for that lane:
+  - `src/api/stream.rs` still owns the provider-edge compatibility parser,
+    but the wire dialect is now local to that ingress module rather than
+    shared through `vexcoder-api-types`.
+  - `crates/vexcoder-api-types/src/lib.rs` still defines
+    `ContentBlockCompat` at the provider-facing type layer for outbound and
+    history-facing content handling.
+  - `src/api/client/mod.rs` and `src/api/client/protocol_discovery.rs` still
+    carry protocol-shape selection and `ContentBlock`-shaped request-history
+    handling that should be audited against the normalized contract boundary.
+  - `src/bin/vex/**`, `src/tui_frontend.rs`, `src/app.rs`,
+    `src/app/model_update.rs`, `src/runtime/context.rs`, and
+    `src/batch_mode.rs` remain consumer-audit targets so the CLI and
+    ratatui/crossterm stack stay downstream of the normalized API.
 
 ## Workstreams
 
@@ -131,7 +151,7 @@ JSON rather than as a second event schema.
   argument re-serialization helpers.
 - Remove Accept-header negotiation for legacy stream modes in
   `src/server/handlers/mod.rs`.
-- Keep only canonical envelope framing plus keepalive handling.
+- Keep only accepted envelope framing plus keepalive handling.
 - Rewrite server SSE tests so they assert envelope passthrough and heartbeat
   behavior instead of mode conversion.
 
@@ -151,7 +171,8 @@ JSON rather than as a second event schema.
   `src/api/client/protocol_discovery.rs` to request-shape concerns only.
 - Finish the client/API-side migration by removing `StreamEvent` and
   compatibility `ContentBlock` parsing from layers that should now consume the
-  normalized API contract directly.
+  normalized API contract directly, or by confining any remaining provider
+  grammar to the immediate ingress adapter.
 
 ### 4. Runtime Event Parser And Tool Loop
 
@@ -161,18 +182,18 @@ JSON rather than as a second event schema.
 - Remove tool lifecycle reconstruction from `ContentBlockStart`,
   `ContentBlockDelta`, and `ContentBlockStop`.
 - Drive tool execution, round progression, and context enrichment from
-  canonical tool events.
+  accepted tool events.
 - Remove tagged or XML fallback parsing once no backend requires tagged tool
   output.
-- Reduce `src/runtime/context.rs` and `src/runtime/update.rs` to canonical
+- Reduce `src/runtime/context.rs` and `src/runtime/update.rs` to accepted
   projections for renderer and CLI updates.
 
 ### 5. Consumer Surfaces
 
 - Update `src/app/model_update.rs` to project transcript and tool state from
-  canonical events instead of compatibility deltas.
+  accepted events instead of compatibility deltas.
 - Remove compatibility-only state in `src/app.rs`.
-- Confirm `src/batch_mode.rs` derives its output from canonical events only.
+- Confirm `src/batch_mode.rs` derives its output from accepted events only.
 - Confirm `src/bin/vex/**` and `src/tui_frontend.rs` remain downstream API
   consumers rather than alternative stream-building layers.
 - Keep `src/local_api.rs` as the reference envelope path and align the direct
@@ -183,7 +204,7 @@ JSON rather than as a second event schema.
 - Replace compatibility SSE fixtures in conversation, runtime-context, API,
   and renderer tests with envelope fixtures.
 - Remove chat-style and tagged fallback scenarios once the corresponding code
-  paths are retired.
+  paths are no longer part of the active compatibility surface.
 - Expand local API envelope contract tests because that path becomes the shared
   reference behavior.
 
@@ -191,7 +212,7 @@ JSON rather than as a second event schema.
 
 - Remove internal streaming-mode configuration that exists only for
   block-delta and choices-delta compatibility.
-- Remove tagged-fallback defaults once canonical structured tool handling is
+- Remove tagged-fallback defaults once accepted structured tool handling is
   mandatory.
 - Update documentation and ADR follow-up notes after the refactor lands.
 
@@ -227,13 +248,14 @@ JSON rather than as a second event schema.
 
 - Downstream of the API boundary, only `RuntimeEnvelope` remains as the
   machine-readable stream contract.
-- The server publishes canonical envelope JSON over SSE without legacy mode
+- The server publishes accepted envelope JSON over SSE without legacy mode
   negotiation.
 - The runtime event parser and deterministic tool loop consume explicit
   `ToolCall*` events directly.
-- Compatibility parser code and compatibility stream mappers are retired.
+- Compatibility parser code and compatibility stream mappers are removed from
+  the internal contract path.
 - The renderer, batch mode, local API, and task-document surfaces derive their
-  updates from the same canonical event stream.
+  updates from the same accepted event stream.
 
 ## Validation
 
@@ -248,4 +270,4 @@ JSON rather than as a second event schema.
   integrations still exist, but it must terminate at the API boundary.
 - This lane does not preserve compatibility-only internal streaming surfaces.
   It concentrates them at the provider edge while the internal path stays on
-  the canonical envelope contract.
+  the accepted envelope contract.
