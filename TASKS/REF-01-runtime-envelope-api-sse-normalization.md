@@ -141,4 +141,4 @@ Primary reference: `runtime-envelope-api-sse-normalization-plan.md`
 - No new compatibility shim for downstream internal consumers.
 - No second internal stream dialect alongside `RuntimeEnvelope`.
 - No request-shape redesign beyond what is required to keep provider adapters
-  functional during the transition.
+  functional during the upgrade.
