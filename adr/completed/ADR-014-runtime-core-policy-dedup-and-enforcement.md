@@ -10,7 +10,7 @@
 Recent TUI/runtime hardening introduced useful behavior, but policy logic was split
 across multiple modules:
 
-- assistant text sanitization lived in more than one place
+- assistant text rewriting lived in more than one place
 - tool-evidence retry heuristics lived in conversation-only helpers
 - retry guidance strings were inline instead of centralized
 
@@ -22,7 +22,7 @@ the runtime boundary.
 
 1. Introduce a runtime-core policy module (`src/runtime/policy.rs`) as the single
    source of truth for:
-   - assistant text sanitization rules
+   - assistant text revision rules
    - tool-evidence requirement heuristics
    - corrective retry instruction text
 
@@ -64,7 +64,7 @@ the runtime boundary.
 
 ## Compliance notes for agents
 
-1. Do not add duplicate assistant-sanitization or tool-evidence helper functions in
+1. Do not add duplicate assistant-text revision or tool-evidence helper functions in
    `src/app/` or `src/state/`.
 2. Changes to retry enforcement must be implemented through runtime-core policy.
 3. TUI features that depend on shared interaction policy must call runtime-core

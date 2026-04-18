@@ -260,7 +260,7 @@ Constraints:
 - `EditLoop` must not hold a reference to any TUI type (`ratatui`, `crossterm`).
 - `EditLoop` must not call `ToolOperator` directly. File mutations flow through the conversation tool dispatch layer only.
 - `EditLoop` must not exceed `max_turns` under any circumstance. The counter is checked *before* `ctx.start_turn()`, not after.
-- **Reentrancy is prohibited.** `TuiMode::try_handle_slash_command` must check whether `active_edit_loop` is already `Some` before spawning a new loop. If a loop is in progress, the `/edit` and `/fix` commands must emit `[edit loop already active — cancel with Ctrl+C before starting a new task]` and return without spawning. Nested or concurrent loop invocations are not supported and must not be possible through any code path.
+- **Reentrancy is not supported.** `TuiMode::try_handle_slash_command` must check whether `active_edit_loop` is already `Some` before spawning a new loop. If a loop is in progress, the `/edit` and `/fix` commands must emit `[edit loop already active — cancel with Ctrl+C before starting a new task]` and return without spawning. Nested or concurrent loop invocations are not supported and must not be possible through any code path.
 - On `MaxTurnsReached`, the loop outcome and last error string are surfaced to the operator via `push_history_line` in the TUI transcript. `TaskState::command_history` records the `CommandEvidence` entries (program, exit code, interrupted boolean) for each validation command that ran — it does not hold a structured error string, and the loop must not attempt to write one there. `[source: task_state.rs CommandEvidence struct — fields: program, exit_code, interrupted]`. If the operator wants to resume, they use `/fix` in the same session (sourced from `last_validation_result`) or `vex exec` with the task file and JSONL output for offline inspection.
 - `EditLoop` is not a `RuntimeMode`.
 
@@ -309,7 +309,7 @@ impl ValidationSuite {
 
 Constraints:
 
-- `ValidationSuite::run` must delegate to `CommandRunner::run_one_shot` (FEAT-17). Direct `std::process::Command` in `validation.rs` is prohibited.
+- `ValidationSuite::run` must delegate to `CommandRunner::run_one_shot` (FEAT-17). Direct `std::process::Command` in `validation.rs` is not allowed.
 - `ValidationSuite` must not mutate any file.
 - **`ValidationSuite` itself has no patch precondition.** The constraint that validation only runs after a patch apply is an `EditLoop`-level policy (loop step 6): within the loop, `ValidationSuite::run` is only called when `apply_patch` has succeeded in the current turn. Standalone invocations — `/run`, `/test`, and `/review` — call `ValidationSuite::run` directly with no patch precondition; this is intentional and correct. The two uses are distinct: loop-internal validation feeds the retry context; standalone validation feeds the operator's transcript. Do not add a patch-check guard to `ValidationSuite::run` itself.
 
@@ -579,7 +579,7 @@ Rejected. Purely config-driven validation requires operators to create `.vex/val
 
 ### Inline prompt text as `&'static str` constants
 
-Rejected. Inline constants are harder to audit for prohibited names, cannot be diffed without reading Rust source, and discourage iterative prompt improvement.
+Rejected. Inline constants are harder to audit for disallowed names, cannot be diffed without reading Rust source, and discourage iterative prompt improvement.
 
 ### Use `RuntimeCorePolicy` to inject the coding system prompt
 
@@ -631,7 +631,7 @@ Rejected. `TaskState`'s `CommandEvidence` struct records execution facts, not st
 - `EditLoop` must not call `ctx.start_turn()` more than `max_turns` times. Any future extension adding turns must decrement from the same counter.
 - `ContextAssembler` path resolution must use `ToolOperator`'s workspace-root guards. No second implementation is permitted.
 - All files in `src/prompts/` and `models/` must not contain provider names. `scripts/check_forbidden_names.sh` must cover both directories.
-- `ValidationSuite::run` must route through `CommandRunner`. Direct `std::process::Command` in `validation.rs` is prohibited.
+- `ValidationSuite::run` must route through `CommandRunner`. Direct `std::process::Command` in `validation.rs` is not allowed.
 - `ModelProfile` config integration (EL-08) must not be implemented until ADR-022 Phase 1 is complete.
 - No `ratatui` or `crossterm` imports in `src/runtime/edit_loop.rs`, `context_assembler/{mod,reads}.rs`, or `validation.rs`.
 - `active_edit_loop` on `TuiMode` must be cleared when a session ends or is reset.
@@ -877,7 +877,7 @@ All tasks require `cargo test --all-targets`, `check_no_alternate_routing.sh`, `
 | Do not call `ctx.start_turn()` more than `max_turns` times within a single `EditLoop::run` invocation | Counter checked before each call, not after |
 | Do not call `ToolOperator` directly from `EditLoop` or `ContextAssembler` | File mutations must flow through the conversation tool dispatch layer |
 | Do not use `std::process::Command` in `src/runtime/validation.rs` | All subprocess calls must route through `CommandRunner::run_one_shot` |
-| **`std::process::Command` IS permitted in `src/runtime/context_assembler/mod.rs` for the two git read calls only** (`git status --short`, `git diff HEAD`) | These calls must not appear in the tool history or approval flow. Any other subprocess in `context_assembler/{mod,reads}.rs` is prohibited |
+| **`std::process::Command` IS permitted in `src/runtime/context_assembler/mod.rs` for the two git read calls only** (`git status --short`, `git diff HEAD`) | These calls must not appear in the tool history or approval flow. Any other subprocess in `context_assembler/{mod,reads}.rs` is not allowed |
 | Do not inject the coding system prompt outside of an active `EditLoop` or semantic command turn | Verified by `test_coding_prompt_injected_during_edit_loop_only` |
 | Do not add provider names, model names, or proprietary product references to any file in `src/prompts/` or `models/` | `scripts/check_forbidden_names.sh` CI check (EL-09). The script must enforce the maintained proprietary-name denylist against `src/prompts/` and `models/`; any match is a CI failure |
 | Do not implement `EditLoop` as a `RuntimeMode` | |

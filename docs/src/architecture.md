@@ -61,10 +61,12 @@ Intentional deviations are documented and focused in scope:
    partial `POST` request would not be idempotent.
 - The local API server omits SSE event ids until resumable replay exists.
    Timestamp ids are not stable resume tokens and would mislead clients.
-- The local API server currently targets HTTP/1.1 semantics and framing. HTTP/2
-   is not required for the current compliance scope.
-- TLS 1.3 is preferred. TLS 1.2 remains enabled only for compatibility with
-   older local and private inference servers.
+- When TLS is enabled, the local API server advertises both HTTP/2 and
+   HTTP/1.1 over ALPN, and outbound reqwest clients negotiate HTTP/2 when the
+   peer supports it.
+- The workspace rustls profile is TLS 1.3-only. `model_url_skip_tls_check`
+   still bypasses certificate verification for an explicitly opted-in launch and
+   is surfaced through startup warnings plus `vex::tls` debug logs.
 
 ## Streaming protocol coverage
 
@@ -145,9 +147,9 @@ a text-processing crate for file-content search or structural parsing.**
 
 | Crate | Role | Scope | NOT used for |
 |-------|------|-------|-------------|
-| `aho-corasick` | Multi-pattern **literal** matching | File content search, keyword extraction from source text | Git output parsing, secret redaction |
-| `regex-lite` | Lightweight **internal text processing** | Git output parsing, secret redaction, rate-limit extraction, format validation | Code search, RAG, semantic indexing, codebase search |
-| `tree-sitter` | **Structural AST** indexing | Language-aware parsing of source files into syntax trees | Text processing, log parsing, redaction |
+| `aho-corasick` | Multi-pattern **literal** matching | File content search, keyword extraction from source text | Git output parsing, secret rewriting |
+| `regex-lite` | Lightweight **internal text processing** | Git output parsing, secret revision, rate-limit extraction, format validation | Code search, RAG, semantic indexing, codebase search |
+| `tree-sitter` | **Structural AST** indexing | Language-aware parsing of source files into syntax trees | Text processing, log revision, rewritten text fragments |
 | `globset` / `ignore` | **Filesystem traversal** | `.gitignore`-aware path matching and directory walking | File content search, string processing |
 | `quick-xml` | **XML tool-call** parsing | Structured extraction of `<function=...>` / `<parameter=...>` tags from model output | Git parsing, log analysis |
 | `indexmap` | **Ordered** insertion-preserving maps | Streaming tool-call accumulation preserving insertion order | Search indexing, text processing |
@@ -165,7 +167,7 @@ Conventional use cases DISTINCT from RAG/semantic search/codebase_search:
 
 - **Parsing structured output** from external tools (git status, git diff, git apply, git log)
 - **Extracting known fields** from semi-structured strings (retry delays, durations)
-- **Sanitizing/redacting sensitive data** from logs, transcripts, and telemetry
+- **Rewriting sensitive data** from logs, transcripts, and telemetry
 - **Format validation** (API key formats, token patterns, connection strings)
 
 None of these overlap with codebase search, RAG, or semantic indexing.
@@ -173,7 +175,7 @@ None of these overlap with codebase search, RAG, or semantic indexing.
 The `regex-lite` modules live under `src/runtime/` as three focused files:
 
 - **`git_parse.rs`** -- Structured parsing of `git status --porcelain`, `git diff --stat`, `git diff --name-status`, `git log --oneline`, and `git apply` output into typed enums and structs.  Patterns compile once via `OnceLock<regex_lite::Regex>` and are reused across calls.
-- **`secrets.rs`** -- Output redaction for vendor API keys (`sk-...`), AWS access keys (`AKIA...`), GitHub PATs (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`), PEM private key headers, bearer tokens, connection strings with embedded credentials, and generic secret assignments.  Wired into `sanitize_assistant_text` so secrets never leak into the transcript or logs.
+- **`secrets.rs`** -- Output revision for vendor API keys (`sk-...`), AWS access keys (`AKIA...`), GitHub PATs (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`), PEM private key headers, bearer tokens, connection strings with embedded credentials, and generic secret assignments. Wired into `sanitize_assistant_text` so secrets never leak into the transcript or logs.
 - **`rate_limit.rs`** -- Extracts retry delay hints from `Retry-After` header values (delta-seconds and HTTP-date forms) and error response body text ("try again in N seconds"). The header path is wired into `map_api_status_error` in the API client with fallback to body text for 429 detection.
 
 Design rationale: `regex-lite` was chosen over the full `regex` crate because
@@ -208,11 +210,11 @@ All parsers live in `src/runtime/git_parse.rs` and are re-exported from
 timeout and cancellation support, using `parse_git_status` to produce
 structured rollups for context assembly.
 
-### Secret redaction -- always on
+### Secret rewriting -- always on
 
-Secret redaction runs on every assistant text output through
+Secret rewriting runs on every assistant text output through
 `sanitize_assistant_text` in `src/runtime/policy.rs`.  The following
-patterns are detected and replaced with `[REDACTED]`:
+patterns are detected and replaced with stable replacement markers:
 
 - Vendor API keys (`sk-` prefix, 20+ chars)
 - AWS access key IDs (`AKIA` prefix, 16 uppercase alphanumeric)
@@ -238,8 +240,8 @@ The stream parser handles three tool-call markup formats from model output:
 3. **Structured content blocks** -- `tool_use` blocks with `id`, `name`,
    and `input` fields parsed from content-block deltas.
 
-No regex is used in the streaming tool-call path.  `regex-lite` is reserved
-for post-hoc processing of git output and secret redaction, never for
+No regex is used in the streaming tool-call path. `regex-lite` is reserved
+for post-hoc processing of git output and secret rewriting, never for
 real-time stream parsing.
 
 ### Crate expansion decisions

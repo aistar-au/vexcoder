@@ -233,6 +233,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if ! grep -qx '\[workspace\]' packaging/macos/Cargo.toml; then
+            echo "FAIL: packaging/macos/Cargo.toml must declare an empty [workspace] table so the launcher can build outside the root workspace members." >&2
+            exit 1
+          fi
           cargo build --release --manifest-path packaging/macos/Cargo.toml
           echo "LAUNCHER_BIN=packaging/macos/target/release/vex-launcher" >> "$GITHUB_ENV"
 

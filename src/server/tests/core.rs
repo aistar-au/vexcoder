@@ -398,6 +398,75 @@ async fn test_runtime_sse_response_emits_keepalive_comment() {
 }
 
 #[tokio::test]
+async fn test_runtime_sse_response_omits_event_ids_until_resume_support_exists() {
+    #[derive(Clone)]
+    struct TestSseState {
+        receiver: Arc<AsyncMutex<Option<mpsc::UnboundedReceiver<String>>>>,
+    }
+
+    async fn runtime_handler(State(state): State<TestSseState>) -> impl IntoResponse {
+        let receiver = state
+            .receiver
+            .lock()
+            .await
+            .take()
+            .expect("single runtime request");
+        runtime_sse_response(
+            receiver,
+            Duration::from_millis(20),
+            TurnsSseMode::RuntimeEnvelope,
+        )
+    }
+
+    let (sender, receiver) = mpsc::unbounded_channel::<String>();
+    let state = TestSseState {
+        receiver: Arc::new(AsyncMutex::new(Some(receiver))),
+    };
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/", get(runtime_handler))
+                .with_state(state),
+        )
+        .await
+        .unwrap();
+    });
+
+    let mut normalizer = RuntimeEnvelopeNormalizer::new("task-runtime-sse");
+    let mut envelopes = vec![normalizer.start_turn(1, Some("inspect file".to_string()))];
+    envelopes.extend(
+        normalizer.normalize_ui_update(&UiUpdate::TurnComplete, Some(TurnEndContext::default())),
+    );
+    for envelope in envelopes {
+        sender
+            .send(serde_json::to_string(&envelope).unwrap())
+            .unwrap();
+    }
+    drop(sender);
+
+    let response = reqwest::get(format!("http://{addr}/")).await.unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+
+    let bytes = response.bytes().await.unwrap();
+    let payload = String::from_utf8_lossy(&bytes);
+    assert!(
+        payload.contains("data:"),
+        "expected SSE data frame, got {payload:?}"
+    );
+    assert!(
+        !payload.starts_with("id:") && !payload.contains("\nid:") && !payload.contains("\r\nid:"),
+        "runtime SSE must omit event ids until replay exists, got {payload:?}"
+    );
+
+    server.abort();
+}
+
+#[tokio::test]
 async fn test_runtime_sse_response_block_delta_emits_tx_tool_id_over_http() {
     #[derive(Clone)]
     struct TestSseState {

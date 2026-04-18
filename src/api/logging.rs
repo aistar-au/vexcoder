@@ -87,4 +87,12 @@ mod tests {
         assert_eq!(resolve_log_path().as_deref(), Some("/tmp/test-api.log"));
         crate::test_support::test_remove_var(&_env_lock, API_LOG_PATH_ENV);
     }
+
+    #[test]
+    fn test_default_log_path_uses_temp_dir() {
+        assert_eq!(
+            default_log_path(),
+            std::env::temp_dir().join(DEFAULT_API_LOG_FILENAME)
+        );
+    }
 }

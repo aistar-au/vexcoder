@@ -150,7 +150,7 @@ suite.
 Tests added after PR 3 must assert against `project_transcript_rows` output
 rather than against internal buffer fields. Direct assertions on
 `history_state.lines`, stream segment buffers, or raw `current_turn_*`
-fields are prohibited for new tests; they indicate the assertion is testing
+fields are disallowed for new tests; they indicate the assertion is testing
 implementation state rather than observable document behaviour.
 
 ### Rule 8 — Coverage and naming hygiene

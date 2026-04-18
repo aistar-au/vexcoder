@@ -2,7 +2,7 @@
 
 **Amendment status:** Proposed
 **Amends:** ADR-022 Decision item 1 and the final Compliance note; adds Decision item 11
-**Reason:** ADR-022 as written frames cli-agent-first and no-editor-integration as permanent identity statements. This amendment re-scopes them as first-release sequencing constraints, preserving architectural priority without permanently prohibiting native application packaging or future editor surfaces.
+**Reason:** ADR-022 as written frames cli-agent-first and no-editor-integration as permanent identity statements. This amendment re-scopes them as first-release sequencing constraints, preserving architectural priority without permanently ruling out native application packaging or future editor surfaces.
 
 ---
 
@@ -18,7 +18,7 @@
 
 ### Decision item 11 — added
 
-> Native application packaging and additional runtime surfaces are reserved for work beyond the first release. When introduced, they must be implemented in one of two forms: (a) a *packaging layer* — wraps the compiled binary, adds OS-native credential storage and chrome, contains no agent logic; or (b) a *new `RuntimeMode` implementation* — implements `RuntimeMode + FrontendAdapter` against the shared runtime core, is placed in `src/` like `TuiMode` and `BatchMode`, and extends rather than replaces the existing dispatch architecture. A local HTTP or Unix socket API server (`LocalApiServer: RuntimeMode + FrontendAdapter`) is a canonical example of form (b): it is not a packaging layer, it is a new surface implementation, and it belongs in `src/` by design. The prohibited case is an *architectural fork*: a surface that requires changes to `src/runtime/`, `src/api/`, or `src/state/` to function, modifies the shared runtime core to serve its own needs, or duplicates runtime logic in a second language rather than sharing it through the internal runtime API surface.
+> Native application packaging and additional runtime surfaces are reserved for work beyond the first release. When introduced, they must be implemented in one of two forms: (a) a *packaging layer* — wraps the compiled binary, adds OS-native credential storage and chrome, contains no agent logic; or (b) a *new `RuntimeMode` implementation* — implements `RuntimeMode + FrontendAdapter` against the shared runtime core, is placed in `src/` like `TuiMode` and `BatchMode`, and extends rather than replaces the existing dispatch architecture. A local HTTP or Unix socket API server (`LocalApiServer: RuntimeMode + FrontendAdapter`) is a canonical example of form (b): it is not a packaging layer, it is a new surface implementation, and it belongs in `src/` by design. The unsupported case is an *architectural fork*: a surface that requires changes to `src/runtime/`, `src/api/`, or `src/state/` to function, modifies the shared runtime core to serve its own needs, or duplicates runtime logic in a second language rather than sharing it through the internal runtime API surface.
 
 ### Final Compliance note — amended
 
@@ -32,7 +32,7 @@
 
 ## Rationale
 
-The original wording was written to prevent scope creep during phase 1, which was the correct intent. However, permanently prohibiting native packaging and editor surfaces would make `vexcoder` harder to distribute and adopt — both of which are required for it to function as a viable, self-hostable coding agent whose dependency chain carries no per-call licensing fee or royalty obligation.
+The original wording was written to prevent scope creep during phase 1, which was the correct intent. However, permanently ruling out native packaging and editor surfaces would make `vexcoder` harder to distribute and adopt — both of which are required for it to function as a viable, self-hostable coding agent whose dependency chain carries no per-call licensing fee or royalty obligation.
 
 This amendment preserves the sequencing intent (cli core first, packaging layers second) while leaving room for:
 

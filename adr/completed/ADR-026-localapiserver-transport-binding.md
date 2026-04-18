@@ -609,7 +609,7 @@ Rejected. Idempotent no-op would prevent clients from detecting that their inter
 - repo-local config may not provide `api.key`;
 - default host remains loopback-only, but explicit non-loopback TCP binds are allowed when TLS is configured;
 - direct public-internet exposure should be documented as an operator-hardening path, not as the default Phase I topology;
-- `vex remote-control` remains prohibited under this ADR;
+- `vex remote-control` remains out of scope under this ADR;
 - `transport = "both"` must enforce HTTP bearer auth on the HTTP surface; Unix surface uses filesystem auth independently.
 
 ---
@@ -757,8 +757,8 @@ When checking any PI-13…PI-16 box, append an evidence block:
 | TLS certificate hot-reload is deferred in Phase I | Certificate rotation requires a process restart |
 | ADR-024 outbound model TLS note remains informational here | PI-15 does not enforce outbound `model_url` transport policy |
 | `transport = "both"` must enforce HTTP bearer auth on the HTTP surface | The `"both"` mode does not relax HTTP auth |
-| `POST /v1/interrupt` must return `404` for unknown task ids | Idempotent no-op is prohibited; `{"ok":false,"reason":"task_not_found"}` required |
-| `POST /v1/approve` must return `404` for unknown task ids and `409` when no pending approval exists | Silent success on stale or unknown approval is prohibited |
+| `POST /v1/interrupt` must return `404` for unknown task ids | Idempotent no-op is not allowed; `{"ok":false,"reason":"task_not_found"}` required |
+| `POST /v1/approve` must return `404` for unknown task ids and `409` when no pending approval exists | Silent success on stale or unknown approval is not allowed |
 | SSE keepalive comment must be emitted at least every 15 seconds during active turns | Prevents proxy/browser timeout disconnects |
 | `/v1/schema` response is exempt from envelope validation | Pre-flight metadata, not a `RuntimeEnvelope` |
 | ADR-024 reconciliation PR must be merged before PI-13 begins | PI-09–12 closeout owns the reconciliation; PI-13 may not start until ADR-024's checklist includes PI-09–16 |
