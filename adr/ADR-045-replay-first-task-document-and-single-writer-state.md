@@ -318,7 +318,7 @@ outcomes, task error state, active-turn tool policy, and all `TurnEntry`
 variants.
 
 A `TaskDocument` field that exists in source with no `RuntimeEvent` producer
-is replay-dark. Replay-dark fields are prohibited.
+is replay-dark. Replay-dark fields are disallowed.
 
 ### Invariant D — Checkpoints are full-fidelity
 
@@ -426,14 +426,14 @@ any production code path.
 
 ## What we will not do
 
-The following patterns are explicitly prohibited.
+The following patterns are explicitly disallowed.
 
 ### No dual writers
 
 Code in `streaming.rs`, `model_update.rs`, `turn.rs`, or any module in
 `src/app/` MUST NOT write directly to replay-relevant `TaskDocument` fields.
 
-Concretely prohibited: direct struct field assignment or mutation on
+Explicitly disallowed: direct struct field assignment or mutation on
 `TaskDocument` or `ActiveTurnDocument` outside `TaskDocumentCondenser` method
 bodies.
 
@@ -463,7 +463,7 @@ or projection logic.
 
 Rollback MUST be implemented as a rollback marker appended to
 `RuntimeEventLog`. Silently truncating or rewriting the event log is
-prohibited.
+not allowed.
 
 ### No session rollback via file undo alone
 

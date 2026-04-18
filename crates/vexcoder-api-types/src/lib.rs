@@ -39,7 +39,8 @@ pub enum ContentBlock {
         thinking: String,
         signature: String,
     },
-    RedactedThinking {
+    #[serde(rename = "redacted_thinking")]
+    WithheldThinking {
         data: String,
     },
     ServerToolUse {
@@ -317,10 +318,10 @@ mod tests {
     }
 
     #[test]
-    fn test_content_block_redacted_thinking_deserialises() {
+    fn test_content_block_withheld_thinking_deserialises() {
         let json = r#"{"type":"redacted_thinking","data":"opaque"}"#;
         let block: ContentBlock = serde_json::from_str(json).unwrap();
-        assert!(matches!(block, ContentBlock::RedactedThinking { .. }));
+        assert!(matches!(block, ContentBlock::WithheldThinking { .. }));
     }
 
     #[test]

@@ -137,12 +137,12 @@ async fn execute_oauth_http_request(
     http: reqwest::Client,
     request: HttpRequest,
 ) -> std::result::Result<HttpResponse, OAuthTransportError> {
-    let redacted_request_url = crate::runtime::redact_url_for_logs(request.url.as_str());
+    let sanitized_request_url = crate::runtime::sanitize_url_for_logs(request.url.as_str());
 
     tracing::debug!(
         target: "vex::http",
         method = %request.method,
-        url = %redacted_request_url,
+        url = %sanitized_request_url,
         "sending oauth request"
     );
 

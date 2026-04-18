@@ -63,7 +63,7 @@ pub fn sanitize_assistant_text(text: &str) -> String {
 impl RuntimeCorePolicy for DefaultRuntimeCorePolicy {
     fn sanitize_assistant_text(&self, text: &str) -> String {
         let stripped = strip_tagged_tool_markup(text);
-        super::secrets::redact_secrets(&stripped)
+        super::secrets::sanitize_secrets(&stripped)
     }
 
     fn request_requires_tool_evidence(&self, input: &str) -> bool {
